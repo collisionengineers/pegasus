@@ -21,6 +21,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Assessment;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
+using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -49,6 +50,8 @@ public sealed partial class DetailsModel(
     IEstimateDocumentParser estimateParser,
     JsonEstimateParser jsonEstimateParser,
     IAddCaseDocument addCaseDocument,
+    ICaseAssetPreparationQueries caseAssetPreparationQueries,
+    ICaseAssetPreparationStore caseAssetPreparations,
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IHeartbeatCaseEditLease heartbeatLease,
@@ -99,6 +102,19 @@ public sealed partial class DetailsModel(
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     public IReadOnlyList<EngineerNoteDisplay> EngineerNotes { get; private set; } = [];
+
+    /// <summary>
+    /// Every image occurrence's report preparation (B06), loaded once for the
+    /// Files and Report sections so the two can never disagree about the
+    /// role, order, rotation or crop of the same image.
+    /// </summary>
+    public IReadOnlyList<CaseAssetPreparation> AssetPreparations { get; private set; } = [];
+
+    /// <summary>
+    /// The same set in the report's own order, from Core's one projection
+    /// rule: Close-up, Overview, then Supporting by order; Not used omitted.
+    /// </summary>
+    public IReadOnlyList<PreparedReportImage> PreparedReportImages { get; private set; } = [];
 
     public sealed record EngineerNoteDisplay(
         string RecordedBy,
@@ -480,6 +496,10 @@ public sealed partial class DetailsModel(
             }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
             EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
+            // The Report section is never deferred, so its prepared cards are
+            // rendered on every full response; the Files section reads the
+            // same loaded set rather than asking a second time.
+            await LoadAssetPreparationsAsync(id, cancellationToken);
             if (!SectionIsDeferred("files"))
             {
                 await LoadIntakeGalleriesAsync(cancellationToken);
@@ -655,6 +675,7 @@ public sealed partial class DetailsModel(
             EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
             if (key == "files")
             {
+                await LoadAssetPreparationsAsync(id, cancellationToken);
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
             if (key == "valuation")
@@ -673,6 +694,12 @@ public sealed partial class DetailsModel(
             LogCaseDetailsQueryFailed(logger, id, exception);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
+    }
+
+    private async Task LoadAssetPreparationsAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        AssetPreparations = await caseAssetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
+        PreparedReportImages = CaseAssetPreparationPolicy.ForReport(AssetPreparations);
     }
 
     private async Task LoadIntakeGalleriesAsync(CancellationToken cancellationToken)
@@ -1230,35 +1257,22 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         CancellationToken cancellationToken)
     {
+        var refusal = await GuardSectionCommandAsync(
+            id,
+            operationKey,
+            editLeaseToken,
+            AssessmentAccessPolicy.CanOpenReports,
+            "Only an Engineer can generate or deliver reports.",
+            () => RedirectToReport(id),
+            cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
         if (!TryGetActor(out var actor))
         {
             ClearLeaseState();
             return Forbid();
-        }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access is null || !AssessmentAccessPolicy.CanOpenReports(access))
-        {
-            return NotFound();
-        }
-        if (!actor.IsInRole(StaffRole.Engineer))
-        {
-            TempData["CaseError"] = "Only an Engineer can generate or deliver reports.";
-            return RedirectToReport(id);
-        }
-        if (access.IsReadOnly)
-        {
-            TempData["CaseError"] = "The case is read-only once Complete.";
-            return RedirectToReport(id);
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToReport(id);
-        }
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            TempData["CaseError"] = NotInEditMode;
-            return RedirectToReport(id);
         }
 
         var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
@@ -1267,6 +1281,57 @@ public sealed partial class DetailsModel(
             return NotFound();
         }
         currentCaseVersion = details.Workflow.Version;
+        return null;
+    }
+
+    /// <summary>
+    /// What every section command on the record requires before it touches
+    /// the case: an authorized actor, an assessment this command may open, an
+    /// Engineer, a case that is not read-only, a live form, and an edit
+    /// lease. Only the opening rule, the role refusal and the section the
+    /// refusal lands on differ between the Report, Valuation and Files
+    /// commands, so the checks themselves are written once.
+    /// </summary>
+    private async Task<IActionResult?> GuardSectionCommandAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Func<AssessmentAccessState, bool> canOpen,
+        string engineerOnlyRefusal,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access is null || !canOpen(access))
+        {
+            return NotFound();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["CaseError"] = engineerOnlyRefusal;
+            return redirect();
+        }
+        if (access.IsReadOnly)
+        {
+            TempData["CaseError"] = "The case is read-only once Complete.";
+            return redirect();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return redirect();
+        }
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            TempData["CaseError"] = NotInEditMode;
+            return redirect();
+        }
+
         return null;
     }
 
@@ -1359,48 +1424,188 @@ public sealed partial class DetailsModel(
     /// The valuation-section mutation guard: the report guard's rules with
     /// the valuation redirect target.
     /// </summary>
-    private async Task<IActionResult?> GuardValuationCommandAsync(
+    private Task<IActionResult?> GuardValuationCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true)
-        {
-            return NotFound();
-        }
-        if (!actor.IsInRole(StaffRole.Engineer))
-        {
-            TempData["CaseError"] = "Only an Engineer can record a valuation.";
-            return RedirectToValuation(id);
-        }
-        if (access.IsReadOnly)
-        {
-            TempData["CaseError"] = "The case is read-only once Complete.";
-            return RedirectToValuation(id);
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToValuation(id);
-        }
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            TempData["CaseError"] = NotInEditMode;
-            return RedirectToValuation(id);
-        }
-
-        return null;
-    }
+        CancellationToken cancellationToken) =>
+        GuardSectionCommandAsync(
+            id,
+            operationKey,
+            editLeaseToken,
+            access => access.CanOpen,
+            "Only an Engineer can record a valuation.",
+            () => RedirectToValuation(id),
+            cancellationToken);
 
     private RedirectToPageResult RedirectToValuation(Guid id) =>
         RedirectToPage("/Cases/Details", new { id, section = "valuation" });
+
+    /// <summary>
+    /// B06: one image's report preparation, posted from the Files section.
+    /// A card's own controls post a single edit; Move up and Move down post
+    /// the moved image and its neighbour with their orders exchanged, so the
+    /// resulting sequence is the operator's and never a tie-break's.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveAssetPreparationAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        AssetPreparationEditForm[] edits,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardAssetPreparationCommandAsync(
+            id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await caseAssetPreparations.SaveAsync(
+                new(
+                    id,
+                    // The submitted version travels unchanged, as every other
+                    // section command's does: the store enforces it against
+                    // the live case.
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    ReportImageLabels.SaveReason,
+                    editLeaseToken!,
+                    [.. (edits ?? []).Select(edit => edit.ToRequest())]),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException)
+        {
+            HandleLeaseFailure(id, editLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, ReportImageLabels.SaveRefused);
+            return RedirectToFiles(id);
+        }
+
+        ClearLeaseState();
+        TempData["CaseStatus"] = ReportImageLabels.WasSaved;
+        return RedirectToFiles(id);
+    }
+
+    /// <summary>
+    /// B06: returns the named images to their original presentation. The
+    /// stored bytes and hashes are never touched — only the preparation.
+    /// </summary>
+    public async Task<IActionResult> OnPostResetAssetPreparationAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        Guid[] occurrenceIds,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardAssetPreparationCommandAsync(
+            id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await caseAssetPreparations.ResetAsync(
+                new(
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    ReportImageLabels.ResetReason,
+                    editLeaseToken!,
+                    occurrenceIds ?? []),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException)
+        {
+            HandleLeaseFailure(id, editLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, ReportImageLabels.ResetRefused);
+            return RedirectToFiles(id);
+        }
+
+        ClearLeaseState();
+        TempData["CaseStatus"] = ReportImageLabels.WasReset;
+        return RedirectToFiles(id);
+    }
+
+    /// <summary>
+    /// One posted image edit. The form carries what the operator chose; the
+    /// order only reaches Core for the one role that owns one, so switching a
+    /// supporting image to another role in the same submit clears its order
+    /// instead of being refused for carrying one.
+    /// </summary>
+    public sealed class AssetPreparationEditForm
+    {
+        public Guid OccurrenceId { get; set; }
+
+        public long ExpectedPreparationVersion { get; set; }
+
+        public CaseAssetReportRole Role { get; set; }
+
+        public int? Order { get; set; }
+
+        public int Rotation { get; set; }
+
+        public decimal CropLeft { get; set; }
+
+        public decimal CropTop { get; set; }
+
+        public decimal CropWidth { get; set; }
+
+        public decimal CropHeight { get; set; }
+
+        public CaseAssetPreparationEdit ToRequest() =>
+            new(
+                OccurrenceId,
+                ExpectedPreparationVersion,
+                Role,
+                Role == CaseAssetReportRole.Supporting ? Order : null,
+                (CaseAssetRotation)Rotation,
+                new(CropLeft, CropTop, CropWidth, CropHeight));
+    }
+
+    private Task<IActionResult?> GuardAssetPreparationCommandAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        GuardSectionCommandAsync(
+            id,
+            operationKey,
+            editLeaseToken,
+            access => access.CanOpen,
+            "Only an Engineer can prepare report images.",
+            () => RedirectToFiles(id),
+            cancellationToken);
+
+    private RedirectToPageResult RedirectToFiles(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "files" });
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(
         Guid id,
