@@ -10,7 +10,9 @@ public enum ValuationSource
     Glasses,
     Cazana,
     EngineersValue,
-    AiMarketResearch
+    AiMarketResearch,
+    Brego,
+    SuperCap,
 }
 
 /// <summary>
