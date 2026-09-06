@@ -406,6 +406,11 @@ public sealed class Top15InstructionCorpusTests
             "7deb35748a1bff7f8804f312b1cee297c0abfdc4323474ab9e3142cf909fb834",
             new("Mr Osman Ifow", "261435SA", "BX66SZV", new(2026, 5, 3), new(2026, 5, 6)),
             [new("Inspection address", "Brewery Street, Aston, Birmingham, B6 4JB", "Claimant address has its own role.")]),
+        new("AX", $"{CorpusRoot}/AX 01.pdf", "58e6bdf408d46c547efe6bf4c168fe878b028b8ff9c8692fa78ecbe37180df3f", new("Ms Stephanie Scouller", "1063856", "S90LLR", new(2026, 5, 5), new(2026, 5, 6)), []),
+        new("AX", $"{CorpusRoot}/AX 02.pdf", "74a6f73c862efc079208f816727ddff5a4e16f1114290e7c74743ccf37a2e992", new("Mr Muhammad A Qadri", "1061903", "SG75CEU", new(2026, 4, 21), new(2026, 5, 5)), []),
+        new("AX", $"{CorpusRoot}/AX 03.pdf", "c94df8b20c8e7bc90d2c910099ed62fcd3e1fd2cbf2dafec7db06eaab33cca5a", new("Mr Callum McGregor", "1063495", "DA67YKH", new(2026, 4, 30), new(2026, 5, 5)), []),
+        new("AX", $"{CorpusRoot}/AX 04.pdf", "2d8e3e0eced74dc915b028f6b8a4ef064efffc27f63c1be7741f8dae1dad4985", new("Mr slawomir Kluska", "1063506", "SH20ZFM", new(2026, 5, 2), new(2026, 5, 5)), []),
+        new("AX", $"{CorpusRoot}/AX 05.pdf", "0f6cde6ed6caf12f30305afd530333f0b7d580e8affe0ecd0491400cbc9ec777", new("Miss Stevie-Leigh Reynolds", "1063118", "PN64WBO", new(2026, 4, 29), new(2026, 5, 5)), []),
         new(
             "BLACK", $"{CorpusRoot}/BLACK 03.pdf",
             "201fb07ae667c1300ca773f24c6dee1e66e8eb63364e30932ff626e660e98071",
@@ -573,6 +578,7 @@ public sealed class Top15InstructionCorpusTests
         [
             new QdosInstructionExtractionPolicy(),
             new PchInstructionExtractionPolicy(),
+            new AxInstructionExtractionPolicy(),
             new FwInstructionExtractionPolicy(),
             new QclInstructionExtractionPolicy(),
             new OakInstructionExtractionPolicy(),
