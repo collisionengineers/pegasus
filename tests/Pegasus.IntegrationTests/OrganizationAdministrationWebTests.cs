@@ -17,12 +17,10 @@ public sealed partial class OrganizationAdministrationWebTests
     {
         // C06 review R-1: this test drives the shared EvaSubmission page (a
         // page model is activated per request, not at host startup), so it
-        // needs the full C06 composition — not just the optional-resolution
-        // bridge — to prove the page's real behaviour rather than only its
-        // degraded one.
+        // needs the real C06 registrations to prove the page's actual
+        // behaviour.
         using var factory = new IntakeWebApplicationFactory();
-        using var host = factory.WithC06Adapters();
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")

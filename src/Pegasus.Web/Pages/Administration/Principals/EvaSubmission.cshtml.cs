@@ -24,28 +24,15 @@ namespace Pegasus.Web.Pages.Administration.Principals;
 /// the lineage and the allocation history are untouched, and neither ever
 /// changes B's separate CE assessment method.
 /// </summary>
-/// <remarks>
-/// EXT-18/S05 correction round 2 (ASSUMPTION 8): <paramref name="updatePrincipalDefaultInspectionLocation"/>
-/// is an optional constructor dependency because this branch does not yet
-/// carry Stream A's registration for <see cref="IUpdatePrincipalDefaultInspectionLocation"/>
-/// — this page is a shared, already-linked route (reachable from
-/// Principals/Index), so a required dependency here would 500 every visit
-/// until A's registration lands. When unregistered, the page renders without
-/// the default inspection location form (the manual-EVA form still works)
-/// and the location handler answers 404 rather than faking a save. Reverts
-/// to required once Stream A registers the interface.
-/// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class EvaSubmissionModel(
     IGetOrganization getOrganization,
     IUpdatePrincipalEvaSubmission updatePrincipalEvaSubmission,
-    IUpdatePrincipalDefaultInspectionLocation? updatePrincipalDefaultInspectionLocation = null)
+    IUpdatePrincipalDefaultInspectionLocation updatePrincipalDefaultInspectionLocation)
     : AdministrationPageModel
 {
     public OrganizationDetails? Organization { get; private set; }
     public PrincipalAdministrationSummary? Principal { get; private set; }
-
-    public bool DefaultLocationAvailable => updatePrincipalDefaultInspectionLocation is not null;
 
     [BindProperty]
     public long ExpectedVersion { get; set; }
@@ -176,15 +163,6 @@ public sealed class EvaSubmissionModel(
         Guid principalId,
         CancellationToken cancellationToken)
     {
-        if (updatePrincipalDefaultInspectionLocation is not { } updateLocation)
-        {
-            // ASSUMPTION 8 (see the class remarks): unregistered on this
-            // branch until Stream A lands IUpdatePrincipalDefaultInspectionLocation.
-            // The page never renders this form when the dependency is
-            // absent, so a POST here has no legitimate origin — 404, never a
-            // faked save.
-            return NotFound();
-        }
         if (!TryGetActor(out var actor))
         {
             return Forbid();
@@ -210,7 +188,7 @@ public sealed class EvaSubmissionModel(
         {
             try
             {
-                await updateLocation.ExecuteAsync(
+                await updatePrincipalDefaultInspectionLocation.ExecuteAsync(
                     new(
                         actor,
                         principalId,
