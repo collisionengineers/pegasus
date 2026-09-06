@@ -33,6 +33,15 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    /// <summary>
+    /// The optional known principal on an Image Intake. The absent state is
+    /// scoped to this pair so `Not known` is never reused as a generic empty
+    /// label elsewhere.
+    /// </summary>
+    public const string ImageIntakePrincipal = "Principal";
+
+    public const string ImageIntakePrincipalNotKnown = "Not known";
+
     public static string AttachmentSearchability(bool isSearchable) =>
         isSearchable ? "Searchable content" : "Content unavailable for search";
 
