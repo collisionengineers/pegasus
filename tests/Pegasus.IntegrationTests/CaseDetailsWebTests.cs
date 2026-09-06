@@ -365,6 +365,59 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("Provider claims team", visible, StringComparison.Ordinal);
         Assert.Contains("Missing photographs of the rear damage", visible, StringComparison.Ordinal);
         Assert.Equal(2, Occurrences(visible, Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue));
+        Assert.DoesNotContain("id=\"create-upload-request\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PR 670 port (B01), the write side over the shared G17 contract: the
+    /// create dialog requires a recipient and offers a reason; the handler
+    /// forwards both unchanged, and an omitted reason reaches Core as null.
+    /// </summary>
+    [Fact]
+    public async Task CreateUploadRequestDialogPostsRecipientAndReasonToTheCommand()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICreateRequestUploadLink>(services, store));
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+        var dialog = html[html.IndexOf("id=\"create-upload-request\"", StringComparison.Ordinal)..];
+        dialog = dialog[..dialog.IndexOf("</dialog>", StringComparison.Ordinal)];
+
+        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=CreateRequestUploadLink", dialog, StringComparison.Ordinal);
+        Assert.Matches("<input[^>]*name=\"recipient\"[^>]*required", dialog);
+        Assert.Contains("name=\"reason\"", dialog, StringComparison.Ordinal);
+
+        using var withReason = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            workspace.MutationForm(
+                "create-request-link-1",
+                "  Please send the rear photographs  ",
+                ("recipient", "Provider claims team")));
+        using var withoutReason = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "create-request-link-2"),
+                ("editLeaseToken", store.LeaseToken),
+                ("recipient", "Claimant"),
+                ("reason", "")));
+
+        AssertPrg(withReason, store.CaseId);
+        AssertPrg(withoutReason, store.CaseId);
+        Assert.Equal(2, store.RequestLinkCreations.Count);
+        var first = store.RequestLinkCreations[0];
+        AssertClaimant(workspace, first.Actor);
+        Assert.Equal(store.CaseVersion, first.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, first.EditLeaseToken);
+        Assert.Equal("create-request-link-1", first.OperationKey);
+        Assert.Equal("Provider claims team", first.Recipient);
+        Assert.Equal("  Please send the rear photographs  ", first.Reason);
+        var second = store.RequestLinkCreations[1];
+        Assert.Equal("Claimant", second.Recipient);
+        Assert.Null(second.Reason);
     }
 
     /// <summary>

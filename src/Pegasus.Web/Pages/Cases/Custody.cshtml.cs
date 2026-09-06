@@ -121,6 +121,8 @@ public sealed class CustodyModel(
         long expectedVersion,
         string operationKey,
         string editLeaseToken,
+        string? recipient,
+        string? reason,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -130,8 +132,18 @@ public sealed class CustodyModel(
 
         try
         {
+            // The shared contract keeps both optional; the create dialog
+            // requires the recipient itself. An omitted reason is null before
+            // Core, while supplied text (blank included) is Core's to judge.
             var result = await createRequestUploadLink.ExecuteAsync(
-                new(id, actor, operationKey, expectedVersion, editLeaseToken),
+                new(
+                    id,
+                    actor,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken,
+                    recipient,
+                    string.IsNullOrEmpty(reason) ? null : reason),
                 cancellationToken);
             ClearLeaseState();
             if (result.Secret is null)
