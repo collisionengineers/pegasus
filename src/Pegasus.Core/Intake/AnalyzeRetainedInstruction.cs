@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 
@@ -191,6 +192,11 @@ public sealed class AnalyzeRetainedInstruction(
     IRetainedInstructionAnalysisStore store,
     TimeProvider timeProvider) : IAnalyzeRetainedInstruction
 {
+    private static readonly JsonSerializerOptions LocatorJsonOptions = new()
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     /// <summary>
     /// The field name a matching document's proposed principal is recorded
     /// under. It is a candidate like any other — deliberately NOT a decision,
@@ -548,14 +554,18 @@ public sealed class AnalyzeRetainedInstruction(
             locator?.FormField,
             locator?.Region,
             locator?.MessagePart,
-            locator?.Occurrence));
+            locator?.Occurrence), LocatorJsonOptions);
 
     public static (string SourceLabel, int? Page, IntakeSourceLocator? Locator) ReadLocator(string locatorJson)
     {
-        var envelope = JsonSerializer.Deserialize<LocatorEnvelope>(locatorJson);
-        return envelope is null
-            ? (string.Empty, null, null)
-            : (envelope.SourceLabel, envelope.Page, ReadLocator(envelope));
+        var envelope = JsonSerializer.Deserialize<LocatorEnvelope>(locatorJson, LocatorJsonOptions)
+            ?? throw new InvalidDataException("The source locator envelope is unreadable.");
+        if (envelope.Version is not (1 or 2))
+        {
+            throw new InvalidDataException("The source locator envelope version is unsupported.");
+        }
+
+        return (envelope.SourceLabel, envelope.Page, ReadLocator(envelope));
     }
 
     /// <summary>
