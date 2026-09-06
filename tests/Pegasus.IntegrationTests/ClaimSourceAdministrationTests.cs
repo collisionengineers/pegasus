@@ -123,6 +123,104 @@ public sealed partial class ClaimSourceAdministrationTests
         Assert.Contains("already used for a different operation", replayHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// C06 review R-13: the concurrency fix in <c>OnPostUpdateAsync</c> (the
+    /// posted <c>ExpectedVersion</c> reaches the store untouched, refreshed
+    /// only on the redisplay path) had no test posting a genuinely stale
+    /// version — only the Core <c>RequireCurrentVersion</c> unit test
+    /// covered "stale writes fail". Advance the record to version 1 through
+    /// an ordinary edit, then post the version the very first GET rendered
+    /// (now stale) with a fresh operation key and assert the store refuses
+    /// it and the first edit's values are what persisted.
+    /// </summary>
+    [Fact]
+    public async Task EditRefusesAStalePostedExpectedVersion()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var host = factory.WithC06Adapters();
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var indexGet = await client.GetAsync("/Administration/ClaimSources");
+        var indexHtml = await indexGet.Content.ReadAsStringAsync();
+        indexGet.EnsureSuccessStatusCode();
+        var createForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(indexHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(indexHtml, "OperationKey"),
+            ["Reason"] = InputValue(indexHtml, "Reason"),
+            ["Name"] = "Stale Write Claim Source",
+            ["ContactName"] = "Sam Example",
+            ["Telephone"] = "01234 000222",
+            ["Email"] = "sam@claimsource.example",
+            ["Notes"] = "Created for the stale-write proof"
+        };
+        using var createPost = await client.PostAsync(
+            "/Administration/ClaimSources?handler=Create",
+            new FormUrlEncodedContent(createForm));
+        Assert.Equal(HttpStatusCode.Redirect, createPost.StatusCode);
+        var claimSourceId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM ClaimSources WHERE Name = 'Stale Write Claim Source';");
+
+        using var firstEditGet = await client.GetAsync($"/Administration/ClaimSources/Edit/{claimSourceId:D}");
+        var firstEditHtml = await firstEditGet.Content.ReadAsStringAsync();
+        firstEditGet.EnsureSuccessStatusCode();
+        var staleExpectedVersion = InputValue(firstEditHtml, "ExpectedVersion");
+
+        // Advance the record to version 1 through a normal edit.
+        var firstEditForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(firstEditHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(firstEditHtml, "OperationKey"),
+            ["ExpectedVersion"] = staleExpectedVersion,
+            ["Name"] = "Stale Write Claim Source",
+            ["ContactName"] = "Sam Example",
+            ["Telephone"] = "01234 000222",
+            ["Email"] = "sam@claimsource.example",
+            ["Notes"] = "First edit",
+            ["Active"] = bool.TrueString,
+            ["Reason"] = "First edit for the stale-write proof"
+        };
+        using var firstEditPost = await client.PostAsync(
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}?handler=Update",
+            new FormUrlEncodedContent(firstEditForm));
+        Assert.Equal(HttpStatusCode.Redirect, firstEditPost.StatusCode);
+
+        // Re-GET for a fresh operation key and antiforgery token, but post
+        // the version the very FIRST GET rendered — the record has already
+        // moved to version 1, so this is now stale.
+        using var secondEditGet = await client.GetAsync($"/Administration/ClaimSources/Edit/{claimSourceId:D}");
+        var secondEditHtml = await secondEditGet.Content.ReadAsStringAsync();
+        secondEditGet.EnsureSuccessStatusCode();
+        var staleForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(secondEditHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(secondEditHtml, "OperationKey"),
+            ["ExpectedVersion"] = staleExpectedVersion,
+            ["Name"] = "Stale Write Claim Source",
+            ["ContactName"] = "Sam Example",
+            ["Telephone"] = "01234 000222",
+            ["Email"] = "sam@claimsource.example",
+            ["Notes"] = "Should not be saved",
+            ["Active"] = bool.TrueString,
+            ["Reason"] = "Stale write proof"
+        };
+        using var staleEditPost = await client.PostAsync(
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}?handler=Update",
+            new FormUrlEncodedContent(staleForm));
+        var staleEditHtml = await staleEditPost.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, staleEditPost.StatusCode);
+        Assert.Contains("changed after this page was loaded", staleEditHtml, StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM ClaimSources WHERE Id = '{claimSourceId:D}' AND Notes = 'First edit' AND Version = 1;"));
+    }
+
     [Fact]
     public async Task DirectClaimSourceRoutesDenyNonAdministratorSession()
     {
