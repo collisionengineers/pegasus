@@ -1819,6 +1819,7 @@ internal static class AllocationTestData
                         "Retained sender",
                         ["intake@example.invalid"],
                         [],
+                        [],
                         "Retained allocation recovery",
                         "Retained allocation recovery fixture.",
                         [],
