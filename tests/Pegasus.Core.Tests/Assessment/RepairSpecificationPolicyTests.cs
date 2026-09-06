@@ -40,6 +40,11 @@ public sealed class RepairSpecificationPolicyTests
     }
 
     [Fact]
+    public void AnUndefinedRouteIsNotASource() =>
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationPolicy.ValidateSource(
+            new((RepairSpecificationSourceRoute)99, null, null, null)));
+
+    [Fact]
     public void OnlyDocumentRoutesRequireArtifactEvidence()
     {
         var manual = RepairSpecificationPolicy.ValidateSource(
@@ -85,6 +90,63 @@ public sealed class RepairSpecificationPolicyTests
         Assert.Equal(["Door skin"], lists.NewParts);
         Assert.Equal(["Repair door"], lists.Repairs);
         Assert.Equal(["Paint repaired area", "Geometry check"], lists.AdditionalOperations);
+    }
+
+    [Fact]
+    public void TheSevenOperationsDeriveTheThreeWorkListsWithNoIndependentTextList()
+    {
+        var accepted = Draft() with
+        {
+            State = RepairSpecificationState.Accepted,
+            Lines =
+            [
+                Line("new_part", 1, "Door skin"),
+                Line("rnr", 2, "Remove and refit door"),
+                Line("repair", 3, "Repair door"),
+                Line("paint_new", 4, "Paint new part"),
+                Line("paint_prep", 5, "Prepare panel"),
+                Line("paint_blend", 6, "Blend adjacent panel"),
+                Line("specialist_fixed", 7, "Geometry check"),
+                Line("specialist_wu", 8, "ADAS calibration"),
+                Line("check_labour", 9, "Diagnostic check"),
+            ],
+        };
+
+        var lists = RepairSpecificationPolicy.ToDisplayLists(accepted);
+
+        Assert.Equal(["Door skin"], lists.NewParts);
+        Assert.Equal(["Remove and refit door", "Repair door"], lists.Repairs);
+        Assert.Equal(
+            [
+                "Paint new part", "Prepare panel", "Blend adjacent panel",
+                "Geometry check", "ADAS calibration", "Diagnostic check",
+            ],
+            lists.AdditionalOperations);
+    }
+
+    /// <summary>
+    /// B04's printed projection: the accepted basis is checked against its own
+    /// printed components, not against the unrounded arithmetic behind them.
+    /// </summary>
+    [Fact]
+    public void ThePrintedBreakdownMustAddUpToTheAcceptedComponentsAndVat()
+    {
+        var printed = new EstimatePrintedTotals(
+            Parts: 20m, PanelLabour: 100m, PaintLabour: 6m, Materials: 4m, Specialist: 0m,
+            Net: 130m, Vat: 26m, Gross: 156m);
+        var basis = RepairSpecificationPolicy.ValidateCalculationBasis(new(
+            100m, 20m, 10m, 0m, true, 26m, 156m, "repair-specification/v3",
+            EstimateVatPolicy.For(RepairerVatStatus.Registered), printed));
+        Assert.Equal(130m, basis.Printed!.Net);
+
+        // A printed net that is not the sum of its own components is refused,
+        // as is a printed gross that is not that net plus the printed VAT.
+        Assert.Throws<InvalidOperationException>(() =>
+            RepairSpecificationPolicy.ValidateCalculationBasis(
+                basis with { Printed = printed with { Parts = 21m, Net = 131m } }));
+        Assert.Throws<InvalidOperationException>(() =>
+            RepairSpecificationPolicy.ValidateCalculationBasis(
+                basis with { Printed = printed with { Gross = 157m } }));
     }
 
     private static RepairSpecificationVersion Draft() => new(

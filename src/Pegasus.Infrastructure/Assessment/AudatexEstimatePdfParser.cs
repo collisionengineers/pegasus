@@ -22,9 +22,19 @@ namespace Pegasus.Infrastructure.Assessment;
 /// "Total Extras"). Parsed lines must reproduce those sums exactly or the
 /// import is rejected — no partial or silently dropped line can survive,
 /// because a dropped costed line breaks its section's sum.
+///
+/// Those same printed totals are returned as
+/// <see cref="ParsedEstimate.SourceTotals"/>. They are the document's own
+/// arithmetic, kept as evidence beside the estimate Pegasus costs from the
+/// rows at its own rate, discounts and VAT categories: a figure that
+/// disagrees with the calculation is recorded, never dropped and never
+/// allowed to overrule <see cref="EstimateTotals"/>.
 /// </summary>
 public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
 {
+    /// <summary>Titles the Draft an import of this document lands as.</summary>
+    public const string ProviderName = "Audatex";
+
     /// <summary>A value row sits ~1pt below its description row; the row pitch is ~11-12pt.</summary>
     private const double ValuePairingTolerance = 3.5;
 
@@ -243,7 +253,15 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
                     $"The estimate carries more than {AssessmentPolicy.MaximumEstimateLines} lines, so nothing was imported.");
             }
 
-            return new ParsedEstimate($"{assessmentNumber} {documentVersion}", lines);
+            return new ParsedEstimate(
+                $"{assessmentNumber} {documentVersion}",
+                lines,
+                ProviderName,
+                new EstimateSourceTotals(
+                    Parts: sections[Section.Parts].PrintedTotal,
+                    PanelWorkUnits: sections[Section.Labour].PrintedTotal,
+                    PaintWorkUnits: sections[Section.Paint].PrintedTotal,
+                    Specialist: sections[Section.Extras].PrintedTotal));
         }
 
         /// <summary>
@@ -556,7 +574,15 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
                 return;
             }
 
-            state.Lines.Add(ToLine(pending));
+            // The row's identity in the document is its section and its
+            // ordinal within that section, so it survives the concatenation
+            // of the four sections into one ordered line set.
+            state.Lines.Add(ToLine(pending) with
+            {
+                SourceRowIdentity = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{current.ToString().ToLowerInvariant()}:{state.Lines.Count + 1}"),
+            });
             if (pending.Value is { } value)
             {
                 state.Values.Add(value);

@@ -86,8 +86,16 @@ public static class AssessmentVocabulary
     public const string UnroadworthyReason = "assessment.unroadworthy_reason";
     public const string SalvageCategory = "assessment.category";
     public const string SalvageValue = "assessment.salvage_value";
+    public const string VehicleModifications = "vehicle.modifications";
+    public const string VehicleHistoryNotes = "vehicle.history_notes";
+    public const string VehicleEngineerNotes = "vehicle.engineer_notes";
     public const string HistoryCheck = "narrative.history_check";
     public const string EngineersComments = "narrative.engineers_comments";
+    public const string ReportDiscloseGuideSource = "report.disclose_guide_source";
+    public const string ReportValuationCommentary = "report.valuation_commentary";
+    public const string ReportIncludeUnrelatedDamage = "report.include_unrelated_damage";
+    public const string ReportDateOverride = "report.date_override";
+    public const string ReportDate = "report.report_date";
     public const string EngineerName = "engineer.name";
     public const string EngineerQualifications = "engineer.qualifications";
     public const string EngineerSignature = "engineer.signature";
@@ -98,6 +106,7 @@ public static class AssessmentVocabulary
     public const string SettlementBetterment = "settlement.betterment";
     public const string SettlementClaimantVatRegistered = "settlement.claimant_vat_registered";
     public const string SettlementReserve = "settlement.reserve";
+    public const string SettlementRepairDuration = "settlement.repair_duration";
     public const string SettlementRepairDelays = "settlement.repair_delays";
     public const string SettlementReportDelay = "settlement.report_delay";
     public const string SettlementStoragePerDay = "settlement.storage_per_day";
@@ -112,6 +121,14 @@ public static class AssessmentVocabulary
     public const string SettlementSalvageValueAgreed = "settlement.salvage.value_agreed";
     public const string SettlementSalvageSettled = "settlement.salvage.settled";
 
+    /// <summary>
+    /// Every accepted damage zone with its display label and the headline
+    /// impact location it rolls up to. This table is the one owner of that
+    /// parent map: a broad region is its own headline, a detailed region
+    /// carries its parent's headline, and the four wheels roll up to
+    /// <c>wheel</c>. A broad impact recorded before the detailed diagram
+    /// existed stays a broad fact and is never split into detailed regions.
+    /// </summary>
     public static IReadOnlyDictionary<string, (string Display, string ImpactLocation)> DamageZones { get; } =
         new Dictionary<string, (string, string)>(StringComparer.Ordinal)
         {
@@ -122,8 +139,54 @@ public static class AssessmentVocabulary
             ["roof"] = ("Roof", "roof"), ["wheel_right_front"] = ("Right front wheel", "wheel"),
             ["wheel_left_front"] = ("Left front wheel", "wheel"), ["wheel_right_rear"] = ("Right rear wheel", "wheel"),
             ["wheel_left_rear"] = ("Left rear wheel", "wheel"), ["underside"] = ("Underside", "underside"),
-            ["interior"] = ("Interior", "interior"), ["mechanical"] = ("Mechanical", "mechanical")
+            ["interior"] = ("Interior", "interior"), ["mechanical"] = ("Mechanical", "mechanical"),
+            ["front_left_corner"] = ("Front N/S corner", "left_front"),
+            ["front_centre"] = ("Front centre", "front"),
+            ["front_right_corner"] = ("Front O/S corner", "right_front"),
+            ["left_front_wing"] = ("N/S front wing", "left_front"),
+            ["left_front_door"] = ("N/S front door", "left_side"),
+            ["left_rear_door"] = ("N/S rear door", "left_side"),
+            ["left_quarter"] = ("N/S rear quarter", "left_rear"),
+            ["right_front_wing"] = ("O/S front wing", "right_front"),
+            ["right_front_door"] = ("O/S front door", "right_side"),
+            ["right_rear_door"] = ("O/S rear door", "right_side"),
+            ["right_quarter"] = ("O/S rear quarter", "right_rear"),
+            ["rear_left_corner"] = ("Rear N/S corner", "left_rear"),
+            ["rear_centre"] = ("Rear centre", "rear"),
+            ["rear_right_corner"] = ("Rear O/S corner", "right_rear"),
+            ["bonnet"] = ("Bonnet", "front"),
+            ["windscreen"] = ("Windscreen", "front"),
+            ["rear_screen"] = ("Rear screen", "rear"),
+            ["tailgate"] = ("Boot / tailgate", "rear")
         };
+
+    /// <summary>
+    /// The eight broad regions the record kept before the detailed diagram.
+    /// Each is its own headline, and each remains an independent entry: a
+    /// detailed region beside its broad parent is two impacts, not one.
+    /// </summary>
+    public static IReadOnlySet<string> BroadDamageZones { get; } = new HashSet<string>(
+        StringComparer.Ordinal)
+    {
+        "front", "left_front", "right_front", "left_side",
+        "right_side", "rear", "left_rear", "right_rear"
+    };
+
+    /// <summary>
+    /// The twenty-three regions of the damage diagram. The four wheels and the
+    /// roof keep the keys the record already persisted rather than gaining a
+    /// second spelling.
+    /// </summary>
+    public static IReadOnlySet<string> DetailedDamageZones { get; } = new HashSet<string>(
+        StringComparer.Ordinal)
+    {
+        "front_left_corner", "front_centre", "front_right_corner",
+        "left_front_wing", "left_front_door", "left_rear_door", "left_quarter",
+        "right_front_wing", "right_front_door", "right_rear_door", "right_quarter",
+        "rear_left_corner", "rear_centre", "rear_right_corner",
+        "bonnet", "windscreen", "roof", "rear_screen", "tailgate",
+        "wheel_left_front", "wheel_right_front", "wheel_left_rear", "wheel_right_rear"
+    };
 
     public static IReadOnlyDictionary<string, (string Display, int Rank)> DamageSeverities { get; } =
         new Dictionary<string, (string, int)>(StringComparer.Ordinal)
@@ -160,6 +223,9 @@ public static class AssessmentVocabulary
         new(VehicleTemporaryRepairsPossible, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(VehicleTemporaryRepairMethod, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(VehicleTemporaryRepairCost, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(VehicleModifications, AssessmentFieldType.Text, 2000, IsFinding: false),
+        new(VehicleHistoryNotes, AssessmentFieldType.Text, 4000, IsFinding: false),
+        new(VehicleEngineerNotes, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(IncidentAssessed, AssessmentFieldType.Date, 10, IsFinding: false),
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: DamageSeverities.Keys.ToArray()),
@@ -207,10 +273,16 @@ public static class AssessmentVocabulary
         new(AgreedFee, AssessmentFieldType.Money, 20, IsFinding: false, MustBePositive: true),
         new(FeeDescriptionLines, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(StatementOfTruth, AssessmentFieldType.Text, 4000, IsFinding: false),
+        new(ReportDiscloseGuideSource, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(ReportValuationCommentary, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(ReportIncludeUnrelatedDamage, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(ReportDateOverride, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(ReportDate, AssessmentFieldType.Date, 10, IsFinding: false),
         new(SettlementExcess, AssessmentFieldType.Money, 20, IsFinding: false),
         new(SettlementBetterment, AssessmentFieldType.Money, 20, IsFinding: false),
         new(SettlementClaimantVatRegistered, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(SettlementReserve, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementRepairDuration, AssessmentFieldType.WholeNumber, 10, IsFinding: false),
         new(SettlementRepairDelays, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(SettlementReportDelay, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(SettlementStoragePerDay, AssessmentFieldType.Money, 20, IsFinding: false),
@@ -233,6 +305,20 @@ public static class AssessmentVocabulary
     {
         ImpactLocation,
         ImpactSeverity
+    };
+
+    /// <summary>
+    /// Findings a generic assessment save never writes or clears, because a
+    /// named command owns the act of adopting them (AUTO-015). The accepted
+    /// Engineer's value is adopted only by the valuation Apply command, which
+    /// records the suggested and chosen amounts together; a Web or MCP field
+    /// save that touched it would silently rewrite a professional finding
+    /// without that evidence.
+    /// </summary>
+    public static IReadOnlySet<string> AdoptedFindingPaths { get; } = new HashSet<string>(
+        StringComparer.Ordinal)
+    {
+        ValueEngineer
     };
 
     /// <summary>
@@ -287,7 +373,15 @@ public sealed record EstimateLineInput(
     string? EvidenceLabel,
     string? Justification,
     decimal? PaintWorkUnits = null,
-    int? Quantity = null);
+    int? Quantity = null,
+    decimal? Materials = null,
+    EstimateLineOrigin? Origin = null,
+    string? SourceDocumentIdentity = null,
+    Guid? SourceDocumentVersionId = null,
+    string? SourceDocumentSha256 = null,
+    string? SourceRowIdentity = null,
+    string? AmendedBy = null,
+    DateTimeOffset? AmendedAtUtc = null);
 
 public sealed record CaseEstimateLineRecord(
     Guid Id,
@@ -309,7 +403,15 @@ public sealed record CaseEstimateLineRecord(
     string? ConfirmedBy,
     DateTimeOffset? ConfirmedAtUtc,
     decimal? PaintWorkUnits = null,
-    int? Quantity = null)
+    int? Quantity = null,
+    decimal? Materials = null,
+    EstimateLineOrigin? Origin = null,
+    string? SourceDocumentIdentity = null,
+    Guid? SourceDocumentVersionId = null,
+    string? SourceDocumentSha256 = null,
+    string? SourceRowIdentity = null,
+    string? AmendedBy = null,
+    DateTimeOffset? AmendedAtUtc = null)
 {
     public bool IsConfirmed => ConfirmedBy is not null;
 }

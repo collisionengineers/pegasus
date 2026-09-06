@@ -19,7 +19,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
-public sealed class AssessmentPersistenceIntegrationTests
+public sealed partial class AssessmentPersistenceIntegrationTests
 {
     private static readonly DateTimeOffset StartUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -84,8 +84,9 @@ public sealed class AssessmentPersistenceIntegrationTests
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            TimeProvider.System,
-            new EfStaffAccountQueries(staffContext));
+            new EfStaffAccountQueries(staffContext),
+            new EfCaseAssetPreparationStore(harness.Factory, TimeProvider.System),
+            new ListAppliedValuations(new EfValuationStore(harness.Factory, TimeProvider.System)));
 
         var input = await source.GetAsync(
             outcome.Identity.CaseId,
@@ -97,7 +98,8 @@ public sealed class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
-        var projected = AssessmentReportProjection.Project(input);
+        var projected = AssessmentReportProjection.Project(
+            input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.False(projected.IsReady);
         Assert.Contains(projected.Reasons, reason => reason.Requirement == "Sign-off Engineer");
 
@@ -118,12 +120,13 @@ public sealed class AssessmentPersistenceIntegrationTests
         }
         Assert.Equal("A Engineer", input.Signatory?.PrintedName);
 
-        var ready = AssessmentReportProjection.Project(input);
+        var ready = AssessmentReportProjection.Project(
+            input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.True(ready.IsReady, string.Join("; ", ready.Reasons.Select(reason => reason.Requirement)));
         var pdf = "%PDF-1.4 CASE-040"u8.ToArray();
         var draft = await new GenerateAssessmentReportDraft(new TestReportRenderer(pdf))
-            .ExecuteAsync(ready.Snapshot!);
-        Assert.Equal(pdf, draft.Assessment.Pdf);
+            .ExecuteAsync(ready.Snapshot!, CaseReportArtifactKind.AssessmentReport);
+        Assert.Equal(pdf, draft.Pdf);
     }
 
     private static async Task<Guid> SeedSignOffEngineerAsync(
@@ -282,19 +285,19 @@ public sealed class AssessmentPersistenceIntegrationTests
 
     private sealed class TestReportRenderer(byte[] pdf) : IAssessmentReportRenderer
     {
-        public Task<AssessmentReportDraft> RenderAsync(
+        public string EngineVersion => "case-040-test";
+
+        public Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
-            CancellationToken cancellationToken = default)
-        {
-            var artifact = new RenderedReportArtifact(
-                "assessment.pdf",
+            CaseReportArtifactKind kind,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RenderedReportArtifact(
+                $"{kind}.pdf",
                 pdf,
                 1,
                 Convert.ToHexStringLower(SHA256.HashData(pdf)),
                 AssessmentReportContract.TemplateVersion,
-                "case-040-test");
-            return Task.FromResult(new AssessmentReportDraft(artifact, artifact));
-        }
+                EngineVersion));
     }
 
     [Fact]
@@ -837,7 +840,8 @@ public sealed class AssessmentPersistenceIntegrationTests
             TimeOnly time,
             long mileage,
             decimal retail,
-            decimal trade)
+            decimal trade,
+            DateOnly? guideMonth = null)
         {
             var lease = await LeaseAsync($"{key}-lease");
             var request = new SaveValuationRequest(
@@ -847,7 +851,7 @@ public sealed class AssessmentPersistenceIntegrationTests
                 key,
                 "Recorded a Case valuation.",
                 lease.Token,
-                new(source, date, time, mileage, retail, trade));
+                new(source, date, time, mileage, retail, trade, guideMonth));
             var result = await save.ExecuteAsync(request, CancellationToken.None);
             Assert.Equal(result, await save.ExecuteAsync(request, CancellationToken.None));
             version++;
@@ -855,13 +859,14 @@ public sealed class AssessmentPersistenceIntegrationTests
         }
 
         await SaveAsync(
-            "valuation-save-cazana",
-            ValuationSource.Cazana,
+            "valuation-save-glasses",
+            ValuationSource.Glasses,
             new DateOnly(2031, 5, 8),
             new TimeOnly(9, 0),
             42000,
             12100m,
-            10100m);
+            10100m,
+            new DateOnly(2031, 4, 1));
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
 
         var olderEngineerValue = await SaveAsync(
@@ -902,7 +907,8 @@ public sealed class AssessmentPersistenceIntegrationTests
                 new TimeOnly(10, 15),
                 42125,
                 12345.67m,
-                10345.67m));
+                10345.67m,
+                new DateOnly(2031, 5, 1)));
         var edited = await edit.ExecuteAsync(editRequest, CancellationToken.None);
         Assert.Equal(edited, await edit.ExecuteAsync(editRequest, CancellationToken.None));
         version++;
@@ -937,6 +943,10 @@ public sealed class AssessmentPersistenceIntegrationTests
         Assert.Equal(edited.ValuationId, valuations[0].ValuationId);
         Assert.Equal(42125, edited.Details.Mileage);
         Assert.Equal(12345.67m, edited.Details.RetailValue);
+        Assert.Equal(new DateOnly(2031, 5, 1), edited.Details.GuideMonth);
+        Assert.Contains(
+            valuations,
+            valuation => valuation.Details.GuideMonth == new DateOnly(2031, 4, 1));
         Assert.Equal(engineer.SubjectId, edited.LastEditedBy);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
@@ -1885,7 +1895,17 @@ public sealed class AssessmentPersistenceIntegrationTests
                     Source = DocumentSource.StaffUpload,
                     SourceOccurrenceIdentity = $"photo:{ordinal}",
                     RecordedAtUtc = StartUtc,
-                    OperationKey = $"seed-photo:{ordinal}"
+                    OperationKey = $"seed-photo:{ordinal}",
+                    PreparationRole = ordinal switch
+                    {
+                        1 => nameof(CaseAssetReportRole.CloseUp),
+                        2 => nameof(CaseAssetReportRole.Overview),
+                        _ => nameof(CaseAssetReportRole.Supporting)
+                    },
+                    SupportingOrder = ordinal > 2 ? ordinal - 2 : null,
+                    PreparationVersion = 1,
+                    PreparedBy = "Staff:test",
+                    PreparedAtUtc = StartUtc
                 });
         }
         await context.SaveChangesAsync();

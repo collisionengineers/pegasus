@@ -350,6 +350,9 @@ public static class DependencyInjection
         services.AddScoped<ICaseQueryStore>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ISearchCases, SearchCases>();
+        services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
+        services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
+        services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<EfCaseDataStore>();
         services.AddScoped<ICaseDataStore>(
@@ -367,19 +370,37 @@ public static class DependencyInjection
             provider.GetRequiredService<EfEngineerNoteStore>());
         services.AddScoped<IAddEngineerNote, AddEngineerNote>();
         services.AddScoped<ISaveCase, SaveCase>();
+        services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
+        services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
-        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
         // the import dialog selects the parser by the chosen source route.
         services.AddSingleton<JsonEstimateParser>();
+        services.AddSingleton<IEstimateDocumentParser>(provider =>
+            provider.GetRequiredService<JsonEstimateParser>());
+        // Details still requests the PDF parser singly and JSON by its concrete
+        // type; canonical import consumes both through the collection.
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
         services.AddScoped<IDiscardEstimate, DiscardEstimate>();
         services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
         services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
+        services.AddScoped<IListCaseEstimatesByCursor, ListCaseEstimatesByCursor>();
         services.AddScoped<EfValuationStore>();
         services.AddScoped<IValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<IAppliedValuationStore>(provider =>
+            provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<EfValuationPresetStore>();
+        services.AddScoped<IValuationPresetStore>(provider =>
+            provider.GetRequiredService<EfValuationPresetStore>());
+        services.AddScoped<IListValuationPresets, ListValuationPresets>();
+        services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
+        services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
+        services.AddScoped<IApplyValuationCalculation, ApplyValuationCalculation>();
+        services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<ISaveValuation, SaveValuation>();
         services.AddScoped<IEditValuation, EditValuation>();
         services.AddScoped<IListCaseValuations, ListCaseValuations>();

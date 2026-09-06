@@ -486,7 +486,6 @@ public sealed partial class DetailsModel(
         ApplyEstimateSelection(estimate);
         ReportDraftPreparation = AssessmentReportProjection.Prepare(
             Assessment,
-            costs: null,
             currentEstimate: AcceptedSpecification);
         await EvaluateEngineerSectionConditionsAsync(cancellationToken);
         OpenDialog = dialog switch
@@ -868,7 +867,8 @@ public sealed partial class DetailsModel(
         GenerateCaseAssessmentReportDraftResult result;
         try
         {
-            result = await generateReportDraft.ExecuteAsync(id, actor, cancellationToken);
+            result = await generateReportDraft.ExecuteAsync(
+                id, actor, CaseReportArtifactKind.AssessmentReport, cancellationToken);
         }
         catch (Exception exception) when (exception is ReportRenderRejectedException
             or InvalidOperationException
@@ -890,7 +890,7 @@ public sealed partial class DetailsModel(
                         result.Reasons.Select(reason => $"{reason.Requirement}: {reason.WhyOutstanding}"));
                 return RedirectToEstimate(id);
             default:
-                var assessmentPdf = result.Draft!.Assessment;
+                var assessmentPdf = result.Draft!;
                 return File(assessmentPdf.Pdf, "application/pdf", assessmentPdf.SuggestedFileName);
         }
     }
@@ -904,12 +904,13 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        var result = await generateReportDraft.ExecuteAsync(id, actor, cancellationToken);
+        var result = await generateReportDraft.ExecuteAsync(
+            id, actor, CaseReportArtifactKind.AssessmentReport, cancellationToken);
         return result.Outcome switch
         {
             GenerateCaseAssessmentReportDraftOutcome.NotFound => NotFound(),
             GenerateCaseAssessmentReportDraftOutcome.NotReady => RedirectToEstimate(id),
-            _ => File(result.Draft!.Assessment.Pdf, "application/pdf"),
+            _ => File(result.Draft!.Pdf, "application/pdf"),
         };
     }
 
@@ -1480,10 +1481,14 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = "Name the imported estimate.";
             return RedirectToEstimate(id);
         }
-        var parser = string.Equals(source, "json", StringComparison.OrdinalIgnoreCase)
-            ? jsonEstimateParser
-            : estimateParser;
-        var isJson = ReferenceEquals(parser, jsonEstimateParser);
+        var isJson = string.Equals(source, "json", StringComparison.OrdinalIgnoreCase);
+        if (!isJson && !string.Equals(source, "audatex-pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            // Only the sources the form offers; anything else is not this form's post.
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        var parser = isJson ? jsonEstimateParser : estimateParser;
         if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
         {
             TempData["CaseError"] = "Choose a non-empty estimate file of 10 MB or less.";
