@@ -233,20 +233,28 @@ public sealed class ThirdPartyReportProvenanceWebTests
     }
 
     /// <summary>
-    /// Re-evaluating the same retained bytes re-reads them through the same
-    /// reader and leaves the recorded reading exactly as it was — and the span
-    /// says which path did that, so a replay is no longer indistinguishable
-    /// from a reading that threw and was swallowed. Before the outcome was
-    /// named, this test passed either way.
+    /// A staff re-evaluation of a receipt whose reading is already recorded
+    /// leaves that reading exactly as it was: the same rows, the same
+    /// identifiers, no second set of candidates.
     ///
-    /// The re-evaluation command queues the work the Worker picks up; it does
-    /// not itself re-read anything. Scheduling and stopping there would prove
-    /// only that nothing ran, so this drives the pass that production runs:
-    /// the queued processor, over the retained artifact, against the receipt
-    /// the first pass produced.
+    /// It also names why, because the previous round's version of this case
+    /// asserted a second reading that never happens. The re-evaluation command
+    /// puts the completed work item back to Pending and the Worker's dispatcher
+    /// claims it — but a completed receipt's staged copy has already been
+    /// reclaimed (<c>ProcessQueuedIntake</c> deletes it once the evaluation is
+    /// durably recorded, and <c>IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync</c>
+    /// says so in as many words), so the re-claimed pass fails on the staged
+    /// artifact before intake runs at all. Nothing about the report reading is
+    /// reached, which is why exactly one pass tags a third-party outcome.
+    ///
+    /// That gap is in the durable intake path, not in this slice's files; it is
+    /// recorded on the ticket (ASSUMPTION 8) rather than worked around here.
+    /// What C05 owns is proved either way: the recorded reading is undisturbed,
+    /// and the outcome tag makes a swallowed failure impossible to mistake for
+    /// a silent success.
     /// </summary>
     [ReferencePackFact]
-    public async Task ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates()
+    public async Task AQueuedReevaluationLeavesTheRecordedReadingExactlyAsItWas()
     {
         var (bytes, _) = ReadOriginal(ReportName);
 
@@ -254,7 +262,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
         // ActivitySource.AddActivityListener is process-global, so a collection
         // running beside this one tags outcomes on this listener too; filtering
         // by receipt is what makes the assertions below about this test's own
-        // two passes.
+        // passes.
         var outcomes = new ConcurrentQueue<(Guid Receipt, string Outcome)>();
         using var listener = new ActivityListener
         {
@@ -297,14 +305,11 @@ public sealed class ThirdPartyReportProvenanceWebTests
         var queries = services.GetRequiredService<ISourceCandidateQueries>();
         var first = await queries.GetAsync(
             StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        Assert.NotEmpty(first);
 
         // Re-evaluate the retained source. The command queues the work; the
         // dispatcher below stands in for the Worker timer and runs the pass
-        // that actually re-reads the retained bytes, exactly as production
-        // does. The operation key is derived from the asset, and the retained
-        // source asset keeps its identity across a re-evaluation, so the
-        // recorded reading is left standing instead of being written twice or
-        // overwritten.
+        // production would run.
         await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
             new(
                 receiptId,
@@ -326,19 +331,105 @@ public sealed class ThirdPartyReportProvenanceWebTests
             first.Select(row => row.Id).OrderBy(id => id),
             second.Select(row => row.Id).OrderBy(id => id));
 
-        // The first intake recorded the reading and the second re-read the same
-        // bytes and left it standing. Neither failed, and neither stayed
-        // silent: a swallowed failure — or a pass that never reached the reader
-        // at all — would leave the same rows behind, and both are exactly what
-        // this now rules out.
+        // Where the queued pass stopped, read from the durable work item rather
+        // than inferred: it failed on the staged artifact, so it never reached
+        // the reader, the third-party gate or the analysis store.
+        var stagedReceiptId = await services.GetRequiredService<IIntakeWorkStore>()
+            .FindStagedReceiptIdForReceiptAsync(receiptId, CancellationToken.None);
+        var status = await services.GetRequiredService<IQueuedIntakeStatusQueries>()
+            .GetAsync(stagedReceiptId!.Value, CancellationToken.None);
+        Assert.Equal(QueuedIntakeStatusKind.Failed, status!.Status);
+        Assert.Equal("staged_artifact_integrity_failure", status.FailureCode);
+
+        // So exactly one pass reads this source, and it says what it did with
+        // the reading. A swallowed failure, or a pass that never reached the
+        // reader, would leave the same rows behind; the outcome is what tells
+        // those apart, and the whole observed sequence is asserted rather than
+        // its length.
         var recorded = outcomes
             .Where(entry => entry.Receipt == receiptId)
             .Select(entry => entry.Outcome)
             .ToList();
-        Assert.Equal(2, recorded.Count);
-        Assert.Contains("recorded", recorded);
-        Assert.Contains("recorded_reading_stands", recorded);
-        Assert.DoesNotContain("not_recorded", recorded);
+        Assert.Equal("recorded", Assert.Single(recorded));
+    }
+
+    /// <summary>
+    /// The other half of the same guarantee, at the boundary that enforces it:
+    /// re-recording one document's reading under its operation key never writes
+    /// a second set of candidates. The identical request replays the stored
+    /// analysis untouched (what <c>ProcessIntake</c> reports as "replayed");
+    /// the same request against a moved receipt version — what a genuine second
+    /// pass over one asset presents, because every re-evaluation moves the
+    /// version — is refused, and that refusal is the conflict
+    /// <c>ProcessIntake</c> reports as "recorded_reading_stands".
+    ///
+    /// Both are exercised against the real store and SQL Server, on the rows a
+    /// real report produced, because the claim is about what the database
+    /// enforces rather than about what the use case intends.
+    /// </summary>
+    [ReferencePackFact]
+    public async Task RecordingTheSameReadingAgainReplaysItAndAMovedVersionIsRefused()
+    {
+        var (bytes, _) = ReadOriginal(ReportName);
+        using var factory = new IntakeWebApplicationFactory();
+        using var host = WithSourceCandidates(factory);
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            host,
+            client,
+            ReportName,
+            "application/pdf",
+            bytes,
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        await using var scope = host.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var assetId = IntakeFileIdentity.SourceAsset(receipt!)!.Id;
+        var queries = services.GetRequiredService<ISourceCandidateQueries>();
+        var first = await queries.GetAsync(
+            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        Assert.NotEmpty(first);
+
+        // The key the retention pass recorded under, derived from the asset.
+        var store = services.GetRequiredService<IRetainedInstructionAnalysisStore>();
+        var stored = await store.FindByOperationKeyAsync(
+            $"{ThirdPartyReportAnalysis.PolicyKey}:{assetId}",
+            CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Equal(receiptId, stored!.ReceiptId);
+        Assert.Equal(assetId, stored.IntakeAssetId);
+
+        // The identical request replays the stored reading and writes nothing.
+        var (replayed, isReplay) = await store.RecordAsync(
+            stored with { Id = Guid.NewGuid() },
+            CancellationToken.None);
+        Assert.True(isReplay);
+        Assert.Equal(stored.Id, replayed.Id);
+
+        // A moved receipt version is refused rather than overwritten.
+        await Assert.ThrowsAsync<RetainedInstructionAnalysisConflictException>(
+            () => store.RecordAsync(
+                stored with
+                {
+                    Id = Guid.NewGuid(),
+                    ExpectedReceiptVersion = stored.ExpectedReceiptVersion + 1
+                },
+                CancellationToken.None));
+
+        // Neither attempt added, replaced or removed a candidate.
+        var after = await queries.GetAsync(
+            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        Assert.Equal(
+            first.Select(row => row.Id).OrderBy(id => id),
+            after.Select(row => row.Id).OrderBy(id => id));
     }
 
     /// <summary>
