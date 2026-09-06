@@ -115,3 +115,84 @@ row, and prints the observed count in its failure message. Because: an
 absolute count is a fact about one base — exactly the defect the PR 671
 disposition found in the branch's hard-coded `14`. Alternative: pin a guessed
 number (rejected: fabricated evidence).
+
+## C07 correction round 3 — review dispositions (head `2ba5e4e21`)
+
+Independent review at `b46a07452` returned needs-changes: two majors, both in
+`EfPublicUploadRetentionStore`, both invisible to the green build because the
+port is unregistered.
+
+### OPEN QUESTION 1 (C07-R-1) — missing UPDATE grant on `PublicUploadOccurrences`
+
+- [ ] A must add `GRANT UPDATE ON OBJECT::[dbo].[PublicUploadOccurrences] TO
+  [pegasus_web_runtime_role];`
+
+`EfPublicUploadRetentionStore.RecordAsync` issues an UPDATE on that table, but
+A's `20260906054658_V1PlatformFoundation.cs:1320` grants the web role only
+`SELECT,INSERT` on it (against `SELECT,INSERT,UPDATE` on
+`PublicUploadSessions` at `:1319`), and the worker role receives nothing on
+either table. The first hand-over after A registers
+`IIncomingArtifactRetentionStore` would throw a SQL permission error on every
+disposition record. Nothing fails today only because the port is uncalled.
+
+Worker role: needed only if the `Unknown` reconciliation sweep runs from the
+Worker rather than a Web request — the likely shape once A04 lands, since
+reconciliation is a durable retry. If so, `SELECT,INSERT,UPDATE` on both
+`PublicUploadOccurrences` and `PublicUploadSessions` for
+`[pegasus_worker_runtime_role]`. A's call, because it follows from where A
+registers the caller.
+
+Not needed: `DocumentVersions` already carries `SELECT, INSERT, UPDATE` for
+both roles (`20260729199000_RuntimeRoleReconciliation.cs:126` WebGrants, `:230`
+WorkerGrants), so the identity write itself is granted.
+
+The migration is A-owned and outside C's file scope, so this is a statement and
+no migration was changed.
+
+### DECISION (C07-R-3) — one lifecycle token per Image Intake
+
+`EfImageIntakeStore.SetPrincipalAsync` guards its write with
+`LifecycleVersion` rather than a token of its own. Deliberate: one Image
+Intake, one optimistic token. A principal save therefore does invalidate a
+concurrently-open Merge or Close form — those forms reload — and that is
+preferred over a second token, which would let two staff members write the same
+record while each believed they held the current version. A same-value
+re-submission leaves the version alone, so only a genuine change can invalidate
+a form. Now recorded in the method's remarks.
+
+### Fixed (C07-R-2, major) — a real defect of mine
+
+`RecordAsync` wrote the document version's Box identities on every disposition
+and nulled them for anything but `Confirmed`. Because a version can back more
+than one occurrence, a later Pending or Failed record erased an earlier
+occurrence's confirmed identities, and `FindAsync` then read that retention
+back as Confirmed with no remote identity. My comment said "confirmed
+disposition only"; the code did not. Now guarded on `Confirmed` and never
+assigns null, with real-SQL proof in
+`tests/Pegasus.IntegrationTests/IncomingArtifactCustodyTests.cs`.
+
+### RESIDUAL (C07-R-5) — plan item 3 belongs to the formal-instruction slice
+
+- [ ] Prove the T reference survives `ILinkTriageCase`, with plan item 3
+  (formal instruction creates the normal Case, links the Triage/Image Intake
+  and retains both pre-case references)
+
+Not one of this brief's seven items. Safe by construction meanwhile: `Reference`
+and `Sequence` are assigned only in `EfTriageStore.CreateAsync`'s initializer
+and nowhere else in the store, and both columns carry unique indexes.
+
+### Accepted residuals, no change
+
+- C07-R-4: the pure session suite stays in `Pegasus.IntegrationTests` — the
+  plan names the path and the runner filter reads it there, and the Core
+  Documents folder is outside the slice's file scope. Moves with its filter
+  when the accept path is wired.
+- C07-R-6: one PK read per continuation page. Packing the sequence into the
+  opaque sort key is the right fix but changes the cursor payload; doing that
+  on a seam with no production caller and no ability to run a test is how a
+  silent paging bug ships.
+- C07-R-7: deviation 4 stands.
+- C07-R-8: fixed (one subquery, and `ScopeOperationKey` now has a caller).
+
+A `## Simplification pass` section was added to the report over this slice's own
+diff — the review correctly found none.
