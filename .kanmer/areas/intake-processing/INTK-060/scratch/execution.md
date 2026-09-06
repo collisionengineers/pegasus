@@ -336,3 +336,7 @@ R-16 fixed (document-level locator = retained file name via `ThirdPartyReportSou
 ## A's C06 DI patch applied — C head `306db9502`
 
 One A-owned file (`DependencyInjection.cs`: Claim Source store/command/query, `IOrganizationDirectoryQueries`, `IUpdatePrincipalDefaultInspectionLocation`, inspection choices/location ports → one scoped concrete); hash verified; build 0/0; pushed; A told. Queued C06 cleanup (next editor slot): make the directory and default-location dependencies required again, delete `C06AdapterRegistrations`/`WithC06Adapters`, then C06 HTTP/persistence lanes through production registrations. Editors: C07b r3, C02.
+
+## Wave 27 (C08 `df03ccd4e`): 1 failure left
+
+Build/core 59/browser 82/architecture PASS; integration 146/147 — `OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts` now 404s on the list GET itself: the test's query uses `sort=asc`, but `Index.cshtml.cs` `TryParseSort` accepts only `oldest` (absent = newest); `unread=true` must also be checked against `TryParseUnread`. C08 round 3 (test query values + assert the parsed filters round-trip) queued with the C06 bridge/test-composition cleanup behind the two active editors (C07 caller r3, C02). Wave 28 (C05) running.
