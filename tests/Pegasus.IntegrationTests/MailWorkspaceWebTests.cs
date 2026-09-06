@@ -134,7 +134,13 @@ public sealed class MailWorkspaceWebTests
         // Open the list, filter it every way the workspace contract names,
         // preview a row, then open and return from the full message —
         // carrying the exact same query string a real navigation would.
-        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=all&unread=true&sort=asc";
+        // "queue" has no "all" sentinel: TryParseQueue accepts only an
+        // AggregateViews key (e.g. "receiving-work") or a "classification:"
+        // one, and treats anything else — "all" included — as invalid,
+        // returning NotFound. The unfiltered scope is the absent parameter,
+        // not a literal "all"; a real queue key exercises the same
+        // round-trip without hitting that 404.
+        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=receiving-work&unread=true&sort=asc";
         await GetHtmlAsync(client, "/Inbox");
         await GetHtmlAsync(client, $"/Inbox?{query}");
 
