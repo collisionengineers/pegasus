@@ -946,9 +946,10 @@ public sealed class StaffCorrespondenceWebTests
                 Version = 0,
                 Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting),
                 DecisionReason = "Fixture retained correspondence.",
-                EvidenceJson = "[]",
-                FieldsJson = "[]",
-                OcrCandidatesJson = "[]"
+                EvidenceJson = EfIntakeReceiptStore.SerializeEvidence([]),
+                FieldsJson = EfIntakeReceiptStore.SerializeFields([]),
+                OcrCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope<
+                    IReadOnlyList<ScannedPdfOcrCandidate>>([])
             });
             context.IntakeManualAssociations.Add(new()
             {
