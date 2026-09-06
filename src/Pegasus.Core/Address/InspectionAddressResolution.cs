@@ -215,7 +215,7 @@ public enum InspectionLocationSourceKind
     Claimant, Repairer, Storage, PriorPrincipalLocation, Directory, PrincipalDefault
 }
 public sealed record InspectionLocationChoicesQuery(
-    ActionActor Actor, Guid CaseId, string Prefix, int Limit = 20);
+    ActionActor Actor, Guid CaseId, string Prefix);
 public interface IInspectionLocationChoices
 {
     Task<IReadOnlyList<InspectionLocationChoice>> SearchAsync(
