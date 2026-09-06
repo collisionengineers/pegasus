@@ -16,7 +16,7 @@ public sealed class InstructionExtractionPolicySelectorTests
         var selector = new InstructionExtractionPolicySelector(
             [Profile("QDOS", ["QDOS", "Registration:"]), Profile("PCH", ["PCH Assist"])]);
 
-        var selection = selector.Select(Readable("QDOS instruction\nRegistration: AB12 CDE"));
+        var selection = Select(selector, Readable("QDOS instruction\nRegistration: AB12 CDE"));
 
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
         Assert.Equal("QDOS", selection.Policy!.PrincipalCode);
@@ -31,7 +31,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         // The word QDOS alone is not a QDOS instruction. There is no partial
         // credit and no score to fall back on.
-        var selection = selector.Select(Readable("Forwarded from QDOS by a broker."));
+        var selection = Select(selector, Readable("Forwarded from QDOS by a broker."));
 
         Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable, selection.Outcome);
         Assert.Null(selection.Policy);
@@ -44,7 +44,7 @@ public sealed class InstructionExtractionPolicySelectorTests
         var selector = new InstructionExtractionPolicySelector(
             [Profile("QDOS", ["QDOS", "Registration:"], ["Connexus Vehicle Assessors"])]);
 
-        var selection = selector.Select(Readable(
+        var selection = Select(selector, Readable(
             "QDOS\nRegistration: AB12 CDE\nPrepared by Connexus Vehicle Assessors"));
 
         Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable, selection.Outcome);
@@ -56,7 +56,7 @@ public sealed class InstructionExtractionPolicySelectorTests
         var selector = new InstructionExtractionPolicySelector(
             [Profile("QDOS", ["Registration:"]), Profile("PCH", ["Registration:"])]);
 
-        var selection = selector.Select(Readable("Registration: AB12 CDE"));
+        var selection = Select(selector, Readable("Registration: AB12 CDE"));
 
         Assert.Equal(InstructionPolicySelectionOutcome.Ambiguous, selection.Outcome);
         Assert.Null(selection.Policy);
@@ -72,8 +72,8 @@ public sealed class InstructionExtractionPolicySelectorTests
         var pch = Profile("PCH", ["Registration:"]);
         var document = Readable("Registration: AB12 CDE");
 
-        var forwards = new InstructionExtractionPolicySelector([qdos, pch]).Select(document);
-        var backwards = new InstructionExtractionPolicySelector([pch, qdos]).Select(document);
+        var forwards = Select(new InstructionExtractionPolicySelector([qdos, pch]), document);
+        var backwards = Select(new InstructionExtractionPolicySelector([pch, qdos]), document);
 
         Assert.Equal(forwards.Outcome, backwards.Outcome);
         Assert.Equal(
@@ -90,7 +90,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         Assert.Equal(
             InstructionPolicySelectionOutcome.NotApplicable,
-            selector.Select(Readable("anything at all")).Outcome);
+            Select(selector, Readable("anything at all")).Outcome);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         Assert.Equal(
             InstructionPolicySelectionOutcome.NotApplicable,
-            selector.Select(unreadable).Outcome);
+            Select(selector, unreadable).Outcome);
     }
 
     [Fact]
@@ -136,13 +136,13 @@ public sealed class InstructionExtractionPolicySelectorTests
             + "Registration: AB12 CDE\nDate of Accident: 01/02/2031");
         Assert.Equal(
             InstructionPolicySelectionOutcome.Selected,
-            selector.Select(qdosLetter).Outcome);
+            Select(selector, qdosLetter).Outcome);
 
         var otherLetter = Readable(
             "Alison Law\nClaimant Name: Jane Smith\nRegistration: AB12 CDE");
         Assert.Equal(
             InstructionPolicySelectionOutcome.NotApplicable,
-            selector.Select(otherLetter).Outcome);
+            Select(selector, otherLetter).Outcome);
 
         // And the negative signals do their job on a letter that copies the
         // labels wholesale.
@@ -151,7 +151,7 @@ public sealed class InstructionExtractionPolicySelectorTests
             + "Exclusive Vehicle Assessors");
         Assert.Equal(
             InstructionPolicySelectionOutcome.NotApplicable,
-            selector.Select(lookalike).Outcome);
+            Select(selector, lookalike).Outcome);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class InstructionExtractionPolicySelectorTests
             [],
             RequiresOcr: false);
 
-        var selection = selector.Select(readResult);
+        var selection = Select(selector, readResult);
 
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
         Assert.Equal("CELL", selection.Policy!.PrincipalCode);
@@ -216,8 +216,152 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         Assert.Equal(
             InstructionPolicySelectionOutcome.NotApplicable,
-            selector.Select(readResult).Outcome);
+            Select(selector, readResult).Outcome);
     }
+
+    [Fact]
+    public void AProfileForAnotherDocumentRoleIsNotSelectedForAnInstruction()
+    {
+        // The signals match perfectly. The profile describes a third-party
+        // report, and this caller is reading an instruction, so it is not a
+        // candidate: selection is by signature AND role.
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("REPORT", ["Registration:"], documentRole: "third-party-report")]);
+
+        Assert.Equal(
+            InstructionPolicySelectionOutcome.NotApplicable,
+            Select(selector, Readable("Registration: AB12 CDE")).Outcome);
+        Assert.Equal(
+            InstructionPolicySelectionOutcome.Selected,
+            selector.Select(Readable("Registration: AB12 CDE"), "third-party-report").Outcome);
+    }
+
+    [Fact]
+    public void AProfileWithVariantsNeedsOneOfThemAndNamesWhichMatched()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("PCH", ["Registration No:"]) with
+            {
+                Variants =
+                [
+                    new("pch-performance", new("instruction", ["Performance Car Hire"], [])),
+                    new("pch-lawshield", new("instruction", ["Lawshield"], []))
+                ]
+            }]);
+
+        var performance = Select(selector, Readable(
+            "Registration No: AB12CDE\nPerformance Car Hire, Warrington"));
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, performance.Outcome);
+        Assert.Equal(["pch-performance"], performance.MatchedVariantKeys);
+        Assert.False(performance.HasAmbiguousVariant);
+    }
+
+    [Fact]
+    public void TwoVariantsOfOneProfileLeaveTheTemplateAmbiguousAndTheProfileSettled()
+    {
+        // The real PCH footers co-occur: "Performance Car Hire Ltd is an
+        // appointed representative of Lawshield UK Ltd". Which template was
+        // used is genuinely unknown; WHO the principal is never was, so the
+        // profile is selected and the variant is recorded as ambiguous.
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("PCH", ["Registration No:"]) with
+            {
+                Variants =
+                [
+                    new("pch-performance", new("instruction", ["Performance Car Hire"], [])),
+                    new("pch-lawshield", new("instruction", ["Lawshield"], []))
+                ]
+            }]);
+
+        var selection = Select(selector, Readable(
+            "Registration No: AB12CDE\n"
+            + "Performance Car Hire Ltd is an appointed representative of Lawshield UK Ltd"));
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Equal(["pch-lawshield", "pch-performance"], selection.MatchedVariantKeys);
+        Assert.True(selection.HasAmbiguousVariant);
+    }
+
+    [Fact]
+    public void AProfileWhoseVariantsAllFailIsNotSelectedOnItsSharedSignalsAlone()
+    {
+        // An unproved variant matches nothing. The shared labels are not
+        // enough on their own, which is the point of recording variants
+        // rather than merging them into one broader signature.
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("PCH", ["Registration No:"]) with
+            {
+                Variants =
+                [
+                    new("pch-performance", new("instruction", ["Performance Car Hire"], []))
+                ]
+            }]);
+
+        Assert.Equal(
+            InstructionPolicySelectionOutcome.NotApplicable,
+            Select(selector, Readable("Registration No: AB12CDE\nEverywhen Legal Ltd")).Outcome);
+    }
+
+    /// <summary>
+    /// The shipped PCH profile against the shapes its own originals carry: one
+    /// footer, both footers, and the audit heading whose "Connexus" is not the
+    /// "Connexus Vehicle Assessors" negative signal.
+    /// </summary>
+    [Fact]
+    public void TheShippedPchProfileReadsItsOwnFootersAndIsNotTrippedByTheAuditHeading()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [new PchInstructionExtractionPolicy()]);
+
+        var performanceOnly = Select(selector, Readable(
+            "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: VOLVO XC90\n"
+            + "Registration No: VN20XFC\n"
+            + "Performance Car Hire, 1210 Centre Park Square, Warrington, WA1 1RU"));
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, performanceOnly.Outcome);
+        Assert.Equal(
+            [PchInstructionExtractionPolicy.PerformanceVariantKey],
+            performanceOnly.MatchedVariantKeys);
+
+        var bothFooters = Select(selector, Readable(
+            "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: BMW 220i\n"
+            + "Registration No: BD69NJY\n"
+            + "Performance Car Hire Limited is an appointed representative of Lawshield UK Ltd"));
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, bothFooters.Outcome);
+        Assert.True(bothFooters.HasAmbiguousVariant);
+
+        // The assessor firms' own letters share the labels and are not PCH.
+        var lookalike = Select(selector, Readable(
+            "Vehicle Make: BMW 220i\nRegistration No: BD69NJY\n"
+            + "Performance Car Hire\nPrepared by Connexus Vehicle Assessors"));
+        Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable, lookalike.Outcome);
+    }
+
+    [Fact]
+    public void TheShippedQdosAndPchProfilesDoNotClaimEachOthersLetters()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [new QdosInstructionExtractionPolicy(), new PchInstructionExtractionPolicy()]);
+
+        var qdosLetter = Select(selector, Readable(
+            "QDOS Assist\nOur Client: Jane Smith\nOur Client’s Vehicle: Ford Focus\n"
+            + "Registration: AB12 CDE"));
+        Assert.Equal("QDOS", qdosLetter.Policy!.PrincipalCode);
+
+        var pchLetter = Select(selector, Readable(
+            "Policyholder Name: Jane Smith\nVehicle Make: Ford Focus\n"
+            + "Registration No: AB12CDE\nPerformance Car Hire"));
+        Assert.Equal("PCH", pchLetter.Policy!.PrincipalCode);
+    }
+
+    /// <summary>
+    /// Every call the production caller makes names the instruction role;
+    /// spelled once here so a test cannot accidentally assert a different one.
+    /// </summary>
+    private static InstructionPolicySelection Select(
+        InstructionExtractionPolicySelector selector,
+        IntakeSourceReadResult readResult) =>
+        selector.Select(readResult, InstructionDocumentSignature.InstructionRole);
 
     private static IntakeSourceReadResult Readable(string text) =>
         new(
@@ -230,8 +374,9 @@ public sealed class InstructionExtractionPolicySelectorTests
     internal static StubProfilePolicy Profile(
         string principalCode,
         string[] required,
-        string[]? negative = null) =>
-        new(principalCode, new("instruction", required, negative ?? []));
+        string[]? negative = null,
+        string documentRole = InstructionDocumentSignature.InstructionRole) =>
+        new(principalCode, new(documentRole, required, negative ?? []));
 
     internal sealed record StubProfilePolicy(
         string PrincipalCode,
@@ -242,6 +387,8 @@ public sealed class InstructionExtractionPolicySelectorTests
             $"{PrincipalCode.ToLowerInvariant()}_instruction_document";
 
         public int DocumentProfileVersion => 1;
+
+        public IReadOnlyList<InstructionTemplateVariant> Variants { get; init; } = [];
 
         public IReadOnlyList<InstructionReviewField> Fields { get; init; } = [];
 
