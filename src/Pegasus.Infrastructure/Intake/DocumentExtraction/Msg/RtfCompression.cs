@@ -233,7 +233,19 @@ internal static class PassiveRtfText
             else if (word == "uc" && hasNumber) unicodeFallback = Math.Clamp(number, 0, 16);
             else if (!skip && !htmlRtfSuppressed && word == "u" && hasNumber)
             {
-                output.Append((char)(ushort)number);
+                var unicode = (char)(ushort)number;
+                if (preserveTableControls
+                    && unicode is TableRowStart or TableCellBoundary or TableRowEnd)
+                {
+                    output.Append('\uFFFD');
+                    issues.Add(new(
+                        "MSG_RTF_RESERVED_STRUCTURE_TEXT",
+                        "RTF textual Unicode used a value reserved for passive structural parsing."));
+                }
+                else
+                {
+                    output.Append(unicode);
+                }
                 index = Math.Min(rtf.Length - 1, index + unicodeFallback);
             }
             else if (word == "bin" && hasNumber)
