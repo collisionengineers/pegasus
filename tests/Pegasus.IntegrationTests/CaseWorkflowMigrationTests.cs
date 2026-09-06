@@ -126,7 +126,8 @@ public sealed class CaseWorkflowMigrationTests
         Assert.Equal(
             [
                 "20260906054658_V1PlatformFoundation",
-                "20260906170000_FilterActiveCaseReportGenerationSnapshot"
+                "20260906170000_FilterActiveCaseReportGenerationSnapshot",
+                "20260906212604_RetainedMailboxReplyTargets"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
