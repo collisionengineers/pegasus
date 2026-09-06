@@ -54,13 +54,14 @@ internal sealed record EstimateLineToolInput(
 
 internal sealed record EstimateTotalsToolItem(
     decimal Parts,
-    decimal Labour,
-    decimal Paint,
-    decimal Other,
-    decimal Subtotal,
+    decimal PanelLabour,
+    decimal PaintLabour,
+    decimal Materials,
+    decimal Specialist,
+    decimal Net,
     decimal VatPercent,
     decimal Vat,
-    decimal Total);
+    decimal Gross);
 
 internal sealed record EstimateToolItem(
     Guid EstimateId,
@@ -659,8 +660,16 @@ internal sealed class AssessmentMcpTools(
             details.VatPercent,
             details.Notes,
             estimate.Lines.Select(MapLine).ToArray(),
-            new(totals.Parts, totals.Labour, totals.Paint, totals.Other,
-                totals.Subtotal, totals.VatPercent, totals.Vat, totals.Total),
+            new(
+                totals.Printed.Parts,
+                totals.Printed.PanelLabour,
+                totals.Printed.PaintLabour,
+                totals.Printed.Materials,
+                totals.Printed.Specialist,
+                totals.Printed.Net,
+                totals.VatPercent,
+                totals.Printed.Vat,
+                totals.Printed.Gross),
             estimate.CreatedBy,
             estimate.CreatedAtUtc);
     }
