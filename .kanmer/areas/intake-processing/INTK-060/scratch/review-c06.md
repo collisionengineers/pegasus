@@ -1161,3 +1161,242 @@ owner, `DistinctBy(Id)` dedupe, four local sources, `Active` filter, full source
 triple), item 6's store behaviour including the `before` snapshot, item 7 on
 every C surface, and item 8's Administrator-only, versioned, reasoned,
 idempotent writes. No production file changed since `dc24438e2`.
+
+---
+kind: review-attestation
+verdict: pass
+supersedes: C06 review attestation (round 4, superseding) — head f1519a2f9
+ticket: INTK-060
+slice: C06 — current principal, organization and address directory (post-DI cleanup)
+pr: "none — controller override: this slice head is reviewed in its worktree, not through a PR"
+head_sha: "fea0c0e782699bcbf263617750a7f08316402ece"
+head: fea0c0e78
+cleanup_diff: diff bfca538c7..fea0c0e78 (4 commits: 3795e558a, 4427254a1,
+  5db44b2be, fea0c0e78; 9 files, 63 insertions, 275 deletions)
+merge_base: bfca538c7 (merge of the C branch 2c1a9d8a1, which carries Stream A's
+  C06 composition patch 306db9502 — confirmed an ancestor of fea0c0e78)
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c06
+branch: c06-directory
+review_round: 5 (targeted review of the post-DI cleanup, items 1-5 of the controller's dispatch)
+independent: true
+reviewer: "pegasus-reviewer (not the implementer)"
+plan_hash: "62649b22a7e43d77"
+ticket_updated: "2026-09-06T17:37:17.700Z"
+ticket_revision: "rev1:9aeb794c02089233"
+board_sha: "e59564d0c395b21bb916c5f67b44876a7333b998"
+expected_reviewers: []
+threads_snapshot: []
+ownership: PASS — 9 files, all C06-owned production files plus their own test call sites;
+  DependencyInjection.cs untouched by C (empty diff over the merge)
+frozen_signatures: PASS — no frozen Core contract or signature moved this round
+stop_conditions: none tripped
+evidence_binding: worktree HEAD fea0c0e78, tree clean (0 modified paths); head
+  committed 2026-09-06T18:43:33+01:00, Release binaries written 18:43:52-18:43:57
+  with no source file newer than them, wave 30 lane 1 rebuilt at 18:46:15 (0
+  warnings, up-to-date) and lanes 2-6 ran --no-build against those binaries
+lanes_seen:
+  - {lane: 1-build, exit: 0, result: PASS, summary: "Build succeeded. 0 Warning(s), 0 Error(s)"}
+  - {lane: 2-core, exit: 0, result: PASS, summary: "Failed 0, Passed 61, Total 61"}
+  - {lane: 3-integration, exit: 0, result: PASS, summary: "Failed 0, Passed 35, Total 35 (38 before the three deleted bridge-proof tests)"}
+  - {lane: 4-host, exit: 0, result: PASS, summary: "Failed 0, Passed 131, Total 131"}
+  - {lane: 5-browser, exit: 0, result: PASS, summary: "Failed 0, Passed 2, Total 2"}
+  - {lane: 6-architecture, exit: 0, result: PASS, summary: "Failed 0, Passed 100, Total 100"}
+findings:
+  - {id: C06-R-21, severity: blocker, disposition: fixed, summary: "irregular-whitespace fixture seeded at row level (round 4, f1519a2f9); unchanged and still passing this round"}
+  - {id: C06-R-22, severity: blocker, disposition: fixed, summary: "union fixture seeds claimant and storage in one save (round 4, 99985b6af); all four source assertions intact and now proved through production DI"}
+  - {id: C06-R-23, severity: minor, disposition: fixed, summary: "the AdministrationPageModel.cs scope deviation stays disclosed on scratch/c06-notes; no new out-of-map file this round"}
+  - {id: C06-R-24, severity: minor, disposition: accepted-risk, summary: "the SQL pre-filter in InspectionAddressChoicesQueries is still narrower than NormalizeNamePrefix (NBSP and other Unicode whitespace) and non-sargable", reason: "unchanged by this cleanup; the remedy is a persisted normalized column needing an A-owned migration, and the consequence is a suggestion not offered, never lost or mis-saved data; tracked on scratch/c06-notes as an A handoff"}
+  - {id: C06-R-25, severity: minor, disposition: accepted-risk, summary: "DescribeValidationErrorsAsync and its regexes remain duplicated across OrganizationAdministrationWebTests.cs and OrganizationDirectoryWebTests.cs", reason: "test-only and outside the dispatch's five named items; re-verified as still true and still tracked on scratch/c06-notes for the next simplification pass"}
+  - {id: C06-R-26, severity: note, disposition: accepted-risk, summary: "SaveClaimantAddressAsync/SaveInspectionAddressAsync are still partial-record helpers, so two in sequence on one case would delete the earlier confirmed field", reason: "no live instance remains after the round-4 fix, and the comment in InspectionAddressSuggestionTests warns the next author in the exact terms of the mechanism"}
+  - {id: C06-R-27, severity: note, disposition: accepted-risk, summary: "the round-4 seed writes UpsertConfirmed's fallback provenance triple rather than a real row's intake_evidence provenance", reason: "the prior-location query never reads provenance, so the fidelity gap cannot affect the behaviour under test"}
+  - {id: C06-R-28, severity: note, disposition: accepted-risk, summary: "ASSUMPTION 6 and ASSUMPTION 8 on scratch/c06-notes are recorded CLOSED in the appended '## Post-DI cleanup' section but their original entries are still unticked '- [ ]' checkboxes, so a checkbox-only reader sees them open", reason: "the review skill forbids a reviewer changing an owner's open-question state; the closure text is unambiguous and names the landing commit 306db9502, and both assumptions are provably closed in code at this head"}
+  - {id: C06-R-29, severity: note, disposition: accepted-risk, summary: "IInspectionLocationChoices now has a production registration but still no production consumer — only tests resolve it; the suggestion picker that would consume it is C06-R-6's deferred feature", reason: "pre-existing and untouched by this cleanup; the registration is what A's patch authorized and the port is exercised by the union, ordering, cap, inactive-entry and whitespace tests"}
+  - {id: C06-R-30, severity: note, disposition: accepted-risk, summary: "OrganizationAdministrationWebTests.cs went slightly beyond 'drop the helper call': the three-line comment above it was reworded", reason: "the reworded comment states the same fact (the test needs the real registrations to prove the page's actual behaviour) and is now true where the old text was stale; no assertion, fixture or client option changed"}
+  - {id: C06-R-31, severity: note, disposition: obsolete-after-change, summary: "C06-R-7's required bridge proof (SearchWithNoDirectoryStillReturnsTheOtherSourcesAndInventsNoDirectoryRow) is deleted", reason: "superseded by fea0c0e782699bcbf263617750a7f08316402ece — the finding required a test for the absent-directory branch, and that branch no longer exists; its positive assertions survive in SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory"}
+skill_sha256:
+  - {file: "C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c06/.agents/skills/kanmer-review/SKILL.md", sha256: "5426f2e193a5aca413df78d2b8eb36f3de2903d00f3f574a409733d181e73e44"}
+  - {file: "C:/Users/PGUSER/documents/github/pegasus/.agents/skills/kanmer-review/SKILL.md", sha256: "addf26c9981cefa755a9db3a1ee06383432230708641b076ee336d64a1096741"}
+  - {file: "C:/Users/PGUSER/AppData/Local/Programs/Kanmer/resources/plugins/kanmer/skills/kanmer-review/SKILL.md", sha256: "eefcbf902c9d6113ce13d37f767d74dd9d09a21921ec64afc0127006b70e6404"}
+---
+
+# C06 review attestation (round 5, superseding) — head fea0c0e78
+
+Verdict is `pass`. The post-DI cleanup does exactly what Stream A's PR 673
+comment 5560828031 asked for and nothing else: two temporary bridges removed,
+one test-only composition helper deleted, every call site moved onto the
+production registrations, and `DependencyInjection.cs` left alone. 275 lines
+deleted against 63 added, no frozen contract touched, all six wave-30 lanes
+green.
+
+The three deleted tests were the load-bearing question this round, and they are
+the reason this is a `pass` rather than a `needs-changes`: each one's premise —
+"no C06 registrations are present" — is now unreachable by construction, and
+every behavioural assertion inside them is proved elsewhere against the real
+container. The ledger is below.
+
+## Item 1 — `InspectionAddressChoicesQueries` directory dependency — PASS
+
+`src/Pegasus.Infrastructure/Persistence/InspectionAddressChoicesQueries.cs`
+
+- The constructor parameter is `IOrganizationDirectoryQueries directory`
+  (non-nullable, no default) with `_directory = directory ?? throw new
+  ArgumentNullException(nameof(directory))` — the same guard idiom
+  `EfOrganizationDirectory` and `UpdatePrincipalDefaultInspectionLocation`
+  already use, so it is house style rather than a new pattern.
+- The bridge `<remarks>` block is gone in full; the surviving class summary
+  still names the four sources including the directory, so no stale claim is
+  left behind.
+- `SearchAsync`'s `if (_directory is not null) { … }` wrapper is removed and the
+  block body is otherwise identical: same `OrganizationDirectoryQuery(query.Actor,
+  query.Prefix ?? string.Empty, Role: null)`, same nine-argument
+  `InspectionLocationChoice` projection, same position in the candidate list
+  before `DistinctBy(choice => choice.Id)` and the ordering/cap tail.
+- No behaviour change otherwise: `_directory` has exactly one reader
+  (line 195), `GetAsync` never used it, and the diff for this file contains
+  only those two hunks.
+
+## Item 2 — `EvaSubmissionModel` default-location dependency — PASS
+
+`src/Pegasus.Web/Pages/Administration/Principals/EvaSubmission.cshtml{,.cs}`
+
+- The constructor parameter is required again; `DefaultLocationAvailable` is
+  deleted and has zero remaining references anywhere in `src/` or `tests/`.
+- The `@if (Model.DefaultLocationAvailable)` gate and its ASSUMPTION-8 comment
+  are removed from the view; the panel's own markup is untouched context in the
+  diff, so the form composes on every render.
+- The `OnPostUpdateLocationAsync` 404 branch is removed and the handler's
+  remaining order is unchanged: `TryGetActor` → `Forbid`, `LoadAsync` →
+  `NotFound`, operation-key / reason / address validation, then the command
+  inside `if (ModelState.IsValid)` with the same `SourceKind: "manual"` triple
+  and the same catch ladder. The only edit inside the body is
+  `updateLocation.` → `updatePrincipalDefaultInspectionLocation.`.
+- I checked the hazard this change could have re-opened. Because the location
+  form now always renders, an `UpdateEva` POST omits every `Location*` field —
+  the exact shape of C06-R-16's implicit-Required defect. Every bound property
+  on the page is nullable (`EvaReason`, `EvaOperationKey`, `LocationLabel`,
+  `LocationAddress`, `LocationPostcode`, `LocationReason`,
+  `LocationOperationKey` are all `string?`; the two flags are `bool`), so the
+  cross-handler coupling stays closed, and lane 3 proves it empirically: both
+  single-form POSTs (`UpdateEva` in `OrganizationAdministrationWebTests`,
+  `UpdateLocation` then `UpdateEva` in
+  `PrincipalSettingsPageSavesDefaultLocationAndManualEvaIndependently`) still
+  redirect and still write their rows.
+
+## Item 3 — helper deleted, production registrations proved — PASS
+
+**No trace of the helper.** A search for `WithC06Adapters` and
+`C06AdapterRegistrations` over `.cs`, `.cshtml` and `.md` in the worktree
+returns nothing; `tests/Pegasus.IntegrationTests/C06AdapterRegistrations.cs` is
+deleted, and the five call-site files now use the plain
+`IntakeWebApplicationFactory` (or `IntakeWebDriver.CreateClient(factory)`,
+whose options are equivalent to the inline ones they replaced —
+`AllowAutoRedirect = false`, `https://localhost:7139`,
+`IntakeWebTestSupport.cs:303-308`).
+
+**Every service those tests resolve is registered in production.** All six live
+in `AddPegasusInfrastructure`, which `Pegasus.Web/Program.cs:654` composes and
+the `Program`-based test factory therefore inherits:
+
+| service | registration |
+| --- | --- |
+| `IClaimSourceAdministration` | `DependencyInjection.cs:216-217` → `EfClaimSourceAdministration` (line 215) |
+| `IClaimSourceQueries` | lines 218-219 → the same scoped `EfClaimSourceAdministration` |
+| `IOrganizationDirectoryQueries` | line 220 → `EfOrganizationDirectory` |
+| `IUpdatePrincipalDefaultInspectionLocation` | line 221 → `UpdatePrincipalDefaultInspectionLocation` |
+| `IInspectionAddressChoicesQueries` | lines 354-355 → the scoped `InspectionAddressChoicesQueries` (line 353) |
+| `IInspectionLocationChoices` | lines 356-357 → the same scoped instance |
+
+Three things I checked rather than assumed:
+
+1. **Both ports really share one instance per scope**, and the old
+   single-line `AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>()`
+   is gone — there is exactly one registration for each interface across
+   `src/`, so no duplicate/last-wins hazard hides behind the two forwarders.
+2. **The transitive graph closes.** `EfClaimSourceAdministration(IDbContextFactory<PegasusDbContext>,
+   TimeProvider)`, `EfOrganizationDirectory(IDbContextFactory<PegasusDbContext>)`
+   and `UpdatePrincipalDefaultInspectionLocation(IOrganizationAdministrationStore)`
+   all have their dependencies registered (the store at lines 211-212), which is
+   why `Cases/Details.cshtml.cs:51`'s required `IInspectionAddressChoicesQueries`
+   no longer risks the startup service-graph failure ASSUMPTION 6 was written
+   to avoid.
+3. **The test host does not shadow any of them.** `IntakeWebApplicationFactory`'s
+   `ConfigureServices` removes or replaces only `TimeProvider`, the two
+   committed-work publishers, `IIntakeArtifactStore`,
+   `IInstructionExtractionPolicy`, `IVrmRecognitionEngine`,
+   `IMailClassificationPolicy` and `IResolveApprovedMailboxIdentity`
+   (`IntakeWebTestSupport.cs:164-201`) — none of the six. The tests really do
+   run on the production composition now.
+
+**Deleted-test ledger — no behavioural assertion lost.**
+
+| deleted test | what it asserted | why it is safe |
+| --- | --- | --- |
+| `PrincipalsIndexStillRendersWhenNoC06RegistrationsArePresent` | host starts and `/Administration/Principals` renders with no C06 registrations | the state is unreachable; the page's own rendering is still asserted by `OrganizationAdministrationWebTests:106-111`, `OrganizationDirectoryWebTests:114` and `:135`, and it is in the browser accessibility route list (`Browser/AccessibilityTests.cs:34`) |
+| `EvaSubmissionPageRendersWithoutDefaultLocationFormWhenNoC06RegistrationsArePresent` | degraded render: manual-EVA form present, default-location form and `LocationOperationKey` absent | the degraded mode is the behaviour deliberately deleted; the positive counterpart is stronger and lives in `PrincipalSettingsPageSavesDefaultLocationAndManualEvaIndependently`, which reads `LocationOperationKey`/`ExpectedVersion` out of the rendered HTML, posts `?handler=UpdateLocation`, and asserts the `DefaultInspectionAddress`/`DefaultInspectionLocationLabel` row |
+| `SearchWithNoDirectoryStillReturnsTheOtherSourcesAndInventsNoDirectoryRow` | with no directory: claimant and prior-principal rows still returned, no directory row invented | it cannot compile once `directory` is required, and its live half is subsumed by `SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory`, which asserts Claimant, Storage, PriorPrincipalLocation **and** Directory rows plus the ≤20 cap and Id-distinctness, now through the real container |
+
+Lane 3's count moves 38 → 35, exactly the three deletions, with zero failures.
+
+## Item 4 — `DependencyInjection.cs` untouched by C — PASS
+
+The per-file diff of that path over `bfca538c7..fea0c0e78` is empty. Stream A's
+commit `306db9502` is an ancestor of the head, and its own change to that file
+is exactly the 12-insertion/1-deletion patch quoted in PR 673 comment
+5560828031 — the same seven added registrations and the same replaced
+`IInspectionAddressChoicesQueries` line, no drift.
+
+## Item 5 — `OrganizationAdministrationWebTests.cs` edit — PASS with a note
+
+The functional edit is exactly the helper drop: `factory.WithC06Adapters()` and
+its `host` are removed and the client is created from `factory` with the same
+options. The three-line comment above it was also reworded (C06-R-30, note) —
+the old text described the bridge that no longer exists, so the rewording
+removes a stale claim rather than adding one. No assertion, fixture, route or
+client option changed in that file.
+
+## The three review questions
+
+1. **Did the plan miss anything the instruction implies?** No. Stream A's
+   instruction named four obligations — apply the patch, remove the optional
+   directory dependency, remove the test-only overrides, run the C06
+   HTTP/persistence tests through the production registrations — and all four
+   are discharged at this head. The instruction's two composition claims are
+   verified independently, not taken on trust: both inspection ports resolve
+   the same scoped concrete, and the Claim Source command and query resolve the
+   same scoped store.
+2. **Did the implementation miss anything in the instruction?** No, and it
+   also did not exceed it. The one thing worth checking for a cleanup like
+   this — a bridge removed in code but left asserted somewhere else — comes
+   back clean: no stale "until Stream A" or "optional-resolution bridge" text
+   survives in `src/` or `tests/`, no doc under `docs/` mentions the helper or
+   `DefaultLocationAvailable`, and the Test UI catalogue entry for the
+   EvaSubmission route records only source and route, so it remains accurate.
+3. **Did the simplification pass run with honest dispositions?** Yes. The
+   report's `## Post-DI cleanup` matches the diff line for line, names all
+   three deleted tests explicitly instead of hiding them inside "call sites
+   updated", and claims "kept every behavioural assertion" — a claim I checked
+   test by test above and found true. It declares "Deviations: none"; the
+   comment rewording in item 5 is the one thing that is marginally more than
+   the dispatch's wording, and it is disclosed here as C06-R-30 rather than
+   left implicit. The two carried minors (R-24, R-25) are still openly recorded
+   as unfixed tracked gaps rather than described as done.
+
+## Residual risk
+
+Five notes and two minors, all with terminal dispositions: the A-owned SQL
+pre-filter gap (R-24) and the duplicated test helper (R-25) as tracked minors;
+the partial-record save helpers (R-26), the seed provenance triple (R-27), the
+unticked ASSUMPTION checkboxes (R-28), the registered-but-unconsumed
+`IInspectionLocationChoices` (R-29) and the comment rewording (R-30) as notes;
+R-31 is obsolete after this change. Nothing blocks.
+
+## Confirmed unchanged from rounds 1-4
+
+Every earlier acceptance still holds at this head: the frozen seeded-principal
+assertions, the item 3-5 matching rules (two-character minimum, cap 20,
+exact-before-prefix through the single `InspectionLocationMatchPolicy.IsExactMatch`
+owner, `DistinctBy(Id)` dedupe, four local sources, `Active` filter, full
+source triple), item 6's store behaviour including the `before` snapshot, item
+7's retirement of automatic EVA on every C surface, and item 8's
+Administrator-only, versioned, reasoned, idempotent writes — all now proved
+through the production container rather than a test-side composition.
