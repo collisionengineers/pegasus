@@ -17,6 +17,16 @@ public sealed class EfRetainedInstructionAnalysisStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IRetainedInstructionAnalysisStore, ISourceCandidateQueries
 {
+    /// <summary>
+    /// The unique index is on the (receipt, asset, key) TRIPLE, so an operation
+    /// key is not by itself unique in the database. This lookup exists for the
+    /// command's pre-read, which has only the key, so it takes the newest row
+    /// under a deterministic order rather than asserting a uniqueness the schema
+    /// does not enforce — a `Single` here would throw
+    /// <see cref="InvalidOperationException"/> instead of the documented
+    /// conflict. <see cref="RecordAsync"/> probes the full triple and is what
+    /// actually decides replay against conflict.
+    /// </summary>
     public async Task<RetainedInstructionAnalysis?> FindByOperationKeyAsync(
         string operationKey,
         CancellationToken cancellationToken = default)
@@ -25,7 +35,10 @@ public sealed class EfRetainedInstructionAnalysisStore(
         var key = operationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var analysis = await context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
+            .Where(item => item.OperationKey == key)
+            .OrderByDescending(item => item.CompletedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
         return analysis is null ? null : await MapAsync(context, analysis, cancellationToken);
     }
 
@@ -59,21 +72,34 @@ public sealed class EfRetainedInstructionAnalysisStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
-        // The probe under serializable isolation is what makes a replay quiet;
-        // the unique index on (receipt, asset, key) is the backstop that keeps
-        // two racing writers from ever producing two candidate sets.
+        // Probed on the same (receipt, asset, key) triple the unique index
+        // covers, so the probe asserts exactly the uniqueness the database
+        // enforces and no more. Under serializable isolation this is what makes
+        // a replay quiet; the index is the backstop that keeps two racing
+        // writers from ever producing two candidate sets.
         var existing = await context.Set<RetainedInstructionAnalysisEntity>()
-            .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
+            .SingleOrDefaultAsync(
+                item => item.IntakeReceiptId == analysis.ReceiptId
+                    && item.IntakeAssetId == analysis.IntakeAssetId
+                    && item.OperationKey == key,
+                cancellationToken);
         if (existing is not null)
         {
-            if (existing.IntakeReceiptId != analysis.ReceiptId
-                || existing.IntakeAssetId != analysis.IntakeAssetId
-                || existing.ExpectedReceiptVersion != analysis.ExpectedReceiptVersion)
+            if (existing.ExpectedReceiptVersion != analysis.ExpectedReceiptVersion)
             {
                 throw new RetainedInstructionAnalysisConflictException();
             }
 
             return (await MapAsync(context, existing, cancellationToken), true);
+        }
+
+        // A key already spent on a DIFFERENT receipt or asset is a conflict too:
+        // the triple above cannot see it, and letting it through would bind one
+        // key to two analyses and break the command's replay contract.
+        if (await context.Set<RetainedInstructionAnalysisEntity>()
+            .AnyAsync(item => item.OperationKey == key, cancellationToken))
+        {
+            throw new RetainedInstructionAnalysisConflictException();
         }
 
         var entity = new RetainedInstructionAnalysisEntity

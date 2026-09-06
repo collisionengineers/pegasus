@@ -603,6 +603,8 @@
     </section>
 }
 
+@if (Model.ShowRetainedAnalysisPanel)
+{
 <section class="panel section-gap" aria-labelledby="retained-analysis-title">
     <div class="panel-head"><h2 id="retained-analysis-title">Retained instruction analysis</h2></div>
     <div class="panel-body stack">
@@ -661,6 +663,7 @@
         }
     </div>
 </section>
+}
 
 @if (Model.Receipt.Fields.Count > 0)
 {

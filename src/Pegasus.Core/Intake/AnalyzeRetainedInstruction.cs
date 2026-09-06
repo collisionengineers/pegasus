@@ -523,24 +523,16 @@ public sealed class AnalyzeRetainedInstruction(
     /// The receipt's own retained source asset by default; an explicit id picks
     /// one of its other retained parts. Never a storage key and never an asset
     /// belonging to another receipt — the receipt scopes the lookup.
+    ///
+    /// Which asset IS the source is <see cref="IntakeFileIdentity.SourceAsset"/>'s
+    /// rule, not a second copy of it here: the page decides whether to offer the
+    /// action from the same owner, so the two cannot disagree about whether
+    /// analysis is possible.
     /// </summary>
-    private static IntakeAssetRecord? SelectAsset(IntakeReceipt receipt, Guid? assetId)
-    {
-        if (assetId is { } explicitId)
-        {
-            return receipt.AssetRecords.SingleOrDefault(asset => asset.Id == explicitId);
-        }
-
-        // Exactly one source asset, or none: two would mean the receipt's own
-        // retention is inconsistent, and guessing between them is worse than
-        // saying the source is unavailable.
-        var sources = receipt.AssetRecords
-            .Where(asset => asset.Kind == IntakeAssetKind.Source
-                && asset.Disposition == IntakeAssetDisposition.Source)
-            .Take(2)
-            .ToArray();
-        return sources.Length == 1 ? sources[0] : null;
-    }
+    private static IntakeAssetRecord? SelectAsset(IntakeReceipt receipt, Guid? assetId) =>
+        assetId is { } explicitId
+            ? receipt.AssetRecords.SingleOrDefault(asset => asset.Id == explicitId)
+            : IntakeFileIdentity.SourceAsset(receipt);
 
     private static string ActorLabel(ActionActor actor) =>
         $"{actor.Kind.ToString().ToLowerInvariant()}:{actor.SubjectId}";
