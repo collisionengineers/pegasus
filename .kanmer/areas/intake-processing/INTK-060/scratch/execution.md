@@ -248,3 +248,7 @@ Four majors + four minors fixed via a pre-custody `arrived` occurrence state, de
 ## Checkpoint — C05 round 2 at `868e7a5ea` (merged `b506c3b8d`)
 
 R-10 (finding filed against an issuer row with an empty label for scan-only sources), R-6 (re-evaluation only queued Worker work; test now drives the pass; outcome tag keyed by receipt id), R-11 (scan-only page rows/OCR findings recorded), R-12 (finding ordinal in the derived id) fixed. Wave 22 + re-review start when wave 21 releases LocalDB. C08 correction round 1 dispatched (Sonnet): finish the in-progress merge, nine wave-9 defects, G14 mailbox fields in Compose, labels batch (C07 AcceptedPending wording, C05 Finding chip). Editors: C06 r3, C08 r1.
+
+## Wave 21 (C07 caller `3c0e1931c`): C lanes green, architecture red
+
+Build 0/0, core 16/16, integration 58/59 (+1 skip), a-owned 1/5 (A's seeded-QDOS duplicate only). Architecture 99/100: `CoreHasNoInfrastructureOrHostDependencies` — the correction's `exception is HttpRequestException` in `RetainIncomingArtifact.cs` (`05d9a0e49`) makes Core reference `System.Net.Http`. C07 caller round 2 queued (drop the transport-type test from Core). Wave 22 (C05 `b506c3b8d`) + re-review running. Editors: C06 r3, C08 r1.
