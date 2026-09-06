@@ -215,9 +215,11 @@ public sealed partial class QdosInstructionExtractionPolicy
         // because the originals print them as columns of a flattened page.
         new(ClaimantAddressField, [ClaimantAddressField],
             IsRequired: false,
+            PrefersLatestFragment: true,
             PartyRole: ClaimantRole),
         new(RepairerDetailsField, [RepairerDetailsField],
             IsRequired: false,
+            PrefersLatestFragment: true,
             PartyRole: RepairerRole),
         new(RequestedWorkField, [RequestedWorkField],
             IsRequired: false,
