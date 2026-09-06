@@ -115,31 +115,42 @@ public sealed class IncomingArtifactCustodyTests
     }
 
     /// <summary>
-    /// An arrival that has been committed but never offered to custody reports
-    /// no retention at all, so the bytes are handed over for the first time
-    /// rather than asked about — and, because it is not a custody answer, it is
-    /// never mistaken for the Pending one custody gives.
+    /// A committed arrival is visible as the uncertain thing it is, and it can
+    /// be claimed exactly once. The claim is the whole of what decides which
+    /// caller offers the bytes, so a second caller of the same arrival is told
+    /// no and has an arrival to reconcile instead of a null to hand over
+    /// against.
     /// </summary>
     [Fact]
-    public async Task AnArrivalNotYetOfferedToCustodyReportsNoRetention()
+    public async Task AnArrivalIsReportedAsUncertainAndClaimedExactlyOnce()
     {
         using var factory = new IntakeWebApplicationFactory();
         var seeded = await SeedSessionAsync(factory.Services);
         var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         var store = new EfPublicUploadRetentionStore(contextFactory);
 
-        await using (var context = await contextFactory.CreateDbContextAsync())
-        {
-            var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
-                .SingleAsync(item => item.Id == seeded.FirstOccurrenceId);
-            occurrence.CustodyState = EfPublicUploadRetentionStore.ArrivedCode;
-            await context.SaveChangesAsync();
-        }
+        // Custody has said nothing about it, which is exactly Unknown - not
+        // the Pending custody gives, and not nothing at all.
+        var arrived = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+        Assert.NotNull(arrived);
+        Assert.Equal(IncomingArtifactCustodyState.Unknown, arrived.State);
+        Assert.Equal(seeded.FirstOccurrenceId, arrived.OccurrenceId);
 
-        Assert.Null(await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None));
+        Assert.True(await store.TryClaimHandOverAsync(
+            seeded.FirstOccurrenceId,
+            CancellationToken.None));
 
-        // The first disposition custody gives replaces it, and from then on the
-        // occurrence answers as the retention it is.
+        // Committed before the hand-over, so a crash from here on leaves an
+        // arrival to ask about rather than one to offer again.
+        Assert.Equal(
+            EfPublicUploadRetentionStore.UnknownCode,
+            await ReadCustodyStateAsync(factory.Services, seeded.FirstOccurrenceId));
+
+        // Everyone else, whenever they ask.
+        Assert.False(await store.TryClaimHandOverAsync(
+            seeded.FirstOccurrenceId,
+            CancellationToken.None));
+
         await store.RecordAsync(
             new(
                 seeded.FirstOccurrenceId,
@@ -153,6 +164,71 @@ public sealed class IncomingArtifactCustodyTests
         var found = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
         Assert.NotNull(found);
         Assert.Equal(IncomingArtifactCustodyState.Pending, found.State);
+        Assert.False(await store.TryClaimHandOverAsync(
+            seeded.FirstOccurrenceId,
+            CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Confirmation only moves forward. A recorder that arrives after custody
+    /// has answered knows less than the row does - the lost response, the
+    /// retry that could not read status - and must not be able to pull a
+    /// confirmed retention back to uncertain, or to failed, or to strip the
+    /// identities that say where the bytes are.
+    /// </summary>
+    [Theory]
+    [InlineData(IncomingArtifactCustodyState.Unknown)]
+    [InlineData(IncomingArtifactCustodyState.Pending)]
+    [InlineData(IncomingArtifactCustodyState.Failed)]
+    public async Task ALateRecorderNeverPullsAConfirmedRetentionBack(
+        IncomingArtifactCustodyState late)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedSessionAsync(factory.Services);
+        var store = new EfPublicUploadRetentionStore(
+            factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>());
+
+        await store.RecordAsync(
+            new(
+                seeded.FirstOccurrenceId,
+                seeded.FirstOperationKey,
+                IncomingArtifactCustodyState.Confirmed,
+                seeded.CaseId,
+                seeded.DocumentId,
+                seeded.DocumentVersionId,
+                "box-file-1",
+                "box-version-1"),
+            CancellationToken.None);
+
+        await store.RecordAsync(
+            new(
+                seeded.FirstOccurrenceId,
+                seeded.FirstOperationKey,
+                late,
+                seeded.CaseId),
+            CancellationToken.None);
+
+        var found = await store.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+        Assert.NotNull(found);
+        Assert.True(found.IsConfirmed);
+        Assert.Equal(seeded.DocumentId, found.DocumentId);
+        Assert.Equal(seeded.DocumentVersionId, found.DocumentVersionId);
+        Assert.Equal(
+            ("box-file-1", "box-version-1"),
+            await ReadIdentitiesAsync(factory.Services, seeded.DocumentVersionId));
+    }
+
+    private static async Task<string> ReadCustodyStateAsync(
+        IServiceProvider services,
+        Guid occurrenceId)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == occurrenceId)
+            .Select(item => item.CustodyState)
+            .SingleAsync();
     }
 
     private static async Task<(string? BoxFileId, string? BoxVersionId)> ReadIdentitiesAsync(
@@ -264,8 +340,9 @@ public sealed class IncomingArtifactCustodyTests
                 MediaType = "application/pdf",
                 Size = 1024,
                 Sha256 = new string('b', 64),
-                CustodyState = EfPublicUploadRetentionStore.ToCode(
-                    IncomingArtifactCustodyState.Pending)
+                // The state an arrival actually starts in: committed, offered
+                // to nobody yet, and claimable exactly once.
+                CustodyState = EfPublicUploadRetentionStore.ArrivedCode
             });
         }
 
