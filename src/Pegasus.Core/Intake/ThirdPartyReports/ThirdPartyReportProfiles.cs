@@ -69,6 +69,17 @@ public enum ThirdPartySelectionReason
 /// Immutable identity of the source being read: the retained bytes' hash and
 /// occurrence plus whichever logical document handles the caller already holds.
 /// </summary>
+/// <param name="SourceLabel">
+/// The retained source's own name, used as the document-level locator for a row
+/// that has no page of its own to point at — a verdict about a document whose
+/// text could not be read has no page, and a persisted row that names no part of
+/// the document it is about is exactly what this slice's locator invariant
+/// forbids (C05-R-16).
+///
+/// It is a locator and never evidence: nothing here matches a signature, a
+/// family or a field value against it, so the issuer is still read from the
+/// document's own printed text and never inferred from the file name.
+/// </param>
 public sealed record ThirdPartyReportSourceContext(
     Guid ReceiptId,
     string Sha256,
@@ -76,7 +87,8 @@ public sealed record ThirdPartyReportSourceContext(
     Guid? DocumentId = null,
     Guid? DocumentVersionId = null,
     Guid? IntakeAssetId = null,
-    string ReaderVersion = "unspecified_reader");
+    string ReaderVersion = "unspecified_reader",
+    string SourceLabel = "");
 
 /// <summary>
 /// A finite, versioned document signature: required text signals that must all
@@ -381,6 +393,17 @@ public static class ThirdPartyReportProfiles
         _ => "unclassified"
     };
 
+    /// <summary>
+    /// Builds the selection and the issuer row that records it.
+    ///
+    /// The row's locator is the matched signature's own page and label. Where no
+    /// signature matched there is no page to name — a scan-only source matches
+    /// none precisely because its text could not be read — so the row falls back
+    /// to the document-level locator the caller supplied
+    /// (<see cref="ThirdPartyReportSourceContext.SourceLabel"/>). Until that
+    /// fallback existed the row was persisted naming no source at all, and the
+    /// C05-R-11 recording gate is what made it reach storage (C05-R-16).
+    /// </summary>
     private static ThirdPartyReportSelection Verdict(
         ThirdPartySelectionOutcome outcome,
         ThirdPartySelectionReason reason,
@@ -402,7 +425,9 @@ public static class ThirdPartyReportProfiles
                 rawValue: evidence?.Evidence,
                 normalizedValue: evidence?.Issuer,
                 page: evidence?.Page,
-                sourceLabel: evidence?.SourceLabel ?? string.Empty,
+                sourceLabel: evidence?.SourceLabel is { Length: > 0 } label
+                    ? label
+                    : context.SourceLabel,
                 policyVersion: ProfileVersion,
                 disposition: disposition),
             matches);
@@ -549,7 +574,11 @@ internal static class ThirdPartySourceCandidates
             // value), so the printed values need nothing to tell them apart.
             // A finding passes its position in the raised order, because two
             // findings can legitimately state the same sentence about the same
-            // page (C05-R-12).
+            // page (C05-R-12). That position is part of the key, so adding a
+            // finding rule ahead of an existing one changes the derived id of
+            // every finding after it — the same version boundary a changed raw
+            // value already crosses, and safe for the same reason: nothing
+            // reads a candidate id across runs (C05-R-20).
             ordinal.ToString(CultureInfo.InvariantCulture));
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         Span<byte> bytes = stackalloc byte[16];

@@ -803,13 +803,18 @@ public static class ThirdPartyReportExtraction
     ///
     /// The fallbacks are not defensive padding. A source with no readable page
     /// matches no document signature, so its issuer row is built with no
-    /// signature evidence and carries no page and no label at all
+    /// signature evidence and carries no page at all
     /// (<c>ThirdPartyReportProfiles.Verdict</c>) — and that is exactly the
     /// source whose only findings are "this needs OCR" and "a person must check
-    /// these pages". Filing those against the issuer row would persist a
-    /// statement about a document that names no part of it. The scan-only page
-    /// rows the same reading produced do name one, so they are the honest
-    /// locator.
+    /// these pages". A finding filed against that row would name the document
+    /// but not the page a person has to open, while the scan-only page rows the
+    /// same reading produced name both, so they are the better locator and are
+    /// preferred here. The issuer row is the honest last resort rather than an
+    /// empty one: it carries the document-level locator the caller supplied
+    /// (C05-R-16), so a finding names its source even where the reading found
+    /// no page at all — the case
+    /// <c>AReadingWithNoPageAtAllStillNamesTheSourceOnEveryRowItRecords</c>
+    /// states rather than leaves to a reader's invariant (C05-R-17).
     /// </summary>
     private static SourceFieldCandidate Locator(
         ThirdPartyReportFinding finding,
