@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -50,19 +52,24 @@ public sealed class OrganizationAdministrationPersistenceTests
                 default));
         Assert.Equal(OrganizationAdministrationError.DuplicateOrganizationName, duplicateName.Error);
 
+        // A code the foundation migration (C-F05) has not already seeded:
+        // Principal.Code is unique globally, not per organization, so a
+        // fresh create using one of its 15 frozen codes (e.g. "qdos") would
+        // collide with the seeded row instead of exercising this create/
+        // replay/duplicate/conflict path.
         var principalRequest = new CreatePrincipalRequest(
             organization.Id,
-            "qdos",
+            "alpha",
             Administrator,
-            "principal:create:qdos");
+            "principal:create:alpha");
         var principal = await createPrincipal.ExecuteAsync(principalRequest, default);
         var principalReplay = await createPrincipal.ExecuteAsync(principalRequest, default);
 
-        Assert.Equal("QDOS", principal.Code);
+        Assert.Equal("ALPHA", principal.Code);
         Assert.Equal(principal, principalReplay);
         var duplicateCode = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             createPrincipal.ExecuteAsync(
-                principalRequest with { OperationKey = "principal:create:qdos-duplicate" },
+                principalRequest with { OperationKey = "principal:create:alpha-duplicate" },
                 default));
         Assert.Equal(OrganizationAdministrationError.DuplicatePrincipalCode, duplicateCode.Error);
         var principalConflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
@@ -225,25 +232,21 @@ public sealed class OrganizationAdministrationPersistenceTests
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
-        var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
-        var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
         var replacePrincipal = scope.ServiceProvider.GetRequiredService<IReplacePrincipal>();
         var getOrganization = scope.ServiceProvider.GetRequiredService<IGetOrganization>();
         var acceptIntake = scope.ServiceProvider.GetRequiredService<IAcceptIntake>();
-        var organization = await createOrganization.ExecuteAsync(
-            new(
-                "Replacement Provider",
-                [OrganizationRole.WorkProvider],
-                Administrator,
-                "organization:create:replacement"),
-            default);
-        var predecessor = await createPrincipal.ExecuteAsync(
-            new(
-                organization.Id,
-                QdosPrincipal.Code,
-                Administrator,
-                "principal:create:replacement"),
-            default);
+
+        // The foundation migration (C-F05) already seeds the QDOS principal
+        // and its owning work-provider organization exactly once; a fresh
+        // create with the same principal code would collide with it
+        // globally (Principal.Code has no per-organization scope), so the
+        // predecessor here is the seeded row itself, replaced within its
+        // own already-seeded, already-eligible organization.
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var seedContext = await contextFactory.CreateDbContextAsync();
+        var predecessor = await seedContext.Principals.AsNoTracking()
+            .SingleAsync(item => item.Code == QdosPrincipal.Code);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
         var receiptVersion = await factory.Database.ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
@@ -262,7 +265,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
             predecessor.Version,
-            organization.Id,
+            predecessor.OrganizationId,
             "QDOSNEXT",
             Administrator,
             "principal:replace:qdos",
@@ -276,7 +279,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(predecessor.Id, successor.PredecessorId);
         Assert.True(successor.IsActive);
         var details = await getOrganization.ExecuteAsync(
-            new(Administrator, organization.Id),
+            new(Administrator, predecessor.OrganizationId),
             default);
         Assert.NotNull(details);
         var persistedPredecessor = Assert.Single(
@@ -420,5 +423,64 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "replacement_test_policy",
                 1),
             default);
+    }
+
+    /// <summary>
+    /// C-F05/EXT-18 item 1: the fresh-database migration seeds the current
+    /// top-15 principal identities exactly once, by the exact code/GUID the
+    /// foundation handoff froze — and YML (the confirmed HDUK-branded route)
+    /// stays a distinct principal role rather than merging with a document
+    /// issuer or any other principal.
+    /// </summary>
+    [Fact]
+    public async Task FreshDatabaseSeedsExactlyTheFifteenFrozenPrincipalsOnce()
+    {
+        var expected = new (string Code, Guid PrincipalId)[]
+        {
+            ("QDOS", Guid.Parse("00000000-0000-4000-8000-00000000c001")),
+            ("PCH", Guid.Parse("00000000-0000-4000-8000-00000000c002")),
+            ("AX", Guid.Parse("00000000-0000-4000-8000-00000000c003")),
+            ("FW", Guid.Parse("00000000-0000-4000-8000-00000000c004")),
+            ("QCL", Guid.Parse("00000000-0000-4000-8000-00000000c005")),
+            ("OAK", Guid.Parse("00000000-0000-4000-8000-00000000c006")),
+            ("SBL", Guid.Parse("00000000-0000-4000-8000-00000000c007")),
+            ("BLACK", Guid.Parse("00000000-0000-4000-8000-00000000c008")),
+            ("RJS", Guid.Parse("00000000-0000-4000-8000-00000000c009")),
+            ("DFD", Guid.Parse("00000000-0000-4000-8000-00000000c00a")),
+            ("KBS", Guid.Parse("00000000-0000-4000-8000-00000000c00b")),
+            ("MP", Guid.Parse("00000000-0000-4000-8000-00000000c00c")),
+            ("YML", Guid.Parse("00000000-0000-4000-8000-00000000c00d")),
+            ("ALS", Guid.Parse("00000000-0000-4000-8000-00000000c00e")),
+            ("BC", Guid.Parse("00000000-0000-4000-8000-00000000c00f"))
+        };
+
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        var seeded = await context.Principals
+            .AsNoTracking()
+            .Select(principal => new { principal.Id, principal.Code })
+            .ToListAsync();
+
+        Assert.Equal(15, seeded.Count);
+        foreach (var (code, principalId) in expected)
+        {
+            var matches = seeded.Where(row => row.Id == principalId).ToArray();
+            Assert.True(
+                matches.Length == 1,
+                $"Expected exactly one seeded principal with id {principalId}, found {matches.Length}.");
+            Assert.Equal(code, matches[0].Code);
+        }
+
+        // YML is the confirmed HDUK-branded route, but HDUK itself is a
+        // document issuer, never a second principal identity: no seeded
+        // principal may carry that code, and every seeded code above is
+        // unique.
+        Assert.DoesNotContain(seeded, row => row.Code == "HDUK");
+        Assert.Equal(seeded.Count, seeded.Select(row => row.Code).Distinct().Count());
+        Assert.Equal(seeded.Count, seeded.Select(row => row.Id).Distinct().Count());
     }
 }

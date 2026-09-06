@@ -1,0 +1,68 @@
+@page "{id:guid}"
+@model Pegasus.Web.Pages.Administration.ClaimSources.EditModel
+@{
+    ViewData["Title"] = "Edit claim source";
+}
+
+<a class="back-link" asp-page="Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Claim Sources
+</a>
+
+@* Defensive only: the handler returns 404 when the claim source is absent,
+   so the not-found surface is owned by the error page. *@
+@if (Model.ClaimSource is not null)
+{
+    <div class="page-heading">
+        <div>
+            <h1>Edit @Model.ClaimSource.Name</h1>
+        </div>
+        <div class="page-heading-actions">
+            <partial name="Shared/_StatusChip" model="@(Model.ClaimSource.Active ? "Active" : "Disabled")" />
+            <span class="updated tabular">Version @Model.ClaimSource.Version</span>
+        </div>
+    </div>
+
+    <div class="panel form-panel form-panel--wide">
+        <form method="post" asp-page-handler="Update" asp-route-id="@Model.ClaimSource.Id">
+            <div asp-validation-summary="ModelOnly"></div>
+            <input asp-for="ExpectedVersion" type="hidden" />
+            <input asp-for="OperationKey" type="hidden" />
+            <div>
+                <label asp-for="Name">Name</label>
+                <input asp-for="Name" autocomplete="off" />
+                <span asp-validation-for="Name"></span>
+            </div>
+            <div>
+                <label asp-for="ContactName">Contact name (optional)</label>
+                <input asp-for="ContactName" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="Telephone">Telephone (optional)</label>
+                <input asp-for="Telephone" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="Email">Email (optional)</label>
+                <input asp-for="Email" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="Notes">Notes (optional)</label>
+                <textarea asp-for="Notes" rows="3"></textarea>
+            </div>
+            @* Disable is this same form with Active cleared — every Case that
+               already referenced this claim source keeps its own copied
+               snapshot untouched. *@
+            <div>
+                <label class="choice"><input asp-for="Active" /> <span>Active</span></label>
+            </div>
+            <div>
+                <label asp-for="Reason">Reason for change</label>
+                <textarea asp-for="Reason" rows="3"></textarea>
+                <span asp-validation-for="Reason"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save claim source</button>
+            </div>
+        </form>
+    </div>
+}

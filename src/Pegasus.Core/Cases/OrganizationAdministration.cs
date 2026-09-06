@@ -1,4 +1,5 @@
-﻿using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Address;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Cases;
 
@@ -36,7 +37,12 @@ public sealed record PrincipalAdministrationSummary(
     int AllocatedCaseCount,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
     bool EvaManualSubmission = false,
-    bool EvaAutomaticSubmission = false);
+    string? DefaultInspectionLocationLabel = null,
+    string? DefaultInspectionAddress = null,
+    string? DefaultInspectionPostcode = null,
+    string? DefaultInspectionSourceKind = null,
+    Guid? DefaultInspectionSourceRecordId = null,
+    long? DefaultInspectionSourceVersion = null);
 
 public sealed record OrganizationListItem(
     Guid Id,
@@ -129,6 +135,57 @@ public interface IOrganizationAdministrationStore
     Task<Principal> UpdatePrincipalEvaSubmissionAsync(
         UpdatePrincipalEvaSubmissionRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// EXT-18/S05 item 6: the principal's one default inspection-location
+    /// choice — Image Based Assessment, or one sourced/manual physical
+    /// address kept alongside a staff reason. This never changes B's separate
+    /// CE assessment method and never touches the shared <see cref="Principal"/>
+    /// record; it is C's own directory-facing summary field.
+    /// </summary>
+    Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
+        UpdatePrincipalDefaultInspectionLocationRequest request,
+        CancellationToken cancellationToken);
+}
+
+/// <param name="Kind">
+/// <see cref="InspectionAddressEvidenceKind.ImageBasedAssessment"/>
+/// clears every address field below; <see cref="InspectionAddressEvidenceKind.PhysicalAddress"/>
+/// requires <paramref name="Address"/>.
+/// </param>
+public sealed record UpdatePrincipalDefaultInspectionLocationRequest(
+    ActionActor Actor,
+    Guid PrincipalId,
+    long ExpectedVersion,
+    string OperationKey,
+    string Reason,
+    InspectionAddressEvidenceKind Kind,
+    string? Label,
+    string? Address,
+    string? Postcode,
+    string? SourceKind,
+    Guid? SourceRecordId,
+    long? SourceVersion);
+
+public interface IUpdatePrincipalDefaultInspectionLocation
+{
+    Task<PrincipalAdministrationSummary> ExecuteAsync(
+        UpdatePrincipalDefaultInspectionLocationRequest request,
+        CancellationToken cancellationToken);
+}
+
+public sealed class UpdatePrincipalDefaultInspectionLocation(IOrganizationAdministrationStore store)
+    : IUpdatePrincipalDefaultInspectionLocation
+{
+    private readonly IOrganizationAdministrationStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<PrincipalAdministrationSummary> ExecuteAsync(
+        UpdatePrincipalDefaultInspectionLocationRequest request,
+        CancellationToken cancellationToken) =>
+        _store.UpdatePrincipalDefaultInspectionLocationAsync(
+            OrganizationAdministrationPolicy.Normalize(request),
+            cancellationToken);
 }
 
 public sealed class ListOrganizations(IOrganizationAdministrationQueries queries)
@@ -339,6 +396,11 @@ public static class OrganizationAdministrationPolicy
         };
     }
 
+    /// <remarks>
+    /// EXT-18 item 7: automatic EVA submission is retired from C's
+    /// administration surface. A principal is always created with it false;
+    /// only the explicit optional manual EVA setting remains.
+    /// </remarks>
     public static Principal PlanPrincipalCreation(
         Guid principalId,
         Guid sequenceLineageId,
@@ -346,8 +408,7 @@ public static class OrganizationAdministrationPolicy
         string code,
         bool codeAlreadyExists,
         CaseInspectionMode inspectionMode = CaseInspectionMode.PhysicalAddress,
-        bool evaManualSubmission = false,
-        bool evaAutomaticSubmission = false)
+        bool evaManualSubmission = false)
     {
         RequireIdentifier(principalId, nameof(principalId));
         RequireIdentifier(sequenceLineageId, nameof(sequenceLineageId));
@@ -366,7 +427,7 @@ public static class OrganizationAdministrationPolicy
             0,
             inspectionMode,
             evaManualSubmission,
-            evaAutomaticSubmission);
+            EvaAutomaticSubmission: false);
     }
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
@@ -418,7 +479,7 @@ public static class OrganizationAdministrationPolicy
                 0,
                 predecessor.InspectionMode,
                 predecessor.EvaManualSubmission,
-                predecessor.EvaAutomaticSubmission));
+                EvaAutomaticSubmission: false));
     }
 
     public static void RequireOrganizationCanOwnPrincipals(Organization organization)
@@ -496,17 +557,76 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// EXT-04: the settings change, and nothing else does. The code, the
-    /// organization, the lineage and the allocation history are untouched —
-    /// this is the one principal attribute that may change without replacing
-    /// the principal, because switching a delivery route on is not a change of
-    /// who the work belongs to.
+    /// EXT-18/S05 item 6: an Image Based Assessment choice carries no address;
+    /// a physical choice requires one and, when it corrects a sourced value,
+    /// keeps the reason a staff override always requires.
+    /// </summary>
+    public static UpdatePrincipalDefaultInspectionLocationRequest Normalize(
+        UpdatePrincipalDefaultInspectionLocationRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(request.Actor);
+        RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
+        RequireExpectedVersion(request.ExpectedVersion, nameof(request.ExpectedVersion));
+        if (!Enum.IsDefined(request.Kind))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The default inspection location kind is invalid.");
+        }
+
+        var normalized = request with
+        {
+            OperationKey = NormalizeRequiredText(
+                request.OperationKey,
+                MaximumOperationKeyLength,
+                nameof(request.OperationKey)),
+            Reason = NormalizeRequiredText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason))
+        };
+
+        if (normalized.Kind == InspectionAddressEvidenceKind.ImageBasedAssessment)
+        {
+            return normalized with
+            {
+                Label = null,
+                Address = null,
+                Postcode = null,
+                SourceKind = null,
+                SourceRecordId = null,
+                SourceVersion = null
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(normalized.Address))
+        {
+            throw new ArgumentException(
+                "A physical default inspection location requires an address.",
+                nameof(request));
+        }
+
+        return normalized with
+        {
+            Address = normalized.Address.Trim(),
+            Postcode = string.IsNullOrWhiteSpace(normalized.Postcode)
+                ? null
+                : normalized.Postcode.Trim()
+        };
+    }
+
+    /// <summary>
+    /// EXT-04/EXT-18 item 7: the manual EVA setting changes, and nothing else
+    /// does. The code, the organization, the lineage and the allocation
+    /// history are untouched, and automatic EVA submission is retired from
+    /// this administration surface — it is always set to false here, never
+    /// read from staff input.
     /// </summary>
     public static Principal PlanPrincipalEvaSubmissionUpdate(
         Principal current,
         long expectedVersion,
-        bool evaManualSubmission,
-        bool evaAutomaticSubmission)
+        bool evaManualSubmission)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -526,11 +646,11 @@ public static class OrganizationAdministrationPolicy
         }
 
         var changed = current.EvaManualSubmission != evaManualSubmission
-            || current.EvaAutomaticSubmission != evaAutomaticSubmission;
+            || current.EvaAutomaticSubmission;
         return current with
         {
             EvaManualSubmission = evaManualSubmission,
-            EvaAutomaticSubmission = evaAutomaticSubmission,
+            EvaAutomaticSubmission = false,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }
