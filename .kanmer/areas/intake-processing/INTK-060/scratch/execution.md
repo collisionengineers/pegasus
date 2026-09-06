@@ -276,3 +276,7 @@ Build/core 61/host 41/browser 2/architecture PASS; the two settings-page POSTs n
 ## C06 re-review at `dc24438e2`: needs-changes — 2 blockers (test fixtures), 3 minors, no production defect
 
 R-16/R-18/R-20 closed; R-17's SQL predicate judged correct and needed. New: C06-R-21 the whitespace regression test seeds through `ISaveCase`, which collapses whitespace on write, so the asserted value cannot exist (seed the irregular value at row level instead); C06-R-22 `SaveStorageLocationAsync` posts a partial `CaseEditableData` and `EfCaseDataStore.SetConfirmed` deletes a confirmed field whose incoming value is null, wiping the claimant address (seed with the complete payload). C06-R-23 `AdministrationPageModel.cs` edit (out of the C06 map, behaviour-neutral, prescribed) must be disclosed as a deviation. Round 4 queued behind C07 caller r2 / C08 r1.
+
+## Checkpoint — C08 round 1 at `8c5351296`
+
+Merge conflict resolved (`Admin.Health = "Service health"`), G14 taken; admin rail wraps at ≤980px; palette focus-return threads the real opener; Compose uses `Generation` + `StaffSend`/`SentEvidence`; labels batch (C07 AcceptedPending, C05 Finding). Preview-404 and Compose-redirect causes not confirmed statically — diagnostics added so wave 24 names them. Wave 24 running. C06 round 4 dispatched (fixture fixes R-21/R-22, deviation R-23). Editors: C07 caller r2, C06 r4. C05 round 3 next.
