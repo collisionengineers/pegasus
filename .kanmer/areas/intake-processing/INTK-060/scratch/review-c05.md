@@ -532,3 +532,236 @@ The "Finding" chip is deferred to C04/C08 with a written handoff (ASSUMPTION 7) 
 still renders legibly and provably in the meantime. The `valuation.adjustment` contract change
 remains requested-not-applied (ASSUMPTION 3). Every candidate id changed relative to the previous
 head, which is a version boundary rather than a defect and is declared in the report.
+
+---
+
+# SUPERSEDING ATTESTATION — C05 correction round 2
+
+```yaml
+verdict: needs-changes
+ticket: INTK-060
+slice: C05 — extract third-party reports as source evidence
+head: 868e7a5ea
+review_head: 868e7a5ea (reviewed in the worktree at merged head b506c3b8d)
+supersedes: 7b632169b (needs-changes, C05-R-6 half / R-10 / R-11 / R-12 open)
+base_of_correction: 7b632169b
+diff_reviewed: git diff 7b632169b..868e7a5ea (6 files, +282/-43, 2 commits)
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c05
+branch: c05-third-party
+ownership: PASS
+frozen_contracts: PASS (ThirdPartyReportContracts.cs blob d024366c8 at 975bf107b, 7b632169b and 868e7a5ea)
+stop_conditions: none tripped
+lanes_seen: 1-build PASS, 2-core PASS, 3-corpus FAIL, 4-web FAIL-WITH-SKIPS, 5-architecture PASS
+majors_open: 2
+minors_open: 2
+notes_open: 4
+independent: true
+review_round: 2
+test_evidence: wave 22, C:/Users/PGUSER/AppData/Local/Temp/claude/C--Users-PGUSER-documents-github-pegasus/e752479c-0f90-4a5e-bc40-b525ea3bf932/scratchpad/wave1/wave22-tests/
+skill_sha256:
+  - file: C:/Users/PGUSER/documents/github/pegasus/.agents/skills/kanmer-review/SKILL.md
+    sha256: addf26c9981cefa755a9db3a1ee06383432230708641b076ee336d64a1096741
+```
+
+## Verdict
+
+**needs-changes** at `868e7a5ea`. Three of the four open findings are genuinely fixed —
+C05-R-10 (every finding row names a source), C05-R-11 (a scan-only source reaches storage,
+a readable non-report still records nothing) and C05-R-12 (the finding ordinal in the derived
+id) — and each is proved by a case that ran, not by the report's description. But two of the
+five lanes are still **red at this head**, and both reds are in this round's own new code:
+
+- Lane 3 fails the **new** `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate`, and what
+  it catches is real: now that a scan-only source is recordable, its `identity.issuer` row is
+  persisted with an **empty source label** (C05-R-16, major). The finding rows are fixed; the
+  issuer row beside them is not.
+- Lane 4 still fails `ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates` —
+  now on `Assert.Equal(2, recorded.Count)`, **Actual: 1**. Only one of the two passes tagged a
+  third-party outcome for this receipt, so C05-R-6's open half is **not closed**: the claim
+  that the re-evaluation re-reads the retained bytes and reaches `recorded_reading_stands`
+  remains unproven, and the implementer's round-2 report states it as fact.
+
+Nothing was weakened. No assertion was deleted or relaxed anywhere in the diff; two corpus
+`Assert.False` calls gained failure messages, the web case gained a receipt filter and a
+`Assert.Equal(2, …)` count it did not have, and the suites grew 27→29 (core) and 11→13 (corpus).
+
+## Ownership, frozen contracts, scope — PASS
+
+`git diff --name-status 7b632169b..868e7a5ea` touches exactly six paths, every one in
+`C-intake.md` "### C05 files":
+
+- `src/Pegasus.Core/Intake/ProcessIntake.cs`
+- `src/Pegasus.Core/Intake/ThirdPartyReports/ThirdPartyReportExtraction.cs`
+- `src/Pegasus.Core/Intake/ThirdPartyReports/ThirdPartyReportProfiles.cs`
+- `tests/Pegasus.Core.Tests/Intake/ThirdPartyReports/ThirdPartyReportExtractionTests.cs`
+- `tests/Pegasus.IntegrationTests/ThirdPartyReportCorpusTests.cs`
+- `tests/Pegasus.IntegrationTests/ThirdPartyReportProvenanceWebTests.cs`
+
+`ThirdPartyReportContracts.cs` is the identical blob `d024366c8` at `975bf107b`, `7b632169b`
+and `868e7a5ea` — untouched, as required. No `DependencyInjection.cs`, no migration, no entity,
+no `PegasusDbContext`, no `Details.cshtml`, no `OperatorLabels.cs`, no
+`MultiFormatGenuineCorpusWebTests.cs`. `ThirdPartyReportValidation.cs` was not needed this
+round and was not touched. A BOM grep over the diff returns **0** — C05-R-14 was not repeated.
+Worktree is clean (`git status --porcelain` empty) and the worktree's `--git-common-dir`
+resolves to the primary `C:/Users/PGUSER/Documents/github/pegasus/.git`.
+
+## Prior findings — dispositions
+
+| id | severity | disposition | evidence |
+| --- | --- | --- | --- |
+| C05-R-6 | major (raised from minor) | **still open** | Lane 4 red on `Assert.Equal(2, recorded.Count)`, Actual **1**. See below. |
+| C05-R-10 | major | **fixed** | `FindingRows` now resolves its locator through `Locator(finding, issuer, rows)` — the first *evidence* row that names a source, then the issuer if it names one, then the first row of the document that does. Lane 3's `EveryRecordedFindingIsPersistedAsItsOwnSourceRow` (the case that failed at line 325 last round) **passed**, so all eleven `RecordedFindings` (file, code) pairs are now verified rather than merely consistent. The new corpus case's `Assert.All` reaches the finding rows of both scan-only originals without failing on one — the single failing row is `identity.issuer`, not a finding. |
+| C05-R-11 | major | **fixed** | `IsRecordable` now takes the whole `ThirdPartyReportExtractionResult` and is `Selection.Matches.Count > 0 \|\| Findings.Count > 0`; `ProcessIntake.cs:338` passes `extraction`. Both halves are proved: `Assert.True(IsRecordable(result))` at `ThirdPartyReportCorpusTests.cs:442` **passed** for `JohnRBell1.pdf` and `TonBridgeAccidentRepair1.pdf` on the real PDFs, and `Assert.Contains(recorded, IsFinding)` at `:450` passed, so the page rows and both OCR findings do now reach `ToCandidates`. The negative half is `AReadableDocumentThatIsNoReportAndSaysNothingAboutItselfIsNotRecorded` (core lane green): no match, no finding, `IsRecordable` false. I checked the widening is genuinely narrow — with `Candidate is null`, `ThirdPartyReportValidation.Check` can raise only `source-requires-ocr`, `page-requires-human-verification` and `document-signature-ambiguous`, and the last already implies `Matches.Count > 1`. So the only newly recordable class is a source with scan-only pages, which is exactly the intent. |
+| C05-R-12 | minor | **fixed** | `ThirdPartySourceCandidates.Create` takes an `ordinal` (0 for every printed row, `ordinal + 1` for a finding) and `DeterministicId` folds it into the key. Proved twice: `TwoFindingsThatStateTheSameSentenceDoNotShareAnIdentifier` (core, green) asserts both distinctness and reproducibility, and the new `NoTwoRecordedRowsOfOneOriginalShareAnIdentifier` (corpus, green) proves no two rows of any of the 29 originals collide and no id is `Guid.Empty`. `ReadingTheWholeCorpusTwiceProducesTheIdenticalRecord` still passes, so the ordinal did not break replay determinism. A related latent bug was fixed in passing: `FindingRows` was a lazy `IEnumerable` being `AddRange`d into the same `List` it now reads, and it is eager at this head. |
+| C05-R-13 | note | **accepted** | The report's round-1 rule count is corrected in "Correction round 2". |
+| C05-R-14 | note | **not repeated** | Verified: zero BOM bytes in the round-2 diff. |
+| C05-R-15 | note | **not taken — and now material** | The untagged early return is one of the two live candidate explanations for lane 4's missing second outcome. See C05-R-6 below. |
+
+### C05-R-6 (major, still open) — the re-evaluation pass is still silent for this receipt
+
+Lane 4, `ThirdPartyReportProvenanceWebTests.cs:338`:
+
+```
+Assert.Equal() Failure: Values differ
+Expected: 2
+Actual:   1
+```
+
+The listener is now correctly keyed by `intake.receipt_id` (a `Guid` tag set by
+`ProcessIntake.RecordTelemetry`, `ProcessIntake.cs:1179`, on the same activity and after the
+outcome tag, so ordering is fine), and the process-global-listener contamination C05-R-6 named
+is genuinely closed. What the count now shows is that **exactly one** of the two passes tagged
+a third-party outcome for this receipt, so the corrected test proves less than the report
+claims, not more. The test aborts before `Assert.Contains("recorded_reading_stands")`, so the
+log does not say **which** pass was silent — that is itself a gap in the diagnostic.
+
+The `Assert.Equal(1, await dispatcher.ExecuteAsync(1, …))` above it passed, so a work item was
+dispatched and the immediate enqueuer ran `ProcessQueuedIntake` — the pass ran and still tagged
+nothing. Three reachable ways for that to happen:
+
+1. `RecordThirdPartyReportSourceAsync` returns **untagged** when
+   `retainedInstructionAnalysisStore is null`, when `readResult.Status != Readable`, or when
+   `IntakeFileIdentity.SourceAsset(receipt) is null` (`ProcessIntake.cs:315-325`). That is
+   C05-R-15, and on the re-evaluation path any of the three would produce exactly this result.
+2. `ProcessQueuedIntake.ExecuteAsync` has a `claimed is null` branch (`DurableIntake.cs:584-…`)
+   that replays association and allocation from the completed evaluation and never calls
+   `ProcessIntake` at all.
+3. The queued pass tagged a **different** receipt id, in which case the analysis was written
+   under a receipt the `first`/`second` query never looks at.
+
+Please add the diagnostic before the fix: assert the observed outcome **sequence** rather than
+only its count (or put `recorded` and the unfiltered queue into the failure message), and tag
+the three early returns at (1). Then the next round has a fact instead of three hypotheses.
+
+**On the mechanism, which I did verify by reading:** the `recorded_reading_stands` branch *is*
+honest where it is reached. `EfRetainedInstructionAnalysisStore.RecordAsync` opens a
+serializable transaction, probes the (receipt, asset, key) triple, and throws
+`RetainedInstructionAnalysisConflictException` **before** any `Add` and before
+`SaveChangesAsync`; the transaction is disposed without a commit. So the conflict path writes
+no second candidate set and no partial row — this is not a swallowed conflict that lost data,
+and the reader demonstrably ran (the exception is only reachable after `Extract` produced
+candidates). Two caveats are recorded as C05-R-18 and C05-R-19 below. Note too that the test's
+`first`/`second` comparison is filtered to the *first* asset id, so on its own it cannot see a
+second set written under a new asset — the outcome assertion is what closes that, which is
+another reason it has to actually pass rather than be narrowed away.
+
+## New findings
+
+### C05-R-16 (major) — the `identity.issuer` row of a scan-only source is persisted naming no source; lane 3 is red
+
+```
+Assert.All() Failure: 1 out of 6 items in the collection did not pass.
+[0]: RetainedInstructionCandidate { Field = identity.issuer, …, SourceLabel = , Page = ,
+     Disposition = Missing }
+     Error: JohnRBell1.pdf: a identity.issuer row names no source.
+ThirdPartyReportCorpusTests.cs:453   —   Failed: 1, Passed: 12, Skipped: 0
+```
+
+C05-R-10 was fixed one row short. `ThirdPartyReportProfiles.Verdict` builds the issuer row with
+`sourceLabel: evidence?.SourceLabel ?? string.Empty` (`ThirdPartyReportProfiles.cs:398-407`),
+and a source with no readable page matches no signature, so `evidence` is null and the label is
+`""`. Until this round that row never reached storage, because `IsRecordable` discarded the
+whole reading; **the C05-R-11 fix is what makes it persist**. So the round-2 corrections turned
+a computed-and-discarded blank row into a stored one, and the implementer's own new test is the
+thing that caught it. That is the right test doing its job — but it is red, and the row it
+names is a persisted provenance record that names no part of the document it is about, which is
+the invariant this slice exists to hold.
+
+Fix, all inside `ThirdPartyReportProfiles.cs` / `ThirdPartyReportExtraction.cs`: give `Verdict`
+a real fallback label for the no-evidence case (the read result's own source label, or
+`readResult.ScannedPdfPages[0].SourceLabel`), rather than relaxing the assertion. Note that the
+issuer row is built inside `Select` before the scanned page rows exist, so the label has to come
+from the read result rather than from `rows`.
+
+### C05-R-17 (minor) — the "every finding names a source" guarantee rests on an unasserted reader invariant
+
+`Locator(...)` ends `?? issuer`, so it can still return a blank-label row when a reading has
+`RequiresOcr: true`, **no** `ScannedPdfPages`, and an issuer with no signature evidence. That
+combination is unreachable only because `MimeKitPdfPigOpenXmlIntakeSourceReader` sets
+`RequiresOcr` as `OcrCandidates.Count > 0` (line 1093) and `ProviderApiIntakeSourceReader` sets
+it `false` — i.e. the guarantee is held by a producer invariant that no test states. A
+hand-built `IntakeSourceReadResult` (a future reader, or a test) breaks it silently. Cheapest
+guard: one core case that constructs exactly that read result and asserts the finding row still
+names a source, or make the last fallback a label rather than a row.
+
+### C05-R-18 (minor) — `recorded_reading_stands` conflates three different conflict causes
+
+`RetainedInstructionAnalysisConflictException` carries no reason, and
+`IRetainedInstructionAnalysisStore.RecordAsync`'s own contract says it is raised for a row found
+under the key "for a DIFFERENT receipt, asset **or** expected receipt version".
+`EfRetainedInstructionAnalysisStore` has two throw sites: the version mismatch on the matching
+triple, and `AnyAsync(item => item.OperationKey == key)` for a key already bound elsewhere.
+`ProcessIntake` catches both and tags the same `recorded_reading_stands` — which would be a
+**false** statement in the second case, where nothing was recorded for this receipt at all. It
+is not reachable today (the key embeds `asset.Id`, so a cross-binding needs one asset id on two
+receipts), but the tag exists precisely to make outcomes distinguishable, and this one merges an
+honest replay with a corruption signal. Cheapest guard: give the exception a reason, or probe
+`FindByOperationKeyAsync` in the catch and tag `recorded_reading_stands` only when the stored
+row names this receipt and asset.
+
+### C05-R-19 (note) — the `"replayed"` branch is dead on the path the comment describes
+
+The operation-key comment at `ProcessIntake.cs:352-354` says the key is "derived from the asset,
+so re-processing the same retained bytes replays the record instead of writing a second set of
+candidates" — but a re-evaluation always moves `receipt.Version`, so `RecordAsync` can never
+return `IsReplay: true` on that path; the *conflict* is the normal control flow and
+`isReplay ? "replayed" : "recorded"` can only ever say `"recorded"` there. Using an exception as
+the ordinary re-evaluation outcome is worth a sentence in the comment so the next reader does
+not go looking for the replay that never happens.
+
+### C05-R-20 (note) — finding ids are position-dependent, so inserting a rule renumbers later findings
+
+The ordinal is the finding's index in the raised order, so adding a finding rule *before* an
+existing one changes the derived id of every finding after it for every affected source. That is
+the same version boundary the report already declares for this head and nothing reads an id
+across runs, so it is acceptable — but it is a second, quieter id-churn trigger than the
+raw-value one, and the `DeterministicId` comment should say so.
+
+### Note on finding numbering
+
+The dispatch asked for new findings "from C05-R-13". `C05-R-13`, `C05-R-14` and `C05-R-15` are
+already bound to the round-1 notes in this document, and reusing them would make the ids
+ambiguous across rounds. This round's new findings therefore start at **C05-R-16**, so every id
+in this attestation still names exactly one finding.
+
+## Test evidence (wave 22, lanes 1-5, all present)
+
+| lane | result | detail |
+| --- | --- | --- |
+| 1-build | PASS | exit 0, `Build succeeded. 0 Warning(s), 0 Error(s)`, 20.08 s. |
+| 2-core | PASS | 29 passed, 0 failed, 0 skipped (27 → 29: two cases added, one extended). Pack-gated facts ran. |
+| 3-corpus | **FAIL** | 12 passed, **1 failed**, 0 skipped (11 → 13). `AScanOnlyOriginalIsRecordedRatherThanDiscardedAtTheGate` at line 453 — C05-R-16. `EveryRecordedFindingIsPersistedAsItsOwnSourceRow`, `NoTwoRecordedRowsOfOneOriginalShareAnIdentifier` and `ReadingTheWholeCorpusTwiceProducesTheIdenticalRecord` all passed. |
+| 4-web | **FAIL** | 9 passed, **1 failed**, 5 skipped. `ReprocessingTheSameRetainedBytesDoesNotWriteASecondSetOfCandidates` at line 338 — C05-R-6. The five skips are the known absent-pinned-sample `MultiFormatGenuineCorpusWebTests` skips and are not attributed to C05; the skip list contains no `ThirdPartyReportProvenanceWebTests` entry, so all three C05 web cases ran. |
+| 5-architecture | PASS | 100 passed, 0 skipped. |
+
+Two red lanes is the verdict. `pass` requires all five green with only the known web skips.
+
+## What round 3 needs
+
+1. **C05-R-16** — give the no-evidence issuer row a real source label (`ThirdPartyReportProfiles.Verdict`).
+2. **C05-R-6** — make the re-evaluation pass observable: tag the three untagged early returns
+   (C05-R-15), assert the observed outcome sequence rather than only its count, and then either
+   show the pass reaches the reader or rename the case to what it actually proves.
+3. C05-R-17, C05-R-18 as cheap guards; C05-R-19, C05-R-20 are comment-only.
+
+Nothing here needs an A-owned file, a contract change, or a redesign.

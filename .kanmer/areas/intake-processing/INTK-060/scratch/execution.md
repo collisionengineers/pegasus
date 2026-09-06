@@ -260,3 +260,11 @@ Build/core 29/architecture PASS; corpus 12/13 — the new `AScanOnlyOriginalIsRe
 ## C07 caller re-review at `6490623c3`: needs-changes — 1 major, 3 minors
 
 All eight round-0 findings fixed; R-3a accepted as recorded residual. Open: R-12 `IsUncertainHandOver` names `HttpRequestException` (Core → System.Net.Http; the fix is to classify via `IntakeDependencyUnavailableException`/`IntakeExceptionPolicy.IsTransientFailure` and let A04's adapter translate transport faults), R-13 a bare `TaskCanceledException` leaves the occurrence `arrived` and re-offers bytes, R-14 the double's status port never checks authority. Round 2 queued for the next editor slot (C06 r3, C08 r1 active).
+
+## Checkpoint — C06 round 3 at `dc24438e2`
+
+R-16 (nullable operation keys, per-handler validation), R-17 (SQL predicate whitespace), R-18 (create id from the operation key), R-19 (Storage covered), R-20 (validation causes surfaced) closed by the implementer; wave 23 + targeted re-review running. C07 caller round 2 dispatched (Opus): R-12 Core transport-type reference, R-13 cancellation → unknown, R-14 status-read authority (possible A contract gap). Editors: C07b r2, C08 r1. C05 round 3 queued pending its re-review's diagnosis.
+
+## C05 re-review at `868e7a5ea`: needs-changes — 2 majors, 2 minors
+
+R-10/R-11/R-12 fixed and proved. Open: C05-R-16 `ThirdPartyReportProfiles.Verdict` builds the scan-only `identity.issuer` row with an empty source label and R-11 now lets it reach storage (caught by the implementer's own new test at `ThirdPartyReportCorpusTests.cs:453`); C05-R-6 the driven re-evaluation pass still tags only one third-party outcome for the receipt, so "re-evaluation re-reads and leaves the reading standing" is unproven (the standing branch itself is honest). Round 3 queued for the next editor slot (C07 caller r2 and C08 r1 active).
