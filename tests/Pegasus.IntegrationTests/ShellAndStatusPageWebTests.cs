@@ -1,4 +1,8 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Operations;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -128,5 +132,70 @@ public sealed class ShellAndStatusPageWebTests
             "version",
             await version.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// C08: <see cref="RailCountsPageFilter"/> resolves <see cref="IGetAttentionRows"/>
+    /// per request rather than through the constructor, because this branch
+    /// does not yet carry Stream A's registration for it. This is the half of
+    /// that bridge that proves the rows still reach the notifications menu
+    /// once the query is registered — through the ordinary DI path a real
+    /// registration would use, not a page-specific hand-off.
+    /// </summary>
+    [Fact]
+    public async Task NotificationsMenuShowsAttentionRowsOnceTheQueryIsRegistered()
+    {
+        var rows = new[]
+        {
+            new NeedsAttentionItem(
+                NeedsAttentionKind.Triage, Guid.NewGuid(), "T/2031/041", "AB12 CDE",
+                Detail: null, Reason: "open", NeedsAttentionPriority.High,
+                Owner: null, Due: null, LastOutcome: null, Source: null, Attempts: null)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetAttentionRows>();
+                services.AddSingleton<IGetAttentionRows>(new StubAttentionRows(rows));
+            }));
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        // Not Work Centre ("/") — that page supplies its own rows and never
+        // asks the filter for this query.
+        using var response = await client.GetAsync("/Search");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("AB12 CDE", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The other half of the bridge: with no registration at all (today's
+    /// state on this branch), the shell still renders — the notifications
+    /// menu simply carries no list content, never a failed page.
+    /// </summary>
+    [Fact]
+    public async Task ShellStillRendersWhenTheAttentionRowsQueryIsNotRegistered()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search");
+
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("data-dialog=\"notifications-dialog\"", html, StringComparison.Ordinal);
+    }
+
+    private sealed class StubAttentionRows(IReadOnlyList<NeedsAttentionItem> rows) : IGetAttentionRows
+    {
+        public Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
+            Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult(rows);
     }
 }
