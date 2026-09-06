@@ -124,6 +124,14 @@ public sealed partial class RequestModel(
                 case RequestUploadDecision.OperationConflict:
                     ModelState.AddModelError(string.Empty, "This upload operation was already used for different content. Reload the link and try again.");
                     break;
+                case RequestUploadDecision.LimitsVersionMismatch:
+                    // The link outlived a limits change. The sender did
+                    // nothing wrong and nothing about the Case is disclosed;
+                    // they need a new link from whoever sent this one.
+                    ModelState.AddModelError(string.Empty, "This link is no longer valid. Ask for a new one.");
+                    break;
+                case RequestUploadDecision.Unavailable:
+                    return NotFound();
                 default:
                     return NotFound();
             }
