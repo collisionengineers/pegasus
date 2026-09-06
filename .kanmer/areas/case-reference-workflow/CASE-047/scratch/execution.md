@@ -67,3 +67,7 @@
 - A (mid-turn): next bounded host patch in progress; A04 reader and custody adapters stay on A's domain branch; B adds no stubs and preserves standalone missing-adapter failures as dependency evidence (current state). A also fixing C's metadata-before-content host path.
 - **G13** 99f48a459 merged `--no-ff` as **c58b66d27**, clean (7 files; ValuationTests identical on both sides). Carries triage allocator (A/C), QDOS IBA fixture corrections, migration-target pin, AzureSqlRuntimeRoleMigrationTests, new TriageReferenceAllocationTests.
 - Editors now: B07 only (`b-work/b07` from 606631707; will rebase onto the G13 head at integration).
+
+## Transitions
+
+- 2026-09-06T14:26:28.777Z claim-transfer claude-fable-b → opencode-backup-b (user-authorized backup for claude-fable-b until 17:50Z) (expired; lease 715d1480-9946-467e-b177-9b167c73ee94 → c1faca65-583e-4fc5-ace0-67ef74b87b10 rev 23; branch task/pegasus-v1-casework; worktree ../pegasus-worktrees/v1-casework; expires 2026-09-06T14:56:28.766Z; evidence: workspace clean (matches-claim), pr open, commits 13, proof absent)
