@@ -487,11 +487,13 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
-    /// Custody's status read is staff-only, so the public sender's own retry
-    /// is refused. The retention keeps the state it had - never success, never
-    /// re-offered - rather than the refusal reaching the sender as a fault.
-    /// The narrower rule this leaves the public path with is a handoff to the
-    /// custody stream, recorded on INTK-060 scratch/c07-notes.
+    /// A reconciliation custody's fence turns away - the link was revoked or
+    /// expired, or it names another Case - leaves the retention exactly where
+    /// it was: never success, never re-offered, and the refusal never reaches
+    /// the sender as a fault. What this proves is the command's behaviour on a
+    /// refused read, not that senders cannot read: Stream A's published fence
+    /// admits the exact active link that arrival came through, which
+    /// <c>PublicUploadRetentionWebTests</c> exercises against a real link row.
     /// </summary>
     [Fact]
     public async Task AReconciliationTheActorMayNotReadLeavesTheRetentionWhereItWas()
@@ -614,8 +616,13 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
-    /// Custody's status port under its real rule: staff only. A request-link
-    /// actor may hand bytes over and may not read what became of them.
+    /// Custody's status port refusing this actor. Stream A's published fence
+    /// (PR 673 comment 5560737585) is the same one for both status reads -
+    /// staff casework, or the exact active, unrevoked and unexpired request
+    /// link naming its own Case - so what this double stands for is an actor
+    /// that fence turns away: a link that was revoked, expired, or names
+    /// another Case. Handing bytes over is not itself permission to read what
+    /// became of them; being the link that arrival came through is.
     /// </summary>
     private sealed class RefusingCustodyStatus : ICaseArtifactCustodyStatus
     {
