@@ -171,10 +171,17 @@ public sealed partial class RequestModel(
 
             return Page();
         }
+        // The submission path now puts a remote custody adapter behind this
+        // call, so its transport faults belong here too: a dropped connection
+        // or a timed-out request is the plain retry message, never a 500 on a
+        // page a member of the public is looking at.
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or IOException
             or UnauthorizedAccessException
+            or HttpRequestException
+            or TimeoutException
+            or System.Net.Sockets.SocketException
             or Microsoft.EntityFrameworkCore.DbUpdateException)
         {
             LogPublicRequestUploadFailure(logger, exception);

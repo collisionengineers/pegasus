@@ -44,6 +44,18 @@ public sealed partial class PublicUploadRetentionWebTests
     private const string LimitsVersion = "integration-fixture-v1";
     private static readonly byte[] Evidence = "public upload retention evidence"u8.ToArray();
 
+    // The three sentences the public page can end on. They are asserted
+    // verbatim because which one is shown is the whole of what the sender is
+    // told about custody.
+    private const string RetainedMessage =
+        "Your document was received and retained securely.";
+
+    private const string StoringMessage =
+        "Your document was received and is being stored.";
+
+    private const string RetryMessage =
+        "The document could not be retained. Try again using the same upload operation.";
+
     [Fact]
     public async Task AConfirmedHandOverOpensTheFixedWindowAndRecordsTheBoxIdentities()
     {
@@ -56,6 +68,7 @@ public sealed partial class PublicUploadRetentionWebTests
         var result = await PostEvidenceAsync(factory, link.Token);
 
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
+        Assert.Contains(RetainedMessage, result.CompletionBody, StringComparison.Ordinal);
         var call = Assert.Single(custody.Calls);
 
         // Stream A's rule, observed from inside the adapter: the authority is
@@ -69,9 +82,10 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal(Evidence.Length, call.ObservedContentLength);
         Assert.Equal(Sha256Hex(Evidence), call.ObservedSha256);
 
-        // The arrival was durable before custody was asked, and it was Pending
-        // at that moment — never a Confirmed claim ahead of the answer.
-        Assert.Equal("pending", call.CustodyStateAtHandOver);
+        // The arrival was durable before custody was asked, and it carried the
+        // pre-custody state at that moment — not a Pending custody has not
+        // given, and certainly not a Confirmed one.
+        Assert.Equal("arrived", call.CustodyStateAtHandOver);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
@@ -117,6 +131,13 @@ public sealed partial class PublicUploadRetentionWebTests
         var result = await PostEvidenceAsync(factory, link.Token);
 
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
+
+        // The one sentence the sender reads. Pending says the document arrived
+        // and is being stored; it must not claim a custody custody has not
+        // confirmed.
+        Assert.Contains(StoringMessage, result.CompletionBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(RetainedMessage, result.CompletionBody, StringComparison.Ordinal);
+
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
             .AsNoTracking()
@@ -159,10 +180,7 @@ public sealed partial class PublicUploadRetentionWebTests
         var result = await PostEvidenceAsync(factory, link.Token);
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
-        Assert.Contains(
-            "The document could not be retained. Try again using the same upload operation.",
-            result.Body,
-            StringComparison.Ordinal);
+        Assert.Contains(RetryMessage, result.Body, StringComparison.Ordinal);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
@@ -220,6 +238,224 @@ public sealed partial class PublicUploadRetentionWebTests
     }
 
     /// <summary>
+    /// The link's accepted totals rest on the committed occurrence, not on the
+    /// receipt. A hand-over that earns no receipt — here because the adapter
+    /// created no document occurrence for it — re-enters the accept path in
+    /// full on a replay, and must still count exactly one file.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedArrivalThatEarnedNoReceiptIsStillCountedExactlyOnce()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        custody.CreatesDocumentOccurrence = false;
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
+
+        // The bytes were offered once: the confirmed retention answered the
+        // replay without a second hand-over.
+        Assert.Single(custody.Calls);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
+            .AsNoTracking()
+            .Where(item => item.RequestId == link.LinkId)
+            .ToArrayAsync());
+        Assert.Single(await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.OperationKey.StartsWith($"request:{link.LinkId:N}:"))
+            .ToArrayAsync());
+
+        // One occurrence, one file, whatever the receipt does or does not say.
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+        var status = await context.Set<RequestUploadLinkEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == link.LinkId)
+            .Select(item => item.Status)
+            .SingleAsync();
+        Assert.Equal(RequestUploadStatus.Active, status);
+    }
+
+    /// <summary>
+    /// A Pending arrival is not a dead end. It writes no receipt, so the next
+    /// submission of the same operation key reaches the command again, which
+    /// asks custody what became of it instead of offering the bytes twice. A
+    /// confirmation lands the identities, opens the fixed window, and only then
+    /// tells the sender the document is retained.
+    /// </summary>
+    [Fact]
+    public async Task APendingArrivalIsReconciledToConfirmedByTheNextArrivalWithTheSameKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Pending;
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+        Assert.Contains(StoringMessage, first.CompletionBody, StringComparison.Ordinal);
+
+        // Custody finishes storing it between the two submissions.
+        custody.StatusDisposition = CaseArtifactCustodyDisposition.Confirmed;
+        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
+
+        // Asked, not repeated.
+        var call = Assert.Single(custody.Calls);
+        Assert.Equal(1, custody.StatusCalls);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var session = await context.Set<PublicUploadSessionEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.RequestUploadLinkId == link.LinkId);
+        Assert.Equal(Now, session.StartedAtUtc);
+        Assert.Equal(Now.Add(PublicUploadSessionPolicy.Window), session.ExpiresAtUtc);
+
+        var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.SessionId == session.Id);
+        Assert.Equal("confirmed", occurrence.CustodyState);
+        Assert.Equal(call.VersionId, occurrence.DocumentVersionId);
+
+        var version = await context.Set<DocumentVersionEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == occurrence.DocumentVersionId);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+        Assert.Equal($"box-file:{version.Id:N}", version.BoxFileId);
+        Assert.Equal($"box-version:{version.Id:N}", version.BoxVersionId);
+
+        // The confirmation earns the receipt the Pending deliberately did not.
+        Assert.Single(await context.Set<RequestUploadReceiptEntity>()
+            .AsNoTracking()
+            .Where(item => item.RequestId == link.LinkId)
+            .ToArrayAsync());
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// The other end of the same reconciliation: custody says it refused the
+    /// file after all. The occurrence records the refusal, the window never
+    /// opens, no receipt is written, and the sender is told to try again rather
+    /// than that the document is held.
+    /// </summary>
+    [Fact]
+    public async Task APendingArrivalIsReconciledToFailedByTheNextArrivalWithTheSameKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Pending;
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+        custody.StatusDisposition = CaseArtifactCustodyDisposition.Failed;
+        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Contains(RetryMessage, second.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain(RetainedMessage, second.Body, StringComparison.Ordinal);
+        Assert.Single(custody.Calls);
+        Assert.Equal(1, custody.StatusCalls);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var session = await context.Set<PublicUploadSessionEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.RequestUploadLinkId == link.LinkId);
+        Assert.Null(session.StartedAtUtc);
+
+        var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.SessionId == session.Id);
+        Assert.Equal("failed", occurrence.CustodyState);
+
+        var version = await context.Set<DocumentVersionEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == occurrence.DocumentVersionId);
+        Assert.Equal(DocumentCustodyStatus.Failed, version.CustodyStatus);
+        Assert.Null(version.BoxFileId);
+
+        Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
+            .AsNoTracking()
+            .Where(item => item.RequestId == link.LinkId)
+            .ToArrayAsync());
+
+        // The file the Pending consumed is not handed back at the moment of the
+        // refusal (ASSUMPTION 6): the totals are recomputed from the accepted
+        // occurrences the next time an arrival is accepted, and this refusal is
+        // not one.
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// A hand-over that fails after custody has the bytes is recorded uncertain
+    /// rather than left as it was offered, so the next submission asks about it
+    /// instead of sending custody the same bytes a second time.
+    /// </summary>
+    [Fact]
+    public async Task AThrownHandOverIsRecordedUnknownAndTheNextArrivalNeverRepeatsIt()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        custody.ThrowOnHandOver = new TimeoutException("the custody call timed out");
+        var link = await SeedLinkAsync(factory.Services);
+
+        var first = await PostEvidenceAsync(factory, link.Token);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Contains(RetryMessage, first.Body, StringComparison.Ordinal);
+        var call = Assert.Single(custody.Calls);
+        Assert.Equal(Evidence.Length, call.ObservedContentLength);
+
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var arrival = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync();
+
+            // Not the state it was offered from: that one would send the bytes
+            // again on the retry.
+            Assert.Equal("unknown", arrival.CustodyState);
+            Assert.Empty(await context.Set<RequestUploadReceiptEntity>()
+                .AsNoTracking()
+                .Where(item => item.RequestId == link.LinkId)
+                .ToArrayAsync());
+            Assert.Empty(await context.Set<CaseDocumentEntity>()
+                .AsNoTracking()
+                .Where(item => item.CaseId == link.CaseId)
+                .ToArrayAsync());
+            Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+        }
+
+        // Custody would answer now. It is still never offered the bytes again:
+        // an uncertain arrival is asked about, and this one named no document
+        // to ask about, so it honestly stays uncertain.
+        custody.ThrowOnHandOver = null;
+        var second = await PostEvidenceAsync(factory, link.Token, first.OperationKey);
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Contains(RetryMessage, second.Body, StringComparison.Ordinal);
+        Assert.Single(custody.Calls);
+        Assert.Equal(0, custody.StatusCalls);
+
+        await using var after = await CreateContextAsync(factory.Services);
+        var occurrence = await after.Set<PublicUploadOccurrenceEntity>().AsNoTracking().SingleAsync();
+        Assert.Equal("unknown", occurrence.CustodyState);
+        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(after, link.LinkId));
+    }
+
+    /// <summary>
     /// The custody rule refuses every authority that is not this exact link,
     /// and a refusal leaves nothing confirmed behind it.
     /// </summary>
@@ -241,38 +477,62 @@ public sealed partial class PublicUploadRetentionWebTests
             factory.Services,
             reference: "PUBUP4",
             expiresAtUtc: Now.AddMinutes(-1));
+        var inactive = await SeedLinkAsync(
+            factory.Services,
+            reference: "PUBUP5",
+            status: RequestUploadStatus.Exhausted);
 
         // Staff rights are not this link's rights, however senior the actor.
-        await Refuses(
+        await Refuses<StaffAuthorizationException>(
             retention,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
             link.CaseId,
             link.LinkId);
 
         // A request-link actor naming a different persisted link.
-        await Refuses(retention, ActionActor.RequestLink(other.LinkId), link.CaseId, link.LinkId);
+        await Refuses<StaffAuthorizationException>(
+            retention,
+            ActionActor.RequestLink(other.LinkId),
+            link.CaseId,
+            link.LinkId);
 
         // This link, but a Case that is not the one the link row records.
-        await Refuses(retention, ActionActor.RequestLink(link.LinkId), other.CaseId, link.LinkId);
+        await Refuses<StaffAuthorizationException>(
+            retention,
+            ActionActor.RequestLink(link.LinkId),
+            other.CaseId,
+            link.LinkId);
 
-        // Holding — a null destination — is not open to a request link.
-        await Refuses(retention, ActionActor.RequestLink(link.LinkId), null, link.LinkId);
+        // Holding — a null destination — is not open to a request link, and it
+        // is refused for being holding rather than for failing validation.
+        await Refuses<InvalidOperationException>(
+            retention,
+            ActionActor.RequestLink(link.LinkId),
+            null,
+            link.LinkId);
 
-        // A link that no longer authorizes anything.
-        await Refuses(
+        // A link that no longer authorizes anything: revoked, expired, and one
+        // that is simply not Active with no revocation to give it away.
+        await Refuses<StaffAuthorizationException>(
             retention,
             ActionActor.RequestLink(revoked.LinkId),
             revoked.CaseId,
             revoked.LinkId);
-        await Refuses(
+        await Refuses<StaffAuthorizationException>(
             retention,
             ActionActor.RequestLink(expired.LinkId),
             expired.CaseId,
             expired.LinkId);
+        await Refuses<StaffAuthorizationException>(
+            retention,
+            ActionActor.RequestLink(inactive.LinkId),
+            inactive.CaseId,
+            inactive.LinkId);
 
         // A refusal reaches no store, so there is no arrival and no document
-        // against any of the four seeded Cases.
-        Guid[] seeded = [link.CaseId, other.CaseId, revoked.CaseId, expired.CaseId];
+        // against any of the five seeded Cases.
+        Guid[] seeded =
+            [link.CaseId, other.CaseId, revoked.CaseId, expired.CaseId, inactive.CaseId];
         await using var context = await CreateContextAsync(factory.Services);
         Assert.Empty(await context.Set<PublicUploadOccurrenceEntity>().AsNoTracking().ToArrayAsync());
         Assert.Empty(await context.Set<CaseDocumentEntity>()
@@ -312,14 +572,20 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
-    private static async Task Refuses(
+    /// <summary>
+    /// The refusal is asserted by exact type, so an incidental validation
+    /// failure inside the command cannot stand in for Stream A's authorization
+    /// refusal.
+    /// </summary>
+    private static async Task Refuses<TException>(
         RetainIncomingArtifact retention,
         ActionActor actor,
         Guid? caseId,
         Guid linkId)
+        where TException : Exception
     {
         await using var content = new MemoryStream(Evidence, writable: false);
-        await Assert.ThrowsAnyAsync<Exception>(() => retention.ExecuteAsync(
+        await Assert.ThrowsAsync<TException>(() => retention.ExecuteAsync(
             actor,
             new(
                 Guid.NewGuid(),
@@ -346,6 +612,11 @@ public sealed partial class PublicUploadRetentionWebTests
         {
             services.AddSingleton<RecordingCaseArtifactCustody>();
             services.AddScoped<ICaseArtifactCustody>(provider =>
+                provider.GetRequiredService<RecordingCaseArtifactCustody>());
+            // Both ports, exactly as the production host must resolve them to
+            // A04's adapter: without the status port a hand-over custody has
+            // not finished could never be asked about.
+            services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
                 provider.GetRequiredService<RecordingCaseArtifactCustody>());
             services.AddScoped<IIncomingArtifactRetentionStore, EfPublicUploadRetentionStore>();
             services.AddScoped<RetainIncomingArtifact>();
@@ -394,7 +665,8 @@ public sealed partial class PublicUploadRetentionWebTests
     private sealed record PostedUpload(
         HttpStatusCode StatusCode,
         string Body,
-        string OperationKey);
+        string OperationKey,
+        string CompletionBody);
 
     private static async Task<PostedUpload> PostEvidenceAsync(
         WebApplicationFactory<Program> factory,
@@ -417,10 +689,19 @@ public sealed partial class PublicUploadRetentionWebTests
             { file, "Upload", "evidence.txt" }
         };
         using var response = await client.PostAsync($"/Uploads/{token}", form);
-        return new(
-            response.StatusCode,
-            await response.Content.ReadAsStringAsync(),
-            key);
+        var body = await response.Content.ReadAsStringAsync();
+
+        // A completed submission redirects and says what happened on the page
+        // it lands on, so the sentence the sender actually reads is only
+        // visible after following the redirect with the same client.
+        var completion = string.Empty;
+        if (response.StatusCode == HttpStatusCode.Redirect)
+        {
+            using var completed = await client.GetAsync($"/Uploads/{token}");
+            completion = await completed.Content.ReadAsStringAsync();
+        }
+
+        return new(response.StatusCode, body, key, completion);
     }
 
     private static string FieldValue(string html, string name)
@@ -471,12 +752,33 @@ public sealed partial class PublicUploadRetentionWebTests
 /// </remarks>
 internal sealed class RecordingCaseArtifactCustody(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
-    TimeProvider timeProvider) : ICaseArtifactCustody
+    TimeProvider timeProvider) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
 {
     private readonly List<RecordedCustodyCall> calls = [];
 
     public CaseArtifactCustodyDisposition Disposition { get; set; } =
         CaseArtifactCustodyDisposition.Confirmed;
+
+    /// <summary>
+    /// What custody says when it is asked what became of a hand-over it has
+    /// not finished. Unset means it says what it said at the hand-over.
+    /// </summary>
+    public CaseArtifactCustodyDisposition? StatusDisposition { get; set; }
+
+    /// <summary>
+    /// A fault raised after the bytes have been read — the shape of a timeout
+    /// or a lost connection, where the caller cannot know what custody kept.
+    /// </summary>
+    public Exception? ThrowOnHandOver { get; set; }
+
+    /// <summary>
+    /// Whether the adapter creates the document occurrence a receipt's foreign
+    /// key needs. A04 does; an adapter that does not is the branch that earns
+    /// no receipt, and it must still be counted exactly once.
+    /// </summary>
+    public bool CreatesDocumentOccurrence { get; set; } = true;
+
+    public int StatusCalls { get; private set; }
 
     public IReadOnlyList<RecordedCustodyCall> Calls
     {
@@ -509,6 +811,33 @@ internal sealed class RecordingCaseArtifactCustody(
             .Where(item => item.OperationKey == request.OperationKey)
             .Select(item => item.CustodyState)
             .SingleOrDefaultAsync(cancellationToken);
+
+        if (ThrowOnHandOver is { } fault)
+        {
+            // Custody has the bytes and then fails. The call is recorded first,
+            // so a test can prove they were offered exactly once.
+            lock (calls)
+            {
+                calls.Add(new(
+                    request.Actor.Kind,
+                    request.Actor.SubjectId,
+                    linkId,
+                    request.CaseId,
+                    request.IntakeReceiptId,
+                    request.OperationKey,
+                    request.OccurrenceIdentity,
+                    request.FileName,
+                    received.Length,
+                    PublicUploadRetentionWebTests.Sha256Hex(received),
+                    handOverState,
+                    null,
+                    null,
+                    null,
+                    null));
+            }
+
+            throw fault;
+        }
 
         var confirmed = Disposition == CaseArtifactCustodyDisposition.Confirmed;
         var accepted = confirmed || Disposition == CaseArtifactCustodyDisposition.Pending;
@@ -550,19 +879,23 @@ internal sealed class RecordingCaseArtifactCustody(
                 CreatedBy = "request-upload",
                 IsCurrent = true
             });
-            context.Add(new DocumentOccurrenceEntity
+            if (CreatesDocumentOccurrence)
             {
-                Id = Guid.NewGuid(),
-                CaseId = caseId,
-                DocumentId = documentId.Value,
-                VersionId = versionId.Value,
-                Ordinal = ordinal,
-                SemanticRole = DocumentSemanticRole.Other,
-                Source = DocumentSource.RequestUpload,
-                SourceOccurrenceIdentity = request.OccurrenceIdentity,
-                RecordedAtUtc = timeProvider.GetUtcNow(),
-                OperationKey = request.OperationKey
-            });
+                context.Add(new DocumentOccurrenceEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = caseId,
+                    DocumentId = documentId.Value,
+                    VersionId = versionId.Value,
+                    Ordinal = ordinal,
+                    SemanticRole = DocumentSemanticRole.Other,
+                    Source = DocumentSource.RequestUpload,
+                    SourceOccurrenceIdentity = request.OccurrenceIdentity,
+                    RecordedAtUtc = timeProvider.GetUtcNow(),
+                    OperationKey = request.OperationKey
+                });
+            }
+
             await context.SaveChangesAsync(cancellationToken);
         }
 
@@ -596,6 +929,53 @@ internal sealed class RecordingCaseArtifactCustody(
             received.Length,
             request.MediaType,
             accepted ? null : $"custody-{Disposition}".ToLowerInvariant(),
+            PendingContentStorageKey: null);
+    }
+
+    /// <summary>
+    /// What custody durably holds for one exact version. A confirmation is the
+    /// adapter's own write — it moves the version out of Pending and records
+    /// the remote identities — because in production the caller only ever
+    /// learns about it by asking.
+    /// </summary>
+    public async Task<CaseArtifactCustodyResult> GetAsync(
+        ActionActor actor,
+        Guid caseId,
+        Guid documentId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        StatusCalls++;
+        var disposition = StatusDisposition ?? Disposition;
+        var confirmed = disposition == CaseArtifactCustodyDisposition.Confirmed;
+        var boxFileId = confirmed ? $"box-file:{versionId:N}" : null;
+        var boxVersionId = confirmed ? $"box-version:{versionId:N}" : null;
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var version = await context.Set<DocumentVersionEntity>()
+            .SingleAsync(item => item.Id == versionId, cancellationToken);
+        if (confirmed)
+        {
+            version.CustodyStatus = DocumentCustodyStatus.Confirmed;
+            version.BoxFileId = boxFileId;
+            version.BoxVersionId = boxVersionId;
+        }
+        else if (disposition == CaseArtifactCustodyDisposition.Failed)
+        {
+            version.CustodyStatus = DocumentCustodyStatus.Failed;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        return new(
+            disposition,
+            documentId,
+            versionId,
+            boxFileId,
+            boxVersionId,
+            version.Sha256,
+            version.ContentLength,
+            version.MediaType,
+            disposition == CaseArtifactCustodyDisposition.Failed ? "custody-failed" : null,
             PendingContentStorageKey: null);
     }
 
