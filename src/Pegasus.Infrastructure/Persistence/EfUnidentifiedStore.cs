@@ -1,4 +1,5 @@
-using System.Data;
+﻿using System.Data;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -439,32 +440,116 @@ public sealed class EfUnidentifiedStore(
                 || (item.CreatedAtUtc == position.SortKey && item.Id.CompareTo(position.Id) > 0));
         }
 
-        // The media kind is derived at read time from the origin receipt, so it
-        // cannot be filtered in SQL. One extra row is fetched to learn whether a
-        // next page exists; a media filter is applied after the join and the
-        // page is re-cut, so the continuation is exact either way.
-        var joined = await (
+        // The media kind is derived from two of the origin receipt's own
+        // columns, so the filter runs in the DATABASE beside the keyset bound,
+        // the order and the Take. That matters for correctness, not speed: a
+        // filter applied after a bounded fetch window would let a page come
+        // back short while rows remained, and the continuation would then be
+        // minted from the last MATCHING row and silently drop the rest of the
+        // queue - the precise failure the keyset predicate above exists to
+        // prevent. With the filter in SQL, every row returned matched, so the
+        // last row returned is always the correct next position.
+        //
+        // No foreign key is modelled between an Unidentified item and its
+        // origin receipt (the origin can be a receipt or, for INTK-007's
+        // grouped-VRM-conflict case, a submission group), so this is a plain
+        // left join rather than a navigation property.
+        var joined =
             from item in items
             join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 .Include(entity => entity.MailRouteDecision)
                 on item.OriginId equals receipt.Id into receiptGroup
             from receipt in receiptGroup.DefaultIfEmpty()
-            orderby item.CreatedAtUtc, item.Id
-            select new { item, receipt })
-            .Take(mediaKind is null ? limit + 1 : limit * 4 + 1)
+            select new UnidentifiedQueueJoin { Item = item, Receipt = receipt };
+
+        if (mediaKind is { } requested)
+        {
+            joined = joined.Where(MediaKindPredicate(requested));
+        }
+
+        // One extra row beyond the page: its presence is what says another page
+        // exists, without a second count query that could disagree with it.
+        var rows = await joined
+            .OrderBy(row => row.Item.CreatedAtUtc)
+            .ThenBy(row => row.Item.Id)
+            .Take(limit + 1)
             .ToArrayAsync(cancellationToken);
 
-        var rows = joined
-            .Select(row => (Row: MapQueueRow(row.item, row.receipt), row.item.CreatedAtUtc, row.item.Id))
-            .Where(row => mediaKind is null || row.Row.MediaKind == mediaKind.Value)
-            .ToArray();
-
+        var hasMore = rows.Length > limit;
         var page = rows.Take(limit).ToArray();
-        var next = rows.Length > page.Length && page.Length > 0
-            ? new KeysetPosition(page[^1].CreatedAtUtc, page[^1].Id)
+        var next = hasMore && page.Length > 0
+            ? new KeysetPosition(page[^1].Item.CreatedAtUtc, page[^1].Item.Id)
             : null;
-        return new(page.Select(row => row.Row).ToArray(), next);
+        return new(page.Select(row => MapQueueRow(row.Item, row.Receipt)).ToArray(), next);
     }
+
+    /// <summary>
+    /// <see cref="UnidentifiedMediaKindPolicy"/> as a translatable predicate
+    /// over the origin receipt's own columns, so the queue can be filtered
+    /// where it is ordered and bounded.
+    ///
+    /// This mirrors the policy rather than calling it — the policy is C# and
+    /// runs on materialised rows — so the two could in principle drift. They are
+    /// held together by test: the three filtered pages must partition the
+    /// unfiltered queue exactly, and each row's mapped kind (which DOES come
+    /// from the policy) must equal the kind it was filtered by. A change to the
+    /// policy that is not made here fails that test rather than quietly
+    /// returning the wrong rows.
+    ///
+    /// The image test spells each letter as a character class rather than using
+    /// <c>StartsWith("image/")</c>: the policy compares with
+    /// <see cref="StringComparison.OrdinalIgnoreCase"/>, and a plain SQL
+    /// <c>LIKE</c> follows the database collation, so a case-sensitive
+    /// collation would disagree with the policy on <c>IMAGE/JPEG</c>. The
+    /// character classes are case-insensitive whatever the collation is.
+    /// </summary>
+    private static Expression<Func<UnidentifiedQueueJoin, bool>> MediaKindPredicate(
+        UnidentifiedMediaKind mediaKind)
+    {
+        var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        return mediaKind switch
+        {
+            // A mailbox-channel receipt is a received e-mail, whatever its
+            // content type happens to be.
+            UnidentifiedMediaKind.Email => row =>
+                row.Receipt != null && row.Receipt.SourceChannel == mailbox,
+
+            // A row with no origin receipt has no channel or content type to
+            // classify, and the policy's no-receipt fallback is Image.
+            UnidentifiedMediaKind.Image => row =>
+                row.Receipt == null
+                || (row.Receipt.SourceChannel != mailbox
+                    && EF.Functions.Like(row.Receipt.MediaType, ImageMediaTypePattern)),
+
+            UnidentifiedMediaKind.Document => row =>
+                row.Receipt != null
+                && row.Receipt.SourceChannel != mailbox
+                && !EF.Functions.Like(row.Receipt.MediaType, ImageMediaTypePattern),
+
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(mediaKind),
+                $"Unknown Unidentified media kind '{(int)mediaKind}'.")
+        };
+    }
+
+    /// <summary>
+    /// The join shape the media-kind predicate is written against. Named rather
+    /// than anonymous only so the predicate can be a typed expression the
+    /// provider translates.
+    /// </summary>
+    private sealed class UnidentifiedQueueJoin
+    {
+        public required UnidentifiedItemEntity Item { get; init; }
+
+        public IntakeReceiptEntity? Receipt { get; init; }
+    }
+
+    /// <summary>
+    /// <c>image/</c> with every letter as a two-case character class, so the
+    /// SQL <c>LIKE</c> is case-insensitive independently of the database
+    /// collation and therefore agrees with the policy's OrdinalIgnoreCase.
+    /// </summary>
+    private const string ImageMediaTypePattern = "[Ii][Mm][Aa][Gg][Ee]/%";
 
     private static UnidentifiedQueueRow MapQueueRow(UnidentifiedItemEntity item, IntakeReceiptEntity? receipt)
     {
