@@ -268,3 +268,7 @@ R-16 (nullable operation keys, per-handler validation), R-17 (SQL predicate whit
 ## C05 re-review at `868e7a5ea`: needs-changes — 2 majors, 2 minors
 
 R-10/R-11/R-12 fixed and proved. Open: C05-R-16 `ThirdPartyReportProfiles.Verdict` builds the scan-only `identity.issuer` row with an empty source label and R-11 now lets it reach storage (caught by the implementer's own new test at `ThirdPartyReportCorpusTests.cs:453`); C05-R-6 the driven re-evaluation pass still tags only one third-party outcome for the receipt, so "re-evaluation re-reads and leaves the reading standing" is unproven (the standing branch itself is honest). Round 3 queued for the next editor slot (C07 caller r2 and C08 r1 active).
+
+## Wave 23 (C06 `dc24438e2`): blocker closed, 2 new failures in round-3 tests
+
+Build/core 61/host 41/browser 2/architecture PASS; the two settings-page POSTs now redirect. Integration 36/38: `InspectionAddressSuggestionTests.SearchMatchesAPriorLocationWhoseStoredWhitespaceIsIrregular` (line 108 — the prior location is returned with a collapsed label, the assertion's filter does not match it) and `SearchUnionsCaseClaimantPriorPrincipalLocationAndDirectory` (lines 69/81 — the newly seeded Storage case is absent from the union). Re-review in progress will bind; C06 round 4 queued with C05 round 3 behind the active editors (C07 caller r2, C08 r1).
