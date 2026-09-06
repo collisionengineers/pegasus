@@ -204,3 +204,7 @@ Optional directory bridge on `InspectionAddressChoicesQueries` (ASSUMPTION 6), t
 - A's regenerated principal-corpus source snapshots applied on the C branch → `d2b50f46e` (package hash verified); wave 17 Core hash lane running; push after.
 - `StaffAccounts.ReviewDue/Review` labels: still rendered by A01's Accounts page on the C branch; removal deferred to the step that carries A01's page here (posted to A).
 - C06 round 2 running (EvaSubmission optional bridge, UpdateLocation 302 defect); C06 review running on `556a26b1a`; C05 correction running. C08 correction still queued on the two-editor limit.
+
+## Checkpoint — C07 caller slice at `6c8b945bd`
+
+Wave 16 build failed: the reverted A-owned `DocumentCustodyDurabilityTests.cs` still passed the removed `IDocumentContentStore` ctor argument. Controller applied a one-line compile-only accommodation (`6c8b945bd`), solution build 0/0; wave 18 (build/core/integration/a-owned/architecture) running; reviewer re-bound to `6c8b945bd`. The A-owned lane is expected to fail for A's reasons (seeded-QDOS duplicate in `SeedCaseAsync`, legacy content-write premise) — hunk posted to A (PR 673 comment 5560181686). C branch `d2b50f46e` pushed (A snapshot update, hash lane 7/7).
