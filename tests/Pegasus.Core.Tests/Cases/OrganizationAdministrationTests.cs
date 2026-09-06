@@ -1,4 +1,5 @@
-﻿using Pegasus.Core.Cases;
+﻿using Pegasus.Core.Address;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Cases;
@@ -133,6 +134,167 @@ public sealed class OrganizationAdministrationTests
         await Assert.ThrowsAsync<ArgumentException>(
             () => command.ExecuteAsync(request with { ExpectedVersion = 0, Reason = " " }, default));
         Assert.Empty(store.PrincipalReplacements);
+    }
+
+    // C06 review R-4: item 6 (the principal's default inspection location)
+    // had a recording store but nothing exercised
+    // OrganizationAdministrationPolicy.Normalize(UpdatePrincipalDefaultInspectionLocationRequest)
+    // or captured the values UpdatePrincipalDefaultInspectionLocation sends
+    // to the store.
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationClearsAddressFieldsForImageBasedAssessment()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            3,
+            "  op-key  ",
+            "  because reasons  ",
+            InspectionAddressEvidenceKind.ImageBasedAssessment,
+            Label: "Should be cleared",
+            Address: "Should be cleared",
+            Postcode: "Should be cleared",
+            SourceKind: "directory",
+            SourceRecordId: Guid.NewGuid(),
+            SourceVersion: 5);
+
+        var normalized = OrganizationAdministrationPolicy.Normalize(request);
+
+        Assert.Equal("op-key", normalized.OperationKey);
+        Assert.Equal("because reasons", normalized.Reason);
+        Assert.Null(normalized.Label);
+        Assert.Null(normalized.Address);
+        Assert.Null(normalized.Postcode);
+        Assert.Null(normalized.SourceKind);
+        Assert.Null(normalized.SourceRecordId);
+        Assert.Null(normalized.SourceVersion);
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationTrimsAPhysicalAddressAndPostcode()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "reason",
+            InspectionAddressEvidenceKind.PhysicalAddress,
+            Label: "Yard",
+            Address: "  1 Test Street  ",
+            Postcode: "  TE1 1ST  ",
+            SourceKind: "manual",
+            SourceRecordId: null,
+            SourceVersion: null);
+
+        var normalized = OrganizationAdministrationPolicy.Normalize(request);
+
+        Assert.Equal("1 Test Street", normalized.Address);
+        Assert.Equal("TE1 1ST", normalized.Postcode);
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationRequiresAnAddressForAPhysicalChoice()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "reason",
+            InspectionAddressEvidenceKind.PhysicalAddress,
+            Label: null,
+            Address: "   ",
+            Postcode: null,
+            SourceKind: null,
+            SourceRecordId: null,
+            SourceVersion: null);
+
+        Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationRequiresAReason()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "   ",
+            InspectionAddressEvidenceKind.ImageBasedAssessment,
+            null, null, null, null, null, null);
+
+        Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationRejectsAnUndefinedKind()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "reason",
+            (InspectionAddressEvidenceKind)99,
+            null, null, null, null, null, null);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => OrganizationAdministrationPolicy.Normalize(request));
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalDefaultInspectionLocationDeniesNonAdministratorBeforePersistence()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalDefaultInspectionLocation(store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            command.ExecuteAsync(
+                new(
+                    actor,
+                    Guid.NewGuid(),
+                    0,
+                    "op-key",
+                    "reason",
+                    InspectionAddressEvidenceKind.ImageBasedAssessment,
+                    null, null, null, null, null, null),
+                default));
+
+        Assert.Empty(store.DefaultInspectionLocationUpdates);
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalDefaultInspectionLocationNormalizesInputBeforeCallingPersistencePort()
+    {
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalDefaultInspectionLocation(store);
+        var principalId = Guid.NewGuid();
+
+        await command.ExecuteAsync(
+            new(
+                Administrator,
+                principalId,
+                2,
+                "  op-key  ",
+                "  physical override reason  ",
+                InspectionAddressEvidenceKind.PhysicalAddress,
+                "Yard",
+                "  1 Test Street  ",
+                "  TE1 1ST  ",
+                "manual",
+                null,
+                null),
+            default);
+
+        var request = Assert.Single(store.DefaultInspectionLocationUpdates);
+        Assert.Equal(principalId, request.PrincipalId);
+        Assert.Equal("op-key", request.OperationKey);
+        Assert.Equal("physical override reason", request.Reason);
+        Assert.Equal("1 Test Street", request.Address);
+        Assert.Equal("TE1 1ST", request.Postcode);
     }
 
     [Fact]
