@@ -1172,11 +1172,17 @@ public static class OperatorLabels
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
+            Pegasus.Core.Operations.StaffMailState.Prepared => "Preparing",
+            Pegasus.Core.Operations.StaffMailState.DraftCreating => "Creating draft",
+            Pegasus.Core.Operations.StaffMailState.DraftReady => "Draft ready",
+            Pegasus.Core.Operations.StaffMailState.Sending => "Sending",
+            Pegasus.Core.Operations.StaffMailState.Submitted => "Submitted",
             Pegasus.Core.Operations.StaffMailState.Sent => "Sent",
             Pegasus.Core.Operations.StaffMailState.Failed => "Failed",
             Pegasus.Core.Operations.StaffMailState.Cancelled => "Cancelled",
             Pegasus.Core.Operations.StaffMailState.Unknown => "Unknown",
-            _ => "Submitted"
+            _ => throw new InvalidOperationException(
+                $"Unknown staff mail state '{(int)state}'.")
         };
     }
 

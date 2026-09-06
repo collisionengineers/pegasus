@@ -23,17 +23,19 @@ namespace Pegasus.Web.Pages.Mail;
 /// (Administration's own optimistic-concurrency counter for mailbox edits, a
 /// different field this page no longer conflates it with).
 ///
-/// A mailbox is offered to send from when it is Approved and carries either
+/// A mailbox is offered to send from only when it is Approved, carries
 /// <see cref="ApprovedMailboxRouteScope.StaffSend"/> (G14's dedicated
-/// capability for this exact command) or, until
-/// <c>EfApprovedMailboxStore.Routes</c> (A-owned,
+/// capability for this exact command), and has a positive
+/// <see cref="ApprovedMailbox.Generation"/> — per Stream A's ruling (PR 673
+/// comment 5561214716, items 1-2): <see cref="ApprovedMailboxRouteScope.SentEvidence"/>
+/// alone is not send authorization, so the earlier <c>StaffSend</c>-or-
+/// <c>SentEvidence</c> fallback is removed. On this standalone C branch
+/// <c>EfApprovedMailboxStore.Map</c>/<c>Routes</c> (A-owned,
 /// <c>src/Pegasus.Infrastructure/Persistence/EfApprovedMailboxStore.cs</c>)
-/// maps its backing <c>AllowStaffSend</c> column into <c>RouteScopes</c> at
-/// all, <see cref="ApprovedMailboxRouteScope.SentEvidence"/> — the placeholder
-/// this page used before G14 landed. Filtering on <c>StaffSend</c> alone today
-/// would offer no mailbox to anyone, since no store implementation ever adds
-/// it to <c>RouteScopes</c> yet; recorded as a C08 assumption (scratch/c08-notes
-/// on INTK-060) pending that Infrastructure mapping.
+/// does not yet map the backing <c>AllowStaffSend</c>/<c>MailboxGeneration</c>
+/// columns, so no mailbox is offered here until that mapping lands — recorded
+/// as ASSUMPTION 2 CLOSED (scratch/c08-notes on INTK-060), a known residual,
+/// not a fabricated value.
 ///
 /// <see cref="ApprovedMailbox.VerifiedEncodedMessageSizeLimit"/> (G14) is not
 /// yet enforced here: this page sends with <c>Attachments: []</c> always (no
@@ -49,6 +51,9 @@ public sealed class ComposeModel(
 {
     [BindProperty(SupportsGet = true)]
     public Guid? CaseId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public Guid? OperationId { get; set; }
 
     [BindProperty]
     public Guid ApprovedMailboxId { get; set; }
@@ -98,6 +103,15 @@ public sealed class ComposeModel(
             }
             Case = details.Summary;
             ExpectedContextVersion = details.Workflow.Version;
+        }
+
+        // Carries the just-sent operation's identity across the post-send
+        // redirect, so the Send-status panel — and, for Unknown, the
+        // Reconcile form that is its only caller — actually renders on the
+        // page the operator lands on instead of being silently discarded.
+        if (OperationId is { } operationId)
+        {
+            Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
         }
 
         return Page();
@@ -185,8 +199,15 @@ public sealed class ComposeModel(
             return Forbid();
         }
 
-        SendNotice = $"Correspondence {OperatorLabels.StaffMail.State(Operation.State).ToLowerInvariant()}.";
-        return RedirectToPage(new { caseId = details.Summary.CaseId });
+        // Only a terminal Sent outcome is a success notice. Anything else —
+        // Submitted (still in flight) or Unknown (ambiguous, never resend) —
+        // must be read off the Send-status panel the redirected GET renders,
+        // never announced as if it had reached the provider.
+        if (Operation.State == StaffMailState.Sent)
+        {
+            SendNotice = "Correspondence sent.";
+        }
+        return RedirectToPage(new { caseId = details.Summary.CaseId, operationId = Operation.Id });
     }
 
     public async Task<IActionResult> OnPostReconcileAsync(
@@ -222,10 +243,13 @@ public sealed class ComposeModel(
     private async Task LoadSendableMailboxesAsync(CancellationToken cancellationToken)
     {
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
+        // Stream A's ruling: SentEvidence is not send authorization. A
+        // mailbox must be Approved, carry StaffSend, and have a positive
+        // Generation before it is offered — no fallback.
         SendableMailboxes = mailboxes
             .Where(item => item.State == ApprovedMailboxState.Approved
-                && (item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-                    || item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)))
+                && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+                && item.Generation > 0)
             .ToArray();
     }
 }

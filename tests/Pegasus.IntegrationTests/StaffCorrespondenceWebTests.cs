@@ -10,6 +10,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -238,6 +239,121 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal("claimant@example.invalid", Assert.Single(command.To).Address);
     }
 
+    /// <summary>
+    /// C08-R-4: an ambiguous outcome must render the Reconcile action, never
+    /// a resend and never a success banner. The redirect after send carries
+    /// the operation id forward so the GET it lands on can actually show it.
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownOutcomeRendersReconcileWithoutResendingOrClaimingSuccess()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 UNK", "SC08-CLAIM-5");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
+        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseId={caseId:D}");
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
+                ["CaseId"] = caseId.ToString("D"),
+                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
+                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Following up",
+                ["Body"] = "Please find the update below."
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        var location = response.Headers.Location!;
+        Assert.Contains("operationId=", location.ToString(), StringComparison.Ordinal);
+
+        using var statusPage = await client.GetAsync(location);
+        Assert.Equal(HttpStatusCode.OK, statusPage.StatusCode);
+        var html = await statusPage.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("notice--success", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), html, StringComparison.Ordinal);
+        Assert.Contains("handler=Reconcile", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(OperatorLabels.StaffMail.Reconcile, html, StringComparison.Ordinal);
+        // Rendering the status panel must never itself trigger a resend.
+        Assert.Equal(1, send.SendCalls);
+        Assert.Equal(0, send.ReconcileCalls);
+    }
+
+    /// <summary>
+    /// C08-R-4: a second POST carrying the same <c>OperationKey</c> as an
+    /// already-recorded send must not send again — it shows the operation
+    /// the first POST recorded.
+    /// </summary>
+    [Fact]
+    public async Task ASameKeyReplayDoesNotSendAgainAndShowsTheRecordedOperation()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "SC08 RPL", "SC08-CLAIM-6");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
+        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseId={caseId:D}");
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["OperationKey"] = operationKey,
+            ["CaseId"] = caseId.ToString("D"),
+            ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
+            ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+            ["To"] = "claimant@example.invalid",
+            ["Subject"] = "Following up",
+            ["Body"] = "Please find the update below."
+        };
+
+        using var first = await client.PostAsync(
+            "/Inbox/Compose?handler=Send", new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        var firstOperationId = ExtractOperationId(first.Headers.Location!);
+
+        using var replay = await client.PostAsync(
+            "/Inbox/Compose?handler=Send", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        Assert.Equal(firstOperationId, ExtractOperationId(replay.Headers.Location!));
+
+        using var statusPage = await client.GetAsync(replay.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, statusPage.StatusCode);
+        var html = await statusPage.Content.ReadAsStringAsync();
+        // The replay redirected to the same operationId as the first send
+        // (asserted above); this confirms the GET it lands on actually
+        // renders that recorded operation's status panel, not an empty one.
+        Assert.Contains("Send status", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), html, StringComparison.Ordinal);
+    }
+
+    private static Guid ExtractOperationId(Uri location)
+    {
+        var match = Regex.Match(location.ToString(), "operationId=(?<id>[0-9a-fA-F-]{36})");
+        Assert.True(match.Success, $"'{location}' did not carry an operationId.");
+        return Guid.Parse(match.Groups["id"].Value);
+    }
+
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory, RecordingStaffMailSend send) =>
         baseFactory.WithWebHostBuilder(builder =>
@@ -245,7 +361,52 @@ public sealed class StaffCorrespondenceWebTests
             {
                 services.RemoveAll<IStaffMailSend>();
                 services.AddSingleton<IStaffMailSend>(send);
+                // Stream A's ruling (PR 673 comment 5561214716) requires
+                // StaffSend + a positive Generation before a mailbox is
+                // offered. EfApprovedMailboxStore.Map/Routes (A-owned) does
+                // not map those columns on this standalone C branch yet
+                // (ASSUMPTION 2 CLOSED, scratch/c08-notes on INTK-060), so
+                // this shim promotes a SentEvidence-scoped test mailbox the
+                // same way the real store will once that mapping lands —
+                // proving ComposeModel's own filter, not standing in for the
+                // Infrastructure gap itself.
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddScoped<IApprovedMailboxStore>(provider =>
+                    new StaffSendCapableMailboxStore(provider.GetRequiredService<EfApprovedMailboxStore>()));
             }));
+
+    /// <summary>
+    /// Wraps the real EF-backed store, promoting a SentEvidence-scoped
+    /// mailbox to also carry <see cref="ApprovedMailboxRouteScope.StaffSend"/>
+    /// and a positive <see cref="ApprovedMailbox.Generation"/> — the mapping
+    /// <c>EfApprovedMailboxStore.Map</c>/<c>Routes</c> (A-owned) does not yet
+    /// perform on this branch. Every other read/write goes through the real
+    /// store untouched.
+    /// </summary>
+    private sealed class StaffSendCapableMailboxStore(IApprovedMailboxStore inner) : IApprovedMailboxStore
+    {
+        public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
+        {
+            var mailboxes = await inner.ListAsync(cancellationToken);
+            return mailboxes
+                .Select(mailbox => mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
+                    ? mailbox with
+                    {
+                        RouteScopes = [.. mailbox.RouteScopes, ApprovedMailboxRouteScope.StaffSend],
+                        Generation = mailbox.Generation > 0 ? mailbox.Generation : 1
+                    }
+                    : mailbox)
+                .ToArray();
+        }
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            inner.UpdateAsync(request, cancellationToken);
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
+            inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
+    }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -263,8 +424,14 @@ public sealed class StaffCorrespondenceWebTests
         await TestMailboxId.EnsureApprovedAsync(
             context, "sc08-sender", "sc08-sender@collisionengineers.co.uk", NowUtc.AddDays(-1));
         await context.SaveChangesAsync();
+        // AllowStaffSend/MailboxGeneration are seeded on the real columns
+        // (the shape A02's store persists) even though
+        // EfApprovedMailboxStore.Map/Routes does not read either one on this
+        // standalone C branch yet — inert here; StaffSendCapableMailboxStore
+        // above is what actually exercises ComposeModel's filter until that
+        // Infrastructure mapping lands.
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE ApprovedMailboxes SET AllowSentEvidence = 1 WHERE Address = 'sc08-sender@collisionengineers.co.uk'");
+            $"UPDATE ApprovedMailboxes SET AllowSentEvidence = 1, AllowStaffSend = 1, MailboxGeneration = 1 WHERE Address = 'sc08-sender@collisionengineers.co.uk'");
     }
 
     private static async Task<Guid> SentEvidenceMailboxIdAsync(WebApplicationFactory<Program> factory)
@@ -316,41 +483,69 @@ public sealed class StaffCorrespondenceWebTests
         return details!.Workflow.Version;
     }
 
+    /// <summary>
+    /// Records every genuinely-new send and, keyed by <c>OperationKey</c>,
+    /// returns the already-recorded operation on a replay without adding a
+    /// second command — the exact idempotency S12 requires of a real
+    /// <see cref="IStaffMailSend"/> implementation. <see cref="NextState"/>
+    /// lets a test choose the outcome the next new send observes.
+    /// </summary>
     private sealed class RecordingStaffMailSend : IStaffMailSend
     {
         private readonly List<StaffMailSendCommand> commands = [];
+        private readonly Dictionary<string, StaffMailOperation> byOperationKey = [];
+        private readonly Dictionary<Guid, StaffMailOperation> byOperationId = [];
 
         public int SendCalls => commands.Count;
 
+        public int ReconcileCalls { get; private set; }
+
         public IReadOnlyList<StaffMailSendCommand> Commands => commands;
+
+        public StaffMailState NextState { get; set; } = StaffMailState.Submitted;
 
         public Task<StaffMailOperation> SendAsync(
             StaffMailSendCommand command, CancellationToken cancellationToken)
         {
+            if (byOperationKey.TryGetValue(command.OperationKey, out var existing))
+            {
+                return Task.FromResult(existing);
+            }
+
             commands.Add(command);
-            return Task.FromResult(new StaffMailOperation(
+            var operation = new StaffMailOperation(
                 Guid.NewGuid(),
-                StaffMailState.Submitted,
-                StaffMailAttemptStage.CreateDraft,
+                NextState,
+                NextState == StaffMailState.Sent ? StaffMailAttemptStage.ObserveSent : StaffMailAttemptStage.CreateDraft,
                 1,
                 NowUtc,
-                null,
-                null,
+                NextState == StaffMailState.Sent ? NowUtc : null,
+                NextState == StaffMailState.Sent ? NowUtc : null,
                 null,
                 command.ApprovedMailboxId,
                 command.ExpectedMailboxGeneration,
                 new string('A', 64),
                 NowUtc,
-                null));
+                null);
+            byOperationKey[command.OperationKey] = operation;
+            byOperationId[operation.Id] = operation;
+            return Task.FromResult(operation);
         }
 
         public Task<StaffMailOperation?> GetAsync(
             ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>
-            Task.FromResult<StaffMailOperation?>(null);
+            Task.FromResult(byOperationId.TryGetValue(operationId, out var operation) ? operation : null);
 
         public Task<StaffMailOperation> ReconcileAsync(
-            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not exercised by this test.");
+            ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken)
+        {
+            ReconcileCalls++;
+            if (!byOperationId.TryGetValue(operationId, out var operation))
+            {
+                throw new InvalidOperationException($"No recorded operation {operationId:D}.");
+            }
+            return Task.FromResult(operation);
+        }
 
         public Task<StaffMailOperation> CancelAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>

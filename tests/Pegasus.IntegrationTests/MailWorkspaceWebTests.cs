@@ -145,15 +145,31 @@ public sealed class MailWorkspaceWebTests
         // the sort toggle link itself draws (Index.cshtml.cs OldestFirst /
         // RefreshFields), so "oldest" is the value that exercises the
         // round-trip instead of hitting that same 404.
-        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=vehicle&queue=receiving-work&unread=true&sort=oldest";
+        // "search" matches against the attachment file name or an
+        // IntakeReceipts search document (BuildMatches) — never the seeded
+        // subject/body text, and SeedAsync writes no IntakeReceipts row — so
+        // "estimate" (the attachment every seeded row carries) is the term
+        // that actually leaves rows in the filtered list; a term that
+        // matches nothing would render zero rows and no row link at all.
+        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=estimate&queue=receiving-work&unread=true&sort=oldest";
         await GetHtmlAsync(client, "/Inbox");
         var listHtml = await GetHtmlAsync(client, $"/Inbox?{query}");
 
-        // The list page's own row links carry the filter state forward using
-        // the exact tokens above ("unread=true", "sort=oldest") — proving the
-        // query string this test drives with matches the vocabulary the page
-        // itself emits, not a guessed one.
-        Assert.Contains("unread=true&amp;sort=oldest", listHtml, StringComparison.Ordinal);
+        // Prove a row actually rendered under this filtered query before
+        // reading anything off it, then read the "unread"/"sort" tokens off
+        // that rendered row's own link (Index.cshtml's row <a>) rather than
+        // asserting a guessed ordered substring — the sort *toggle* link
+        // deliberately carries the opposite value, so only the row link
+        // proves what this query round-trips.
+        var triggerIndex = listHtml.IndexOf("data-mail-preview-trigger", StringComparison.Ordinal);
+        Assert.True(triggerIndex >= 0, "expected at least one rendered row (data-mail-preview-trigger) for this query.");
+        var rowHrefStart = listHtml.LastIndexOf("href=\"", triggerIndex, StringComparison.Ordinal);
+        Assert.True(rowHrefStart >= 0, "expected the rendered row link to carry an href.");
+        var rowHrefValueStart = rowHrefStart + "href=\"".Length;
+        var rowHrefEnd = listHtml.IndexOf('"', rowHrefValueStart);
+        var rowHref = WebUtility.HtmlDecode(listHtml[rowHrefValueStart..rowHrefEnd]);
+        Assert.Contains("unread=true", rowHref, StringComparison.Ordinal);
+        Assert.Contains("sort=oldest", rowHref, StringComparison.Ordinal);
 
         // Diagnostic for a non-OK preview: confirm whether the seeded row is
         // still present (rules out a seeding/dedup gap) before asserting, so a
@@ -178,9 +194,12 @@ public sealed class MailWorkspaceWebTests
 
         var messageHtml = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?{query}");
         // "Back to Inbox" carries the mailbox the operator navigated with —
-        // the query state is preserved, not reset to the default.
-        var backLinkMarkup = Between(messageHtml, "<a class=\"btn\" asp-page", "Back to Inbox");
-        Assert.Contains($"href=\"/Inbox?mailbox={FirstMailboxId}", backLinkMarkup, StringComparison.Ordinal);
+        // the query state is preserved, not reset to the default. The
+        // anchor tag helper resolves asp-page/asp-route-* into a plain
+        // href before the response is ever rendered, so match the rendered
+        // form, not the source-only tag-helper attribute.
+        var backLinkMarkup = Between(messageHtml, "<a class=\"btn\" href=\"/Inbox", "Back to Inbox");
+        Assert.Contains($"mailbox={FirstMailboxId}", backLinkMarkup, StringComparison.Ordinal);
 
         // Preview -> full message -> back preserves the query string:
         // the message page carries it forward on every internal link it
