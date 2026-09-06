@@ -199,6 +199,28 @@
         }
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
 
+        @if (Model.CorrespondenceOperation is { } mailOperation)
+        {
+            <section class="panel">
+                <div class="panel-head"><h2>Send status</h2></div>
+                <div class="panel-body fact-grid">
+                    <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(mailOperation.State)</dd></dl>
+                    @if (mailOperation.State is Pegasus.Core.Operations.StaffMailState.Submitted
+                        or Pegasus.Core.Operations.StaffMailState.Unknown)
+                    {
+                        <form method="post" asp-page-handler="ReconcileCorrespondence" asp-route-id="@summary.Id">
+                            <input type="hidden" name="mailOperationId" value="@mailOperation.Id" />
+                            <input type="hidden" name="expectedOperationVersion" value="@mailOperation.Version" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                <span>@OperatorLabels.StaffMail.Reconcile</span>
+                            </button>
+                        </form>
+                    }
+                </div>
+            </section>
+        }
+
         @if (Model.CanCorrespond && Model.CorrespondenceMode is { } correspondenceMode)
         {
             var handler = correspondenceMode switch
