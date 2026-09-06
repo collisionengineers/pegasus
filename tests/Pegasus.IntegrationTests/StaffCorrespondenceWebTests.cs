@@ -46,6 +46,46 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(0, send.SendCalls);
     }
 
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public async Task FromMailboxRequiresStaffSendAndPositiveGeneration(
+        bool staffSend, bool positiveGeneration, bool expected)
+    {
+        const string address = "capability@example.invalid";
+        var scopes = staffSend
+            ? new[] { ApprovedMailboxRouteScope.StaffSend }
+            : new[] { ApprovedMailboxRouteScope.SentEvidence };
+        var mailbox = new ApprovedMailbox(
+            Guid.NewGuid(),
+            address,
+            scopes,
+            ApprovedMailboxState.Approved,
+            MailboxIdentity: null,
+            InboxFolderIdentity: null,
+            SentFolderIdentity: null,
+            IdentityIsBound: false,
+            ActivatedAtUtc: NowUtc,
+            Version: 0,
+            FolderBindings: [],
+            Generation: positiveGeneration ? 1 : 0);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(new FixedApprovedMailboxStore([mailbox]));
+            }));
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Inbox/Compose");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(expected, html.Contains(address, StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task AnUnauthenticatedActorIsForbiddenAndSendsNothing()
     {
@@ -406,6 +446,23 @@ public sealed class StaffCorrespondenceWebTests
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
+    }
+
+    private sealed class FixedApprovedMailboxStore(IReadOnlyList<ApprovedMailbox> mailboxes)
+        : IApprovedMailboxStore
+    {
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(mailboxes);
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The read-only compose test cannot update a mailbox.");
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
