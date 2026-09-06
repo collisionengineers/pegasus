@@ -154,3 +154,7 @@ Superseding review `pass` at `28148f54f` (`scratch/review-c07`); wave 8 build 0/
 ## G13 merge in progress
 
 A published G13 `99f48a459` (counter-first Triage allocator from C's helper, migration line, A/B fixture corrections). `git merge --no-ff` into the C branch at `1561b886f` conflicts in `EfTriageStore.cs` (4 blocks) and `TriageReferenceAllocationTests.cs` (add/add) against C07's superset; an Opus resolver is completing the merge commit with second parent `99f48a459`, build-only. Slices c08 (`88028df51`, wave 9 running), c05 and c06 (implementers active) receive G13 via a C-branch merge once their current runs finish.
+
+## G13 integrated — C head `b1773601e`
+
+`99f48a459` merged `--no-ff` as the identical object (parents `1561b886f`, `99f48a459`); conflicts in `EfTriageStore.cs` and `TriageReferenceAllocationTests.cs` resolved to C07's superset plus G13's own-row reference invariant; A changed nothing beyond C's helper `65002169f`. Build 0/0, pushed. Wave 10 (Triage + A/B fixture lanes) running on the C branch. Pinned MSG disposition posted to A: obsolete NeedsSorting assertion, correction queued (`MultiFormatGenuineCorpusWebTests`, C-owned). C08 wave 9 at `88028df51`: build/core/architecture PASS, integration 93/95, browser 75/82 — nine C08-own defects (admin rail clipping at 760px with eleven links, palette Escape focus return, preview 404 under the recording classification store, Compose not redirecting); correction round queued behind the two-editor limit (C05, C06 active).
