@@ -344,3 +344,7 @@ Build/core 59/browser 82/architecture PASS; integration 146/147 — `OpenPreview
 ## Wave 28 (C05 `7467190b1`): all lanes PASS
 
 Build 0/0, core 30, corpus 13/13 against the pack, web 11 + 5 known absent-pinned-sample skips, architecture 100. C05 re-review binds on it; on pass, C05 integrates.
+
+## C05 integrated — C head `2c1a9d8a1`
+
+Review `pass` at `eb46b7a7d` (3 open minors R-21/R-22/R-23, residual). Merged `--no-ff`, build 0/0, pushed, published on PR 673. Residual for C05 closure: A's re-evaluation staging fix (tripwire test re-pointed after), `ThirdPartyReportValuation.Adjustments` contract request, Finding chip via C04/C08, minors R-21–R-23.
