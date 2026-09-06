@@ -428,3 +428,7 @@ Generation and StaffSend ARE mapped by A's store (combined) — C08 round 4 must
 ## A DevelopmentOffline mail composition patch (PR 673 5561281887)
 
 Two A-owned files (`Infrastructure/Email/UnavailableStaffMailSend.cs` new; `Web/Program.cs` offline-only registration), 2,721 bytes, SHA-256 `6eb2a5b5…` verified, dry-run applies on the C head `78cb51c2c`. Applied after wave 33 completes (so the wave binds to a stable head), then push + report. `IGetAttentionRows` binding follows after C08 publishes.
+
+## C head `0efc1d0df` pushed (INTK-027 + C adaptations + C05 retarget + A offline mail)
+
+Wave 33 at `78cb51c2c`: build 0/0, Core 801/801; integration 95/100 and architecture 98/100 fail ONLY on A-owned lanes — `IReadLogicalDocumentVersion` unregistered in standalone C's Web/Worker composition (2 `WorkerCompositionTests`, 3 `QdosAllocationRecoveryTests`) plus the seeded-QDOS precondition fixture A fixed on its branch. Reported; asked A for a bounded standalone-composition patch (real reader registrations for both profiles) + the fixture hunk against `0efc1d0df`. No C stub added.
