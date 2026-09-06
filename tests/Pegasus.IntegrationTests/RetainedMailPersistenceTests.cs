@@ -159,6 +159,9 @@ public sealed class RetainedMailPersistenceTests
 
         var detail = Assert.IsType<RetainedMailDetail>(
             await queries.GetAsync(summary.Id, CancellationToken.None));
+        Assert.Equal("message-1", detail.ImmutableMessageId);
+        Assert.Equal("<message-1@example.invalid>", detail.InternetMessageId);
+        Assert.Equal("conversation-1", detail.ConversationId);
         Assert.Equal(["intake@collisionengineers.co.uk"], detail.ToAddresses);
         Assert.Equal(["copied@collisionengineers.co.uk"], detail.CcAddresses);
         Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
