@@ -593,3 +593,51 @@ after a write as readily as before one. A refusal that must surface has to be
 changed to match: its holding refusal ("a request-link actor cannot retain into
 holding") is now a `StaffAuthorizationException`, which is also what A's
 authorization gate would raise for a null `CaseId`.
+
+## C07B correction round 3 (READY_FOR_TESTS)
+
+Slice `c07-retention-caller`, base `4e3d3c803`, head `4a92a06e4`. Build gate
+`dotnet build ./Pegasus.slnx --configuration Release --no-restore` exit 0,
+0 warnings. Tests: controller wave loop.
+
+- `be71f0eee` — G15 `FindByOperationKeyAsync` implemented explicitly in both
+  remaining doubles (Core refusing double keeps its staff-only fence on both
+  reads; the web double carries A's lookup fence: staff casework, or the exact
+  persisted link, that link's Case, active/unrevoked/unexpired).
+- `f4c79e1ff` — A blocker 5560753915. One conditional update
+  `arrived → unknown` claims the arrival before the possibly-accepting call;
+  rows affected = 1 is the sole winner, losers reconcile by the original key and
+  never call custody. `FindAsync` returns every committed row (`arrived` as
+  Unknown). `RecordAsync` is forward-only (Confirmed and Failed both terminal;
+  identities filled, never erased). Identityless Unknown recovers by the
+  ORIGINAL operation key through G15; null leaves it uncertain.
+  `StaffAuthorizationException` = definite refusal → the claimed occurrence
+  records `failed` and the refusal surfaces; adapter `ArgumentException` is now
+  uncertain.
+- `c35cd2df9` — R-3a page half + R-18. `RequestUploadPublicView` carries
+  `UnresolvedOperationKey`; the GET re-presents the original key while an
+  `arrived`/`unknown`/`pending` occurrence exists for the link, and mints a new
+  one only when nothing is outstanding. The page maps
+  `StaffAuthorizationException` to a plain refusal sentence, not a 500.
+- `668d934d2` — proofs (a)-(f) over real SQL, plus the existing arrived/pending/
+  unknown assertions moved to the new lifecycle (the confirmed hand-over now
+  asserts custody sees `unknown`, i.e. the claim committed first).
+- `4a92a06e4` — `wave1/c07b-report.md` correction round 3.
+
+Handoff unchanged: `RetainIncomingArtifact`,
+`IIncomingArtifactRetentionStore → EfPublicUploadRetentionStore`, and both
+`ICaseArtifactCustody` and `ICaseArtifactCustodyStatus` → A04. No new table,
+worker, state word, migration or DI shape.
+
+Note for the reviewer: the "late recorder cannot downgrade Confirmed" proof (c)
+lives in `IncomingArtifactCustodyTests` (the store's own real-SQL invariants
+file, a C07-owned file) rather than `PublicUploadRetentionWebTests`, because it
+is a store invariant and not a page path; (a), (b), (d), (e), (f) are in
+`PublicUploadRetentionWebTests` as briefed.
+
+Behaviour change worth flagging: a `failed` retention is no longer re-offered
+under the same operation key — the refusal answers it, and a new deliberate
+submission uses the new key the GET then mints. And while an `arrived`,
+`unknown` or `pending` occurrence stands for a link, the page presents that
+occurrence's key, so a second file cannot be started through the link until the
+first resolves. Both follow directly from A's binding instructions.
