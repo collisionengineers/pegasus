@@ -4,7 +4,7 @@ namespace Pegasus.Core.Assessment;
 
 public enum GlassRepairEstimateSessionState
 {
-    Prepared, Launching, Active, Importing, Completed, Failed, Unknown, Expired, Cancelled
+    Prepared, Launching, Active, Importing, AwaitingImport, Completed, Failed, Unknown, Expired, Cancelled
 }
 public sealed record GlassRepairEstimateSession(
     Guid Id, Guid CaseId, Guid PegasusUserId, long CredentialGeneration,

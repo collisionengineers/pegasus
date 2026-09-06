@@ -411,4 +411,5 @@ public enum DocumentContentWriteDisposition
 
 public sealed record DocumentContentWriteResult(
     DocumentContentWriteDisposition Disposition,
-    string? RemoteId);
+    string? RemoteId,
+    string? BoxVersionId = null);

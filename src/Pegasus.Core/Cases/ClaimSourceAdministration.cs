@@ -7,7 +7,8 @@ public sealed record ClaimSourceRecord(
     string? Notes, bool Active, long Version, DateTimeOffset UpdatedAtUtc);
 public sealed record SaveClaimSourceRequest(
     ActionActor Actor, Guid Id, long ExpectedVersion, string Name, string? ContactName,
-    string? Telephone, string? Email, string? Notes, bool Active, string OperationKey);
+    string? Telephone, string? Email, string? Notes, bool Active, string Reason,
+    string OperationKey);
 public interface IClaimSourceAdministration
 {
     Task<ClaimSourceRecord> SaveAsync(SaveClaimSourceRequest request, CancellationToken cancellationToken);
