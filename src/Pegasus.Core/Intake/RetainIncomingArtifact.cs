@@ -82,6 +82,16 @@ public sealed record IncomingArtifactOccurrence(
 /// <see cref="IncomingArtifactCustodyState.Confirmed"/>, because they are what
 /// a later reconciliation asks custody about.
 /// </summary>
+/// <param name="Sha256">
+/// The digest of the bytes this arrival was committed with, where its store
+/// records one. It is what a hand-over offered under an operation key that
+/// already has an arrival is checked against, so an operation key can never
+/// come to name two different files.
+/// </param>
+/// <param name="ContentLength">
+/// The length those same bytes were validated at, checked with the digest for
+/// the same reason.
+/// </param>
 public sealed record RetainedIncomingArtifact(
     Guid OccurrenceId,
     string OperationKey,
@@ -91,7 +101,9 @@ public sealed record RetainedIncomingArtifact(
     Guid? DocumentVersionId = null,
     string? BoxFileId = null,
     string? BoxVersionId = null,
-    string? FailureCode = null)
+    string? FailureCode = null,
+    string? Sha256 = null,
+    long? ContentLength = null)
 {
     /// <summary>
     /// The one place "did this succeed" is decided. Nothing renders success,
@@ -156,6 +168,7 @@ public interface IIncomingArtifactRetentionStore
     /// and never silently disappears.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The write is monotonic, by
     /// <see cref="IncomingArtifactCustodyProgress.MovesForward"/>: a recorder
     /// that arrives after a further answer keeps what is recorded and its
@@ -163,6 +176,16 @@ public interface IIncomingArtifactRetentionStore
     /// filled in where they are missing and never erased, because the same
     /// logical document and version are what a later reconciliation asks
     /// about.
+    /// </para>
+    /// <para>
+    /// The rule has to hold <em>between</em> recorders and not merely inside
+    /// one, because two of them on one occurrence is an ordinary state of the
+    /// world: a caller that lost the claim reconciles while the winner is
+    /// still inside its hand-over. So a store applies the test and the write
+    /// as one conditional operation the database decides, rather than reading
+    /// the current state, judging it in memory and writing back - which is how
+    /// a recorder that knows less wins a race against one that knows more.
+    /// </para>
     /// </remarks>
     Task RecordAsync(
         RetainedIncomingArtifact artifact,
@@ -185,6 +208,22 @@ public sealed class UnclaimedHandOverException()
     : InvalidOperationException(
         "An incoming artifact reaches custody only from an arrival its store "
         + "has already committed and this caller has claimed.");
+
+/// <summary>
+/// Raised when the bytes offered under an operation key are not the bytes the
+/// arrival that key names was committed with.
+/// </summary>
+/// <remarks>
+/// An operation key names one deliberate submission of one exact file, and a
+/// retry under it re-offers that file or nothing. Bytes that differ are a
+/// different submission and belong to a different key - never to this one, and
+/// never handed to custody under it, because custody's own rule for a repeated
+/// key is to return the intent it already has for it.
+/// </remarks>
+public sealed class HandOverContentMismatchException()
+    : InvalidOperationException(
+        "The bytes offered under this operation key are not the bytes its "
+        + "committed arrival was validated with.");
 
 /// <summary>
 /// The one Core command that hands an incoming artifact to custody.
@@ -214,7 +253,22 @@ public sealed class UnclaimedHandOverException()
 /// to reconcile against, so offering the bytes would be exactly the unclaimed
 /// hand-over the claim exists to prevent. Every caller commits its arrival
 /// first - the public upload path does, and the holding destination this
-/// command already carries must too.
+/// command already carries must too. A hand-over is also only ever offered
+/// the bytes its arrival was committed with, so one operation key can never
+/// come to name two different files.
+/// </para>
+/// <para>
+/// There is one hand-over a claim this caller did not win still permits, and
+/// it is what keeps a claim from becoming a dead end. A claimed arrival that
+/// names no document, and that custody owns up to nothing for, may never have
+/// been offered at all: the process that took the claim can die between the
+/// claim and the call. So the same validated bytes are offered again under the
+/// same operation key - never a fresh one - and custody's own rule for a
+/// repeated key is what keeps that one retention rather than two: a same-key
+/// call after an intent exists returns that intent, and only the call that
+/// creates it initiates storage (Stream A, PR 673 comment 5561151076, which
+/// supersedes its earlier one-call rule). The invariant is one durable intent,
+/// not one invocation.
 /// </para>
 /// </remarks>
 public sealed class RetainIncomingArtifact(
@@ -251,6 +305,7 @@ public sealed class RetainIncomingArtifact(
         // that closes a claim would have nothing to close.
         var existing = await store.FindAsync(occurrence.OperationKey, cancellationToken)
             ?? throw new UnclaimedHandOverException();
+        RequireSameContent(existing, occurrence);
 
         // The two answers custody actually gave. A confirmed retention returns
         // the same logical document and version, and a refusal is final for
@@ -263,10 +318,10 @@ public sealed class RetainIncomingArtifact(
         }
 
         // A Pending is custody stating that it has these bytes. It is asked
-        // about, never repeated.
+        // about, never repeated - whatever the answer, including none.
         if (existing.State is IncomingArtifactCustodyState.Pending)
         {
-            return await ReconcileAsync(actor, existing, cancellationToken);
+            return await ReconcileAsync(actor, existing, cancellationToken) ?? existing;
         }
 
         // Unknown is both the arrival nobody has offered yet and the hand-over
@@ -278,7 +333,18 @@ public sealed class RetainIncomingArtifact(
         // never reaches custody with bytes.
         if (!await store.TryClaimHandOverAsync(occurrence.OccurrenceId, cancellationToken))
         {
-            return await ReconcileAsync(actor, existing, cancellationToken);
+            if (await ReconcileAsync(actor, existing, cancellationToken) is { } asked)
+            {
+                return asked;
+            }
+
+            // Asked, and custody owns up to nothing for a claim that names no
+            // document. That is not proof it holds nothing - a winner still
+            // inside its call has committed nothing yet either - so what
+            // follows must be safe in both worlds, and offering the same bytes
+            // under the same key is: custody converges a repeated key on one
+            // intent. It is the only way a claim whose holder died before it
+            // ever called is ever resolved, and no fresh key is minted for it.
         }
 
         CaseArtifactCustodyResult result;
@@ -313,7 +379,9 @@ public sealed class RetainIncomingArtifact(
                     occurrence.OperationKey,
                     IncomingArtifactCustodyState.Failed,
                     occurrence.CaseId,
-                    FailureCode: RefusedFailureCode),
+                    FailureCode: RefusedFailureCode,
+                    Sha256: occurrence.Sha256,
+                    ContentLength: occurrence.ContentLength),
                 CancellationToken.None);
             throw;
         }
@@ -328,7 +396,9 @@ public sealed class RetainIncomingArtifact(
                 occurrence.OccurrenceId,
                 occurrence.OperationKey,
                 IncomingArtifactCustodyState.Unknown,
-                occurrence.CaseId);
+                occurrence.CaseId,
+                Sha256: occurrence.Sha256,
+                ContentLength: occurrence.ContentLength);
 
             // Written on a fresh token on purpose. A hand-over cancelled by
             // the sender disconnecting is exactly the case that must still be
@@ -392,6 +462,14 @@ public sealed class RetainIncomingArtifact(
     /// without the authority to ask, the retention keeps the state it had,
     /// which is honest and still never renders as success.
     /// </summary>
+    /// <returns>
+    /// The reconciled retention, or <see langword="null"/> for the one answer
+    /// that is not a retention at all: nothing committed was observed for a
+    /// claimed arrival that names no document, which leaves the caller free to
+    /// offer the same bytes again under the same key. Every other outcome -
+    /// including a lookup that observed nothing about an arrival custody has
+    /// called Pending - is a record.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// There are two ways to ask, and which one is available is decided by
@@ -414,11 +492,15 @@ public sealed class RetainIncomingArtifact(
     /// the Pending itself - still converges it.
     /// </para>
     /// </remarks>
-    private async Task<RetainedIncomingArtifact> ReconcileAsync(
+    private async Task<RetainedIncomingArtifact?> ReconcileAsync(
         ActionActor actor,
         RetainedIncomingArtifact existing,
         CancellationToken cancellationToken)
     {
+        // Nothing was observed because nothing could be asked. That is not the
+        // observation a re-offer rests on, so the retention keeps the state it
+        // had rather than being offered again on the strength of a question
+        // that was never put.
         if (custodyStatus is null || existing.CaseId is not { } caseId)
         {
             return existing;
@@ -451,8 +533,15 @@ public sealed class RetainIncomingArtifact(
         if (status is null)
         {
             // No committed intent was observed. That is not evidence that none
-            // will be: the claim stands and the retention stays uncertain.
-            return existing;
+            // will be, so the claim stands and the retention stays uncertain -
+            // and for the identityless claim it is also the one observation
+            // that lets the same bytes be offered again under the same key,
+            // which the caller decides and this reports by answering nothing.
+            // A Pending is custody's own word that it has the bytes, so it is
+            // never re-offered however little a lookup can see.
+            return existing.State == IncomingArtifactCustodyState.Unknown
+                ? null
+                : existing;
         }
 
         var state = ToState(status.Disposition);
@@ -497,7 +586,34 @@ public sealed class RetainIncomingArtifact(
             // that custody holds something it has not said it holds.
             confirmed ? result.BoxFileId : null,
             confirmed ? result.BoxVersionId : null,
-            result.FailureCode);
+            result.FailureCode,
+            occurrence.Sha256,
+            occurrence.ContentLength);
+    }
+
+    /// <summary>
+    /// Whether these are the bytes the arrival was committed with. A retry
+    /// under an operation key re-offers that key's own file or nothing, so a
+    /// digest or a length that does not match is refused here - before a claim
+    /// is taken and before custody is asked - rather than handed over to
+    /// become a second file under one key.
+    /// </summary>
+    /// <remarks>
+    /// A store that records neither has nothing to check, and says so by
+    /// carrying neither. It is not treated as a match to be lenient about: a
+    /// store either knows what it committed or does not.
+    /// </remarks>
+    private static void RequireSameContent(
+        RetainedIncomingArtifact existing,
+        IncomingArtifactOccurrence occurrence)
+    {
+        if ((existing.Sha256 is { } sha256
+                && !string.Equals(sha256, occurrence.Sha256, StringComparison.OrdinalIgnoreCase))
+            || (existing.ContentLength is { } contentLength
+                && contentLength != occurrence.ContentLength))
+        {
+            throw new HandOverContentMismatchException();
+        }
     }
 
     private static IncomingArtifactCustodyState ToState(

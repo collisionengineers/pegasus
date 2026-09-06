@@ -101,7 +101,11 @@ public sealed partial class RequestModel(
             return NotFound();
         }
 
-        if (!Guid.TryParseExact(OperationKey, "N", out var operationId))
+        // Either shape this server issues: the key minted for a new
+        // submission, or the derived key a second file sent while the first
+        // was outstanding was given. A key of any other shape is not one of
+        // ours and is refused rather than handed on.
+        if (!RequestUploadOperationKey.TryNormalize(OperationKey, out var operationKey))
         {
             ModelState.AddModelError(string.Empty, "The upload operation is invalid. Reload the link and try again.");
         }
@@ -145,7 +149,7 @@ public sealed partial class RequestModel(
                             ? "application/octet-stream"
                             : Upload.ContentType,
                         content.ToArray(),
-                        operationId.ToString("N")),
+                        operationKey),
                     attemptsInCurrentWindow),
                 cancellationToken);
 

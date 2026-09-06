@@ -218,6 +218,102 @@ public sealed class IncomingArtifactCustodyTests
             await ReadIdentitiesAsync(factory.Services, seeded.DocumentVersionId));
     }
 
+    /// <summary>
+    /// The same rule under the concurrency it exists for. A caller that lost
+    /// the claim reconciles to Pending while the winner is still inside
+    /// custody, so two recorders are on one occurrence and each reads the row
+    /// for itself: the rule has to be the database's and not each caller's,
+    /// because a read-modify-write loses the winner's Confirmed to whichever
+    /// UPDATE happens to land second.
+    /// </summary>
+    /// <remarks>
+    /// Rounds, because which recorder lands first is the race's to decide, and
+    /// the invariant holds either way: a Pending that arrives first is
+    /// overtaken by the confirmation, and one that arrives second is refused.
+    /// Two stores, each opening its own context per call, exactly as two
+    /// requests do.
+    /// </remarks>
+    [Fact]
+    public async Task ALatePendingWriteAgainstAConfirmedRowIsANoOpUnderConcurrency()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedSessionAsync(factory.Services);
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var winner = new EfPublicUploadRetentionStore(contextFactory);
+        var loser = new EfPublicUploadRetentionStore(contextFactory);
+        var confirmed = new RetainedIncomingArtifact(
+            seeded.FirstOccurrenceId,
+            seeded.FirstOperationKey,
+            IncomingArtifactCustodyState.Confirmed,
+            seeded.CaseId,
+            seeded.DocumentId,
+            seeded.DocumentVersionId,
+            "box-file-1",
+            "box-version-1");
+
+        // What a reconciliation carries: the same document, the state custody
+        // had not finished, and no remote identity of its own.
+        var pending = confirmed with
+        {
+            State = IncomingArtifactCustodyState.Pending,
+            BoxFileId = null,
+            BoxVersionId = null
+        };
+
+        for (var round = 0; round < 25; round++)
+        {
+            await ResetToArrivedAsync(factory.Services, seeded);
+            using var start = new Barrier(2);
+            var confirming = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                await winner.RecordAsync(confirmed, CancellationToken.None);
+            });
+            var reconciling = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                await loser.RecordAsync(pending, CancellationToken.None);
+            });
+
+            await Task.WhenAll(confirming, reconciling);
+
+            var found = await winner.FindAsync(seeded.FirstOperationKey, CancellationToken.None);
+            Assert.NotNull(found);
+            Assert.True(
+                found.IsConfirmed,
+                $"round {round}: a confirmed retention was pulled back to '{found.State}'.");
+            Assert.Equal(seeded.DocumentId, found.DocumentId);
+            Assert.Equal(seeded.DocumentVersionId, found.DocumentVersionId);
+            Assert.Equal(
+                ("box-file-1", "box-version-1"),
+                await ReadIdentitiesAsync(factory.Services, seeded.DocumentVersionId));
+        }
+    }
+
+    /// <summary>
+    /// Puts the occurrence and the version it points at back to the state a
+    /// committed arrival starts in, so each round of the race is run against
+    /// an unanswered arrival rather than the previous round's answer.
+    /// </summary>
+    private static async Task ResetToArrivedAsync(
+        IServiceProvider services,
+        SeededSession seeded)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Set<PublicUploadOccurrenceEntity>()
+            .Where(item => item.Id == seeded.FirstOccurrenceId)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(item => item.CustodyState, EfPublicUploadRetentionStore.ArrivedCode)
+                .SetProperty(item => item.DocumentId, (Guid?)null)
+                .SetProperty(item => item.DocumentVersionId, (Guid?)null));
+        await context.Set<DocumentVersionEntity>()
+            .Where(item => item.Id == seeded.DocumentVersionId)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(item => item.BoxFileId, (string?)null)
+                .SetProperty(item => item.BoxVersionId, (string?)null));
+    }
+
     private static async Task<string> ReadCustodyStateAsync(
         IServiceProvider services,
         Guid occurrenceId)
