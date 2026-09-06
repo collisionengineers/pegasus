@@ -2340,10 +2340,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasPrecision(7, 4)
                         .HasColumnType("decimal(7,4)");
 
-                    b.Property<decimal?>("PaintLabourRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal?>("PaintMaterials")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
