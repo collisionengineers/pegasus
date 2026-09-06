@@ -111,6 +111,31 @@ public sealed class CursorPagingTests
             new(actor, caseB, firstPage.NextCursor, 1), CancellationToken.None));
     }
 
+    /// <summary>
+    /// CASE-047, Stream A MCP review: the document list's page unit is the
+    /// occurrence, so the cursor position is minted against the last row's
+    /// own occurrence identity — never against a document aggregate — and a
+    /// host flattening items one-for-one cannot lose occurrences of a
+    /// many-occurrence document (the store's paging of that rule is
+    /// <c>CaseCursorQueryPersistenceTests</c>'s job).
+    /// </summary>
+    [Fact]
+    public async Task ADocumentCursorIsMintedAgainstTheOccurrenceIdentity()
+    {
+        var protector = new FakeCursorProtector();
+        var list = new ListCaseDocumentsByCursor(new FakeCaseQueryStore(), protector);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var page = await list.ExecuteAsync(new(actor, Guid.NewGuid(), Limit: 1), CancellationToken.None);
+
+        var minted = Assert.Single(protector.Protected);
+        var expected = Assert.Single(page.Items);
+        Assert.Equal(expected.Occurrence.Id, minted.Id);
+        Assert.Equal(
+            CursorPaging.EncodeUtcTimestamp(expected.Occurrence.RecordedAtUtc),
+            minted.SortKey);
+    }
+
     [Fact]
     public async Task AMalformedCursorIsRefused()
     {
@@ -166,17 +191,32 @@ public sealed class CursorPagingTests
             return Task.FromResult<IReadOnlyList<CaseSearchItem>>(rows);
         }
 
-        public Task<IReadOnlyList<CaseDocument>> ListDocumentsByCursorAsync(
+        public Task<IReadOnlyList<CaseDocumentPageItem>> ListDocumentsByCursorAsync(
             Guid caseId,
             DateTimeOffset? afterRecordedAtUtc,
             Guid? afterId,
             int fetchCount,
             CancellationToken cancellationToken)
         {
+            var now = new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero);
             var rows = Enumerable.Range(0, fetchCount)
-                .Select(_ => new CaseDocument(Guid.NewGuid(), caseId, [], []))
+                .Select(index =>
+                {
+                    var occurrenceId = Guid.NewGuid();
+                    var versionId = Guid.NewGuid();
+                    return new CaseDocumentPageItem(
+                        new DocumentOccurrence(
+                            occurrenceId, caseId, Guid.NewGuid(), versionId,
+                            DocumentSemanticRole.Image, DocumentSource.StaffUpload,
+                            $"cursor-page:{occurrenceId:N}", now.AddMinutes(-index), null, null),
+                        new DocumentVersion(
+                            versionId, Guid.NewGuid(), 1, $"doc-{index}.pdf", "application/pdf",
+                            1, new string('a', 64), DocumentCustodyStatus.Confirmed,
+                            now, "Staff:test", IsCurrent: true, IsLogicallyRemoved: false,
+                            RemovalReason: null));
+                })
                 .ToArray();
-            return Task.FromResult<IReadOnlyList<CaseDocument>>(rows);
+            return Task.FromResult<IReadOnlyList<CaseDocumentPageItem>>(rows);
         }
 
         public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(
