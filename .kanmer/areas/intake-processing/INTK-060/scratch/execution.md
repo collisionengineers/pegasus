@@ -392,3 +392,7 @@ Review `pass` at `fea0c0e78` (zero open findings; R-24/R-25 accepted-risk). Merg
 ## Wave 31 (C08 `86e8659f5`): 159/160
 
 Build/core 59/browser 82/architecture PASS; the one failure is round 3's own round-trip assertion: with `sort=oldest` active the sort toggle omits `sort` (`Index.cshtml:120`) and row links exist only when `search=vehicle` matches a subject/sender (the seed text is body/excerpt), so `unread=true&amp;sort=oldest` is never rendered. C08 round 4 (assert tokens where the page actually emits them) queued behind the two active editors (C07b r4, C03 b1). Wave 32 (C02 `ca3ec9abb`) launched.
+
+## A INTK-027 fix published on A's branch (`9028aa12b`, PR 673 5561151076)
+
+Touches `DurableIntake.cs` (C02 map, INTK-027 = A), `CustodyOutboxIntegrationTests.cs` (C07 file), `QdosAllocationRecoveryTests.cs` (+2 authorized args), A infra. Asked A for the transport (G object preferred vs bounded patch). A's revised retry rule: after the fix, an identityless Unknown with G15-null may be retried with the SAME original scoped key and identical validated bytes (never a fresh key); serializable RequestLink path converges on one intent / one provider initiation; double's `GetAsync` admits the exact active RequestLink artifact, `CreatedBy = RequestLink:<D-guid>`. To be folded into the running C07 caller round 4.
