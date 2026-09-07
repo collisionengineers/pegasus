@@ -514,6 +514,49 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(1, send.ReconcileCalls);
     }
 
+    [Fact]
+    public async Task ConcurrentDistinctKeysForOneOriginalProduceOneSendAndOneDeterministicRefusal()
+    {
+        var send = new RecordingStaffMailSend
+        {
+            NextState = StaffMailState.Submitted,
+            CoordinateNextTwoSends = true
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 CONCURRENT", "SC08-MSG-CONCURRENT");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var firstClient = CreateClient(factory);
+        using var secondClient = CreateClient(factory);
+
+        using var firstGet = await firstClient.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        using var secondGet = await secondClient.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var firstHtml = await firstGet.Content.ReadAsStringAsync();
+        var secondHtml = await secondGet.Content.ReadAsStringAsync();
+        var firstKey = InputValue(firstHtml, "CorrespondenceOperationKey");
+        var secondKey = InputValue(secondHtml, "CorrespondenceOperationKey");
+        Assert.NotEqual(firstKey, secondKey);
+
+        var firstPost = firstClient.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(RetainedReplyForm(firstHtml, firstKey, "First concurrent action.")));
+        var secondPost = secondClient.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(RetainedReplyForm(secondHtml, secondKey, "Second concurrent action.")));
+        using var first = await firstPost;
+        using var second = await secondPost;
+
+        Assert.Equal(1, send.SendCalls);
+        Assert.Equal(
+            [HttpStatusCode.OK, HttpStatusCode.Redirect],
+            new[] { first.StatusCode, second.StatusCode }.Order());
+        var refused = first.StatusCode == HttpStatusCode.OK ? first : second;
+        var refusedHtml = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("existing correspondence operation", refusedHtml, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData(StaffMailState.Prepared)]
     [InlineData(StaffMailState.DraftCreating)]
@@ -587,6 +630,8 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(HttpStatusCode.Redirect, firstPost.StatusCode);
         Assert.Equal(1, send.SendCalls);
 
+        send.NextState = StaffMailState.Submitted;
+        send.NextPreparedAtUtc = NowUtc.AddDays(-1);
         using var secondGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var secondHtml = await secondGet.Content.ReadAsStringAsync();
         var secondKey = InputValue(secondHtml, "CorrespondenceOperationKey");
@@ -596,6 +641,10 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(RetainedReplyForm(secondHtml, secondKey, "Second action.")));
         Assert.Equal(HttpStatusCode.Redirect, secondPost.StatusCode);
         Assert.Equal(2, send.SendCalls);
+        using var activeStatus = await client.GetAsync(secondPost.Headers.Location);
+        var activeHtml = await activeStatus.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), activeHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Reply\"", activeHtml, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1136,69 +1185,127 @@ public sealed class StaffCorrespondenceWebTests
     /// </summary>
     private sealed class RecordingStaffMailSend : IStaffMailSend
     {
+        private readonly object sync = new();
         private readonly List<StaffMailSendCommand> commands = [];
         private readonly Dictionary<string, StaffMailOperation> byOperationKey = [];
         private readonly Dictionary<Guid, StaffMailOperation> byOperationId = [];
+        private readonly TaskCompletionSource bothSendsEntered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int coordinatedSendEntrants;
 
-        public int SendCalls => commands.Count;
+        public int SendCalls
+        {
+            get { lock (sync) return commands.Count; }
+        }
 
         public int ReconcileCalls { get; private set; }
 
-        public IReadOnlyList<StaffMailSendCommand> Commands => commands;
+        public IReadOnlyList<StaffMailSendCommand> Commands
+        {
+            get { lock (sync) return commands.ToArray(); }
+        }
 
         public StaffMailState NextState { get; set; } = StaffMailState.Submitted;
 
-        public Task<StaffMailOperation> SendAsync(
+        public DateTimeOffset NextPreparedAtUtc { get; set; } = NowUtc;
+
+        public bool CoordinateNextTwoSends { get; set; }
+
+        public async Task<StaffMailOperation> SendAsync(
             StaffMailSendCommand command, CancellationToken cancellationToken)
         {
-            if (byOperationKey.TryGetValue(command.OperationKey, out var existing))
+            if (CoordinateNextTwoSends)
             {
-                return Task.FromResult(existing);
+                if (Interlocked.Increment(ref coordinatedSendEntrants) == 2)
+                {
+                    bothSendsEntered.TrySetResult();
+                }
+                await bothSendsEntered.Task.WaitAsync(cancellationToken);
             }
 
-            commands.Add(command);
-            var operation = new StaffMailOperation(
-                Guid.NewGuid(),
-                NextState,
-                NextState == StaffMailState.Sent ? StaffMailAttemptStage.ObserveSent : StaffMailAttemptStage.CreateDraft,
-                1,
-                NowUtc,
-                NextState == StaffMailState.Sent ? NowUtc : null,
-                NextState == StaffMailState.Sent ? NowUtc : null,
-                null,
-                command.ApprovedMailboxId,
-                command.ExpectedMailboxGeneration,
-                new string('A', 64),
-                NowUtc,
-                null);
-            byOperationKey[command.OperationKey] = operation;
-            byOperationId[operation.Id] = operation;
-            return Task.FromResult(operation);
+            lock (sync)
+            {
+                if (byOperationKey.TryGetValue(command.OperationKey, out var existing))
+                {
+                    return existing;
+                }
+
+                var originalId = command.OriginalMessage?.RetainedMessageId;
+                if (originalId is not null && commands.Any(item =>
+                        item.OriginalMessage?.RetainedMessageId == originalId
+                        && IsActive(byOperationKey[item.OperationKey].State)))
+                {
+                    throw new InvalidOperationException(
+                        "An active correspondence operation already exists for this retained message.");
+                }
+
+                commands.Add(command);
+                var preparedAtUtc = NextPreparedAtUtc;
+                var operation = new StaffMailOperation(
+                    Guid.NewGuid(),
+                    NextState,
+                    NextState == StaffMailState.Sent ? StaffMailAttemptStage.ObserveSent : StaffMailAttemptStage.CreateDraft,
+                    1,
+                    preparedAtUtc,
+                    NextState == StaffMailState.Sent ? preparedAtUtc : null,
+                    NextState == StaffMailState.Sent ? preparedAtUtc : null,
+                    null,
+                    command.ApprovedMailboxId,
+                    command.ExpectedMailboxGeneration,
+                    new string('A', 64),
+                    preparedAtUtc,
+                    null);
+                byOperationKey[command.OperationKey] = operation;
+                byOperationId[operation.Id] = operation;
+                return operation;
+            }
         }
 
         public Task<StaffMailOperation?> GetAsync(
             ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>
-            Task.FromResult(byOperationId.TryGetValue(operationId, out var operation) ? operation : null);
+            LockedGet(operationId);
 
         public Task<StaffMailOperation?> GetLatestForOriginalAsync(
             ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken)
         {
-            var command = commands.LastOrDefault(item =>
-                item.OriginalMessage?.RetainedMessageId == retainedMessageId);
-            var operation = command is null ? null : byOperationKey[command.OperationKey];
-            return Task.FromResult(operation);
+            lock (sync)
+            {
+                var matching = commands
+                    .Where(item => item.OriginalMessage?.RetainedMessageId == retainedMessageId)
+                    .Select(item => byOperationKey[item.OperationKey])
+                    .ToArray();
+                return Task.FromResult<StaffMailOperation?>(
+                    matching.LastOrDefault(operation => IsActive(operation.State))
+                    ?? matching.LastOrDefault());
+            }
         }
 
         public Task<StaffMailOperation> ReconcileAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken)
         {
-            ReconcileCalls++;
-            if (!byOperationId.TryGetValue(operationId, out var operation))
+            lock (sync)
             {
-                throw new InvalidOperationException($"No recorded operation {operationId:D}.");
+                ReconcileCalls++;
+                if (!byOperationId.TryGetValue(operationId, out var operation))
+                {
+                    throw new InvalidOperationException($"No recorded operation {operationId:D}.");
+                }
+                return Task.FromResult(operation);
             }
-            return Task.FromResult(operation);
         }
+
+        private Task<StaffMailOperation?> LockedGet(Guid operationId)
+        {
+            lock (sync)
+            {
+                return Task.FromResult<StaffMailOperation?>(
+                    byOperationId.TryGetValue(operationId, out var operation) ? operation : null);
+            }
+        }
+
+        private static bool IsActive(StaffMailState state) => state is
+            StaffMailState.Prepared or StaffMailState.DraftCreating or StaffMailState.DraftReady
+            or StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown;
 
         public Task<StaffMailOperation> CancelAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>

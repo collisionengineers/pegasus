@@ -816,14 +816,13 @@ public sealed class MessageModel(
             return NotFound();
         Detail = detail;
 
+        // The durable send boundary owns the atomic original-message claim.
+        // A GET projection can hide a second action, but it cannot distinguish
+        // a same-key replay from a forged fresh key without racing another
+        // request. Always present the validated command to that boundary:
+        // same-key replay returns its operation; a distinct active claim is
+        // refused atomically.
         await LoadRetainedOperationAsync(actor, cancellationToken);
-        if (CorrespondenceSendBlocked)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The existing correspondence operation must finish or be resolved before another action.");
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
 
         if (!await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken))
         {
@@ -901,6 +900,13 @@ public sealed class MessageModel(
         catch (ArgumentException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The existing correspondence operation must finish or be resolved before another action.");
             return await ReloadAsync(actor, id, cancellationToken);
         }
 
