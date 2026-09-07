@@ -505,3 +505,58 @@ Because nothing here was executed, the combined tree must run at minimum:
 ## Disposition
 
 `NEEDS CHANGES`. The production change (`Message.cshtml.cs:905-930`) closes comment 5563408956 correctly and is accepted as written, subject to the non-blocking F5 cleanup and the F4 hand-off note. The blocker is entirely in the new regression: as written it asserts a propagation that this suite does not produce, so the commit would land with a red test and without the proof the finding demanded. Apply F1 (and F2, F3, F6 with it), then re-review.
+
+---
+
+# C08 correction round 6 re-review — head `729b284e1` — **PASS**
+
+- kind: review-attestation
+- head_sha: `729b284e1615ecb14e2c7cb615b4dff18cf67339`
+- range reviewed: `4f0c0411392d39b75746b12fd99c3c4b008deb8f..729b284e1615ecb14e2c7cb615b4dff18cf67339`
+- whole correction: `aa5e669d76ad2f7cc24783f8076644c439509feb..729b284e1615ecb14e2c7cb615b4dff18cf67339`
+- verdict: **pass**
+- reviewer: `pegasus-reviewer (C08 re-review, round 6)`; independent: true
+- branch `c08-shell`, worktree `C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c08`
+- execution tree: `C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-combined-verify @ ef60a7f194f0175c948d1d7e50d75053013f3dc7`
+- wave dir: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\wave41-tests`
+- full attestation: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c08-r6-review.md`
+- skill_sha256: `.agents/skills/kanmer-review/SKILL.md` = `addf26c9981cefa755a9db3a1ee06383432230708641b076ee336d64a1096741`
+- counts: 0 blocker open, 0 major open, 0 minor open, 1 note open (F9), 6 closed
+- no git writes, no file edits, no `dotnet test`, no push by this review
+
+## Findings
+
+| id | severity | disposition |
+|---|---|---|
+| F1 | blocker | fixed |
+| F2 | major | fixed |
+| F3 | minor | fixed |
+| F4 | minor | deferred-to-stream-A |
+| F5 | minor | fixed |
+| F6 | note (was nit) | fixed |
+| F7 | note | accepted-risk (carried) |
+| F8 | note (new) | accepted-risk |
+| F9 | note (new) | open — controller routing, non-blocking |
+
+## Controller checks — all PASS
+
+1. **Corrected regression (F1, F2, F3 closed).** `tests/Pegasus.IntegrationTests/StaffCorrespondenceWebTests.cs:564-565` posts without the `Assert.ThrowsAsync` wrapper; `:566` `Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode)`; `:568-569` `Assert.DoesNotContain("existing correspondence operation", body, OrdinalIgnoreCase)` — the assertion that closes comment 5563408956; `:570-573` `Assert.Contains("Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.", body, Ordinal)` — proves the failure surfaced unmasked (F1's preferred form, not the weaker `NotEqual(Redirect)` fallback); `:574-577` keeps `SendCalls == 0` behind a comment stating its own mechanism, so it reads as secondary and cannot be mistaken for the load-bearing assertion. `:555-563` replaces the false "no exception-handling middleware" premise with the developer-exception-page explanation and the `GraphMailWebhookTests` precedent. Only two assertion lines were removed, replaced by four stronger ones.
+2. **Test name (F6 closed).** `:523` `public async Task NoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict()` — stray `A` gone.
+3. **F5 closed.** `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs:1094-1098` defines `private static bool IsActiveOperation(StaffMailOperation? operation)`; call sites `:918` (inside `catch (InvalidOperationException)` at `:905`) and `:1090` (`CorrespondenceSendBlocked`). Enum sets compared over `StaffMailState` (`src/Pegasus.Core/Operations/StaffMailSend.cs:8`, nine members): active = `{Prepared, DraftCreating, DraftReady, Sending, Submitted, Unknown}` before and after, at both sites — identical behaviour. Only one copy of the terminal-state triple remains in the file; `:893` is an unrelated `== Sent` notice check.
+4. **F4 + no catch-all.** The catch-clause inventory of `Message.cshtml.cs` is identical at `4f0c04113` and `729b284e1` (28 clauses, same types and order, positions shifted one line). The send handler still has only `catch (StaffAuthorizationException)`, `catch (ArgumentException exception)`, `catch (InvalidOperationException)` — rule 12 intact. F4 is recorded in full (with the `ExceptionDispatchInfo.Capture(exception).Throw()` remedy and the "hand-off to A's S12" instruction) in this scratch, and no code change was made for it — correct. See F9.
+5. **`ThrowOnSend` semantics unchanged.** `:1269-1284`: nullable property defaulting to `null`, thrown at the very top of `SendAsync` before `CoordinateNextTwoSends`, before `lock (sync)` and before `commands.Add` (`:1310`). The class declares 16 `[Fact]` + 6 `[Theory]` × 22 `InlineData` = 38 cases, the same 38 before and after; wave 41 shows 38/0 where round 5 was 37/1, so the 37 unrelated cases stayed green.
+6. **Diff shape / line endings (F8).** `git diff 4f0c04113..729b284e1 --stat` = `2 files changed, 30 insertions(+), 23 deletions(-)` (17 in `Message.cshtml.cs`, 36 in the test file). `git diff --check` clean. Raw blobs (`git cat-file blob`) are CRLF on every line at **both** commits — 1610→1609 and 1382→1390 lines — so the convention is unchanged and no whole-file re-encoding occurred. **F8 (note):** `c08-r6-report.md` describes those blobs as "LF-only"; that is wrong about the bytes, though its conclusion (no rewrite) is right. No code impact.
+7. **Nothing weakened or out of scope.** Two files, both C-owned and both in scope for 5563408956. No test deleted, disabled or weakened; no production change beyond the mechanical F5 extraction; no new dependency, exception type or store method; nothing under `.worktrees/kanmer`.
+
+## Binding evidence
+
+`git merge-base --is-ancestor 729b284e1 ef60a7f19` → YES, and both changed blobs are byte-identical at the c08 commit and at the wave-41 execution head (`Message.cshtml.cs` = `ed6e7e12fb2c8eb416a7934fabc173e7f1ab30c5`, `StaffCorrespondenceWebTests.cs` = `669711149267bd86c5f38a3b7dbf50136a281864`). The wave-41 lanes therefore exercised exactly this code: `1-build-solution` exit 0 (0 Warning(s), 0 Error(s)); `2-correspondence` exit 0 (38 passed / 0 failed / 0 skipped); `3-mail-workspace` exit 0 (79/0/0). Round 5's blocker was that F1's premise was unverifiable without a run; it is now verified empirically — the 500 arrives and the developer exception page body carries the original message, or `:570` would have failed.
+
+## New findings
+
+- **F8 — note — accepted risk.** Round-6 report's line-ending claim is factually wrong about the blob bytes (CRLF, not LF-only); the conclusion is correct and was independently re-verified. Recorded so the evidence trail is accurate.
+- **F9 — note — open.** The F4 hand-off lives only under this C-owned slug and is not repeated in `c08-r6-report.md`, so A's S12 implementer has no reason to read it. Controller action, not C08's: mirror the F4 paragraph into A's S12 hand-off surface before A implements `GetLatestForOriginalAsync`. Non-blocking.
+
+## Disposition
+
+**PASS.** The whole C08 correction `4f0c04113..729b284e1` — the production narrowing already reviewed PASS at round 5, plus this round's test correction and predicate extraction — is **acceptable for integration into the C owner branch** and **closes A's finding 5563408956**.
