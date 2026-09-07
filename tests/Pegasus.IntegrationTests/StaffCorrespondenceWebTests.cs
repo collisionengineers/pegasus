@@ -483,15 +483,20 @@ public sealed class StaffCorrespondenceWebTests
 
         using var first = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        // A syntactically valid but distinct operation key, so this proves the
+        // active-Unknown operation rejects a genuine fresh action rather than
+        // merely tripping the operation-key format check.
         var freshForm = new Dictionary<string, string>(form)
         {
-            ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}"
+            ["CorrespondenceOperationKey"] = $"retained:{seeded.MessageId:N}:{Guid.NewGuid():N}"
         };
         using var fresh = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(freshForm));
+        var freshHtml = await fresh.Content.ReadAsStringAsync();
         using var replay = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
         Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
+        Assert.Contains("existing correspondence operation", freshHtml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         Assert.Equal(1, send.SendCalls);
@@ -512,6 +517,56 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(HttpStatusCode.Redirect, reconcile.StatusCode);
         Assert.Equal(1, send.SendCalls);
         Assert.Equal(1, send.ReconcileCalls);
+    }
+
+    [Fact]
+    public async Task ANoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict()
+    {
+        // PR 673 comment 5563408956: catch (InvalidOperationException) must
+        // not label every failure as an existing correspondence operation.
+        // Here no operation was ever recorded for this original message, so
+        // this is the send port itself refusing (offline transport, or a
+        // composition invariant) — not a conflicting active operation. The
+        // handler must let the real failure surface rather than redirecting
+        // as though a correspondence conflict occurred.
+        var send = new RecordingStaffMailSend
+        {
+            ThrowOnSend = new InvalidOperationException(
+                "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.")
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 OFFLINE", "SC08-MSG-OFFLINE");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceSubject"] = "Re: Source subject",
+            ["CorrespondenceBody"] = "Reviewed response."
+        };
+
+        // No exception-handling middleware sits in front of this page in the
+        // Development profile these web tests run under (Program.cs only
+        // registers UseExceptionHandler outside Development), so an uncaught
+        // exception from the handler surfaces to the caller exactly as any
+        // other uncaught exception on this page would — the existing,
+        // unmodified error handling. That is the behaviour under test: the
+        // failure must NOT be relabelled as "existing correspondence
+        // operation" and must NOT produce a conflict redirect.
+        var surfaced = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.PostAsync(
+                $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form)));
+        Assert.Equal(
+            "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
+            surfaced.Message);
+        Assert.Equal(0, send.SendCalls);
     }
 
     [Fact]
@@ -1211,9 +1266,22 @@ public sealed class StaffCorrespondenceWebTests
 
         public bool CoordinateNextTwoSends { get; set; }
 
+        /// <summary>
+        /// When set, <see cref="SendAsync"/> throws this immediately, before
+        /// recording any command — simulating an offline transport
+        /// (<c>UnavailableStaffMailSend</c>) or a composition invariant
+        /// failure that has nothing to do with an existing correspondence
+        /// operation for this original message.
+        /// </summary>
+        public Exception? ThrowOnSend { get; set; }
+
         public async Task<StaffMailOperation> SendAsync(
             StaffMailSendCommand command, CancellationToken cancellationToken)
         {
+            if (ThrowOnSend is { } failure)
+            {
+                throw failure;
+            }
             if (CoordinateNextTwoSends)
             {
                 if (Interlocked.Increment(ref coordinatedSendEntrants) == 2)
