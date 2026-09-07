@@ -16,15 +16,10 @@ public sealed partial class QdosTriageIntegrationTests
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task ATriagePageShowsTheVehiclePhotographsItsRequestCarried()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest(
             "triage-with-images.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-IMG"
-            + "\r\nVehicle Registration: AB12 CDE",
             attachments:
             [
                 ("Client vehicle damage 1.png", "image/png", TinyPngBytes),
@@ -66,15 +61,9 @@ public sealed partial class QdosTriageIntegrationTests
     {
         // The design authority is explicit that a read-only section with
         // nothing to show is absent, not an empty-state panel.
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-without-images.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-NOIMG"
-            + "\r\nVehicle Registration: AB12 CDE");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-without-images.eml");
 
         await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, email.FileName, email.MediaType, email.Content);
