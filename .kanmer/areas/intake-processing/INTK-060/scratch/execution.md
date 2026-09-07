@@ -501,3 +501,12 @@ Replacement controller integrated independently reviewed C07b custody/public-upl
 - 2026-09-07T01:02:51.552Z claim-transfer codex-stream-c-replacement → claude-fable-c2 (live; operator: replacement Stream C controller takes over from paused codex-stream-c-replacement per handoff-stream-c.md (2026-09-07); same worktree/branch, no reset; lease 40f03659-6845-4f20-b1cc-cfd09686ec00 → b03b3df8-dca2-44ae-b628-515528bdf02f rev 67; branch task/pegasus-v1-intake; worktree ../pegasus-worktrees/v1-intake; expires 2026-09-07T01:32:51.545Z; evidence: workspace clean (matches-claim), pr absent, commits 0, proof absent)
 
 - 2026-09-07T01:04:24.992Z lease-phase implementing → running-command (lease b03b3df8-dca2-44ae-b628-515528bdf02f rev 68; expires 2026-09-07T03:04:24.985Z)
+
+## 2026-09-07 01:15Z — controller resumption (claude-fable-c2)
+
+Lease transferred from paused `codex-stream-c-replacement` under operator authority (lease `b03b3df8-dca2-44ae-b628-515528bdf02f`, revision 68, phase running-command). Same worktree `../pegasus-worktrees/v1-intake`, branch `task/pegasus-v1-intake`, no reset.
+
+- Consumed A handoffs `012cbc0af` (C049 Worker-only lookup composition) and `c596f7570` (persisted OCR result projection) as exact objects via `--no-ff` merges `136b30a2d` and `aa5e669d7`; owner head `aa5e669d7` pushed. Solution Release build: all projects 0W/0E except `Pegasus.IntegrationTests` (A-owned `EfCaseArtifactCustody` at `DocumentCustodyDurabilityTests.cs:462`, unchanged hold).
+- Combined probe C `aa5e669d7` into A `a243fd209`: 7 conflicts (corpus json, IntakeMcpTools, Program, AutomationIntakeParityIngressTests, CustodyOutboxIntegrationTests, ProductionCompositionTests, RetainedMailPersistenceTests); aborted clean. Reported on PR 673 with the request for a published combined tree or authorized resolutions, and for A's durability-test retarget.
+- Dispatched: Opus source review of `df198034a` (scratch `review-c07c`); Opus C05 reconstruction seam in `v1-intake-c05` (`c05-third-party` at `aa5e669d7`); Sonnet C08 InvalidOperation correction in `v1-intake-c08` (`c08-shell` at `aa5e669d7`); Sonnet research for C07 promotion and C08 chaser identity. Session scratchpad `…/5adc2fb3-f15d-4145-84ed-948eb9fde4e4/scratchpad/takeover/`.
+- No deployment, live provider write or mail send. PRs 672/673/674 open, unmerged.
