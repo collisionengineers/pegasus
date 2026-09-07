@@ -2,12 +2,24 @@
 id: MAIL-036
 type: ticket
 title: Preserve the wipe-time email cutoff across Graph replay
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-07T20:18:52.479Z'
+taken_at: '2026-09-07T20:22:58.731Z'
+branch: MAIL-036-wipe-boundary
+worktree: .worktrees/mail-036
+claim_expires_at: '2026-09-07T20:52:58.731Z'
+claim_controller: codex-v1-remediation-root
+lease_id: 7b75a627-f815-47ca-af8e-3349bac00c98
+lease_revision: 1
+lease_controller_run: 20260907T200500Z-v1-remediation
+lease_worker_run: root-mail-20260907
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\mail-036'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-07T20:22:58.731Z'
 labels: []
 groups:
   - EPIC-014
@@ -17,7 +29,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-09-07T20:01:20.357Z'
-updated: '2026-09-07T20:18:52.479Z'
+updated: '2026-09-07T20:22:58.731Z'
 ---
 
 ## What
