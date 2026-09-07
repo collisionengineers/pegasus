@@ -4,6 +4,9 @@
 
 | Path | Why |
 | --- | --- |
+| src/Pegasus.Core/Lifecycle/CaseLifecycle.cs | Core assignment supplies its ReportPreparation destination to the existing persistence port. |
+| src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs | Existing assignment port carries Core's chosen destination; no new abstraction. |
+| tests/Pegasus.IntegrationTests/CaseWorkspacePersistenceTests.cs | Update the existing direct assignment-store caller. |
 | src/Pegasus.Core/Assessment/AssessmentWorkspace.cs | Remove export tuple and duplicate report access policy; retain one lifecycle/read-only rule. |
 | src/Pegasus.Core/Reports/AssessmentReportProjection.cs | Use the single access owner. |
 | src/Pegasus.Infrastructure/Persistence/EfAssessmentAccessSource.cs | Query lifecycle state without EVA/history subqueries. |
@@ -27,7 +30,10 @@
 | docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Native estimate/report access agrees. |
 | docs/frd/frd-12-operator-experience.md | One human handoff action. |
 | docs/design/README.md | Action/dialog mapping reflects user-authorized native handoff. |
-| docs/design/test-ui/*case-details* | Scoped generated captures only. |
+| docs/design/test-ui/pages/case-details--default.html | Scoped generated capture. |
+| docs/design/test-ui/pages/case-details--conflict.html | Scoped generated capture. |
+| docs/design/test-ui/pages/case-details--unavailable.html | Scoped generated capture. |
+| docs/design/test-ui/index.html | Existing generated snapshot index. |
 
 ## Context files
 
