@@ -173,9 +173,18 @@ public interface IIntakeOcrProvider
     /// Unknown when the operation was accepted but its outcome could not be
     /// established inside the attempt.
     /// </summary>
+    /// <param name="onAccepted">
+    /// Invoked with the provider's own identity for the operation the moment
+    /// the submission is accepted and BEFORE its result is awaited. This is
+    /// what makes an interrupted wait reconcilable: the pages have reached the
+    /// provider, and the caller has committed the name to ask about them by.
+    /// An implementation that has accepted work must not begin polling without
+    /// reporting the identity first.
+    /// </param>
     Task<IntakeOcrResult> AnalyzeAsync(
         IntakeOcrRequest request,
         Stream content,
+        Func<string, Task> onAccepted,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -208,9 +217,20 @@ public sealed record IntakeOcrOperation(
     string? LastError = null,
     DateTimeOffset? RetryAtUtc = null,
     int AttemptCount = 0,
-    IReadOnlyList<IntakeOcrPage>? Pages = null)
+    IReadOnlyList<IntakeOcrPage>? Pages = null,
+    DateTimeOffset? SubmitAttemptedAtUtc = null,
+    DateTimeOffset? SubmittedAtUtc = null)
 {
     public IReadOnlyList<IntakeOcrPage> PageResults => Pages ?? [];
+
+    /// <summary>
+    /// Whether a submission was begun for this operation and no outcome for it
+    /// was ever recorded. The pages may already have been read and charged for,
+    /// which is why such an operation is looked up, or left to a person, and is
+    /// never sent again.
+    /// </summary>
+    public bool SubmissionUnaccountedFor =>
+        SubmitAttemptedAtUtc is not null && SubmittedAtUtc is null;
 }
 
 /// <summary>
@@ -228,10 +248,6 @@ public interface IIntakeOcrOperationStore
     /// </summary>
     Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken);
 
-    Task<IntakeOcrOperation?> FindByOperationKeyAsync(
-        string operationKey,
-        CancellationToken cancellationToken);
-
     /// <summary>
     /// Records the operation's identity and its Pending state. Idempotent on the
     /// operation key: a replay returns the recorded operation and starts no
@@ -243,14 +259,31 @@ public interface IIntakeOcrOperationStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Records that the provider accepted the operation, under the provider's
-    /// own identity for it, and moves it to Processing. Written before the
-    /// result is awaited, so an interrupted wait leaves something to look up.
+    /// Records that a submission is about to be made, and moves the operation
+    /// to Processing. Committed BEFORE the request leaves the host and never on
+    /// the caller's cancellable token, because its whole purpose is to outlive
+    /// the attempt: a host that dies between here and
+    /// <see cref="RecordSubmittedAsync"/> leaves a row saying "a submission was
+    /// begun and its outcome is unaccounted for", which is what stops the next
+    /// delivery sending the same pages again.
+    /// </summary>
+    Task<IntakeOcrOperation> RecordSubmitAttemptAsync(
+        Guid operationId,
+        long expectedVersion,
+        DateTimeOffset attemptedAtUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records the provider's own identity for the accepted operation, and when
+    /// it accepted it. Its own committed write, made the moment the provider
+    /// answers the submission and before the result is polled, so an
+    /// interrupted wait leaves something to look the operation up by.
     /// </summary>
     Task<IntakeOcrOperation> RecordSubmittedAsync(
         Guid operationId,
         long expectedVersion,
         string providerOperationId,
+        DateTimeOffset submittedAtUtc,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -267,6 +300,13 @@ public interface IIntakeOcrOperationStore
     /// <summary>
     /// Records a non-completing outcome: RetryScheduled with a due time,
     /// Failed, or Unknown.
+    ///
+    /// A RetryScheduled outcome also clears the unaccounted-for submission,
+    /// because Core only ever schedules a safe retry where the pages were NOT
+    /// read - the provider refused the submission, the source could not be
+    /// opened, or it is the LOOKUP of a named operation being retried. An
+    /// uncertain send with nothing to look up becomes Unknown and keeps the
+    /// mark.
     /// </summary>
     Task<IntakeOcrOperation> RecordOutcomeAsync(
         Guid operationId,
@@ -485,10 +525,14 @@ public sealed class ProcessIntakeOcr(
             return;
         }
 
-        // An operation recorded as sent WITHOUT the provider's identity for it
-        // cannot be asked about and must not be repeated: the pages may already
-        // have been read and charged for. It stays Unknown for an operator.
-        if (operation.State is IntakeOcrState.Unknown or IntakeOcrState.Processing)
+        // A submission was begun for this operation and no outcome for it was
+        // ever recorded, and the provider named nothing to ask about. The pages
+        // may already have been read and charged for, so it is neither looked
+        // up nor repeated: it waits for a person. The mark is committed before
+        // the request leaves the host, which is what makes a host that DIED
+        // mid-send indistinguishable from one that recorded this itself.
+        if (operation.SubmissionUnaccountedFor
+            || operation.State is IntakeOcrState.Unknown or IntakeOcrState.Processing)
         {
             await store.RecordOutcomeAsync(
                 operation.Id,
@@ -496,19 +540,31 @@ public sealed class ProcessIntakeOcr(
                 IntakeOcrState.Unknown,
                 new(
                     "ocr_operation_unidentified",
-                    "The operation was recorded as sent but the provider returned no identity for it, so it can be neither looked up nor safely repeated.",
+                    "A submission was begun for this operation and the provider returned no identity for it, so it can be neither looked up nor safely repeated.",
                     Retryable: false),
                 retryAtUtc: null,
-                cancellationToken);
+                CancellationToken.None);
             return;
         }
 
-        await ApplyAsync(
-            operation,
-            receipt!,
-            request,
-            await SubmitAsync(operation, request, cancellationToken),
-            cancellationToken);
+        // The submission advances the recorded operation as it goes - the
+        // attempt, then the provider's identity for it - and what it advanced
+        // to is what the outcome is written against.
+        var attempt = new Attempt(operation);
+        var result = await SubmitAsync(attempt, request, cancellationToken);
+        await ApplyAsync(attempt.Current, receipt!, request, result, cancellationToken);
+    }
+
+    /// <summary>
+    /// One submission in flight, and the recorded operation as it stands after
+    /// the writes that submission has already committed. The provider reports
+    /// the accepted identity from inside its own call, so the version the next
+    /// write must be optimistic on changes underneath the caller; this is where
+    /// that is held rather than guessed.
+    /// </summary>
+    private sealed class Attempt(IntakeOcrOperation operation)
+    {
+        public IntakeOcrOperation Current { get; set; } = operation;
     }
 
     /// <summary>
@@ -518,7 +574,7 @@ public sealed class ProcessIntakeOcr(
     /// reconcilable rather than lost.
     /// </summary>
     private async Task<IntakeOcrResult> SubmitAsync(
-        IntakeOcrOperation operation,
+        Attempt attempt,
         IntakeOcrRequest request,
         CancellationToken cancellationToken)
     {
@@ -551,11 +607,40 @@ public sealed class ProcessIntakeOcr(
                 retryable: true);
         }
 
+        // Nothing has been sent yet, and this is the last moment at which that
+        // is still true. The attempt is committed, uncancellably, before the
+        // request goes out, so the row can always answer the only question that
+        // matters after a crash: might these pages already have been read?
+        attempt.Current = await store.RecordSubmitAttemptAsync(
+            attempt.Current.Id,
+            attempt.Current.Version,
+            timeProvider.GetUtcNow(),
+            CancellationToken.None);
+
+        // The provider's own name for the operation, the moment it accepts the
+        // work. Recorded here even if the write that follows fails, so a
+        // failure to persist it does not also lose it.
+        string? accepted = null;
+        async Task OnAcceptedAsync(string providerOperationId)
+        {
+            accepted = providerOperationId;
+            attempt.Current = await store.RecordSubmittedAsync(
+                attempt.Current.Id,
+                attempt.Current.Version,
+                providerOperationId,
+                timeProvider.GetUtcNow(),
+                CancellationToken.None);
+        }
+
         await using (content)
         {
             try
             {
-                return await provider.AnalyzeAsync(request, content.Content, cancellationToken);
+                return await provider.AnalyzeAsync(
+                    request,
+                    content.Content,
+                    OnAcceptedAsync,
+                    cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -571,7 +656,7 @@ public sealed class ProcessIntakeOcr(
                     IntakeOcrProviderIdentity.Provider,
                     IntakeOcrProviderIdentity.ModelId,
                     IntakeOcrProviderIdentity.ApiVersion,
-                    operation.ProviderOperationId,
+                    accepted ?? attempt.Current.ProviderOperationId,
                     Failure: new(
                         "ocr_dependency_failure",
                         "The OCR request did not complete: " + exception.GetType().Name,
@@ -626,7 +711,13 @@ public sealed class ProcessIntakeOcr(
         var current = operation;
 
         // Whatever else happens, the provider's identity for the operation is
-        // recorded the moment it is known.
+        // recorded the moment it is known. On the submission path the provider
+        // reported it from inside its own call and this has already happened; a
+        // reconciliation, and a submission whose identity write did not land,
+        // arrive here. Every write below is made on an uncancellable token: an
+        // outcome that HAS happened is recorded even as the host shuts down,
+        // because the alternative is a row that says nothing about pages that
+        // were read.
         if (result.ProviderOperationId is { } providerOperationId
             && !string.Equals(current.ProviderOperationId, providerOperationId, StringComparison.Ordinal))
         {
@@ -634,7 +725,8 @@ public sealed class ProcessIntakeOcr(
                 current.Id,
                 current.Version,
                 providerOperationId,
-                cancellationToken);
+                timeProvider.GetUtcNow(),
+                CancellationToken.None);
         }
 
         var nowUtc = timeProvider.GetUtcNow();
@@ -652,12 +744,12 @@ public sealed class ProcessIntakeOcr(
                     IntakeOcrState.Failed,
                     refusal,
                     retryAtUtc: null,
-                    cancellationToken);
+                    CancellationToken.None);
                 return;
             }
 
-            await store.CompleteAsync(current.Id, current.Version, result, cancellationToken);
-            await ReanalyzeAsync(current, receipt, cancellationToken);
+            await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
+            await ReanalyzeAsync(current, receipt, request, result, cancellationToken);
             return;
         }
 
@@ -678,10 +770,15 @@ public sealed class ProcessIntakeOcr(
                 IntakeOcrState.Unknown,
                 failure,
                 retryAtUtc: null,
-                cancellationToken);
+                CancellationToken.None);
             return;
         }
 
+        // A safe retry is only ever scheduled where the pages were NOT read:
+        // the provider refused the submission outright, the source could not be
+        // opened, or the operation is named and it is the LOOKUP being retried.
+        // Recording it is what clears the unaccounted-for submission, and so
+        // what allows the next delivery to send.
         var delay = IntakeOcrPolicy.NextAttemptDelay(current.AttemptCount + 1, failure);
         if (delay is { } retryIn)
         {
@@ -691,7 +788,7 @@ public sealed class ProcessIntakeOcr(
                 IntakeOcrState.RetryScheduled,
                 failure,
                 nowUtc.Add(retryIn),
-                cancellationToken);
+                CancellationToken.None);
             return;
         }
 
@@ -704,7 +801,7 @@ public sealed class ProcessIntakeOcr(
             result.State == IntakeOcrState.Unknown ? IntakeOcrState.Unknown : IntakeOcrState.Failed,
             failure,
             retryAtUtc: null,
-            cancellationToken);
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -716,6 +813,8 @@ public sealed class ProcessIntakeOcr(
     private async Task ReanalyzeAsync(
         IntakeOcrOperation operation,
         IntakeReceipt receipt,
+        IntakeOcrRequest ocrRequest,
+        IntakeOcrResult ocrResult,
         CancellationToken cancellationToken)
     {
         var key = $"ocr:{operation.OperationKey}";
@@ -725,7 +824,8 @@ public sealed class ProcessIntakeOcr(
                 receipt.Id,
                 receipt.Version,
                 key.Length > 100 ? key[..100] : key,
-                operation.IntakeAssetId),
+                operation.IntakeAssetId,
+                new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
             cancellationToken);
     }
 }

@@ -56,16 +56,25 @@ public sealed class AzureDocumentIntelligenceOcr(
     TokenCredential credential,
     TimeProvider timeProvider) : IIntakeOcrProvider
 {
+    /// <summary>
+    /// What a page's coordinate unit is called when the provider named none.
+    /// Recorded rather than assumed, so a later reader cannot mistake it for
+    /// inches.
+    /// </summary>
+    private const string UnknownUnit = "unknown";
+
     private const string AnalyzePath =
         "documentintelligence/documentModels/" + IntakeOcrProviderIdentity.ModelId + ":analyze";
 
     public async Task<IntakeOcrResult> AnalyzeAsync(
         IntakeOcrRequest request,
         Stream content,
+        Func<string, Task> onAccepted,
         CancellationToken cancellationToken)
     {
         IntakeOcrRequest.Validate(request);
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(onAccepted);
 
         using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
@@ -93,10 +102,12 @@ public sealed class AzureDocumentIntelligenceOcr(
             message,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
-        if (response.StatusCode is HttpStatusCode.TooManyRequests
-            or HttpStatusCode.ServiceUnavailable
-            or HttpStatusCode.GatewayTimeout
-            or HttpStatusCode.BadGateway)
+        // Nothing was read, so nothing can be read twice: a throttle, a request
+        // timeout and any server-side fault on the SUBMISSION are safe to send
+        // again. Only a refusal the provider owns — a bad request, an
+        // unauthorized call, an unsupported document — is terminal, because
+        // asking again would get the same answer.
+        if (IsTransient(response.StatusCode))
         {
             return Failed(
                 "ocr_provider_unavailable",
@@ -129,6 +140,7 @@ public sealed class AzureDocumentIntelligenceOcr(
                     Retryable: false));
         }
 
+        await onAccepted(providerOperationId);
         return await PollAsync(request, operationLocation, providerOperationId, cancellationToken);
     }
 
@@ -169,10 +181,7 @@ public sealed class AzureDocumentIntelligenceOcr(
 
             using (response)
             {
-                if (response.StatusCode is HttpStatusCode.TooManyRequests
-                    or HttpStatusCode.ServiceUnavailable
-                    or HttpStatusCode.GatewayTimeout
-                    or HttpStatusCode.BadGateway)
+                if (IsTransient(response.StatusCode))
                 {
                     return Unknown(
                         providerOperationId,
@@ -292,6 +301,21 @@ public sealed class AzureDocumentIntelligenceOcr(
                     responseSha256: responseSha256);
             }
 
+            var pages = Pages(analyze, out var unplacedOnPage);
+            if (pages is null)
+            {
+                // A word whose confidence and coordinates cannot be placed on a
+                // line is not evidence, and dropping it silently is how a
+                // reading comes to carry no confidence at all. The response is
+                // refused instead: it is not the shape this version pins.
+                return Failed(
+                    "ocr_response_malformed",
+                    $"The provider returned words for page {unplacedOnPage} that no line's span accounts for.",
+                    retryable: false,
+                    providerOperationId: providerOperationId,
+                    responseSha256: responseSha256);
+            }
+
             return new(
                 IntakeOcrState.Completed,
                 IntakeOcrProviderIdentity.Provider,
@@ -302,55 +326,53 @@ public sealed class AzureDocumentIntelligenceOcr(
                 Text(analyze, "apiVersion") ?? string.Empty,
                 providerOperationId,
                 responseSha256,
-                Pages(analyze, request));
+                pages);
         }
     }
 
-    private static IReadOnlyList<IntakeOcrPage> Pages(JsonElement analyze, IntakeOcrRequest request)
+    /// <summary>
+    /// The page output, with every word attached to the line it belongs to.
+    ///
+    /// The layout model states the text once and then indexes into it: a line
+    /// names the span(s) of that content it covers and each word names its own
+    /// span inside it, so words are attributed by OFFSET rather than by
+    /// geometry - two lines of one table cell can share a bounding box, and
+    /// their spans cannot be confused. Returns null, naming the page, when a
+    /// word is left over: a confidence and a coordinate that cannot be placed
+    /// are not evidence, and the caller refuses the response rather than
+    /// keeping a reading that has quietly lost them.
+    /// </summary>
+    private static IntakeOcrPage[]? Pages(JsonElement analyze, out int unplacedOnPage)
     {
+        unplacedOnPage = 0;
         if (!analyze.TryGetProperty("pages", out var pages) || pages.ValueKind != JsonValueKind.Array)
         {
             return [];
         }
 
-        var tablesByPage = TablesByPage(analyze);
+        var units = Units(pages);
+        var tablesByPage = TablesByPage(analyze, units);
         var results = new List<IntakeOcrPage>();
         foreach (var page in pages.EnumerateArray())
         {
-            if (!page.TryGetProperty("pageNumber", out var number)
-                || number.ValueKind != JsonValueKind.Number
-                || !number.TryGetInt32(out var pageNumber))
+            if (!TryPageNumber(page, out var pageNumber))
             {
                 continue;
             }
 
-            var unit = Text(page, "unit") ?? "unknown";
-            var words = page.TryGetProperty("words", out var wordArray) && wordArray.ValueKind == JsonValueKind.Array
-                ? wordArray.EnumerateArray()
-                    .Select(word => new IntakeOcrWord(
-                        Text(word, "content") ?? string.Empty,
-                        word.TryGetProperty("confidence", out var confidence)
-                            && confidence.ValueKind == JsonValueKind.Number
-                                ? confidence.GetDouble()
-                                : null,
-                        Bounds(word, unit)))
-                    .ToArray()
-                : [];
-            var lines = page.TryGetProperty("lines", out var lineArray) && lineArray.ValueKind == JsonValueKind.Array
-                ? lineArray.EnumerateArray()
-                    .Select(line => new IntakeOcrLine(
-                        Text(line, "content") ?? string.Empty,
-                        Bounds(line, unit),
-                        []))
-                    .ToArray()
-                : [];
+            var lines = Lines(
+                page,
+                units.TryGetValue(pageNumber, out var pageUnit) ? pageUnit : UnknownUnit);
+            if (lines is null)
+            {
+                unplacedOnPage = pageNumber;
+                return null;
+            }
 
             results.Add(new(
                 pageNumber,
                 string.Join(Environment.NewLine, lines.Select(line => line.Text)),
-                lines.Length == 0 && words.Length > 0
-                    ? [new(string.Join(' ', words.Select(word => word.Text)), null, words)]
-                    : lines,
+                lines,
                 tablesByPage.TryGetValue(pageNumber, out var tables) ? tables : []));
         }
 
@@ -361,11 +383,129 @@ public sealed class AzureDocumentIntelligenceOcr(
     }
 
     /// <summary>
+    /// The lines of one page, each holding the words its own spans account for,
+    /// or null when the page reports a word that no line claims.
+    /// </summary>
+    private static IntakeOcrLine[]? Lines(JsonElement page, string unit)
+    {
+        var words = Words(page, unit);
+        if (!page.TryGetProperty("lines", out var lineArray)
+            || lineArray.ValueKind != JsonValueKind.Array
+            || lineArray.GetArrayLength() == 0)
+        {
+            // No lines to hold them: the page reads as one line of its own
+            // words, in the order the provider stated them.
+            return words.Length == 0
+                ? []
+                : [new(
+                    string.Join(' ', words.Select(word => word.Word.Text)),
+                    null,
+                    [.. words.Select(word => word.Word)])];
+        }
+
+        var placed = new bool[words.Length];
+        var lines = new List<IntakeOcrLine>();
+        foreach (var line in lineArray.EnumerateArray())
+        {
+            var spans = Spans(line);
+            var own = new List<IntakeOcrWord>();
+            for (var index = 0; index < words.Length; index++)
+            {
+                var offset = words[index].Offset;
+                if (placed[index]
+                    || offset < 0
+                    || !spans.Any(span => offset >= span.Offset && offset < span.Offset + span.Length))
+                {
+                    continue;
+                }
+
+                placed[index] = true;
+                own.Add(words[index].Word);
+            }
+
+            lines.Add(new(Text(line, "content") ?? string.Empty, Bounds(line, unit), own));
+        }
+
+        return Array.IndexOf(placed, false) >= 0 ? null : [.. lines];
+    }
+
+    private static PositionedWord[] Words(JsonElement page, string unit) =>
+        page.TryGetProperty("words", out var wordArray) && wordArray.ValueKind == JsonValueKind.Array
+            ? [.. wordArray.EnumerateArray().Select(word => new PositionedWord(
+                new(
+                    Text(word, "content") ?? string.Empty,
+                    word.TryGetProperty("confidence", out var confidence)
+                        && confidence.ValueKind == JsonValueKind.Number
+                            ? confidence.GetDouble()
+                            : null,
+                    Bounds(word, unit)),
+                // A word with no span of its own cannot be placed on a line, and
+                // -1 is what says so; it is never nudged onto the nearest one.
+                word.TryGetProperty("span", out var span) ? Offset(span) : -1))]
+            : [];
+
+    private static ContentSpan[] Spans(JsonElement line) =>
+        line.TryGetProperty("spans", out var spans) && spans.ValueKind == JsonValueKind.Array
+            ? [.. spans.EnumerateArray()
+                .Where(span => span.ValueKind == JsonValueKind.Object)
+                .Select(span => new ContentSpan(Offset(span), Length(span)))
+                .Where(span => span.Offset >= 0 && span.Length > 0)]
+            : [];
+
+    private static int Offset(JsonElement span) =>
+        span.ValueKind == JsonValueKind.Object
+        && span.TryGetProperty("offset", out var offset)
+        && offset.ValueKind == JsonValueKind.Number
+        && offset.TryGetInt32(out var value)
+            ? value
+            : -1;
+
+    private static int Length(JsonElement span) =>
+        span.TryGetProperty("length", out var length)
+        && length.ValueKind == JsonValueKind.Number
+        && length.TryGetInt32(out var value)
+            ? value
+            : 0;
+
+    /// <summary>
+    /// Each page's own coordinate unit, read once. A table's cells name the page
+    /// they sit on rather than a unit, so this is how a cell's rectangle comes
+    /// to be recorded in the unit its own page stated.
+    /// </summary>
+    private static Dictionary<int, string> Units(JsonElement pages)
+    {
+        var units = new Dictionary<int, string>();
+        foreach (var page in pages.EnumerateArray())
+        {
+            if (TryPageNumber(page, out var pageNumber))
+            {
+                units[pageNumber] = Text(page, "unit") ?? UnknownUnit;
+            }
+        }
+
+        return units;
+    }
+
+    private static bool TryPageNumber(JsonElement page, out int pageNumber)
+    {
+        pageNumber = 0;
+        return page.TryGetProperty("pageNumber", out var number)
+            && number.ValueKind == JsonValueKind.Number
+            && number.TryGetInt32(out pageNumber);
+    }
+
+    private readonly record struct PositionedWord(IntakeOcrWord Word, int Offset);
+
+    private readonly record struct ContentSpan(int Offset, int Length);
+
+    /// <summary>
     /// The layout model reports tables for the whole analysis, each cell naming
     /// the page it sits on. They are grouped back onto their pages here so a
     /// caller never has to reason about a table that spans one.
     /// </summary>
-    private static Dictionary<int, IntakeOcrTable[]> TablesByPage(JsonElement analyze)
+    private static Dictionary<int, IntakeOcrTable[]> TablesByPage(
+        JsonElement analyze,
+        Dictionary<int, string> units)
     {
         if (!analyze.TryGetProperty("tables", out var tables) || tables.ValueKind != JsonValueKind.Array)
         {
@@ -400,7 +540,10 @@ public sealed class AzureDocumentIntelligenceOcr(
                             cell.GetProperty("rowIndex").GetInt32() + 1,
                             cell.GetProperty("columnIndex").GetInt32() + 1,
                             Text(cell, "content") ?? string.Empty,
-                            null))
+                            // A cell states its own bounding region, on its own
+                            // page, so a person can be shown WHERE a value was
+                            // printed and not only which cell held it.
+                            CellBounds(cell, units)))
                         .ToArray()
                     : [];
             if (!grouped.TryGetValue(page, out var list))
@@ -418,6 +561,36 @@ public sealed class AzureDocumentIntelligenceOcr(
 
         return grouped.ToDictionary(entry => entry.Key, entry => entry.Value.ToArray());
     }
+
+    /// <summary>
+    /// One cell's rectangle, taken from the first bounding region it states and
+    /// recorded in the unit of the page that region names. Null when the
+    /// provider stated no region: an invented rectangle would be worse than
+    /// none at all.
+    /// </summary>
+    private static IntakeOcrBounds? CellBounds(JsonElement cell, Dictionary<int, string> units)
+    {
+        if (!cell.TryGetProperty("boundingRegions", out var regions)
+            || regions.ValueKind != JsonValueKind.Array
+            || regions.EnumerateArray().FirstOrDefault() is not { ValueKind: JsonValueKind.Object } region)
+        {
+            return null;
+        }
+
+        return Bounds(
+            region,
+            TryPageNumber(region, out var pageNumber) && units.TryGetValue(pageNumber, out var unit)
+                ? unit
+                : UnknownUnit);
+    }
+
+    /// <summary>
+    /// The statuses that mean "ask again later" rather than "this will never
+    /// work": a throttle, a request timeout, and any fault the server owns.
+    /// </summary>
+    private static bool IsTransient(HttpStatusCode status) =>
+        status is HttpStatusCode.TooManyRequests or HttpStatusCode.RequestTimeout
+        || (int)status >= 500;
 
     /// <summary>
     /// The provider states a shape as a flat polygon of four points in the

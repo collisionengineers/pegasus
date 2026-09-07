@@ -38,18 +38,6 @@ public sealed class EfIntakeOcrOperationStore(
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<IntakeOcrOperation?> FindByOperationKeyAsync(
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
-        var key = operationKey.Trim();
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Set<IntakeOcrOperationEntity>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
-        return entity is null ? null : Map(entity);
-    }
-
     /// <summary>
     /// Records the operation's identity before anything is sent anywhere.
     /// Idempotent on the operation key, under serializable isolation and behind
@@ -79,7 +67,7 @@ public sealed class EfIntakeOcrOperationStore(
         if (existing is not null)
         {
             if (existing.Id != operationId
-                || !string.Equals(existing.SourceSha256, request.SourceSha256, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(existing.SourceSha256.TrimEnd(), request.SourceSha256, StringComparison.OrdinalIgnoreCase)
                 || existing.DocumentVersionId != request.DocumentVersionId
                 || existing.IntakeAssetId != request.IntakeAssetId
                 || !Pages(existing.QualifiedPagesJson).SequenceEqual(pages))
@@ -98,7 +86,7 @@ public sealed class EfIntakeOcrOperationStore(
             IntakeAssetId = request.IntakeAssetId,
             SourceSha256 = request.SourceSha256,
             QualifiedPagesJson = JsonSerializer.Serialize(
-                new OperationEnvelope(1, request.IntakeReceiptId, pages, 0, null),
+                new OperationEnvelope(2, request.IntakeReceiptId, pages, 0, null, null),
                 SerializerOptions),
             OperationKey = key,
             State = nameof(IntakeOcrState.Pending),
@@ -110,10 +98,26 @@ public sealed class EfIntakeOcrOperationStore(
         return Map(entity);
     }
 
+    public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(
+        Guid operationId,
+        long expectedVersion,
+        DateTimeOffset attemptedAtUtc,
+        CancellationToken cancellationToken) =>
+        UpdateAsync(operationId, expectedVersion, entity =>
+        {
+            var envelope = Envelope(entity.QualifiedPagesJson);
+            entity.QualifiedPagesJson = JsonSerializer.Serialize(
+                envelope with { Version = 2, SubmitAttemptedAtUtc = attemptedAtUtc },
+                SerializerOptions);
+            entity.State = nameof(IntakeOcrState.Processing);
+            entity.RetryAtUtc = null;
+        }, cancellationToken);
+
     public Task<IntakeOcrOperation> RecordSubmittedAsync(
         Guid operationId,
         long expectedVersion,
         string providerOperationId,
+        DateTimeOffset submittedAtUtc,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerOperationId);
@@ -123,6 +127,9 @@ public sealed class EfIntakeOcrOperationStore(
             entity =>
             {
                 entity.ProviderOperationId = providerOperationId.Trim();
+                var envelope = Envelope(entity.QualifiedPagesJson);
+                entity.QualifiedPagesJson = JsonSerializer.Serialize(
+                    envelope with { Version = 2, SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
                 entity.State = nameof(IntakeOcrState.Processing);
                 entity.RetryAtUtc = null;
             },
@@ -201,7 +208,14 @@ public sealed class EfIntakeOcrOperationStore(
                 // and the operation, and how many times we have tried is part of
                 // that same request record.
                 entity.QualifiedPagesJson = JsonSerializer.Serialize(
-                    envelope with { AttemptCount = envelope.AttemptCount + 1 },
+                    envelope with
+                    {
+                        Version = 2,
+                        AttemptCount = envelope.AttemptCount + 1,
+                        SubmitAttemptedAtUtc = state == IntakeOcrState.RetryScheduled
+                            ? null
+                            : envelope.SubmitAttemptedAtUtc
+                    },
                     SerializerOptions);
             },
             cancellationToken);
@@ -247,17 +261,19 @@ public sealed class EfIntakeOcrOperationStore(
             envelope.IntakeReceiptId,
             entity.DocumentVersionId,
             entity.IntakeAssetId,
-            entity.SourceSha256,
+            entity.SourceSha256.TrimEnd(),
             envelope.Pages,
             entity.OperationKey,
             Enum.Parse<IntakeOcrState>(entity.State),
             entity.Version,
             entity.ProviderOperationId,
-            entity.ResponseSha256,
+            entity.ResponseSha256?.TrimEnd(),
             entity.LastError,
             entity.RetryAtUtc,
             envelope.AttemptCount,
-            result?.Pages);
+            result?.Pages,
+            envelope.SubmitAttemptedAtUtc,
+            envelope.SubmittedAtUtc);
     }
 
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
@@ -276,7 +292,8 @@ public sealed class EfIntakeOcrOperationStore(
         Guid IntakeReceiptId,
         int[] Pages,
         int AttemptCount,
-        string? Reserved);
+        DateTimeOffset? SubmitAttemptedAtUtc,
+        DateTimeOffset? SubmittedAtUtc);
 
     private sealed record ResultEnvelope(
         int Version,

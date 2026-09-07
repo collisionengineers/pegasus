@@ -104,6 +104,12 @@ public sealed class AzureDocumentIntelligenceOcrTests
         // The provider indexes cells from zero; the intake locator counts from
         // one, as a person does.
         Assert.Equal([(1, 1), (1, 2)], table.Cells.Select(cell => (cell.Row, cell.Column)));
+        // A cell keeps its own rectangle, in the unit of the page its bounding
+        // region names, so a value can be shown where it was printed.
+        var cellBounds = table.Cells[0].Bounds!;
+        Assert.Equal(1.0, cellBounds.Left);
+        Assert.Equal(6.0, cellBounds.Bottom);
+        Assert.Equal("inch", cellBounds.Unit);
     }
 
     [Fact]
@@ -115,13 +121,70 @@ public sealed class AzureDocumentIntelligenceOcrTests
 
         var result = await AnalyzeAsync(transport, [2]);
 
-        var word = Assert.Single(Assert.Single(result.PageResults).Lines[0].Words);
-        Assert.Equal(0.11, word.Confidence);
+        // Every word the response stated reaches the line its span sits in,
+        // carrying that word's own confidence and its own polygon.
+        var line = Assert.Single(Assert.Single(result.PageResults).Lines);
+        Assert.Equal(["SYNTHETIC", "LINE"], line.Words.Select(word => word.Text));
+        Assert.Equal([0.11, 0.97], line.Words.Select(word => word.Confidence));
+        Assert.All(line.Words, word => Assert.Equal(1.0, word.Bounds!.Left));
         // The reading is complete and acceptable although the provider is barely
-        // confident: acceptance is about attribution — the pages, the version and
-        // the hash — and a person reviews the text itself.
+        // confident about the first word: acceptance is about attribution — the
+        // pages, the version and the hash — and a person reviews the text
+        // itself. Nothing here reads a confidence to decide anything.
         Assert.Equal(IntakeOcrState.Completed, result.State);
         Assert.Null(IntakeOcrPolicy.Validate(Request([2]), result));
+    }
+
+    [Fact]
+    public async Task AWordNoLineAccountsForIsRefusedRatherThanQuietlyDropped()
+    {
+        var transport = new FakeTransport();
+        transport.OnAnalyze = _ => Accepted("op-7");
+        // A response in which the word's span lies outside every line's span:
+        // its confidence and its coordinates cannot be placed.
+        transport.OnResult = () => new FakeResponse(
+            HttpStatusCode.OK,
+            """
+            {"status":"succeeded","analyzeResult":{"apiVersion":"2024-11-30",
+            "modelId":"prebuilt-layout","pages":[{"pageNumber":2,"unit":"inch",
+            "words":[{"content":"ORPHAN","confidence":0.9,"span":{"offset":900,"length":6}}],
+            "lines":[{"content":"SYNTHETIC LINE","spans":[{"offset":0,"length":14}]}]}]}}
+            """);
+
+        var result = await AnalyzeAsync(transport, [2]);
+
+        Assert.Equal(IntakeOcrState.Failed, result.State);
+        Assert.Equal("ocr_response_malformed", result.Failure!.Code);
+        Assert.Contains("page 2", result.Failure.Reason, StringComparison.Ordinal);
+        Assert.False(result.Failure.Retryable);
+    }
+
+    [Fact]
+    public async Task AServerSideFaultOnTheSubmissionIsASafeRetryBecauseNothingWasRead()
+    {
+        foreach (var status in new[]
+        {
+            HttpStatusCode.RequestTimeout,
+            HttpStatusCode.InternalServerError,
+            HttpStatusCode.ServiceUnavailable
+        })
+        {
+            var transport = new FakeTransport();
+            transport.OnAnalyze = _ => new FakeResponse(status, "{}");
+
+            var result = await AnalyzeAsync(transport, [2]);
+
+            Assert.Equal("ocr_provider_unavailable", result.Failure!.Code);
+            Assert.True(result.Failure.Retryable);
+        }
+
+        // A refusal the provider owns is not retried: asking again gets the
+        // same answer, and staff review is the honest outcome.
+        var rejecting = new FakeTransport();
+        rejecting.OnAnalyze = _ => new FakeResponse(HttpStatusCode.BadRequest, "{}");
+        var rejected = await AnalyzeAsync(rejecting, [2]);
+        Assert.Equal("ocr_submission_rejected", rejected.Failure!.Code);
+        Assert.False(rejected.Failure.Retryable);
     }
 
     [Fact]
@@ -215,6 +278,7 @@ public sealed class AzureDocumentIntelligenceOcrTests
         var result = await provider.AnalyzeAsync(
             Request([2]) with { SourceSha256 = new string('a', 64) },
             new MemoryStream(SourceBytes, writable: false),
+            _ => Task.CompletedTask,
             CancellationToken.None);
 
         Assert.Equal(IntakeOcrState.Failed, result.State);
@@ -267,6 +331,7 @@ public sealed class AzureDocumentIntelligenceOcrTests
         Provider(transport).AnalyzeAsync(
             Request(pages),
             new MemoryStream(SourceBytes, writable: false),
+            _ => Task.CompletedTask,
             CancellationToken.None);
 
     private static AzureDocumentIntelligenceOcr Provider(FakeTransport transport) =>
@@ -314,13 +379,25 @@ public sealed class AzureDocumentIntelligenceOcrTests
                     unit = "inch",
                     width = 8.5,
                     height = 11.0,
-                    words = new[]
+                    // The layout model states the text once and indexes into
+                    // it: each word names its own span, and a line names the
+                    // span it covers. That is what attributes a word — and so
+                    // its confidence and its polygon — to a line.
+                    words = new object[]
                     {
                         new
                         {
                             content = "SYNTHETIC",
                             confidence = 0.11,
-                            polygon = SyntheticPolygon
+                            polygon = SyntheticPolygon,
+                            span = new { offset = 0, length = 9 }
+                        },
+                        new
+                        {
+                            content = "LINE",
+                            confidence = 0.97,
+                            polygon = SyntheticPolygon,
+                            span = new { offset = 10, length = 4 }
                         }
                     },
                     lines = new[]
@@ -328,7 +405,8 @@ public sealed class AzureDocumentIntelligenceOcrTests
                         new
                         {
                             content = "SYNTHETIC LINE",
-                            polygon = SyntheticPolygon
+                            polygon = SyntheticPolygon,
+                            spans = new[] { new { offset = 0, length = 14 } }
                         }
                     }
                 }),
@@ -339,8 +417,26 @@ public sealed class AzureDocumentIntelligenceOcrTests
                     boundingRegions = new[] { new { pageNumber = page } },
                     cells = new[]
                     {
-                        new { rowIndex = 0, columnIndex = 0, content = "LABEL" },
-                        new { rowIndex = 0, columnIndex = 1, content = "VALUE" }
+                        new
+                        {
+                            rowIndex = 0,
+                            columnIndex = 0,
+                            content = "LABEL",
+                            boundingRegions = new[]
+                            {
+                                new { pageNumber = page, polygon = SyntheticPolygon }
+                            }
+                        },
+                        new
+                        {
+                            rowIndex = 0,
+                            columnIndex = 1,
+                            content = "VALUE",
+                            boundingRegions = new[]
+                            {
+                                new { pageNumber = page, polygon = SyntheticPolygon }
+                            }
+                        }
                     }
                 })
             }

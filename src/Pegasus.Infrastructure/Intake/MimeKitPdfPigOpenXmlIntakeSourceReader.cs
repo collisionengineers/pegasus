@@ -806,29 +806,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             // the history beneath it becomes its own fragment. An operator, and
             // a profile, can then tell what this sender wrote from what an
             // earlier sender wrote.
-            var quotedAt = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(body);
-            var hasQuotedHistory = quotedAt.Success && quotedAt.Index > 0;
-            result.Content.Add(new(
-                IntakeEvidenceSource.EmailBody,
-                $"{sourceLabel}, email body",
-                body,
-                IntakeSourceLocator.ForMessagePart(
-                    IntakeMessagePart.CurrentBody,
-                    hasQuotedHistory
-                        ? string.Create(CultureInfo.InvariantCulture, $"chars 0-{quotedAt.Index}")
-                        : null)));
-            if (hasQuotedHistory)
-            {
-                result.Content.Add(new(
-                    IntakeEvidenceSource.EmailBody,
-                    $"{sourceLabel}, quoted history",
-                    body[quotedAt.Index..],
-                    IntakeSourceLocator.ForMessagePart(
-                        IntakeMessagePart.QuotedHistory,
-                        string.Create(
-                            CultureInfo.InvariantCulture,
-                            $"chars {quotedAt.Index}-{body.Length}"))));
-            }
+            AddMessageBodyFragments(body, sourceLabel, result);
 
             if (senderIdentityKind == IntakeSenderIdentityKind.Transport
                 && HasSingleStaffTransportSender(message)
@@ -852,6 +830,44 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 nestedDepth,
                 senderIdentityKind == IntakeSenderIdentityKind.Transport,
                 cancellationToken);
+        }
+    }
+
+    private static void AddMessageBodyFragments(
+        string body,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        var quotedAt = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(body);
+        var hasQuotedHistory = quotedAt.Success && quotedAt.Index > 0;
+        var quotedStart = quotedAt.Index;
+        while (hasQuotedHistory
+            && quotedStart < body.Length
+            && (body[quotedStart] == '\r' || body[quotedStart] == '\n'))
+        {
+            quotedStart++;
+        }
+
+        result.Content.Add(new(
+            IntakeEvidenceSource.EmailBody,
+            $"{sourceLabel}, message body",
+            hasQuotedHistory ? body[..quotedAt.Index] : body,
+            IntakeSourceLocator.ForMessagePart(
+                IntakeMessagePart.CurrentBody,
+                hasQuotedHistory
+                    ? string.Create(CultureInfo.InvariantCulture, $"chars 0-{quotedAt.Index}")
+                    : null)));
+        if (hasQuotedHistory)
+        {
+            result.Content.Add(new(
+                IntakeEvidenceSource.EmailBody,
+                $"{sourceLabel}, quoted history",
+                body[quotedStart..],
+                IntakeSourceLocator.ForMessagePart(
+                    IntakeMessagePart.QuotedHistory,
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"chars {quotedStart}-{body.Length}"))));
         }
     }
 

@@ -269,10 +269,10 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
 
         if (!string.IsNullOrWhiteSpace(message.Bodies.CanonicalText))
         {
-            result.Content.Add(new(
-                IntakeEvidenceSource.EmailBody,
-                $"{sourceLabel}, message body",
-                SanitizeText(message.Bodies.CanonicalText)));
+            AddMessageBodyFragments(
+                SanitizeText(message.Bodies.CanonicalText),
+                sourceLabel,
+                result);
         }
 
         var limits = result.MimeLimits ??= new MimeLimitState();
