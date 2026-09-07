@@ -107,6 +107,18 @@ fact changes mark a generation stale; notes and recipient edits do not. A
 ready generation records ActionHistory `case_report_generation_ready`.
 Preview creates neither an artifact nor Sent evidence.
 
+Snapshot assembly captures the Case version before reading its components and
+refuses a changed version before freezing; the resolved signatory tuple is
+rechecked in the freeze transaction. Confirming or removing source evidence,
+or changing the effective signatory's eligibility, name, qualifications or
+signature, invalidates affected current generations in the same transaction.
+Report outputs identified by their generated-artifact operation identity are
+not report inputs and do not invalidate their own generation. Other retained
+artifacts remain source evidence regardless of their transport's source label.
+Stale generations cannot be prepared or sent; notes and recipient edits alone
+do not require regeneration. A delivery preparation still requires current
+addressing. Default report dates and displayed report times use Europe/London.
+
 ### Report-draft entry point
 
 The renderer boundary above is reachable from one operator action (DELIV-012):

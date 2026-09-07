@@ -5,6 +5,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -47,6 +48,19 @@ internal sealed class EfAssessmentReportProjectionSource(
     private async Task<CaseReportFreezeInputs?> LoadAsync(
         Guid caseId, ActionActor actor, bool withImageContent, CancellationToken cancellationToken)
     {
+        // Capture the version before any component read. A later workflow read
+        // must not relabel an older workspace as if it contained newer facts.
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => new { item.AssignedEngineerId, item.SignOffEngineerId, item.Version })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (workflow is null)
+        {
+            return null;
+        }
+
         var workspace = await getAssessmentWorkspace.ExecuteAsync(
             new(caseId, actor),
             cancellationToken);
@@ -55,12 +69,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             return null;
         }
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => new { item.AssignedEngineerId, item.SignOffEngineerId, item.Version })
-            .SingleAsync(cancellationToken);
+        CaseEditAuthority.RequireVersion(caseId, workspace.Header.Version, workflow.Version);
         var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
@@ -75,6 +84,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                       && version.IsCurrent
                       && !version.IsLogicallyRemoved
                       && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                      && !context.Set<GeneratedCaseArtifactEntity>().Any(
+                          artifact => artifact.OperationKey == occurrence.OperationKey)
                 orderby occurrence.Ordinal
                 select new ConfirmedDocumentRow(
                     occurrence.Id,
@@ -191,6 +202,11 @@ internal sealed class EfAssessmentReportProjectionSource(
                     row.ContentLength, row.Sha256, DocumentCustodyStatus.Confirmed,
                     default, string.Empty, true, false, null)));
 
+        var currentVersion = await context.CaseWorkflows.AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.Version)
+            .SingleAsync(cancellationToken);
+        CaseEditAuthority.RequireVersion(caseId, currentVersion, workflow.Version);
         return new CaseReportFreezeInputs(
             projection, readiness, workspace.Header.Reference, workflow.Version);
     }

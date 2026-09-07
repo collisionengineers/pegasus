@@ -234,10 +234,10 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     private const string FoundationWebGrantSpec = """
         AppliedValuationSnapshots:SELECT,INSERT
         CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
-        CaseReportGenerations:SELECT,INSERT
+        CaseReportGenerations:SELECT,INSERT,UPDATE
         ClaimSources:SELECT,INSERT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE
-        GeneratedCaseArtifacts:SELECT,INSERT
+        GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
         GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
         IntakeOcrOperations:SELECT,INSERT
         IntakeSourceCandidates:SELECT
@@ -253,7 +253,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     private const string FoundationWorkerGrantSpec = """
+        CaseReportGenerations:SELECT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
+        GeneratedCaseArtifacts:SELECT
         IntakeOcrOperations:SELECT,INSERT,UPDATE
         IntakeSourceCandidates:SELECT,INSERT
         RetainedInstructionAnalyses:SELECT,INSERT,UPDATE

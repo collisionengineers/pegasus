@@ -77,7 +77,7 @@
             <div class="detail-list">
                 <div>
                     <dt>@ReportLabels.CurrentGeneration</dt>
-                    <dd>@generation.GeneratedAtUtc.UtcDateTime.ToString("d MMMM yyyy HH:mm") UTC</dd>
+                    <dd>@Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm")</dd>
                 </div>
                 <div>
                     <dt>@ReportLabels.GenerationState</dt>
