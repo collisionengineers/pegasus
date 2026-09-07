@@ -147,7 +147,7 @@ jobs:
         # Chained, not two lines: pwsh reports only the last command's exit
         # code, so a failing first project would otherwise pass the step.
         run: >
-          dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build &&
+          dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build -- xUnit.MaxParallelThreads=1 &&
           dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
 
   sql-integration:

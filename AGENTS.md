@@ -104,6 +104,10 @@ Identical on Windows and Linux (`pwsh` either way). Focused per-project forms
 and the two complementary integration-test filters are in
 [the runbook](docs/runbook.md#locked-restore-build-and-test).
 
+Core CI uses `-- xUnit.MaxParallelThreads=1` so concurrent test collections do
+not compete against the intake parsers' short regex time budgets. Keep those
+production budgets and every test assertion intact.
+
 Reference-data generator checks run with
 `python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'`.
 Text snapshots marked `normalized-lf` hash and count normalized bytes; immutable
