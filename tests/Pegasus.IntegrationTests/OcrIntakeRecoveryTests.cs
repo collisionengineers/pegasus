@@ -43,6 +43,14 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal("response-hash-1", operation.ResponseSha256);
         Assert.Equal([1], operation.PageResults.Select(page => page.Number));
         Assert.Equal("SYNTHETIC PAGE", Assert.Single(operation.PageResults).Text);
+        Assert.NotNull(operation.Result);
+        Assert.Equal(IntakeOcrState.Completed, operation.Result.State);
+        Assert.Equal(IntakeOcrProviderIdentity.Provider, operation.Result.Provider);
+        Assert.Equal(IntakeOcrProviderIdentity.ModelId, operation.Result.ModelId);
+        Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, operation.Result.ApiVersion);
+        Assert.Equal("provider-op-1", operation.Result.ProviderOperationId);
+        Assert.Equal("response-hash-1", operation.Result.ResponseSha256);
+        Assert.Equal([1], operation.Result.PageResults.Select(page => page.Number));
         Assert.Single(harness.Analysis.Requests);
     }
 
