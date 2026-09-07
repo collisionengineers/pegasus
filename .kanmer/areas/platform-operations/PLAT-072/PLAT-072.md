@@ -4,16 +4,19 @@ type: ticket
 title: >-
   Remove the intake staff-confirmation checkboxes and the CaseCompleteness
   *ConfirmedByStaff properties (D44 residual)
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T22:02:01.834Z'
 labels:
   - case-workspace-v2
   - d44
   - follow-up
 groups:
   - EPIC-012
+  - EPIC-014
 links:
   - PLAT-070
 refs:
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-03T16:29:07.376Z'
-updated: '2026-09-03T16:29:07.376Z'
+updated: '2026-09-07T22:02:01.834Z'
 ---
 
 ## What
