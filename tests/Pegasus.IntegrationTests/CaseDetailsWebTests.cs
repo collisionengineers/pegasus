@@ -857,7 +857,7 @@ public sealed partial class CaseDetailsWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
-        var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true, Automatic: false));
+        var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -1993,7 +1993,7 @@ public sealed partial class CaseDetailsWebTests
             Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
 
         Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
-            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(0, null));
+            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(null));
 
         Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
             string principalCode,

@@ -1177,7 +1177,7 @@ public sealed partial class OperationsWebTests
             CancellationToken cancellationToken = default)
         {
             ActivityCalls++;
-            return Task.FromResult(new EvaSubmissionActivity(2, FixedUtcNow));
+            return Task.FromResult(new EvaSubmissionActivity(FixedUtcNow));
         }
     }
 
@@ -1219,7 +1219,7 @@ public sealed partial class OperationsWebTests
 
         public Task<EvaSubmissionActivity> GetActivityAsync(
             CancellationToken cancellationToken) =>
-            Task.FromResult(new EvaSubmissionActivity(0, null));
+            Task.FromResult(new EvaSubmissionActivity(null));
     }
 
     private sealed class NoAiJobs : IAiJobQueries
