@@ -904,6 +904,21 @@ public sealed class MessageModel(
         }
         catch (InvalidOperationException)
         {
+            // An InvalidOperationException here does not by itself mean the
+            // durable send boundary refused a distinct active claim — it is
+            // also how an unavailable mail transport or a composition
+            // invariant failure surfaces. Only translate to the existing
+            // correspondence conflict message when a currently active
+            // operation actually exists for this original message;
+            // otherwise let the real failure propagate unmasked.
+            var currentOperation = await staffMailSend.GetLatestForOriginalAsync(
+                actor,
+                detail.Summary.Id,
+                cancellationToken);
+            if (!IsActiveOperation(currentOperation))
+            {
+                throw;
+            }
             ModelState.AddModelError(
                 string.Empty,
                 "The existing correspondence operation must finish or be resolved before another action.");
@@ -1072,12 +1087,15 @@ public sealed class MessageModel(
             actor,
             Detail.Summary.Id,
             cancellationToken);
-        CorrespondenceSendBlocked = CorrespondenceOperation is not null
-            && CorrespondenceOperation.State is not StaffMailState.Sent
-                and not StaffMailState.Failed
-                and not StaffMailState.Cancelled;
+        CorrespondenceSendBlocked = IsActiveOperation(CorrespondenceOperation);
         CorrespondenceOperationId = CorrespondenceOperation?.Id;
     }
+
+    private static bool IsActiveOperation(StaffMailOperation? operation) =>
+        operation is not null
+            && operation.State is not StaffMailState.Sent
+                and not StaffMailState.Failed
+                and not StaffMailState.Cancelled;
 
     private static string NewRetainedOperationKey(Guid retainedMessageId) =>
         $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";
