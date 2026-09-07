@@ -2,10 +2,12 @@
 id: INTK-061
 type: ticket
 title: Restore durable intake custody and exactly one destination after failures
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T20:06:18.099Z'
 labels: []
 groups:
   - EPIC-014
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T19:58:09.516Z'
+updated: '2026-09-07T20:06:18.099Z'
 ---
 
 ## What
