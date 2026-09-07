@@ -907,7 +907,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             BEGIN TRANSACTION;
             DECLARE @StaffMailLockResult int;
             EXEC @StaffMailLockResult = sys.sp_getapplock
-                @Resource = N'staff-mail-original:runtime-role-proof',
+                @Resource = N'staff-mail-prepare',
                 @LockMode = N'Exclusive',
                 @LockOwner = N'Transaction',
                 @LockTimeout = 0;
