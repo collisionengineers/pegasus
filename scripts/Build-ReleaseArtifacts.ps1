@@ -8,14 +8,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
-$platform = Get-PegasusPlatform
-if (-not $platform.IsLinux -or
-    [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne
-        [Runtime.InteropServices.Architecture]::X64) {
-    throw 'Release artifacts must be built on the authorised Linux x64 terminal.'
-}
-$migrationRuntimeIdentifier = 'linux-x64'
-$migrationBundleName = 'efbundle'
+$migrationBundle = Get-PegasusMigrationBundle
+$migrationRuntimeIdentifier = $migrationBundle.RuntimeIdentifier
+$migrationBundleName = $migrationBundle.Name
 
 Push-Location $repositoryRoot
 try {

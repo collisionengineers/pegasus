@@ -80,6 +80,27 @@ public sealed class OcrIntakeRecoveryTests
     }
 
     [Fact]
+    public async Task RetainedOutputKeepsExternalWorkPendingUntilAnalysisIsApplied()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var pending = await harness.ReadAsync();
+        await harness.Store.CompleteAsync(pending.Id, pending.Version, Harness.Completed([1]), CancellationToken.None);
+        var retained = await harness.ReadAsync();
+        Assert.Equal(IntakeOcrState.Completed, retained.State);
+        Assert.False(retained.AnalysisCompleted);
+        Assert.Equal(ExternalWorkStatePersistence.Pending, (await harness.ReadWorkItemAsync())!.State);
+        Assert.Null((await harness.ReadWorkItemAsync())!.CompletedAtUtc);
+
+        // A new delivery after a crash uses the SQL-retained output only.
+        await harness.ExecuteAsync();
+        Assert.True((await harness.ReadAsync()).AnalysisCompleted);
+        Assert.Equal(ExternalWorkStatePersistence.Completed, (await harness.ReadWorkItemAsync())!.State);
+        Assert.Single(harness.Analysis.Requests);
+        Assert.Equal(0, harness.Provider.Analyses);
+        Assert.Equal(0, harness.Provider.Reconciliations);
+    }
+
+    [Fact]
     public async Task ABeginRepeatedUnderTheSameKeyReturnsTheRecordedOperationRatherThanASecondOne()
     {
         await using var harness = await Harness.CreateAsync();

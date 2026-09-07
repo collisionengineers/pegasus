@@ -47,17 +47,23 @@ touches a subset of it.
 - **`box-links`** — provisioned but currently unreferenced by any
   application code; not part of the intake artifact path.
 - **`pegtrans252ow37gij`** (separate storage account) — Azure Functions
-  runtime storage (`app-package`, `azure-webjobs-*`, work queues). Nothing
-  intake-related lives here.
+  runtime storage (`app-package`, `azure-webjobs-*`, work queues). Intake wake
+  and work identifiers do live here; the wipe leaves them intact. On resume,
+  queued mail notifications must use the new persisted receive-time cutoff.
 - **The SQL preserve list** (31 tables + `ApprovedMailbox*`) — identity/auth
-  (`AspNet*`, `OpenIddict*`), mailbox poll cursors and Graph subscriptions
-  (clearing these would make the Worker re-ingest every message still in the
-  mailbox), `Organizations*`/`Principals*`, `ProviderDomain*`/
+  (`AspNet*`, `OpenIddict*`), mailbox configuration and Graph subscriptions,
+  `Organizations*`/`Principals*`, `ProviderDomain*`/
   `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, and the three sequence tables (so no case/image/
   unidentified reference is ever reused).
 - **Outlook and Box themselves** — the script only touches Azure Blob and
   Azure SQL; no Graph or Box API call exists in it.
+
+Inbox poll rows survive, but their cursor/lease is cleared and their existing
+`StartBoundaryUtc` advances to the wipe cutoff. Missing poll rows are seeded
+at that cutoff. Original mailbox activation times remain unchanged. Preserving
+an old cursor alone is insufficient: Graph can expire it and enumerate old
+messages whose occurrence identities the wipe removed.
 
 ## Procedure
 
@@ -78,13 +84,19 @@ touches a subset of it.
    Azure service") this needs approval before running with `-Execute` —
    plan approval alone is not enough.
 
-3. **Execute (only after approval):**
+3. **Execute (only after approval):** stop the exact Worker app for the
+   approved maintenance window and exclude application writes. The script
+   refuses `-Execute` unless the Worker is already stopped; it does not
+   change service state itself.
    ```powershell
    pwsh ./scripts/Invoke-IntakeDataWipe.ps1 -Execute
    ```
    Deletes the blobs first, then the SQL rows in one transaction (`NOCHECK
    CONSTRAINT` → `DELETE` → `WITH CHECK CHECK CONSTRAINT`, so a preserved
-   table referencing a deleted row would fail the check).
+   table referencing a deleted row would fail the check). The same SQL
+   transaction records the cutoff captured before blob deletion. On success,
+   old notifications and delta resets cannot re-ingest pre-cutoff mail;
+   newly received or forwarded mail remains eligible.
 
 4. **Verify:** the script's own post-run output reports blobs remaining
    (expect 0) and "Wiped tables still holding rows" (expect 0), plus
@@ -97,7 +109,8 @@ touches a subset of it.
    of prior wipe entries: date, exact blob and row/table counts, preserve
    count, confirmation that `authentication-ring`, `box-links`,
    `pegtrans252ow37gij`, Outlook and Box were untouched, and the unchanged
-   sequence values. Nest it in the current release's bullet if one was just
+   sequence values and committed mail cutoff. Resume the previously approved
+   Worker only after successful verification. Nest it in the current release's bullet if one was just
    deployed; otherwise add it as a standalone dated bullet.
 
 ## Never

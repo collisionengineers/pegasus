@@ -86,19 +86,11 @@ public sealed class QdosAllocationRecoveryBrowserTests
             await support.Page.Locator("main").InnerTextAsync(),
             StringComparison.OrdinalIgnoreCase);
 
-        // Correct the real prerequisite through the existing administration
-        // screens, then perform a new reasoned retry.
-        var organizationName = $"Recovery provider {Guid.NewGuid():N}";
-        await support.GoToAsync("/Administration/Organizations");
-        await support.Page.GetByLabel("Organization name").FillAsync(organizationName);
-        await support.Page.GetByLabel("Work Provider", new() { Exact = true }).CheckAsync();
-        await support.Page.GetByRole(
-            AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Create organization" }).ClickAsync();
-        var organizationRow = support.Page.Locator("tbody tr", new() { HasText = organizationName });
-        await organizationRow.GetByRole(
-            AriaRole.Link,
-            new() { Name = "Create principal" }).ClickAsync();
+        // Correct the real prerequisite through the single customer create
+        // screen, then perform a new reasoned retry.
+        await support.GoToAsync("/Administration/Principals/Create");
+        await support.Page.GetByLabel("Name", new() { Exact = true })
+            .FillAsync($"Recovery provider {Guid.NewGuid():N}");
         await support.Page.GetByLabel("Principal code").FillAsync("NOTACTIVE");
         await support.Page.GetByRole(
             AriaRole.Button,

@@ -697,7 +697,7 @@ this section owns only how those decisions appear in the UI.
 
 | Actor | UI boundary |
 | --- | --- |
-| Administrator | Staff shell plus the Administration areas: Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports. No secret display beyond the masked Principal API key. |
+| Administrator | Staff shell plus the Administration areas: Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports. No secret retrieval; newly issued Principal API keys are shown once. |
 | Engineer, User | Staff shell without Administration. Their ordinary Inbox, Cases, Search, Case record (including its Engineer sections, D30), Upload and Operations controls are identical. |
 | Automated processing | No UI account or interactive control; the Automation Actor appears only as `SYSTEM` / `AI` in notes and Action Logs. |
 | Provider API client | No staff shell, Case workspace, or Administration surface; its credential is the Principal "Pegasus API key" (D8). |
@@ -1116,11 +1116,15 @@ page at `/Administration/Glass/{staffId:guid}`.
   Reset password → Temporary password, Confirm temporary password, Reason;
   each Engineer row shall link to that engineer's Glass's page.
   forced change at next sign-in, never emailed — D28); Create staff account.
-- **Principals:** table Name, Principal Code, Roles, State, Settings; Create
-  Principal (creates the backing Organisation inline, D2); Settings dialog —
-  route e-mail addresses (read-only), the ADR-0038 Manual API submission
-  setting (ZIP export needs no setting) — Pegasus API key (masked, Show / Hide),
-  Generate new key (danger → reason), Save.
+- **Principals:** flat customer table Name, Principal Code, State, Settings;
+  Create Principal takes one name and code, with no owner organisation or
+  role selector. The Settings page holds activated e-mail domains (read-only
+  from the route policy), the default inspection location, and the ADR-0038
+  Manual API submission setting (ZIP export needs no setting). Provider API
+  controls are Generate / Reset key, Pause / Resume, and Revoke, each with a
+  reason. A generated or reset key is shown once in the immediate response,
+  never retrieved later. Code replacement remains on that same customer.
+  Separate repairer and location directory entries are not Principal rows.
 - **Workflow configuration:** Instruction completeness and Image completeness
   (required / not-required item rules with exact blockers, never a percentage
   — D23), no staff review panel (D44), Due work (Chase interval: whole

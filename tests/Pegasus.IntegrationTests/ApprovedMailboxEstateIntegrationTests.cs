@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 using Pegasus.Core.Identity;
@@ -24,6 +25,71 @@ public sealed class ApprovedMailboxEstateIntegrationTests
 
     private static readonly Guid SecondMailboxRowId =
         Guid.Parse("7c2f1a5e-9d10-4a4f-9d63-2f1c6b0a44e1");
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task WipeBoundarySurvivesMissingPollStateAndGraphScopeRefresh(
+        bool previouslyPolled,
+        bool refreshScope)
+    {
+        using var workspace = new MailboxWorkspace();
+        await using var database = await CreateDatabaseAsync(workspace);
+        await using var scope = database.CreateAsyncScope();
+        var mailboxes = scope.ServiceProvider.GetRequiredService<IApprovedIntakeMailboxes>();
+        var pollStore = scope.ServiceProvider.GetRequiredService<IApprovedInboxPollStore>();
+        var mailboxId = TestMailboxId.From("instructions");
+        var mailbox = Assert.IsType<ApprovedIntakeMailbox>(
+            await mailboxes.GetPollableAsync(mailboxId, CancellationToken.None));
+        var cutoff = new DateTimeOffset(2031, 9, 7, 10, 0, 0, TimeSpan.Zero);
+        if (previouslyPolled)
+        {
+            var previous = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+                mailbox, cutoff.AddMinutes(-2), TimeSpan.FromMinutes(1), CancellationToken.None));
+            await pollStore.CompleteAsync(
+                mailboxId, previous.LeaseToken, "old-cursor", cutoff.AddMinutes(-1), CancellationToken.None);
+        }
+
+        var sql = await File.ReadAllTextAsync(Path.Combine(
+            CorpusPackage.RepositoryRoot, "scripts", "Reset-IntakeMailBoundary.sql"));
+        await using (var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync())
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            await context.Database.ExecuteSqlRawAsync(sql,
+                new Microsoft.Data.SqlClient.SqlParameter("@CutoffUtc", cutoff));
+            await transaction.CommitAsync();
+        }
+
+        if (refreshScope)
+        {
+            await database.ExecuteAsync($"""
+                UPDATE ApprovedMailboxes
+                SET InboxFolderIdentity = 'rebound-inbox', MailboxGeneration = MailboxGeneration + 1
+                WHERE Id = '{mailboxId:D}';
+                """);
+        }
+
+        var currentMailbox = Assert.IsType<ApprovedIntakeMailbox>(
+            await mailboxes.GetPollableAsync(mailboxId, CancellationToken.None));
+        Assert.Equal(mailbox.ActivatedAtUtc, currentMailbox.ActivatedAtUtc);
+        Assert.Equal(mailbox.Address, currentMailbox.Address);
+        var claim = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+            currentMailbox, cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
+        Assert.Equal(cutoff, claim.StartBoundaryUtc);
+        Assert.Equal(mailbox.ActivatedAtUtc, claim.ActivatedAtUtc);
+        Assert.Equal(currentMailbox.Generation, claim.Generation);
+        Assert.Null(claim.Cursor);
+
+        await pollStore.AdvanceAsync(
+            mailboxId, claim.LeaseToken, "recovery-cursor", cutoff, CancellationToken.None);
+        await pollStore.CompleteNotificationAsync(mailboxId, claim.LeaseToken, CancellationToken.None);
+        var nextClaim = Assert.IsType<ApprovedInboxPollLease>(await pollStore.ClaimAsync(
+            currentMailbox, cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
+        Assert.Equal("recovery-cursor", nextClaim.Cursor);
+        Assert.Equal(cutoff, nextClaim.StartBoundaryUtc);
+    }
 
     [Fact]
     public async Task PollsTwoApprovedMailboxesAndKeepsSeparatePollStates()

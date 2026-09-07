@@ -83,7 +83,12 @@ internal sealed class EfApprovedInboxPollStore(
         {
             state.ScopeFingerprint = currentScopeFingerprint;
             state.ActivatedAtUtc = activatedAtUtc;
-            state.StartBoundaryUtc = activatedAtUtc;
+            // A maintenance wipe can deliberately exclude mail newer than
+            // onboarding. Rebinding Graph scope must not resurrect that mail.
+            if (state.StartBoundaryUtc < activatedAtUtc)
+            {
+                state.StartBoundaryUtc = activatedAtUtc;
+            }
             state.Generation = mailbox.Generation;
             state.Cursor = null;
             state.DueAtUtc = nowUtc;
@@ -252,6 +257,24 @@ internal sealed class EfApprovedInboxPollStore(
                 state.LeaseToken = null;
                 state.LeaseExpiresAtUtc = null;
                 state.LastFailureCode = failureCode;
+            },
+            cancellationToken);
+    }
+
+    public Task CompleteNotificationAsync(
+        Guid approvedMailboxId,
+        string leaseToken,
+        CancellationToken cancellationToken)
+    {
+        ValidateIdentity(approvedMailboxId, leaseToken);
+        return UpdateOwnedStateAsync(
+            approvedMailboxId,
+            leaseToken,
+            "notification completion",
+            state =>
+            {
+                state.LeaseToken = null;
+                state.LeaseExpiresAtUtc = null;
             },
             cancellationToken);
     }

@@ -267,11 +267,14 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+        public Task CompleteProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => throw UnexpectedCall();
+
+        public Task<IntakeEvaluationRevision> RecordEvaluationAsync(
             Guid workItemId,
             string leaseToken,
             Guid processedReceiptId,
             DateTimeOffset completedAtUtc,
+            bool isReevaluation,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
@@ -337,6 +340,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private sealed class UnreachableGroupStore : IIntakeSubmissionGroupStore
     {
+        public Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(int maximumItems, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Guid>>([]);
+
         public Task<IntakeSubmissionGroup?> GetAsync(
             Guid groupId,
             CancellationToken cancellationToken = default) =>

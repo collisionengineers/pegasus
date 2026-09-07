@@ -27,11 +27,14 @@ documentation shows a Windows form and a Linux form, run the one matching your
 workstation. Nothing here requires or supports mixing the two in a single run,
 checkout, or evidence record.
 
-Release operations use the authorised Linux x64 terminal on Linux-native
-storage. Web, Worker, OCI and the self-contained `efbundle` migration artifact
-are built once for Linux x64 from the exact clean release SHA. ADR-0037 owns
-the workstation choice; ADR-0007 continues to own the direct-terminal order
-and approval boundaries.
+Release operations support an authorised Windows x64 or Linux x64 terminal
+with PowerShell 7 and native tools/storage throughout the run. The same script
+builds Web and Worker for Linux x64 and the OCI image for linux/amd64 from one
+exact clean release SHA. The self-contained migration bundle runs on the
+workstation: `win-x64`/`efbundle.exe` on Windows or `linux-x64`/`efbundle` on
+Linux. ADR-0039 owns that choice; ADR-0007 retains the direct-terminal order
+and approval boundaries. No Windows container or Docker daemon is needed to
+publish the Linux OCI archive.
 
 Hosted workflow runner choices and their evidence limits are owned by
 [the executable CI workflow](../.github/workflows/ci.yml). Linux development
@@ -981,7 +984,7 @@ dated names are not current identity proof.
 
 ## Deployment and release
 
-The accepted Linux direct-terminal Azure design is indexed by
+The accepted Windows/Linux direct-terminal Azure design is indexed by
 [architecture](current-architecture.md) and the
 [decision register](adr/README.md). The target files are `infra/`,
 `azure.yaml`, and `.azure/deployment-plan.md`.
@@ -1014,9 +1017,18 @@ asset, models embedded in the Infrastructure assembly). Both hosts start and
 serve; until a deployed vision path is exercised, native inference on the
 deployed runtime remains unverified evidence.
 
-Two route facts recorded by release 9 (details in operations):
+The schema-3 manifest records `migrationRuntimeIdentifier` and
+`migrationBundleName` for the release workstation. Artifact validation rejects
+an incompatible workstation or filename/runtime pair, verifies all four hashes
+and the Linux OCI identity, and checks owner-execute permission only on Linux.
+Use `migrationBundleName` from the validated manifest when invoking the bundle;
+do not rename it or switch workstation OS midway through the release.
 
-- `efbundle` builds the Web host, so run it from `src/Pegasus.Web` with
+Route facts recorded by release 9 and subsequent corrections (details in
+operations):
+
+- The manifest's migration bundle builds the Web host, so run it from
+  `src/Pegasus.Web` with
   the Production process environment (`ASPNETCORE_ENVIRONMENT=Production`,
   `Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
   `AzureIdentity__WebClientId`, the two storage account names and the custody
@@ -1261,7 +1273,7 @@ release workstation; the image also remains in the production ACR by digest).
    affected capability in that release's record** in `operations.md`, and roll
    forward rather than back. Recovering the case data is the operator-approved
    selective wipe already recorded in `operations.md` — which preserves
-   identity, principal, mailbox-cursor and **the sequence tables, so no
+   identity, principal, mailbox configuration and **the sequence tables, so no
    reference is reused** — never an unqualified rebuild. Restoring data is a
    [Production recovery](#production-recovery) exercise with its own
    approvals, never part of an artifact rollback.
@@ -1281,6 +1293,28 @@ A production recovery exercise must:
 8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+
+### Explicit intake-data wipe
+
+Use `scripts/Invoke-IntakeDataWipe.ps1` for a read-only inventory. Execution
+requires separate exact-target wipe approval, a maintenance window excluding
+application writes, and `pegasus-prod-worker-252ow37gij` already stopped.
+The script checks that Worker state before its first destructive operation;
+it does not stop or restart any service itself.
+
+`-Execute` records one UTC cutoff before clearing blobs, then advances or
+seeds Inbox poll boundaries in the same SQL transaction as row deletion.
+Mailbox identities, approval, original activation times, subscriptions and
+reference sequences stay intact. Old cursors and leases are cleared; their
+next normal claim binds current Graph scope without lowering the cutoff.
+Old mail stays excluded even after Graph cursor expiry or delayed notification,
+while newly received or forwarded messages remain eligible. Deployment and
+ordinary restarts do not perform this reset.
+
+Record the committed cutoff with the existing wipe inventory and post-run
+checks in `operations.md`. Resume the previously approved Worker only after
+successful verification. A failed wipe is not a successful reset: retain its
+failure and keep the maintenance window in place until resolved.
 
 #### Point-in-time restore commands
 

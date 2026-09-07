@@ -181,7 +181,8 @@ in the build lane and the catalogue check on every change set.
 - One platform per workstation — Windows+PowerShell 7 or Linux+PowerShell 7 —
   never mixed in a single run or evidence record
   ([runbook](docs/runbook.md#supported-platform)). Release operations use the
-  authorised Linux x64 terminal (ADR-0037).
+  authorised Windows x64 or Linux x64 terminal (ADR-0039); the migration
+  bundle matches that workstation, while deployed hosts stay Linux.
 - `corpus/` is local, ignored, and immutable — never upload, publish, commit,
   rename, or modify it.
 - A closed composition or feature gate is a disabled flag, not a partially
@@ -441,6 +442,11 @@ authorization supersedes the former open-unmerged release stop. Record and
 verify each exact candidate and its deployment targets before acting. Test
 email may be sent only to `digital@collisionengineers.co.uk`, using the
 requested `pegasustest` customer. It does not authorize an intake-data wipe.
+
+The intake-data wipe script requires a separately approved maintenance window
+with the Worker stopped. It advances the persisted receive-time cutoff as
+part of SQL deletion; it never replays mail from original onboarding merely
+because occurrence rows were cleared. See the runbook's explicit wipe procedure.
 
 One verification owner per host coordinates focused checks and reuses matching
 CI evidence; no competing whole-repository builds or capacity/soak runs are
