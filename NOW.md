@@ -9,10 +9,10 @@ Pegasus v1 is under development in three coordinated streams:
 | INTK-060 | `task/pegasus-v1-intake` | Intake, directories, shell |
 
 The controller now owns all three streams on this host and is the sole heavy
-verifier. The owners
-record implementation and verification in their Kanmer tickets. Shared
+verifier. The owners record implementation and verification in their Kanmer tickets. Shared
 Foundation corrections are consumed as identical commits; each stream keeps
-its own PR to `dev`. Reviewed and verified work is integrated into `dev`;
+its own PR to `dev` and scope review. Closeout consolidates their source
+histories at one verified head before integration into `dev`;
 the resulting PR to `main` must remain unmerged.
 
 [Repository instructions](AGENTS.md#approved-v1-three-stream-exception)
