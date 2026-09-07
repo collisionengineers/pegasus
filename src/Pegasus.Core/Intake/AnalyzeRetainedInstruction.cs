@@ -483,7 +483,7 @@ public sealed class AnalyzeRetainedInstruction(
         // Which accepted template of the profile the document matched. One is
         // a reading; two are recorded as ambiguous rather than resolved,
         // because the principal is settled and the template is not.
-        var variantDisposition = matchedVariantKeys.Count > 1
+        var variantDisposition = forceReviewOnly || matchedVariantKeys.Count > 1
             ? SourceCandidateDisposition.Ambiguous
             : SourceCandidateDisposition.Usable;
         var variantOccurrence = 0;
