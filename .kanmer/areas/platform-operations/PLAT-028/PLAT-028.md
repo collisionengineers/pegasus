@@ -2,13 +2,24 @@
 id: PLAT-028
 type: ticket
 title: Redesign Organizations and Principals with provider API controls
-status: preparing
+status: implementing
 area: platform-operations
 order: 80
-assignee: ''
+assignee: principal_delivery_audit
 profile: feature
 stageEntered:
   preparing: '2026-08-21T14:23:40.633Z'
+taken_at: '2026-09-07T20:10:46.013Z'
+branch: PLAT-028-principal-customer
+worktree: .worktrees/plat-028
+claim_expires_at: '2026-09-07T20:40:46.013Z'
+claim_controller: principal_delivery_audit
+lease_id: 898e963f-db89-4b9c-830b-c8faf286e861
+lease_revision: 1
+lease_controller_run: 20260907T200500Z-v1-remediation
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-028'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-07T20:10:46.013Z'
 labels:
   - ui
   - administration
@@ -33,7 +44,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T20:05:21.261Z'
+updated: '2026-09-07T20:10:46.013Z'
 ---
 
 ## What

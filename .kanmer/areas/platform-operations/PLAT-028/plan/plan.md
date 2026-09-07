@@ -6,7 +6,7 @@ Administrator creates and manages one customer identity from Principals, without
 
 ## Starting state
 
-Source: origin/dev 3da60bd0c270111d5168dc17246dc831882108ea. The 7 September appended research and rewritten files map supersede the old organisation-detail plan. EPIC-014 is current authority; prior EPIC-011 organisation backing identity is still usable internally. Sources registry has no declarations.
+Source: origin/dev 3da60bd0c270111d5168dc17246dc831882108ea. The 7 September appended research and rewritten files map supersede the old organisation-detail plan. EPIC-014 is current authority; prior EPIC-011 organisation backing identity is still usable internally. Sources registry has no declarations. Evidence: research/research.md@e5509bcba4022ec5; files/files.md@5040fb5f00fd8b2e. Existing credential safety is defined in src/Pegasus.Core/Cases/PrincipalCredentials.cs and proved by PrincipalCredentialPersistenceTests.
 
 ## Governing docs
 
@@ -18,7 +18,26 @@ Create customer Name and Code together using existing Core/EF owner and permanen
 
 ## Expected files
 
-Use the exact paths and globs in files/files.md, including scoped generated Test UI artifacts owned by root verification. No schema changes.
+| Path | Why |
+| --- | --- |
+| src/Pegasus.Core/Cases/CaseContracts.cs | Name-based atomic customer creation; known caller update only. |
+| src/Pegasus.Core/Cases/OrganizationAdministration.cs | Principal paging/detail and creation normalization using current owner. |
+| src/Pegasus.Infrastructure/Persistence/EfOrganizationAdministration.cs | Existing transaction creates customer identity and Principal; direct bounded principal queries. |
+| src/Pegasus.Infrastructure/DependencyInjection.cs | Register the principal query use cases. |
+| src/Pegasus.Web/Pages/Administration/Principals/** | Flat list, create customer, Settings including provider commands, same-customer code replacement. |
+| src/Pegasus.Web/Pages/Administration/Organizations/** | Remove obsolete separate administration routes. |
+| src/Pegasus.Web/Pages/Administration/Index.cshtml | Remove obsolete Organisations entry. |
+| src/Pegasus.Web/Presentation/OperatorLabels.cs | One owner for labels. |
+| tests/Pegasus.Core.Tests/Cases/OrganizationAdministrationTests.cs | Updated creation contract/normalization. |
+| tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs | Actual customer create/settings/credential, authorization and replay journeys. |
+| tests/Pegasus.IntegrationTests/OrganizationAdministrationPersistenceTests.cs | Atomic name/code uniqueness and replay. |
+| tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs | Updated existing creation caller. |
+| tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs | Updated existing creation caller. |
+| tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs | Remove retired route states if catalogue requires it. |
+| docs/frd/frd-04-parties-accounts-and-access.md | Current single customer behavior, no hierarchy. |
+| docs/design/README.md | Principal-only administration wording. |
+| docs/design/test-ui/** | Root verifier owns scoped capture and catalogue update. |
+
 
 ## Do not modify
 
