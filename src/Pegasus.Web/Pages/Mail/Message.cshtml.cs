@@ -915,11 +915,7 @@ public sealed class MessageModel(
                 actor,
                 detail.Summary.Id,
                 cancellationToken);
-            var hasActiveOperation = currentOperation is not null
-                && currentOperation.State is not StaffMailState.Sent
-                    and not StaffMailState.Failed
-                    and not StaffMailState.Cancelled;
-            if (!hasActiveOperation)
+            if (!IsActiveOperation(currentOperation))
             {
                 throw;
             }
@@ -1091,12 +1087,15 @@ public sealed class MessageModel(
             actor,
             Detail.Summary.Id,
             cancellationToken);
-        CorrespondenceSendBlocked = CorrespondenceOperation is not null
-            && CorrespondenceOperation.State is not StaffMailState.Sent
-                and not StaffMailState.Failed
-                and not StaffMailState.Cancelled;
+        CorrespondenceSendBlocked = IsActiveOperation(CorrespondenceOperation);
         CorrespondenceOperationId = CorrespondenceOperation?.Id;
     }
+
+    private static bool IsActiveOperation(StaffMailOperation? operation) =>
+        operation is not null
+            && operation.State is not StaffMailState.Sent
+                and not StaffMailState.Failed
+                and not StaffMailState.Cancelled;
 
     private static string NewRetainedOperationKey(Guid retainedMessageId) =>
         $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";
