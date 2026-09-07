@@ -6,7 +6,7 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Email;
 
-public sealed class LocalApprovedSentOptions : IApprovedSentSourceSettings
+public sealed class LocalApprovedSentOptions
 {
     public const string RequiredRuntimeProfile = "DevelopmentOffline";
 

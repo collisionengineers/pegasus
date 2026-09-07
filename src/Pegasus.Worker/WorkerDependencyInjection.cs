@@ -165,12 +165,7 @@ public static class WorkerDependencyInjection
     private static ProductionExternalOptions GetProductionExternalOptions(
         IConfiguration configuration)
     {
-        var graph = GraphApprovedMailboxOptions.Create(
-            configuration["Graph:BaseUri"],
-            configuration["Graph:MailboxId"],
-            configuration["Graph:MailboxAddress"],
-            configuration["Graph:InboxFolderId"],
-            configuration["Graph:SentFolderId"]);
+        var graph = GraphApprovedMailboxOptions.Create(configuration["Graph:BaseUri"]);
         var vehicleValues = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Dvla:BaseUri"] = configuration["Dvla:BaseUri"],

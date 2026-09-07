@@ -690,8 +690,6 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(optionsFactory);
         services.AddSingleton<LocalApprovedInboxOptions>(optionsFactory);
-        services.AddSingleton<IApprovedInboxSourceSettings>(provider =>
-            provider.GetRequiredService<LocalApprovedInboxOptions>());
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<IRetainedMailboxMessageStore>(
@@ -706,8 +704,6 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(optionsFactory);
         services.AddSingleton<LocalApprovedSentOptions>(optionsFactory);
-        services.AddSingleton<IApprovedSentSourceSettings>(provider =>
-            provider.GetRequiredService<LocalApprovedSentOptions>());
         services.AddSingleton<IApprovedSentSource, LocalDurableApprovedSentSource>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollSentEvidence>();
@@ -854,7 +850,6 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
         services.AddSingleton(graphOptions);
-        services.AddSingleton<IApprovedInboxSourceSettings>(graphOptions);
         services.AddSingleton(vehicleOptions);
         services.AddHttpClient(nameof(GraphMailClient), client =>
             client.Timeout = TimeSpan.FromSeconds(100));
@@ -886,8 +881,8 @@ public static class DependencyInjection
 
     /// <summary>
     /// The mailbox-administration "add an address" resolve port alone — independent of
-    /// <see cref="AddProductionExternalAdapters"/>, which also composes the single
-    /// configured polling mailbox and its Worker-only pollers. Web composes only this:
+    /// <see cref="AddProductionExternalAdapters"/>, which composes Worker-only pollers
+    /// over database-backed approved mailbox leases. Web composes only this:
     /// it never polls, it only resolves an address the operator just typed.
     /// </summary>
     public static IServiceCollection AddProductionApprovedMailboxResolver(
