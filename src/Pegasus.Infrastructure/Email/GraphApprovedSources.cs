@@ -14,31 +14,15 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Email;
 
-public sealed record GraphApprovedMailboxOptions(
-    Uri BaseUri,
-    string MailboxId,
-    string MailboxAddress,
-    string InboxFolderId,
-    string SentFolderId) : IApprovedInboxSourceSettings, IApprovedSentSourceSettings
+public sealed record GraphApprovedMailboxOptions(Uri BaseUri)
 {
-    string IApprovedSentSourceSettings.SentFolderIdentity => SentFolderId;
-    string IApprovedInboxSourceSettings.InboxFolderIdentity => InboxFolderId;
-    public static GraphApprovedMailboxOptions Create(
-        string? baseUri,
-        string? mailboxId,
-        string? mailboxAddress,
-        string? inboxFolderId,
-        string? sentFolderId) => new(
-        ParseBaseUri(baseUri),
-        Require(mailboxId, "Graph:MailboxId", 200),
-        ApprovedMailboxAddress.Normalize(Require(mailboxAddress, "Graph:MailboxAddress", 320)),
-        Require(inboxFolderId, "Graph:InboxFolderId", 500),
-        Require(sentFolderId, "Graph:SentFolderId", 500));
+    public static GraphApprovedMailboxOptions Create(string? baseUri) =>
+        new(ParseBaseUri(baseUri));
 
     /// <summary>
     /// Shared with <see cref="GraphApprovedMailboxResolver"/>'s composition: one place
-    /// validates that a configured Graph base URI is the real Microsoft Graph HTTPS
-    /// endpoint, whether the caller also needs a fixed polling mailbox or not.
+    /// validates that the configured Graph base URI is the real Microsoft Graph HTTPS
+    /// endpoint. Polling identities come only from approved mailbox leases.
     /// </summary>
     internal static Uri ParseBaseUri(string? baseUri)
     {
@@ -56,24 +40,13 @@ public sealed record GraphApprovedMailboxOptions(
         value.AbsoluteUri.EndsWith('/')
             ? value
             : new Uri($"{value.AbsoluteUri}/", UriKind.Absolute);
-
-    private static string Require(string? value, string key, int maximumLength)
-    {
-        if (string.IsNullOrWhiteSpace(value)
-            || value.Trim().Length > maximumLength
-            || value.Any(char.IsControl))
-        {
-            throw new InvalidOperationException($"{key} is required and must be a valid exact identity.");
-        }
-        return value.Trim();
-    }
 }
 
 /// <summary>
 /// Resolves an address to its exact Graph mailbox and well-known folder identities for
 /// the mailbox-administration "add an address" flow. Independent of
-/// <see cref="GraphApprovedMailboxOptions"/> — that type names one fixed polling
-/// mailbox; this resolves any address the tenant directory recognizes. A 404 (address not
+/// <see cref="GraphApprovedMailboxOptions"/> — that type validates the Graph endpoint;
+/// this resolves any address the tenant directory recognizes. A 404 (address not
 /// in the tenant) or any other transport/authorization failure both resolve to null: the
 /// caller fails closed either way, and never learns which one happened.
 /// </summary>

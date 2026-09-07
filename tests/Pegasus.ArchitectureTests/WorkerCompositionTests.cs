@@ -219,20 +219,20 @@ public sealed class WorkerCompositionTests
     }
 
     [Fact]
-    public void ProductionCompositionFailsBeforeRegistrationWhenMailboxIdentityIsMissing()
+    public void ProductionCompositionFailsBeforeRegistrationWhenGraphEndpointIsMissing()
     {
         var root = CreateTemporaryRoot();
         try
         {
             var values = CreateProductionValues(root);
-            values.Remove("Graph:MailboxId");
+            values.Remove("Graph:BaseUri");
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
             var services = new ServiceCollection();
 
             var exception = Assert.Throws<InvalidOperationException>(() =>
                 services.AddPegasusWorker(configuration, new TestHostEnvironment(root)));
 
-            Assert.Contains("Graph:MailboxId", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Graph:BaseUri", exception.Message, StringComparison.Ordinal);
             Assert.Empty(services);
         }
         finally
@@ -374,10 +374,6 @@ public sealed class WorkerCompositionTests
         ["IntakeQueue:ServiceUri"] = "https://transport.example.test/",
         ["DocumentIntelligence:Endpoint"] = "https://ocr.example.test/",
         ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
-        ["Graph:MailboxId"] = "mailbox-object-id",
-        ["Graph:MailboxAddress"] = "instructions@collisionengineers.co.uk",
-        ["Graph:InboxFolderId"] = "inbox-folder-id",
-        ["Graph:SentFolderId"] = "sent-folder-id",
         ["Box:BaseUri"] = "https://api.box.com/2.0/",
         ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
         ["Box:RootFolderId"] = "405543781910",

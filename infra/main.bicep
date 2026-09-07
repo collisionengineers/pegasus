@@ -40,12 +40,6 @@ param sqlAdministratorLogin string
 @description('Email address for production platform and budget notifications.')
 param alertEmailAddress string
 
-@description('Exact Microsoft Graph mailbox object ID for instructions@collisionengineers.co.uk.')
-param graphMailboxId string
-@description('Exact immutable Microsoft Graph Inbox folder ID.')
-param graphInboxFolderId string
-@description('Exact immutable Microsoft Graph Sent Items folder ID.')
-param graphSentFolderId string
 @description('Versioned Key Vault secret URI containing the Microsoft Graph notification clientState.')
 param graphChangeNotificationClientStateSecretUri string
 @description('Versioned Key Vault secret URI containing the Box JWT configuration JSON.')
@@ -118,9 +112,6 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     workerActivation: workerActivation
     webImageDigest: webImageDigest
     webRevisionSuffix: webRevisionSuffix
-    graphMailboxId: graphMailboxId
-    graphInboxFolderId: graphInboxFolderId
-    graphSentFolderId: graphSentFolderId
     graphChangeNotificationClientStateSecretUri: graphChangeNotificationClientStateSecretUri
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxHoldingFolderId: boxHoldingFolderId

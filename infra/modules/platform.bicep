@@ -11,9 +11,6 @@ param webActivation string
 param workerActivation string
 param webImageDigest string
 param webRevisionSuffix string
-param graphMailboxId string
-param graphInboxFolderId string
-param graphSentFolderId string
 param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
@@ -465,7 +462,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
             { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
             // Mailbox administration's "add an address" resolve port alone (MAIL-002):
-            // Web never polls a mailbox, so no Graph__MailboxId/InboxFolderId/SentFolderId
+            // Mailbox identities and folders come only from approved mailbox leases
             // here — only the base URI, matching the Worker's Graph__BaseUri exactly.
             { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
             { name: 'Graph__TenantId', value: tenant().tenantId }
@@ -655,10 +652,6 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'TransportStorage__AccountName', value: transportStorage.name }
         { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
         { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
-        { name: 'Graph__MailboxId', value: graphMailboxId }
-        { name: 'Graph__MailboxAddress', value: 'instructions@collisionengineers.co.uk' }
-        { name: 'Graph__InboxFolderId', value: graphInboxFolderId }
-        { name: 'Graph__SentFolderId', value: graphSentFolderId }
         { name: 'Graph__TenantId', value: tenant().tenantId }
         { name: 'Graph__ChangeNotificationUrl', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/hooks/microsoft-graph/mail' }
         { name: 'Graph__ChangeNotificationClientState', value: '@Microsoft.KeyVault(SecretUri=${graphChangeNotificationClientStateSecretUri})' }

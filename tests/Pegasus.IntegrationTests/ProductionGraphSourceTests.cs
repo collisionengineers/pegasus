@@ -666,11 +666,11 @@ public sealed class ProductionGraphSourceTests
         var options = Options();
         var source = new GraphDeletedMailSearchSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
-            new MailboxEstate([Mailbox(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
 
         var result = await source.SearchAsync(
-            StableMailboxId(options.MailboxId),
+            StableMailboxId(DefaultMailboxId),
             "needle",
             100,
             CancellationToken.None);
@@ -712,7 +712,7 @@ public sealed class ProductionGraphSourceTests
         var options = Options();
         var source = new GraphDeletedMailSearchSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
-            new MailboxEstate([Mailbox(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
 
         var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
@@ -733,7 +733,7 @@ public sealed class ProductionGraphSourceTests
         var options = Options();
         var source = new GraphDeletedMailSearchSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
-            new MailboxEstate([Mailbox(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
 
         var result = await source.SearchAsync(Guid.NewGuid(), "needle", 100, CancellationToken.None);
@@ -806,7 +806,7 @@ public sealed class ProductionGraphSourceTests
         var source = new GraphDeletedMailSearchSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(
                 new DelegateHandler(_ => throw new TaskCanceledException("timeout")))),
-            new MailboxEstate([Mailbox(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
 
         var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
@@ -821,7 +821,7 @@ public sealed class ProductionGraphSourceTests
         var source = new GraphDeletedMailSearchSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(
                 new DelegateHandler(_ => throw new TaskCanceledException("cancelled")))),
-            new MailboxEstate([Mailbox(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
@@ -874,7 +874,7 @@ public sealed class ProductionGraphSourceTests
         var options = Options();
         var source = new GraphDeletedMailSearchSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
-            new MailboxEstate([Mailbox(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MailboxEstate([Mailbox(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId)]),
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
 
         var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
@@ -901,7 +901,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var page = await source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
             CancellationToken.None);
 
@@ -925,7 +925,7 @@ public sealed class ProductionGraphSourceTests
         var options = Options();
         var source = new GraphApprovedInboxSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
-        var lease = Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease")
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease")
             with { StartBoundaryUtc = new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero) };
 
         var page = await source.ReadAsync(lease, 10, CancellationToken.None);
@@ -953,7 +953,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var message = await source.ReadNotifiedAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             "immutable-1",
             CancellationToken.None);
 
@@ -984,7 +984,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var page = await source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
             CancellationToken.None);
 
@@ -1011,7 +1011,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         await Assert.ThrowsAsync<InvalidDataException>(() => source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
             CancellationToken.None));
     }
@@ -1022,17 +1022,12 @@ public sealed class ProductionGraphSourceTests
         var handler = new DelegateHandler(_ => Response(
             HttpStatusCode.OK,
             """{"value":[],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders('inbox-folder==')/messages/delta?$deltatoken=final"}"""));
-        var options = GraphApprovedMailboxOptions.Create(
-            "https://graph.microsoft.com/v1.0/",
-            "mailbox-id",
-            "instructions@collisionengineers.co.uk",
-            "inbox-folder==",
-            "sent-folder==");
+        var options = GraphApprovedMailboxOptions.Create("https://graph.microsoft.com/v1.0/");
         var source = new GraphApprovedInboxSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var page = await source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, "inbox-folder==", null, "lease"),
             10,
             CancellationToken.None);
 
@@ -1061,7 +1056,7 @@ public sealed class ProductionGraphSourceTests
             0);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, otherFolderCursor, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, otherFolderCursor, "lease"),
             10,
             CancellationToken.None));
 
@@ -1083,7 +1078,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            Lease(mailboxId, options.MailboxAddress, inboxFolderIdentity, null, "lease"),
+            Lease(mailboxId, DefaultMailboxAddress, inboxFolderIdentity, null, "lease"),
             10,
             CancellationToken.None));
 
@@ -1102,7 +1097,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         await Assert.ThrowsAsync<ApprovedMailboxAccessDeniedException>(() => source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
             CancellationToken.None));
     }
@@ -1172,7 +1167,7 @@ public sealed class ProductionGraphSourceTests
             0);
 
         var page = await source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, staleCursor, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, staleCursor, "lease"),
             10,
             CancellationToken.None);
 
@@ -1193,7 +1188,7 @@ public sealed class ProductionGraphSourceTests
             0);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, escapedCursor, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, escapedCursor, "lease"),
             10,
             CancellationToken.None));
 
@@ -1224,7 +1219,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
             10,
             CancellationToken.None));
 
@@ -1245,7 +1240,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var error = await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, options.SentFolderId, null, "lease",
+            new(DefaultMailboxId, DefaultMailboxAddress, DefaultSentFolderId, null, "lease",
                 Guid.NewGuid(), 1, new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero)),
             10,
             CancellationToken.None));
@@ -1269,7 +1264,7 @@ public sealed class ProductionGraphSourceTests
         var source = new GraphApprovedSentSource(
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
         var lease = new ApprovedSentPollLease(
-            "mailbox-id", options.MailboxAddress, "sent-items", null, "lease",
+            "mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
             approvedMailboxId, 3, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero));
 
         var page = await source.ReadAsync(lease, 10, CancellationToken.None);
@@ -1304,7 +1299,7 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var page = await source.ReadAsync(
-            new("mailbox-id", options.MailboxAddress, "sent-items", null, "lease",
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
                 Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
             10, CancellationToken.None);
 
@@ -1326,11 +1321,11 @@ public sealed class ProductionGraphSourceTests
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var first = await source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease-1"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease-1"),
             1,
             CancellationToken.None);
         var second = await source.ReadAsync(
-            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, first.NextCursor, "lease-2"),
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, first.NextCursor, "lease-2"),
             1,
             CancellationToken.None);
 
@@ -1339,12 +1334,13 @@ public sealed class ProductionGraphSourceTests
         Assert.NotEqual(first.NextCursor, second.NextCursor);
     }
 
-    private static GraphApprovedMailboxOptions Options() => GraphApprovedMailboxOptions.Create(
-        "https://graph.microsoft.com/v1.0/",
-        "mailbox-id",
-        "instructions@collisionengineers.co.uk",
-        "inbox-folder",
-        "sent-folder");
+    private const string DefaultMailboxId = "mailbox-id";
+    private const string DefaultMailboxAddress = "instructions@collisionengineers.co.uk";
+    private const string DefaultInboxFolderId = "inbox-folder";
+    private const string DefaultSentFolderId = "sent-folder";
+
+    private static GraphApprovedMailboxOptions Options() =>
+        GraphApprovedMailboxOptions.Create("https://graph.microsoft.com/v1.0/");
 
     private static HttpResponseMessage Response(HttpStatusCode status, string body, string mediaType = "application/json") =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) };

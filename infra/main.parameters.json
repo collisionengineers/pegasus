@@ -32,15 +32,6 @@
     "alertEmailAddress": {
       "value": "${PEGASUS_ALERT_EMAIL}"
     },
-    "graphMailboxId": {
-      "value": "${GRAPH_MAILBOX_ID}"
-    },
-    "graphInboxFolderId": {
-      "value": "${GRAPH_INBOX_FOLDER_ID}"
-    },
-    "graphSentFolderId": {
-      "value": "${GRAPH_SENT_FOLDER_ID}"
-    },
     "graphChangeNotificationClientStateSecretUri": {
       "value": "${GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI}"
     },

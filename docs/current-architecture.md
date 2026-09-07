@@ -587,7 +587,8 @@ is what lets one Graph client serve the whole estate. Each mailbox holds its own
 lease, its own cursor, and its own last-failure code, so a mailbox that fails is
 released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
-Sent-evidence polling remains configuration-driven for one mailbox.
+Sent-evidence polling also iterates approved mailbox leases, each with its own
+Sent-folder identity and cursor.
 
 Inbound state uses `ApprovedMailbox.Id` as its durable source identity, with a
 versioned Graph cursor-scope fingerprint, immutable receipt-token identity and

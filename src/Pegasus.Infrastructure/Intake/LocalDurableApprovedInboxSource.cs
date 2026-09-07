@@ -6,7 +6,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
 
-public sealed class LocalApprovedInboxOptions : Pegasus.Infrastructure.Email.IApprovedInboxSourceSettings
+public sealed class LocalApprovedInboxOptions
 {
     public const string RequiredRuntimeProfile = "DevelopmentOffline";
 
