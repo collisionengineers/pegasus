@@ -13,8 +13,9 @@ public sealed record StaffMailOriginalMessage(
     Guid RetainedMessageId, Guid ApprovedMailboxId, string ImmutableMessageId,
     string? InternetMessageId, string? ConversationId);
 public sealed record StaffMailAttachment(
-    Guid DocumentId, Guid VersionId, string Sha256, long ContentLength,
-    string FileName, string MediaType);
+    Guid? DocumentId, Guid? VersionId, string Sha256, long ContentLength,
+    string FileName, string MediaType,
+    Guid? IntakeAssetId = null, Guid? IntakeReceiptId = null);
 public static class StaffMailCorrelationHeaders
 {
     public const string OperationId = "X-Pegasus-Operation-Id";

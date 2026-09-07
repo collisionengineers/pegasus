@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Operations;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.ProviderApi;
@@ -706,6 +707,7 @@ if (productionProfile)
 }
 
 builder.Services.AddPegasusReportRendering();
+builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 if (developmentOfflineProfile)
 {
     builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();

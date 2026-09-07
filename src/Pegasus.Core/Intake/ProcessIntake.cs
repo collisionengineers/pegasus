@@ -21,7 +21,8 @@ public sealed class ProcessIntake(
     IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
     IRegisterUnidentified? registerUnidentified = null,
     IProviderSubmissionBindings? providerSubmissionBindings = null,
-    IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null)
+    IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null,
+    RetainIncomingArtifact? retainIncomingArtifact = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -283,6 +284,7 @@ public sealed class ProcessIntake(
             RecordFailureTelemetry(activity, "persistence_failure", started);
             throw;
         }
+        await RetainHoldingAssetsAsync(receipt, cancellationToken);
         await RecordAutomaticAuditEvidenceAsync(
             receipt,
             assessment.MailClassificationDecision,
@@ -292,6 +294,45 @@ public sealed class ProcessIntake(
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
     }
+
+    private async Task RetainHoldingAssetsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (retainIncomingArtifact is null)
+        {
+            return;
+        }
+
+        var actor = ActionActor.SystemWorker("intake-processing");
+        foreach (var asset in IntakeFileIdentity.Ordered(receipt).Where(IsHoldingRetentionCandidate))
+        {
+            var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
+                ?? throw new FileNotFoundException(
+                    $"The retained intake asset '{asset.Id}' is unavailable.");
+            await using var stream = new MemoryStream(content.ToArray(), writable: false);
+            await retainIncomingArtifact.ExecuteAsync(
+                actor,
+                new(
+                    OccurrenceId: asset.Id,
+                    CaseId: null,
+                    IntakeReceiptId: receipt.Id,
+                    OperationKey: IncomingArtifactOperationKey.ForIntake(receipt.Id, asset.Id),
+                    ProposedFileName: asset.FileName,
+                    MediaType: asset.MediaType,
+                    ContentLength: asset.ContentLength,
+                    Sha256: asset.ContentHash),
+                stream,
+                cancellationToken);
+        }
+    }
+
+    private static bool IsHoldingRetentionCandidate(IntakeAssetRecord asset) =>
+        asset.ContentLength > 0
+        && asset.ContentHash.Length == 64
+        && !string.IsNullOrWhiteSpace(asset.StorageKey)
+        && !string.IsNullOrWhiteSpace(asset.FileName)
+        && !string.IsNullOrWhiteSpace(asset.MediaType);
 
     /// <summary>
     /// Identifies the retained source's document role from the document itself

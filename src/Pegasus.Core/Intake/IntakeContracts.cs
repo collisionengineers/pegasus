@@ -520,7 +520,8 @@ public sealed record IntakeAssetRecord(
     int? PageNumber,
     IntakeAssetBounds? Bounds,
     int? WidthPixels,
-    int? HeightPixels);
+    int? HeightPixels,
+    IncomingArtifactCustodyState CustodyState = IncomingArtifactCustodyState.Unknown);
 
 public sealed record IntakeEvidence(
     IntakeEvidenceSource Source,

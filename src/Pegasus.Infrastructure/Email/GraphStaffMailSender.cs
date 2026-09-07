@@ -244,7 +244,10 @@ internal sealed class GraphStaffMailSender(
         ApprovedStaffSendMailbox mailbox, Guid operationId, string immutableDraftId,
         StaffMailAttachment attachment, Stream content, CancellationToken cancellationToken)
     {
-        var recorded = await uploadProgress.GetAsync(operationId, attachment.VersionId, cancellationToken);
+        var attachmentIdentity = attachment.VersionId
+            ?? attachment.IntakeAssetId
+            ?? throw new ArgumentException("The attachment identity is incomplete.", nameof(attachment));
+        var recorded = await uploadProgress.GetAsync(operationId, attachmentIdentity, cancellationToken);
         if (recorded?.Completed == true)
         {
             return;
@@ -253,7 +256,7 @@ internal sealed class GraphStaffMailSender(
         {
             if (await HasExactAttachmentAsync(mailbox, immutableDraftId, attachment, cancellationToken))
             {
-                await uploadProgress.CompleteAsync(operationId, attachment.VersionId, cancellationToken);
+                await uploadProgress.CompleteAsync(operationId, attachmentIdentity, cancellationToken);
                 return;
             }
             throw new InvalidOperationException(
@@ -262,14 +265,14 @@ internal sealed class GraphStaffMailSender(
         if (recorded is not null
             && await HasExactAttachmentAsync(mailbox, immutableDraftId, attachment, cancellationToken))
         {
-            await uploadProgress.CompleteAsync(operationId, attachment.VersionId, cancellationToken);
+            await uploadProgress.CompleteAsync(operationId, attachmentIdentity, cancellationToken);
             return;
         }
         if (attachment.ContentLength <= SmallAttachmentLimit)
         {
             if (recorded is null)
             {
-                await uploadProgress.SaveAsync(operationId, attachment.VersionId,
+                await uploadProgress.SaveAsync(operationId, attachmentIdentity,
                     new(null, DateTimeOffset.MaxValue, 0), cancellationToken);
             }
             using var memory = new MemoryStream();
@@ -287,7 +290,7 @@ internal sealed class GraphStaffMailSender(
             };
             using var response = await client.SendStaffAsync(request, cancellationToken);
             RequireSuccess(response);
-            await uploadProgress.CompleteAsync(operationId, attachment.VersionId, cancellationToken);
+            await uploadProgress.CompleteAsync(operationId, attachmentIdentity, cancellationToken);
             return;
         }
 
@@ -324,14 +327,14 @@ internal sealed class GraphStaffMailSender(
             }
             var expiry = document.RootElement.GetProperty("expirationDateTime").GetDateTimeOffset();
             progress = new(uploadUrl, expiry, 0);
-            await uploadProgress.SaveAsync(operationId, attachment.VersionId, progress, cancellationToken);
+            await uploadProgress.SaveAsync(operationId, attachmentIdentity, progress, cancellationToken);
         }
         var activeProgress = progress
             ?? throw new InvalidDataException("The attachment upload progress was not recorded.");
         if (activeProgress.UploadUrl is not null && activeProgress.NextOffset > 0)
         {
             activeProgress = await ReconcileUploadOffsetAsync(
-                operationId, attachment.VersionId, activeProgress, attachment.ContentLength,
+                operationId, attachmentIdentity, activeProgress, attachment.ContentLength,
                 cancellationToken);
         }
         if (content.CanSeek)
@@ -358,9 +361,9 @@ internal sealed class GraphStaffMailSender(
             RequireSuccess(response);
             offset += count;
             await uploadProgress.SaveAsync(
-                operationId, attachment.VersionId, activeProgress with { NextOffset = offset }, cancellationToken);
+                operationId, attachmentIdentity, activeProgress with { NextOffset = offset }, cancellationToken);
         }
-        await uploadProgress.CompleteAsync(operationId, attachment.VersionId, cancellationToken);
+        await uploadProgress.CompleteAsync(operationId, attachmentIdentity, cancellationToken);
     }
 
     private async Task<StaffMailUploadSession> ReconcileUploadOffsetAsync(

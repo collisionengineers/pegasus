@@ -378,6 +378,46 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Submitted), html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ChangedAttachmentSelectionReturnsValidationWithoutSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 ATT", "SC08-CLAIM-ATT");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(
+            baseFactory, send, attachmentResolver: new ChangedAttachmentResolver());
+        using var client = CreateClient(factory);
+        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
+        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseId={caseId:D}");
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
+                ["CaseId"] = caseId.ToString("D"),
+                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
+                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Following up",
+                ["Body"] = "Please find the update below.",
+                ["SelectedAttachments"] = ChangedAttachmentResolver.Selection
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "selected attachments changed or are no longer available",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, send.SendCalls);
+    }
+
     [Theory]
     [InlineData("Reply", StaffMailComposeMode.Reply)]
     [InlineData("ReplyAll", StaffMailComposeMode.ReplyAll)]
@@ -926,12 +966,18 @@ public sealed class StaffCorrespondenceWebTests
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         RecordingStaffMailSend send,
-        MailboxCapability? mailboxCapability = null) =>
+        MailboxCapability? mailboxCapability = null,
+        IStaffMailAttachmentResolver? attachmentResolver = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IStaffMailSend>();
                 services.AddSingleton<IStaffMailSend>(send);
+                if (attachmentResolver is not null)
+                {
+                    services.RemoveAll<IStaffMailAttachmentResolver>();
+                    services.AddSingleton(attachmentResolver);
+                }
                 // Stream A's ruling (PR 673 comment 5561214716) requires
                 // StaffSend + a positive Generation before a mailbox is
                 // offered. EfApprovedMailboxStore.Map/Routes (A-owned) does
@@ -947,6 +993,31 @@ public sealed class StaffCorrespondenceWebTests
                         provider.GetRequiredService<EfApprovedMailboxStore>(),
                         mailboxCapability));
             }));
+
+    private sealed class ChangedAttachmentResolver : IStaffMailAttachmentResolver
+    {
+        public const string Selection = "changed-attachment";
+
+        public Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
+            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>(
+                [new(Selection, "instruction.pdf", "application/pdf", 1)]);
+
+        public Task<IReadOnlyList<StaffMailAttachment>> ResolveCaseAsync(
+            ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
+            CancellationToken cancellationToken) =>
+            throw new StaffMailAttachmentSelectionException(
+                "One or more selected attachments changed or are no longer available. Review the attachments and try again.");
+
+        public Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
+            ActionActor actor, Guid receiptId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>([]);
+
+        public Task<IReadOnlyList<StaffMailAttachment>> ResolveIntakeAsync(
+            ActionActor actor, Guid receiptId, IReadOnlyList<string> selections,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffMailAttachment>>([]);
+    }
 
     /// <summary>
     /// Wraps the real EF-backed store, promoting a SentEvidence-scoped

@@ -1175,7 +1175,10 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.PageNumber,
         entity.BoundsJson is null ? null : DeserializeEnvelope<IntakeAssetBounds>(entity.BoundsJson),
         entity.WidthPixels,
-        entity.HeightPixels);
+        entity.HeightPixels,
+        string.IsNullOrWhiteSpace(entity.CustodyStatus)
+            ? IncomingArtifactCustodyState.Unknown
+            : EfPublicUploadRetentionStore.ParseCustodyState(entity.CustodyStatus));
 
     /// <summary>
     /// The message subject, read back from the recorded evidence.
