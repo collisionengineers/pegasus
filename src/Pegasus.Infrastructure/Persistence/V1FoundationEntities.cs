@@ -287,6 +287,7 @@ internal sealed class PublicUploadOccurrenceEntity
 {
     public Guid Id { get; set; }
     public Guid SessionId { get; set; }
+    public Guid? ReplacesOccurrenceId { get; set; }
     public required string OperationKey { get; set; }
     public required string ProposedName { get; set; }
     public required string MediaType { get; set; }
