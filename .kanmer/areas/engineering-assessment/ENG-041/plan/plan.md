@@ -150,5 +150,7 @@ Tests cover Prepared/known-vehicle missing, stale, expired and foreign authority
 valid recovery/import authority, and create/start response overflow with recreated
 gateway, expiry and no repeated external creation. Root remains sole verifier.
 
-Round-1 stop: leave the correction frozen for root compiler/runtime evidence,
-before commit/push or Review. Later push updates existing PR683, never a new PR.
+Round-1 root verification completed: corrected Integration project build PASS
+49.39 s and all ten correction cases PASS in 53 s. Root authorizes recording
+both attempts, commit [skip ci], push existing PR683 and return Review for the
+independent delta review. Stop there; no self-review, merge or deployment.

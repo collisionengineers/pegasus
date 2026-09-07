@@ -16,4 +16,8 @@ Independent review returned needs-changes; merge remains unperformed.
 - [x] F-002 — Preserve uncertain-write semantics through bounded response reads; add create/start overflow regressions.
 - [x] Freeze the correction for root verification, retaining all earlier evidence and independent review dispositions.
 
-Round-1 source and regression candidates are authored, not runtime-verified.
+Round-1 root verification: initial CA1068 build FAIL exit 1 in 21.70 s;
+private signature/call ordering corrected without behavior change. Corrected
+Integration project build PASS in 49.39 s. Ten correction cases PASS, zero
+failures/skips, 53 s; author independently read TRX counters and SHA-256.
+No repeated whole cohort or page capture. Independent delta review remains.

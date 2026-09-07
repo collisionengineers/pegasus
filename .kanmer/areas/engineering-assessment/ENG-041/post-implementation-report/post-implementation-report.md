@@ -205,3 +205,19 @@ signature and its two callers only; behavior and tests are unchanged.
 Author git diff --check PASS, exit 0 (CRLF warnings only). Candidate frozen
 for root incremental build and the same ten-case correction cohort. No author
 build or test run, and the failed attempt remains recorded.
+
+## Round-1 root verification completed
+
+After the signature-only CA1068 correction, root's Integration project build
+PASS, 49.39 s. The ten-case review-correction filter above then PASS: ten total,
+ten executed/passed, zero failures, errors, skips or inconclusive results,
+53 s. Author read the TRX counters and case names independently, without
+rerunning the tests. Retained TRX:
+tests/Pegasus.IntegrationTests/TestResults/eng-041-review-correction.trx
+SHA-256 AC6BBEA97CFF7854B40D48515ABC0D900DCE79C3B5D92C48E97CE2F5046510B2.
+All five new cases and the five selected existing recovery/size cases are
+present and passed. Earlier failures remain above; no full suite, page capture,
+live Glass call or cloud change was repeated. Final author diff check PASS exit0.
+Root authorizes commit/push to existing PR683 and return Review. Both findings
+are fixed in this candidate pending independent delta review; the author does
+not change the reviewer's disposition record or merge.
