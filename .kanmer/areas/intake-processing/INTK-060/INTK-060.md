@@ -4,24 +4,24 @@ type: ticket
 title: 'Pegasus v1 intake, principals and operator shell'
 status: implementing
 area: intake-processing
-assignee: codex-stream-c-replacement
+assignee: claude-fable-c2
 profile: feature
 stageEntered:
   preparing: '2026-09-06T05:34:15.786Z'
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T01:20:22.121Z'
-claim_controller: codex-stream-c-replacement
-lease_id: 40f03659-6845-4f20-b1cc-cfd09686ec00
-lease_revision: 66
-lease_controller_run: codex-stream-c-replacement
-lease_worker_run: codex-stream-c-replacement
+claim_expires_at: '2026-09-07T01:32:51.545Z'
+claim_controller: claude-fable-c2
+lease_id: b03b3df8-dca2-44ae-b628-515528bdf02f
+lease_revision: 67
+lease_controller_run: claude-fable-c2-20260907
+lease_worker_run: claude-fable-c2-20260907
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
-lease_provider: codex
+lease_provider: claude-code
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T00:50:22.121Z'
-lease_reclaimed_from: claude-fable-c
+lease_heartbeat_at: '2026-09-07T01:02:51.545Z'
+lease_reclaimed_from: codex-stream-c-replacement
 labels:
   - pegasus-v1
   - stream-c
@@ -30,7 +30,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T00:50:22.121Z'
+updated: '2026-09-07T01:02:51.545Z'
 ---
 
 ## What
