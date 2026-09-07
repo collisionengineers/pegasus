@@ -31,8 +31,7 @@ groups:
 links:
   - >-
     https://github.com/collisionengineers/pegasus/blob/5375e0f548c9210c08b866a5c3e24d940a680bd8/docs/adr/0037-linux-authorised-release-workstation.md
-blocks:
-  - DELIV-048
+blocks: []
 refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 commits:
@@ -43,7 +42,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/667'
 archived: false
 created: '2026-09-04T11:58:34.797Z'
-updated: '2026-09-04T21:08:47.485Z'
+updated: '2026-09-07T20:59:10.163Z'
 ---
 
 ## What
