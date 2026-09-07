@@ -617,6 +617,7 @@ public sealed partial class DetailsModel(
         {
             "import-estimate" when ImportCondition is null => "import-estimate",
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
+            "compare-estimates" when Estimates.Count >= 2 => "compare-estimates",
             "delete-estimate" when SelectedEstimateIsEditable
                 && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
             _ => null
