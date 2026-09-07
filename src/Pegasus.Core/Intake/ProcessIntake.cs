@@ -100,6 +100,7 @@ public sealed class ProcessIntake(
 
             if (!replaceExisting)
             {
+                await RetainHoldingAssetsAsync(existing, cancellationToken);
                 await RecordAutomaticAuditEvidenceAsync(
                     existing,
                     existing.MailClassificationDecision,

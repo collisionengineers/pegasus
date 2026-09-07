@@ -498,12 +498,21 @@ public sealed class RetainIncomingArtifact(
         RetainedIncomingArtifact existing,
         CancellationToken cancellationToken)
     {
-        // Nothing was observed because nothing could be asked. That is not the
-        // observation a re-offer rests on, so the retention keeps the state it
-        // had rather than being offered again on the strength of a question
-        // that was never put.
-        if (custodyStatus is null || existing.CaseId is not { } caseId)
+        // Holding custody has no separate status lookup. Its idempotency
+        // boundary is the same operation key accepted by RetainAsync, so an
+        // Unknown holding claim is resolved by offering those same validated
+        // bytes under that same key. Pending already means custody accepted
+        // the hand-over and is never re-offered.
+        if (existing.CaseId is not { } caseId)
         {
+            return existing.State == IncomingArtifactCustodyState.Unknown
+                ? null
+                : existing;
+        }
+        if (custodyStatus is null)
+        {
+            // Case custody without a status port cannot establish that a
+            // second offer is safe, so it retains the recorded state.
             return existing;
         }
 
