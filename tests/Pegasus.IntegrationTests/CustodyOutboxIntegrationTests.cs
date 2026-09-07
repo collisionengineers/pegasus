@@ -327,6 +327,74 @@ public sealed class CustodyOutboxIntegrationTests
                 "custody_failed"));
     }
 
+    [Theory]
+    [InlineData(IntakeOcrState.Pending, IntakeOcrState.Failed, "failed", null)]
+    [InlineData(IntakeOcrState.Processing, IntakeOcrState.Unknown, "failed", "provider-operation")]
+    [InlineData(IntakeOcrState.Unknown, IntakeOcrState.Unknown, "failed", null)]
+    [InlineData(IntakeOcrState.Completed, IntakeOcrState.Completed, "completed", "provider-operation")]
+    public async Task PoisonedOcrWorkConvergesWithoutRedispatchOrLosingProviderIdentity(
+        IntakeOcrState initialState,
+        IntakeOcrState expectedState,
+        string expectedWorkState,
+        string? providerOperationId)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var retained = await services.GetRequiredService<ProcessIntake>()
+            .ExecuteAsync(CreateSource().Source, CancellationToken.None);
+        var sourceAsset = Assert.IsType<IntakeAssetRecord>(
+            IntakeFileIdentity.SourceAsset(retained));
+        var workItemId = Guid.NewGuid();
+        var operationKey = $"ocr-poison:{workItemId:N}";
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            context.Set<IntakeOcrOperationEntity>().Add(new()
+            {
+                Id = workItemId,
+                IntakeAssetId = sourceAsset.Id,
+                SourceSha256 = sourceAsset.ContentHash,
+                QualifiedPagesJson = "{}",
+                OperationKey = operationKey,
+                State = initialState.ToString(),
+                ProviderOperationId = providerOperationId,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.Set<ExternalWorkItemEntity>().Add(new()
+            {
+                Id = workItemId,
+                Kind = ExternalWorkKinds.IntakeOcr,
+                OperationKey = operationKey,
+                State = ExternalWorkStatePersistence.Queued,
+                DueAtUtc = FixedUtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var store = services.GetRequiredService<IExternalWorkStore>();
+        await new ReconcilePoisonedExternalWork(store, new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(workItemId, CancellationToken.None);
+
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var operation = await context.Set<IntakeOcrOperationEntity>().AsNoTracking()
+                .SingleAsync(item => item.Id == workItemId);
+            var work = await context.Set<ExternalWorkItemEntity>().AsNoTracking()
+                .SingleAsync(item => item.Id == workItemId);
+            Assert.Equal(expectedState.ToString(), operation.State);
+            Assert.Equal(providerOperationId, operation.ProviderOperationId);
+            Assert.Equal(expectedWorkState, work.State);
+        }
+
+        Assert.Null(await store.ClaimDispatchAsync(
+            workItemId,
+            FixedUtcNow.AddMinutes(10),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+    }
+
     [Fact]
     public async Task LogicallyRemovedVersionCannotBeDownloadedOrExported()
     {
