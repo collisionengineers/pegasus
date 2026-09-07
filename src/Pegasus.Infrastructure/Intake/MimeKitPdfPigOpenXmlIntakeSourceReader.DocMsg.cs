@@ -21,6 +21,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         ReadAccumulator result,
         CancellationToken cancellationToken)
     {
+        if (bytes.Span.StartsWith("{\\rtf"u8))
+        {
+            return ReadRtfDoc(bytes, sourceLabel, result, cancellationToken);
+        }
+
         WordBinaryExtractionResult parsed;
         try
         {
@@ -83,6 +88,98 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         }
 
         return ReadOutcome.Readable;
+    }
+
+    private static ReadOutcome ReadRtfDoc(
+        ReadOnlyMemory<byte> bytes,
+        string sourceLabel,
+        ReadAccumulator result,
+        CancellationToken cancellationToken)
+    {
+        var issues = new List<MsgIssue>();
+        string text;
+        try
+        {
+            text = PassiveRtfText.Extract(
+                bytes.Span, issues, preserveTableControls: true, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return AddUnreadableContainerFallback(
+                "unreadable-doc-file",
+                $"{sourceLabel} could not be read as an RTF Word document and is retained for review.",
+                result);
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return AddUnreadableContainerFallback(
+                "unreadable-doc-file",
+                $"{sourceLabel} contains no readable RTF document text and is retained for review.",
+                result);
+        }
+
+        var readableText = text
+            .Replace(PassiveRtfText.TableRowStart.ToString(), string.Empty, StringComparison.Ordinal)
+            .Replace(PassiveRtfText.TableCellBoundary, '\t')
+            .Replace(PassiveRtfText.TableRowEnd.ToString(), Environment.NewLine, StringComparison.Ordinal);
+        result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, readableText));
+        AddRtfTableCells(text, sourceLabel, result);
+        result.Issues.Add(new(
+            "doc-rtf-engine",
+            $"{sourceLabel} RTF text was read passively; embedded objects and scripts were not opened.",
+            IntakeEvidenceSource.DocumentContent));
+        if (issues.Any(issue => string.Equals(
+                issue.Code, "MSG_RTF_RESERVED_STRUCTURE_TEXT", StringComparison.Ordinal)))
+        {
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "doc-rtf-reserved-structure-text",
+                $"{sourceLabel} contains textual values reserved for RTF structure parsing and requires review.",
+                IntakeEvidenceSource.DocumentContent));
+        }
+        if (issues.Any(issue => string.Equals(issue.Code, "MSG_RTF_GROUP_INVALID", StringComparison.Ordinal)))
+        {
+            result.IsIncomplete = true;
+            result.Issues.Add(new(
+                "doc-rtf-partial-extraction",
+                $"{sourceLabel} contains malformed or skipped RTF structures, so some content may be missing.",
+                IntakeEvidenceSource.DocumentContent));
+        }
+
+        return ReadOutcome.Readable;
+    }
+
+    private static void AddRtfTableCells(string text, string sourceLabel, ReadAccumulator result)
+    {
+        var row = 0;
+        var cursor = 0;
+        while (cursor < text.Length)
+        {
+            var start = text.IndexOf(PassiveRtfText.TableRowStart, cursor);
+            if (start < 0)
+                break;
+            var end = text.IndexOf(PassiveRtfText.TableRowEnd, start + 1);
+            if (end < 0)
+                break;
+            cursor = end + 1;
+            var encodedRow = text[(start + 1)..end];
+            if (!encodedRow.Contains(PassiveRtfText.TableCellBoundary))
+                continue;
+            row++;
+            var cells = encodedRow.Split(PassiveRtfText.TableCellBoundary);
+            for (var column = 0; column < cells.Length; column++)
+            {
+                var value = cells[column].Trim();
+                if (value.Length == 0)
+                    continue;
+                result.Content.Add(new(
+                    IntakeEvidenceSource.DocumentContent,
+                    $"{sourceLabel}, table 1 row {row} column {column + 1}",
+                    value,
+                    IntakeSourceLocator.ForCell(1, row, column + 1)));
+            }
+        }
     }
 
     private static async Task<ReadOutcome> ReadMsgAsync(
@@ -172,10 +269,10 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
 
         if (!string.IsNullOrWhiteSpace(message.Bodies.CanonicalText))
         {
-            result.Content.Add(new(
-                IntakeEvidenceSource.EmailBody,
-                $"{sourceLabel}, message body",
-                SanitizeText(message.Bodies.CanonicalText)));
+            AddMessageBodyFragments(
+                SanitizeText(message.Bodies.CanonicalText),
+                sourceLabel,
+                result);
         }
 
         var limits = result.MimeLimits ??= new MimeLimitState();

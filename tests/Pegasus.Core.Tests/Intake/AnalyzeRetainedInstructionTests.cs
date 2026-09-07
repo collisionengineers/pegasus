@@ -1,8 +1,9 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -16,6 +17,7 @@ public sealed class AnalyzeRetainedInstructionTests
     private static readonly byte[] SourceBytes = Encoding.UTF8.GetBytes(
         "QDOS\nOur Client’s Vehicle: Ford Focus\nRegistration: AB12 CDE");
     private static readonly string SourceHash = Convert.ToHexString(SHA256.HashData(SourceBytes));
+    private const string ResponseHash = "bb112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     private static readonly DateTimeOffset Now = new(2031, 8, 9, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -71,6 +73,8 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal("qdos_instruction_document", observed!.PolicyKey);
         Assert.Equal(1, observed.PolicyVersion);
         Assert.Equal("QDOS", observed.PrincipalCode);
+        Assert.Equal(1, harness.SourceReader.Reads);
+        Assert.Empty(harness.VehicleLookup.Requests);
     }
 
     [Fact]
@@ -115,8 +119,10 @@ public sealed class AnalyzeRetainedInstructionTests
             .OrderBy(candidate => candidate.Occurrence)
             .ToArray();
         Assert.Equal(2, conflicting.Length);
+        // Two readings the document itself supports are Ambiguous. Conflicting
+        // is reserved for a candidate that contradicts a confirmed fact (C02).
         Assert.All(conflicting, candidate =>
-            Assert.Equal(SourceCandidateDisposition.Conflicting, candidate.Disposition));
+            Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
         Assert.Equal(["AB12CDE", "XY34ZZZ"], conflicting.Select(candidate => candidate.RawValue));
         Assert.Equal([0, 1], conflicting.Select(candidate => candidate.Occurrence));
         Assert.Equal([1, 3], conflicting.Select(candidate => candidate.Page));
@@ -297,6 +303,232 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, result.Outcome);
     }
 
+    [Fact]
+    public async Task CompletedOcrIsHashBoundLocatedAndAlwaysReviewOnly()
+    {
+        var evidence = OcrEvidence(SourceHash);
+        var ocrRead = AnalyzeRetainedInstruction.CreateOcrReadResult(evidence);
+        var fragment = Assert.Single(ocrRead.Content);
+        Assert.Equal(2, fragment.Locator!.Page);
+        Assert.Equal(SourceHash, fragment.Locator.Sha256);
+        Assert.Contains(ResponseHash, fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("0.42", fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("0.99", fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("\"Confidence\":null", fragment.Locator.Region, StringComparison.Ordinal);
+        Assert.Contains("pixel", fragment.Locator.Region, StringComparison.Ordinal);
+
+        var harness = new Harness(
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
+            {
+                Variants =
+                [
+                    new("qdos-ocr", new("instruction", ["QDOS"], []))
+                ],
+                Fields =
+                [
+                    new("Claimant name", "Jane Smith",
+                        [new("Jane Smith", IntakeEvidenceSource.DocumentContent, fragment.SourceLabel, fragment.Locator)],
+                        IsDefaulted: false, HasConflict: false),
+                    new("Vehicle registration", "O100IOO",
+                        [new("O100IOO", IntakeEvidenceSource.DocumentContent, fragment.SourceLabel, fragment.Locator)],
+                        IsDefaulted: false, HasConflict: false)
+                ]
+            });
+        var actor = ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId);
+        var first = await harness.Command.ExecuteAsync(
+            new(actor, harness.Receipt.Id, harness.Receipt.Version, "ocr-analysis", harness.SourceAssetId, evidence));
+        var replay = await harness.Command.ExecuteAsync(
+            new(actor, harness.Receipt.Id, harness.Receipt.Version, "ocr-analysis", harness.SourceAssetId, evidence));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, first.Outcome);
+        Assert.True(replay.IsReplay);
+        Assert.All(first.Analysis!.Candidates, candidate =>
+            Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
+        Assert.Single(first.Analysis.Candidates,
+            candidate => candidate.Field == AnalyzeRetainedInstruction.MatchedTemplateVariantField);
+        var claimant = Assert.Single(first.Analysis.Candidates, candidate => candidate.Field == "Claimant name");
+        Assert.Equal(SourceHash, claimant.Locator!.Sha256);
+        Assert.Equal($"{IntakeOcrProviderIdentity.Provider}/{IntakeOcrProviderIdentity.ModelId}", claimant.ReaderKey);
+        Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, claimant.ReaderVersion);
+        Assert.Equal(5, harness.VehicleLookup.Requests.Count);
+        var attempts = first.Analysis.Candidates
+            .Where(candidate => candidate.Field == AnalyzeRetainedInstruction.VehicleLookupAttemptField)
+            .OrderBy(candidate => candidate.Occurrence)
+            .ToArray();
+        Assert.Equal([0, 1, 2, 3, 4], attempts.Select(candidate => candidate.Occurrence));
+        Assert.All(attempts, candidate => Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
+        Assert.All(attempts, candidate => Assert.Contains(SourceHash, candidate.SourceLabel, StringComparison.Ordinal));
+        Assert.All(attempts, candidate => Assert.Contains(ResponseHash, candidate.SourceLabel, StringComparison.Ordinal));
+        var alternative = Assert.Single(first.Analysis.Candidates,
+            candidate => candidate.Field == AnalyzeRetainedInstruction.VehicleLookupAlternativeField);
+        Assert.Equal("O100IOO", alternative.RawValue);
+        Assert.Equal("OI00IOO", alternative.NormalizedValue);
+        Assert.Equal(SourceCandidateDisposition.Ambiguous, alternative.Disposition);
+        Assert.Equal(1, harness.Documents.Opens);
+        Assert.Single(harness.Store.Records);
+        Assert.Equal(5, harness.VehicleLookup.Requests.Count);
+    }
+
+    [Fact]
+    public async Task OcrFromStaffOrWithUnattributableProvenanceRecordsNothing()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        var evidence = OcrEvidence(SourceHash);
+        var staff = await harness.Command.ExecuteAsync(
+            new(harness.Actor, harness.Receipt.Id, harness.Receipt.Version, "staff-ocr", harness.SourceAssetId, evidence));
+        var malformed = await harness.Command.ExecuteAsync(
+            new(
+                ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+                harness.Receipt.Id,
+                harness.Receipt.Version,
+                "bad-ocr",
+                harness.SourceAssetId,
+                evidence with { SourceSha256 = new string('0', 64) }));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, staff.Outcome);
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, malformed.Outcome);
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+    }
+
+    [Fact]
+    public async Task MalformedOcrIdentityAndPageSetsContributeNothing()
+    {
+        var valid = OcrEvidence(SourceHash);
+        var invalid = new Func<CompletedOcrEvidence, CompletedOcrEvidence>[]
+        {
+            evidence => evidence with { Result = evidence.Result with { ResponseSha256 = "abcd" } },
+            evidence => evidence with { Result = evidence.Result with { ResponseSha256 = new string('g', 64) } },
+            evidence => evidence with { Result = evidence.Result with { Provider = "other" } },
+            evidence => evidence with { Result = evidence.Result with { ModelId = "other" } },
+            evidence => evidence with { Result = evidence.Result with { ApiVersion = "other" } },
+            evidence => evidence with { QualifiedPages = [3] },
+            evidence => evidence with { QualifiedPages = [2, 2] },
+            evidence => evidence with { QualifiedPages = [0] },
+            evidence => evidence with
+            {
+                Result = evidence.Result with
+                {
+                    Pages = [evidence.Result.PageResults[0] with { Text = " " }]
+                }
+            }
+        };
+
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        var actor = ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId);
+        for (var index = 0; index < invalid.Length; index++)
+        {
+            var result = await harness.Command.ExecuteAsync(new(
+                actor,
+                harness.Receipt.Id,
+                harness.Receipt.Version,
+                $"invalid-ocr-{index}",
+                harness.SourceAssetId,
+                invalid[index](valid)));
+            Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        }
+
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+        Assert.Equal(0, harness.SourceReader.Reads);
+    }
+
+    [Fact]
+    public async Task ConflictingOrOrdinaryEmbeddedRegistrationReadingsNeverInvokeAlternatives()
+    {
+        static InstructionExtractionPolicySelectorTests.StubProfilePolicy Profile(bool conflicting) =>
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
+            {
+                Fields =
+                [
+                    new("Vehicle registration", null,
+                        conflicting
+                            ?
+                            [
+                                new("O100IOO", IntakeEvidenceSource.DocumentContent, "OCR page 2"),
+                                new("AB12CDE", IntakeEvidenceSource.DocumentContent, "OCR page 2")
+                            ]
+                            : [new("O100IOO", IntakeEvidenceSource.DocumentContent, "embedded document")],
+                        IsDefaulted: false,
+                        HasConflict: conflicting)
+                ]
+            };
+
+        var ocr = new Harness(Profile(conflicting: true));
+        await ocr.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            ocr.Receipt.Id,
+            ocr.Receipt.Version,
+            "conflicting-ocr",
+            ocr.SourceAssetId,
+            OcrEvidence(SourceHash)));
+        Assert.Empty(ocr.VehicleLookup.Requests);
+
+        var embedded = new Harness(Profile(conflicting: false));
+        await embedded.ExecuteAsync(operationKey: "embedded-registration");
+        Assert.Empty(embedded.VehicleLookup.Requests);
+    }
+
+    [Fact]
+    public async Task OrdinaryAnalysisWorksWithoutVehicleLookupComposition()
+    {
+        var harness = new Harness(
+            composeVehicleLookup: false,
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+
+        var result = await harness.ExecuteAsync(operationKey: "web-analysis");
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, result.Outcome);
+        Assert.Single(harness.Store.Records);
+        Assert.Equal(1, harness.Documents.Opens);
+        Assert.Equal(1, harness.SourceReader.Reads);
+    }
+
+    [Fact]
+    public async Task OcrAnalysisWithoutVehicleLookupCompositionRefusesBeforeOpeningOrWriting()
+    {
+        var harness = new Harness(
+            composeVehicleLookup: false,
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+
+        var result = await harness.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            harness.Receipt.Id,
+            harness.Receipt.Version,
+            "worker-not-composed",
+            harness.SourceAssetId,
+            OcrEvidence(SourceHash)));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+        Assert.Equal(0, harness.SourceReader.Reads);
+        Assert.Empty(harness.VehicleLookup.Requests);
+    }
+
+    private static CompletedOcrEvidence OcrEvidence(string sourceHash) => new(
+        sourceHash,
+        [2],
+        new(
+            IntakeOcrState.Completed,
+            IntakeOcrProviderIdentity.Provider,
+            IntakeOcrProviderIdentity.ModelId,
+            IntakeOcrProviderIdentity.ApiVersion,
+            "provider-operation",
+            ResponseHash,
+            [
+                new(
+                    2,
+                    "QDOS Jane Smith",
+                    [new("QDOS Jane Smith", new(1, 2, 30, 8, "pixel"),
+                        [
+                            new("QDOS", 0.42, new(1, 2, 8, 8, "pixel")),
+                            new("Jane", 0.99, new(9, 2, 18, 8, "pixel")),
+                            new("Smith", null, new(19, 2, 30, 8, "pixel"))
+                        ])],
+                    [new(1, 1, 1, [new(0, 0, "Jane Smith", new(10, 20, 30, 40, "pixel"))])])
+            ]));
+
     [Theory]
     [InlineData("instruction.pdf, page 4", 4)]
     [InlineData("uploaded instruction.pdf", null)]
@@ -310,28 +542,77 @@ public sealed class AnalyzeRetainedInstructionTests
     {
         var json = AnalyzeRetainedInstruction.LocatorJson("instruction.pdf, page 2", 2);
 
-        Assert.Equal(("instruction.pdf, page 2", 2), AnalyzeRetainedInstruction.ReadLocator(json));
-        Assert.Equal(
-            ("message body", null),
-            AnalyzeRetainedInstruction.ReadLocator(
-                AnalyzeRetainedInstruction.LocatorJson("message body", null)));
+        var (pageLabel, pageNumber, pageLocator) = AnalyzeRetainedInstruction.ReadLocator(json);
+        Assert.Equal("instruction.pdf, page 2", pageLabel);
+        Assert.Equal(2, pageNumber);
+        Assert.Equal(IntakeSourceLocator.ForPage(2), pageLocator);
+
+        var (bodyLabel, bodyPage, bodyLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("message body", null));
+        Assert.Equal("message body", bodyLabel);
+        Assert.Null(bodyPage);
+        Assert.Null(bodyLocator);
+
+        // A structured locator survives the round trip whole: the cell, the form
+        // field, the region and the message part are the provenance, and a store
+        // that dropped any of them would leave a candidate unlocatable.
+        var cell = IntakeSourceLocator.ForCell(2, 3, 4, page: 5, occurrence: 1);
+        var (cellLabel, cellPage, cellLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("instruction.docx, table 2 row 3 column 4", null, cell));
+        Assert.Equal("instruction.docx, table 2 row 3 column 4", cellLabel);
+        Assert.Equal(5, cellPage);
+        Assert.Equal(cell, cellLocator);
+        Assert.Equal("T2R3C4", cellLocator!.Cell);
+
+        var formField = IntakeSourceLocator.ForFormField("ClaimNumber", page: 1, region: "10.00,20.00,30.00,40.00");
+        var (_, _, formLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("instruction.pdf, form field ClaimNumber", null, formField));
+        Assert.Equal(formField, formLocator);
+
+        var quoted = IntakeSourceLocator.ForMessagePart(IntakeMessagePart.QuotedHistory, "chars 120-400");
+        var (_, _, quotedLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            AnalyzeRetainedInstruction.LocatorJson("message, quoted history", null, quoted));
+        Assert.Equal(quoted, quotedLocator);
+
+        var quotedJson = AnalyzeRetainedInstruction.LocatorJson(
+            "message, quoted history",
+            null,
+            quoted);
+        Assert.Contains("\"Kind\":\"MessagePart\"", quotedJson, StringComparison.Ordinal);
+        Assert.Contains("\"MessagePart\":\"QuotedHistory\"", quotedJson, StringComparison.Ordinal);
+
+        var (_, _, legacyNumericLocator) = AnalyzeRetainedInstruction.ReadLocator(
+            "{\"Version\":2,\"SourceLabel\":\"legacy\",\"Page\":null,\"Kind\":5,"
+            + "\"MessagePart\":3,\"Occurrence\":0}");
+        Assert.Equal(quoted with { Region = null }, legacyNumericLocator);
+        Assert.Throws<InvalidDataException>(() => AnalyzeRetainedInstruction.ReadLocator(
+            "{\"Version\":4,\"SourceLabel\":\"future\",\"Page\":null}"));
     }
 
     private sealed class Harness
     {
         public Harness(params InstructionExtractionPolicySelectorTests.StubProfilePolicy[] policies)
+            : this(true, policies)
+        {
+        }
+
+        public Harness(
+            bool composeVehicleLookup,
+            params InstructionExtractionPolicySelectorTests.StubProfilePolicy[] policies)
         {
             SourceAssetId = Guid.NewGuid();
             Receipt = BuildReceipt(SourceAssetId);
             Receipts[Receipt.Id] = Receipt;
             Policies = policies;
+            SourceReader = new FakeSourceReader(this);
             Command = new AnalyzeRetainedInstruction(
                 new FakeReceiptQueries(Receipts),
                 Documents,
-                new FakeSourceReader(this),
+                SourceReader,
                 new InstructionExtractionPolicySelector(policies),
                 Store,
-                new FixedTimeProvider(Now));
+                new FixedTimeProvider(Now),
+                composeVehicleLookup ? new VehicleRegistrationCandidateLookup(VehicleLookup) : null);
         }
 
         public Guid SourceAssetId { get; }
@@ -345,6 +626,10 @@ public sealed class AnalyzeRetainedInstructionTests
         public FakeLogicalDocumentReader Documents { get; } = new();
 
         public FakeAnalysisStore Store { get; } = new();
+
+        public FakeSourceReader SourceReader { get; }
+
+        public FakeVehicleLookup VehicleLookup { get; } = new();
 
         public AnalyzeRetainedInstruction Command { get; }
 
@@ -453,10 +738,13 @@ public sealed class AnalyzeRetainedInstructionTests
 
     private sealed class FakeSourceReader(Harness harness) : IIntakeSourceReader
     {
+        public int Reads { get; private set; }
+
         public Task<IntakeSourceReadResult> ReadAsync(
             IntakeSource source,
             CancellationToken cancellationToken)
         {
+            Reads++;
             _ = harness;
             return Task.FromResult(new IntakeSourceReadResult(
                 IntakeSourceReadStatus.Readable,
@@ -471,6 +759,31 @@ public sealed class AnalyzeRetainedInstructionTests
                 RequiresOcr: false,
                 ReaderKey: "fake_reader",
                 ReaderVersion: "9"));
+        }
+    }
+
+    public sealed class FakeVehicleLookup : IVehicleLookupAdapter
+    {
+        public List<string> Requests { get; } = [];
+
+        public Task<VehicleLookupResult> LookupAsync(
+            VehicleLookupRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request.Registration);
+            var current = request.Registration == "OI00IOO";
+            return Task.FromResult(new VehicleLookupResult(
+                request.Registration,
+                current ? VehicleLookupOutcome.Current : VehicleLookupOutcome.NotFound,
+                "vehicle-provider",
+                "v1",
+                $"response-{request.Registration}",
+                Now,
+                current ? Now : null,
+                current ? Now : null,
+                current ? new VehicleDetails("Make", "Model", 2026, 1000, "Petrol") : null,
+                [],
+                null));
         }
     }
 

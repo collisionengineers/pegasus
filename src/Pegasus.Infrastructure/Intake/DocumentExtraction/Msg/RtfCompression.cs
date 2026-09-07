@@ -136,9 +136,14 @@ internal static class RtfCompression
 
 internal static class PassiveRtfText
 {
+    internal const char TableRowStart = '\uE100';
+    internal const char TableCellBoundary = '\uE101';
+    internal const char TableRowEnd = '\uE102';
+
     internal static string Extract(
         ReadOnlySpan<byte> bytes,
         List<MsgIssue> issues,
+        bool preserveTableControls = false,
         CancellationToken cancellationToken = default)
     {
         string rtf = Encoding.Latin1.GetString(bytes);
@@ -215,11 +220,34 @@ internal static class PassiveRtfText
             if (word is "fonttbl" or "colortbl" or "stylesheet" or "info" or "object" or "pict" or "filetbl" or "datastore") skip = true;
             else if (word == "htmlrtf") htmlRtfSuppressed = !hasNumber || number != 0;
             else if (!skip && !htmlRtfSuppressed && word is "par" or "line") output.AppendLine();
+            else if (!skip && !htmlRtfSuppressed && word == "trowd" && preserveTableControls)
+                output.Append(TableRowStart);
+            else if (!skip && !htmlRtfSuppressed && word == "cell")
+                output.Append(preserveTableControls ? TableCellBoundary : '\t');
+            else if (!skip && !htmlRtfSuppressed && word == "row")
+            {
+                if (preserveTableControls) output.Append(TableRowEnd);
+                else output.AppendLine();
+            }
             else if (!skip && !htmlRtfSuppressed && word == "tab") output.Append('\t');
+            else if (!skip && !htmlRtfSuppressed && word == "rquote") output.Append('\u2019');
+            else if (!skip && !htmlRtfSuppressed && word == "lquote") output.Append('\u2018');
             else if (word == "uc" && hasNumber) unicodeFallback = Math.Clamp(number, 0, 16);
             else if (!skip && !htmlRtfSuppressed && word == "u" && hasNumber)
             {
-                output.Append((char)(ushort)number);
+                var unicode = (char)(ushort)number;
+                if (preserveTableControls
+                    && unicode is TableRowStart or TableCellBoundary or TableRowEnd)
+                {
+                    output.Append('\uFFFD');
+                    issues.Add(new(
+                        "MSG_RTF_RESERVED_STRUCTURE_TEXT",
+                        "RTF textual Unicode used a value reserved for passive structural parsing."));
+                }
+                else
+                {
+                    output.Append(unicode);
+                }
                 index = Math.Min(rtf.Length - 1, index + unicodeFallback);
             }
             else if (word == "bin" && hasNumber)
