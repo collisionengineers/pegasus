@@ -5,5 +5,7 @@
 - [x] Step 3: ADR supersession and current instructions agree.
 - [x] Step 4: cheap checks recorded; source frozen for root verification.
 
-Root-owned architecture, Local deployment-plan and clean release packaging
-verification remain pending; no pre-merge proof or deployment claim is made.
+Root-owned locked restore/build, focused architecture 17/17 and Local
+deployment-plan checks passed. Report records both worker cheap checks and
+root evidence. Final integrated release packaging/required CI remain owed
+once; no post-merge proof, native Linux execution or deployment is claimed.
