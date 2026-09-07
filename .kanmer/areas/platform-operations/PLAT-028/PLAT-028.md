@@ -12,14 +12,14 @@ stageEntered:
 taken_at: '2026-09-07T20:10:46.013Z'
 branch: PLAT-028-principal-customer
 worktree: .worktrees/plat-028
-claim_expires_at: '2026-09-07T20:40:46.013Z'
+claim_expires_at: '2026-09-07T20:48:01.104Z'
 claim_controller: principal_delivery_audit
 lease_id: 898e963f-db89-4b9c-830b-c8faf286e861
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-028'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T20:10:46.013Z'
+lease_heartbeat_at: '2026-09-07T20:18:01.104Z'
 labels:
   - ui
   - administration
@@ -44,7 +44,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T20:10:46.013Z'
+updated: '2026-09-07T20:18:01.104Z'
 ---
 
 ## What
