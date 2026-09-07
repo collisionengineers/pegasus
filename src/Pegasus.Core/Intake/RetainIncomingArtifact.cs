@@ -235,8 +235,7 @@ public sealed class HandOverContentMismatchException()
 /// The one Core command that hands an incoming artifact to custody.
 /// </summary>
 /// <remarks>
-/// Every incoming channel — the public upload link now, manual and mailbox
-/// retention once their surfaces land — retains through here, so there is one
+/// Public uploads, manual intake and mailbox intake retain through here, so there is one
 /// place that decides what "retained" means and one place that records it.
 /// The command never invents success: a disposition custody did not give is
 /// never upgraded, and a hand-over custody has not finished - a Pending one as
