@@ -276,18 +276,18 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var html = await GetHtmlAsync(client, PageFor(StaffId));
         var save = FormOf(html, "Save");
 
-        var propagated = await Assert.ThrowsAnyAsync<Exception>(
-            () => client.PostAsync(
-                $"{PageFor(StaffId)}?handler=Save",
-                Form(
-                    html,
-                    ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
-                    ("username", FixtureUsername),
-                    ("password", FixturePassword))));
+        // The host's error handling turns an unhandled exception into a server
+        // error response rather than a refusal notice or a redirect: the page
+        // neither caught it nor reported it as something to retry.
+        using var response = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Save",
+            Form(
+                html,
+                ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
+                ("username", FixtureUsername),
+                ("password", FixturePassword)));
 
-        var surfaced = propagated.GetBaseException();
-        Assert.IsType<InvalidOperationException>(surfaced);
-        Assert.Equal("the credential store is unreachable", surfaced.Message);
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Empty(store.Replaced);
     }
 
