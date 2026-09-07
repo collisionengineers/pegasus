@@ -913,6 +913,9 @@ public sealed class AnalyzeRetainedInstructionTests
         public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The analysis producer cannot complete OCR.");
 
+        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The analysis producer cannot complete OCR.");
+
         public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The analysis producer cannot record OCR outcomes.");
     }

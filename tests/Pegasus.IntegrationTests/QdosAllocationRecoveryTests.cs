@@ -321,20 +321,52 @@ public sealed class QdosAllocationRecoveryTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var association = scope.ServiceProvider.GetRequiredService<IAutomaticCaseAssociationStore>();
-            var first = await association.AssociateFromMatchAsync(
-                new(
-                    followOn.Id,
-                    existingCaseId,
-                    match.PolicyKey,
-                    match.PolicyVersion,
-                    "system-worker:intake-processing",
-                    $"case-match-association:{Guid.NewGuid():N}",
-                    "Automatic association from the recorded unique match."),
-                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-                CancellationToken.None);
-            Assert.Equal(AutomaticCaseAssociationOutcome.Associated, first);
+            // A recorded unique match is never a new-case invitation, even
+            // before its association write has landed (or after that write fails).
             Assert.Null(await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
                 .AttemptAutomaticAsync(followOn.Id, Guid.NewGuid()));
+            Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+            Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+            var workStore = scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
+            var now = scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow();
+            var stagedId = Guid.NewGuid();
+            await workStore.ReceiveAsync(new(stagedId, followOn.SourceFileName,
+                followOn.MediaType, followOn.SourceLength, followOn.SourceHash,
+                followOn.SourceIdentity, followOn.ReceivedAtUtc, "system-worker:intake-processing",
+                "staged/already-evaluated-source", now), $"association-recovery:{stagedId:N}", CancellationToken.None);
+            await DispatchAsync(now);
+            var claim = (await workStore.ClaimProcessingAsync(stagedId, now,
+                TimeSpan.FromMinutes(1), CancellationToken.None))!.Value;
+            var evaluation = await workStore.RecordEvaluationAsync(claim.WorkItem.Id,
+                claim.WorkItem.LeaseToken!, followOn.Id, now, false, CancellationToken.None);
+            await workStore.RetryProcessingAsync(claim.WorkItem.Id, claim.WorkItem.LeaseToken!,
+                now, "interrupted_after_evaluation", false, CancellationToken.None);
+            await DispatchAsync(now);
+
+            var failure = new FirstAssociationLost(new AssociationCommittedBeforeResponse(association));
+            var imageReceipt = new RecordingImageReceipt();
+            var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(
+                scope.ServiceProvider, (IAutomaticCaseAssociationStore)failure, (IImageIntakeAutomation)imageReceipt);
+            Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, await processor.ExecuteAsync(stagedId));
+            Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+            Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+            var retry = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(stagedId, CancellationToken.None));
+            Assert.True(retry.HasPendingEvaluation);
+            await DispatchAsync(retry.DueAtUtc);
+            Assert.Equal(QueuedIntakeProcessingOutcome.Completed, await processor.ExecuteAsync(stagedId));
+            Assert.Equal(evaluation.Id, (await workStore.GetCompletedEvaluationAsync(stagedId, CancellationToken.None))!.Id);
+            Assert.Equal(QueuedIntakeProcessingOutcome.NoOp, await processor.ExecuteAsync(stagedId));
+            Assert.Equal(2, failure.Calls);
+            Assert.Equal([existingCaseId, existingCaseId], imageReceipt.CurrentCaseIds);
+            Assert.Null(await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(followOn.Id, Guid.NewGuid()));
+
+            async Task DispatchAsync(DateTimeOffset at)
+            {
+                var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(stagedId,
+                    at, TimeSpan.FromMinutes(1), CancellationToken.None));
+                await workStore.MarkDispatchedAsync(dispatch.Id, dispatch.LeaseToken!, at, CancellationToken.None);
+            }
         }
 
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
@@ -560,13 +592,10 @@ public sealed class QdosAllocationRecoveryTests
     }
 
     [Fact]
-    public async Task CompletedSourceReplayRecoversAllocationLostBeforeItPersisted()
+    public async Task DestinationFailureStaysDurableAndRetriesTheSameEvaluation()
     {
-        // Defect B: automatic allocation runs after CompleteProcessingAsync and
-        // outside the try/catch. If it is lost before it persists any attempt (a
-        // transient begin failure), the receipt is a definitive case_created with
-        // no case and zero attempts. The completed-work replay branch must
-        // re-drive allocation and mint the stranded case, without double-allocating.
+        // Allocation-start failure must leave a retryable work item, not a
+        // completed source whose only possible recovery is an accidental replay.
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
@@ -615,16 +644,24 @@ public sealed class QdosAllocationRecoveryTests
 
         // First pass: processes to a definitive receipt, but the automatic
         // allocation is lost before it persists — no case, no attempt.
-        await processor.ExecuteAsync(received.StagedReceiptId);
+        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled,
+            await processor.ExecuteAsync(received.StagedReceiptId));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        var pending = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(received.StagedReceiptId, CancellationToken.None));
+        Assert.Equal(IntakeWorkState.RetryScheduled, pending.State);
+        Assert.True(pending.HasPendingEvaluation);
+        Assert.Null(await store.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeEvaluations"));
+        var retry = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            pending.DueAtUtc, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await store.MarkDispatchedAsync(retry.Id, retry.LeaseToken!, pending.DueAtUtc, CancellationToken.None);
 
-        // Replay: the work item is already completed, so it enters the
-        // completed-work replay branch, which now re-drives allocation and mints
-        // the stranded case.
+        // Redispatch resumes destination work with the recorded evaluation.
         await processor.ExecuteAsync(received.StagedReceiptId);
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeEvaluations"));
 
         // A further replay does not double-allocate.
         await processor.ExecuteAsync(received.StagedReceiptId);
@@ -711,12 +748,13 @@ public sealed class QdosAllocationRecoveryTests
         var evidence = new RecordingMailEvidenceQueries(efStore, events);
         var automaticMailAssociation = new AssociateRetainedMailWithCase(
             evidence,
-            efStore,
+            new AssociationCommittedBeforeResponse(efStore),
             clock);
         var allocation = new ObservingAllocateIntake(
             services.GetRequiredService<IAllocateIntake>(),
             services.GetRequiredService<IIntakeReceiptQueries>(),
             events);
+        var imageReceipt = new RecordingImageReceipt();
         var processor = CreateMailAssociationProcessor(
             services,
             workStore,
@@ -724,12 +762,14 @@ public sealed class QdosAllocationRecoveryTests
             new RecordingProviderAssociationStore(events),
             allocation,
             clock,
-            automaticMailAssociation);
+            automaticMailAssociation,
+            imageReceipt);
 
         await processor.ExecuteAsync(received.StagedReceiptId);
 
         Assert.Equal(["provider", "mail", "allocation"], events);
         Assert.Equal(existingCaseId, allocation.CurrentCaseIdSeen);
+        Assert.Equal(existingCaseId, Assert.Single(imageReceipt.CurrentCaseIds));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         var completed = Assert.IsType<IntakeEvaluationRevision>(
             await workStore.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
@@ -755,7 +795,8 @@ public sealed class QdosAllocationRecoveryTests
         IAutomaticCaseAssociationStore providerAssociationStore,
         IAllocateIntake allocateIntake,
         TimeProvider clock,
-        AssociateRetainedMailWithCase? automaticMailCaseAssociation) => new(
+        AssociateRetainedMailWithCase? automaticMailCaseAssociation,
+        IImageIntakeAutomation? imageIntakeAutomation = null) => new(
             workStore,
             artifactStore,
             services.GetRequiredService<ProcessIntake>(),
@@ -766,6 +807,7 @@ public sealed class QdosAllocationRecoveryTests
             clock,
             services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             services.GetRequiredService<IIntakeOcrOperationStore>(),
+            imageIntakeAutomation: imageIntakeAutomation,
             automaticMailCaseAssociation: automaticMailCaseAssociation);
 
     private sealed class RecordingProviderAssociationStore(List<string> events)
@@ -856,14 +898,17 @@ public sealed class QdosAllocationRecoveryTests
         public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
         public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimProcessingAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
 
-        public async Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+        public Task CompleteProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => inner.CompleteProcessingAsync(workItemId, leaseToken, completedAtUtc, cancellationToken);
+
+        public async Task<IntakeEvaluationRevision> RecordEvaluationAsync(
             Guid workItemId,
             string leaseToken,
             Guid processedReceiptId,
             DateTimeOffset completedAtUtc,
+            bool isReevaluation,
             CancellationToken cancellationToken)
         {
-            var result = await inner.CompleteProcessingAsync(workItemId, leaseToken, processedReceiptId, completedAtUtc, cancellationToken);
+            var result = await inner.RecordEvaluationAsync(workItemId, leaseToken, processedReceiptId, completedAtUtc, isReevaluation, cancellationToken);
             await using var scope = services.CreateAsyncScope();
             var receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
                 .GetRequiredService<IIntakeReceiptQueries>()
@@ -880,6 +925,40 @@ public sealed class QdosAllocationRecoveryTests
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(Guid intakeReceiptId, CancellationToken cancellationToken) => inner.FindStagedReceiptIdForReceiptAsync(intakeReceiptId, cancellationToken);
     }
 
+    private sealed class RecordingImageReceipt : IImageIntakeAutomation
+    {
+        public List<Guid?> CurrentCaseIds { get; } = [];
+        public Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken)
+        {
+            CurrentCaseIds.Add(receipt.CurrentCaseId);
+            return Task.FromResult(new ImageIntakeAutomationOutcome(receipt));
+        }
+    }
+
+    private sealed class AssociationCommittedBeforeResponse(IAutomaticCaseAssociationStore inner) : IAutomaticCaseAssociationStore
+    {
+        public async Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
+            AutomaticCaseAssociationRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken)
+        {
+            await inner.AssociateFromMatchAsync(request, occurredAtUtc, cancellationToken);
+            return AutomaticCaseAssociationOutcome.AlreadyAssociated;
+        }
+    }
+
+    private sealed class FirstAssociationLost(IAutomaticCaseAssociationStore inner) : IAutomaticCaseAssociationStore
+    {
+        public int Calls { get; private set; }
+        public Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
+            AutomaticCaseAssociationRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken)
+        {
+            if (++Calls == 1)
+            {
+                throw new TimeoutException("Injected transient association write failure.");
+            }
+            return inner.AssociateFromMatchAsync(request, occurredAtUtc, cancellationToken);
+        }
+    }
+
     private sealed class FirstAutomaticAllocationLost(IAllocateIntake inner) : IAllocateIntake
     {
         private int automaticCalls;
@@ -892,10 +971,10 @@ public sealed class QdosAllocationRecoveryTests
             CancellationToken cancellationToken = default)
         {
             // The first automatic attempt is lost before it persists anything,
-            // mirroring a transient allocation-begin failure after completion.
+            // mirroring a transient allocation-begin failure after evaluation.
             if (Interlocked.Increment(ref automaticCalls) == 1)
             {
-                return Task.FromResult<IntakeAllocationResult?>(null);
+                throw new TimeoutException("Injected transient allocation-begin failure.");
             }
 
             return inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
@@ -1756,6 +1835,8 @@ internal static class AllocationTestData
         return table switch
         {
             "IntakeAllocationAttempts" => await context.IntakeAllocationAttempts.CountAsync(),
+            "IntakeEvaluations" => await context.IntakeEvaluations.CountAsync(),
+            "ImageIntakes" => await context.ImageIntakes.CountAsync(),
             "Cases" => await context.Cases.CountAsync(),
             "CaseIntakeLinks" => await context.CaseIntakeLinks.CountAsync(),
             "CaseSequences" => await context.CaseSequences.CountAsync(),

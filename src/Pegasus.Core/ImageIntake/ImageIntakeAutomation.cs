@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.ImageIntake;
 
@@ -19,7 +20,10 @@ namespace Pegasus.Core.ImageIntake;
 /// unchanged INTK-007 scope. What the caller does with a pending outcome is
 /// owned by <c>ProcessQueuedIntake.ApplyImageIntakeAutomationAsync</c>.
 /// </param>
-public sealed record ImageIntakeAutomationOutcome(IntakeReceipt Receipt, bool GroupPending = false);
+public sealed record ImageIntakeAutomationOutcome(
+    IntakeReceipt Receipt,
+    bool GroupPending = false,
+    RegisterUnidentifiedRequest? UnidentifiedGroup = null);
 
 /// <summary>
 /// The post-persistence intake hook for image-only material: scan every
@@ -249,7 +253,8 @@ public sealed class ImageIntakeAutomation(
             // is a legitimate, resolved group outcome (not retriable): keep
             // the intact group available for Unidentified, including the
             // explicit conflicting_vrms outcome (INTK-007 scope, unchanged).
-            return new(receipt);
+            return new(receipt, UnidentifiedGroup:
+                ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, routing.ReasonCode));
         }
 
         // The group is the registration unit (INTK-015): exactly one

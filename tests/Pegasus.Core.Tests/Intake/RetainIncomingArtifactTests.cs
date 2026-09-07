@@ -419,7 +419,7 @@ public sealed class RetainIncomingArtifactTests
         var occurrence = Staged(store);
 
         // The winner takes the claim and is still inside its hand-over.
-        Assert.True(await store.TryClaimHandOverAsync(occurrence.OccurrenceId, CancellationToken.None));
+        Assert.True(await store.TryClaimHandOverAsync(occurrence.OperationKey, CancellationToken.None));
         status.Committed[occurrence.OperationKey] = Confirmed();
 
         var lost = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
@@ -451,7 +451,7 @@ public sealed class RetainIncomingArtifactTests
         var occurrence = Staged(store);
 
         // The claim is taken and the call is never made.
-        Assert.True(await store.TryClaimHandOverAsync(occurrence.OccurrenceId, CancellationToken.None));
+        Assert.True(await store.TryClaimHandOverAsync(occurrence.OperationKey, CancellationToken.None));
 
         var resolved = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
@@ -475,7 +475,7 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store);
         var occurrence = StagedHolding(store);
         Assert.True(await store.TryClaimHandOverAsync(
-            occurrence.OccurrenceId, CancellationToken.None));
+            occurrence.OperationKey, CancellationToken.None));
 
         var resolved = await command.ExecuteAsync(
             ActionActor.SystemWorker("intake-processing"),
@@ -926,12 +926,13 @@ public sealed class RetainIncomingArtifactTests
         /// conditional update tells it no.
         /// </summary>
         public Task<bool> TryClaimHandOverAsync(
-            Guid occurrenceId,
+            string operationKey,
             CancellationToken cancellationToken)
         {
             lock (sync)
             {
-                return Task.FromResult(unclaimed.Remove(occurrenceId));
+                return Task.FromResult(byOperationKey.TryGetValue(operationKey, out var artifact)
+                    && unclaimed.Remove(artifact.OccurrenceId));
             }
         }
 

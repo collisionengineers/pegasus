@@ -47,6 +47,11 @@ public sealed record GroupedIntakeSubmissionResult(
 
 public interface IIntakeSubmissionGroupStore
 {
+    /// <summary>Oldest eligible group members, one per unresolved image group.</summary>
+    Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(
+        int maximumItems,
+        CancellationToken cancellationToken = default);
+
     Task<IntakeSubmissionGroup?> GetAsync(
         Guid groupId,
         CancellationToken cancellationToken = default);

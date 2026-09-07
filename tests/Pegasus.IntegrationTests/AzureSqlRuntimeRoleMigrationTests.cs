@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -1045,6 +1046,31 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             $"SELECT COUNT(*) FROM [dbo].[IntakeOcrOperations] WHERE [Id] = '{operationId:D}' AND [State] = N'Pending'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{workId:D}' AND [State] = N'pending'"));
+
+        // Exercise the actual EF custody claim as Worker, not merely the
+        // permission census: intake must never probe PublicUploadOccurrences.
+        await database.ExecuteAsync($"""
+            CREATE USER [pegasus_test_custody_worker] WITHOUT LOGIN;
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_custody_worker];
+            """);
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var impersonation = connection.CreateCommand();
+        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_custody_worker';";
+        await impersonation.ExecuteNonQueryAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
+            var custody = new EfPublicUploadRetentionStore(new ConnectedContextFactory(options));
+            Assert.False(await custody.TryClaimHandOverAsync($"intake:{Guid.NewGuid():N}:{assetId:N}", CancellationToken.None));
+            Assert.True(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));
+            Assert.False(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));
+        }
+        finally
+        {
+            impersonation.CommandText = "REVERT;";
+            await impersonation.ExecuteNonQueryAsync();
+        }
     }
 
     [Fact]
@@ -1321,6 +1347,12 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 ON target.object_id = permission.major_id
             WHERE principal.name IN (N'{WebRole}', N'{WorkerRole}')
             """);
+
+    private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
+        : IDbContextFactory<PegasusDbContext>
+    {
+        public PegasusDbContext CreateDbContext() => new(options);
+    }
 
     private static async Task<string[]> ReadValuesAsync(
         LocalDbTestDatabase database,

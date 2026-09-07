@@ -1720,25 +1720,26 @@ internal sealed class EfPublicUploadRetentionStore(
     /// anyone may offer again.
     /// </remarks>
     public async Task<bool> TryClaimHandOverAsync(
-        Guid occurrenceId,
+        string operationKey,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var claimed = await context.Set<PublicUploadOccurrenceEntity>()
-            .Where(item => item.Id == occurrenceId && item.CustodyState == ArrivedCode)
+        if (TryParseIntakeOperationKey(operationKey, out var receiptId, out var assetId))
+        {
+            return await context.Set<IntakeAssetEntity>()
+                .Where(item => item.Id == assetId && item.IntakeReceiptId == receiptId
+                    && item.CustodyStatus == null)
+                .ExecuteUpdateAsync(
+                    update => update.SetProperty(item => item.CustodyStatus, UnknownCode),
+                    cancellationToken) == 1;
+        }
+
+        return await context.Set<PublicUploadOccurrenceEntity>()
+            .Where(item => item.OperationKey == operationKey && item.CustodyState == ArrivedCode)
             .ExecuteUpdateAsync(
                 update => update.SetProperty(item => item.CustodyState, UnknownCode),
-                cancellationToken);
-        if (claimed == 1)
-        {
-            return true;
-        }
-        claimed = await context.Set<IntakeAssetEntity>()
-            .Where(item => item.Id == occurrenceId && item.CustodyStatus == null)
-            .ExecuteUpdateAsync(
-                update => update.SetProperty(item => item.CustodyStatus, UnknownCode),
-                cancellationToken);
-        return claimed == 1;
+                cancellationToken) == 1;
     }
 
     /// <summary>

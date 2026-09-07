@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -20,6 +21,35 @@ namespace Pegasus.IntegrationTests;
 public sealed class GroupedImageIntakeConcurrencyTests
 {
     private const int Iterations = 12;
+
+    [Fact]
+    public async Task UnreadableImageGroupHasOneUnidentifiedOutcomeAndLeavesTheSweep()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(client,
+            form.AntiforgeryToken, form.ExternalReceiptToken,
+            [("overview.png", "image/png", TinyPngBytes), ("close-up.png", "image/png", TinyPngBytes)]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var groupStore = scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
+        var group = Assert.IsType<IntakeSubmissionGroup>(await groupStore.GetAsync(groupId));
+        var processor = IntakeWebDriver.CreateProcessor(scope.ServiceProvider);
+        foreach (var member in group.Members)
+        {
+            await processor.ExecuteAsync(member.StagedReceiptId);
+        }
+
+        var item = Assert.Single(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().ListAsync());
+        Assert.Equal(UnidentifiedOrigin.SubmissionGroup(groupId), item.Origin);
+        Assert.Equal(UnidentifiedReasonCode.NoUsableIdentification, item.ReasonCode);
+        Assert.Empty(await groupStore.ListPendingImageGroupReceiptsAsync(1));
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+    }
 
     [Fact]
     public async Task ConcurrentGroupMembersNeverSplitAcrossRepeatedRuns()
@@ -272,13 +302,27 @@ public sealed class GroupedImageIntakeConcurrencyTests
         // completed work item synchronously (the safe replay branch), so no
         // separate redispatch step is needed afterwards.
         ReconcileGroupedImageIntakeResult reconcileResult;
+        // Newer unrelated NeedsSorting documents must not occupy the bounded
+        // candidate page ahead of this older image group.
+        for (var index = 0; index < 3; index++)
+        {
+            var unrelated = await AllocationTestData.StoreDefinitiveReceiptAsync(
+                factory.Services, Pegasus.Core.Cases.CaseType.Inspection, "QDOS");
+            await using var unrelatedScope = factory.Services.CreateAsyncScope();
+            await using var unrelatedContext = await unrelatedScope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var entity = await unrelatedContext.IntakeReceipts.SingleAsync(item => item.Id == unrelated.Id);
+            entity.Decision = "needs_sorting";
+            entity.ReceivedAtUtc = unrelatedScope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow().AddDays(1);
+            await unrelatedContext.SaveChangesAsync();
+        }
         await using (var reconcileScope = factory.Services.CreateAsyncScope())
         {
             var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(reconcileScope.ServiceProvider);
             var reconciler = ActivatorUtilities.CreateInstance<ReconcileGroupedImageIntake>(
                 reconcileScope.ServiceProvider,
                 (IProcessQueuedIntake)processor);
-            reconcileResult = await reconciler.ExecuteAsync(50);
+            reconcileResult = await reconciler.ExecuteAsync(1);
         }
         Assert.True(
             reconcileResult.Candidates >= 1,

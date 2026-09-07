@@ -264,7 +264,8 @@ public sealed record IntakeOcrOperation(
     IReadOnlyList<IntakeOcrPage>? Pages = null,
     DateTimeOffset? SubmitAttemptedAtUtc = null,
     DateTimeOffset? SubmittedAtUtc = null,
-    IntakeOcrResult? Result = null)
+    IntakeOcrResult? Result = null,
+    bool AnalysisCompleted = false)
 {
     public IReadOnlyList<IntakeOcrPage> PageResults => Pages ?? [];
 
@@ -340,6 +341,11 @@ public interface IIntakeOcrOperationStore
         Guid operationId,
         long expectedVersion,
         IntakeOcrResult result,
+        CancellationToken cancellationToken);
+
+    Task<IntakeOcrOperation> CompleteAnalysisAsync(
+        Guid operationId,
+        long expectedVersion,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -512,10 +518,8 @@ public sealed class ProcessIntakeOcr(
         var operation = await store.FindAsync(workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The intake OCR operation is unavailable.");
 
-        // A terminal operation is done. A replay of the queue message finds it
-        // terminal and stops, so one durable operation has one side effect
-        // however many times the message is delivered.
-        if (operation.State is IntakeOcrState.Completed or IntakeOcrState.Failed)
+        // Provider completion is not terminal until its analysis is applied.
+        if (operation.AnalysisCompleted || operation.State == IntakeOcrState.Failed)
         {
             return;
         }
@@ -553,6 +557,12 @@ public sealed class ProcessIntakeOcr(
             asset.ContentLength,
             operation.QualifiedPages,
             operation.OperationKey);
+
+        if (operation.Result is { } retainedResult)
+        {
+            await ReanalyzeAsync(operation, receipt!, request, retainedResult, cancellationToken);
+            return;
+        }
 
         // An operation already sent is never sent again. It is asked about.
         // Which STATE it is in does not change that: a retry scheduled after a
@@ -793,7 +803,7 @@ public sealed class ProcessIntakeOcr(
                 return;
             }
 
-            await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
+            current = await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
             await ReanalyzeAsync(current, receipt, request, result, cancellationToken);
             return;
         }
@@ -850,10 +860,8 @@ public sealed class ProcessIntakeOcr(
     }
 
     /// <summary>
-    /// Re-enters instruction analysis exactly once for the completed operation,
-    /// under an operation key derived from the OCR operation's own key. A replay
-    /// of the OCR work therefore replays the analysis rather than recording a
-    /// second set of candidates for the same reading.
+    /// Applies retained output idempotently to the current receipt version.
+    /// Incomplete analysis keeps its external work retryable without resubmission.
     /// </summary>
     private async Task ReanalyzeAsync(
         IntakeOcrOperation operation,
@@ -862,15 +870,40 @@ public sealed class ProcessIntakeOcr(
         IntakeOcrResult ocrResult,
         CancellationToken cancellationToken)
     {
-        var key = $"ocr:{operation.OperationKey}";
-        await analyzeRetainedInstruction.ExecuteAsync(
-            new(
-                OcrActor,
-                receipt.Id,
-                receipt.Version,
-                key.Length > 100 ? key[..100] : key,
-                operation.IntakeAssetId,
-                new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
-            cancellationToken);
+        var key = $"ocr:{operation.Id:N}:{receipt.Version}";
+        IntakeOcrFailure? failure = null;
+        try
+        {
+            var analysis = await analyzeRetainedInstruction.ExecuteAsync(
+                new(
+                    OcrActor,
+                    receipt.Id,
+                    receipt.Version,
+                    key,
+                    operation.IntakeAssetId,
+                    new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
+                cancellationToken);
+            if (analysis.Outcome is RetainedInstructionAnalysisOutcome.Conflict
+                or RetainedInstructionAnalysisOutcome.SourceUnavailable)
+            {
+                failure = new("ocr_analysis_incomplete", "The retained OCR result could not be applied to the current receipt.", Retryable: true);
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            failure = new("ocr_analysis_failure", "The retained OCR result could not be analysed: " + exception.GetType().Name, Retryable: true);
+        }
+
+        if (failure is null)
+        {
+            await store.CompleteAnalysisAsync(operation.Id, operation.Version, CancellationToken.None);
+            return;
+        }
+
+        var delay = IntakeOcrPolicy.NextAttemptDelay(operation.AttemptCount + 1, failure);
+        await store.RecordOutcomeAsync(operation.Id, operation.Version,
+            delay is null ? IntakeOcrState.Failed : IntakeOcrState.RetryScheduled,
+            failure, delay is { } retryIn ? timeProvider.GetUtcNow().Add(retryIn) : null,
+            CancellationToken.None);
     }
 }

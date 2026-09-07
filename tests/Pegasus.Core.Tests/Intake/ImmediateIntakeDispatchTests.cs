@@ -245,7 +245,8 @@ public sealed class ImmediateIntakeDispatchTests
         }
         public Task<IntakeWorkItem?> FindWorkItemAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeEvaluationRevision> CompleteProcessingAsync(Guid workItemId, string leaseToken, Guid processedReceiptId, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeEvaluationRevision> RecordEvaluationAsync(Guid workItemId, string leaseToken, Guid processedReceiptId, DateTimeOffset completedAtUtc, bool isReevaluation, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task CompleteProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RetryProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, string failureCode, bool terminal, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task MarkPoisonedAsync(Guid stagedReceiptId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();

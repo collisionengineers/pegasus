@@ -882,11 +882,14 @@ public sealed class PollApprovedInboxTests
             TimeSpan leaseDuration,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+        public Task CompleteProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IntakeEvaluationRevision> RecordEvaluationAsync(
             Guid workItemId,
             string leaseToken,
             Guid processedReceiptId,
             DateTimeOffset completedAtUtc,
+            bool isReevaluation,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(

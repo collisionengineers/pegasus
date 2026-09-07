@@ -1563,7 +1563,7 @@ public sealed class ProcessIntakeTests
         }
 
         public Task<bool> TryClaimHandOverAsync(
-            Guid occurrenceId, CancellationToken cancellationToken) =>
+            string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(Interlocked.Exchange(ref claim, 0) == 1);
 
         public Task RecordAsync(

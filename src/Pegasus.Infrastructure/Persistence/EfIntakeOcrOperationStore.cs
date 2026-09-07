@@ -204,8 +204,10 @@ public sealed class EfIntakeOcrOperationStore(
                     SerializerOptions);
                 entity.LastError = null;
                 entity.RetryAtUtc = null;
-                workItem.State = ExternalWorkStatePersistence.Completed;
-                workItem.CompletedAtUtc ??= _timeProvider.GetUtcNow();
+                // Provider output is durable; analysis remains dispatchable after
+                // a crash between this commit and the follow-up application.
+                workItem.State = ExternalWorkStatePersistence.Pending;
+                workItem.DueAtUtc = _timeProvider.GetUtcNow();
                 workItem.LeaseToken = null;
                 workItem.LeaseExpiresAtUtc = null;
                 workItem.FailureCode = null;
@@ -217,6 +219,27 @@ public sealed class EfIntakeOcrOperationStore(
             },
             cancellationToken);
     }
+
+    public Task<IntakeOcrOperation> CompleteAnalysisAsync(
+        Guid operationId,
+        long expectedVersion,
+        CancellationToken cancellationToken) =>
+        UpdateAsync(operationId, expectedVersion, (entity, workItem) =>
+        {
+            var result = JsonSerializer.Deserialize<ResultEnvelope>(entity.ResultJson
+                ?? throw new InvalidOperationException("OCR output must be retained before analysis completes."), SerializerOptions)
+                ?? throw new InvalidDataException("The retained OCR output is unreadable.");
+            entity.ResultJson = JsonSerializer.Serialize(result with { AnalysisCompleted = true }, SerializerOptions);
+            entity.State = nameof(IntakeOcrState.Completed);
+            entity.LastError = null;
+            entity.RetryAtUtc = null;
+            workItem.State = ExternalWorkStatePersistence.Completed;
+            workItem.CompletedAtUtc ??= _timeProvider.GetUtcNow();
+            workItem.LeaseToken = null;
+            workItem.LeaseExpiresAtUtc = null;
+            workItem.FailureCode = null;
+            workItem.FailureReason = null;
+        }, cancellationToken);
 
     public Task<IntakeOcrOperation> RecordOutcomeAsync(
         Guid operationId,
@@ -347,7 +370,8 @@ public sealed class EfIntakeOcrOperationStore(
             result?.Pages,
             envelope.SubmitAttemptedAtUtc,
             envelope.SubmittedAtUtc,
-            typedResult);
+            typedResult,
+            result?.AnalysisCompleted ?? false);
     }
 
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
@@ -374,5 +398,6 @@ public sealed class EfIntakeOcrOperationStore(
         string Provider,
         string ModelId,
         string ApiVersion,
-        IReadOnlyList<IntakeOcrPage> Pages);
+        IReadOnlyList<IntakeOcrPage> Pages,
+        bool AnalysisCompleted = false);
 }

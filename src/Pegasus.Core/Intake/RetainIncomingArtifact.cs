@@ -165,7 +165,7 @@ public interface IIncomingArtifactRetentionStore
     /// </para>
     /// </remarks>
     Task<bool> TryClaimHandOverAsync(
-        Guid occurrenceId,
+        string operationKey,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -335,7 +335,7 @@ public sealed class RetainIncomingArtifact(
         // committed before the possibly accepting call - decides who offers
         // them first, and anyone else asks about the same operation key
         // before it does anything at all.
-        if (!await store.TryClaimHandOverAsync(occurrence.OccurrenceId, cancellationToken))
+        if (!await store.TryClaimHandOverAsync(occurrence.OperationKey, cancellationToken))
         {
             if (await ReconcileAsync(actor, existing, cancellationToken) is { } asked)
             {
