@@ -1,5 +1,24 @@
 # Stream A implementation plan
 
+## Authorized delivery phase — 7 September 2026
+
+The operator now requires autonomous completion of Stream A and continued
+coordination of B/C through reviewed integration into `dev`. This supersedes
+the earlier open-and-unmerged stop wherever it appears in the retained
+implementation plan below. A monitors GitHub and the Chrome remote desktops,
+coordinates scoped fixes and publishes a combined verification ref for isolated
+cross-machine tests. That ref is not another implementation PR and must not be
+merged into the domain source branches during implementation.
+
+Before integration, settle independent findings, preserve original PR behavior,
+complete applicable exact-head checks and document any qualified cross-stream
+dependency. Merge the required reviewed PRs into `dev`; close originals as
+superseded only with preservation evidence, and integrate any non-superseded
+original work through review. Preserve original refs and other agents' work.
+Then verify the integrated result at its exact merge identity and open the
+`dev` to `main` PR. Do not merge that PR or update `main`. No deployment, reset,
+mail send, Outlook/Box mutation or live provider write is authorized.
+
 ## Governing docs
 
 The user-approved D01-D17 decisions authorize the corresponding FRD corrections in this stream. Existing accounts/access and mail FRDs gain explicit administrator recovery, no periodic reviews, authorized staff sends and truthful Sent evidence; domain FRDs follow their named stream owners. Protected operator notes are not overwritten. Four-project architecture and existing policy owners remain binding.
