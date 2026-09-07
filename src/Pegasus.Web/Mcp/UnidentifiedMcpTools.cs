@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
@@ -16,6 +17,22 @@ internal sealed record UnidentifiedToolItem(
     string State,
     DateTimeOffset CreatedAtUtc,
     long Version);
+
+internal sealed record UnidentifiedListToolResult(
+    IReadOnlyList<UnidentifiedQueueToolItem> Items,
+    string? NextCursor,
+    int Limit,
+    string CorrelationId);
+
+internal sealed record UnidentifiedQueueToolItem(
+    Guid Id,
+    string Reference,
+    string MediaKind,
+    string? FileName,
+    string? EmailSubject,
+    string? EmailSender,
+    DateTimeOffset ReceivedAtUtc,
+    string ReasonCode);
 
 internal sealed record UnidentifiedToolDetail(
     UnidentifiedToolItem Item,
@@ -36,8 +53,10 @@ internal sealed record UnidentifiedSourceToolItem(
 [McpServerToolType]
 internal sealed class UnidentifiedMcpTools(
     IUnidentifiedStore store,
+    IListUnidentifiedQueueByCursor listQueue,
     IResolveUnidentified resolve,
     IGetIntake getIntake,
+    IGetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
     IIntakeSubmissionGroupStore groupStore,
     AutomationActorResolver resolver,
@@ -51,9 +70,11 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists open Unidentified items by default, or a specific state when supplied. Each item has an immutable U-reference, canonical reason, origin and safe detail.")]
-    public async Task<IReadOnlyList<UnidentifiedToolItem>> ListAsync(
-        [Description("Optional exact state: Open or Resolved. Defaults to Open.")] string? state = null,
+    [Description("Lists the open Unidentified queue. Each item has an immutable U-reference and canonical reason. Uses protected continuations; limit defaults to 50 and is at most 100.")]
+    public async Task<UnidentifiedListToolResult> ListAsync(
+        [Description("Optional media filter: Image, Email or Document.")] string? mediaKind = null,
+        [Description("Opaque continuation returned by the preceding list call.")] string? cursor = null,
+        [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -64,19 +85,25 @@ internal sealed class UnidentifiedMcpTools(
             null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                UnidentifiedState? filter = UnidentifiedState.Open;
-                if (!string.IsNullOrWhiteSpace(state))
+                UnidentifiedMediaKind? filter = null;
+                if (!string.IsNullOrWhiteSpace(mediaKind))
                 {
-                    if (!Enum.TryParse<UnidentifiedState>(state.Trim(), ignoreCase: true, out var parsed)
+                    if (!Enum.TryParse<UnidentifiedMediaKind>(mediaKind.Trim(), ignoreCase: true, out var parsed)
                         || !Enum.IsDefined(parsed))
                     {
-                        throw new McpException("The Unidentified state is not recognized.");
+                        throw new McpException("The Unidentified media filter is not recognized.");
                     }
                     filter = parsed;
                 }
 
-                var rows = await store.ListAsync(filter, cancellationToken);
-                return rows.Select(Map).ToArray();
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
+                var page = await listQueue.ExecuteAsync(
+                    new(context.Actor, filter, cursor, effectiveLimit), cancellationToken);
+                return new UnidentifiedListToolResult(
+                    page.Items.Select(MapQueue).ToArray(),
+                    page.NextCursor,
+                    effectiveLimit,
+                    context.TraceIdentifier);
             }),
             cancellationToken);
     }
@@ -163,6 +190,7 @@ internal sealed class UnidentifiedMcpTools(
                 }
 
                 return await IntakeSourceMcpContent.DownloadAsync(
+                    getSourceMetadata,
                     downloadSource,
                     receiptId,
                     context.Actor,
@@ -266,6 +294,16 @@ internal sealed class UnidentifiedMcpTools(
         item.State.ToString(),
         item.CreatedAtUtc,
         item.Version);
+
+    private static UnidentifiedQueueToolItem MapQueue(UnidentifiedQueueRow item) => new(
+        item.Id,
+        item.Reference,
+        item.MediaKind.ToString(),
+        item.FileName,
+        item.EmailSubject,
+        item.EmailSender,
+        item.ReceivedAtUtc,
+        item.ReasonCode.ToString());
 
     private static string RequireReference(string? reference)
     {

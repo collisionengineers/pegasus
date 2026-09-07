@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -33,6 +34,21 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    /// <summary>
+    /// The known principal on a pre-case record — an Image Intake or a Triage.
+    /// One pair owns the concept for both surfaces: `Not known` is the absent
+    /// principal and is never reused as a generic empty label elsewhere.
+    /// </summary>
+    public const string Principal = "Principal";
+
+    public const string PrincipalNotKnown = "Not known";
+
+    /// <summary>
+    /// The Triage's own permanent reference, distinct from the originating
+    /// provider claim number.
+    /// </summary>
+    public const string TriageReference = "Triage reference";
+
     public static string AttachmentSearchability(bool isSearchable) =>
         isSearchable ? "Searchable content" : "Content unavailable for search";
 
@@ -157,6 +173,44 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// What the retained-instruction analysis concluded, in the operator's own
+    /// words. The enum name is never printed: "NoProfile" tells a member of
+    /// staff nothing about what to do next.
+    /// </summary>
+    public static string RetainedInstructionAnalysisOutcome(
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome outcome) => outcome switch
+    {
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Analyzed =>
+            "Read from the document",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.NoProfile =>
+            "No provider document was recognised",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Ambiguous =>
+            "More than one provider document was recognised",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.SourceUnavailable =>
+            "The retained file could not be read",
+        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Conflict =>
+            "The receipt changed before the analysis was recorded",
+        _ => throw new InvalidOperationException(
+            $"Unknown retained instruction analysis outcome '{(int)outcome}'.")
+    };
+
+    /// <summary>
+    /// What one recorded field candidate is worth to a member of staff. The
+    /// vocabulary is shared with the case-side source candidates, so a field
+    /// never reads two different ways on two screens.
+    /// </summary>
+    public static string SourceCandidateDisposition(
+        Pegasus.Core.Intake.SourceCandidateDisposition disposition) => disposition switch
+    {
+        Pegasus.Core.Intake.SourceCandidateDisposition.Usable => "Usable",
+        Pegasus.Core.Intake.SourceCandidateDisposition.Missing => "Not stated in the document",
+        Pegasus.Core.Intake.SourceCandidateDisposition.Ambiguous => "Ambiguous",
+        Pegasus.Core.Intake.SourceCandidateDisposition.Conflicting => "Conflicting statements",
+        _ => throw new InvalidOperationException(
+            $"Unknown source candidate disposition '{(int)disposition}'.")
+    };
+
+    /// <summary>
     /// A Not ready case's outstanding requirement as the operator reads it:
     /// the requirement and the action that resolves it. Both come from the
     /// case's recorded completeness facts, never from a sentence written here.
@@ -199,6 +253,26 @@ public static class OperatorLabels
         public const string Configuration = "Workflow configuration";
         public const string Mail = "Mail settings";
         public const string Automation = "Automation & AI";
+
+        // C08 shell administration areas start
+        public const string ActionLogs = "Action logs";
+        public const string AiJobs = "AI jobs";
+        public const string Reports = "Reports";
+        public const string Health = "Service health";
+        public const string ValuationPresets = "Valuation presets";
+        public const string ClaimSources = "Claim sources";
+        // C08 shell administration areas end
+    }
+
+    /// <summary>
+    /// Handed to C08 by C05 (INTK-060 scratch/c05-notes, ASSUMPTION 7): the
+    /// chip label for a persisted <c>finding.&lt;code&gt;</c> source candidate
+    /// row — a reconciliation finding, not a value — wherever the C04-owned
+    /// retained-analysis list (<c>Pages/Intake/Details.cshtml</c>) renders one.
+    /// </summary>
+    public static class SourceCandidateKind
+    {
+        public const string Finding = "Finding";
     }
 
     /// <summary>The freshness words the shell and every page header share.</summary>
@@ -701,7 +775,7 @@ public static class OperatorLabels
     /// nothing on the page to say which zone it meant.
     /// </remarks>
     public static string OfficeTime(DateTimeOffset value) =>
-        InOffice(value).ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+        LondonCalendar.LocalAt(value).ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A date and time in the office's zone, or <paramref name="absent"/> when
@@ -715,35 +789,14 @@ public static class OperatorLabels
     /// part of what the operator is deciding.
     /// </summary>
     public static string OfficeDate(DateTimeOffset value) =>
-        InOffice(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        LondonCalendar.DateAt(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The time of day in the office's zone, for the two-line surfaces that
     /// print the date above it.
     /// </summary>
     public static string OfficeClock(DateTimeOffset value) =>
-        InOffice(value).ToString("HH:mm", CultureInfo.InvariantCulture);
-
-    /// <summary>
-    /// The one conversion. It falls back to UTC rather than throwing, because
-    /// a missing zone database is an operational fault and a blank screen
-    /// would be a worse answer than an hour's offset.
-    /// </summary>
-    private static DateTimeOffset InOffice(DateTimeOffset value)
-    {
-        TimeZoneInfo office;
-        try
-        {
-            office = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-        }
-        catch (Exception exception) when (
-            exception is TimeZoneNotFoundException or InvalidTimeZoneException)
-        {
-            office = TimeZoneInfo.Utc;
-        }
-
-        return TimeZoneInfo.ConvertTime(value, office);
-    }
+        LondonCalendar.TimeAt(value).ToString("HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A file size the operator can act on. Bytes are an implementation detail
@@ -1068,7 +1121,6 @@ public static class OperatorLabels
     // PLAT-069: Operations partial-data notices.
     public static class OperationsNotices
     {
-        public const string ServiceHealth = "Service health";
         public const string PartialData = "Partial data";
     }
 
@@ -1103,6 +1155,35 @@ public static class OperatorLabels
     {
         var words = slug.Replace('-', ' ').Replace('_', ' ');
         return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
+    }
+
+    /// <summary>
+    /// Staff correspondence's own state (S12, C08): the operator sees only
+    /// whether it is on its way, delivered, or needs attention — the internal
+    /// attempt-stage vocabulary (draft creation, attaching, sending) is
+    /// writer detail, not a distinction the operator acts on differently.
+    /// "Unknown" is the one state that ever offers Reconcile rather than a
+    /// resend: a resend from an unknown outcome could double-send a message
+    /// that already reached Outlook.
+    /// </summary>
+    public static class StaffMail
+    {
+        public const string Reconcile = "Reconcile";
+
+        public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
+        {
+            Pegasus.Core.Operations.StaffMailState.Prepared => "Preparing",
+            Pegasus.Core.Operations.StaffMailState.DraftCreating => "Creating draft",
+            Pegasus.Core.Operations.StaffMailState.DraftReady => "Draft ready",
+            Pegasus.Core.Operations.StaffMailState.Sending => "Sending",
+            Pegasus.Core.Operations.StaffMailState.Submitted => "Submitted",
+            Pegasus.Core.Operations.StaffMailState.Sent => "Sent",
+            Pegasus.Core.Operations.StaffMailState.Failed => "Failed",
+            Pegasus.Core.Operations.StaffMailState.Cancelled => "Cancelled",
+            Pegasus.Core.Operations.StaffMailState.Unknown => "Unknown",
+            _ => throw new InvalidOperationException(
+                $"Unknown staff mail state '{(int)state}'.")
+        };
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>
@@ -1492,6 +1573,13 @@ public static class OperatorLabels
             "EVA API submission is not enabled for this principal.";
         // end CASE-040
 
+        // C08 labels batch: Stream B's documents/chase port (INTK-060 C08).
+        public const string Recipient = "Recipient";
+        public const string Reason = "Reason";
+        public const string Content = "Content";
+        public const string RecordChase = "Record chase";
+        // end C08 labels batch
+
         // ENG-034: the Engineer sections moved from the retired Assessment
         // page. Keep this block together so the parallel Case lanes can merge
         // their own vocabulary without interleaving it.
@@ -1517,8 +1605,6 @@ public static class OperatorLabels
             public const string RepairDays = "Repair days";
             public const string LabourRate = "Labour rate";
             public const string LabourRatePerHour = "Labour rate (\u00a3/h)";
-            public const string PaintLabourRate = "Paint labour rate";
-            public const string PaintLabourRatePerHour = "Paint labour rate (\u00a3/h)";
             public const string PaintMaterials = "Paint materials";
             public const string PaintMaterialsPounds = "Paint materials (\u00a3)";
             public const string OtherCosts = "Other costs";
@@ -1632,6 +1718,87 @@ public static class OperatorLabels
         public const string RequestDropzone = "Drag a file here or choose one";
         public const string RequestChoose = "Choose file";
         public const string RequestSubmit = "Submit file";
+        public const string RequestReplace = "Replace";
+        public const string RequestFinish = "Finish";
+
+        /// <summary>
+        /// The public request page's refusals. They live here, beside the
+        /// controls they answer, so one sentence has one place and the page
+        /// and its handlers cannot drift apart.
+        /// </summary>
+        public const string RequestLinkInvalid = "This link is no longer valid. Ask for a new one.";
+
+        public const string RequestRefused =
+            "This document was not accepted. Reload the link and try again.";
+
+        public const string RequestTooManyAttempts =
+            "Too many upload attempts were made. Wait before trying again.";
+
+        /// <summary>
+        /// Why the upload control is gone while the submission is still open:
+        /// the link has taken every file it was issued for. The sender can
+        /// still finish, so they are told that rather than left with a form
+        /// that vanished.
+        /// </summary>
+        public const string RequestNoMoreFiles =
+            "This request has taken every file it allows. Finish when you are ready.";
+
+        /// <summary>
+        /// The replace control for one named file. With several files every
+        /// control would otherwise be announced identically, so the label
+        /// names the file it belongs to.
+        /// </summary>
+        public static string RequestReplaceFile(string fileName) =>
+            string.Create(CultureInfo.InvariantCulture, $"Replace {fileName}");
+
+        /// <summary>
+        /// What one file in the submission says to the sender. A file custody
+        /// has not confirmed is never presented as a success, and one it
+        /// refused is never counted as a submitted file.
+        /// </summary>
+        /// <param name="isSuperseded">
+        /// Whether the sender has sent another file in this one's place. That
+        /// answers before the custody state does: custody may well still hold
+        /// these bytes, but they are not what the sender is submitting, so
+        /// calling a replaced file "Received" would name the wrong file.
+        /// </param>
+        public static string RequestFileState(
+            IncomingArtifactCustodyState state,
+            bool isSuperseded = false) =>
+            isSuperseded
+                ? "Replaced"
+                : state switch
+                {
+                    IncomingArtifactCustodyState.Confirmed => "Received",
+                    IncomingArtifactCustodyState.Pending => "Being stored",
+                    IncomingArtifactCustodyState.Failed => "Not accepted",
+                    _ => "Still arriving"
+                };
+
+        /// <summary>
+        /// Why Finish was refused, naming the state that is holding the
+        /// submission open. The sender can see the file on the page, so they
+        /// are told what is happening to it rather than only that something
+        /// is.
+        /// </summary>
+        public static string RequestNotFinished(IncomingArtifactCustodyState? blocking) =>
+            blocking switch
+            {
+                IncomingArtifactCustodyState.Pending =>
+                    "A file is still being stored. Try again in a moment.",
+                _ => "A file has not finished arriving. Try again in a moment."
+            };
+
+        /// <summary>
+        /// Why a closed submission shows its files and no controls. Refusing
+        /// without disclosing the Case does not require saying nothing at all.
+        /// </summary>
+        public static string RequestSessionClosed(PublicUploadSessionState state) => state switch
+        {
+            PublicUploadSessionState.Finalized =>
+                "This submission is finished. No more files can be added.",
+            _ => "This submission has closed. Ask for a new link if you still need to send a file."
+        };
 
         /// <summary>The request's own size limit, which is set per request.</summary>
         public static string RequestLimit(string maximumFileSize) =>
@@ -1642,5 +1809,21 @@ public static class OperatorLabels
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"EML, MSG, PDF, DOC, DOCX, JPG or PNG · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
+
+        /// <summary>
+        /// The public request page's post-submission wording, handed to C08 by
+        /// C07 (INTK-060 scratch/c07-notes, "OperatorLabels handoff") ahead of
+        /// that slice's own integration — added here with the exact text so it
+        /// can switch its local <c>private const</c>s over without a wording
+        /// change. <see cref="RetainedCompletionMessage"/> is
+        /// <c>RequestUploadDecision.Accepted</c>/<c>Replay</c>'s wording (custody
+        /// confirmed); <see cref="StoringCompletionMessage"/> is
+        /// <c>RequestUploadDecision.AcceptedPending</c>'s (custody durable but
+        /// not yet confirmed) — never say "retained securely" before custody has
+        /// said so.
+        /// </summary>
+        public const string RetainedCompletionMessage = "Your document was received and retained securely.";
+        public const string StoringCompletionMessage =
+            "Your document was received and is being stored. You do not need to send it again.";
     }
 }

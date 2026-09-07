@@ -207,6 +207,57 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         TriageResponseEvidenceLinks
         """;
 
+    private const string FoundationTableSpec = """
+        AppliedValuationSnapshots
+        CaseReportDeliveryIntents
+        CaseReportGenerations
+        ClaimSources
+        DocumentContentCacheEntries
+        GeneratedCaseArtifacts
+        GlassRepairEstimateSessions
+        IntakeOcrOperations
+        IntakeSourceCandidates
+        LabourRateCards
+        OrganizationDirectoryEntries
+        PublicUploadOccurrences
+        PublicUploadSessions
+        RetainedInstructionAnalyses
+        StaffMailSendOperations
+        TriageSequences
+        UserExternalCredentials
+        ValuationPresets
+        """;
+
+    private const string FoundationWebGrantSpec = """
+        AppliedValuationSnapshots:SELECT,INSERT
+        CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
+        CaseReportGenerations:SELECT,INSERT
+        ClaimSources:SELECT,INSERT,UPDATE
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        GeneratedCaseArtifacts:SELECT,INSERT
+        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
+        IntakeOcrOperations:SELECT,INSERT
+        IntakeSourceCandidates:SELECT
+        LabourRateCards:SELECT,INSERT,UPDATE
+        OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
+        PublicUploadOccurrences:SELECT,INSERT,UPDATE
+        PublicUploadSessions:SELECT,INSERT,UPDATE
+        RetainedInstructionAnalyses:SELECT
+        StaffMailSendOperations:SELECT,INSERT,UPDATE
+        TriageSequences:SELECT,INSERT,UPDATE
+        UserExternalCredentials:SELECT,INSERT,UPDATE
+        ValuationPresets:SELECT,INSERT,UPDATE
+        """;
+
+    private const string FoundationWorkerGrantSpec = """
+        DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
+        IntakeOcrOperations:SELECT,INSERT,UPDATE
+        IntakeSourceCandidates:SELECT,INSERT
+        RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
+        StaffMailSendOperations:SELECT,INSERT,UPDATE
+        TriageSequences:SELECT,INSERT,UPDATE
+        """;
+
     [Fact]
     public async Task LatestMigrationKeepsBootstrapRemovedAndRestoresAutomationOpenIddictState()
     {
@@ -527,6 +578,75 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task LatestMigrationGivesFoundationTablesTheirExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var tables = ParseLines(FoundationTableSpec);
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM [dbo].[ApprovedMailboxes] WHERE [State] = N'Approved' AND [MailboxGeneration] <> 1"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.check_constraints WHERE [name] = N'CK_ApprovedMailboxes_MailboxGeneration' AND [is_disabled] = 0 AND [is_not_trusted] = 0"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE [object_id] = OBJECT_ID(N'[dbo].[DocumentVersions]') AND [name] = N'PendingContentStorageKey' AND [max_length] = 400 AND [is_nullable] = 1"));
+        Assert.Equal(
+            tables,
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT name
+                FROM sys.tables
+                WHERE name IN ({string.Join(", ", tables.Select(table => $"N'{table}'"))})
+                """));
+        Assert.Equal(
+            ParseGrantSpec(FoundationWebGrantSpec),
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => tables.Any(table => value.StartsWith($"{table}:", StringComparison.Ordinal)))
+                .ToArray());
+        Assert.Equal(
+            ParseGrantSpec(FoundationWorkerGrantSpec)
+                .Append("IntakeAssets:UPDATE")
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToArray(),
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value == "IntakeAssets:UPDATE"
+                    || tables.Any(table => value.StartsWith($"{table}:", StringComparison.Ordinal)))
+                .ToArray());
+        foreach (var role in new[] { WebRole, WorkerRole })
+        {
+            var expectedDeniedTables = role == WorkerRole
+                ? tables.Where(table => table != "DocumentContentCacheEntries").ToArray()
+                : tables;
+            Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
+                .Where(tables.Contains)
+                .ToArray());
+        }
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*)
+            FROM (
+                SELECT indexDefinition.object_id, indexDefinition.index_id
+                FROM sys.indexes AS indexDefinition
+                INNER JOIN sys.tables AS tableDefinition
+                    ON tableDefinition.object_id = indexDefinition.object_id
+                INNER JOIN sys.index_columns AS indexColumn
+                    ON indexColumn.object_id = indexDefinition.object_id
+                   AND indexColumn.index_id = indexDefinition.index_id
+                   AND indexColumn.key_ordinal > 0
+                INNER JOIN sys.columns AS columnDefinition
+                    ON columnDefinition.object_id = indexColumn.object_id
+                   AND columnDefinition.column_id = indexColumn.column_id
+                WHERE tableDefinition.name IN ({string.Join(", ", tables.Select(table => $"N'{table}'"))})
+                GROUP BY indexDefinition.object_id, indexDefinition.index_id, indexDefinition.[type]
+                HAVING SUM(columnDefinition.max_length) >
+                    CASE WHEN indexDefinition.[type] = 1 THEN 900 ELSE 1700 END
+            ) AS oversizedIndex
+            """));
+    }
+
+    [Fact]
     public async Task EngineerNotesMigrationCreatesTheTableWithExactWebAppendPermissions()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
@@ -757,6 +877,271 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 """));
     }
 
+    // PLAT-035: catalog-grant checks alone run as the LocalDB administrator and
+    // therefore cannot detect a real runtime save denied by SQL Server. These
+    // loginless users have only their corresponding Pegasus runtime role.
+    [Fact]
+    public async Task V1FoundationRuntimeRolesCanPerformOnlyTheirRepresentativeWrites()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        await database.ExecuteAsync(
+            $"""
+            CREATE USER [pegasus_test_web_runtime] WITHOUT LOGIN;
+            CREATE USER [pegasus_test_worker_runtime] WITHOUT LOGIN;
+            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_web_runtime];
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_worker_runtime];
+            """);
+
+        var claimSourceId = Guid.NewGuid();
+        var webConcurrencyToken = Guid.NewGuid();
+
+        await database.ExecuteAsync(
+            $"""
+            EXECUTE AS USER = N'pegasus_test_web_runtime';
+            INSERT INTO [dbo].[ClaimSources] (
+                [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
+            VALUES (
+                '{claimSourceId:D}', N'restricted-role-fixture', 1, N'test',
+                '2031-05-06T10:30:00+00:00', 0, '{webConcurrencyToken:D}');
+            UPDATE [dbo].[PublicUploadOccurrences]
+            SET [CustodyState] = [CustodyState]
+            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            UPDATE [dbo].[TriageSequences]
+            SET [LastAllocatedSequence] = 1
+            WHERE [Id] = 1;
+            DELETE FROM [dbo].[DocumentContentCacheEntries]
+            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
+            REVERT;
+            """);
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM [dbo].[ClaimSources] WHERE [Id] = '{claimSourceId:D}'"));
+        Assert.Equal(1L, await database.ScalarAsync<long>(
+            "SELECT [LastAllocatedSequence] FROM [dbo].[TriageSequences] WHERE [Id] = 1"));
+
+        await database.ExecuteAsync(
+            $"""
+            EXECUTE AS USER = N'pegasus_test_web_runtime';
+            BEGIN TRY
+                DELETE FROM [dbo].[ClaimSources] WHERE [Id] = '{claimSourceId:D}';
+                THROW 51000, 'Web runtime unexpectedly deleted a ClaimSource.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            BEGIN TRY
+                INSERT INTO [dbo].[ClaimSources] (
+                    [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
+                VALUES (
+                    '{Guid.NewGuid():D}', N'forbidden', 1, N'test',
+                    '2031-05-06T10:30:00+00:00', 0, '{Guid.NewGuid():D}');
+                THROW 51000, 'Worker runtime unexpectedly inserted a ClaimSource.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            BEGIN TRY
+                UPDATE [dbo].[PublicUploadOccurrences]
+                SET [CustodyState] = [CustodyState]
+                WHERE [Id] = '00000000-0000-0000-0000-000000000000';
+                THROW 51000, 'Worker runtime unexpectedly updated a PublicUploadOccurrence.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+            """);
+    }
+
+    [Fact]
+    public async Task WebRuntimeCanInsertPairedOcrWorkRowsButCannotProcessOcr()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO [dbo].[IntakeReceipts] (
+                [Id], [SourceFileName], [MediaType], [SourceLength], [SourceHash],
+                [SourceChannel], [ExternalReceiptToken], [ReceivedAtUtc], [ProcessedAtUtc],
+                [SourceReaderKey], [SourceReaderVersion], [Version], [Decision],
+                [DecisionReason], [EvidenceJson], [FieldsJson], [OcrCandidatesJson])
+            VALUES (
+                '{receiptId:D}', N'ocr-permission.eml', N'message/rfc822', 1,
+                REPLICATE(N'A', 64), N'manual_upload', N'ocr-permission:{receiptId:N}',
+                '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00',
+                N'runtime-role-test', N'1', 0, N'retained',
+                N'runtime role permission fixture', N'[]', N'{"{}"}', N'[]');
+            INSERT INTO [dbo].[IntakeAssets] (
+                [Id], [IntakeReceiptId], [SourceLabel], [FileName], [MediaType],
+                [Kind], [Disposition], [ContentLength], [ContentHash], [StorageKey])
+            VALUES (
+                '{assetId:D}', '{receiptId:D}', N'attachment', N'evidence.pdf',
+                N'application/pdf', N'attachment', N'retained', 1,
+                REPLICATE(N'B', 64), N'runtime-role/{assetId:N}');
+            """);
+
+        var operationId = Guid.NewGuid();
+        var workId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            CREATE USER [pegasus_test_ocr_web] WITHOUT LOGIN;
+            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_ocr_web];
+            EXECUTE AS USER = N'pegasus_test_ocr_web';
+            BEGIN TRANSACTION;
+            INSERT INTO [dbo].[IntakeOcrOperations] (
+                [Id], [IntakeAssetId], [SourceSha256], [QualifiedPagesJson],
+                [OperationKey], [State], [Version], [ConcurrencyToken])
+            VALUES (
+                '{operationId:D}', '{assetId:D}', REPLICATE(N'B', 64), N'[1]',
+                N'ocr-permission-operation', N'Pending', 0, '{Guid.NewGuid():D}');
+            INSERT INTO [dbo].[ExternalWorkItems] (
+                [Id], [Kind], [OperationKey], [State], [AttemptCount], [DueAtUtc])
+            VALUES (
+                '{workId:D}', N'intake_ocr', N'ocr-permission-operation', N'pending', 0,
+                '2031-05-06T10:32:00+00:00');
+            COMMIT TRANSACTION;
+            BEGIN TRY
+                UPDATE [dbo].[IntakeOcrOperations]
+                SET [State] = N'Completed'
+                WHERE [Id] = '{operationId:D}';
+                THROW 51000, 'Web runtime unexpectedly processed OCR work.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+            """);
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM [dbo].[IntakeOcrOperations] WHERE [Id] = '{operationId:D}' AND [State] = N'Pending'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{workId:D}' AND [State] = N'pending'"));
+    }
+
+    [Fact]
+    public async Task RetainedMailboxReplyTargetsRoundTripThroughRestrictedRuntimeRoles()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns AS column_value
+            INNER JOIN sys.types AS type_value
+                ON type_value.user_type_id = column_value.user_type_id
+            WHERE column_value.object_id = OBJECT_ID(N'[dbo].[RetainedMailboxMessages]')
+              AND column_value.name = N'ReplyToAddressesJson'
+              AND type_value.name = N'nvarchar'
+              AND column_value.max_length = -1
+              AND column_value.is_nullable = 1
+            """));
+
+        var withReplyToId = Guid.NewGuid();
+        var withoutReplyToId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO [dbo].[ApprovedInboxPollStates] (
+                [ApprovedMailboxId], [MailboxAddress], [ScopeFingerprint], [Generation],
+                [ActivatedAtUtc], [StartBoundaryUtc], [DueAtUtc])
+            VALUES (
+                '49f47eb9-c5b0-464f-b8f0-8c90ba061728',
+                N'instructions@collisionengineers.co.uk', REPLICATE(N'C', 64), 1,
+                '2031-05-06T10:00:00+00:00', '2031-05-06T10:00:00+00:00',
+                '2031-05-06T10:00:00+00:00');
+
+            CREATE USER [pegasus_test_reply_web] WITHOUT LOGIN;
+            CREATE USER [pegasus_test_reply_worker] WITHOUT LOGIN;
+            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_reply_web];
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_reply_worker];
+
+            DECLARE @MailboxId uniqueidentifier =
+                (SELECT TOP (1) [ApprovedMailboxId] FROM [dbo].[ApprovedInboxPollStates]);
+            IF @MailboxId IS NULL
+                THROW 51000, 'The retained-mailbox role fixture requires an approved mailbox.', 1;
+
+            EXECUTE AS USER = N'pegasus_test_reply_worker';
+            INSERT INTO [dbo].[RetainedMailboxMessages] (
+                [Id], [MailboxId], [MailboxAddress], [FolderScope], [FolderIdentity],
+                [ImmutableMessageId], [ExternalReceiptToken], [ToAddressesJson],
+                [CcAddressesJson], [ReplyToAddressesJson], [IsRead], [SourceLength],
+                [SourceSha256], [ReceivedAtUtc], [RetainedAtUtc])
+            VALUES
+                ('{withReplyToId:D}', @MailboxId, N'intake@example.test', N'Inbox', N'inbox',
+                 N'reply-target-message', N'reply-target-receipt', N'[]', N'[]',
+                 N'["reply@example.test"]', 0, 1, REPLICATE(N'A', 64),
+                 '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00'),
+                ('{withoutReplyToId:D}', @MailboxId, N'intake@example.test', N'Inbox', N'inbox',
+                 N'no-reply-target-message', N'no-reply-target-receipt', N'[]', N'[]',
+                 NULL, 0, 1, REPLICATE(N'B', 64),
+                 '2031-05-06T10:32:00+00:00', '2031-05-06T10:33:00+00:00');
+            REVERT;
+
+            EXECUTE AS USER = N'pegasus_test_reply_web';
+            IF NOT EXISTS (
+                SELECT 1 FROM [dbo].[RetainedMailboxMessages]
+                WHERE [Id] = '{withReplyToId:D}'
+                  AND [ReplyToAddressesJson] = N'["reply@example.test"]')
+                THROW 51000, 'Web runtime did not read the retained reply targets.', 1;
+            IF NOT EXISTS (
+                SELECT 1 FROM [dbo].[RetainedMailboxMessages]
+                WHERE [Id] = '{withoutReplyToId:D}'
+                  AND [ReplyToAddressesJson] IS NULL)
+                THROW 51000, 'Web runtime did not preserve absent reply metadata as NULL.', 1;
+            REVERT;
+            """);
+    }
+
+    [Fact]
+    public async Task LatestSchemaRetainsOneLabourRateAndRemovesTheObsoletePaintRate()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            migrate: false,
+            useTemplate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'[dbo].[CaseRepairSpecifications]')
+              AND name = N'PaintLabourRate'
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.columns AS column_value
+            INNER JOIN sys.types AS type_value
+                ON type_value.user_type_id = column_value.user_type_id
+            WHERE column_value.object_id = OBJECT_ID(N'[dbo].[CaseRepairSpecifications]')
+              AND column_value.name = N'LabourRate'
+              AND type_value.name = N'decimal'
+              AND column_value.[precision] = 18
+              AND column_value.scale = 2
+              AND column_value.is_nullable = 1
+            """));
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
+    }
+
     [Fact]
     public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
     {
@@ -770,6 +1155,26 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await context.Database.MigrateAsync(PreviousMigration);
 
         Assert.Equal(before, await ReadPermissionSnapshotAsync(database));
+    }
+
+    [Fact]
+    public async Task V1FoundationCanDowngradeAndReapplyItsCurrentSchema()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(useTemplate: false);
+        await using var context = await database.CreateContextAsync();
+        Assert.False(context.Database.HasPendingModelChanges());
+
+        await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN ('ValuationPresets', 'AppliedValuationSnapshots')"));
+
+        await context.Database.MigrateAsync();
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc')"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_ValuationPresets_Label' AND is_unique = 1 AND has_filter = 0"));
     }
 
     [Fact]

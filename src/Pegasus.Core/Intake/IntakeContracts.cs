@@ -7,21 +7,32 @@ namespace Pegasus.Core.Intake;
 public static class IntakeEnvelopeLimits
 {
     /// <summary>
-    /// One file uploaded through the staff form, which arrives inside one
-    /// bounded multipart HTTP request.
+    /// One file uploaded through the staff form or a public request link,
+    /// which arrives inside one bounded multipart HTTP request.
     /// </summary>
-    public const int MaximumContentLength = 10 * 1024 * 1024;
+    /// <remarks>
+    /// Exactly 100 MiB, set by C07 item 5 (residual INTK-052) as the single
+    /// per-file cap the manual and public channels share. This class is the
+    /// one owner of that figure: host, ingress and per-request
+    /// <c>DocumentRequests</c> settings may tighten it and may never raise it.
+    ///
+    /// The Provider API does not follow this cap. Its files arrive inline as
+    /// base64 in one request body, so they are bounded by
+    /// <see cref="MaximumProviderApiFileLength"/> instead.
+    /// </remarks>
+    public const int MaximumContentLength = 100 * 1024 * 1024;
 
     /// <summary>
     /// One received mailbox message, envelope and every attachment together.
     /// </summary>
     /// <remarks>
     /// A received instruction is not an uploaded file. The staff form takes
-    /// one file, so 10 MiB bounds one file; an instruction email carries the
-    /// covering message plus the 2–20+ documents and photographs of the job,
-    /// and applying the one-file figure to the whole envelope refused real
-    /// QDOS instructions outright — a 16.69 MB forward was rejected as
-    /// <c>message_too_large</c> on 2026-08-05 without ever being read.
+    /// one file, so <see cref="MaximumContentLength"/> bounds one file; an
+    /// instruction email carries the covering message plus the 2–20+ documents
+    /// and photographs of the job, and applying the one-file figure to the
+    /// whole envelope refused real QDOS instructions outright — a 16.69 MB
+    /// forward was rejected as <c>message_too_large</c> on 2026-08-05, against
+    /// the 10 MiB one-file bound then in force, without ever being read.
     ///
     /// This bound is deliberately permissive rather than a capacity claim.
     /// Exchange Online will not carry a message anywhere near it, the reader
@@ -38,6 +49,10 @@ public static class IntakeEnvelopeLimits
     /// group. Mirrors the 2–20+ documents a real QDOS instruction envelope
     /// carries (see <see cref="MaximumMailboxContentLength"/>), so a staff
     /// member reproducing that job manually is not capped below it.
+    ///
+    /// C07 item 5 (residual INTK-052) retained 20 unchanged while the per-file
+    /// cap rose, so the file count and the byte budget are now independent
+    /// facts rather than two halves of one multiplication.
     /// </summary>
     public const int MaximumBatchFileCount = 20;
 
@@ -45,14 +60,26 @@ public static class IntakeEnvelopeLimits
     /// One Provider API submission, decoded: every attached file together.
     ///
     /// It is not the mailbox bound, because the whole envelope arrives inline
-    /// as base64 in one request body and is held in memory to be decoded — and
-    /// the Web container runs in 2 GiB shared with the report renderer. It is
-    /// not the single-file bound either, because a real instruction carries the
-    /// documents and photographs of a job: the mailbox note above records a
-    /// genuine 16.69 MB QDOS instruction, so this is set comfortably above that
-    /// and well inside the container's headroom.
+    /// as base64 in one request body and is held in memory to be decoded. It
+    /// is not the manual per-file bound either, because a real instruction
+    /// carries the documents and photographs of a job: the mailbox note above
+    /// records a genuine 16.69 MB QDOS instruction, so this is set comfortably
+    /// above that. C07 item 5 (residual INTK-052) left it unchanged.
     /// </summary>
     public const int MaximumProviderApiEnvelopeLength = 30 * 1024 * 1024;
+
+    /// <summary>
+    /// One file inside a Provider API submission.
+    /// </summary>
+    /// <remarks>
+    /// The channel's decoded envelope is the effective ceiling for one file as
+    /// well as for the batch, so the per-file bound is the envelope itself. It
+    /// is stated separately, and used separately, so that the Provider API can
+    /// never inherit the manual channel's larger
+    /// <see cref="MaximumContentLength"/> the next time that cap moves
+    /// (C07 item 5, residual INTK-052).
+    /// </remarks>
+    public const int MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength;
 
     /// <summary>
     /// The request body that carries it. Base64 costs a third again, plus the
@@ -61,18 +88,35 @@ public static class IntakeEnvelopeLimits
     public const int MaximumProviderApiRequestLength = 42 * 1024 * 1024;
 
     /// <summary>
-    /// The multipart request body budget for one Upload submission: every
-    /// file in the batch at its individual cap, plus the same fixed
-    /// boundary/field overhead the single-file form always allowed.
+    /// The multipart request body budget for one whole Upload submission.
     /// </summary>
-    public const long MaximumBatchContentLength =
-        (MaximumBatchFileCount * (long)MaximumContentLength) + MultipartOverhead;
+    /// <remarks>
+    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB plus the
+    /// fixed multipart overhead, and deliberately not derived from
+    /// <see cref="MaximumBatchFileCount"/> times
+    /// <see cref="MaximumContentLength"/>: raising the per-file cap while
+    /// deriving this figure would hand one request a body budget far past what
+    /// the Web instance can hold. Every file may be at its individual cap; the
+    /// batch as a whole may not, and is refused by this budget first.
+    /// </remarks>
+    public const long MaximumBatchContentLength = (200L * 1024 * 1024) + MultipartOverhead;
 
     /// <summary>
     /// Fixed slack for multipart boundaries and non-file form fields,
     /// independent of how many files are in the batch.
     /// </summary>
     public const long MultipartOverhead = 64 * 1024;
+
+    /// <summary>
+    /// The aggregate file byte budget for one whole public Upload submission,
+    /// excluding multipart boundaries and non-file form fields.
+    /// </summary>
+    /// <remarks>
+    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Public
+    /// aggregate byte limit excludes multipart overhead, which belongs only
+    /// to HTTP request framing.
+    /// </remarks>
+    public const long MaximumPublicAggregateContentLength = 200L * 1024 * 1024;
 }
 
 /// <summary>
@@ -250,10 +294,133 @@ public sealed record IntakeSource(
     string Actor,
     IntakeSourceIdentity SourceIdentity);
 
+/// <summary>
+/// What kind of place in a source a locator names. One enumeration, because a
+/// candidate is read from exactly one kind of place: a whole document, a page,
+/// a table cell, a PDF form field, a bounded text region, or a part of an
+/// e-mail message.
+/// </summary>
+public enum IntakeLocatorKind
+{
+    Document,
+    Page,
+    TableCell,
+    FormField,
+    Region,
+    MessagePart
+}
+
+/// <summary>
+/// Which part of a transported message a fragment came from. An outer
+/// transport envelope, the message a sender actually wrote, the history quoted
+/// beneath it and an attachment are four different pieces of evidence about
+/// four possibly different senders, and collapsing them is how a forwarding
+/// desk comes to be recorded as the instructing party.
+/// </summary>
+public enum IntakeMessagePart
+{
+    None,
+    OuterTransport,
+    CurrentBody,
+    QuotedHistory,
+    Attachment
+}
+
+/// <summary>
+/// The smallest useful statement of WHERE in a source something was read.
+///
+/// One locator serves every shape the intake pipeline actually meets — page,
+/// table cell, PDF form field, bounded text region and message part — because a
+/// second document model is exactly what the stream is forbidden to grow. The
+/// fields a given kind does not use stay null; nothing infers a page from a
+/// cell or a cell from a label.
+/// </summary>
+/// <param name="Table">
+/// The table's own identity within its source (its ordinal, as the reader met
+/// it). Paired with <paramref name="Row"/> and <paramref name="Column"/> it
+/// makes <see cref="Cell"/>, the frozen projection's cell string.
+/// </param>
+/// <param name="Region">
+/// A bounded region of the source text or page, written as the reader chose to
+/// bound it. Never a global positional line number: a region is meaningful only
+/// against the source it names.
+/// </param>
+/// <param name="Occurrence">
+/// Which repetition of the same evidence this is within its source, counted
+/// from zero. Identical bytes are evidence twice when a document says a thing
+/// twice.
+/// </param>
+public sealed record IntakeSourceLocator(
+    IntakeLocatorKind Kind,
+    int? Page = null,
+    int? Table = null,
+    int? Row = null,
+    int? Column = null,
+    string? FormField = null,
+    string? Region = null,
+    IntakeMessagePart MessagePart = IntakeMessagePart.None,
+    int Occurrence = 0,
+    string? Sha256 = null,
+    string? DocumentRole = null)
+{
+    /// <summary>
+    /// The cell string the frozen <see cref="SourceFieldCandidate"/> projection
+    /// carries, or null when this locator does not name a cell. Written in one
+    /// place so a store and a page cannot spell it differently.
+    /// </summary>
+    public string? Cell => Table is null || Row is null || Column is null
+        ? null
+        : $"T{Table}R{Row}C{Column}";
+
+    public static IntakeSourceLocator ForPage(int page, int occurrence = 0) =>
+        new(IntakeLocatorKind.Page, Page: page, Occurrence: occurrence);
+
+    public static IntakeSourceLocator ForCell(
+        int table,
+        int row,
+        int column,
+        int? page = null,
+        int occurrence = 0) =>
+        new(
+            IntakeLocatorKind.TableCell,
+            Page: page,
+            Table: table,
+            Row: row,
+            Column: column,
+            Occurrence: occurrence);
+
+    public static IntakeSourceLocator ForFormField(
+        string formField,
+        int? page = null,
+        string? region = null,
+        int occurrence = 0) =>
+        new(
+            IntakeLocatorKind.FormField,
+            Page: page,
+            FormField: formField,
+            Region: region,
+            Occurrence: occurrence);
+
+    public static IntakeSourceLocator ForMessagePart(
+        IntakeMessagePart messagePart,
+        string? region = null,
+        int occurrence = 0) =>
+        new(
+            IntakeLocatorKind.MessagePart,
+            Region: region,
+            MessagePart: messagePart,
+            Occurrence: occurrence);
+}
+
+/// <param name="Locator">
+/// Where in the source the fragment was read. Null when the reader could offer
+/// nothing better than the whole source, which is honest rather than guessed.
+/// </param>
 public sealed record IntakeContentFragment(
     IntakeEvidenceSource Source,
     string SourceLabel,
-    string Text);
+    string Text,
+    IntakeSourceLocator? Locator = null);
 
 public enum IntakeSenderIdentityKind
 {
@@ -364,10 +531,27 @@ public sealed record IntakeEvidence(
     string? MatcherKey = null,
     int? MatcherVersion = null);
 
+/// <param name="Value">
+/// The value as the extraction engine bounded it — trimmed, with runs of
+/// whitespace collapsed. It is not a normalized value: no field is
+/// canonicalized here.
+/// </param>
+/// <param name="RawValue">
+/// The source text exactly as it was printed, before the engine trimmed or
+/// collapsed anything. Null when it is identical to <paramref name="Value"/>.
+/// Normalization never destroys the source value, so the raw form is what an
+/// operator reviewing a conflict is shown.
+/// </param>
 public sealed record InstructionFieldCandidate(
     string Value,
     IntakeEvidenceSource Source,
-    string SourceLabel);
+    string SourceLabel,
+    IntakeSourceLocator? Locator = null,
+    string? RawValue = null)
+{
+    /// <summary>The printed value: the raw text when one was kept, else the bounded value.</summary>
+    public string SourceValue => RawValue ?? Value;
+}
 
 public sealed record InstructionReviewField(
     string Name,
@@ -740,6 +924,27 @@ public interface IIntakeReceiptQueries
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One keyset page of received items, newest first: strictly after
+    /// <paramref name="after"/> in (ReceivedAtUtc DESC, Id DESC) order, or from
+    /// the newest row when it is null.
+    ///
+    /// Offset paging cannot be made stable for a caller that pages over time. A
+    /// receipt arriving while a connector reads page after page shifts every
+    /// later row by one, so a row is silently skipped; a receipt resolved out of
+    /// the filter shifts them back and a row is delivered twice. The sort key
+    /// plus the id names an exact row instead of a position in a list that
+    /// moves. <see cref="ListAsync"/> stays the right shape for a staff screen,
+    /// which wants a total and a page number.
+    /// </summary>
+    Task<KeysetPage<IntakeReceiptSummary>> ListByCursorAsync(
+        IntakeDecision? decision,
+        KeysetPosition? after,
+        int limit,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "This intake receipt query does not support keyset continuation.");
+
     Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     Task<IntakeAssetRecord?> GetAssetAsync(
@@ -911,6 +1116,20 @@ public sealed class IntakeDependencyUnavailableException(string message, Excepti
 
 public sealed class IntakeAssociationConflictException(string message) : Exception(message);
 
+/// <summary>
+/// API-01 is create-only: a declared provider instruction whose identity facts
+/// match existing Case work is refused rather than allocated or associated. The
+/// envelope is still durably received — the refusal happens in processing, so
+/// the submission terminates under this one code and no Case, PO, association
+/// or Case mutation is produced. Updating an existing Case through the API
+/// awaits a separate authorised contract (FRD-09, operator decision 2026-09-02).
+/// </summary>
+public sealed class ProviderExistingCaseMatchException()
+    : Exception("The provider submission matches existing Case work; API-01 cannot update it.")
+{
+    public const string FailureCode = "provider_existing_case_match";
+}
+
 public interface IResolveIntake
 {
     Task<IntakeReceipt> ExecuteAsync(
@@ -944,4 +1163,18 @@ public interface IReverseIntakeLink
     Task ExecuteAsync(
         ReverseIntakeLinkRequest request,
         CancellationToken cancellationToken = default);
+}
+
+public enum SourceCandidateDisposition { Usable, Missing, Ambiguous, Conflicting }
+public sealed record SourceFieldCandidate(
+    Guid Id, Guid ReceiptId, Guid? DocumentId, Guid? DocumentVersionId, Guid? IntakeAssetId, string Sha256,
+    int Occurrence, string DocumentRole, string PartyRole, string ReferenceRole,
+    string Field, string? RawValue, string? NormalizedValue, string? Unit, string? Currency,
+    string SourceLabel, int? Page, string? Cell, string? FormField, string? Region,
+    string ReaderVersion, string PolicyVersion, SourceCandidateDisposition Disposition);
+public interface ISourceCandidateQueries
+{
+    Task<IReadOnlyList<SourceFieldCandidate>> GetAsync(
+        ActionActor actor, Guid receiptId, Guid? documentVersionId, Guid? intakeAssetId,
+        CancellationToken cancellationToken);
 }

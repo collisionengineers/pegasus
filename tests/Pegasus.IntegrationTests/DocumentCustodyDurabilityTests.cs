@@ -1,3 +1,4 @@
+using Pegasus.Core.Custody;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
@@ -281,25 +283,29 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     [Fact]
-    public async Task FailedRequestUploadSaveRemovesUnreferencedContentBeforeSafeRetry()
+    public async Task FailedRequestUploadReceiptSaveRetriesThroughTheSameDurableCustodyIntent()
     {
         var root = Path.Combine(
             Path.GetTempPath(),
             "Pegasus.IntegrationTests",
             Guid.NewGuid().ToString("N"));
         var interceptor = new FailNextDocumentSaveInterceptor();
+        var contentStore = new ManagedOnlyDocumentContentStore(
+            new LocalDocumentContentStore(Path.Combine(root, "custody")));
         try
         {
             await using var database = await LocalDbTestDatabase.CreateAsync(
                 configureDatabase: options => options.AddInterceptors(interceptor),
-                localArtifactRootFactory: _ => root);
+                localArtifactRootFactory: _ => root,
+                configureServices: services =>
+                    services.AddSingleton<IDocumentContentStore>(contentStore));
             var caseId = await SeedCaseAsync(database);
             var token = RequestUploadToken.Create();
             var requestId = Guid.NewGuid();
             var limits = new RequestUploadLimits(
                 "durability-v1",
                 TimeSpan.FromHours(1),
-                2,
+                1,
                 1024,
                 2048,
                 ["text/plain"],
@@ -323,18 +329,6 @@ public sealed class DocumentCustodyDurabilityTests
                 await context.SaveChangesAsync();
             }
 
-            await using var scope = database.CreateAsyncScope();
-            var contextFactory = scope.ServiceProvider
-                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
-            var contentStore = new ManagedOnlyDocumentContentStore(
-                new LocalDocumentContentStore(Path.Combine(root, "custody")));
-            IUploadToRequest upload = new EfDocumentRequestStore(
-                contextFactory,
-                contentStore,
-                new RequestUploadPolicy(limits, timeProvider),
-                limits,
-                timeProvider);
             var command = new UploadToRequestCommand(
                 token.Secret.Token,
                 new(
@@ -345,8 +339,12 @@ public sealed class DocumentCustodyDurabilityTests
                 AttemptsInCurrentRateWindow: 1);
             interceptor.FailNextRequestUploadSave();
 
-            await Assert.ThrowsAsync<DbUpdateException>(() =>
-                upload.ExecuteAsync(command, CancellationToken.None));
+            await using (var firstScope = database.CreateAsyncScope())
+            {
+                var upload = CreateUpload(firstScope.ServiceProvider);
+                await Assert.ThrowsAsync<DbUpdateException>(() =>
+                    upload.ExecuteAsync(command, CancellationToken.None));
+            }
 
             var managedDirectory = Path.Combine(
                 root,
@@ -354,57 +352,166 @@ public sealed class DocumentCustodyDurabilityTests
                 "cases",
                 "QDOS001",
                 "managed");
-            Assert.Empty(Directory.EnumerateFiles(
+            Assert.Single(Directory.EnumerateFiles(
                 managedDirectory,
                 "content",
                 SearchOption.AllDirectories));
+            Assert.Single(contentStore.Addresses);
+            Guid retainedDocumentId;
+            Guid retainedVersionId;
+            Guid retainedOccurrenceId;
+            int retainedOrdinal;
             await using (var context = await database.CreateContextAsync())
             {
                 Assert.Empty(await context.Set<RequestUploadReceiptEntity>().ToArrayAsync());
+                var retained = await context.Set<DocumentVersionEntity>().SingleAsync();
+                var retainedDocument = await context.Set<CaseDocumentEntity>().SingleAsync();
+                retainedDocumentId = retained.DocumentId;
+                retainedVersionId = retained.Id;
+                retainedOrdinal = retainedDocument.Ordinal;
+                Assert.Equal(retainedDocumentId, retainedDocument.Id);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, retained.CustodyStatus);
+                var retainedOccurrence = await context.Set<DocumentOccurrenceEntity>().SingleAsync();
+                retainedOccurrenceId = retainedOccurrence.Id;
+                Assert.Equal(DocumentSemanticRole.OriginalSource, retainedOccurrence.SemanticRole);
                 Assert.Equal(
-                    1,
+                    EfPublicUploadRetentionStore.ScopeOperationKey(
+                        requestId,
+                        command.File.OperationKey),
+                    (await context.Set<PublicUploadOccurrenceEntity>().SingleAsync()).OperationKey);
+                Assert.Equal(
+                    2,
                     await context.Set<RequestUploadLinkEntity>()
                         .Where(value => value.Id == requestId)
                         .Select(value => value.Version)
                         .SingleAsync());
                 Assert.Equal(
-                    0,
+                    RequestUploadStatus.Active,
+                    await context.Set<RequestUploadLinkEntity>()
+                        .Where(value => value.Id == requestId)
+                        .Select(value => value.Status)
+                        .SingleAsync());
+                var reservedTotals = await context.Set<RequestUploadLinkEntity>()
+                    .Where(value => value.Id == requestId)
+                    .Select(value => new { value.AcceptedFileCount, value.AcceptedByteCount })
+                    .SingleAsync();
+                Assert.Equal(1, reservedTotals.AcceptedFileCount);
+                Assert.Equal((long)command.File.Content.Length, reservedTotals.AcceptedByteCount);
+                Assert.Equal(
+                    1,
                     await context.CaseWorkflows
                         .Where(value => value.CaseId == caseId)
                         .Select(value => value.Version)
                         .SingleAsync());
             }
 
-            var result = await upload.ExecuteAsync(command, CancellationToken.None);
+            UploadToRequestResult result;
+            await using (var restartedScope = database.CreateAsyncScope())
+            {
+                result = await CreateUpload(restartedScope.ServiceProvider)
+                    .ExecuteAsync(command, CancellationToken.None);
+            }
 
             Assert.Equal(RequestUploadDecision.Accepted, result.Decision);
-            Assert.Equal(2, contentStore.Addresses.Count);
+            Assert.False(result.IsReplay);
+            Assert.Single(contentStore.Addresses);
             Assert.All(contentStore.Addresses, address =>
             {
                 Assert.Equal(caseId, address.CaseId);
                 Assert.Equal("QDOS001", address.CaseReference);
                 Assert.Equal("case-root-id", address.CaseRootRemoteId);
-                Assert.Equal(2, address.OccurrenceOrdinal);
-                Assert.Equal(DocumentSemanticRole.Other, address.SemanticRole);
+                Assert.Equal(retainedOccurrenceId, address.OccurrenceId);
+                Assert.Equal(retainedOrdinal, address.OccurrenceOrdinal);
+                Assert.Equal(retainedDocumentId, address.DocumentId);
+                Assert.Equal(retainedVersionId, address.VersionId);
+                Assert.Equal(1, address.Version);
+                Assert.Equal(DocumentSemanticRole.OriginalSource, address.SemanticRole);
                 Assert.Equal("evidence.txt", address.FileName);
                 Assert.Equal("text/plain", address.MediaType);
             });
-            Assert.Single(Directory.EnumerateFiles(
+            var retainedFile = Assert.Single(Directory.EnumerateFiles(
                 managedDirectory,
                 "content",
                 SearchOption.AllDirectories));
+            Assert.Equal(command.File.Content.ToArray(), await File.ReadAllBytesAsync(retainedFile));
             await using (var context = await database.CreateContextAsync())
             {
                 var document = await context.Set<CaseDocumentEntity>().SingleAsync();
+                var version = await context.Set<DocumentVersionEntity>().SingleAsync();
                 var occurrence = await context.Set<DocumentOccurrenceEntity>().SingleAsync();
-                Assert.Equal(2, document.Ordinal);
+                Assert.Single(await context.Set<PublicUploadOccurrenceEntity>().ToArrayAsync());
+                var receipt = await context.Set<RequestUploadReceiptEntity>().SingleAsync();
+                Assert.Equal(result.ReceiptId, receipt.Id);
+                Assert.Equal(retainedDocumentId, document.Id);
+                Assert.Equal(retainedVersionId, version.Id);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+                Assert.Equal(command.File.FileName, version.FileName);
+                Assert.Equal(command.File.MediaType, version.MediaType);
+                Assert.Equal(command.File.Content.Length, version.ContentLength);
+                Assert.Equal(retainedVersionId, occurrence.VersionId);
+                Assert.Equal(retainedOccurrenceId, occurrence.Id);
+                Assert.Equal(DocumentSemanticRole.OriginalSource, occurrence.SemanticRole);
+                Assert.Equal(retainedVersionId, receipt.VersionId);
+                Assert.Equal(command.File.OperationKey, receipt.OperationKey);
+                Assert.Equal(retainedOrdinal, document.Ordinal);
                 Assert.Equal(document.Ordinal, occurrence.Ordinal);
                 Assert.Equal(
-                    1,
+                    3,
+                    await context.Set<RequestUploadLinkEntity>()
+                        .Where(value => value.Id == requestId)
+                        .Select(value => value.Version)
+                        .SingleAsync());
+                Assert.Equal(
+                    RequestUploadStatus.Exhausted,
+                    await context.Set<RequestUploadLinkEntity>()
+                        .Where(value => value.Id == requestId)
+                        .Select(value => value.Status)
+                        .SingleAsync());
+                Assert.Equal(
+                    2,
                     await context.CaseWorkflows
                         .Where(value => value.CaseId == caseId)
                         .Select(value => value.Version)
                         .SingleAsync());
+            }
+
+            UploadToRequestResult replay;
+            await using (var replayScope = database.CreateAsyncScope())
+            {
+                replay = await CreateUpload(replayScope.ServiceProvider)
+                    .ExecuteAsync(command, CancellationToken.None);
+            }
+
+            Assert.Equal(RequestUploadDecision.Replay, replay.Decision);
+            Assert.True(replay.IsReplay);
+            Assert.Equal(result.ReceiptId, replay.ReceiptId);
+            Assert.Single(contentStore.Addresses);
+            await using (var replayContext = await database.CreateContextAsync())
+            {
+                Assert.Single(await replayContext.Set<CaseDocumentEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<DocumentVersionEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<PublicUploadOccurrenceEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<RequestUploadReceiptEntity>().ToArrayAsync());
+            }
+
+            IUploadToRequest CreateUpload(IServiceProvider services)
+            {
+                var contextFactory = services
+                    .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+                var timeProvider = services.GetRequiredService<TimeProvider>();
+                var custody = services.GetRequiredService<ICaseArtifactCustody>();
+                var custodyStatus = services.GetRequiredService<ICaseArtifactCustodyStatus>();
+                Assert.Same(custody, custodyStatus);
+                return new EfDocumentRequestStore(
+                    contextFactory,
+                    new RequestUploadPolicy(limits, timeProvider),
+                    limits,
+                    timeProvider,
+                    new RetainIncomingArtifact(
+                        custody,
+                        new EfPublicUploadRetentionStore(contextFactory),
+                        custodyStatus));
             }
         }
         finally
@@ -419,33 +526,11 @@ public sealed class DocumentCustodyDurabilityTests
     private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();
-        var organizationId = Guid.NewGuid();
-        var sequenceLineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
+        var seeded = await SeededPrincipals.QdosAsync(context);
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         var occurredAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         context.AddRange(
-            new OrganizationEntity
-            {
-                Id = organizationId,
-                Name = "Durability test organization",
-                Version = 0
-            },
-            new PrincipalSequenceLineageEntity
-            {
-                Id = sequenceLineageId,
-                CreatedAtUtc = occurredAtUtc
-            },
-            new PrincipalEntity
-            {
-                Id = principalId,
-                OrganizationId = organizationId,
-                Code = "QDOS",
-                SequenceLineageId = sequenceLineageId,
-                IsActive = true,
-                Version = 0
-            },
             new IntakeReceiptEntity
             {
                 Id = receiptId,
@@ -469,8 +554,8 @@ public sealed class DocumentCustodyDurabilityTests
             new CaseEntity
             {
                 Id = caseId,
-                PrincipalId = principalId,
-                SequenceLineageId = sequenceLineageId,
+                PrincipalId = seeded.Id,
+                SequenceLineageId = seeded.SequenceLineageId,
                 Year = 2031,
                 Sequence = 1,
                 Reference = "QDOS001",

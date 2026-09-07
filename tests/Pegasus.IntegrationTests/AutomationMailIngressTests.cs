@@ -388,6 +388,7 @@ public sealed class AutomationMailIngressTests
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],
                         [],
+                        [],
                         $"Message {index} from {MailboxId}",
                         "Please inspect the vehicle at the address supplied.",
                         [new("estimate.pdf", "application/pdf", 2048)],

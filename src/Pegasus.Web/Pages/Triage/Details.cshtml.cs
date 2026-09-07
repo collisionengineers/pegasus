@@ -1,11 +1,13 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Triage;
 
@@ -28,7 +30,12 @@ public sealed class DetailsModel(
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
     IGetIntake getIntake,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
+    ICaseEngineerChoices engineerChoices,
+    IAddTriageNote addNote,
+    GetRetainedMail? getRetainedMail = null,
+    IStaffMailSend? staffMailSend = null,
+    IApprovedMailboxStore? approvedMailboxes = null) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -41,11 +48,32 @@ public sealed class DetailsModel(
     private readonly IDescribeCaseEditAuthorityHolder _describeEditAuthorityHolder =
         describeEditAuthorityHolder
             ?? throw new ArgumentNullException(nameof(describeEditAuthorityHolder));
+    private readonly GetRetainedMail? _getRetainedMail = getRetainedMail;
+    private readonly IStaffMailSend? _staffMailSend = staffMailSend;
+    private readonly IApprovedMailboxStore? _approvedMailboxes = approvedMailboxes;
 
 
     public TriageDetail Triage { get; private set; } = null!;
 
     public IReadOnlyList<TriageFinding> ActiveFindings { get; private set; } = [];
+
+    public RetainedMailDetail? RetainedMail { get; private set; }
+
+    public StaffMailOperation? ChaserOperation { get; private set; }
+
+    public bool ChaserOperationBlocked { get; private set; }
+
+    public ApprovedMailbox? ChaserMailbox { get; private set; }
+
+    public string ChaserOperationKey { get; private set; } = string.Empty;
+
+    public string? ChaserTo { get; private set; }
+
+    public string? ChaserCc { get; private set; }
+
+    public string? ChaserSubject { get; private set; }
+
+    public string? ChaserBody { get; private set; }
 
     /// <summary>
     /// The photographs the provider attached to the Triage request. A Triage
@@ -65,6 +93,13 @@ public sealed class DetailsModel(
 
     public string? Message { get; private set; }
 
+    /// <summary>
+    /// The engineers this Triage may be assigned to — the enabled accounts
+    /// holding the Engineer role, and nobody else.
+    /// </summary>
+    public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
+
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out _, out var actor))
@@ -76,6 +111,8 @@ public sealed class DetailsModel(
         {
             return NotFound();
         }
+
+        EngineerChoices = await engineerChoices.GetAsync(actor, cancellationToken);
 
         Message = TempData["TriageStatus"] as string;
         if (TempData["TriageUnavailableCase"] is string unavailableCase)
@@ -106,13 +143,14 @@ public sealed class DetailsModel(
         string? responseCandidate,
         Guid? sentEvidenceId,
         Guid? caseId,
+        Guid? assigneeId,
+        string? note,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var staffId, out var actionActor))
         {
             return Forbid();
         }
-        var actor = actionActor.SubjectId;
 
         OperationKey = operationKey;
         try
@@ -120,20 +158,34 @@ public sealed class DetailsModel(
             var mutation = new TriageMutationRequest(
                 id,
                 expectedVersion,
-                actor,
+                actionActor,
                 operationKey,
                 reason);
             switch (actionName)
             {
                 case "assign":
+                    // The engineer is chosen explicitly. Defaulting to the
+                    // signed-in staff member is what "Assign to me" did, and
+                    // it made the roster invisible.
+                    if (assigneeId is not { } chosenEngineer || chosenEngineer == Guid.Empty)
+                    {
+                        ModelState.AddModelError("assigneeId", "Choose the engineer to assign.");
+                        return await OnGetAsync(id, cancellationToken);
+                    }
+
                     await assign.ExecuteAsync(
                         new(
                             id,
                             expectedVersion,
-                            staffId,
-                            actor,
+                            chosenEngineer,
+                            actionActor,
                             operationKey,
                             reason),
+                        cancellationToken);
+                    break;
+                case "note":
+                    await addNote.ExecuteAsync(
+                        new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty),
                         cancellationToken);
                     break;
                 case "unassign":
@@ -147,7 +199,7 @@ public sealed class DetailsModel(
                         new(
                             id,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason,
                             roadworthiness,
@@ -160,7 +212,7 @@ public sealed class DetailsModel(
                         new(
                             id,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason,
                             roadworthiness,
@@ -177,7 +229,7 @@ public sealed class DetailsModel(
                             candidate.PollOutcomeId,
                             candidate.SentEvidenceId,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
@@ -189,7 +241,7 @@ public sealed class DetailsModel(
                             id,
                             sentEvidenceId ?? Guid.Empty,
                             expectedVersion,
-                            actor,
+                            actionActor,
                             operationKey,
                             reason),
                         cancellationToken);
@@ -333,6 +385,37 @@ public sealed class DetailsModel(
                     actor,
                     cancellationToken);
                 CaseAssociationUnavailableCaseId = linkedCaseId;
+            }
+        }
+
+        if (triage.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
+            && _getRetainedMail is not null
+            && _staffMailSend is not null
+            && _approvedMailboxes is not null)
+        {
+            RetainedMail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
+                actor,
+                triage.Record.Origin.ReceiptId,
+                cancellationToken);
+            if (RetainedMail is not null)
+            {
+                ChaserOperation = await _staffMailSend.GetLatestForOriginalAsync(
+                    actor,
+                    RetainedMail.Summary.Id,
+                    cancellationToken);
+                ChaserOperationBlocked = IsActiveOperation(ChaserOperation);
+                ChaserOperationKey = NewRetainedOperationKey(RetainedMail.Summary.Id);
+
+                var mailboxes = await _approvedMailboxes.ListAsync(cancellationToken);
+                ChaserMailbox = mailboxes.SingleOrDefault(item =>
+                    item.Id == RetainedMail.Summary.MailboxId
+                    && item.State == ApprovedMailboxState.Approved
+                    && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+                    && item.Generation > 0);
+
+                var replyRecipients = ReplyRecipients(RetainedMail);
+                ChaserTo = string.Join("; ", replyRecipients.Select(r => r.Address));
+                ChaserSubject = SubjectFor(StaffMailComposeMode.Reply, RetainedMail.Summary.Subject);
             }
         }
 
@@ -516,6 +599,317 @@ public sealed class DetailsModel(
             "The case changed while this was being prepared. Reload the record and try again.",
         _ => "The Triage action was not applied. Reload the record and try again."
     };
+
+    public async Task<IActionResult> OnPostSendChaserAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? to,
+        string? cc,
+        string? subject,
+        string? body,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out _, out var actionActor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            StaffAuthorization.Require(actionActor, StaffAccessRight.PerformCasework);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        if (_getRetainedMail is null || _staffMailSend is null || _approvedMailboxes is null)
+        {
+            return NotFound();
+        }
+
+        var triage = await _getTriage.ExecuteAsync(new(id, actionActor), cancellationToken);
+        if (triage is null)
+        {
+            return NotFound();
+        }
+
+        if (triage.Record.Origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        {
+            ModelState.AddModelError(string.Empty, "A chaser reply can only be sent for mailbox intake.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        if (triage.Record.Version != expectedVersion)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The triage record changed while this was being prepared. Reload the record and try again.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        var detail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
+            actionActor,
+            triage.Record.Origin.ReceiptId,
+            cancellationToken);
+        if (detail is null)
+        {
+            ModelState.AddModelError(string.Empty, "Originating retained message was not found.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        var mailboxes = await _approvedMailboxes.ListAsync(cancellationToken);
+        var mailbox = mailboxes.SingleOrDefault(item =>
+            item.Id == detail.Summary.MailboxId
+            && item.State == ApprovedMailboxState.Approved
+            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+            && item.Generation > 0);
+        if (mailbox is null)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "No approved mailbox with staff send capability is available for this origin.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        if (!IsRetainedOperationKey(operationKey, detail.Summary.Id))
+        {
+            ModelState.AddModelError(
+                nameof(operationKey),
+                "The send operation key is invalid or has expired.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        var toRecipients = ParseRecipients(to);
+        if (toRecipients.Length == 0)
+        {
+            toRecipients = ReplyRecipients(detail);
+        }
+        var ccRecipients = ParseRecipients(cc);
+
+        if (toRecipients.Length == 0)
+        {
+            ModelState.AddModelError(nameof(to), "At least one recipient is required.");
+        }
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            ModelState.AddModelError(nameof(subject), "A subject is required.");
+        }
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            ModelState.AddModelError(nameof(body), "A message is required.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        var original = new StaffMailOriginalMessage(
+            detail.Summary.Id,
+            detail.Summary.MailboxId,
+            detail.ImmutableMessageId,
+            detail.InternetMessageId,
+            detail.ConversationId);
+
+        var command = new StaffMailSendCommand(
+            Actor: actionActor,
+            ApprovedMailboxId: mailbox.Id,
+            ExpectedMailboxGeneration: mailbox.Generation,
+            Purpose: StaffMailPurpose.TriageChaser,
+            ContextId: triage.Record.Id,
+            ExpectedContextVersion: triage.Record.Version,
+            ComposeMode: StaffMailComposeMode.Reply,
+            OriginalMessage: original,
+            To: toRecipients,
+            Cc: ccRecipients,
+            Subject: subject!.Trim(),
+            Body: body!.Trim(),
+            Attachments: [],
+            OperationKey: operationKey.Trim());
+
+        try
+        {
+            var operation = await _staffMailSend.SendAsync(command, cancellationToken);
+            ChaserOperation = operation;
+            if (operation.State == StaffMailState.Sent)
+            {
+                TempData["TriageStatus"] = "Triage chaser sent.";
+            }
+            else
+            {
+                TempData["TriageStatus"] = $"Triage chaser status: {OperatorLabels.StaffMail.State(operation.State)}.";
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+        catch (InvalidOperationException)
+        {
+            var currentOperation = await _staffMailSend.GetLatestForOriginalAsync(
+                actionActor,
+                detail.Summary.Id,
+                cancellationToken);
+            if (!IsActiveOperation(currentOperation))
+            {
+                throw;
+            }
+            ModelState.AddModelError(
+                string.Empty,
+                "The existing correspondence operation must finish or be resolved before another action.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostReconcileChaserAsync(
+        Guid id,
+        Guid operationId,
+        long expectedOperationVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out _, out var actionActor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            StaffAuthorization.Require(actionActor, StaffAccessRight.PerformCasework);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        if (_staffMailSend is null || _getRetainedMail is null)
+        {
+            return NotFound();
+        }
+
+        var triage = await _getTriage.ExecuteAsync(new(id, actionActor), cancellationToken);
+        if (triage is null)
+        {
+            return NotFound();
+        }
+
+        if (triage.Record.Origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        {
+            return NotFound();
+        }
+
+        var detail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
+            actionActor,
+            triage.Record.Origin.ReceiptId,
+            cancellationToken);
+        if (detail is null)
+        {
+            return NotFound();
+        }
+
+        var operation = await _staffMailSend.GetAsync(
+            actionActor,
+            operationId,
+            cancellationToken);
+        if (operation is null)
+        {
+            return NotFound();
+        }
+
+        if (operation.Purpose != StaffMailPurpose.TriageChaser
+            || operation.ContextId != triage.Record.Id
+            || operation.OriginalRetainedMessageId is null
+            || operation.OriginalRetainedMessageId != detail.Summary.Id)
+        {
+            return NotFound();
+        }
+
+        if (operation.ExpectedContextVersion != triage.Record.Version)
+        {
+            Message = "The triage workflow was updated concurrently. Refresh and review the latest state.";
+            ModelState.AddModelError(
+                string.Empty,
+                "The triage workflow was updated concurrently. Refresh and review the latest state.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
+        }
+
+        try
+        {
+            await _staffMailSend.ReconcileAsync(
+                actionActor,
+                operationId,
+                expectedOperationVersion,
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    private static string NewRetainedOperationKey(Guid retainedMessageId) =>
+        $"retained:{retainedMessageId:N}:{Guid.NewGuid():N}";
+
+    private static bool IsRetainedOperationKey(string? value, Guid retainedMessageId)
+    {
+        var prefix = $"retained:{retainedMessageId:N}:";
+        return value is not null
+            && value.StartsWith(prefix, StringComparison.Ordinal)
+            && Guid.TryParseExact(value[prefix.Length..], "N", out _);
+    }
+
+    private static bool IsActiveOperation(StaffMailOperation? operation) =>
+        operation is not null
+            && operation.State is not StaffMailState.Sent
+                and not StaffMailState.Failed
+                and not StaffMailState.Cancelled;
+
+    private static StaffMailRecipient[] ReplyRecipients(RetainedMailDetail detail) =>
+        ParseRecipients(detail.ReplyToAddresses);
+
+    private static StaffMailRecipient[] ParseRecipients(string? value) =>
+        (value ?? string.Empty)
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
+            .Where(item => IsMailboxAddress(item.Address))
+            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static StaffMailRecipient[] ParseRecipients(IReadOnlyList<string>? values) =>
+        (values ?? [])
+            .SelectMany(val => (val ?? string.Empty).Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
+            .Where(item => IsMailboxAddress(item.Address))
+            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static bool IsMailboxAddress(string value) =>
+        System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
+        && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
+
+    private static string SubjectFor(StaffMailComposeMode mode, string? subject)
+    {
+        var value = subject?.Trim() ?? string.Empty;
+        return mode switch
+        {
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+                when value.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) => value,
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll => $"Re: {value}".TrimEnd(),
+            StaffMailComposeMode.Forward when value.StartsWith("Fwd:", StringComparison.OrdinalIgnoreCase) => value,
+            StaffMailComposeMode.Forward => $"Fwd: {value}".TrimEnd(),
+            _ => value
+        };
+    }
 
     private static bool IsExpected(Exception exception) => exception is
         ArgumentException or InvalidOperationException or KeyNotFoundException;

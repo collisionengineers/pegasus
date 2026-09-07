@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -158,14 +159,18 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             fullToken,
-            ToolCallPayload(3, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(3, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             var result = document.RootElement.GetProperty("result");
             Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
             var structured = result.GetProperty("structuredContent");
-            Assert.Equal(0, structured.GetProperty("totalCount").GetInt32());
+            Assert.Empty(structured.GetProperty("items").EnumerateArray());
+            Assert.Equal(10, structured.GetProperty("limit").GetInt32());
+            Assert.True(
+                !structured.TryGetProperty("nextCursor", out var nextCursor)
+                || nextCursor.ValueKind == JsonValueKind.Null);
             Assert.False(string.IsNullOrWhiteSpace(
                 structured.GetProperty("correlationId").GetString()));
         }
@@ -211,7 +216,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             casesOnlyToken,
-            ToolCallPayload(5, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(5, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
@@ -244,7 +249,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             accessToken,
-            ToolCallPayload(6, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(6, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
@@ -266,7 +271,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             accessToken,
-            ToolCallPayload(7, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(7, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
@@ -323,7 +328,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             restoredToken,
-            ToolCallPayload(8, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(8, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);

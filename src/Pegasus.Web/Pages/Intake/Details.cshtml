@@ -223,6 +223,10 @@
                     <dt>Vehicle registration</dt>
                     <dd><a asp-page="/Triage/Details" asp-route-id="@triage.Id">@triage.NormalizedVehicleRegistration</a></dd>
                 </dl>
+                @if (triage.Reference is { Length: > 0 } triageReference)
+                {
+                    <dl class="definition"><dt>Triage reference</dt><dd>@triageReference</dd></dl>
+                }
                 <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.TriageState(triage.State)</dd></dl>
                 <dl class="definition"><dt>Opened</dt><dd>@OperatorLabels.OfficeTime(triage.CreatedAtUtc)</dd></dl>
             </div>
@@ -597,6 +601,68 @@
             </ul>
         </div>
     </section>
+}
+
+@if (Model.ShowRetainedAnalysisPanel)
+{
+<section class="panel section-gap" aria-labelledby="retained-analysis-title">
+    <div class="panel-head"><h2 id="retained-analysis-title">Retained instruction analysis</h2></div>
+    <div class="panel-body stack">
+        @if (Model.RetainedAnalysisNotComposed)
+        {
+            <p class="muted">The retained-instruction analysis is not available in this environment.</p>
+        }
+        else if (Model.RetainedAnalysis is { } analysis)
+        {
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Outcome</dt>
+                    <dd>@OperatorLabels.RetainedInstructionAnalysisOutcome(analysis.Outcome)</dd>
+                </dl>
+                <dl class="definition">
+                    <dt>Analysed</dt>
+                    <dd>@OperatorLabels.OfficeTime(analysis.CompletedAtUtc)</dd>
+                </dl>
+            </div>
+            @if (analysis.Candidates.Count > 0)
+            {
+                <ul class="blocker-list">
+                    @foreach (var candidate in analysis.Candidates)
+                    {
+                        <li class="blocker">
+                            <strong>@candidate.Field: @(candidate.RawValue ?? "Not stated")</strong>
+                            <small>@OperatorLabels.SourceCandidateDisposition(candidate.Disposition)</small>
+                            <small>
+                                @candidate.SourceLabel@(candidate.Page is { } page ? $", page {page}" : string.Empty)
+                            </small>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="muted">The analysis recorded no fields from this document.</p>
+            }
+        }
+        else
+        {
+            <p class="muted">This retained instruction has not been analysed.</p>
+        }
+
+        @if (Model.CanAnalyzeRetainedInstruction)
+        {
+            <form method="post" asp-page-handler="Analyze" asp-route-id="@Model.Receipt.Id" class="stack">
+                <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
+                <input type="hidden" name="operationKey" value="@StaffPageModel.NewOperationKey()" />
+                <div class="actions">
+                    <button type="submit" class="btn">
+                        @(Model.RetainedAnalysis is null ? "Analyse the retained instruction" : "Analyse again")
+                    </button>
+                </div>
+            </form>
+        }
+    </div>
+</section>
 }
 
 @if (Model.Receipt.Fields.Count > 0)

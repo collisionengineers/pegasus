@@ -22,6 +22,7 @@ internal sealed class UnidentifiedItemEntity
     public string? ResolutionTargetKind { get; set; }
     public string? ResolutionTargetId { get; set; }
     public string? ResolutionTargetReference { get; set; }
+    public long? ReconciledAssociationVersion { get; set; }
     public required string RegistrationOperationKey { get; set; }
     public required string RegistrationFingerprint { get; set; }
     public long Version { get; set; }

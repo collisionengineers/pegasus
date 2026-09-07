@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
@@ -316,7 +317,10 @@ public sealed class ReceiveIntake(
         }
 
         // A received message and an uploaded file do not share a size bound:
-        // the form takes one file, a mailbox message carries the whole job.
+        // the form takes one file, a mailbox message carries the whole job, and
+        // a Provider API submission is bounded by the request body that carries
+        // it inline. One switch, one constant per channel, all of them owned by
+        // IntakeEnvelopeLimits (C07 item 5, residual INTK-052).
         var maximumContentLength = source.SourceIdentity.Channel switch
         {
             IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
@@ -540,6 +544,8 @@ public sealed class ProcessQueuedIntake(
     IAutomaticCaseAssociationStore caseAssociationStore,
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
+    IReadLogicalDocumentVersion retainedContentReader,
+    IIntakeOcrOperationStore ocrOperations,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
@@ -547,6 +553,16 @@ public sealed class ProcessQueuedIntake(
     SubmitMailboxImageIntake? mailboxImageIntake = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
+
+    /// <summary>
+    /// The same intake system worker as <see cref="SystemActor"/>, typed, for the
+    /// commands that carry an <see cref="ActionActor"/>. Triage records the actor
+    /// kind, so the subject is the bare worker identity and the kind is carried
+    /// rather than spelled into a prefix.
+    /// </summary>
+    private static readonly ActionActor SystemWorkerActor =
+        ActionActor.SystemWorker("intake-processing");
+
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan[] RetryDelays =
@@ -667,18 +683,28 @@ public sealed class ProcessQueuedIntake(
             string durableStorageKey;
             using (StartStage("artifact_read_and_retain"))
             {
-                content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
-                    ?? throw new IntakeArtifactIntegrityException();
-                var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-                if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
+                if (workItem.IsReevaluation)
                 {
-                    throw new IntakeArtifactIntegrityException();
+                    (content, durableStorageKey) = await ReadRetainedSourceAsync(
+                        workItem,
+                        stagedReceipt,
+                        cancellationToken);
                 }
+                else
+                {
+                    content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
+                        ?? throw new IntakeArtifactIntegrityException();
+                    var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
+                    if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
+                    {
+                        throw new IntakeArtifactIntegrityException();
+                    }
 
-                durableStorageKey = await artifactStore.StoreAsync(
-                    stagedReceipt.SourceHash,
-                    content,
-                    cancellationToken);
+                    durableStorageKey = await artifactStore.StoreAsync(
+                        stagedReceipt.SourceHash,
+                        content,
+                        cancellationToken);
+                }
             }
             // Mirrors the terminal check below: once this attempt is the last
             // one the retry schedule allows, a transient reader fault must be
@@ -701,6 +727,7 @@ public sealed class ProcessQueuedIntake(
                     isFinalAttempt,
                     cancellationToken);
             }
+            await BeginOcrOperationsAsync(processed, cancellationToken);
             if (mailboxImageIntake is not null)
             {
                 mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
@@ -794,6 +821,87 @@ public sealed class ProcessQueuedIntake(
             : QueuedIntakeProcessingOutcome.Completed;
     }
 
+    private async Task BeginOcrOperationsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        foreach (var candidates in receipt.ScannedPdfPages
+                     .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
+        {
+            var asset = receipt.AssetRecords.SingleOrDefault(item =>
+                string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
+            if (asset is null)
+            {
+                throw new InvalidDataException(
+                    "An OCR-qualified source does not identify its retained asset.");
+            }
+
+            await IntakeOcrOperations.BeginAsync(
+                ocrOperations,
+                receipt.Id,
+                asset,
+                candidates.Select(candidate => candidate.PageNumber).ToArray(),
+                cancellationToken);
+        }
+    }
+
+    private async Task<(ReadOnlyMemory<byte> Content, string StorageKey)> ReadRetainedSourceAsync(
+        IntakeWorkItem workItem,
+        IntakeStagedReceipt stagedReceipt,
+        CancellationToken cancellationToken)
+    {
+        if (workItem.ProcessedReceiptId is not { } receiptId)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken)
+            ?? throw new IntakeArtifactIntegrityException();
+        var sources = receipt.AssetRecords
+            .Where(asset => asset.Kind == IntakeAssetKind.Source
+                && asset.Disposition == IntakeAssetDisposition.Source)
+            .Take(2)
+            .ToArray();
+        if (sources.Length != 1)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var source = sources[0];
+        if (source.ContentLength != receipt.SourceLength
+            || source.ContentLength != stagedReceipt.SourceLength
+            || !string.Equals(source.ContentHash, receipt.SourceHash, StringComparison.Ordinal)
+            || !string.Equals(source.ContentHash, stagedReceipt.SourceHash, StringComparison.Ordinal)
+            || source.ContentLength > int.MaxValue)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        try
+        {
+            await using var logical = await retainedContentReader.OpenAsync(
+                new(
+                    SystemWorkerActor,
+                    DocumentId: null,
+                    VersionId: null,
+                    IntakeAssetId: source.Id,
+                    CaseId: receipt.CurrentCaseId,
+                    IntakeReceiptId: receipt.Id,
+                    ExpectedSha256: source.ContentHash,
+                    ExpectedContentLength: source.ContentLength),
+                cancellationToken);
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)source.ContentLength));
+            await logical.Content.ReadExactlyAsync(bytes, cancellationToken);
+            return (bytes, source.StorageKey);
+        }
+        catch (Exception exception) when (exception is FileNotFoundException
+            or InvalidDataException
+            or UnauthorizedAccessException)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+    }
+
     private static Activity? StartStage(string stage)
     {
         var activity = Telemetry.StartActivity($"intake.{stage}", ActivityKind.Internal);
@@ -816,12 +924,10 @@ public sealed class ProcessQueuedIntake(
     /// fallback instead of letting the receipt fall through to the
     /// instruction-fallback path while the group could still resolve.
     /// Deferral deliberately does not touch the durable work item: by that
-    /// point its evaluation is already <c>Completed</c> and its staged
-    /// artifact deleted (<see cref="TryDeleteCompletedStagingAsync"/> already
-    /// ran), so moving it back to <c>Pending</c> would force a future
-    /// re-claim through the artifact-reading path and fail with a
-    /// staged-artifact-integrity error. A completed work item is cheap and
-    /// safe to revisit instead: a later <see cref="ExecuteAsync"/> for the
+    /// point its evaluation is already <c>Completed</c>. Moving it back to
+    /// <c>Pending</c> would create another evaluation revision even though
+    /// only post-evaluation image-group work remains. A completed work item is
+    /// cheap and safe to revisit instead: a later <see cref="ExecuteAsync"/> for the
     /// same staged receipt finds nothing to claim and takes the replay
     /// branch, which re-runs this automation without touching staging.
     /// <see cref="ReconcileGroupedImageIntake"/> is that later call — the
@@ -908,7 +1014,7 @@ public sealed class ProcessQueuedIntake(
             // One owner for the supersession rule: the same component the
             // reconciliation sweep uses resolves the receipt's stale open
             // item to the destination that now exists.
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -1061,6 +1167,10 @@ public sealed class ProcessQueuedIntake(
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
         InvalidDataException => "invalid_intake_data",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
+        // API-01's existing-Case rejection is a property of the submitted
+        // facts, not a fault: a redelivery would reach the same conclusion, so
+        // it fails on the first attempt under its own code with no backoff.
+        ProviderExistingCaseMatchException => ProviderExistingCaseMatchException.FailureCode,
         _ => null
     };
 
@@ -1121,7 +1231,7 @@ public sealed class ProcessQueuedIntake(
                         evaluation.Id),
                     registration,
                     acceptedMatches[0],
-                    SystemActor,
+                    SystemWorkerActor,
                     $"triage-from-intake-evaluation:{evaluation.Id:N}"),
                 cancellationToken);
             return TriageCreationOutcome.Created;

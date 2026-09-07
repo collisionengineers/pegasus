@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Security.Cryptography;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Documents;
 
@@ -22,7 +23,45 @@ public enum RequestUploadDecision
     RateLimited,
     InvalidFile,
     LimitExceeded,
-    OperationConflict
+    OperationConflict,
+
+    /// <summary>
+    /// The link was issued against a different accepted limits version. This
+    /// is a typed refusal rather than an exception because it is an ordinary,
+    /// recoverable state of a long-lived link — the sender did nothing wrong
+    /// and the case owner can reissue.
+    /// </summary>
+    LimitsVersionMismatch,
+
+    /// <summary>
+    /// Custody did not take the bytes: it refused them, or the hand-over
+    /// neither confirmed nor refused. Nothing was kept, so this is never
+    /// rendered as a success, and the sender may send the same file again
+    /// under the same operation key — that key reconciles an uncertain
+    /// hand-over instead of offering the bytes twice.
+    /// </summary>
+    /// <remarks>
+    /// None of the other members says this. <see cref="Unavailable"/> means
+    /// the link itself is gone and hides the Case, <see cref="RateLimited"/>
+    /// would name a limit that was not reached, and
+    /// <see cref="InvalidFile"/> / <see cref="LimitExceeded"/> would blame a
+    /// file that policy had already accepted.
+    /// </remarks>
+    NotRetained,
+
+    /// <summary>
+    /// Custody took the bytes durably but has not confirmed them yet. The
+    /// submission stands and must not be sent again, so this is not a refusal;
+    /// it is also not <see cref="Accepted"/>, because nothing may tell the
+    /// sender their document is retained before custody has said it is.
+    /// </summary>
+    /// <remarks>
+    /// The store, not the policy, decides this: it is what a Pending custody
+    /// disposition becomes. Keeping it out of <see cref="Accepted"/> is what
+    /// stops the one surface that speaks to the sender making a claim about
+    /// custody that custody has not made.
+    /// </remarks>
+    AcceptedPending
 }
 
 public sealed class RequestUploadLimits
@@ -42,8 +81,20 @@ public sealed class RequestUploadLimits
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lifetime, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumFileCount);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumFileCount,
+            IntakeEnvelopeLimits.MaximumBatchFileCount,
+            nameof(maximumFileCount));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumFileBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumFileBytes,
+            IntakeEnvelopeLimits.MaximumContentLength,
+            nameof(maximumFileBytes));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumRequestBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumRequestBytes,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength,
+            nameof(maximumRequestBytes));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rateLimit);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(rateLimitWindow, TimeSpan.Zero);
         ArgumentNullException.ThrowIfNull(allowedMediaTypes);
@@ -245,14 +296,18 @@ public sealed record RequestUploadLink(
     int AcceptedFileCount,
     long AcceptedByteCount,
     string LimitsVersion,
-    long Version);
+    long Version,
+    string? Recipient = null,
+    string? Reason = null);
 
 public sealed record CreateRequestUploadLinkCommand(
     Guid CaseId,
     ActionActor Actor,
     string OperationKey,
     long ExpectedCaseVersion,
-    string EditLeaseToken);
+    string EditLeaseToken,
+    string? Recipient = null,
+    string? Reason = null);
 
 public sealed record CreateRequestUploadLinkResult(
     RequestUploadLink Link,
@@ -288,7 +343,8 @@ public sealed record RequestUploadAuthorization(
     RequestUploadDecision Decision,
     string? ContentHash,
     string? SafeFileName,
-    bool IsReplay)
+    bool IsReplay,
+    bool MayReissue = false)
 {
     public bool MayEnterCustody => Decision == RequestUploadDecision.Accepted;
 }
@@ -296,16 +352,377 @@ public sealed record RequestUploadAuthorization(
 public sealed record UploadToRequestCommand(
     string Token,
     RequestUploadFile File,
-    int AttemptsInCurrentRateWindow);
+    int AttemptsInCurrentRateWindow,
+    Guid? ReplacementOccurrenceId = null);
 
 public sealed record UploadToRequestResult(
     RequestUploadDecision Decision,
     Guid? ReceiptId,
     bool IsReplay);
 
+/// <param name="BlockingState">
+/// The custody state of the occurrence that refused this finalization, when
+/// <see cref="Decision"/> is <see cref="RequestUploadDecision.NotRetained"/>.
+/// The sender is blocked by a file they can see on the page, so they are told
+/// which state is holding the submission open rather than only that something
+/// is.
+/// </param>
+public sealed record FinalizeRequestUploadResult(
+    RequestUploadDecision Decision,
+    bool IsReplay,
+    IncomingArtifactCustodyState? BlockingState = null);
+
+/// <summary>
+/// The operation key one public submission is addressed by, and the single
+/// server-issued variant of it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A sender's key is the identity of one deliberate submission of one exact
+/// file: the page mints one per load, re-presents an outstanding one rather
+/// than replacing it, and a retry under it is that same submission. A second,
+/// <em>different</em> file sent while the first is still outstanding is not
+/// that. The outstanding key still names the first file and has to keep naming
+/// it, so the second file is a new deliberate submission and needs a key of
+/// its own.
+/// </para>
+/// <para>
+/// That key is derived rather than minted at random, so a retry of the second
+/// file is still a retry: one root and one set of bytes always name the same
+/// submission. The digest is in the key only to tell one file from another
+/// under the same root - the root remains the intent identity, and nothing
+/// here substitutes a link-and-hash identity for it across two deliberate
+/// submissions (Stream A, PR 673 comment 5560737585).
+/// </para>
+/// <para>
+/// Derivation is always from the root, never from an already-derived key, so
+/// the shape is exactly two: a root, or a root and one digest. That bounds the
+/// key at <see cref="MaximumLength"/> however many different files are sent
+/// through one link.
+/// </para>
+/// </remarks>
+public static class RequestUploadOperationKey
+{
+    /// <summary>
+    /// What separates the root from the digest. Outside the hexadecimal both
+    /// halves are, so it can never be mistaken for part of either.
+    /// </summary>
+    private const char ContentSeparator = '~';
+
+    private const int RootLength = 32;
+    private const int DigestLength = 64;
+
+    /// <summary>
+    /// The longest key this shape produces: a root, the separator and one
+    /// digest. Every column that carries the key, scoped or not, holds it.
+    /// </summary>
+    public const int MaximumLength = RootLength + 1 + DigestLength;
+
+    /// <summary>
+    /// The key as it is stored and compared, or false when it is not a key
+    /// this server issued. Normalizing is a lowercasing and a trim only: a
+    /// sender that sends back something else entirely is refused rather than
+    /// corrected.
+    /// </summary>
+    public static bool TryNormalize(string? value, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var candidate = value.Trim().ToLowerInvariant();
+        var separator = candidate.IndexOf(ContentSeparator, StringComparison.Ordinal);
+        if (separator < 0)
+        {
+            if (!IsDigits(candidate, RootLength))
+            {
+                return false;
+            }
+
+            normalized = candidate;
+            return true;
+        }
+        if (!IsDigits(candidate.AsSpan(0, separator), RootLength)
+            || !IsDigits(candidate.AsSpan(separator + 1), DigestLength))
+        {
+            return false;
+        }
+
+        normalized = candidate;
+        return true;
+    }
+
+    /// <summary>
+    /// The intent identity a key belongs to: itself, or the root it was
+    /// derived from. Every derivation starts here, so no key ever carries two
+    /// digests.
+    /// </summary>
+    public static string Root(string operationKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        var separator = operationKey.IndexOf(ContentSeparator, StringComparison.Ordinal);
+        return separator < 0 ? operationKey : operationKey[..separator];
+    }
+
+    /// <summary>
+    /// The key one deliberate submission of these exact bytes is addressed by
+    /// under this root. The same bytes always give the same key, which is what
+    /// makes the second file's own retry a retry rather than a third file.
+    /// </summary>
+    public static string ForContent(string operationKey, string sha256)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
+        return $"{Root(operationKey)}{ContentSeparator}{sha256.Trim().ToLowerInvariant()}";
+    }
+
+    private static bool IsDigits(ReadOnlySpan<char> value, int length)
+    {
+        if (value.Length != length)
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            if (!char.IsAsciiHexDigitLower(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+/// <summary>
+/// Everything the public page may know. It carries no request reference, no
+/// expiry and no Case identity - only the limits, current session state and
+/// server-issued occurrence slots the sender needs for this submission.
+/// </summary>
+/// <param name="UnresolvedOperationKey">
+/// The key of a submission this link has already taken that has not resolved -
+/// arrived, uncertain, or accepted and not yet confirmed - or null when the
+/// link has nothing outstanding. While one stands, the page presents that key
+/// again instead of a new one, so a retry reconciles the submission custody
+/// may already hold rather than becoming a second one.
+/// </param>
+/// <param name="Files">
+/// Every occurrence this session holds, each with the state custody actually
+/// gave it. One name for the list, because a page that showed only the
+/// confirmed ones would hide the very rows that refuse a finalization.
+/// </param>
+/// <param name="AcceptsMoreFiles">
+/// Whether the link may still take another file. A link whose accepted totals
+/// have reached its limits is exhausted, not gone: the page keeps serving it
+/// and the submission can still be finished, so the upload control comes off
+/// rather than the page.
+/// </param>
+/// <param name="AcceptsReplacements">
+/// Whether the link may still take a file sent in place of one it already
+/// counts. A link exhausted by file count still may: a replacement supersedes
+/// a current file rather than adding one, and correcting the last file sent is
+/// exactly what a sender needs at that point. Only the byte bound stops it.
+/// </param>
+/// <param name="Refusal">
+/// Set when the link is still there but nothing may be done through it, so the
+/// page renders that typed refusal instead of a bare 404 which tells the
+/// sender nothing and offers no way forward.
+/// </param>
 public sealed record RequestUploadPublicView(
     IReadOnlySet<string> AllowedMediaTypes,
-    long MaximumFileBytes);
+    long MaximumFileBytes,
+    string? UnresolvedOperationKey = null,
+    PublicUploadSessionState SessionState = PublicUploadSessionState.NotStarted,
+    IReadOnlyList<RequestUploadOccurrenceView>? Files = null,
+    bool AcceptsMoreFiles = true,
+    RequestUploadDecision? Refusal = null,
+    bool AcceptsReplacements = true)
+{
+    // Get-only rather than init: the normalisation below is the only way this
+    // list is set, so a `with` cannot route around it and leave a null where
+    // every reader expects an empty one.
+    public IReadOnlyList<RequestUploadOccurrenceView> Files { get; } =
+        Files ?? Array.Empty<RequestUploadOccurrenceView>();
+}
+
+/// <param name="SupersededByOccurrenceId">
+/// The occurrence the sender sent in this one's place, or null while this is
+/// still one of the files being submitted. A superseded arrival is not deleted
+/// and not rewritten - it is the durable record of bytes custody answered for,
+/// and custody still holds them - but it is no longer a current file: it is
+/// rendered as replaced, it cannot be replaced again, and it neither blocks a
+/// finalization nor counts among the files the sender finished with.
+/// </param>
+public sealed record RequestUploadOccurrenceView(
+    Guid Id,
+    string FileName,
+    IncomingArtifactCustodyState CustodyState,
+    Guid? SupersededByOccurrenceId = null);
+
+/// <summary>
+/// The one submission session a public link may have. The window is fixed, not
+/// sliding: it opens when the first file's content <em>and</em> custody are
+/// both confirmed, and closes fifteen minutes later whatever else arrives. Its
+/// life is <see cref="StartedAtUtc"/> null (nothing has landed yet), then open,
+/// then either finalized or expired — and both of those refuse bytes.
+/// </summary>
+public sealed record PublicUploadSession(
+    Guid Id,
+    Guid RequestUploadLinkId,
+    string LimitsVersion,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? FinalizedAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
+    long Version)
+{
+    public bool HasStarted => StartedAtUtc is not null;
+
+    public bool IsFinalized => FinalizedAtUtc is not null;
+}
+
+/// <summary>
+/// Why a session refuses. <see cref="Open"/> is the only state that accepts.
+/// </summary>
+public enum PublicUploadSessionState
+{
+    /// <summary>Nothing has been confirmed yet; the window has not opened.</summary>
+    NotStarted,
+
+    /// <summary>Open and inside the fixed window.</summary>
+    Open,
+
+    /// <summary>Finalized: the sender said they were done and it was recorded.</summary>
+    Finalized,
+
+    /// <summary>The fixed window closed.</summary>
+    Expired
+}
+
+/// <summary>
+/// One addressable slot in a session. The identity is server-issued so an
+/// addition or a replacement names the slot rather than a file name: two files
+/// called the same thing are two occurrences and neither overwrites the other.
+/// </summary>
+public sealed record PublicUploadOccurrence(
+    Guid Id,
+    Guid SessionId,
+    string OperationKey,
+    string ProposedName,
+    string MediaType,
+    long Size,
+    string Sha256,
+    IncomingArtifactCustodyState CustodyState,
+    Guid? DocumentId = null,
+    Guid? DocumentVersionId = null)
+{
+    /// <summary>
+    /// Only a confirmed occurrence counts. A pending, failed or uncertain one
+    /// renders its own typed state, never success, and never lets the session
+    /// be finalized on its behalf.
+    /// </summary>
+    public bool CountsTowardsTheSession =>
+        CustodyState == IncomingArtifactCustodyState.Confirmed;
+}
+
+/// <summary>
+/// The fixed-window rule for a public submission session.
+/// </summary>
+public static class PublicUploadSessionPolicy
+{
+    /// <summary>
+    /// The window a confirmed first file opens. Fifteen minutes, from that
+    /// moment, not extended by anything that arrives later.
+    /// </summary>
+    public static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Opens the window. Only a file whose content and custody are both
+    /// confirmed may start one, so a run of failed attempts leaves the session
+    /// exactly where it was and the sender keeps the full window once
+    /// something actually lands.
+    /// </summary>
+    public static PublicUploadSession Start(
+        PublicUploadSession session,
+        PublicUploadOccurrence firstConfirmed,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(firstConfirmed);
+        if (!firstConfirmed.CountsTowardsTheSession)
+        {
+            throw new ArgumentException(
+                "Only a confirmed occurrence starts the submission window.",
+                nameof(firstConfirmed));
+        }
+        if (session.HasStarted)
+        {
+            // A later success never extends a window that is already open.
+            return session;
+        }
+
+        return session with
+        {
+            StartedAtUtc = nowUtc,
+            ExpiresAtUtc = nowUtc.Add(Window),
+            Version = checked(session.Version + 1)
+        };
+    }
+
+    public static PublicUploadSessionState Evaluate(
+        PublicUploadSession session,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.IsFinalized)
+        {
+            return PublicUploadSessionState.Finalized;
+        }
+        if (!session.HasStarted)
+        {
+            return PublicUploadSessionState.NotStarted;
+        }
+
+        return session.ExpiresAtUtc is { } expiresAtUtc && nowUtc >= expiresAtUtc
+            ? PublicUploadSessionState.Expired
+            : PublicUploadSessionState.Open;
+    }
+
+    /// <summary>
+    /// Whether more bytes may be accepted. A session that has not started yet
+    /// accepts — that is how it starts.
+    /// </summary>
+    public static bool AcceptsBytes(PublicUploadSession session, DateTimeOffset nowUtc) =>
+        Evaluate(session, nowUtc) is PublicUploadSessionState.NotStarted
+            or PublicUploadSessionState.Open;
+
+    /// <summary>
+    /// Finalization is replay-safe on the operation key: the first call
+    /// records the moment and every later one returns the same session
+    /// unchanged. A session that never started, or that expired first, cannot
+    /// be finalized.
+    /// </summary>
+    public static PublicUploadSession Finalize(
+        PublicUploadSession session,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (session.IsFinalized)
+        {
+            return session;
+        }
+
+        return Evaluate(session, nowUtc) == PublicUploadSessionState.Open
+            ? session with
+            {
+                FinalizedAtUtc = nowUtc,
+                Version = checked(session.Version + 1)
+            }
+            : throw new InvalidOperationException(
+                "Only an open submission session can be finalized.");
+    }
+}
 
 public interface ICreateRequestUploadLink
 {
@@ -325,6 +742,10 @@ public interface IUploadToRequest
 {
     Task<UploadToRequestResult> ExecuteAsync(
         UploadToRequestCommand command,
+        CancellationToken cancellationToken = default);
+
+    Task<FinalizeRequestUploadResult> FinalizeAsync(
+        string token,
         CancellationToken cancellationToken = default);
 }
 
@@ -350,6 +771,17 @@ public sealed class RequestUploadPolicy
 
     public static RequestUploadTokenIssue CreateToken() => RequestUploadToken.Create();
 
+    public static CreateRequestUploadLinkCommand NormalizeCreate(
+        CreateRequestUploadLinkCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return command with
+        {
+            Recipient = NormalizeMetadata(command.Recipient, 500, nameof(command.Recipient)),
+            Reason = NormalizeMetadata(command.Reason, 1000, nameof(command.Reason))
+        };
+    }
+
     public DateTimeOffset CalculateExpiry(DateTimeOffset createdAtUtc)
     {
         if (createdAtUtc.Offset != TimeSpan.Zero)
@@ -360,28 +792,30 @@ public sealed class RequestUploadPolicy
         return createdAtUtc.Add(limits.Lifetime);
     }
 
+    /// <param name="isReplacement">
+    /// Whether these bytes stand in for a file this link already counts, rather
+    /// than adding one to the submission. Only the caller that resolved the
+    /// addressed occurrence knows this, and it changes which bound applies -
+    /// see <see cref="AcceptsAReplacement(RequestUploadLink)"/>.
+    /// </param>
     public RequestUploadAuthorization Authorize(
         RequestUploadLink link,
         RequestUploadAttempt attempt,
-        string? existingOperationContentHash = null)
+        string? existingOperationContentHash = null,
+        bool isReplacement = false)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(attempt);
         ArgumentNullException.ThrowIfNull(attempt.File);
 
-        if (!string.Equals(link.LimitsVersion, limits.Version, StringComparison.Ordinal))
+        if (RefuseLink(link) is { } refusal)
         {
-            throw new InvalidOperationException(
-                "The request upload link references a different accepted limits version.");
+            return refusal == RequestUploadDecision.LimitsVersionMismatch
+                ? new(refusal, null, null, false, MayReissue: true)
+                : Unavailable();
         }
 
-        if (!HasAcceptedLifetime(link)
-            || !RequestUploadToken.Matches(attempt.Token, link.TokenDigest)
-            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
-            || link.RevokedAtUtc is not null
-            || timeProvider.GetUtcNow() >= link.ExpiresAtUtc
-            || link.AcceptedFileCount < 0
-            || link.AcceptedByteCount < 0)
+        if (!RequestUploadToken.Matches(attempt.Token, link.TokenDigest))
         {
             return Unavailable();
         }
@@ -405,9 +839,7 @@ public sealed class RequestUploadPolicy
                 : new(RequestUploadDecision.OperationConflict, null, null, false);
         }
 
-        if (link.Status != RequestUploadStatus.Active
-            || link.AcceptedFileCount >= limits.MaximumFileCount
-            || link.AcceptedByteCount >= limits.MaximumRequestBytes)
+        if (!(isReplacement ? AcceptsAReplacement(link) : AcceptsMoreFiles(link)))
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
         }
@@ -419,10 +851,13 @@ public sealed class RequestUploadPolicy
             return new(RequestUploadDecision.InvalidFile, null, null, false);
         }
 
+        // The file count is not re-checked here: the questions above own it,
+        // and a second copy of the bound is how one of them comes to disagree
+        // with the other. The byte bound is checked against these exact bytes,
+        // and it applies to a replacement as much as to an addition, because
+        // custody keeps the superseded set as well as this one.
         var contentLength = attempt.File.Content.Length;
         if (contentLength > limits.MaximumFileBytes
-            || link.AcceptedFileCount == int.MaxValue
-            || link.AcceptedFileCount + 1 > limits.MaximumFileCount
             || contentLength > limits.MaximumRequestBytes - link.AcceptedByteCount)
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
@@ -436,6 +871,95 @@ public sealed class RequestUploadPolicy
 
         return new(RequestUploadDecision.Accepted, contentHash, safeFileName, false);
     }
+
+    /// <summary>
+    /// The one link-validity rule: null when this link may still be served,
+    /// finished and offered bytes, and otherwise the typed refusal the sender
+    /// is given. <see cref="Authorize"/>, the public view and finalization all
+    /// ask here, so a link is valid everywhere or nowhere rather than valid on
+    /// one path and gone on another.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="RequestUploadStatus.Exhausted"/> is an ordinary state a
+    /// sender reaches by doing exactly what the link invited, so it is valid.
+    /// It takes no more bytes - that is
+    /// <see cref="AcceptsMoreFiles(RequestUploadLink)"/>, a different question
+    /// - but the page still serves it and the submission can still be
+    /// finished. Restating this rule anywhere else is what let the finalize
+    /// path refuse a link the upload path accepts.
+    /// </remarks>
+    public RequestUploadDecision? RefuseLink(RequestUploadLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+
+        // A long-lived link outliving a limits change is an ordinary state of
+        // the world, not a programming error, so it is a typed refusal the
+        // public page can render and the case owner can act on — never an
+        // exception used as control flow.
+        if (!string.Equals(link.LimitsVersion, limits.Version, StringComparison.Ordinal))
+        {
+            return RequestUploadDecision.LimitsVersionMismatch;
+        }
+
+        return !HasAcceptedLifetime(link)
+            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
+            || link.RevokedAtUtc is not null
+            || timeProvider.GetUtcNow() >= link.ExpiresAtUtc
+            || link.AcceptedFileCount < 0
+            || link.AcceptedByteCount < 0
+                ? RequestUploadDecision.Unavailable
+                : null;
+    }
+
+    /// <summary>
+    /// Whether the link may take one more file that adds to the submission.
+    /// Both bounds apply: the file-count bound, which counts the files the
+    /// sender is currently submitting, and the byte bound. The page asks this
+    /// too, so it never offers an upload control the store would refuse.
+    /// </summary>
+    public bool AcceptsMoreFiles(RequestUploadLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        return link.Status == RequestUploadStatus.Active
+            && link.AcceptedFileCount < limits.MaximumFileCount
+            && AcceptsMoreBytes(link);
+    }
+
+    /// <summary>
+    /// Whether the link may take a file sent in place of one it already counts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The file-count bound does not apply: a replacement supersedes a current
+    /// file rather than adding one, so the count of files being submitted does
+    /// not move. Plan item 6 allows replacements until the session is finalized
+    /// or expires, and a link exhausted by file count is neither - it is
+    /// precisely where a sender most needs to correct the last file they sent,
+    /// and refusing there would be the broken path INTK-051 forbids.
+    /// </para>
+    /// <para>
+    /// The byte bound still binds, because custody keeps the superseded bytes
+    /// as well as the new ones: nothing may replace its way past
+    /// <see cref="RequestUploadLimits.MaximumRequestBytes"/>.
+    /// <see cref="RequestUploadStatus.Exhausted"/> is a valid status here for
+    /// the same reason it is in <see cref="RefuseLink"/>.
+    /// </para>
+    /// </remarks>
+    public bool AcceptsAReplacement(RequestUploadLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        return link.Status is RequestUploadStatus.Active or RequestUploadStatus.Exhausted
+            && AcceptsMoreBytes(link);
+    }
+
+    /// <summary>
+    /// The byte bound on its own: every set of bytes custody holds for this
+    /// link, superseded ones included, against
+    /// <see cref="RequestUploadLimits.MaximumRequestBytes"/>. One owner, asked
+    /// by both questions above.
+    /// </summary>
+    private bool AcceptsMoreBytes(RequestUploadLink link) =>
+        link.AcceptedByteCount < limits.MaximumRequestBytes;
 
     private bool HasAcceptedLifetime(RequestUploadLink link)
     {
@@ -462,6 +986,30 @@ public sealed class RequestUploadPolicy
             || safeFileName.Any(char.IsControl)
             ? null
             : safeFileName;
+    }
+
+    private static string? NormalizeMetadata(
+        string? value,
+        int maximumLength,
+        string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length == 0)
+        {
+            throw new ArgumentException("Upload-request metadata cannot be blank.", parameterName);
+        }
+        if (normalized.Length > maximumLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"Upload-request metadata cannot exceed {maximumLength} characters.");
+        }
+        return normalized;
     }
 
     private static RequestUploadAuthorization Unavailable() =>

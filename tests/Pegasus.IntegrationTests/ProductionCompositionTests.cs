@@ -7,6 +7,8 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
+using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
@@ -93,6 +95,21 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionProfileSharesOperationsSnapshotWithAttentionRows()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var snapshot = services.GetRequiredService<GetOperationsSnapshot>();
+
+        Assert.Same(snapshot, services.GetRequiredService<IGetOperationsSnapshot>());
+        Assert.Same(snapshot, services.GetRequiredService<IGetAttentionRows>());
+        Assert.Single(services.GetServices<IGetOperationsSnapshot>());
+        Assert.Single(services.GetServices<IGetAttentionRows>());
+    }
+
+    [Fact]
     public void ProductionProfileDrivesTriageFromTheAcceptedRouteClassification()
     {
         // Automatic Triage matching was pinned inactive while its predicates
@@ -107,6 +124,33 @@ public sealed class ProductionCompositionTests
         Assert.IsType<QdosMailClassificationPolicy>(classification);
         Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
         Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
+    }
+
+    [Fact]
+    public void ProductionProfileComposesAllInstructionProfilesAndTheIntakeProcessor()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var policies = services.GetServices<IInstructionExtractionPolicy>().ToArray();
+        Assert.Equal(15, policies.Length);
+        Assert.Equal(
+            policies.Length,
+            policies.Select(policy => policy.PrincipalCode).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(policies, policy => Assert.IsAssignableFrom<IInstructionDocumentProfile>(policy));
+
+        var qdos = services.GetRequiredService<QdosInstructionExtractionPolicy>();
+        Assert.Same(qdos, Assert.Single(policies, policy => policy is QdosInstructionExtractionPolicy));
+
+        Assert.NotNull(services.GetRequiredService<ProcessIntake>());
+        Assert.NotNull(services.GetRequiredService<InstructionExtractionPolicySelector>());
+        var analysis = services.GetRequiredService<AnalyzeRetainedInstruction>();
+        Assert.Same(analysis, services.GetRequiredService<IAnalyzeRetainedInstruction>());
+        var analysisStore = services.GetRequiredService<EfRetainedInstructionAnalysisStore>();
+        Assert.Same(
+            analysisStore,
+            services.GetRequiredService<IThirdPartyReportCandidateQueries>());
     }
 
     [Fact]
@@ -146,6 +190,9 @@ public sealed class ProductionCompositionTests
 
         Assert.IsType<EfDocumentRequestStore>(
             scope.ServiceProvider.GetRequiredService<IUploadToRequest>());
+        Assert.IsType<EfPublicUploadRetentionStore>(
+            scope.ServiceProvider.GetRequiredService<IIncomingArtifactRetentionStore>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>());
         Assert.IsType<BoxDocumentContentStore>(
             scope.ServiceProvider.GetRequiredService<IDocumentContentStore>());
     }

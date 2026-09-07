@@ -45,15 +45,24 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal("qdos_instruction", projection.Claimant.Name.Fact?.Source.PolicyKey);
         Assert.Contains("instructions.pdf", projection.Claimant.Name.Fact?.Source.Label);
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
-        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Confirmed?.Value);
+        Assert.Equal(
+            CaseDataSourceKind.IntakeEvidence,
+            projection.Inspection.Address.Fact?.Source.Kind);
+        Assert.Equal("qdos_instruction", projection.Inspection.Address.Fact?.Source.PolicyKey);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
             harness.StaffActor.SubjectId,
             projection.Inspection.Address.Confirmed?.ConfirmedByActor);
         Assert.Equal(
-            CaseDataSourceKind.IntakeEvidence,
+            CaseDataSourceKind.ProviderSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            CaseInspectionMode.PhysicalAddress,
+            ProviderInspectionModePolicy.PolicyKey,
+            projection.Inspection.Address.Confirmed?.Source.PolicyKey);
+        Assert.Equal(
+            CaseInspectionMode.ImageBasedAssessment,
             projection.Inspection.Mode.Confirmed?.Value);
         Assert.Null(projection.Contact.Name.Current);
         Assert.Null(projection.Instruction.VatStatus.Current);
@@ -85,16 +94,36 @@ public sealed class CaseDataCompletenessPersistenceTests
         var projection = await harness.GetRequiredDataAsync();
 
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
-        Assert.Equal("2 Corrected Street, London", projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
-            CaseDataSourceKind.StaffCorrection,
+            CaseDataSourceKind.IntakeEvidence,
+            projection.Inspection.Address.Fact?.Source.Kind);
+        Assert.Equal(
+            "qdos_instruction",
+            projection.Inspection.Address.Fact?.Source.PolicyKey);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            projection.Inspection.Address.Confirmed?.Value);
+        Assert.Equal(
+            CaseDataSourceKind.ProviderSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            Ext18InspectionAddressPolicy.PolicyKey,
+            ProviderInspectionModePolicy.PolicyKey,
             projection.Inspection.Address.Confirmed?.Source.PolicyKey);
         Assert.Equal(
-            harness.StaffActor.SubjectId,
-            projection.Inspection.Address.Confirmed?.ConfirmedByActor);
+            CaseInspectionMode.ImageBasedAssessment,
+            projection.Inspection.Mode.Confirmed?.Value);
+
+        var retainedAddress = await harness.AddressStore.GetAsync(
+            harness.ReceiptId,
+            CancellationToken.None);
+        Assert.NotNull(retainedAddress);
+        Assert.Equal(InspectionAddressResolutionState.Corrected, retainedAddress.State);
+        Assert.Equal("2 Corrected Street, London", retainedAddress.ResolvedValue);
+        Assert.Equal(Guid.Parse(harness.StaffActor.SubjectId), retainedAddress.ResolvedByStaffId);
+        Assert.NotNull(retainedAddress.ResolvedAtUtc);
+        var extractedAddress = Assert.Single(retainedAddress.Evaluation.Suggestion!.Provenance);
+        Assert.Equal("qdos_instruction", extractedAddress.PolicyKey);
+        Assert.Equal(1, extractedAddress.PolicyVersion);
     }
 
     [Fact]
@@ -450,19 +479,14 @@ public sealed class CaseDataCompletenessPersistenceTests
             string sourceHash)
         {
             await using var context = await factory.CreateDbContextAsync();
-            var organizationId = Guid.NewGuid();
-            var lineageId = Guid.NewGuid();
-            var principalId = Guid.NewGuid();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var organizationId = principal.OrganizationId;
+            var lineageId = principal.SequenceLineageId;
+            var principalId = principal.Id;
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"QDOS provider"}, {0L})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"mailbox-item-immutable-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(

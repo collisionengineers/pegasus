@@ -49,6 +49,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             SenderDisplayName = message.Metadata.SenderDisplayName,
             ToAddressesJson = JsonSerializer.Serialize(message.Metadata.ToAddresses, JsonOptions),
             CcAddressesJson = JsonSerializer.Serialize(message.Metadata.CcAddresses, JsonOptions),
+            ReplyToAddressesJson = JsonSerializer.Serialize(message.Metadata.ReplyToAddresses, JsonOptions),
             Subject = message.Metadata.Subject,
             BodyExcerpt = Excerpt(message.Metadata.BodyPlainText),
             BodyPlainText = message.Metadata.BodyPlainText,
@@ -285,6 +286,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             summary,
             Deserialize(entity.ToAddressesJson),
             Deserialize(entity.CcAddressesJson),
+            entity.ReplyToAddressesJson is null
+                ? null
+                : Deserialize(entity.ReplyToAddressesJson),
             body,
             entity.Attachments
                 .OrderBy(item => item.Ordinal)
@@ -300,7 +304,36 @@ internal sealed class EfRetainedMailboxMessageStore(
                 ? ParseClassificationOutcome(classification)
                 : null,
             receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
+            entity.ImmutableMessageId,
+            entity.InternetMessageIdentity,
+            entity.ConversationIdentity,
             await LoadClassificationAsync(context, id, cancellationToken));
+    }
+
+    public async Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var retainedIds = await (
+                from receipt in context.IntakeReceipts.AsNoTracking()
+                join retained in context.RetainedMailboxMessages.AsNoTracking()
+                    on receipt.ExternalReceiptToken equals retained.ExternalReceiptToken
+                where receipt.Id == originReceiptId
+                    && receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken != ""
+                select retained.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        if (retainedIds.Count > 1)
+        {
+            throw new InvalidOperationException(
+                "The origin receipt matches more than one retained mailbox message.");
+        }
+
+        return retainedIds.Count == 0
+            ? null
+            : await GetAsync(retainedIds[0], cancellationToken);
     }
 
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(

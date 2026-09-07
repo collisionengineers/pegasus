@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
@@ -275,6 +275,133 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             })
             .ToArray();
         return new(summaries, page, pageSize, totalCount);
+    }
+
+    /// <summary>
+    /// One keyset page of received items, newest first, strictly after the
+    /// caller's recorded position.
+    ///
+    /// The order is the same (ReceivedAtUtc DESC, Id DESC) the offset list
+    /// uses, so the two views agree about what "newest first" means. The id is
+    /// not decoration: two receipts can share a millisecond, and without it a
+    /// page boundary that falls between them either drops one or serves it
+    /// twice, silently, for ever.
+    /// </summary>
+    public async Task<KeysetPage<IntakeReceiptSummary>> ListByCursorAsync(
+        IntakeDecision? decision,
+        KeysetPosition? after,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var matches = context.IntakeReceipts.AsNoTracking();
+        if (decision is { } requested)
+        {
+            var code = ToCode(requested);
+            matches = matches.Where(item => item.Decision == code);
+        }
+
+        if (after is { } position)
+        {
+            // Descending order, so "after" means strictly older: an equal
+            // timestamp continues at a strictly smaller id. Written as two
+            // comparisons rather than a tuple so SQL Server translates it and
+            // the index on (ReceivedAtUtc, Id) is used.
+            matches = matches.Where(item =>
+                item.ReceivedAtUtc < position.SortKey
+                || (item.ReceivedAtUtc == position.SortKey
+                    && item.Id.CompareTo(position.Id) < 0));
+        }
+
+        // One row beyond the page: its presence is what says another page
+        // exists, without a second count query that could disagree with it.
+        var rows = await matches
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(limit + 1)
+            .Select(item => new SummaryRow(
+                item.Id,
+                item.SourceFileName,
+                item.ReceivedAtUtc,
+                item.Decision,
+                item.FailureReason,
+                item.EvidenceJson,
+                item.MailRouteDecision!.EffectiveSenderAddress))
+            .ToListAsync(cancellationToken);
+
+        var hasMore = rows.Count > limit;
+        var page = rows.Take(limit).ToArray();
+        var summaries = await EnrichAsync(context, page, cancellationToken);
+        var next = hasMore && page.Length > 0
+            ? new KeysetPosition(page[^1].ReceivedAtUtc, page[^1].Id)
+            : null;
+        return new(summaries, next);
+    }
+
+    private sealed record SummaryRow(
+        Guid Id,
+        string SourceFileName,
+        DateTimeOffset ReceivedAtUtc,
+        string Decision,
+        string? FailureReason,
+        string EvidenceJson,
+        string? Sender);
+
+    /// <summary>
+    /// Adds the case link and allocation state to one page of rows with one
+    /// query each, never one per row.
+    /// </summary>
+    private static async Task<IReadOnlyList<IntakeReceiptSummary>> EnrichAsync(
+        PegasusDbContext context,
+        IReadOnlyList<SummaryRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var receiptIds = rows.Select(item => item.Id).ToArray();
+        if (receiptIds.Length == 0)
+        {
+            return [];
+        }
+
+        var cases = await context.IntakeManualAssociations
+            .AsNoTracking()
+            .Where(association => association.IsActive
+                && receiptIds.Contains(association.IntakeReceiptId))
+            .Select(association => new
+            {
+                association.IntakeReceiptId,
+                association.CaseId,
+                association.Case.Reference
+            })
+            .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
+        var allocationStates = (await context.IntakeAllocationAttempts
+            .AsNoTracking()
+            .Where(item => receiptIds.Contains(item.IntakeReceiptId))
+            .OrderByDescending(item => item.AttemptNumber)
+            .ToListAsync(cancellationToken))
+            .GroupBy(item => item.IntakeReceiptId)
+            .ToDictionary(
+                group => group.Key,
+                group => IntakeAllocationState.FromAttempt(
+                    EfIntakeAllocationStore.Map(group.First())));
+
+        return rows.Select(item =>
+        {
+            cases.TryGetValue(item.Id, out var linkedCase);
+            allocationStates.TryGetValue(item.Id, out var allocationState);
+            return new IntakeReceiptSummary(
+                item.Id,
+                item.SourceFileName,
+                item.ReceivedAtUtc,
+                ParseDecision(item.Decision),
+                item.FailureReason,
+                item.Sender,
+                ReadSubject(item.EvidenceJson),
+                linkedCase?.CaseId,
+                linkedCase?.Reference,
+                allocationState);
+        }).ToArray();
     }
 
     public async Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken)

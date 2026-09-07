@@ -255,3 +255,33 @@ demonstrated:
 | One bad Box folder reference produced 1,896 exceptions in a day | Classify failures at the client boundary; park poison work visibly |
 | ~30 consecutive governance PRs while the intake engine stayed untrusted | Process is not a product; delete controls whose triggers never occur |
 | 17-ticket misclassification wave found via operator screenshots, not CI | Weekly human review of real operator-visible output |
+
+## v1 shared development contracts
+
+PLAT-075 owns the common Foundation commit consumed unchanged by CASE-047 and
+INTK-060. This is an incomplete development checkpoint, not runtime or release
+evidence. The owner-ticket plan records the exact Foundation SHA and subsequent
+shared corrections. The C# definitions are the signature authority:
+
+| Consumer | Contract owner and signature |
+| --- | --- |
+| Accounts and Case editing | `IClearCaseEditLease.ExecuteAsync(ClearCaseEditLeaseRequest, CancellationToken)` validates an Administrator, selected Case, expected staff holder and independent lease generation; returns the retained clearance result on exact replay. |
+| B Glass's repair estimates | `IPerUserExternalCredentialReader.GetEnabledAsync(ActionActor, ExternalCredentialProvider, CancellationToken)` returns server-only enabled credential material for that actor; administrative status never includes its password. |
+| B generated and imported artifacts; C retained sources | `ICaseArtifactCustody.RetainAsync(CaseArtifactCustodyRequest, CancellationToken)` accepts one Case or receipt destination and returns confirmed logical identity or an explicit pending/failed/unknown result. |
+| B/C logical reads and A downloads | `IReadLogicalDocumentVersion.OpenAsync(ReadLogicalDocumentVersionRequest, CancellationToken)` selects exactly one complete document/version pair or retained intake asset; Case and receipt contexts are checked against persisted associations. Storage addresses never come from callers. |
+| C correspondence | `IStaffMailSend.SendAsync(StaffMailSendCommand, CancellationToken)` owns the single mail operation and its server-computed payload hash. |
+| B report delivery | `IStaffReportSend.SendAsync(StaffReportSendCommand, CancellationToken)` uses the same mail operation; B's `IReportSendReadiness.RequireReadyAsync` rechecks persisted versions and exact artifacts at the side effect. |
+| B source adoption | `ISourceCandidateQueries` and `IThirdPartyReportCandidateQueries` return C-owned source observations. Typed report leaves retain raw value, unit, currency, document/version/hash and locator; B alone accepts CE findings. |
+| B location selection | `IInspectionLocationChoices.SearchAsync` returns a bounded choice with postcode, source kind, source record and version. A location never implies CE attendance. |
+| B raw estimate import via Web/MCP | `IImportRawEstimate.ExecuteAsync` accepts logical source identity, SHA-256, typed actor, expected Case version, lease and operation key. |
+
+The mail state vocabulary is `StaffMailState`; attempt stages use
+`StaffMailAttemptStage`. Submitted means provider acceptance. Only matching
+observed Sent evidence establishes Sent. Recovery projections contain safe
+state, attempt time, mailbox generation, payload hash and expiry; upload URLs,
+credential material and provider-session secrets stay inside the adapter.
+
+Only the concrete administrative lease implementation is newly registered at
+Foundation. B/C domain implementations and their A-authored composition patches
+must arrive together on each owning branch; absent implementations are not
+registered and passive contracts do not prove a working user journey.

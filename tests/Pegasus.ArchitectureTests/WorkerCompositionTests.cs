@@ -9,6 +9,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Worker;
 
 namespace Pegasus.ArchitectureTests;
@@ -42,6 +43,12 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedCustody>());
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedVehicleLookup>());
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedExternalWork>());
+            Assert.IsType<AzureDocumentIntelligenceOcr>(
+                scopedServices.GetRequiredService<IIntakeOcrProvider>());
+            Assert.NotNull(scopedServices.GetRequiredService<IProcessIntakeOcr>());
+            Assert.Same(
+                scopedServices.GetRequiredService<EfIntakeOcrOperationStore>(),
+                scopedServices.GetRequiredService<IIntakeOcrOperationStore>());
             Assert.NotNull(scopedServices.GetRequiredService<DispatchPendingWork>());
             Assert.Equal(
                 "Pegasus.Infrastructure.Email.GraphApprovedInboxSource",
@@ -55,6 +62,9 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
             Assert.NotNull(scopedServices.GetRequiredService<SubmitMailboxImageIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
+            Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
+            var analysis = scopedServices.GetRequiredService<AnalyzeRetainedInstruction>();
+            Assert.Same(analysis, scopedServices.GetRequiredService<IAnalyzeRetainedInstruction>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
@@ -63,6 +73,140 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ProductionWithoutDocumentIntelligenceEndpointKeepsOcrUnavailable()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateProductionValues(root);
+            values.Remove("DocumentIntelligence:Endpoint");
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            var services = CreateWorkerServices(configuration, new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<IProcessQueuedExternalWork>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<IIntakeOcrOperationStore>());
+            Assert.Null(scope.ServiceProvider.GetService<IIntakeOcrProvider>());
+            Assert.Null(scope.ServiceProvider.GetService<IProcessIntakeOcr>());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConfiguredProductionRouterDispatchesOcrToItsTypedHandler()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var workItemId = Guid.NewGuid();
+            var configuration = CreateConfiguration("Production", root);
+            var services = CreateWorkerServices(configuration, new TestHostEnvironment(root));
+            var recorder = new RecordingOcrProcessor();
+            services.AddSingleton<IQueuedExternalWorkReader>(
+                new FixedExternalWorkReader(new(workItemId, ExternalWorkKinds.IntakeOcr)));
+            services.AddSingleton<IProcessIntakeOcr>(recorder);
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<IProcessQueuedExternalWork>()
+                .ExecuteAsync(workItemId, CancellationToken.None);
+
+            Assert.Equal([workItemId], recorder.ProcessedIds);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UnconfiguredProductionRouterRefusesOcrWork()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var workItemId = Guid.NewGuid();
+            var values = CreateProductionValues(root);
+            values.Remove("DocumentIntelligence:Endpoint");
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            var services = CreateWorkerServices(configuration, new TestHostEnvironment(root));
+            services.AddSingleton<IQueuedExternalWorkReader>(
+                new FixedExternalWorkReader(new(workItemId, ExternalWorkKinds.IntakeOcr)));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+            var exception = await Assert.ThrowsAsync<UnknownExternalWorkKindException>(() =>
+                scope.ServiceProvider.GetRequiredService<IProcessQueuedExternalWork>()
+                    .ExecuteAsync(workItemId, CancellationToken.None));
+
+            Assert.Equal(workItemId, exception.WorkItemId);
+            Assert.Equal(ExternalWorkKinds.IntakeOcr, exception.Kind);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("not-an-endpoint")]
+    [InlineData("   ")]
+    [InlineData("http://ocr.example.test/")]
+    public void ProductionRefusesInvalidDocumentIntelligenceEndpointBeforeRegistration(
+        string endpoint)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateProductionValues(root);
+            values["DocumentIntelligence:Endpoint"] = endpoint;
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            var services = new ServiceCollection();
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                services.AddPegasusWorker(configuration, new TestHostEnvironment(root)));
+
+            Assert.Contains("DocumentIntelligence:Endpoint", exception.Message, StringComparison.Ordinal);
+            Assert.Empty(services);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DevelopmentOfflineRefusesDocumentIntelligenceEndpoint()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["DocumentIntelligence:Endpoint"] = "https://ocr.example.test/",
+                ["AzureWebJobsStorage"] = "UseDevelopmentStorage=true"
+            };
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            var services = new ServiceCollection();
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                services.AddPegasusWorker(configuration, new TestHostEnvironment(root)));
+
+            Assert.Contains("DocumentIntelligence:Endpoint", exception.Message, StringComparison.Ordinal);
+            Assert.Empty(services);
         }
         finally
         {
@@ -125,8 +269,14 @@ public sealed class WorkerCompositionTests
                 provider.GetRequiredService<IVehicleLookupAdapter>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedVehicleLookup>());
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedExternalWork>());
+            Assert.NotNull(scopedServices.GetRequiredService<IIntakeOcrOperationStore>());
+            Assert.Null(scopedServices.GetService<IIntakeOcrProvider>());
+            Assert.Null(scopedServices.GetService<IProcessIntakeOcr>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
             Assert.NotNull(scopedServices.GetRequiredService<RunDueChasers>());
+            Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
+            var analysis = scopedServices.GetRequiredService<AnalyzeRetainedInstruction>();
+            Assert.Same(analysis, scopedServices.GetRequiredService<IAnalyzeRetainedInstruction>());
             Assert.Same(
                 scopedServices.GetRequiredService<IIntakeWorkStore>(),
                 scopedServices.GetRequiredService<IStagedArtifactAuthority>());
@@ -218,6 +368,7 @@ public sealed class WorkerCompositionTests
         ["AzureIdentity:WorkerClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
         ["IntakeStorage:ServiceUri"] = "https://custody.example.test/",
         ["IntakeQueue:ServiceUri"] = "https://transport.example.test/",
+        ["DocumentIntelligence:Endpoint"] = "https://ocr.example.test/",
         ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
         ["Graph:MailboxId"] = "mailbox-object-id",
         ["Graph:MailboxAddress"] = "instructions@collisionengineers.co.uk",
@@ -259,5 +410,25 @@ public sealed class WorkerCompositionTests
         public string ApplicationName { get; set; } = "Pegasus.ArchitectureTests";
         public string ContentRootPath { get; set; } = contentRootPath;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class FixedExternalWorkReader(QueuedExternalWork work)
+        : IQueuedExternalWorkReader
+    {
+        public Task<QueuedExternalWork?> GetAsync(
+            Guid workItemId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<QueuedExternalWork?>(work);
+    }
+
+    private sealed class RecordingOcrProcessor : IProcessIntakeOcr
+    {
+        public List<Guid> ProcessedIds { get; } = [];
+
+        public Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
+        {
+            ProcessedIds.Add(workItemId);
+            return Task.CompletedTask;
+        }
     }
 }

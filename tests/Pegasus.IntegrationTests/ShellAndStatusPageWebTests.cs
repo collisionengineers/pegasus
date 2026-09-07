@@ -1,4 +1,8 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Operations;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -128,5 +132,48 @@ public sealed class ShellAndStatusPageWebTests
             "version",
             await version.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// C08: the required <see cref="IGetAttentionRows"/> dependency supplies
+    /// the notifications menu through ordinary production composition.
+    /// </summary>
+    [Fact]
+    public async Task NotificationsMenuShowsAttentionRowsOnceTheQueryIsRegistered()
+    {
+        var rows = new[]
+        {
+            new NeedsAttentionItem(
+                NeedsAttentionKind.Triage, Guid.NewGuid(), "T/2031/041", "AB12 CDE",
+                Detail: null, Reason: "open", NeedsAttentionPriority.High,
+                Owner: null, Due: null, LastOutcome: null, Source: null, Attempts: null)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetAttentionRows>();
+                services.AddSingleton<IGetAttentionRows>(new StubAttentionRows(rows));
+            }));
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        // Not Work Centre ("/") — that page supplies its own rows and never
+        // asks the filter for this query.
+        using var response = await client.GetAsync("/Search");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("AB12 CDE", html, StringComparison.Ordinal);
+    }
+
+    private sealed class StubAttentionRows(IReadOnlyList<NeedsAttentionItem> rows) : IGetAttentionRows
+    {
+        public Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
+            Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult(rows);
     }
 }

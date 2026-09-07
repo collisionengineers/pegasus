@@ -22,6 +22,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -516,7 +517,10 @@ public sealed class CustodyOutboxIntegrationTests
     public async Task EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay(
         CaseLifecycleState terminalState)
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        // The accepted request upload below is a real submission, so this host
+        // needs the custody adapter Stream A will register in production.
+        using var factory = PublicUploadRetentionWebTests.WithRetention(baseFactory);
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
         var caseId = accepted.CaseId;
@@ -2472,7 +2476,12 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
-                services.GetRequiredService<TimeProvider>())
+                services.GetRequiredService<TimeProvider>(),
+                // A first pass over a staged source, so nothing here re-reads a
+                // retained one. A reader that refuses says so out loud if that
+                // ever changes; standalone C composes no concrete reader.
+                RecordingLogicalDocumentVersionReader.Refusing(),
+                services.GetRequiredService<IIntakeOcrOperationStore>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
             await services.GetRequiredService<IIntakeReceiptStore>()

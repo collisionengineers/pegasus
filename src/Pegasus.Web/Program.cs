@@ -239,6 +239,7 @@ else
     intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
     allowLocalQueueCreation = true;
 }
+builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
@@ -684,6 +685,7 @@ if (productionProfile)
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
+    builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
     builder.Services.AddSingleton<IResolveApprovedMailboxIdentity, LocalApprovedMailboxIdentityResolver>();
 }

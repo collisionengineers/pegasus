@@ -3,6 +3,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Tests.Qdos;
@@ -10,6 +11,74 @@ namespace Pegasus.Core.Tests.Qdos;
 public sealed class QdosBoundaryContractTests
 {
     private static readonly DateTimeOffset Now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void RequestUploadMetadataMayBeOmitted()
+    {
+        var command = CreateRequestUploadCommand(null, null);
+
+        var normalized = RequestUploadPolicy.NormalizeCreate(command);
+
+        Assert.Equal(command, normalized);
+        Assert.Null(normalized.Recipient);
+        Assert.Null(normalized.Reason);
+    }
+
+    [Fact]
+    public void RequestUploadMetadataIsTrimmedWithoutChangingCommandContext()
+    {
+        var command = CreateRequestUploadCommand("  Workshop contact  ", "  Requested evidence  ");
+
+        var normalized = RequestUploadPolicy.NormalizeCreate(command);
+
+        Assert.Equal(command.CaseId, normalized.CaseId);
+        Assert.Same(command.Actor, normalized.Actor);
+        Assert.Equal(command.OperationKey, normalized.OperationKey);
+        Assert.Equal(command.ExpectedCaseVersion, normalized.ExpectedCaseVersion);
+        Assert.Equal(command.EditLeaseToken, normalized.EditLeaseToken);
+        Assert.Equal("Workshop contact", normalized.Recipient);
+        Assert.Equal("Requested evidence", normalized.Reason);
+    }
+
+    [Fact]
+    public void RequestUploadMetadataAcceptsItsExactLimits()
+    {
+        var normalized = RequestUploadPolicy.NormalizeCreate(
+            CreateRequestUploadCommand(new string('R', 500), new string('N', 1000)));
+
+        Assert.Equal(500, normalized.Recipient!.Length);
+        Assert.Equal(1000, normalized.Reason!.Length);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RequestUploadMetadataRejectsValuesOverTheirLimits(bool recipient)
+    {
+        var command = recipient
+            ? CreateRequestUploadCommand(new string('R', 501), "Reason")
+            : CreateRequestUploadCommand("Recipient", new string('N', 1001));
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => RequestUploadPolicy.NormalizeCreate(command));
+
+        Assert.Equal(recipient ? "Recipient" : "Reason", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RequestUploadMetadataRejectsWhitespaceOnlyValues(bool recipient)
+    {
+        var command = recipient
+            ? CreateRequestUploadCommand(" \t ", "Reason")
+            : CreateRequestUploadCommand("Recipient", " \r\n ");
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => RequestUploadPolicy.NormalizeCreate(command));
+
+        Assert.Equal(recipient ? "Recipient" : "Reason", exception.ParamName);
+    }
 
     [Fact]
     public void RequestUploadRejectsRevokedLinkBeforeExposingFileDetails()
@@ -50,6 +119,80 @@ public sealed class QdosBoundaryContractTests
         Assert.Null(conflict.ContentHash);
         Assert.False(conflict.MayEnterCustody);
     }
+
+    /// <summary>
+    /// The Provider API's decoded envelope is 30 MB, and the per-file bound it
+    /// actually enforces can never exceed it: a single file that fits the
+    /// per-file cap but not the envelope is refused, so the envelope is the
+    /// effective ceiling for one file as well as for the batch.
+    /// </summary>
+    [Fact]
+    public void TheProviderApiEnvelopeBoundsEveryFileItCarries()
+    {
+        Assert.Equal(30 * 1024 * 1024, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
+        Assert.True(
+            IntakeEnvelopeLimits.MaximumProviderApiFileLength
+                <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
+            "A single Provider API file may never be allowed past the envelope.");
+
+        // One file inside the per-file cap is accepted; the same envelope
+        // filled past 30 MB is refused as an envelope failure, not as a
+        // per-file one.
+        var withinBounds = ProviderSubmissionPolicy.RequireEnvelope(
+            [ProviderFile(0, 1024)]);
+        Assert.Single(withinBounds);
+
+        // Four files, each well inside the per-file bound, still sum past the
+        // envelope: the envelope is enforced on the batch as well as on one
+        // file.
+        var overEnvelope = Enumerable
+            .Range(0, 4)
+            .Select(ordinal => ProviderFile(ordinal, 8 * 1024 * 1024))
+            .ToArray();
+        Assert.All(
+            overEnvelope,
+            file => Assert.True(
+                file.Content.Length <= IntakeEnvelopeLimits.MaximumProviderApiFileLength,
+                "Each file must be inside the per-file bound, or this proves "
+                    + "the per-file check rather than the envelope."));
+        Assert.True(
+            overEnvelope.Sum(file => (long)file.Content.Length)
+                > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
+            "The fixture must exceed the envelope for this to prove anything.");
+        var refused = Assert.Throws<ProviderSubmissionException>(
+            () => ProviderSubmissionPolicy.RequireEnvelope(overEnvelope));
+        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, refused.Error);
+    }
+
+    /// <summary>
+    /// The Provider API per-file bound at the limit and one byte past it. The
+    /// manual channel's 100 MiB cap does not reach this channel: a file that
+    /// the staff form would accept is refused here (C07 item 5, INTK-052).
+    /// </summary>
+    [Fact]
+    public void TheProviderApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
+    {
+        var atTheLimit = ProviderSubmissionPolicy.RequireEnvelope(
+            [ProviderFile(0, IntakeEnvelopeLimits.MaximumProviderApiFileLength)]);
+        Assert.Single(atTheLimit);
+
+        var overTheLimit = Assert.Throws<ProviderSubmissionException>(
+            () => ProviderSubmissionPolicy.RequireEnvelope(
+                [ProviderFile(0, IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1)]));
+        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, overTheLimit.Error);
+
+        Assert.True(
+            IntakeEnvelopeLimits.MaximumContentLength
+                > IntakeEnvelopeLimits.MaximumProviderApiFileLength,
+            "This test only means something while the manual per-file cap is "
+                + "the larger of the two.");
+    }
+
+    private static ProviderSubmissionFile ProviderFile(int ordinal, int length) => new(
+        ordinal,
+        $"provider-{ordinal:00}.pdf",
+        "application/pdf",
+        new byte[length]);
 
     [Fact]
     public void InspectionAddressPolicyRejectsTransportMetadataAndRetainsContradictoryContent()
@@ -303,6 +446,17 @@ public sealed class QdosBoundaryContractTests
             accepted with { Value = "12000" },
             accepted with { Value = "miles" });
     }
+
+    private static CreateRequestUploadLinkCommand CreateRequestUploadCommand(
+        string? recipient,
+        string? reason) => new(
+            Guid.NewGuid(),
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            "request-upload:create",
+            17,
+            "lease-token",
+            recipient,
+            reason);
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

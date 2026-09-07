@@ -11,6 +11,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
@@ -71,7 +72,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
         services.AddScoped<IAllocateIntake, AllocateIntake>();
         services.AddScoped<IListIntake, ListIntake>();
+        services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
         services.AddScoped<IGetIntake, GetIntake>();
+        services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
         // The read half of retained mail only. The write port is registered by the
         // poll compositions below, so nothing in Web can add a retained message.
         services.AddScoped<EfRetainedMailboxMessageStore>();
@@ -116,6 +119,7 @@ public static class DependencyInjection
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
         services.AddScoped<EfUnidentifiedStore>();
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
+        services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
@@ -125,9 +129,11 @@ public static class DependencyInjection
         services.AddScoped<ITriageResponseEvidenceCandidateQueries>(
             provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<IListTriage, ListTriage>();
+        services.AddScoped<IListTriagePage, ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<IAssignTriage, AssignTriage>();
+        services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
         services.AddScoped<IRecordTriageFinding, RecordTriageFinding>();
@@ -154,7 +160,38 @@ public static class DependencyInjection
         services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
-        services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
+        services.AddSingleton<QdosInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy>(provider =>
+            provider.GetRequiredService<QdosInstructionExtractionPolicy>());
+        services.AddSingleton<IInstructionExtractionPolicy, AlsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, AxInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, BcInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, BlackInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, DfdInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, FwInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, KbsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, MpInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, OakInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, PchInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, QclInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, RjsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, SblInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, YmlInstructionExtractionPolicy>();
+        services.AddScoped<InstructionExtractionPolicySelector>();
+        services.AddScoped<EfRetainedInstructionAnalysisStore>();
+        services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<ISourceCandidateQueries>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<IThirdPartyReportCandidateQueries>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
+        services.AddScoped<AnalyzeRetainedInstruction>();
+        services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
+            provider.GetRequiredService<AnalyzeRetainedInstruction>());
+        services.AddScoped<EfIntakeOcrOperationStore>();
+        services.AddScoped<IIntakeOcrOperationStore>(provider =>
+            provider.GetRequiredService<EfIntakeOcrOperationStore>());
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because
@@ -168,7 +205,11 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
-        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
+        services.AddScoped<EfStaffAccountQueries>();
+        services.AddScoped<IStaffAccountQueries>(provider =>
+            provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<ICaseEngineerChoices>(provider =>
+            provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
@@ -196,6 +237,13 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
+        services.AddScoped<EfClaimSourceAdministration>();
+        services.AddScoped<IClaimSourceAdministration>(
+            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
+        services.AddScoped<IClaimSourceQueries>(
+            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
+        services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
+        services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(
             provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
@@ -269,7 +317,11 @@ public static class DependencyInjection
         services.AddScoped<RetryMailboxProcessing>();
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
-        services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<GetOperationsSnapshot>();
+        services.AddScoped<IGetOperationsSnapshot>(provider =>
+            provider.GetRequiredService<GetOperationsSnapshot>());
+        services.AddScoped<IGetAttentionRows>(provider =>
+            provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
         services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
         services.AddScoped<GetEngineerActivityReport>();
@@ -313,6 +365,8 @@ public static class DependencyInjection
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
+        services.AddScoped<IAdministrativeCaseEditLeaseStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IClearCaseEditLease, ClearCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<EfCaseQueryStore>();
@@ -325,7 +379,11 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<ICaseDataQueries>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
-        services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
+        services.AddScoped<InspectionAddressChoicesQueries>();
+        services.AddScoped<IInspectionAddressChoicesQueries>(
+            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
+        services.AddScoped<IInspectionLocationChoices>(
+            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
@@ -459,7 +517,10 @@ public static class DependencyInjection
             services.AddScoped<IIntakeSourceReader>(provider =>
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
-            services.AddScoped<ProcessIntake>();
+            services.AddScoped(provider =>
+                ActivatorUtilities.CreateInstance<ProcessIntake>(
+                    provider,
+                    provider.GetRequiredService<QdosInstructionExtractionPolicy>()));
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.
@@ -489,6 +550,10 @@ public static class DependencyInjection
         {
             services.AddSingleton(requestUploadLimitsFactory);
             services.AddSingleton<RequestUploadPolicy>();
+            services.AddScoped<EfPublicUploadRetentionStore>();
+            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
+                provider.GetRequiredService<EfPublicUploadRetentionStore>());
+            services.AddScoped<RetainIncomingArtifact>();
             services.AddScoped<EfDocumentRequestStore>();
             services.AddScoped<ICreateRequestUploadLink>(provider =>
                 provider.GetRequiredService<EfDocumentRequestStore>());

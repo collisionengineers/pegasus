@@ -377,16 +377,11 @@ public sealed class DueChaserSweepPersistenceTests
             DateTimeOffset firstDueAtUtc)
         {
             await using var context = await contextFactory.CreateDbContextAsync();
-            var organizationId = Guid.NewGuid();
-            var lineageId = Guid.NewGuid();
-            var principalId = Guid.NewGuid();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var organizationId = principal.OrganizationId;
+            var lineageId = principal.SequenceLineageId;
+            var principalId = principal.Id;
             var receiptId = Guid.NewGuid();
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Due chaser test organization"}, {0L})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"due-chaser.eml"}, {"message/rfc822"}, {1L}, {new string('a', 64)}, {"manual_upload"}, {$"due-chaser-{caseId:N}"}, {StartUtc}, {StartUtc}, {"due-chaser-test-reader"}, {"1"}, {0L}, {"needs_sorting"}, {"Due chaser fixture"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"})");
             await context.Database.ExecuteSqlInterpolatedAsync(

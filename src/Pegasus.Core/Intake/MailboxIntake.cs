@@ -68,6 +68,7 @@ public sealed record RetainedMailboxMessageMetadata(
     string? SenderDisplayName,
     IReadOnlyList<string> ToAddresses,
     IReadOnlyList<string> CcAddresses,
+    IReadOnlyList<string> ReplyToAddresses,
     string? Subject,
     string? BodyPlainText,
     IReadOnlyList<RetainedMailboxAttachment> Attachments,
@@ -838,6 +839,7 @@ public sealed class PollApprovedInbox(
             && IsOptionalBounded(metadata.Subject, MaximumSubjectLength)
             && IsAddressList(metadata.ToAddresses)
             && IsAddressList(metadata.CcAddresses)
+            && IsAddressList(metadata.ReplyToAddresses)
             && metadata.Attachments is not null
             && metadata.Attachments.All(attachment =>
                 attachment is not null
