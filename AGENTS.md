@@ -182,6 +182,9 @@ in the build lane and the catalogue check on every change set.
   never mixed in a single run or evidence record
   ([runbook](docs/runbook.md#supported-platform)). Release operations use the
   authorised Linux x64 terminal (ADR-0037).
+- Repository skills have one canonical body under `.agents/skills/`. The
+  `.claude/skills/`, `.codex/skills/` and `.zcode/skills/` copies are tracked
+  pointer stubs that link to it; `.claude/` is otherwise ignored.
 - `corpus/` is local, ignored, and immutable — never upload, publish, commit,
   rename, or modify it.
 - A closed composition or feature gate is a disabled flag, not a partially

@@ -100,18 +100,25 @@ The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 is
 
 The repository identifies its package and release target as `0.1.0-alpha.1`.
 Pegasus is deployed to its sole production environment by exact-SHA
-fast-forward releases of `main`; this topology was rechecked after release 38
-on 2026-09-02 and is unchanged. The current production state (release,
-revision, migration head, gate settings) is owned exclusively by
-[operations § Production environment](operations.md#production-environment)
+fast-forward releases of `main`; this topology was rechecked after release 39
+on 2026-09-07 and is unchanged in principle, with one recorded exception: the
+operator released the `dev` head directly for release 39 without promoting it
+to `main`, so production is currently ahead of `main`. The current production
+state (release, revision, migration head, gate settings) is owned exclusively
+by [operations § Production environment](operations.md#production-environment)
 and is not restated here. Operator acceptance remains outstanding.
 
-The implemented release toolchain now admits new release artifacts only from
-an authorised Linux x64 terminal. One clean exact SHA produces Linux Web and
-Worker packages, a linux/amd64 OCI archive and a self-contained Linux
-`efbundle`; manifest schema 3 binds their hashes and platform identity. This is
-repository tooling state, not evidence that the change has been promoted or
-deployed.
+The release toolchain admits new release artifacts only from an authorised
+Linux x64 terminal. One clean exact SHA produces Linux Web and Worker packages,
+a linux/amd64 OCI archive and a self-contained Linux `efbundle`; manifest
+schema 3 binds their hashes and platform identity. Release 39 exercised that
+route end to end from WSL for the first time. Packaging now uses `ZipFile`
+rather than `Compress-Archive` so the Worker package keeps its
+`.azurefunctions/` and `.playwright/` directories on Linux, and the build
+asserts the former is present. The Web host's Automation MCP OAuth keys are
+persistent certificates read from two versioned Key Vault secrets; the Web
+managed identity holds per-secret read grants on those and the six earlier
+secrets, never a vault-wide grant.
 
 ## Components and dependency direction
 

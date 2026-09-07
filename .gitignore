@@ -25,7 +25,8 @@ appsettings.*.local.json
 /.codex/config.toml
 /.mcp.json
 /opencode.json
-/.claude/
+/.claude/*
+!/.claude/skills/
 /.vs/
 /.obsidian/workspace.json
 /.obsidian/workspace-mobile.json

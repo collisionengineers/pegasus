@@ -8,6 +8,17 @@ rules are owned by [engineering](engineering.md#required-evidence-tiers).
 
 ## Evidence and authority
 
+### Production release 39 — 7 September 2026
+
+On 7 September 2026 the authorised Linux x64 terminal (WSL, ext4) released the
+`dev` head `3da60bd0c270111d5168dc17246dc831882108ea` to `rg-pegasus-prod` as
+**release 39**, the first release built and deployed from Linux. The full
+record, including the operator-approved deviations from the normal route, is
+the release 39 entry under [Production environment](#production-environment).
+The v1 platform, casework and intake work is therefore deployed; live
+verification so far is smoke plus a clean post-deploy telemetry window, not
+operator acceptance of the v1 journeys.
+
 ### Read-only production observation — 6 September 2026
 
 On 6 September 2026, Azure CLI on the Windows development host read the existing
@@ -21,10 +32,11 @@ environment value was present. This read checked revision, image and those
 settings only. It did not recheck SQL, provider credentials, external-client
 round trips, document rendering or operator acceptance.
 
-The v1 branches are development work and have not changed that deployment.
-Their persistent OAuth keys, staff-send transport, cache, new queries and
-administration pages require the separate reviewed release and activation
-process. No cloud, mailbox, Box, Glass's or EVA writes were made by this task.
+At the time of that read the v1 branches were development work and had not
+changed the deployment; release 39 the next day deployed them. Their persistent
+OAuth keys are now live through the two certificate secrets recorded in the
+release 39 entry; staff-send transport, cache, new queries and administration
+pages are deployed but not operator-accepted.
 
 A Windows-only diagnostic on 6 September built a local Linux/amd64 OCI Web
 archive from the A development tree at `8e6f3b21d`. Static inspection applied
@@ -46,13 +58,15 @@ authenticated `/Upload` POST through `ReceiveIntake` is the manual HTTP staging
 caller; Worker owns queued processing; `/Received` and `/Inbox` are read-only
 views. Source registration is not proof of deployed or live traffic.
 
-The repository release route is locally ready on Linux x64: .NET 10,
-PowerShell 7, Azure CLI, Azure Developer CLI, Bicep, ORAS 1.3.4 and the
-SqlServer module are available in WSL, and new artifacts use manifest schema 3
-with a Linux `efbundle`. Azure CLI and azd are not currently authenticated in
-this WSL instance, and no Linux-built artifact has been promoted or deployed.
-Authentication, `MERGE AUTH GRANTED` and exact-target write approval remain
-separate prerequisites for the production cutover.
+The repository release route has run end to end on Linux x64 once: release 39
+was built, validated, uploaded, migrated, provisioned, deployed and smoked
+from WSL with .NET 10, PowerShell 7, Azure CLI 2.88, the pinned Azure Developer
+CLI 1.28.0, Bicep 0.45.15, ORAS 1.3.4 and the SqlServer module. That run
+exposed and fixed one Linux packaging defect (the Worker ZIP omitted
+dot-directories) and reconstructed the `pegasus-prod` azd environment from the
+last subscription deployment because no copy existed on the workstation. It
+did not exercise the `dev` to `main` promotion; `MERGE AUTH GRANTED` and
+exact-target write approval remain separate prerequisites for every release.
 
 The assessment renderer is **deployed with a reachable operator caller** since
 release 12 (2026-08-19): the Web image carries the pinned Chromium build, and
@@ -336,11 +350,12 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   tenant `858cf5b3-aa0a-47a6-9b40-4851fd0afa94`, resource group
   `rg-pegasus-prod`, region `uksouth`.
 - **Compute/data:** Linux/AMD64 Razor Pages Web on Container Apps Consumption
-  (single revision, 0.5 vCPU / 1 GiB, min 1 max 1 replica — no scale-to-zero,
-  no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
-  LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
-  Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 38**. A branch
+  (single revision, 1 vCPU / 2 GiB as `infra/modules/platform.bicep` declares,
+  min 1 max 1 replica — no scale-to-zero, no cold start), FC1 .NET 10 isolated
+  Worker, Basic ACR, S0 Azure SQL, two Standard LRS storage accounts, distinct
+  Web/Worker managed identities, a Pegasus Key Vault, Log Analytics, and
+  Application Insights.
+- **Deployed evidence:** the estate currently serves **release 39**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -358,6 +373,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 39 | 2026-09-07 | `3da60bd0c270111d5168dc17246dc831882108ea` (`dev` head, not promoted to `main`) | `sha256:cc1a5077efdc761e359667a1bfc73b7cf8851e88437cd95fec2615fc41b1fe73` | `pegasus-prod-web-252ow37gij--3da60bd0c270` | thirteen, head `20260907100000_RemoveAutomaticEvaSubmission` (`ExtendAssessmentVocabulary`, `RemoveStaffReviewFlags`, `StaffAccountSignOff`, `MarketResearchAiJob`, `EngineerNotes`, `CaseInspectionAddressChoices`, `CaseSignOffEngineer`, `V1PlatformFoundation`, `FilterActiveCaseReportGenerationSnapshot`, `RetainedMailboxReplyTargets`, `RemovePaintLabourRate`, `PublicUploadOccurrenceReplacementLineage`, `RemoveAutomaticEvaSubmission`) |
   | 38 | 2026-09-02 | `0f0e90ae44ffda7339ca2a460310deeb98121afa` | `sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15` | `pegasus-prod-web-252ow37gij--0f0e90ae44ff` | none (head unchanged at `20260829212237_GrantProviderSubmissionAcceptRecovery`) |
   | 37 | 2026-08-30 | `0b3ec847aae42ee1c1bee4fb99459f9192534dca` | `sha256:47f57ea5031953ef93ccb09b2eb829b30d468647c96c0dc804310cc6f368595b` | `pegasus-prod-web-252ow37gij--0b3ec847aae4` | eleven, head `20260829212237_GrantProviderSubmissionAcceptRecovery` (`AiJobs`, `GrantAiJobs`, `PrincipalApiCredentials`, `GrantPrincipalApiCredentials`, `CaseEditLeaseHolderKind`, `ProviderSubmissions`, `GrantProviderSubmissions`, `NamedEstimates`, `ProviderDeclaredInstruction`, `CaseValuations`, `GrantProviderSubmissionAcceptRecovery`) |
   | 36 | 2026-08-28 | `84132d01ccb0afca7af6c6ce519e6f3491aee160` | `sha256:5ba65f61ad754639185764ed2c7795fc06938e6e397a3a9d5c7f7fe5c01bb032` | `pegasus-prod-web-252ow37gij--84132d01ccb0` | `20260827143132_EvaApiSubmissions` and `20260827143200_GrantEvaSubmissions` |
@@ -415,9 +431,103 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     token in the request URL. The token is not reproduced here and the observed
     link is revoked. CASE-022 repairs both source defects by using the existing
     managed Box custody address and by canonicalising public-upload telemetry
-    URLs. That branch is not deployed: release 38 remains the sole production
-    revision and public uploads remain known-broken until a later authorised
-    release and live verification.
+    URLs. That branch was integrated into the v1 head and deployed by release
+    39; the live public-upload path has not yet been re-verified.
+
+  - **Release 39** (2026-09-07, source
+    `3da60bd0c270111d5168dc17246dc831882108ea`, image
+    `sha256:cc1a5077efdc761e359667a1bfc73b7cf8851e88437cd95fec2615fc41b1fe73`,
+    manifest SHA-256
+    `F9C64EF7729484EF3BD3EFBF24F0791ADA4F53857EA05F5A80E8453A549D3E08`)
+    deployed the integrated v1 platform, casework and intake work (PR #674 and
+    the 828 commits since release 38) as the first release built and executed
+    from the authorised Linux x64 terminal (ADR-0037). Web revision
+    `pegasus-prod-web-252ow37gij--3da60bd0c270` is Healthy, the sole active
+    revision in Single mode with 100% traffic on the manifest digest, and
+    `/diagnostics/version` returns the release SHA. Production smoke passed
+    (live/ready, exact version and SHA, Worker `approved-live-worker`, the
+    active Graph subscription expiring 2026-09-13, inbox poll at
+    17:15:44Z). Application Insights recorded zero exceptions and zero failed
+    Web or Worker invocations in the window after the Worker landed.
+
+    **Operator-approved deviations, in the order they were taken.**
+
+    - *No promotion.* The operator directed a one-time release of the `dev`
+      head without the exact-SHA `dev` to `main` promotion; `main` remains at
+      `32f8679d3695e0dcab8f310a1c20f8b129d20190` and PR #675 stays open. The
+      release table therefore records a revision that is not on `main`.
+    - *CI waived.* CI run 34132950893 on the head had `test-ui` failing on a
+      stale committed snapshot (`pages/administration-health--default.html`;
+      all 651 captures passed) and `browser` cancelled mid-run. The operator
+      waived both lanes for this release.
+    - *Test data wiped.* `V1PlatformFoundation` failed first because it adds
+      `TriageHistory.ActorKind` NOT NULL without a default and the table held
+      one row, then because it seeds fifteen work-provider organisations and
+      principals with fixed identifiers and production already held a QDOS
+      organisation, principal and sequence lineage. Seven earlier migrations
+      had already committed (each migration is its own transaction), leaving
+      release 38 briefly running against a schema without the two
+      `WorkflowConfigurations` review-flag columns. The operator confirmed all
+      of it was test data: the intake wipe removed 68 `transient-intake` blobs
+      and 553 rows across 71 tables (identity, mailbox, provider-reference and
+      sequence tables preserved), and a second approved delete removed the
+      QDOS organisation `f66dc965…`, its role, principal `a7faa61f…`, lineage
+      `03c28c1a…` and its `CaseSequences` row (`LastAllocatedSequence` 37).
+      QDOS case numbering therefore restarts on the seeded lineage. The bundle
+      then applied the remaining six migrations; `Invoke-AzureDatabaseBootstrap`
+      verified 646 catalogued permission rows and 444 effective runtime DML
+      rows. Both migration defects remain in the repository for a follow-up:
+      the migration cannot run against a populated database.
+    - *Worker package rebuilt.* Kudu rejected the manifest's `worker.zip`
+      (`DF651AD0D87850AB7ECD883D06951B8B1844CA4C93BAAD67715D8D075BF4F261`)
+      because `Compress-Archive`'s `*` glob omits dot-directories on Linux, so
+      `.azurefunctions/` and `.playwright/` were missing. The Worker was
+      deployed from a same-SHA republish packaged with those directories,
+      SHA-256 `0651B1862CA8201C5D70C51577B5614F491A08764D46D5B3536759CF6F1B6BBB`,
+      `config-zip` deployment `2ce3eb15-0a86-4d14-94f2-ecc1264ea25a`. The
+      republished `Pegasus.Infrastructure.dll` and `Pegasus.Worker.dll` are
+      not byte-identical to the manifest ZIP's copies, so the deployed package
+      is recorded here rather than claimed as the manifest artifact.
+      `scripts/Build-ReleaseArtifacts.ps1` now packages with `ZipFile` and
+      asserts `.azurefunctions/` is present. Between the rejection and the
+      redeploy the release 38 Worker failed 18 of 119
+      `StagedArtifactReconciliationFunction` runs and threw
+      `Invalid column name 'EvaAutomaticSubmission'`; both stopped once the new
+      package was active.
+
+    **Non-additive migrations, named as ADR-0030 requires.**
+    `20260903153134_RemoveStaffReviewFlags` drops
+    `RequireStaffInstructionReviewBeforeEngineerAssignment` and
+    `RequireStaffImageReviewBeforeEngineerAssignment` from
+    `WorkflowConfigurations` (**affected capability: staff review gating before
+    engineer assignment**, removed by the v1 workflow).
+    `20260906220638_RemovePaintLabourRate` drops
+    `CaseRepairSpecifications.PaintLabourRate` (**affected capability: the
+    repair specification's separate paint labour rate**, superseded by the v1
+    labour rate cards).
+    `20260907100000_RemoveAutomaticEvaSubmission` drops
+    `Principals.EvaAutomaticSubmission` (**affected capability: automatic EVA
+    API submission**, withdrawn by ADR-0038; manual submission remains). Roll
+    forward, never back, past these migrations; the release 38 Worker's
+    failure against the dropped EVA column above is the observed exposure.
+
+    **New deployment inputs and secrets.** Key Vault `pegasusprodkv252ow37g`
+    gained `automation-mcp-signing-certificate` (version `93d369bf…`) and
+    `automation-mcp-encryption-certificate` (version `ee55e43b…`): self-signed
+    RSA-2048 passwordless PKCS#12, valid to 2028-09-06, subjects
+    `pegasus-prod-automation-mcp-signing` / `-encryption`, each with a
+    `Key Vault Secrets User` grant for the Web identity at the exact secret
+    scope (now eight Web per-secret grants). The Web host loaded both at
+    startup, which readiness proves because the host fails closed otherwise.
+    `BOX_HOLDING_FOLDER_ID` is `415928884118`, an operator-created folder below
+    the approved root `405543781910`. The `pegasus-prod` azd environment was
+    reconstructed on the Linux workstation from deployment
+    `pegasus-prod-1788352910`'s recorded parameters plus these inputs; azd
+    subscription deployment `pegasus-prod-1788800533` provisioned the release.
+
+    Retained artifacts: `artifacts/releases/0.1.0-alpha.1` from the exact-SHA
+    worktree plus the deployed Worker package, copied to
+    `../pegasus-releases/0.1.0-alpha.1-3da60bd0` on the release workstation.
 
   - **Release 38** (2026-09-02, source
     `0f0e90ae44ffda7339ca2a460310deeb98121afa`, image
