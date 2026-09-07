@@ -312,26 +312,24 @@ public sealed partial class PublicUploadRetentionWebTests
     }
 
     /// <summary>
-    /// A refused or uncertain hand-over is not an upload. The page says so, the
-    /// occurrence records what custody said, and nothing is counted against the
-    /// link at the time of the hand-over.
+    /// A refused or uncertain hand-over is not an accepted upload. The page
+    /// says so and the occurrence records what custody said. A definite
+    /// refusal releases its reservation; an uncertain hand-over keeps it,
+    /// because custody may hold the bytes and another file must not spend the
+    /// same capacity.
     /// </summary>
     /// <remarks>
-    /// The totals below are (0, 0) because neither disposition reaches
-    /// <c>RecordAcceptedAsync</c>, so no derivation runs inside this test - not
-    /// because either state is excluded from the counted set. They differ from
-    /// then on, and this test does not reach that far: a refusal is terminal
-    /// and is never counted by any later derivation, while an uncertain
-    /// occurrence is counted by the next one, because custody may be holding
-    /// those bytes and a bound on what an anonymous link can push into custody
-    /// has to assume it is.
+    /// Admission writes the prospective total before custody. A refusal then
+    /// re-derives and releases it, while Unknown deliberately leaves the same
+    /// total in place. Neither opens the confirmed-submission window.
     /// </remarks>
     [Theory]
-    [InlineData(CaseArtifactCustodyDisposition.Failed, "failed")]
-    [InlineData(CaseArtifactCustodyDisposition.Unknown, "unknown")]
-    public async Task ARefusedOrUncertainHandOverIsNeverAcceptedAndNeverCounted(
+    [InlineData(CaseArtifactCustodyDisposition.Failed, "failed", 0)]
+    [InlineData(CaseArtifactCustodyDisposition.Unknown, "unknown", 1)]
+    public async Task ARefusedHandOverReleasesItsReservationButAnUncertainOneKeepsIt(
         CaseArtifactCustodyDisposition disposition,
-        string expectedState)
+        string expectedState,
+        int expectedFileCount)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -358,7 +356,9 @@ public sealed partial class PublicUploadRetentionWebTests
             .AsNoTracking()
             .Where(item => item.RequestId == link.LinkId)
             .ToArrayAsync());
-        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+        Assert.Equal(
+            (expectedFileCount, expectedFileCount == 0 ? 0L : Evidence.LongLength),
+            await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
     /// <summary>
@@ -823,6 +823,15 @@ public sealed partial class PublicUploadRetentionWebTests
 
         await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
+        await using (var reserved = await CreateContextAsync(factory.Services))
+        {
+            var active = await reserved.Set<RequestUploadLinkEntity>()
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == link.LinkId);
+            Assert.Equal(RequestUploadStatus.Active, active.Status);
+            Assert.Equal(maximumFileCount, active.AcceptedFileCount);
+        }
+
         var second = await PostEvidenceAsync(
             factory,
             link.Token,
@@ -845,6 +854,10 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal(maximumFileCount, custody.ProviderInitiations);
 
         await using var context = await CreateContextAsync(factory.Services);
+        var persisted = await context.Set<RequestUploadLinkEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == link.LinkId);
+        Assert.Equal(RequestUploadStatus.Exhausted, persisted.Status);
         var (fileCount, _) = await ReadLinkTotalsAsync(context, link.LinkId);
         Assert.Equal(maximumFileCount, fileCount);
     }
@@ -909,6 +922,15 @@ public sealed partial class PublicUploadRetentionWebTests
             fileName: "byte-candidate-1.txt");
 
         await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        await using (var reserved = await CreateContextAsync(factory.Services))
+        {
+            var active = await reserved.Set<RequestUploadLinkEntity>()
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == link.LinkId);
+            Assert.Equal(RequestUploadStatus.Active, active.Status);
+            Assert.Equal(4_700_000L, active.AcceptedByteCount);
+        }
 
         // The second upload attempts upload while the first is in custody.
         // Because first has reserved 700,000 bytes, remaining is 542,880 < 700,000.
@@ -1415,11 +1437,13 @@ public sealed partial class PublicUploadRetentionWebTests
                 link.CaseId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             status.GetAsync(
                 ActionActor.RequestLink(revoked.LinkId),
                 revoked.CaseId,
+                Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 CancellationToken.None));
@@ -1478,6 +1502,7 @@ public sealed partial class PublicUploadRetentionWebTests
 
         Guid documentId;
         Guid versionId;
+        Guid occurrenceId;
         var foreignLinkId = Guid.NewGuid();
         await using (var context = await CreateContextAsync(factory.Services))
         {
@@ -1486,6 +1511,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 .SingleAsync(item => item.OperationKey == scopedOperationKey);
             documentId = occurrence.DocumentId;
             versionId = occurrence.VersionId;
+            occurrenceId = occurrence.Id;
             context.Set<RequestUploadLinkEntity>().Add(new()
             {
                 Id = foreignLinkId,
@@ -1506,13 +1532,13 @@ public sealed partial class PublicUploadRetentionWebTests
         var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         var foreignActor = ActionActor.RequestLink(foreignLinkId);
         await Assert.ThrowsAsync<FileNotFoundException>(() => status.GetAsync(
-            foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
+            foreignActor, owner.CaseId, documentId, versionId, occurrenceId, CancellationToken.None));
         Assert.Null(await status.FindByOperationKeyAsync(
             foreignActor, owner.CaseId, scopedOperationKey, CancellationToken.None));
 
         var wrongCaseId = Guid.NewGuid();
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
-            foreignActor, wrongCaseId, documentId, versionId, CancellationToken.None));
+            foreignActor, wrongCaseId, documentId, versionId, occurrenceId, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
             foreignActor, wrongCaseId, scopedOperationKey, CancellationToken.None));
 
@@ -1521,6 +1547,7 @@ public sealed partial class PublicUploadRetentionWebTests
             owner.CaseId,
             documentId,
             versionId,
+            occurrenceId,
             CancellationToken.None);
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, ownResult.Disposition);
     }
@@ -2995,6 +3022,7 @@ internal sealed class RecordingCaseArtifactCustody(
         var accepted = confirmed || Disposition == CaseArtifactCustodyDisposition.Pending;
         Guid? documentId = null;
         Guid? versionId = null;
+        Guid? occurrenceId = null;
         string? boxFileId = null;
         string? boxVersionId = null;
         if (accepted)
@@ -3035,9 +3063,11 @@ internal sealed class RecordingCaseArtifactCustody(
             });
             if (CreatesDocumentOccurrence)
             {
+                var occId = Guid.NewGuid();
+                occurrenceId = occId;
                 context.Add(new DocumentOccurrenceEntity
                 {
-                    Id = Guid.NewGuid(),
+                    Id = occId,
                     CaseId = caseId,
                     DocumentId = documentId.Value,
                     VersionId = versionId.Value,
@@ -3058,6 +3088,7 @@ internal sealed class RecordingCaseArtifactCustody(
             Disposition,
             documentId,
             versionId,
+            occurrenceId,
             boxFileId,
             boxVersionId,
             request.Sha256,
@@ -3078,6 +3109,7 @@ internal sealed class RecordingCaseArtifactCustody(
         Guid caseId,
         Guid documentId,
         Guid versionId,
+        Guid occurrenceId,
         CancellationToken cancellationToken)
     {
         // Counted before the rule is applied, so a test can prove the read was
@@ -3104,7 +3136,7 @@ internal sealed class RecordingCaseArtifactCustody(
                 throw new FileNotFoundException("The document version was not found.");
             }
         }
-        return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
+        return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken, occurrenceId);
     }
 
     /// <summary>
@@ -3141,7 +3173,7 @@ internal sealed class RecordingCaseArtifactCustody(
             join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                 on occurrence.VersionId equals version.Id
             where occurrence.CaseId == caseId && occurrence.OperationKey == operationKey
-            select new { occurrence.DocumentId, occurrence.VersionId, version.CreatedBy };
+            select new { occurrence.Id, occurrence.DocumentId, occurrence.VersionId, version.CreatedBy };
         if (linkId is { } requestLinkId)
         {
             var createdBy = $"RequestLink:{requestLinkId:D}";
@@ -3150,7 +3182,7 @@ internal sealed class RecordingCaseArtifactCustody(
         var intent = await intents.SingleOrDefaultAsync(cancellationToken);
         return intent is null
             ? null
-            : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken);
+            : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken, intent.Id);
     }
 
     /// <summary>
@@ -3161,7 +3193,8 @@ internal sealed class RecordingCaseArtifactCustody(
     private async Task<CaseArtifactCustodyResult> ReadCommittedIntentAsync(
         Guid documentId,
         Guid versionId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? occurrenceId = null)
     {
         var disposition = StatusDisposition ?? Disposition;
         var confirmed = disposition == CaseArtifactCustodyDisposition.Confirmed;
@@ -3183,10 +3216,18 @@ internal sealed class RecordingCaseArtifactCustody(
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        occurrenceId ??= await context.Set<DocumentOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(o => o.DocumentId == documentId && o.VersionId == versionId)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
         return new(
             disposition,
             documentId,
             versionId,
+            occurrenceId,
             boxFileId,
             boxVersionId,
             version.Sha256,
@@ -3260,7 +3301,7 @@ internal sealed class RecordingCaseArtifactCustody(
             .SingleOrDefault(item => item.Id == linkId)
             ?? throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
         if (link.CaseId != caseId
-            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
+            || link.Status != RequestUploadStatus.Active
             || link.RevokedAtUtc is not null
             || link.ExpiresAtUtc <= nowUtc)
         {

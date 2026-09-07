@@ -471,13 +471,9 @@ public sealed class RetainIncomingArtifact(
     /// </returns>
     /// <remarks>
     /// <para>
-    /// There are two ways to ask, and which one is available is decided by
-    /// what the record already knows. A retention that names a document and a
-    /// version asks about that exact version. One that names neither - the
-    /// hand-over whose response was lost before its identities could be
-    /// written down - asks by the operation key it was accepted under, which
-    /// is the only identity both sides still share. Recovered identities are
-    /// copied onto the record, so the next question can be the precise one.
+    /// The original operation key identifies the exact custody intent, including
+    /// when the hand-over response was lost. The incoming occurrence identity
+    /// belongs to the arrival record and is not a custody occurrence identity.
     /// </para>
     /// <para>
     /// A null lookup is not permission to start again. It says only that no
@@ -508,19 +504,11 @@ public sealed class RetainIncomingArtifact(
         CaseArtifactCustodyResult? status;
         try
         {
-            status = existing.DocumentId is { } documentId
-                && existing.DocumentVersionId is { } versionId
-                    ? await custodyStatus.GetAsync(
-                        actor,
-                        caseId,
-                        documentId,
-                        versionId,
-                        cancellationToken)
-                    : await custodyStatus.FindByOperationKeyAsync(
-                        actor,
-                        caseId,
-                        existing.OperationKey,
-                        cancellationToken);
+            status = await custodyStatus.FindByOperationKeyAsync(
+                actor,
+                caseId,
+                existing.OperationKey,
+                cancellationToken);
         }
         catch (StaffAuthorizationException)
         {

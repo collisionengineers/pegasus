@@ -662,7 +662,6 @@ public sealed partial class QdosTriageIntegrationTests
     private static async Task<TriageMailboxFixture> SeedMailboxTriageAsync(
         WebApplicationFactory<Program> factory)
     {
-        var receiptId = Guid.NewGuid();
         var externalToken = $"12:instructions{Guid.NewGuid():N}";
         const string mailboxAddress = "sc08-sender@collisionengineers.co.uk";
         const string immutableMessageId = "triage-msg-001";
@@ -671,7 +670,6 @@ public sealed partial class QdosTriageIntegrationTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var evaluationRevisionId = Guid.NewGuid();
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             var mailbox = await context.ApprovedMailboxes
@@ -711,56 +709,26 @@ public sealed partial class QdosTriageIntegrationTests
                 });
             }
 
-            context.IntakeReceipts.Add(new()
-            {
-                Id = receiptId,
-                SourceFileName = "triage-instruction.eml",
-                MediaType = "message/rfc822",
-                SourceLength = 2048,
-                SourceHash = new string('A', 64),
-                SourceChannel = "mailbox",
-                ExternalReceiptToken = externalToken,
-                ReceivedAtUtc = ChaserNowUtc,
-                ProcessedAtUtc = ChaserNowUtc,
-                SourceReaderKey = "protocol_reader",
-                SourceReaderVersion = "1",
-                Version = 0,
-                Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting),
-                DecisionReason = "Triage instruction received.",
-                EvidenceJson = EfIntakeReceiptStore.SerializeEvidence([
-                    new(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.AcceptedTriageMatch, "triage_signal", "Accepted triage match", "qdos_triage", 1)
-                ]),
-                FieldsJson = EfIntakeReceiptStore.SerializeFields([]),
-                OcrCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope<IReadOnlyList<ScannedPdfOcrCandidate>>([])
-            });
-
-            var stagedReceiptId = Guid.NewGuid();
-            context.IntakeStagedReceipts.Add(new()
-            {
-                Id = stagedReceiptId,
-                SourceFileName = "triage-instruction.eml",
-                MediaType = "message/rfc822",
-                SourceLength = 2048,
-                SourceHash = new string('A', 64),
-                SourceChannel = "mailbox",
-                ExternalReceiptToken = externalToken,
-                ReceivedAtUtc = ChaserNowUtc,
-                Actor = "worker",
-                StorageKey = $"staged/{stagedReceiptId:N}",
-                StagedAtUtc = ChaserNowUtc
-            });
-
-            context.IntakeEvaluations.Add(new()
-            {
-                Id = evaluationRevisionId,
-                StagedReceiptId = stagedReceiptId,
-                ProcessedReceiptId = receiptId,
-                Revision = 1,
-                EvaluatedAtUtc = ChaserNowUtc
-            });
-
             await context.SaveChangesAsync();
         }
+
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            "triage_signal",
+            "Accepted triage match",
+            "qdos_triage",
+            1);
+        var sourceIdentity = new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, externalToken);
+        var receiptId = await StoreMinimalReceiptAsync(
+            scope.ServiceProvider,
+            "triage-instruction.pdf",
+            evidence: [acceptedMatch],
+            sourceIdentity: sourceIdentity,
+            sourceHash: new string('A', 64));
+        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(
+            scope.ServiceProvider, receiptId);
 
         var store = scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>();
         await store.RetainAsync(
@@ -797,16 +765,9 @@ public sealed partial class QdosTriageIntegrationTests
         var createTriage = scope.ServiceProvider.GetRequiredService<ICreateTriageFromIntake>();
         var triageRecord = await createTriage.ExecuteAsync(
             new(
-                new(receiptId, new(IntakeSourceChannel.Mailbox, externalToken), new string('A', 64), evaluationRevisionId),
+                new(receiptId, sourceIdentity, new string('A', 64), evaluationRevisionId),
                 "AB12CDE",
-                new IntakeEvidence(
-                    IntakeEvidenceSource.SystemDefault,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.AcceptedTriageMatch,
-                    "triage_signal",
-                    "Accepted triage match",
-                    "qdos_triage",
-                    1),
+                acceptedMatch,
                 ActionActor.SystemWorker("intake-processing"),
                 $"triage-init:{Guid.NewGuid():N}"),
             CancellationToken.None);
@@ -823,81 +784,37 @@ public sealed partial class QdosTriageIntegrationTests
     private static async Task<TriageMailboxFixture> SeedNonMailboxTriageAsync(
         WebApplicationFactory<Program> factory)
     {
-        var receiptId = Guid.NewGuid();
-        var evaluationRevisionId = Guid.NewGuid();
         var externalToken = $"upload:{Guid.NewGuid():N}";
+        var sourceIdentity = new IntakeSourceIdentity(
+            IntakeSourceChannel.ManualUpload, externalToken);
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            "triage_signal",
+            "Accepted triage match",
+            "qdos_triage",
+            1);
 
         await using var scope = factory.Services.CreateAsyncScope();
-        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using (var context = await contextFactory.CreateDbContextAsync())
-        {
-            context.IntakeReceipts.Add(new()
-            {
-                Id = receiptId,
-                SourceFileName = "upload.png",
-                MediaType = "image/png",
-                SourceLength = 1024,
-                SourceHash = new string('C', 64),
-                SourceChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload),
-                ExternalReceiptToken = externalToken,
-                ReceivedAtUtc = ChaserNowUtc,
-                ProcessedAtUtc = ChaserNowUtc,
-                SourceReaderKey = "upload_reader",
-                SourceReaderVersion = "1",
-                Version = 0,
-                Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting),
-                DecisionReason = "Manual upload.",
-                EvidenceJson = EfIntakeReceiptStore.SerializeEvidence([
-                    new(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.AcceptedTriageMatch, "triage_signal", "Accepted triage match", "qdos_triage", 1)
-                ]),
-                FieldsJson = EfIntakeReceiptStore.SerializeFields([]),
-                OcrCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope<IReadOnlyList<ScannedPdfOcrCandidate>>([])
-            });
-
-            var stagedReceiptId = Guid.NewGuid();
-            context.IntakeStagedReceipts.Add(new()
-            {
-                Id = stagedReceiptId,
-                SourceFileName = "upload.png",
-                MediaType = "image/png",
-                SourceLength = 1024,
-                SourceHash = new string('C', 64),
-                SourceChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload),
-                ExternalReceiptToken = externalToken,
-                ReceivedAtUtc = ChaserNowUtc,
-                Actor = "worker",
-                StorageKey = $"staged/{stagedReceiptId:N}",
-                StagedAtUtc = ChaserNowUtc
-            });
-
-            context.IntakeEvaluations.Add(new()
-            {
-                Id = evaluationRevisionId,
-                StagedReceiptId = stagedReceiptId,
-                ProcessedReceiptId = receiptId,
-                Revision = 1,
-                EvaluatedAtUtc = ChaserNowUtc
-            });
-
-            await context.SaveChangesAsync();
-        }
-
-        var createTriage = scope.ServiceProvider.GetRequiredService<ICreateTriageFromIntake>();
-        var triageRecord = await createTriage.ExecuteAsync(
-            new(
-                new(receiptId, new(IntakeSourceChannel.ManualUpload, externalToken), new string('C', 64), evaluationRevisionId),
-                "XY99ZZZ",
-                new IntakeEvidence(
-                    IntakeEvidenceSource.SystemDefault,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.AcceptedTriageMatch,
-                    "triage_signal",
-                    "Accepted triage match",
-                    "qdos_triage",
-                    1),
-                ActionActor.SystemWorker("intake-processing"),
-                $"triage-init:{Guid.NewGuid():N}"),
-            CancellationToken.None);
+        var receiptId = await StoreMinimalReceiptAsync(
+            scope.ServiceProvider,
+            "upload.pdf",
+            evidence: [acceptedMatch],
+            sourceIdentity: sourceIdentity,
+            sourceHash: new string('C', 64));
+        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(
+            scope.ServiceProvider, receiptId);
+        var triageRecord = await scope.ServiceProvider
+            .GetRequiredService<ICreateTriageFromIntake>()
+            .ExecuteAsync(
+                new(
+                    new(receiptId, sourceIdentity, new string('C', 64), evaluationRevisionId),
+                    "XY99ZZZ",
+                    acceptedMatch,
+                    ActionActor.SystemWorker("intake-processing"),
+                    $"triage-init:{Guid.NewGuid():N}"),
+                CancellationToken.None);
 
         return new(
             triageRecord.Id,

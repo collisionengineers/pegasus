@@ -139,11 +139,15 @@ public sealed class RetainIncomingArtifactTests
         var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
 
+        status.Committed[occurrence.OperationKey] = Confirmed();
+
         var reconciled = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
         // Asked, not repeated: custody saw the bytes exactly once.
         Assert.Equal(1, custody.Calls);
-        Assert.Equal(1, status.Calls);
+        Assert.Equal(0, status.Calls);
+        Assert.Equal(1, status.LookupCalls);
+        Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
         Assert.Equal(IncomingArtifactCustodyState.Confirmed, reconciled.State);
         Assert.Equal("box-file", reconciled.BoxFileId);
         Assert.Equal(occurrence.OperationKey, reconciled.OperationKey);
@@ -162,7 +166,7 @@ public sealed class RetainIncomingArtifactTests
     {
         var custody = new RecordingCustody(new(
             CaseArtifactCustodyDisposition.Unknown,
-            null, null, null, null, null, null, null, "timeout", null));
+            null, null, null, null, null, null, null, null, "timeout", null));
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
@@ -236,6 +240,8 @@ public sealed class RetainIncomingArtifactTests
         var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Pending, pending.State);
 
+        status.Committed[occurrence.OperationKey] = Confirmed() with { Disposition = reconciledAs };
+
         var reconciled = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(expected, reconciled.State);
@@ -243,7 +249,9 @@ public sealed class RetainIncomingArtifactTests
 
         // Asked, not repeated: custody saw the bytes exactly once.
         Assert.Equal(1, custody.Calls);
-        Assert.Equal(1, status.Calls);
+        Assert.Equal(0, status.Calls);
+        Assert.Equal(1, status.LookupCalls);
+        Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
 
         // Only a confirmed reconciliation says where custody holds them.
         Assert.Equal(
@@ -626,7 +634,8 @@ public sealed class RetainIncomingArtifactTests
         // Asked and refused, not repeated: one hand-over, one attempted read,
         // and no second record claiming something changed.
         Assert.Equal(1, custody.Calls);
-        Assert.Equal(1, status.Calls);
+        Assert.Equal(0, status.Calls);
+        Assert.Equal(1, status.LookupCalls);
         Assert.Single(store.Recorded);
     }
 
@@ -634,6 +643,7 @@ public sealed class RetainIncomingArtifactTests
         CaseArtifactCustodyDisposition.Confirmed,
         DocumentId,
         VersionId,
+        Guid.NewGuid(),
         "box-file",
         "box-version",
         "aaaa",
@@ -704,6 +714,7 @@ public sealed class RetainIncomingArtifactTests
             Guid caseId,
             Guid documentId,
             Guid versionId,
+            Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             Calls++;
@@ -745,6 +756,7 @@ public sealed class RetainIncomingArtifactTests
             Guid caseId,
             Guid documentId,
             Guid versionId,
+            Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             Calls++;
