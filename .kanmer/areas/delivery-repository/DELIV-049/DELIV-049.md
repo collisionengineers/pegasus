@@ -2,10 +2,12 @@
 id: DELIV-049
 type: ticket
 title: Remove NOW.md and reconcile the canonical documentation authority
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-07T20:06:42.765Z'
 labels: []
 groups:
   - EPIC-014
@@ -16,7 +18,7 @@ refs:
   - docs/index.md
 archived: false
 created: '2026-09-07T20:01:20.404Z'
-updated: '2026-09-07T20:01:20.404Z'
+updated: '2026-09-07T20:06:42.765Z'
 ---
 
 ## What
