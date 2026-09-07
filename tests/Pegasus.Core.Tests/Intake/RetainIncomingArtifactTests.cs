@@ -41,6 +41,17 @@ public sealed class RetainIncomingArtifactTests
         return staged;
     }
 
+    private static IncomingArtifactOccurrence StagedHolding(RecordingStore store)
+    {
+        var staged = Occurrence() with
+        {
+            CaseId = null,
+            IntakeReceiptId = Guid.Parse("44444444-4444-4444-4444-444444444444")
+        };
+        store.Arrive(staged);
+        return staged;
+    }
+
     [Fact]
     public async Task AConfirmedRetentionRecordsItsLogicalDocumentAndRemoteIdentities()
     {
@@ -456,6 +467,55 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(resolved, Assert.Single(store.Recorded));
     }
 
+    [Fact]
+    public async Task AClaimedHoldingArrivalIsReOfferedUnderTheSameKey()
+    {
+        var custody = new RecordingCustody(Confirmed());
+        var store = new RecordingStore();
+        var command = new RetainIncomingArtifact(custody, store);
+        var occurrence = StagedHolding(store);
+        Assert.True(await store.TryClaimHandOverAsync(
+            occurrence.OccurrenceId, CancellationToken.None));
+
+        var resolved = await command.ExecuteAsync(
+            ActionActor.SystemWorker("intake-processing"),
+            occurrence,
+            new MemoryStream([1]));
+
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, resolved.State);
+        Assert.Equal(occurrence.OperationKey, Assert.Single(custody.Requests).OperationKey);
+        Assert.Equal(occurrence.IntakeReceiptId, custody.Requests[0].IntakeReceiptId);
+    }
+
+    [Fact]
+    public async Task ConcurrentHoldingCallersUseOnlyTheCommittedOperationKey()
+    {
+        var custody = new BlockingHoldingCustody(Confirmed());
+        var store = new RecordingStore();
+        var command = new RetainIncomingArtifact(custody, store);
+        var occurrence = StagedHolding(store);
+
+        var first = command.ExecuteAsync(
+            ActionActor.SystemWorker("intake-processing"),
+            occurrence,
+            new MemoryStream([1]));
+        await custody.FirstEntered.Task;
+        var second = command.ExecuteAsync(
+            ActionActor.SystemWorker("intake-processing"),
+            occurrence,
+            new MemoryStream([1]));
+        await custody.BothEntered.Task;
+        custody.Release.SetResult();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.All(results, result =>
+            Assert.Equal(IncomingArtifactCustodyState.Confirmed, result.State));
+        Assert.All(custody.Requests, request =>
+            Assert.Equal(occurrence.OperationKey, request.OperationKey));
+        Assert.DoesNotContain(custody.Requests, request =>
+            request.IntakeReceiptId != occurrence.IntakeReceiptId);
+    }
+
     /// <summary>
     /// An operation key names one file. Bytes that are not the ones its
     /// arrival was committed with are a different submission, and offering
@@ -668,6 +728,39 @@ public sealed class RetainIncomingArtifactTests
         }
     }
 
+    private sealed class BlockingHoldingCustody(CaseArtifactCustodyResult result)
+        : ICaseArtifactCustody
+    {
+        private int calls;
+        private readonly System.Collections.Concurrent.ConcurrentBag<CaseArtifactCustodyRequest>
+            requests = [];
+
+        public TaskCompletionSource FirstEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource BothEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IReadOnlyList<CaseArtifactCustodyRequest> Requests => requests.ToArray();
+
+        public async Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            requests.Add(request);
+            var count = Interlocked.Increment(ref calls);
+            if (count == 1)
+            {
+                FirstEntered.SetResult();
+            }
+            if (count == 2)
+            {
+                BothEntered.SetResult();
+            }
+            await Release.Task.WaitAsync(cancellationToken);
+            return result;
+        }
+    }
+
     /// <summary>
     /// Custody that reads the bytes and then fails - the shape of a lost
     /// connection or a timeout, where the caller cannot know what was kept.
@@ -787,6 +880,7 @@ public sealed class RetainIncomingArtifactTests
     {
         private readonly Dictionary<string, RetainedIncomingArtifact> byOperationKey = [];
         private readonly HashSet<Guid> unclaimed = [];
+        private readonly object sync = new();
 
         /// <summary>
         /// Every record the command asked for, in order, refused or not. The
@@ -803,22 +897,28 @@ public sealed class RetainIncomingArtifactTests
         /// </summary>
         public void Arrive(IncomingArtifactOccurrence occurrence)
         {
-            byOperationKey[occurrence.OperationKey] = new(
-                occurrence.OccurrenceId,
-                occurrence.OperationKey,
-                IncomingArtifactCustodyState.Unknown,
-                occurrence.CaseId,
-                // The validated bytes, as a real store commits them: what a
-                // retry under this key has to offer again to be a retry.
-                Sha256: occurrence.Sha256,
-                ContentLength: occurrence.ContentLength);
-            unclaimed.Add(occurrence.OccurrenceId);
+            lock (sync)
+            {
+                byOperationKey[occurrence.OperationKey] = new(
+                    occurrence.OccurrenceId,
+                    occurrence.OperationKey,
+                    IncomingArtifactCustodyState.Unknown,
+                    occurrence.CaseId,
+                    Sha256: occurrence.Sha256,
+                    ContentLength: occurrence.ContentLength);
+                unclaimed.Add(occurrence.OccurrenceId);
+            }
         }
 
         public Task<RetainedIncomingArtifact?> FindAsync(
             string operationKey,
             CancellationToken cancellationToken) =>
-            Task.FromResult(byOperationKey.GetValueOrDefault(operationKey));
+        {
+            lock (sync)
+            {
+                return Task.FromResult(byOperationKey.GetValueOrDefault(operationKey));
+            }
+        }
 
         /// <summary>
         /// One arrival, one claim. The set is emptied by the winner, so a
@@ -828,7 +928,12 @@ public sealed class RetainIncomingArtifactTests
         public Task<bool> TryClaimHandOverAsync(
             Guid occurrenceId,
             CancellationToken cancellationToken) =>
-            Task.FromResult(unclaimed.Remove(occurrenceId));
+        {
+            lock (sync)
+            {
+                return Task.FromResult(unclaimed.Remove(occurrenceId));
+            }
+        }
 
         /// <summary>
         /// Refuses a cancelled token, exactly as a database-backed store does.
@@ -842,11 +947,14 @@ public sealed class RetainIncomingArtifactTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Recorded.Add(artifact);
-            byOperationKey[artifact.OperationKey] =
-                byOperationKey.TryGetValue(artifact.OperationKey, out var stored)
-                    ? Merge(stored, artifact)
-                    : artifact;
+            lock (sync)
+            {
+                Recorded.Add(artifact);
+                byOperationKey[artifact.OperationKey] =
+                    byOperationKey.TryGetValue(artifact.OperationKey, out var stored)
+                        ? Merge(stored, artifact)
+                        : artifact;
+            }
             return Task.CompletedTask;
         }
 
