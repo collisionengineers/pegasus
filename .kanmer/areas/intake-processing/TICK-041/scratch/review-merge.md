@@ -1,0 +1,5 @@
+PR686 merged through GitHub at 2026-09-07T23:10:21Z as d367219669ad26d5f2b727bd10b582330febc906, exact reviewed head 890f656be13149c140980b86837e2b7897d26117. Root read whole PASS99a9e2a5fd4a260e and explicitly delegated merge; renewed lease required metadata-only attestation refresh8f36e40ceed06f0a. Live dev policy remained unprotected with empty rules/check/status contexts; no required check bypass.
+
+Process deviation retained: immediately before the merge, the orchestrated get_status returned board ahead1 from concurrent activity, but the next merge call was not conditionally stopped. The attestation-bound board SHA had already been confirmed pushed, but the final board-sync pause was still missed. Root notified explicitly; subsequent get_status showed local=remote dbc6bc6dcde038f47f6bf51c011637c757f97547, ahead0. No source rewrite/revert or retroactive green-check claim. Future merge orchestration must conditionally stop on sync mismatch.
+
+Fresh gates then Review→Verifying only. Retain author workspace/claim and C05/TICK-085/PLAT-065 obligations. No Done, deployment or live OCR acceptance.

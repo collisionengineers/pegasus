@@ -2,7 +2,7 @@
 id: TICK-041
 type: ticket
 title: INT-16 — Azure OCR for scan-like and unusable-text-map PDF pages
-status: review
+status: verifying
 area: intake-processing
 order: 950
 assignee: codex-v1-remediation-root
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   preparing: '2026-09-07T21:14:38.247Z'
   review: '2026-09-07T22:56:59.820Z'
+  verifying: '2026-09-07T23:11:06.281Z'
 taken_at: '2026-09-07T22:04:42.073Z'
 branch: TICK-041-qualified-ocr
 worktree: .worktrees/tick-041
@@ -52,7 +53,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/686'
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-07T23:08:36.981Z'
+updated: '2026-09-07T23:11:06.281Z'
 ---
 
 ## What
