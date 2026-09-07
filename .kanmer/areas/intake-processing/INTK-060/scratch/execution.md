@@ -560,3 +560,5 @@ Lease transferred from paused `codex-stream-c-replacement` under operator author
 - Reader slice (C02 `.DOC` false-Partial + table cells) running in `v1-intake-c02`.
 
 - 2026-09-07T03:09:08.211Z claim-transfer claude-fable-c2 → antigravity-stream-c (live; operator: resume Stream C under replacement controller antigravity; lease b03b3df8-dca2-44ae-b628-515528bdf02f → 9ae60d65-c40a-473e-a5ec-041f1ac5b5a5 rev 72; branch task/pegasus-v1-intake; worktree ../pegasus-worktrees/v1-intake; expires 2026-09-07T03:39:08.204Z; evidence: workspace clean (matches-claim), pr absent, commits 0, proof absent)
+
+- 2026-09-07T03:16:49.251Z lease-phase running-command → implementing (lease 9ae60d65-c40a-473e-a5ec-041f1ac5b5a5 rev 73; expires 2026-09-07T03:46:49.245Z)
