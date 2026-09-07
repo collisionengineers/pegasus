@@ -441,17 +441,25 @@ verification process per host owns builds and full tests; PLAT-075 records the
 Codex host's verifier. Other agents perform disjoint work without competing
 builds.
 
-The stop is three reviewed PRs to dev, open and unmerged. Local combined
-verification creates no fourth PR or published integration branch. No merge,
-deployment, reset, real email, Outlook mutation, Box write or live Glass's/EVA
-operation is authorized by this implementation. This exception governs the
-three owners only; ordinary task rules below continue to apply elsewhere.
+On 7 September 2026 the operator authorized A to continue orchestration through
+integration: finish and independently review all three streams, merge the
+verified required PRs into `dev`, and open the `dev` to `main` PR. A coordinates
+those merges after review and required checks; this scoped authority supersedes
+the earlier open-unmerged stop. Original PRs are closed as superseded only after
+preservation is proved; any non-superseded work receives its own review before
+integration. A may publish a combined verification ref for the other machines
+to test in isolated worktrees; it is not a fourth implementation PR or a source
+branch to merge into the domain branches.
+
+The `main` PR must remain unmerged. No deployment, reset, real email, Outlook
+mutation, Box write or live provider operation is authorized. This exception
+governs the three owners only; ordinary task rules below continue elsewhere.
 
 ### Ordinary task rules
 
 The managed Kanmer block owns ticket stages, leases, gates and ordinary
 worktree naming. The explicit three-stream exception above owns the v1
-branches, sibling worktrees, common foundation commits and three-PR stop.
+branches, sibling worktrees, common foundation commits and delivery authority.
 For other work, use the managed convention and branch from `origin/dev`.
 Record and reuse the exact branch and worktree on the owner ticket.
 
