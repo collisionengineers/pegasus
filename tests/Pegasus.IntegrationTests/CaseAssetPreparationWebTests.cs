@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
@@ -70,6 +71,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("<button", panel, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<select", panel, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<input", panel, StringComparison.OrdinalIgnoreCase);
+        // B08: the drag enhancement reorders through the same command the
+        // controls post, so a card that offers no control is not draggable
+        // and carries none of the shape the drag would submit.
+        Assert.DoesNotContain("draggable", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-preparation-version", panel, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -312,13 +318,290 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// B08: the Report cards offer the same preparation the Files cards do.
+    /// One partial renders both from one loaded set, so a card in either
+    /// section binds exactly the same fields and offers exactly the same
+    /// controls; only the section its forms post back to differs.
+    /// </summary>
+    [Fact]
+    public async Task TheReportCardsOfferTheSameControlsAndBoundFieldsAsTheFilesCards()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ICaseAssetPreparationStore>(services, store);
+            Substitute<ICaseEvidenceImageQueries>(services, store);
+        });
+
+        var leased = await workspace.GetWorkspaceAsync();
+        var files = Section(leased, "report-images-title");
+        var report = Section(leased, "section-report-title");
+
+        foreach (var occurrenceId in new[]
+        {
+            fixture.CloseUpOccurrenceId,
+            fixture.OverviewOccurrenceId,
+            fixture.FirstSupportingOccurrenceId,
+            fixture.SecondSupportingOccurrenceId
+        })
+        {
+            var filesCard = Card(files, occurrenceId);
+            var reportCard = Card(report, occurrenceId);
+            Assert.NotEmpty(BoundFieldNames(reportCard));
+            Assert.Equal(BoundFieldNames(filesCard), BoundFieldNames(reportCard));
+            Assert.Contains("section=files", filesCard, StringComparison.Ordinal);
+            Assert.DoesNotContain("section=report", filesCard, StringComparison.Ordinal);
+            Assert.Contains("section=report", reportCard, StringComparison.Ordinal);
+            Assert.DoesNotContain("section=files", reportCard, StringComparison.Ordinal);
+        }
+
+        foreach (var control in new[]
+        {
+            ReportImageLabels.Save,
+            ReportImageLabels.Reset,
+            ReportImageLabels.RotateLeft,
+            ReportImageLabels.RotateRight,
+            ReportImageLabels.MoveUp,
+            ReportImageLabels.MoveDown
+        })
+        {
+            Assert.Contains(control, ReportImageCards(report), StringComparison.Ordinal);
+        }
+
+        // The move each end of the sequence does not offer is the same in
+        // both sections, because both read one Supporting sequence.
+        Assert.DoesNotContain(ReportImageLabels.MoveUp, Card(report, fixture.FirstSupportingOccurrenceId), StringComparison.Ordinal);
+        Assert.DoesNotContain(ReportImageLabels.MoveUp, Card(files, fixture.FirstSupportingOccurrenceId), StringComparison.Ordinal);
+        Assert.DoesNotContain(ReportImageLabels.MoveDown, Card(report, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
+        Assert.DoesNotContain(ReportImageLabels.MoveDown, Card(files, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// B08: a preparation command posted from the Report section returns to
+    /// the Report section, so the editor reads the outcome where they acted
+    /// rather than being moved to Files.
+    /// </summary>
+    [Fact]
+    public async Task APreparationCommandFromTheReportSectionReturnsToTheReportSection()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ICaseAssetPreparationStore>(services, store);
+            Substitute<ICaseEvidenceImageQueries>(services, store);
+        });
+
+        using var saved = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=SaveAssetPreparation&section=report",
+            workspace.MutationForm(
+                "4a4b4c4d4e4f41424344454647484940",
+                "ignored: the handler names its own reason",
+                ("edits[0].occurrenceId", fixture.FirstSupportingOccurrenceId.ToString("D")),
+                ("edits[0].expectedPreparationVersion", "1"),
+                ("edits[0].role", nameof(CaseAssetReportRole.Supporting)),
+                ("edits[0].order", "2"),
+                ("edits[0].rotation", "0"),
+                ("edits[0].cropLeft", "0"),
+                ("edits[0].cropTop", "0"),
+                ("edits[0].cropWidth", "1"),
+                ("edits[0].cropHeight", "1")));
+
+        AssertPreparationPrg(saved, store.CaseId, "report");
+        Assert.Equal(
+            fixture.FirstSupportingOccurrenceId,
+            Assert.Single(Assert.Single(store.PreparationSaves).Edits).OccurrenceId);
+
+        using var reset = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ResetAssetPreparation&section=report",
+            workspace.MutationForm(
+                "5a5b5c5d5e5f51525354555657585950",
+                "ignored: the handler names its own reason",
+                ("occurrenceIds", fixture.CloseUpOccurrenceId.ToString("D"))));
+
+        AssertPreparationPrg(reset, store.CaseId, "report");
+        Assert.Equal(
+            fixture.CloseUpOccurrenceId,
+            Assert.Single(Assert.Single(store.PreparationResets).OccurrenceIds));
+    }
+
+    /// <summary>
+    /// B08: the read-only Report cards state the prepared values and nothing
+    /// that could change one — no control and no drag hook — while this
+    /// browser holds no edit lease.
+    /// </summary>
+    [Fact]
+    public async Task TheReportCardsCarryNoControlWithoutTheLease()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<ICaseAssetPreparationQueries>(services, store);
+                Substitute<ICaseEvidenceImageQueries>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=report");
+        var cards = ReportImageCards(Section(html, "section-report-title"));
+
+        Assert.Contains(CloseUpFileName, cards, StringComparison.Ordinal);
+        Assert.Contains(FirstSupportingFileName, cards, StringComparison.Ordinal);
+        Assert.DoesNotContain("<form", cards, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", cards, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<select", cards, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<input", cards, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("draggable", cards, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-preparation-version", cards, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// B08: in edit mode the record carries its own enhancement script and
+    /// each Supporting card carries the shape of the edit a drop submits, so
+    /// dragging posts the same SaveAssetPreparation command Move up and Move
+    /// down post. A card the sequence does not order is not draggable. The
+    /// drop itself is a browser gesture and there is no browser harness in
+    /// this suite, so what is proved here is the markup the script binds to.
+    /// </summary>
+    [Fact]
+    public async Task TheSupportingCardsCarryTheDragHooksInEditMode()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ICaseAssetPreparationStore>(services, store);
+            Substitute<ICaseEvidenceImageQueries>(services, store);
+        });
+
+        var leased = await workspace.GetWorkspaceAsync();
+        // MapStaticAssets fingerprints the served file name, so the assertion
+        // names the asset rather than the exact path the tag helper writes.
+        Assert.Contains("js/case-workspace", leased, StringComparison.Ordinal);
+
+        foreach (var panel in new[]
+        {
+            Section(leased, "report-images-title"),
+            Section(leased, "section-report-title")
+        })
+        {
+            Assert.Contains("data-report-images=", panel, StringComparison.Ordinal);
+            Assert.Contains("data-preparation-command=\"save\"", panel, StringComparison.Ordinal);
+            foreach (var occurrenceId in new[]
+            {
+                fixture.FirstSupportingOccurrenceId, fixture.SecondSupportingOccurrenceId
+            })
+            {
+                var card = Card(panel, occurrenceId);
+                foreach (var hook in new[]
+                {
+                    "draggable=\"true\"",
+                    "data-preparation-version=",
+                    "data-report-role=",
+                    "data-report-order=",
+                    "data-report-rotation=",
+                    "data-crop-left=",
+                    "data-crop-top=",
+                    "data-crop-width=",
+                    "data-crop-height="
+                })
+                {
+                    Assert.Contains(hook, card, StringComparison.Ordinal);
+                }
+            }
+
+            // Only the Supporting sequence is ordered, so only it is dragged.
+            Assert.DoesNotContain("draggable", Card(panel, fixture.CloseUpOccurrenceId), StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("draggable", Card(panel, fixture.OverviewOccurrenceId), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
     /// The preparation redirect lands on the Files section, not the record's
     /// top, so the editor reads the outcome where they acted.
     /// </summary>
-    private static void AssertFilesPrg(HttpResponseMessage response, Guid caseId)
+    private static void AssertFilesPrg(HttpResponseMessage response, Guid caseId) =>
+        AssertPreparationPrg(response, caseId, "files");
+
+    /// <summary>
+    /// B08: the redirect lands on the section the command was posted from —
+    /// the same controls are offered in Files and in Report, and each
+    /// section's forms carry their own section.
+    /// </summary>
+    private static void AssertPreparationPrg(HttpResponseMessage response, Guid caseId, string section)
     {
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}?section=files", response.Headers.Location?.OriginalString);
+        Assert.Equal($"/Cases/{caseId:D}?section={section}", response.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>
+    /// Every report-image card in a section and nothing around them, so an
+    /// assertion about the cards is never answered by the panel's other
+    /// controls. Cards do not nest, so the scan needs no depth count.
+    /// </summary>
+    private static string ReportImageCards(string panel)
+    {
+        var cards = new StringBuilder();
+        var index = 0;
+        while (true)
+        {
+            var start = panel.IndexOf("<article class=\"report-image\"", index, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                return cards.ToString();
+            }
+            var end = panel.IndexOf("</article>", start, StringComparison.Ordinal);
+            Assert.True(end > start, "A report-image card is not closed.");
+            end += "</article>".Length;
+            cards.Append(panel[start..end]);
+            index = end;
+        }
+    }
+
+    /// <summary>One occurrence's card within a section.</summary>
+    private static string Card(string panel, Guid occurrenceId)
+    {
+        var marker = panel.IndexOf($"data-report-image=\"{occurrenceId:D}\"", StringComparison.Ordinal);
+        Assert.True(marker >= 0, $"The card for '{occurrenceId:D}' is not rendered.");
+        var start = panel.LastIndexOf("<article", marker, StringComparison.Ordinal);
+        var end = panel.IndexOf("</article>", marker, StringComparison.Ordinal);
+        Assert.True(end > start, $"The card for '{occurrenceId:D}' is not closed.");
+        return panel[start..(end + "</article>".Length)];
+    }
+
+    /// <summary>
+    /// The names a card's controls bind, sorted and without duplicates, so
+    /// two cards can be compared for the exact posted shape rather than for
+    /// the operation keys and tokens that are fresh on every render.
+    /// </summary>
+    private static IReadOnlyList<string> BoundFieldNames(string card)
+    {
+        var names = new SortedSet<string>(StringComparer.Ordinal);
+        var index = 0;
+        while (true)
+        {
+            var start = card.IndexOf("name=\"", index, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                return [.. names];
+            }
+            start += "name=\"".Length;
+            var end = card.IndexOf('"', start);
+            Assert.True(end > start, "A bound control's name is not closed.");
+            names.Add(card[start..end]);
+            index = end;
+        }
     }
 
     /// <summary>
