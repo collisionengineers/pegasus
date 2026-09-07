@@ -79,3 +79,13 @@ their exit codes. No deployed correctness claim is made. Keep this worktree and
 lease as the exact resume target. Root owns any necessary UI capture artifacts.
 INTK-061 and PLAT-028 remain disjoint; neither EfDocumentRequestStore nor
 Core/Cases/CaseContracts was edited. No out-of-scope implementation was started.
+
+
+## Root compiler feedback — 2026-09-07
+
+Root locked restore PASS; Release build FAIL exit1 after 56.31s: EF1002 in
+CaseReportGenerationPersistenceTests.cs:189 (interpolated raw SQL). The author
+replaced the role assignment with parameterized ExecuteSqlInterpolatedAsync
+calling sys.sp_addrolemember; CREATE USER is literal SQL. Assertions unchanged.
+Author git diff --check exit0, line-ending warnings only. No author build/test.
+Candidate frozen again for root verification; this failure remains recorded.
