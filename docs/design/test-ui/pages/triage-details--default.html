@@ -3,8 +3,9 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>We could not find that page · Pegasus</title>
+    <title>Triage T-00001 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -70,23 +71,593 @@
   <symbol id="icon-arrow-up-down" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
 </svg>
 
-    <div class="external-shell">
-        <main id="main-content" tabindex="-1">
-            <section class="auth-card">
-                <div class="auth-brand">
-                    <img src="../../../../src/Pegasus.Web/wwwroot/images/logo_no_margin.png" alt="" />
-                    <strong>PEGASUS</strong>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-shell" data-app-shell>
+        <header class="app-rail">
+            <a class="brand" aria-label="Pegasus home" href="dashboard--default.html">
+                <img src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                <span class="brand-copy"><strong>PEGASUS</strong><span>Case management</span></span>
+            </a>
+            <nav class="primary-nav" aria-label="Primary">
+                <div class="nav-label">Work</div>
+                <a class="nav-link" href="dashboard--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                    <a class="nav-link" href="inbox--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <span>Inbox</span>
+                    </a>
+                    <a class="nav-link" href="upload--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <span>Upload</span>
+                    </a>
+                <a class="nav-link" aria-current="page" href="queues--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <span>Cases</span>
+                        <span class="nav-count" aria-label="1 outstanding">1</span>
+                </a>
+                <a class="nav-link" href="cases--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <span>Search</span>
+                </a>
+                    <a class="nav-link" href="operations--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                        <span>Operations</span>
+                    </a>
+                    <div class="nav-label">Manage</div>
+                    <a class="nav-link" href="administration--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="rail-spacer"></div>
+            <div class="rail-health">
+                <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
+            </div>
+                <div class="rail-user" role="group" aria-label="User">
+                    <span class="avatar" aria-hidden="true">DO</span>
+                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
+                    <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                    </button>
                 </div>
-
-<h1>We could not find that page</h1>
-<p>The link may be out of date, or the address may have been mistyped.</p>
-    <div class="button-row">
-        <a class="btn" href="dashboard--default.html">Return to Work Centre</a>
-    </div>
-
+        </header>
+        <div class="app-column">
+            <section class="utility-bar" aria-label="Utility bar">
+                <div class="utility-freshness"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
+                <form class="utility-search" role="search" method="get" action="cases--default.html">
+                    <label class="sr-only" for="global-search">Search Pegasus</label>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <input id="global-search" type="search" name="query" data-command-input aria-label="Search Pegasus" autocomplete="off" />
+                    <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
+                </form>
+                <div class="utility-actions">
+                    <button type="button" class="btn btn--primary" data-dialog-open="add-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add</span>
+                    </button>
+                    <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                    </button>
+                </div>
             </section>
-        </main>
+            <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
+                <a class="workspace-tab" href="dashboard--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                <button type="button" class="workspace-tab" data-dialog-open="command-dialog" data-workspace-open aria-label="Open another record">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Open</span>
+                </button>
+            </nav>
+            <main id="main-content" class="app-main" tabindex="-1"
+                  data-workspace-record=""
+                  data-workspace-href=""
+                  data-workspace-label="">
+                <div class="content">
+
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Triage</p>
+        <h1>T-00001</h1>
     </div>
+    <div class="page-actions">
+        <a class="btn" href="queues--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Cases</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <button type="submit" class="btn btn--small" title="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>Refresh</span>
+            </button>
+        </form>
+    </div>
+</header>
+
+<div class="validation-summary validation-summary-valid" role="alert" data-valmsg-summary="true"><ul><li style="display:none"></li>
+</ul></div>
+
+    <div class="notice mb-2" role="status" aria-live="polite">
+        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+        <span>Triage &#x27;test-ui-guid-1&#x27; is at version 1, not expected version 0.</span>
+    </div>
+
+<article class="record">
+    <header class="record-head">
+        <strong>T-00001</strong>
+        <span class="record-identity">
+            <span>Manual upload</span>
+            <span>Opened 06 May 2031</span>
+        </span>
+        <span class="record-head-end">
+            <span class="status status--navy">Open</span>
+
+        </span>
+    </header>
+    <div class="record-accent"></div>
+
+    <div class="record-bar">
+        <span class="eyebrow">Triage</span>
+        <span class="muted">Assigned</span>
+            <span class="record-bar-end">
+                    <button type="button" class="btn" data-dialog-open="triage-unassign-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <span>Unassign</span>
+                    </button>
+            </span>
+    </div>
+
+    <div class="record-body">
+        <div class="grid grid-2">
+            <section class="panel" aria-labelledby="triage-determinations-title">
+                <div class="panel-head">
+                    <h2 id="triage-determinations-title">Determinations</h2>
+                </div>
+                <div class="panel-body stack">
+                        <form method="post" class="stack" action="#">
+                            <input type="hidden" name="expectedVersion" value="1" />
+                            <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                            <div class="field">
+                                <label for="triage-roadworthiness">Roadworthiness</label>
+                                <select id="triage-roadworthiness" name="roadworthiness">
+                                    <option value="" selected="selected">Not recorded</option>
+                                    <option value="Roadworthy">Roadworthy</option>
+                                    <option value="Unroadworthy">Unroadworthy</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="triage-repair-outcome">Repair outcome</label>
+                                <select id="triage-repair-outcome" name="assessment">
+                                    <option value="" selected="selected">Not recorded</option>
+                                    <option value="Repairable">Repairable</option>
+                                    <option value="TotalLoss">Total loss</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label class="req" for="triage-finding-reason">Reason</label>
+                                <textarea id="triage-finding-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                            </div>
+                            <div class="button-row">
+                                <button type="submit" name="actionName"
+                                        value="record_finding"
+                                        class="btn btn--primary">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                    <span>Save determinations</span>
+                                </button>
+                            </div>
+                        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+
+                        <div class="button-row">
+                                <button type="button" class="btn" data-dialog-open="triage-await-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+                                    <span>Await information</span>
+                                </button>
+                            <span class="gated" data-condition="Available once a finding is recorded">
+                                <button type="button"
+                                        class="btn is-disabled"
+                                        data-dialog-open=""
+                                        disabled="disabled">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                    <span>Complete Triage</span>
+                                </button>
+                            </span>
+                            <button type="button" class="btn btn--danger" data-dialog-open="triage-cancel-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                <span>Cancel Triage</span>
+                            </button>
+                        </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="triage-source-title">
+                <div class="panel-head"><h2 id="triage-source-title">Source</h2></div>
+                <div class="panel-body stack">
+                    <div class="definition-list">
+                        <dl class="definition">
+                            <dt>Triage reference</dt>
+                            <dd>T-00001</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Registration</dt>
+                            <dd>VO75DFJ</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Principal</dt>
+                            <dd>QDOS</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Material</dt>
+                            <dd>Manual upload</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Received</dt>
+                            <dd>06 May 2031 11:30</dd>
+                        </dl>
+                        <dl class="definition">
+                            <dt>Case link</dt>
+                            <dd>
+                                    None
+                            </dd>
+                        </dl>
+                    </div>
+                        <div class="button-row">
+                                <button type="button" class="btn" data-dialog-open="triage-link-case-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                                    <span>Link case</span>
+                                </button>
+                        </div>
+                    <div class="button-row">
+                        <a class="btn" href="#">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                            <span>View retained source</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+
+        <section class="panel section-gap" aria-labelledby="triage-history-title">
+            <div class="panel-head"><h2 id="triage-history-title">Notes</h2></div>
+            <div class="panel-body">
+                    <form method="post" class="stack" action="#">
+                        <input type="hidden" name="actionName" value="note" />
+                        <input type="hidden" name="expectedVersion" value="1" />
+                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                        <input type="hidden" name="reason" value="Operator note" />
+                        <div class="field">
+                            <label class="req" for="triage-note">Note</label>
+                            <textarea id="triage-note" name="note" rows="3" required maxlength="500"></textarea>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--dark">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                <span>Add note</span>
+                            </button>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <div class="notes-list">
+                        <div class="note-entry">
+                            <div class="note-meta">
+                                <span>Date 06 May 2031</span>
+                                <span>Time 11:30</span>
+                                <span>ID System</span>
+                            </div>
+                            <div>Triage created: Created from accepted Triage matcher qdos_mail_classification v8 (triage-request)</div>
+                        </div>
+                        <div class="note-entry">
+                            <div class="note-meta">
+                                <span>Date 06 May 2031</span>
+                                <span>Time 11:30</span>
+                                <span>ID development-offline-administrator</span>
+                            </div>
+                            <div>Assigned: Claimed by the reviewing operator</div>
+                        </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</article>
+
+<div id="evidence-viewer"
+     class="dialog-backdrop evidence-viewer"
+     data-evidence-viewer
+     hidden>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-name">
+        <div class="dialog-head">
+            <h2 id="evidence-viewer-name" class="wrap" data-evidence-name></h2>
+            <span class="muted tabular" data-evidence-position></span>
+            <a class="btn btn--small" data-evidence-download download>
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Save as</span>
+            </a>
+            <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
+                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+            </button>
+            <button type="button" class="dialog-close" data-evidence-close>
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <span class="sr-only">Close</span>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="viewer-stage" data-evidence-stage data-rotate-target>
+                <img data-evidence-image alt="" hidden />
+                <iframe data-evidence-document title="" hidden></iframe>
+            </div>
+        </div>
+        <div class="dialog-foot cluster--between">
+            <button type="button" class="btn" data-evidence-previous>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>Previous</span>
+            </button>
+            <button type="button" class="btn" data-evidence-next>
+                <span>Next</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+            </button>
+        </div>
+    </section>
+</div>
+
+
+        <div id="triage-unassign-dialog" class="dialog-backdrop" data-dialog="triage-unassign-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="triage-unassign-dialog_title">
+        <div class="dialog-head">
+            <h2 id="triage-unassign-dialog_title" tabindex="-1">Unassign</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="#">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="expectedVersion" value="1" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="actionName" value="unassign" />
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="triage-unassign-dialog_reason">Reason for action</label>
+                    <textarea id="triage-unassign-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+        <div id="triage-await-dialog" class="dialog-backdrop" data-dialog="triage-await-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="triage-await-dialog_title">
+        <div class="dialog-head">
+            <h2 id="triage-await-dialog_title" tabindex="-1">Await information</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="#">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="expectedVersion" value="1" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="actionName" value="await_information" />
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="triage-await-dialog_reason">Reason for action</label>
+                    <textarea id="triage-await-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+    <div id="triage-cancel-dialog" class="dialog-backdrop" data-dialog="triage-cancel-dialog" data-reason-dialog hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="triage-cancel-dialog_title">
+        <div class="dialog-head">
+            <h2 id="triage-cancel-dialog_title" tabindex="-1">Cancel Triage</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" action="#">
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
+                <input type="hidden" name="expectedVersion" value="1" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="actionName" value="cancel" />
+            <div class="dialog-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Cancelled Triage can be reopened with a reason.</span>
+                    </div>
+                <div class="field">
+                    <label class="req" for="triage-cancel-dialog_reason">Reason for action</label>
+                    <textarea id="triage-cancel-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm Action</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+        <div class="dialog-backdrop" data-dialog="triage-link-case-dialog" hidden>
+            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="triage-link-case-dialog-title">
+                <div class="dialog-head">
+                    <h2 id="triage-link-case-dialog-title" tabindex="-1">Link case</h2>
+                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    </button>
+                </div>
+                <form method="post" action="#">
+                    <input type="hidden" name="expectedVersion" value="1" />
+                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                    <input type="hidden" name="actionName" value="link_case" />
+                    <div class="dialog-body stack">
+                        <div class="field">
+                            <label class="req" for="triage-link-case-id">Case ID</label>
+                            <input id="triage-link-case-id" name="caseId" required maxlength="100" data-dialog-initial-focus />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="triage-link-case-reason">Reason for action</label>
+                            <textarea id="triage-link-case-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close>Cancel</button>
+                        <button type="submit" class="btn btn--primary">Link case</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </section>
+        </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+<div class="dialog-backdrop" data-dialog="account-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+        <div class="dialog-head">
+            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
+                <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
+                <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+            <a class="btn" href="password-change--default.html">
+                <svg class="icon" aria-hidden="true"><use href="#icon-key" /></svg>
+                <span>Change password</span>
+            </a>
+            <form method="post" action="#">
+                <button type="submit" class="btn btn--danger">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-log-out" /></svg>
+                    <span>Sign out</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="add-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="add-dialog-title">
+        <div class="dialog-head">
+            <h2 id="add-dialog-title" tabindex="-1">Add</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="grid grid-2">
+                    <a class="admin-card" href="upload--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <h2>Upload files</h2>
+                    </a>
+                <a class="admin-card" href="case-create--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <h2>Create Case</h2>
+                </a>
+                    <a class="admin-card" href="inbox--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <h2>Review Inbox</h2>
+                    </a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="notifications-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
+        <div class="dialog-head">
+            <h2 id="notifications-dialog-title" tabindex="-1">Notifications</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+                <div class="pane-body pane-scroll" data-row-list>
+                        <a class="work-item" href="#">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">Triage · VO75DFJ</span>
+                                    <h3>VO75DFJ</h3>
+                                </span>
+                            </span>
+                        </a>
+                </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="command-dialog" hidden>
+    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
+        <div class="dialog-head">
+            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="command-search">
+            <label class="sr-only" for="command-input">Search</label>
+            <input id="command-input" type="search" autocomplete="off" data-command-palette-input aria-controls="command-results" />
+        </div>
+        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/">
+                <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                <span><strong>Work Centre</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                    <span><strong>Inbox</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span><strong>Upload</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
+                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                <span><strong>Cases</strong></span>
+            </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                <span><strong>Search</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Operations">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                    <span><strong>Operations</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                    <span><strong>Administration</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback>
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                <span><strong>Search Cases for <span data-command-fallback-term></span></strong></span>
+                <span class="kbd" aria-hidden="true">Enter</span>
+            </button>
+        </div>
+    </section>
+</div>
+
+    <div class="toast-region" aria-live="polite" data-toast-region></div>
+
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
 
 </body>
