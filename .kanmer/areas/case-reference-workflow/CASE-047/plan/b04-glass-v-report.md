@@ -57,3 +57,51 @@
 - Test UI snapshots for the changed Case page and the callback route
   (combined host), B09 fresh review at the exact head, simplification-pass
   record for the B04/B08 slices.
+
+## Snapshots (87484b2e9)
+
+`case-details--default/--conflict/--unavailable` regenerated from
+`CaseDetailsWebTests` (104/104) on the isolated combined host; verify 2/2.
+`index.html` and the catalogue entry for `Integrations/Glass/Callback`
+(`redirect`) are A's; A classified it in b175f52a6 and the catalogue check
+passes on the complete verification checkout (62 routed sources).
+
+## Simplification pass (2026-09-07, B04 2b + B08 diff 0b313e936..53d22ec86)
+
+Independent read-only pass (code-simplifier agent), applied by helper
+`b-work/simp` and squashed onto B. Dispositions:
+
+1. `EfGlassRepairEstimateCaseAuthority.Current` was a verbatim copy of the
+   Confirmed → Fact → Suggestion read in `EfCaseAssessmentStore` — **fixed**:
+   one `internal static CaseDataFieldValues.Current` owner in
+   `EfCaseAssessmentStore.cs` (B-owned; the helper had put it in the A-owned
+   `CaseDataEntities.cs`, moved), both callers use it. `CaseMatchEntities`
+   (A-owned) keeps its differently ordered variant — flagged for A, not
+   touched.
+2. `GlassMvaClient.ValuationMonth` resolved Europe/London inline — **fixed**:
+   `LondonCalendar.LocalAt`.
+3. Four identical stage/transport catch pairs in the gateway — **fixed**: one
+   `catch … when (failure is GlassMvaStageException || IsTransportFailure)`
+   with `AsFailure`; `LaunchAsync`'s site kept (it distinguishes
+   TransportFailed/TransportUnknown).
+4. `GlassRepairEstimateOptions.Create(IReadOnlyDictionary)` had no caller —
+   **fixed** (deleted); the `Func` overload is A's composition entry.
+5. `PegasusCallbackOf` re-scanned the query — **fixed**: via `Query`.
+6. Write-only `Artifact` Box/pending/failure properties — **rejected**: the
+   shared contract asks the session's result artifacts to carry the exact
+   Box identities and pending key.
+7. Six copies of the hidden-field loop in `_CaseReportImagePreparation` —
+   **fixed**: one Razor local function, `CaseFields()` still per form.
+8. `EditFields` copied its list — **fixed**.
+9. `CandidateOrdinal` re-ran the regex per candidate — **fixed**: one pass over
+   the match collection.
+10. `case-workspace.js` `closest` guard ×3, `slice.call` — **fixed**: `cardAt`,
+    `Array.from`.
+11. `ReportImagePreparationView.Place` linear scan — **skipped**: small n, no
+    value.
+12. Hex round trip in the correlation compare — **fixed**.
+
+Out of scope, noted: the pass observed no Glass's registrations on B's
+standalone branch — that is the known A-owned composition handoff, present
+on the shared ref (8121d80b5). Divergence between the gateway's and EVA's
+transport-failure lists is a review question, not a duplication.
