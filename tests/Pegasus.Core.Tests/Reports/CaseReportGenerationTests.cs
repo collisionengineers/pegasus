@@ -187,6 +187,19 @@ public sealed class CaseReportGenerationTests
     }
 
     [Fact]
+    public void AnImageWithoutAConfirmedSourceBlocksGeneration()
+    {
+        var input = ReadyInput();
+        var missing = input.ConfirmedImageSources
+            .Where(entry => entry.Key != CloseUpOccurrence)
+            .ToDictionary();
+
+        var result = CaseReportReadiness.Evaluate(input with { ConfirmedImageSources = missing });
+
+        AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
+    }
+
+    [Fact]
     public void AnOverriddenReportDateWithoutADateBlocksGeneration()
     {
         var input = ReadyInput();
