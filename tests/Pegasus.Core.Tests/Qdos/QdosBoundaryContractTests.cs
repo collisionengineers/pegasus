@@ -13,6 +13,74 @@ public sealed class QdosBoundaryContractTests
     private static readonly DateTimeOffset Now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
+    public void RequestUploadMetadataMayBeOmitted()
+    {
+        var command = CreateRequestUploadCommand(null, null);
+
+        var normalized = RequestUploadPolicy.NormalizeCreate(command);
+
+        Assert.Equal(command, normalized);
+        Assert.Null(normalized.Recipient);
+        Assert.Null(normalized.Reason);
+    }
+
+    [Fact]
+    public void RequestUploadMetadataIsTrimmedWithoutChangingCommandContext()
+    {
+        var command = CreateRequestUploadCommand("  Workshop contact  ", "  Requested evidence  ");
+
+        var normalized = RequestUploadPolicy.NormalizeCreate(command);
+
+        Assert.Equal(command.CaseId, normalized.CaseId);
+        Assert.Same(command.Actor, normalized.Actor);
+        Assert.Equal(command.OperationKey, normalized.OperationKey);
+        Assert.Equal(command.ExpectedCaseVersion, normalized.ExpectedCaseVersion);
+        Assert.Equal(command.EditLeaseToken, normalized.EditLeaseToken);
+        Assert.Equal("Workshop contact", normalized.Recipient);
+        Assert.Equal("Requested evidence", normalized.Reason);
+    }
+
+    [Fact]
+    public void RequestUploadMetadataAcceptsItsExactLimits()
+    {
+        var normalized = RequestUploadPolicy.NormalizeCreate(
+            CreateRequestUploadCommand(new string('R', 500), new string('N', 1000)));
+
+        Assert.Equal(500, normalized.Recipient!.Length);
+        Assert.Equal(1000, normalized.Reason!.Length);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RequestUploadMetadataRejectsValuesOverTheirLimits(bool recipient)
+    {
+        var command = recipient
+            ? CreateRequestUploadCommand(new string('R', 501), "Reason")
+            : CreateRequestUploadCommand("Recipient", new string('N', 1001));
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => RequestUploadPolicy.NormalizeCreate(command));
+
+        Assert.Equal(recipient ? "Recipient" : "Reason", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RequestUploadMetadataRejectsWhitespaceOnlyValues(bool recipient)
+    {
+        var command = recipient
+            ? CreateRequestUploadCommand(" \t ", "Reason")
+            : CreateRequestUploadCommand("Recipient", " \r\n ");
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => RequestUploadPolicy.NormalizeCreate(command));
+
+        Assert.Equal(recipient ? "Recipient" : "Reason", exception.ParamName);
+    }
+
+    [Fact]
     public void RequestUploadRejectsRevokedLinkBeforeExposingFileDetails()
     {
         var issue = RequestUploadToken.Create();
@@ -347,6 +415,17 @@ public sealed class QdosBoundaryContractTests
             accepted with { Value = "12000" },
             accepted with { Value = "miles" });
     }
+
+    private static CreateRequestUploadLinkCommand CreateRequestUploadCommand(
+        string? recipient,
+        string? reason) => new(
+            Guid.NewGuid(),
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            "request-upload:create",
+            17,
+            "lease-token",
+            recipient,
+            reason);
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

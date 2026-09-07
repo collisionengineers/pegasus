@@ -102,6 +102,131 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// C08: the workspace contract says mailbox/folder/search/queue/unread/
+    /// sort/page are URL and retained-query state only — opening, previewing,
+    /// filtering or changing the unread scope never reaches Outlook or writes
+    /// a classification correction. <see cref="RecordingFolderMover"/> stands
+    /// in for the one Graph-facing port the pages can reach
+    /// (<see cref="MoveRetainedMailFolder"/>'s underlying mover) and
+    /// <see cref="RecordingClassificationStore"/> for
+    /// <see cref="CorrectRetainedMailClassification"/>'s store; both are
+    /// asserted at zero after every read action below. The explicit staff
+    /// <c>OnPostMoveToRecommendedFolderAsync</c> stays a write and is proved
+    /// elsewhere (<see cref="AuthenticatedStaffConfirmsTheServerDerivedFolderWithoutPostingTransportIdentity"/>).
+    /// </summary>
+    [Fact]
+    public async Task OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts()
+    {
+        var mover = new RecordingFolderMover();
+        var classificationStore = new RecordingClassificationStore();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        for (var index = 0; index < ids.Length; index++)
+        {
+            await StoreMailClassificationAsync(
+                baseFactory,
+                FirstMailboxId,
+                $"{FirstMailboxId}-{index}",
+                MailClassificationResult.Classified(
+                    MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                    [],
+                    "A receiving-work message was recognised.",
+                    "fixture",
+                    1));
+        }
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IRetainedMailFolderMover>();
+                services.AddSingleton<IRetainedMailFolderMover>(mover);
+                services.RemoveAll<IRetainedMailClassificationStore>();
+                services.AddScoped<IRetainedMailClassificationStore>(_ => classificationStore);
+            }));
+        using var client = CreateClient(factory);
+
+        // Open the list, filter it every way the workspace contract names,
+        // preview a row, then open and return from the full message —
+        // carrying the exact same query string a real navigation would.
+        // "queue" has no "all" sentinel: TryParseQueue accepts only an
+        // AggregateViews key (e.g. "receiving-work") or a "classification:"
+        // one, and treats anything else — "all" included — as invalid,
+        // returning NotFound. The unfiltered scope is the absent parameter,
+        // not a literal "all"; a real queue key exercises the same
+        // round-trip without hitting that 404.
+        // "sort" has no "asc"/"desc" sentinel either: TryParseSort accepts
+        // only the absent value (newest) or "oldest" — the same two states
+        // the sort toggle link itself draws (Index.cshtml.cs OldestFirst /
+        // RefreshFields), so "oldest" is the value that exercises the
+        // round-trip instead of hitting that same 404.
+        // "search" matches against the attachment file name or an
+        // IntakeReceipts search document (BuildMatches) — never the seeded
+        // subject/body text, and SeedAsync writes no IntakeReceipts row — so
+        // "estimate" (the attachment every seeded row carries) is the term
+        // that actually leaves rows in the filtered list; a term that
+        // matches nothing would render zero rows and no row link at all.
+        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=estimate&queue=receiving-work&unread=true&sort=oldest";
+        await GetHtmlAsync(client, "/Inbox");
+        var listHtml = await GetHtmlAsync(client, $"/Inbox?{query}");
+
+        // Prove a row actually rendered under this filtered query before
+        // reading anything off it, then read the "unread"/"sort" tokens off
+        // that rendered row's own link (Index.cshtml's row <a>) rather than
+        // asserting a guessed ordered substring — the sort *toggle* link
+        // deliberately carries the opposite value, so only the row link
+        // proves what this query round-trips.
+        var triggerIndex = listHtml.IndexOf("data-mail-preview-trigger", StringComparison.Ordinal);
+        Assert.True(triggerIndex >= 0, "expected at least one rendered row (data-mail-preview-trigger) for this query.");
+        var rowAnchorStart = listHtml.LastIndexOf("<a", triggerIndex, StringComparison.Ordinal);
+        var rowAnchorEnd = listHtml.IndexOf('>', triggerIndex);
+        Assert.True(rowAnchorStart >= 0 && rowAnchorEnd > triggerIndex,
+            "expected data-mail-preview-trigger inside a complete row anchor.");
+        var rowAnchor = listHtml[rowAnchorStart..(rowAnchorEnd + 1)];
+        var rowHrefMatch = Regex.Match(rowAnchor, "href=\"(?<href>[^\"]+)\"", RegexOptions.IgnoreCase);
+        Assert.True(rowHrefMatch.Success, $"expected the rendered row anchor to carry an href: {rowAnchor}");
+        var rowHref = WebUtility.HtmlDecode(rowHrefMatch.Groups["href"].Value);
+        Assert.Contains("unread=true", rowHref, StringComparison.Ordinal);
+        Assert.Contains("sort=oldest", rowHref, StringComparison.Ordinal);
+
+        // Diagnostic for a non-OK preview: confirm whether the seeded row is
+        // still present (rules out a seeding/dedup gap) before asserting, so a
+        // failure names the actual cause instead of only the status code.
+        using (var previewResponse = await client.GetAsync($"/Inbox?handler=Preview&id={ids[0]:D}"))
+        {
+            if (previewResponse.StatusCode != HttpStatusCode.OK)
+            {
+                var previewBody = await previewResponse.Content.ReadAsStringAsync();
+                await using var scope = factory.Services.CreateAsyncScope();
+                var contextFactory = scope.ServiceProvider
+                    .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+                await using var context = await contextFactory.CreateDbContextAsync();
+                var rowExists = await context.RetainedMailboxMessages
+                    .AsNoTracking()
+                    .AnyAsync(item => item.Id == ids[0]);
+                Assert.Fail(
+                    $"Preview for {ids[0]:D} returned {(int)previewResponse.StatusCode} "
+                    + $"{previewResponse.StatusCode} (row exists in DB: {rowExists}). Body: {previewBody}");
+            }
+        }
+
+        var messageHtml = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?{query}");
+        // "Back to Inbox" carries the mailbox the operator navigated with —
+        // the query state is preserved, not reset to the default. The
+        // anchor tag helper resolves asp-page/asp-route-* into a plain
+        // href before the response is ever rendered, so match the rendered
+        // form, not the source-only tag-helper attribute.
+        var backLinkMarkup = Between(messageHtml, "<a class=\"btn\" href=\"/Inbox", "Back to Inbox");
+        Assert.Contains($"mailbox={FirstMailboxId}", backLinkMarkup, StringComparison.Ordinal);
+
+        // Preview -> full message -> back preserves the query string:
+        // the message page carries it forward on every internal link it
+        // renders (the message tabs use the same asp-route-* set).
+        Assert.Contains($"mailbox={FirstMailboxId}", messageHtml, StringComparison.Ordinal);
+
+        Assert.Equal(0, mover.MoveCalls);
+        Assert.Equal(0, classificationStore.CorrectionCalls);
+    }
+
+    /// <summary>
     /// INTK-029's operator-facing half. The unlink dialog warns, naming the
     /// case, only when unlinking actually cancels it — that is, when the
     /// receipt's current link is the case its own acceptance created. A receipt
@@ -1962,6 +2087,7 @@ public sealed class MailWorkspaceWebTests
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],
                         [],
+                        [],
                         $"Message {index} from {mailboxId}",
                         "Please inspect the vehicle at the address supplied.",
                         [new("estimate.pdf", "application/pdf", 2048)],
@@ -2184,6 +2310,36 @@ public sealed class MailWorkspaceWebTests
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(moved ? Coordinates?.DestinationFolderId : "inbox");
+    }
+
+    /// <summary>
+    /// C08: <see cref="CorrectRetainedMailClassification"/>'s store, recorded
+    /// rather than backed by real persistence — no read/open/preview/filter
+    /// path calls it, so a call here is itself the proof of an accidental
+    /// write.
+    /// </summary>
+    private sealed class RecordingClassificationStore : IRetainedMailClassificationStore
+    {
+        public int CorrectionCalls { get; private set; }
+
+        public Task<MailClassificationDossier?> GetClassificationAsync(
+            Guid messageId, CancellationToken cancellationToken) =>
+            Task.FromResult<MailClassificationDossier?>(null);
+
+        public Task<MailClassificationDossier> AppendCorrectionAsync(
+            Guid messageId,
+            int expectedVersion,
+            MailClassificationResult before,
+            MailClassificationResult after,
+            string actor,
+            string reason,
+            DateTimeOffset correctedAtUtc,
+            CancellationToken cancellationToken)
+        {
+            CorrectionCalls++;
+            throw new InvalidOperationException(
+                "A read-only mail workspace action attempted to write a classification correction.");
+        }
     }
 
     private sealed class SequenceRecoveryFolderMover(string recoveredParent) : IRetainedMailFolderMover

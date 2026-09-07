@@ -73,14 +73,14 @@
                     <span class="work-item-head">
                         <span>
                             <span class="row-meta">@OperatorLabels.NeedsAttentionKind(item.Kind) · @item.Reference</span>
-                            <h3>@IndexModel.TitleLabel(item)</h3>
+                            <h3>@NeedsAttentionPresentation.TitleLabel(item)</h3>
                         </span>
                         @{
                             ViewData["StatusTone"] = OperatorLabels.NeedsAttentionPriorityTone(item.Priority);
                         }
                         <partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(item.Priority)" />
                     </span>
-                    @if (IndexModel.DetailLabel(item) is { } detail)
+                    @if (NeedsAttentionPresentation.DetailLabel(item) is { } detail)
                     {
                         <p>@detail</p>
                     }
@@ -103,7 +103,7 @@
             </div>
             @if (Model.Selected is { } head)
             {
-                <a class="btn btn--small" asp-page="@IndexModel.RecordPage(head.Kind)" asp-route-id="@IndexModel.RecordRouteId(head)">
+                <a class="btn btn--small" asp-page="@NeedsAttentionPresentation.RecordPage(head.Kind)" asp-route-id="@NeedsAttentionPresentation.RecordRouteId(head)">
                     <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
                     <span>Open full record</span>
                 </a>
@@ -117,8 +117,8 @@
                     <div class="cluster cluster--between cluster--start">
                         <div>
                             <p class="eyebrow">@OperatorLabels.NeedsAttentionKind(selected.Kind) · <span id="selected-reference">@selected.Reference</span></p>
-                            <h2>@IndexModel.TitleLabel(selected)</h2>
-                            @if (IndexModel.DetailLabel(selected) is { } lead)
+                            <h2>@NeedsAttentionPresentation.TitleLabel(selected)</h2>
+                            @if (NeedsAttentionPresentation.DetailLabel(selected) is { } lead)
                             {
                                 <p class="work-detail-lead">@lead</p>
                             }
@@ -132,11 +132,11 @@
                         <svg class="icon" aria-hidden="true"><use href="#@(tone == "red" ? "icon-alert-triangle" : "icon-info")" /></svg>
                         <div>
                             <strong>Why this needs attention</strong>
-                            <div>@IndexModel.ReasonLabel(selected)</div>
+                            <div>@NeedsAttentionPresentation.ReasonLabel(selected)</div>
                         </div>
                     </div>
                     <div class="section-gap fact-grid">
-                        <dl class="fact"><dt>Source</dt><dd>@IndexModel.SourceLabel(selected)</dd></dl>
+                        <dl class="fact"><dt>Source</dt><dd>@NeedsAttentionPresentation.SourceLabel(selected)</dd></dl>
                         <dl class="fact"><dt>Owner</dt><dd>@selected.Owner</dd></dl>
                         <dl class="fact"><dt>Last recorded outcome</dt><dd>@selected.LastOutcome</dd></dl>
                         <dl class="fact"><dt>Due</dt><dd>@(selected.Due is { } factDue ? OperatorLabels.OfficeDate(factDue) : null)</dd></dl>
@@ -145,9 +145,9 @@
                         <div class="panel-head"><h3>Next permitted action</h3></div>
                         <div class="panel-body">
                             <div class="button-row">
-                                <a class="btn btn--dark" asp-page="@IndexModel.RecordPage(selected.Kind)" asp-route-id="@IndexModel.RecordRouteId(selected)">
+                                <a class="btn btn--dark" asp-page="@NeedsAttentionPresentation.RecordPage(selected.Kind)" asp-route-id="@NeedsAttentionPresentation.RecordRouteId(selected)">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                                    <span>@IndexModel.ActionLabel(selected.Kind)</span>
+                                    <span>@NeedsAttentionPresentation.ActionLabel(selected.Kind)</span>
                                 </a>
                                 @* Hidden until the shell's script confirms a
                                    clipboard: an inert Copy button is worse
