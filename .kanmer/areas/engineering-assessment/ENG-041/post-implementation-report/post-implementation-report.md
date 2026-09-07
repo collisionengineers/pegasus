@@ -221,3 +221,12 @@ live Glass call or cloud change was repeated. Final author diff check PASS exit0
 Root authorizes commit/push to existing PR683 and return Review. Both findings
 are fixed in this candidate pending independent delta review; the author does
 not change the reviewer's disposition record or merge.
+
+## Round-1 pushed head
+
+Correction commit 8bbceb4fd190ae80a8b656540fd0ae5973f49895 follows the original
+reviewed head without rewriting it. Same PR683/branch, dev target; three files,
+174 insertions and ten deletions. F-001 and F-002 remedies are both in this
+commit. Root-authorized [skip ci] avoids duplicate speculative rails; independent
+review/checks and later exact-merge verification remain separate obligations.
+Worktree is clean after push. Hand off for independent SHA-bound delta review.
