@@ -1,4 +1,4 @@
-using Pegasus.Core.Cases;
+﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
