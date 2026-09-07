@@ -4,15 +4,22 @@
 
 Implemented one customer-facing Principals workflow in .worktrees/plat-028 on
 PLAT-028-principal-customer, based on origin/dev
-3da60bd0c270111d5168dc17246dc831882108ea. Source is frozen and uncommitted
-pending the root verifier. This is an implementation claim, not post-merge
-proof: no build, test, capture, live write or deployment was run by this worker.
+3da60bd0c270111d5168dc17246dc831882108ea. Source is frozen after root's focused verification and scoped snapshot capture.
+Root authorised the PR/Review handoff after INTK-061 merged. This is
+pre-merge implementation evidence, not post-merge proof. No build, test,
+capture, live write or deployment was run by this worker.
 
 ## Changes
 
 | File | Change and reason |
 | --- | --- |
 | docs/design/README.md | Flat customer list and existing Settings-page convention; no masked-secret retrieval claim. |
+| docs/design/test-ui/index.html | Root-regenerated catalogue index reflecting the single Principal workflow. |
+| docs/design/test-ui/pages/administration--default.html | Root-regenerated landing page snapshot without Organizations. |
+| docs/design/test-ui/pages/administration-principals--default.html | Root-regenerated flat Principal list snapshot. |
+| docs/design/test-ui/pages/administration-principal-create--default.html | Root-regenerated Name/Code customer creation snapshot. |
+| docs/design/test-ui/pages/administration-principal-settings--default.html | Root-generated consolidated settings snapshot. |
+| docs/design/test-ui/pages/administration-principal-replace--default.html | Root-regenerated same-customer replacement snapshot. |
 | docs/design/test-ui/catalogue.json | Principal Settings route metadata; removed retired page records. |
 | docs/design/test-ui/pages/administration-organization-edit--default.html | Removed snapshot for retired routed page; recoverable in Git. |
 | docs/design/test-ui/pages/administration-organizations--default.html | Removed snapshot for retired routed page; recoverable in Git. |
@@ -81,8 +88,10 @@ is introduced. Root retains independent simplification/review ownership.
 
 ## Risks / follow-ups
 
-- Root verification and scoped generated HTML/catalogue index are pending;
-  current missing Settings snapshot is intentional until that capture.
+- Root focused verification and scoped generated HTML/catalogue index passed.
+  Browser visual inspection remains unproven: root's file URL inspection was
+  blocked by browser policy. Generated HTML/snapshot checks are not claimed
+  as visual review; an independent reviewer must resolve that evidence gap.
 - The existing replacement-default loss was fixed under root's explicit
   disposition: all six DefaultInspection* fields are copied into the same
   customer's successor. One existing persistence test configures the location
@@ -98,28 +107,56 @@ is introduced. Root retains independent simplification/review ownership.
 - Creation/replacement history and existing case references remain stored;
   retired UI/code/snapshots are recoverable in Git.
 
-## Verification hand-off
+## Verification evidence (pre-merge)
 
-Static git diff --check: exit 0. Static retired route and obsolete API search:
-no source/test/catalogue references remain. These are not runtime proof.
+Root supplied the following completed commands and exit-0 results on the
+frozen implementation in this recorded Windows worktree. Root remains the
+single heavy verifier. Tool command output is the evidence; no separate log
+file was generated. This worker did not repeat the rails.
 
-Root only, in the recorded worktree after the one coordinated build:
+| Check | Result |
+| --- | --- |
+| dotnet restore ./Pegasus.slnx --locked-mode | PASS. |
+| dotnet build ./Pegasus.slnx --configuration Release --no-restore | PASS; 0 warnings, 0 errors; 59.36 seconds. |
+| Core Release --no-build filter below | PASS; 19/19 tests, 99 ms. |
+| Integration Release --no-build filter below | PASS; 25/25 tests, 1 minute 59 seconds. |
+| Scoped Update-TestUiSnapshots -SkipCapture | PASS; 2/2 checks. |
+| Scoped Update-TestUiSnapshots -Verify -SkipCapture | PASS; 2/2 checks. |
+| Test-UiCatalogue.ps1 | PASS; 60 routed pages, 67 prototypes, 0 broken references. |
+| git -c core.safecrlf=false diff --check | PASS, exit 0, worker final static check. |
 
-- Core filter: FullyQualifiedName~Cases.OrganizationAdministrationTests
-- Integration filter:
-  FullyQualifiedName~OrganizationAdministrationWebTests|FullyQualifiedName~OrganizationAdministrationPersistenceTests|FullyQualifiedName~OrganizationDirectoryWebTests|FullyQualifiedName~PrincipalCredentialPersistenceTests|FullyQualifiedName~ProviderApiSubmissionTests
-- CaptureFilter: FullyQualifiedName~OrganizationAdministrationWebTests
-- Scope:
-  administration,administration-principals,administration-principal-create,administration-principal-settings,administration-principal-replace
-- Update-TestUiSnapshots then Verify -SkipCapture with the same Scope and
-  Test-UiCatalogue. Credential-bearing POST bodies never enter the capture
-  helper. Reuse that focused run where possible; do not start competing rails.
-- kanmer-verify later verifies the exact integrated dev SHA, using the board's
-  configured integration branch, not a hard-coded main assumption.
+Core filter:
+FullyQualifiedName~Cases.OrganizationAdministrationTests
+
+Integration filter:
+FullyQualifiedName~OrganizationAdministrationWebTests|FullyQualifiedName~OrganizationAdministrationPersistenceTests|FullyQualifiedName~OrganizationDirectoryWebTests|FullyQualifiedName~PrincipalCredentialPersistenceTests|FullyQualifiedName~ProviderApiSubmissionTests
+
+Root captured in that same 25-test run with
+PEGASUS_TEST_UI_CAPTURE_DIR pointing to artifacts/test-ui-capture in the
+recorded worktree and PEGASUS_TEST_UI_SCOPE set to the five routes below.
+PEGASUS_TEST_UI_MODE was not set. The retained capture then supplied both
+SkipCapture checks, avoiding a duplicate integration run. Credential-bearing
+POST bodies never enter the capture helper.
+
+Scope:
+administration,administration-principals,administration-principal-create,administration-principal-settings,administration-principal-replace
+
+Static retired route and obsolete API searches found no source/test/catalogue
+references. These searches are not runtime or visual proof. Root's browser
+file-URL inspection was blocked by browser policy; visual review remains
+outstanding. No failure was suppressed or test weakened to obtain a pass.
+
+## Integration verification hand-off
+
+Independent kanmer-review must assess the pushed exact head and the visual
+evidence gap. kanmer-verify subsequently verifies the exact merged dev SHA
+using the board's configured integration branch. The final integrated
+release head still owes its coordinated required CI/verification; this PR's
+[skip ci] avoids repeating full suites and does not waive any required check.
 
 ## Stop
 
-Keep the taken record/worktree. No PR or Review move until root supplies
-verification and the explicit handoff. No worker build/test/capture is allowed.
-
-Source refrozen after this bounded fix; git diff --check exit 0. Root tests/capture remain pending.
+Open the authorised PR to dev, record its exact commit and PR, move only
+Implementing to Review after live gates, and retain the taken record and
+worktree for independent review. Do not self-review, self-merge, deploy or
+create a live test customer.
