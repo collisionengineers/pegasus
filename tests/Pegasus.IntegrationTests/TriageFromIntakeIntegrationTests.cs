@@ -25,11 +25,7 @@ public sealed class TriageFromIntakeIntegrationTests
         // forwarded and watched disappear.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "engineer-triage.eml",
-            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is "
-            + "repairable or a total loss. We have noted the vehicle as roadworthy.",
-            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("engineer-triage.eml");
 
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, email.FileName, email.MediaType, email.Content);

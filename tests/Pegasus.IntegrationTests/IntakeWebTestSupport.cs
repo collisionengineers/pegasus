@@ -872,6 +872,19 @@ internal sealed record UploadFormTokens(string AntiforgeryToken, string External
 
 internal static class IntakeTestEvidence
 {
+    // The retained QDOS Engineer Triage request shape. It is classified by the
+    // real mail-classification policy, which is the sole owner of Triage
+    // eligibility (INTK-033).
+    public static TestEmail CreateEngineerTriageRequest(
+        string fileName,
+        IReadOnlyList<(string FileName, string MediaType, byte[] Content)>? attachments = null) =>
+        CreateEmail(
+            fileName,
+            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is "
+            + "repairable or a total loss. We have noted the vehicle as roadworthy.",
+            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
+            attachments: attachments);
+
     public static TestEmail CreateEmail(
         string fileName,
         string body,

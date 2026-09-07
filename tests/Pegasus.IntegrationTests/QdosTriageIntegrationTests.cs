@@ -15,21 +15,15 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class QdosTriageIntegrationTests
 {
-    private const string AcceptedMatcherKey = "integration-test-accepted-triage-matcher";
     private const long SeededCaseEntityVersion = 37;
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AcceptedTriageMatchEvidenceCreatesOneReplaySafeTriage()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-request.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-request.eml");
         const string replayToken = "77777777777777777777777777777777";
 
         var first = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
@@ -57,14 +51,14 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(1, evaluation.Revision);
         Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
         Assert.Equal(evaluation.Id, detail.Record.Origin.EvaluationRevisionId);
-        Assert.Equal("AB12CDE", detail.Record.NormalizedVehicleRegistration);
+        Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
         Assert.Null(detail.Record.LinkedCaseId);
         Assert.Empty(detail.Findings);
         Assert.Empty(detail.ResponseEvidence);
         var created = Assert.Single(detail.History);
         Assert.Equal("triage_created", created.EventType);
-        Assert.Contains(AcceptedMatcherKey, created.Reason, StringComparison.Ordinal);
+        Assert.Contains(QdosMailClassificationPolicy.Key, created.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,37 +89,6 @@ public sealed partial class QdosTriageIntegrationTests
             evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
         Assert.Empty(await triageQueries.ListAsync(null, CancellationToken.None));
         Assert.Single(await GetEvaluationRevisionsAsync(factory.Database, receiptId));
-    }
-
-    [Fact]
-    [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task MultipleAcceptedTriageMatchesFailClosedWithoutCreatingTriage()
-    {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy(matchCount: 2));
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "ambiguous-triage-request.eml",
-            "QDOS instruction\r\nClaimant Name: Ambiguous Claimant\r\nClaim Number: AMBIGUOUS-001\r\nVehicle Registration: AB12 CDE");
-
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var receipt = Assert.IsType<IntakeReceipt>(
-            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                .GetAsync(receiptId, CancellationToken.None));
-        Assert.Equal(
-            2,
-            receipt.Evidence.Count(
-                evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch));
-        Assert.Empty(
-            await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                .ListAsync(null, CancellationToken.None));
     }
 
     [Fact]
@@ -182,14 +145,9 @@ public sealed partial class QdosTriageIntegrationTests
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AuthenticatedTriagePageExecutesLifecycleWithVersionsAndPermanentHistory()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-lifecycle.eml",
-            "QDOS instruction\r\nClaimant Name: Lifecycle Claimant\r\nClaim Number: TRIAGE-LIFECYCLE\r\nVehicle Registration: XY12 ZZZ");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-lifecycle.eml");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
         email.MediaType,
         email.Content);
@@ -608,41 +566,5 @@ public sealed partial class QdosTriageIntegrationTests
 
         return evaluations;
     }
-
-
-    private sealed class AcceptedTriageMatchPolicy(int matchCount = 1) : IInstructionExtractionPolicy
-    {
-        private readonly QdosInstructionExtractionPolicy inner = new();
-
-        public string PrincipalCode => inner.PrincipalCode;
-
-        public InstructionExtractionResult Extract(
-            IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
-            EstablishedPrincipalContext principalContext)
-        {
-            var result = inner.Extract(readResult, processedAtUtc, principalContext);
-            if (result.Applicability != InstructionPolicyApplicability.Applicable)
-            {
-                return result;
-            }
-
-            var acceptedMatches = Enumerable.Range(1, matchCount)
-                .Select(index => new IntakeEvidence(
-                    IntakeEvidenceSource.EmailBody,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.AcceptedTriageMatch,
-                    $"accepted-triage-request-{index}",
-                    "The test fixture represents an independently accepted Triage matcher result.",
-                    AcceptedMatcherKey,
-                    1))
-                .ToArray();
-            return result with
-            {
-                Evidence = [.. result.Evidence, .. acceptedMatches]
-            };
-        }
-    }
-
     private sealed record EvaluationRevision(Guid Id, int Revision);
 }

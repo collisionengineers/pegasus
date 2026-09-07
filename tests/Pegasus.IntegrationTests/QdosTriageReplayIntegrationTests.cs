@@ -11,14 +11,9 @@ public sealed partial class QdosTriageIntegrationTests
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task NamedMutationRetriesReturnHistoricalResultsAndRetainConflictAndStateGates()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-replay.eml",
-            "QDOS instruction\r\nClaimant Name: Replay Claimant\r\nClaim Number: TRIAGE-REPLAY\r\nVehicle Registration: AB12 CDE");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-replay.eml");
         _ = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
         email.MediaType,
         email.Content);

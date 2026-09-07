@@ -18,14 +18,9 @@ public sealed partial class QdosTriageIntegrationTests
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task CaseAssociationUsesCanonicalWorkflowVersionAndActiveCaseLease()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-case-association.eml",
-            "QDOS instruction\r\nClaimant Name: Association Claimant\r\nClaim Number: TRIAGE-ASSOCIATION\r\nVehicle Registration: CD34 EFG");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-case-association.eml");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
         email.MediaType,
         email.Content);
@@ -269,7 +264,7 @@ public sealed partial class QdosTriageIntegrationTests
                     QdosInstructionExtractionPolicy.Version),
                 CancellationToken.None);
             var evaluationId = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(
-                factory.Services,
+                services,
                 receipt.Id);
             var triage = await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
                 new(
