@@ -230,7 +230,7 @@ public sealed partial class QdosTriageIntegrationTests
         var normalizedVrm = Assert.IsType<string>(draft.VehicleRegistration);
         Assert.Equal(QdosInstructionExtractionPolicy.SupportedPrincipalCode, draft.SuggestedPrincipalCode);
         Assert.Equal(
-            CaseType.Inspection,
+            CaseType.InspectionAndAudit,
             new QdosMailClassificationPolicy().Classify(readResult).CaseType);
         var acceptedMatch = new IntakeEvidence(
             IntakeEvidenceSource.SystemDefault,
