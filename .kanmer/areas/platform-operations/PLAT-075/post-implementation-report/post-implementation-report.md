@@ -3,8 +3,7 @@
 ## Status
 
 This is the provisional implementation handoff for PLAT-075 at common head
-`12f45d193919c4cac7c0563c40338e2f33f38c71`. Product and test behavior
-is frozen at `a3769c1ac3f98cc5300da8bdb4504d7c3995aa35`; the later change
+`12f45d193919c4cac7c0563c40338e2f33f38c71`. Product/test behavior is frozen at `a3769c1ac3f98cc5300da8bdb4504d7c3995aa35`; the later change
 only serializes the existing Core CI command with one xUnit worker and updates
 the matching repository convention. All three owner branches are pushed at the
 current common head.
@@ -37,15 +36,13 @@ Delivered scope includes:
 - deployment/configuration validation, migration grants, bootstrap checks,
   current-state docs, runbook, UI snapshots and supplied registers.
 
-The 29-row documentation and 44-entry connector registers remain the bounded
-disposition owners. They distinguish implemented source from deployment and
-live-provider evidence; deferred mutations are not presented as delivered.
+The 29-row documentation and 44-entry connector registers distinguish source
+from deployment/live evidence; deferred mutations are not delivered.
 
 ## Source and caller review
 
 Independent A01-A09 review covered Core policy, Infrastructure adapters, Web
-and Worker composition, callers, tests and docs. Earlier attachment findings
-are corrected: Worker resolves holding retention without public-upload limits;
+and Worker composition, callers, tests and docs. Attachment findings are corrected: Worker resolves holding retention without public-upload limits;
 holding Unknown replay uses the same verified bytes and stable operation key;
 selections are authorized and revalidated before Graph is touched; and
 retention survives replay, lost claims and concurrency.
@@ -63,9 +60,7 @@ locations, expected failures, states and assertions are preserved. Discovery
 reports 21 expanded rows and no unexpanded methods. No product behavior or
 shard-coverage rule changed.
 
-No new runtime, store, project, policy owner, compatibility path or provider
-operation was introduced. Original dirty worktrees, branches and recovery refs
-remain preserved.
+No new runtime, store, policy owner, compatibility path or provider operation was added. Original worktrees, branches and recovery refs are preserved.
 
 ## Verification observed
 
@@ -91,16 +86,14 @@ are not claimed as passing.
 ## Remaining steps
 
 PR 674 is the sole integration PR. PRs 672 and 673 were closed as superseded,
-not merged; their branches and history are preserved. PR 674 currently has no
-final-head review threads requiring disposition.
+not merged; their branches and history are preserved. PR 674 has no current review threads.
 
 Before PLAT-075 enters Review, the root verifier must finish the pending SQL,
 browser and fresh Test UI lanes on the exact head and retain every result. A
 fresh independent formal review must bind PR 674, the head, plan and ticket
 versions, comments, threads and pushed board tip.
 
-Only after that pass may the authorized closeout merge the common work once
-into `dev`, verify the merge SHA, write member-owned proof, and open the
-`dev` to `main` PR with auto-merge disabled. That PR must remain unmerged.
-No deployment, provider write, mailbox mutation, mail send, Box write, reset,
-force-push, branch deletion or cleanup is authorized.
+After that pass, the authorized closeout may merge once into `dev`, verify its
+SHA, write proof, and open the unmerged `dev` to `main` PR with auto-merge off.
+No deployment, provider/mailbox/Box write, mail send, reset, force-push,
+deletion or cleanup is authorized.
