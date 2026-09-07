@@ -58,3 +58,13 @@ that is source comparison, not a new capture or visual PASS.
 Do not move Done or clean up yet. Root requested PLAT-028 priority so its
 overlapping composition ownership can subsequently close before TICK-035.
 Whole-file proof is pending the root checks, not asserted by this scratch.
+
+## Approved closeout — 2026-09-07
+
+Root approved PASS proof 321095455570a06d after the exact Core-filter correction. Fresh gates allowed Verifying→Done at22:15:12.755Z (legacy proof/report-mode warning inspected; whole record read). Structured commits/delivery now name reachable merge987988e0b984ad63c1de4be3ad189f3afeb2928c on dev, not-deployed; author heads remain historical review/report evidence.
+
+Warning-free all-ticket census (689 including archived) found only PLAT-028 claiming this branch/worktree, no batch. Exact absolute author and detached verification roots both resolved under this repository, shared its .git, matched recorded branch/head and were tracked/untracked clean; only ignored build/capture outputs existed. TRX copied to ignored pegasus_pack/current/proofs/PLAT-028/plat-028-merged.trx and SHA256 matched proof before cleanup.
+
+From the shared root (read-only checkout), git worktree remove on the exact detached path and .worktrees/plat-028 each exited0. git branch -d PLAT-028-principal-customer exited0 (expected warning: not merged to stale shared HEAD, already merged on GitHub). git push origin --delete PLAT-028-principal-customer exited0 after remote head d2bf633ec8ddc5b08b4052554d1d4e79f3930682 was confirmed. Final directory/registration/localbranch/remotebranch checks were absent; merge ancestor check origin/dev exited0. git worktree prune --dry-run had no candidates, then prune exited0. Used targeted remote deletion instead of pruning unrelated remote refs. No force, reset or shared-checkout edit.
+
+Fresh post-cleanup census still finds only this terminal claim. Claim release is the final closeout mutation; all source remains recoverable through merged PR680/dev, and retained proof/TRX remain available. Unrelated workspaces/claims were untouched.

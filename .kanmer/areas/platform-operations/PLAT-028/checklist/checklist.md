@@ -13,7 +13,7 @@ Root supplied original-head focused tests and scoped snapshot/catalogue passes, 
 - [x] Whole PASS proof finalised and read back; PR/date and retained TRX recorded.
 - [x] Moved to final stage.
 - [x] Outcome and reachable merge traceability recorded; not deployed.
-- [ ] Exact owned implementation and detached verification worktrees removed.
-- [ ] Only the merged PLAT-028-principal-customer local/remote branch removed.
-- [ ] Git cleanup checked against the current worktree/claim census.
-- [ ] Claim released last.
+- [x] Exact owned implementation and detached verification worktrees removed.
+- [x] Only the merged PLAT-028-principal-customer local/remote branch removed.
+- [x] Git cleanup checked against the current worktree/claim census.
+- [x] All cleanup and records complete; release is the sole remaining final mutation (its result is recorded by Kanmer claim history).
