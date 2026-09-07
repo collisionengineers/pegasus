@@ -34,17 +34,26 @@ public sealed record GlassRepairEstimateSession(
 public sealed record GlassRepairEstimateLaunchRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     string OperationKey);
+public sealed record GlassRepairEstimateResumeRequest(
+    ActionActor Actor, Guid SessionId, long ExpectedVersion,
+    long? ExpectedCaseVersion = null, string? LeaseToken = null);
 public sealed record GlassRepairEstimateCallback(
     ActionActor Actor, Guid SessionId, long ExpectedVersion, string Correlation,
-    string OperationKey);
+    string RawQuery)
+{
+    /// <summary>The provider query exactly as received, without normalization or re-encoding.</summary>
+    public override string ToString() => nameof(GlassRepairEstimateCallback);
+}
 public interface IGlassRepairEstimateGateway
 {
     Task<GlassRepairEstimateSession> LaunchAsync(
         GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> ResumeAsync(
-        ActionActor actor, Guid sessionId, long expectedVersion, CancellationToken cancellationToken);
+        GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> CompleteAsync(
         GlassRepairEstimateCallback callback, CancellationToken cancellationToken);
+    Task<Uri?> GetEstimatorUrlAsync(
+        ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
 }
 /// <summary>Durable provider session material stays server-side and protected at rest.</summary>
 public sealed class GlassRepairEstimateSessionMaterial(
