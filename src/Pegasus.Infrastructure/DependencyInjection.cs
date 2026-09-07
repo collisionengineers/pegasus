@@ -436,7 +436,21 @@ public static class DependencyInjection
         // Details still requests the PDF parser singly and JSON by its concrete
         // type; canonical import consumes all parsers through the collection.
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
-        services.AddScoped<IGlassRepairEstimateSessionStore, EfGlassRepairEstimateSessionStore>();
+        services.AddScoped<EfGlassRepairEstimateSessionStore>();
+        services.AddScoped<IGlassRepairEstimateSessionStore>(provider =>
+            provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
+        services.AddScoped<IGlassRepairEstimateSessionReader>(provider =>
+            provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
+        services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
+            key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
+        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+            });
+        services.AddScoped<IGlassRepairEstimateCaseAuthority, EfGlassRepairEstimateCaseAuthority>();
+        services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
         services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();

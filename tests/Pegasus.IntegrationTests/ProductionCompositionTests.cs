@@ -2,6 +2,7 @@ using Azure.Storage.Blobs;
 using Azure.Core;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
@@ -106,6 +107,43 @@ public sealed class ProductionCompositionTests
         Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
         Assert.IsType<EfGlassRepairEstimateSessionStore>(
             scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>());
+    }
+
+    [Fact]
+    public void GlassGatewayUsesValidatedConfigurationScopedStoreAndInertNamedHandler()
+    {
+        using var provider = BuildGlassProduction(GlassConfiguration());
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.IsType<GlassRepairEstimateGateway>(
+            services.GetRequiredService<IGlassRepairEstimateGateway>());
+        var store = services.GetRequiredService<IGlassRepairEstimateSessionStore>();
+        Assert.Same(store, services.GetRequiredService<IGlassRepairEstimateSessionReader>());
+
+        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>()
+            .CreateHandler(GlassRepairEstimateOptions.HttpClientName);
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler!;
+        }
+        var primary = Assert.IsType<HttpClientHandler>(handler);
+        Assert.False(primary.AllowAutoRedirect);
+        Assert.False(primary.UseCookies);
+    }
+
+    [Fact]
+    public void GlassGatewayRefusesMissingRequiredConfigurationByKey()
+    {
+        var configuration = GlassConfiguration();
+        configuration.Remove("Glass:RepairProfileId");
+        using var provider = BuildGlassProduction(configuration);
+        using var scope = provider.CreateScope();
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateGateway>());
+
+        Assert.Contains("Glass:RepairProfileId", error.Message, StringComparison.Ordinal);
     }
 
     private const string BoxConfigJson = """
@@ -385,6 +423,31 @@ public sealed class ProductionCompositionTests
                 static _ => BoxOptions()));
         return services.BuildServiceProvider();
     }
+
+    private static ServiceProvider BuildGlassProduction(Dictionary<string, string?> configuration)
+    {
+        var services = NewServices();
+        services.AddDataProtection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(configuration)
+            .Build());
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxOptions()));
+        return services.BuildServiceProvider();
+    }
+
+    private static Dictionary<string, string?> GlassConfiguration() => new(StringComparer.Ordinal)
+    {
+        ["Glass:MarketValueAssessorBaseUri"] = "https://mva.example.test/",
+        ["Glass:EstimatorBaseUri"] = "https://estimator.example.test/",
+        ["Glass:CallbackBaseUri"] = "https://pegasus.example.test/",
+        ["Glass:RepairProfileId"] = "17",
+    };
 
     private static ServiceCollection NewServices() => new();
 
