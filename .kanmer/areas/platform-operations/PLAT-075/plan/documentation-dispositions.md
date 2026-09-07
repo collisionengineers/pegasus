@@ -1,7 +1,7 @@
 # V1 documentation correction dispositions
 
 Checkpoint 2026-09-07; common A/B/C source and canonical documentation at
-`886f94df90fdbfce870f22d71065d12a5fb0fc60`. The local and remote Platform,
+`b8d7cd325f7ce76e442706237b8a3424d84accfe`. The local and remote Platform,
 Casework and Intake stream refs all resolve to that identity. This refresh
 records the source-level disposition of the complete 29-row supplied register.
 The canonical corrections are committed; they do not by themselves prove
@@ -9,7 +9,12 @@ external acceptance, deployment, operator acceptance, or final validation.
 Those claims remain pending where named below. Exact-head CI, remaining corpus
 dispositions, integration proof and the formal review attestation are still
 required before PLAT-075 closeout. The board remains the authoritative workflow
-record.
+record. Product source and the canonical FRD/architecture/capability files are
+unchanged since the independently reviewed `886f94df9` checkpoint. Subsequent
+changes correct test fixtures, bounded CI execution and generated Test UI state
+selection. The supplied pinned PNG now has a separate 1 PASS / 0 SKIP result;
+the six scan-only MP cases remain INCONCLUSIVE release gates. Current CI run
+34126704865 and final integration proof remain pending.
 
 | ID | Canonical files | Disposition |
 | --- | --- | --- |

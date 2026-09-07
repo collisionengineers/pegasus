@@ -1,7 +1,7 @@
 # Connector tool dispositions and test map
 
 Read-only source checkpoint: common A/B/C head
-`886f94df90fdbfce870f22d71065d12a5fb0fc60`. The local and remote Platform,
+`b8d7cd325f7ce76e442706237b8a3424d84accfe`. The local and remote Platform,
 Casework and Intake stream refs all resolve to that identity. This replaces the
 earlier split-head source checkpoint; final validation remains pending.
 
@@ -22,9 +22,10 @@ Triage parity failure remains historical evidence. A later
 `e28522281847b3a83a1607166e965205b30f9b34` subsequently passed all three tests
 with zero failures/skips (1m09), after a zero-warning/error build (1m36.89).
 TRX: `v1-current-intake-parity.trx`. This disposes that focused failure without
-erasing it; it does not replace exact-head whole-host verification. CI at
-`886f94df9` currently has four failures and one skip under diagnosis. Exact-head
-validation, activation and deployment evidence remain pending.
+erasing it; it does not replace exact-head whole-host verification. The earlier CI failures at
+`886f94df9` are preserved below with their subsequent correction. Product source
+is unchanged from that checkpoint through `b8d7cd325`; current exact-head CI
+run 34126704865 remains pending. Activation and deployment remain separate.
 
 | Tool | Required scope | Current source disposition | Test-source references |
 | --- | --- | --- | --- |
@@ -83,7 +84,10 @@ validation, activation and deployment evidence remain pending.
 - The recorded Triage parity failure remains historical evidence. The later
   three-test PASS belongs to `e28522281`, not the current head.
 - CI at `886f94df9` is not green: 605 tests passed, four failed and one skipped;
-  the terminal-case exact-replay fixture authorization failure is under
-  diagnosis.
+  the terminal-case fixture authorization failures were corrected in
+  `b30e01bdecc9bf78b4397074a6dffa4eb97c5eb1`, independently reviewed, and the
+  affected custody/upload/Glass cohort subsequently passed 131 tests with one
+  conditional mapping-photo skip that passed separately. This preserves the
+  original failure without treating that targeted result as full-host proof.
 - No live provider call, enabled final-host activation, deployment, or current
   exact-head full rail is claimed here.
