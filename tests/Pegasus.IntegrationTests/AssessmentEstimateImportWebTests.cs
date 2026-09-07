@@ -726,6 +726,11 @@ public sealed partial class AssessmentEstimateImportWebTests
             Details = currentBase.Details with { Name = "Engineer current" },
             IsCurrent = true,
         };
+        current = current with
+        {
+            RecordedTotals = EstimateTotals.Compute(current),
+            Lines = [current.Lines.Single() with { Price = 999m }],
+        };
         var store = new RecordingStores(caseId)
         {
             CurrentDraft = draft,
