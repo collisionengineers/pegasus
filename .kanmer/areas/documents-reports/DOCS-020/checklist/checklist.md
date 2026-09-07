@@ -17,7 +17,7 @@ and the implementation report.
 - [x] proof.md finalised with merge identity/date and retained TRX paths.
 - [x] Moved to final stage after root whole-PASS approval.
 - [x] Outcome and reachable integration SHAs recorded in ticket body.
-- [ ] Three hash-verified TRXs retained before removing only three owned clean worktrees.
-- [ ] Merged local/remote branch removed after exact ownership/content checks.
-- [ ] Fetch/prune and worktree census show no owned residue.
-- [ ] Claim released last.
+- [x] Three hash-verified TRXs retained before removing only three owned clean worktrees.
+- [x] Merged local/remote branch removed after exact ownership/content checks.
+- [x] Fetch/prune and worktree census show no owned residue.
+- [x] Claim released last after all Git cleanup; final readback confirms no claim/branch/worktree.

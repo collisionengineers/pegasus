@@ -12,18 +12,6 @@ stageEntered:
   verifying: '2026-09-07T21:51:25.688Z'
   implementing: '2026-09-07T22:43:54.189Z'
   done: '2026-09-07T23:18:03.038Z'
-taken_at: '2026-09-07T20:28:04.764Z'
-branch: DOCS-020-report-consistency
-worktree: .worktrees/docs-020
-claim_expires_at: '2026-09-07T23:26:12.321Z'
-claim_controller: codex-v1-remediation-root
-lease_id: 4e050162-b3c0-4605-bc4b-c3f50fb7b38f
-lease_revision: 10
-lease_controller_run: 20260907T200500Z-v1-remediation
-lease_worker_run: pack-reconcile-docs020
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\docs-020'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-07T22:56:12.321Z'
 labels: []
 groups:
   - EPIC-014
@@ -44,7 +32,7 @@ delivery_sha: 4d7ad4a0d2593300fd02527838aa2f1cf6555860
 delivery_recorded_at: '2026-09-07T23:21:37.118Z'
 archived: false
 created: '2026-09-07T19:58:09.568Z'
-updated: '2026-09-07T23:21:37.118Z'
+updated: '2026-09-07T23:23:16.125Z'
 ---
 
 ## What

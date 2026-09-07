@@ -23,7 +23,6 @@
 | tests/Pegasus.IntegrationTests/CaseWorkflowPersistenceTests.cs | Atomic handoff, replay/readiness/lease/version and report-history acceptance. |
 | tests/Pegasus.IntegrationTests/CaseWorkflowWebTests.cs | Actual assignment POST and handoff label. |
 | tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs | Replace obsolete StartWork handler/capture expectations. |
-| tests/Pegasus.IntegrationTests/CaseSignOffEngineerWebTests.cs | Existing optional EVA/assignment dialog assertions if present; resolve actual path before editing. |
 | docs/frd/frd-01-case-identity-and-lifecycle.md | Native handoff replaces mandatory EVA progression. |
 | docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Native estimate/report access agrees. |
 | docs/frd/frd-12-operator-experience.md | One human handoff action. |
@@ -42,7 +41,7 @@
 
 ## Ripple effects
 
-Constructor/compiler consumers and UI snapshots must agree. No migration, runtime permissions, packages or cloud action. Exact files found by rg override no guessed absent path: record any concrete missing expected file refinement before implementation.
+Exact current-path discovery found no standalone CaseSignOffEngineerWebTests; existing CaseWorkflowWebTests owns assignment. Reuse Details.EvaHandoff.EngineerOptions in the native dialog without a second query/list or a new presentation wrapper. Constructor/compiler consumers and UI snapshots must agree. No migration, runtime permissions, packages or cloud action. Exact files found by rg override no guessed absent path: record any concrete missing expected file refinement before implementation.
 
 ## Out of scope
 
