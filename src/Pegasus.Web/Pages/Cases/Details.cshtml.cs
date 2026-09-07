@@ -74,7 +74,6 @@ public sealed partial class DetailsModel(
     IEvaSubmissionModeStore evaModeStore,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
-    TimeProvider clock,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
     RequestUploadLimits? requestUploadLimits = null) : CaseMutationPageModel(logger)
@@ -473,9 +472,10 @@ public sealed partial class DetailsModel(
     public bool CanResumeGlass =>
         CanLaunchGlass
         && GlassSession is { } session
-        && (session.State == GlassRepairEstimateSessionState.AwaitingImport
-            || (session.State == GlassRepairEstimateSessionState.Active
-                && session.ExpiresAtUtc > clock.GetUtcNow()));
+        && GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State);
+
+    public bool CanCloseGlass => ActorIsEngineer && AssessmentCanOpen
+        && GlassSession?.State == GlassRepairEstimateSessionState.Unknown;
 
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -1775,6 +1775,7 @@ public sealed partial class DetailsModel(
     /// </summary>
     public async Task<IActionResult> OnPostSaveEstimateAsync(
         Guid id,
+        long? expectedVersion,
         string operationKey,
         string? editLeaseToken,
         Guid? estimateId,
@@ -1790,6 +1791,11 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
+        if (expectedVersion is null)
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
         if (editor.Lines is null)
         {
             TempData["CaseError"] =
@@ -1797,66 +1803,22 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id, estimateId?.ToString("D"));
         }
 
-        var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
-        var existingLines = existing?.Lines.ToDictionary(line => line.Id)
-            ?? new Dictionary<Guid, CaseEstimateLineRecord>();
-        var savedAtUtc = clock.GetUtcNow();
-        var lines = editor.Lines.Select((line, index) =>
-        {
-            if (editor.ExistingLineIds[index] is not { } lineId
-                || !existingLines.TryGetValue(lineId, out var previous))
-            {
-                return line;
-            }
-
-            var carried = line with
-            {
-                GuideCode = previous.GuideCode,
-                // Carried forward only while the line still has no price.
-                // AssessmentPolicy refuses a line that is both marked To be
-                // confirmed and priced, so preserving it unconditionally would
-                // make pricing an imported unpriced line impossible.
-                Unpriced = previous.Unpriced && line.Price is null,
-                Betterment = previous.Betterment,
-                Status = previous.Status,
-                EvidenceLabel = previous.EvidenceLabel,
-                Justification = previous.Justification,
-                // The screen edits operation, description, part number,
-                // quantity, hours and the part amount. Every other
-                // recorded fact on the line — its materials, and the values
-                // the source document stated with the document and row it
-                // came from — is carried forward, because a save that
-                // dropped them would erase evidence the editor never showed.
-                Materials = previous.Materials,
-                Origin = previous.Origin,
-                SourceDocumentIdentity = previous.SourceDocumentIdentity,
-                SourceDocumentVersionId = previous.SourceDocumentVersionId,
-                SourceDocumentSha256 = previous.SourceDocumentSha256,
-                SourceRowIdentity = previous.SourceRowIdentity,
-            };
-            // Amendment attribution is the one carried fact that must not be
-            // preserved blindly: a line whose editable values moved was
-            // amended by this operator, now.
-            var (amendedBy, amendedAtUtc) = EstimatePolicy.StampAmendment(
-                carried, previous, actor.SubjectId, savedAtUtc);
-            return carried with { AmendedBy = amendedBy, AmendedAtUtc = amendedAtUtc };
-        }).ToArray();
-        var details = EditorDetailsFrom(editor, existing);
+        var details = EditorDetailsFrom(editor, null);
         try
         {
             var saved = await saveEstimate.ExecuteAsync(
                 new(
                     id,
-                    currentCaseVersion,
+                    expectedVersion.Value,
                     actor,
                     operationKey,
                     estimateId is null ? "Estimate created" : "Estimate saved",
                     editLeaseToken!,
                     estimateId,
                     details,
-                    lines,
-                    existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
-                    existing?.AiJobId),
+                    editor.Lines,
+                    new(RepairSpecificationSourceRoute.Manual, null, null, null),
+                    ExistingLineIds: editor.ExistingLineIds),
                 cancellationToken);
             ClearLeaseState();
             TempData["CaseStatus"] = "The estimate was saved.";
@@ -2209,6 +2171,38 @@ public sealed partial class DetailsModel(
         return ReportSessionOutcome(session, TempData, () => RedirectToEstimate(id));
     }
 
+    public async Task<IActionResult> OnPostCloseGlassAsync(
+        Guid id, Guid sessionId, long expectedSessionVersion, bool externalSessionClosed,
+        string? reason, [FromServices] IGlassRepairEstimateGateway glassEstimates, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor) || !actor.IsInRole(StaffRole.Engineer)
+            || !Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            return Forbid();
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true)
+        {
+            return NotFound();
+        }
+        var ownSession = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+        if (ownSession?.Id != sessionId)
+        {
+            return NotFound();
+        }
+        try
+        {
+            await glassEstimates.CloseAsync(new(actor, sessionId, expectedSessionVersion,
+                externalSessionClosed, reason ?? string.Empty), cancellationToken);
+            TempData["CaseStatus"] = GlassLabels.Closed;
+        }
+        catch (Exception exception) when (IsGlassRefusal(exception) || exception is StaffAuthorizationException)
+        {
+            TempData["CaseError"] = GlassLabels.CloseRefused;
+        }
+        return RedirectToEstimate(id);
+    }
+
     private RedirectToPageResult RefuseGlassCommand(
         Guid id, string? editLeaseToken, Exception exception, string refusal)
     {
@@ -2346,7 +2340,7 @@ public sealed partial class DetailsModel(
     /// forward unseen.
     /// </summary>
     private static EstimateDetails EditorDetailsFrom(
-        EstimateEditorPost editor, RepairSpecificationVersion? existing) => new(
+        EstimateEditorPost editor, RepairSpecificationVersion? existing) => EstimatePolicy.RetainEditorRate(new(
         editor.Name ?? string.Empty,
         editor.RepairDays,
         editor.LabourRate,
@@ -2355,10 +2349,7 @@ public sealed partial class DetailsModel(
         editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
         editor.Notes,
         editor.Discounts,
-        editor.VatPolicy,
-        existing?.Details.Rate is { } card && card.HourlyRate == editor.LabourRate
-            ? card
-            : null);
+        editor.VatPolicy), existing?.Details);
 
     private EstimateEditorPost ReadEditorPost()
     {

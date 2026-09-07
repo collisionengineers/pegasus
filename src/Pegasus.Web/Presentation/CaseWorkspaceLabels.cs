@@ -293,6 +293,12 @@ public static class CaseWorkspaceLabels
     {
         public const string Launch = "Glass's";
         public const string Resume = "Resume";
+        public const string Close = "Close session";
+        public const string CloseReason = "Reason";
+        public const string ExternalClosedConfirmation = "Glass's is closed and no estimate remains open";
+        public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
+        public const string Closed = "The Glass's session was closed.";
+        public const string CloseRefused = "The Glass's session was not closed.";
         public const string State = "State";
         public const string Failure = "Failure";
 

@@ -213,6 +213,7 @@ public sealed class EfRepairSpecificationStore(
             entity = await RequiredEstimateAsync(context, request.CaseId, estimateId, cancellationToken);
             editingCurrent = entity.IsCurrent;
             EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
+            request = EstimatePolicy.ApplyEditorEvidence(request, Map(entity), now);
             context.CaseEstimateLines.RemoveRange(entity.Lines);
             entity.Lines.Clear();
             eventType = "estimate_updated";
@@ -707,11 +708,24 @@ public sealed class EfRepairSpecificationStore(
     }
 
     private static async Task<RepairSpecificationVersion> ReplayedAsync(
-        PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-        Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleAsync(item => item.CaseId == caseId
-                && (item.CreationOperationKey == operationKey || item.LastOperationKey == operationKey),
-                cancellationToken));
+        PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken)
+    {
+        // LastOperationKey moves on every edit. The append-only operation
+        // history keeps the result identity even after K2 has been followed
+        // by K3; a replay reads that aggregate now, never reapplies K2.
+        var eventType = await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
+            .Select(item => item.EventType).SingleAsync(cancellationToken);
+        var after = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case" && item.AggregateId == caseId.ToString("D")
+                && item.CorrelationId == operationKey && item.EventKind == eventType)
+            .Select(item => item.AfterJson).SingleAsync(cancellationToken);
+        using var result = JsonDocument.Parse(after
+            ?? throw new InvalidOperationException("The estimate operation has no recorded result identity."));
+        var estimateId = result.RootElement.GetProperty("id").GetGuid();
+        return Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
+            .SingleAsync(item => item.CaseId == caseId && item.Id == estimateId, cancellationToken));
+    }
 
     private static async Task<CaseRepairSpecificationEntity> RequiredEstimateAsync(
         PegasusDbContext context, Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>

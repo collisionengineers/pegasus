@@ -679,6 +679,70 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
+    public async Task EarlierEstimateUpdateReplaysItsRecordedIdentityWithoutRevertingLaterEdits()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("estimate-replay-case")).Identity.CaseId;
+        var actor = harness.EngineerActor;
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var lease1 = await harness.AcquireLeaseAsync(caseId, 0, actor, "replay-lease-1");
+        var create = new SaveEstimateRequest(caseId, 0, actor, "replay-K1", "Recorded an estimate.",
+            lease1.Token, null, new("Repairer", 2, 40m, null, null, 20m, null),
+            [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
+            new(RepairSpecificationSourceRoute.Manual, null, null, null));
+        var first = await save.ExecuteAsync(create, default);
+        var lease2 = await harness.AcquireLeaseAsync(caseId, 1, actor, "replay-lease-2");
+        var update = create with
+        {
+            EstimateId = first.SpecificationId, ExpectedVersion = 1, EditLeaseToken = lease2.Token,
+            OperationKey = "replay-K2", Details = first.Details with { Name = "Engineer revision" },
+            ExistingLineIds = first.Lines.Select(line => (Guid?)line.Id).ToArray(),
+            Lines = [create.Lines[0] with { WorkUnits = 3m }],
+        };
+        var second = await save.ExecuteAsync(update, default);
+        var lease3 = await harness.AcquireLeaseAsync(caseId, 2, actor, "replay-lease-3");
+        var third = await save.ExecuteAsync(update with
+        {
+            ExpectedVersion = 2, EditLeaseToken = lease3.Token, OperationKey = "replay-K3",
+            Details = second.Details with { Name = "Final revision" },
+            ExistingLineIds = second.Lines.Select(line => (Guid?)line.Id).ToArray(),
+            Lines = [create.Lines[0] with { WorkUnits = 4m }],
+        }, default);
+
+        // Reconstruct the store under the real Web runtime role. The replay
+        // must read its permanent action result after LastOperationKey moved.
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE USER [estimate_replay_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_replay_web];");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_replay_web';");
+        try
+        {
+            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
+            var resumed = new SaveEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock), jobs, harness.Clock);
+            var replay = await resumed.ExecuteAsync(update, default);
+            Assert.Equal(first.SpecificationId, replay.SpecificationId);
+            Assert.Equal(third.Details.Name, replay.Details.Name);
+            Assert.Equal(third.Lines[0].Id, replay.Lines[0].Id);
+            Assert.Equal(4m, replay.Lines[0].WorkUnits);
+            Assert.Equal(third.Lines[0].AmendedAtUtc, replay.Lines[0].AmendedAtUtc);
+            await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+                resumed.ExecuteAsync(update with { Details = update.Details with { Name = "Changed intent" } }, default));
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+                resumed.ExecuteAsync(update with { OperationKey = "new-stale-operation" }, default));
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+        Assert.Equal(3, await context.CaseWorkflowEvents.CountAsync(item => item.CaseId == caseId && item.EventType.StartsWith("estimate_")));
+        Assert.Equal(3, await context.ActionHistory.CountAsync(item => item.AggregateId == caseId.ToString("D") && item.EventKind.StartsWith("estimate_")));
+        Assert.Equal(3, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+    }
+
+    [Fact]
     public async Task NamedEstimatesSaveDuplicateDiscardSetCurrentAndListWithOneCurrentPerCase()
     {
         await using var harness = await Harness.CreateAsync();

@@ -76,6 +76,7 @@ internal static class GlassFailure
     public const string CustodyFailed = "glass.custody.failed";
     public const string TransportFailed = "glass.transport.failed";
     public const string TransportUnknown = "glass.transport.unknown";
+    public const string Interrupted = "glass.interrupted";
 }
 
 /// <summary>What stage 6's fresh lookup established about the vehicle.</summary>
