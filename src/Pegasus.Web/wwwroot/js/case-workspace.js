@@ -34,7 +34,7 @@
             // The server renders the order on each card; reading it back is
             // what makes the sequence the operator sees the one reordered,
             // whatever order the cards happen to sit in.
-            return Array.prototype.slice.call(panel.querySelectorAll(SUPPORTING))
+            return Array.from(panel.querySelectorAll(SUPPORTING))
                 .filter(function (card) {
                     return Number.isFinite(order(card));
                 })
@@ -48,8 +48,12 @@
             return raw === null || raw === '' ? NaN : Number(raw);
         };
 
+        var cardAt = function (event) {
+            return event.target.closest ? event.target.closest(SUPPORTING) : null;
+        };
+
         panel.addEventListener('dragstart', function (event) {
-            var card = event.target.closest ? event.target.closest(SUPPORTING) : null;
+            var card = cardAt(event);
             if (!card || !panel.contains(card)) {
                 return;
             }
@@ -82,7 +86,7 @@
         });
 
         panel.addEventListener('dragleave', function (event) {
-            var target = event.target.closest ? event.target.closest(SUPPORTING) : null;
+            var target = cardAt(event);
             if (target) {
                 target.removeAttribute('data-drop-target');
             }
@@ -100,10 +104,10 @@
         });
 
         var targetOf = function (event) {
-            if (!dragged || !event.target.closest) {
+            if (!dragged) {
                 return null;
             }
-            var target = event.target.closest(SUPPORTING);
+            var target = cardAt(event);
             if (!target || target === dragged || !panel.contains(target)) {
                 return null;
             }

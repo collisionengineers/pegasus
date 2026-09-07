@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Pegasus.Core;
 
 namespace Pegasus.Infrastructure.Glass;
 
@@ -572,15 +573,15 @@ internal sealed partial class GlassMvaClient(
         }
 
         var html = Text(candidates, "html") ?? string.Empty;
+        var blocks = CandidateBlock().Matches(html);
         var matched = 0;
         var ordinal = 0;
-        foreach (Match candidate in CandidateBlock().Matches(html))
+        for (var index = 0; index < blocks.Count; index++)
         {
+            var candidate = blocks[index];
             var position = int.Parse(candidate.Groups[1].Value, CultureInfo.InvariantCulture);
-            var body = html.AsSpan(candidate.Index);
-            var next = CandidateBlock().Match(html, candidate.Index + candidate.Length);
-            var length = (next.Success ? next.Index : html.Length) - candidate.Index;
-            if (body[..length].Contains(natCode, StringComparison.Ordinal))
+            var end = index + 1 < blocks.Count ? blocks[index + 1].Index : html.Length;
+            if (html.AsSpan(candidate.Index, end - candidate.Index).Contains(natCode, StringComparison.Ordinal))
             {
                 matched++;
                 ordinal = position;
@@ -656,9 +657,7 @@ internal sealed partial class GlassMvaClient(
     /// month a person at Collision Engineers would.
     /// </summary>
     private string ValuationMonth() =>
-        TimeZoneInfo.ConvertTime(
-                timeProvider.GetUtcNow(),
-                TimeZoneInfo.FindSystemTimeZoneById("Europe/London"))
+        LondonCalendar.LocalAt(timeProvider.GetUtcNow())
             .ToString("yyyyMM", CultureInfo.InvariantCulture);
 
     private async Task<JsonElement> JsonAsync(

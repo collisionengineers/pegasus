@@ -300,17 +300,7 @@ public sealed class EfCaseAssessmentStore(
     private static AssessmentCaseOwnedData MapCaseOwned(
         IReadOnlyList<CaseDataFieldEntity> caseDataFields)
     {
-        string? Current(string fieldName)
-        {
-            var values = caseDataFields
-                .Where(item => item.FieldName == fieldName)
-                .ToArray();
-            var current =
-                values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-                ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
-                ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
-            return current?.Value;
-        }
+        string? Current(string fieldName) => CaseDataFieldValues.Current(caseDataFields, fieldName);
 
         DateOnly? CurrentDate(string fieldName) =>
             Current(fieldName) is { } value
@@ -384,5 +374,22 @@ public sealed class EfCaseAssessmentStore(
             request.AiWorkRequestId
         }, JsonOptions);
         return CaseOperationReplay.Hash(material);
+    }
+}
+
+/// <summary>
+/// The value a Case currently stands on for a field: a confirmed value, else
+/// an extracted fact, else a suggestion. One owner for every reader of the
+/// Case's own fields.
+/// </summary>
+internal static class CaseDataFieldValues
+{
+    internal static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
+    {
+        var values = fields.Where(item => item.FieldName == fieldName).ToArray();
+        var current = values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
+        return current?.Value;
     }
 }

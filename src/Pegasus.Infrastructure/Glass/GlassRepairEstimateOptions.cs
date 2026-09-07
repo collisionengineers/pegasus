@@ -64,12 +64,6 @@ public sealed record GlassRepairEstimateOptions(
             RequirePositive(read, "Glass:MaximumExportBytes", GlassEstimateXmlParser.MaximumDocumentBytes));
     }
 
-    public static GlassRepairEstimateOptions Create(IReadOnlyDictionary<string, string?> values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-        return Create(key => values.TryGetValue(key, out var value) ? value : null);
-    }
-
     /// <summary>The callback this launch will accept, carrying its one-use token.</summary>
     public Uri CallbackFor(string correlationToken)
     {
