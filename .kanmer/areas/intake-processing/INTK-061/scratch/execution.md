@@ -3,3 +3,5 @@
 ## Transitions
 
 - 2026-09-07T21:04:34.088Z lease-phase implementing → review (lease caff30a5-8e3d-4009-820d-f471bec4d716 rev 10; expires 2026-09-07T21:34:34.075Z)
+
+- 2026-09-07T21:46:40.711Z lease-phase review → verifying (lease caff30a5-8e3d-4009-820d-f471bec4d716 rev 12; expires 2026-09-07T22:16:40.700Z)

@@ -25,3 +25,7 @@ Root supplied focused passing checks and scoped snapshots, then authorised commi
 - 2026-09-07T21:37:16.233Z lease-phase review → implementing (lease 898e963f-db89-4b9c-830b-c8faf286e861 rev 9; expires 2026-09-07T22:07:16.224Z)
 
 Remediation round1 F-001 source frozen: only Browser/AccessibilityTests.cs and Browser/QdosAllocationRecoveryBrowserTests.cs changed (5 additions,14 removals); same PR680, worktree and branch. All recovery/assertion behavior retained; current flat customer create replaces old parent setup. Corrected report's false zero-caller claim while retaining historical review/proof evidence. Root-only targeted browser filter is in report; no builds/tests/captures/commit/push yet. Await root feedback before same-PR delta handoff.
+
+## F-001 author handoff — 7 September 2026
+
+Pushed d2bf633ec8ddc5b08b4052554d1d4e79f3930682 to the existing PR680. Root supplied Release build PASS 0 warnings/errors (64.96s) and exactly 3 targeted browser cases PASS (54s, exit0). Same two-file delta, branch/worktree/claim retained; live gates passed and ticket returned Implementing to Review. Report 6cdb9dc68164e418 records exact filter and prior review history. Root owns merge after intake_audit independent delta review; author stops here.
