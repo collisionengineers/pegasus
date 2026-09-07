@@ -2,11 +2,13 @@
 id: TICK-041
 type: ticket
 title: INT-16 — Azure OCR for scan-like and unusable-text-map PDF pages
-status: backlog
+status: preparing
 area: intake-processing
 order: 950
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-07T21:14:38.247Z'
 labels:
   - capability
   - INT-16
@@ -33,7 +35,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-07T21:14:26.906Z'
+updated: '2026-09-07T21:14:38.247Z'
 ---
 
 ## What
