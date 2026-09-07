@@ -39,11 +39,12 @@ internal sealed class EfStaffMailSendStore(
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
+        // Serializable missing-key reads can lock the same index gap even for
+        // unrelated messages. Order these short preparation transactions before
+        // any reads; the lock is released before attachment or provider work.
+        await AcquirePrepareLockAsync(db, transaction, cancellationToken);
         if (command.OriginalMessage is { } original)
         {
-            await AcquireOriginalMessagePrepareLockAsync(
-                db, transaction, command.ApprovedMailboxId, original.RetainedMessageId,
-                cancellationToken);
             var retained = await db.Set<RetainedMailboxMessageEntity>().AsNoTracking()
                 .SingleOrDefaultAsync(value => value.Id == original.RetainedMessageId
                     && value.MailboxId == command.ApprovedMailboxId,
@@ -126,11 +127,9 @@ internal sealed class EfStaffMailSendStore(
         return Map(entity);
     }
 
-    private static async Task AcquireOriginalMessagePrepareLockAsync(
+    private static async Task AcquirePrepareLockAsync(
         PegasusDbContext db,
         IDbContextTransaction transaction,
-        Guid mailboxId,
-        Guid retainedMessageId,
         CancellationToken cancellationToken)
     {
         var connection = db.Database.GetDbConnection();
@@ -146,8 +145,7 @@ internal sealed class EfStaffMailSendStore(
                 @LockTimeout = @lockTimeout;
             SELECT @result;
             """;
-        AddParameter(command, "@resource",
-            $"staff-mail-original:{mailboxId:N}:{retainedMessageId:N}");
+        AddParameter(command, "@resource", "staff-mail-prepare");
         AddParameter(command, "@lockTimeout", checked(command.CommandTimeout * 1000));
         var result = Convert.ToInt32(
             await command.ExecuteScalarAsync(cancellationToken),
@@ -155,7 +153,7 @@ internal sealed class EfStaffMailSendStore(
         if (result < 0)
         {
             throw new InvalidOperationException(
-                "The retained message send could not be serialized.");
+                "The staff mail preparation could not be serialized.");
         }
     }
 

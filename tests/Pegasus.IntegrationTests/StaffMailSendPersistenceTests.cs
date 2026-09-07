@@ -91,6 +91,77 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     [Fact]
+    public async Task ConcurrentRepliesToDifferentOriginalsInOneMailboxBothPrepare()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var firstRetainedMessageId = Guid.NewGuid();
+        var secondRetainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, firstRetainedMessageId);
+        await using (var seedScope = database.CreateAsyncScope())
+        {
+            var factory = seedScope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            db.Set<RetainedMailboxMessageEntity>().Add(new()
+            {
+                Id = secondRetainedMessageId,
+                MailboxId = mailboxId,
+                MailboxAddress = "mailbox@example.invalid",
+                FolderScope = "Inbox",
+                FolderIdentity = "inbox",
+                ImmutableMessageId = "immutable-message-two",
+                InternetMessageIdentity = "<message-two@example.invalid>",
+                ConversationIdentity = "conversation-two",
+                ExternalReceiptToken = $"retained:{secondRetainedMessageId:N}",
+                ToAddressesJson = "[]",
+                CcAddressesJson = "[]",
+                SourceLength = 1,
+                SourceSha256 = new string('B', 64),
+                ReceivedAtUtc = DateTimeOffset.UtcNow,
+                RetainedAtUtc = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var firstCommand = ReplyCommand(mailboxId, firstRetainedMessageId, "first-original");
+        var secondCommand = ReplyCommand(
+            mailboxId, secondRetainedMessageId, "second-original") with
+        {
+            OriginalMessage = new(
+                secondRetainedMessageId,
+                mailboxId,
+                "immutable-message-two",
+                "<message-two@example.invalid>",
+                "conversation-two")
+        };
+        await using var firstScope = database.CreateAsyncScope();
+        await using var secondScope = database.CreateAsyncScope();
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var attempts = new[]
+        {
+            PrepareAsync(firstScope, firstCommand),
+            PrepareAsync(secondScope, secondCommand)
+        };
+        start.SetResult();
+        var operations = await Task.WhenAll(attempts).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(2, operations.Select(operation => operation.Id).Distinct().Count());
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM StaffMailSendOperations WHERE MailboxId = '{mailboxId:D}'"));
+
+        async Task<StaffMailOperation> PrepareAsync(
+            AsyncServiceScope scope, StaffMailSendCommand command)
+        {
+            await start.Task;
+            return await scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>()
+                .PrepareAsync(command, new string('A', 64), DateTimeOffset.UtcNow,
+                    CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentDifferentActorRepliesUseOneOperationDraftAndSend()
     {
         var transport = new RecordingStaffMailTransport();
