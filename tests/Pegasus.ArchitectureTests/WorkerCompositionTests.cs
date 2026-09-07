@@ -60,6 +60,10 @@ public sealed class WorkerCompositionTests
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
+            Assert.NotNull(scopedServices.GetRequiredService<RetainIncomingArtifact>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Persistence.EfPublicUploadRetentionStore",
+                scopedServices.GetRequiredService<IIncomingArtifactRetentionStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<SubmitMailboxImageIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
