@@ -745,3 +745,14 @@ The public page never presents that case to the command, because C07B-R-26
 gives a different file its own key before the command is reached. Both rules
 hold together: the unresolved key is never offered other bytes, and a genuinely
 different file is never refused for being different.
+
+C07 item 3 / C04 item 3 promotion research (read-only, worktree v1-intake @ aa5e669d7).
+Full brief: scratchpad/takeover/c07-promotion-research.md
+
+1. Allocator: B-owned `ICaseAcceptanceStore.AcceptAsync` (Cases/CaseContracts.cs:227, impl EfCaseAcceptanceStore). C's funnel to it is C-owned `AcceptIntake.ExecuteAsync` (Intake/AcceptIntake.cs:20), reached by all three `AllocateIntake` paths (automatic/staff-create/staff-retry, IntakeAllocation.cs:204). No `CaseAllocator`/`ICaseAllocation` type exists anywhere.
+2. Links: `ILinkTriageCase` (TriageLifecycle.cs:291) is production-wired but only from the manual `/Triage/Details` link_case action (existing-Case only, needs a Case edit lease). Image Intake linking is ALREADY automatic: `AcceptIntake` calls `IImageIntakeCasePairing.PairAcceptedCaseAsync` on every acceptance (AcceptIntake.cs:131). `ITriageQueries.GetByOriginReceiptAsync` already exists and is already used read-only on `/Intake/Details:630`.
+3. Missing: nothing calls GetByOriginReceiptAsync+LinkTriageCase from AcceptIntake/AllocateIntake/`/Cases/Create`. No test file covers formal-instruction-after-Triage promotion. None of CASE-042/INTK-037/INTK-039/INTK-059 implement it.
+4. B dependency: NONE. Confirmed on origin/task/pegasus-v1-casework: `/Cases/Create.cshtml.cs` doc comment says it is "the only place... that begins a staff allocation through IAllocateIntake", is entirely receipt-bound, zero Triage mentions. PLAT-059 (backlog) confirms product policy: one Create-Case destination, receipt-bound, never a second allocation implementation. C already calls straight into B's real allocator via its own AcceptIntake on every path B's page also uses.
+5. Proposed: new C-owned `IAssociateOriginatingTriage` (Triage/AssociateOriginatingTriage.cs), wired as an optional advisory step in `AcceptIntake.ExecuteAsync` right after the existing Image-Intake pairing call — same try/catch-recoverable shape. Uses only existing interfaces (ITriageQueries, ILinkTriageCase, IAcquireCaseEditLease/IReleaseCaseEditLease, IGetCase), Automation actor (PerformCasework already grants Staff-or-Automation for both ValidateCaseLink and the lease seam — no new authz rule). Zero schema change, zero B file edit, zero new Web handler (every existing acceptance path gets it for free). Answers PR 672 comment 5563446827 directly.
+
+Full file/citation map, open questions (advisory-vs-surfaced failure signal; automation actor id) in the brief file above.
