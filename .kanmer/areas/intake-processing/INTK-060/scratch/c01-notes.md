@@ -44,3 +44,15 @@
 signature to it. The corpus rebuild is Stream A's
 (`scripts/Build-PrincipalIdentificationCorpus.ps1`). The corpus JSON was not edited and
 the test was not weakened.
+
+## C01 all-15 retained-analysis proof — READY_FOR_TESTS (2026-09-07)
+
+- Branch `c01-retained-analysis`, head `d505d6078` (one commit on `aa5e669d7`). Tests only; nothing under `src/`.
+- `EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating`: all 81 originals staged by manual upload, analysed via `IAnalyzeRetainedInstruction` resolved from the host; asserts Analyzed, labeller's profile, review-only principal candidate, per-row source SHA-256 + occurrence, replay writes no duplicate, zero Cases/CaseIntakeLinks/IntakeManualAssociations. Writes `artifacts/evaluation/v1-intake/retained-analysis-corpus.md`.
+- `NoGenuineNonQdosOriginalIsAllocatedAutomaticallyThroughNormalIntake`: 14 non-QDOS originals through the real upload + Worker drain; not `case_created`, no allocation, held Open in Unidentified. QDOS positive control cited (`QdosIntakeWebTests.StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft`), not duplicated.
+- Expectations shared, not copied: `Top15InstructionCorpusTests.Expectations` and 7 helpers widened `private`→`internal` (8 lines). The 81 rows are untouched.
+- `WithAnalysis` now registers ONLY `IReadLogicalDocumentVersion`; the rest comes from A's `AddPegasusInfrastructure` (`136b30a2d`), so the command under test is the host's.
+- Compile check `dotnet build ./tests/Pegasus.IntegrationTests/... -c Release --no-restore`: 0 warnings, 1 error — only the A-owned `CS0246 EfCaseArtifactCustody` at `DocumentCustodyDurabilityTests.cs(462,35)`. That file was not edited or excluded. An earlier run found CA1828 in the new code; fixed before commit.
+- Not executed: `dotnet test` is the runner's, and `PEGASUS_REFERENCE_PACK_ROOT` is unset here, so both tests would skip. Runner must set it; filter `FullyQualifiedName~RetainedInstructionAnalysisTests`. Expect a long run (81 uploads + 162 analyses on LocalDB).
+- Open: (1) no production `IReadLogicalDocumentVersion` in any host — A04 still owes it, C stand-in remains; (2) the plan's "multiple profiles return Ambiguous" bullet conflicts with treating Ambiguous as a failure for the 81 labelled originals — read as being about no-route samples; a real expected-Ambiguous row would need an outcome field on the expectation record.
+- Report: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c01-all15-report.md`
