@@ -250,10 +250,10 @@ The following boundaries distinguish source capability from live proof:
 
 ## Current intake and extraction boundary
 
-The locally verified slice includes provider-neutral intake, one concrete QDOS
-extraction policy, and bounded production adapter implementations. It does not
-prove deployed mailbox automation, live production custody/enrichment, the
-full MVP, a second provider, or operator acceptance.
+The locally verified slice includes provider-neutral intake, 15 concrete
+principal extraction profiles, and bounded production adapter implementations.
+It does not prove deployed mailbox automation, live production
+custody/enrichment, the full MVP, or operator acceptance.
 
 This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and INT-23](capabilities.md); the inventory owns allocation only, and each broader capability contract remains unproved.
 
@@ -264,7 +264,7 @@ Staff Intake Razor Page
   -> one-minute Worker recovery republishes only interrupted Pending work
   -> intake-work queue
   -> Worker ProcessQueuedIntake
-  -> QDOS IInstructionExtractionPolicy
+  -> principal/profile IInstructionExtractionPolicy selector (15 profiles)
   -> MimeKit/PdfPig/Open XML source reader
   -> ignored content-addressed artifact storage
   -> EF Core receipt and typed-draft persistence
@@ -273,7 +273,10 @@ Staff Intake Razor Page
 
 ### Accepted local inputs
 
-The PageModel accepts one file no larger than 10 MiB with one of these extensions:
+The PageModel accepts up to 20 files. Each file may be no larger than 100 MiB,
+and the files in one multipart request may total no more than 200 MiB, with a
+further fixed 64 KiB allowance for the multipart envelope. Accepted extensions
+are:
 
 - `.eml`
 - `.pdf`
@@ -290,8 +293,8 @@ The current enforced resource limits are:
 
 | Boundary | Limit |
 | --- | --- |
-| ASP.NET Core multipart request | 10 MiB file allowance plus 64 KiB for the multipart envelope |
-| PageModel file | One file; 10 MiB |
+| ASP.NET Core multipart request | 200 MiB aggregate file bytes plus 64 KiB for the multipart envelope |
+| PageModel files | Up to 20 files; 100 MiB per file and 200 MiB aggregate |
 | Received mailbox message | One message, envelope and attachments together; 750 MiB |
 | PDF reader | 5,242,880 extracted characters; 512 discrete image objects; 100,000,000 decoded image-sample pixels; 25 MiB extracted image bytes; 30 seconds |
 | EML reader | Eight nested-message levels; 128 MIME entities; 25 MiB cumulatively decoded MIME bytes |
@@ -302,7 +305,13 @@ The current enforced resource limits are:
 
 The multipart boundary is enforced before Core. Reader-limit outcomes remain visible and cannot allocate a case or reference.
 
-A received message and an uploaded file are bounded separately. The upload figure bounds one file arriving in one HTTP request; an instruction email carries the covering message plus the documents and photographs of the job, and the two shared one figure until a 16.7 MB QDOS instruction was refused unread on 2026-08-05. The mailbox figure is permissive by intent rather than a capacity claim: the reader limits above still apply to what it admits, the poll materialises a message in memory, and no mail transport carries anything near it — the practical ceiling is set by the Worker instance.
+A received message and a staff upload are bounded separately. The staff-upload
+figures bound each file and the aggregate multipart request; an instruction
+email carries the covering message plus the documents and photographs of the
+job. The mailbox figure is permissive by intent rather than a capacity claim:
+the reader limits above still apply to what it admits, the poll materialises a
+message in memory, and no mail transport carries anything near it — the
+practical ceiling is set by the Worker instance.
 
 ### Source reading and retained evidence
 
@@ -328,17 +337,22 @@ unreadable, encrypted, or over-limit containers fail closed into Unidentified
 without a reference. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
 
 For PDFs, only low-text pages with a dominant raster are marked as scan-like
-OCR candidates. The optional Worker adapter accepts persisted qualified pages
-and preserves the result for retained analysis. The queued producer and its
-end-to-end proof remain pending; this work has made no live OCR call or
-deployed an endpoint. Document- and attachment-level OCR-required state remains
-visible during review.
+OCR candidates. Intake processing and retained re-analysis persist qualified
+pages as durable OCR work. The optional Worker adapter processes that work and
+preserves the result for retained analysis when a Document Intelligence HTTPS
+endpoint is configured. Source composition and dispatch are implemented; no
+live OCR call, configured production endpoint, deployment, or operator
+acceptance is claimed. Document- and attachment-level OCR-required state
+remains visible during review.
 
 The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Web and Worker composition roots.
 
 ### QDOS applicability and drafts
 
-QDOS is the sole concrete extraction policy until another principal has approved rules and genuine evidence. It is applied only to fully readable input.
+Fifteen principal-specific extraction profiles are implemented and selected by
+their established principal and document-profile identity. QDOS remains the
+only automatic direct-mail route into QDOS policy; a document profile never
+establishes a principal. Extraction is applied only to fully readable input.
 
 - Positive instruction content is required; QDOS is not a fallback principal.
 - Strong instruction content may outrank a weak transport signal such as a staff-forwarding sender.
@@ -637,7 +651,14 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. The optional Worker Document Intelligence adapter for scan-like PDFs still awaits its queued producer, end-to-end caller proof and operator activation. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence. Since release 23 the lookup is enrichment rather than a rival reading: recording an observation also writes its make, model, mileage and mileage unit onto the case's own fields at the **suggestion** tier, which `CaseField.Current` (`Confirmed ?? Fact ?? Suggestion`) ranks below an extracted fact and a staff-confirmed value. A case that knows nothing gains the lookup's answer; a case that already knows keeps what it had, and the lookup's version sits behind it. The same release backfilled every case whose lookup predated the change. Since release 28 there is one mapping and one act, so a lookup value reaches the export carrying its real `Suggested` status rather than being refused.
+A first Document Intelligence caller submits only persisted scan-like PDF page
+candidates. Ordinary images and vehicle photographs are outside that slice.
+Vehicle-registration recognition is implemented as the in-process ONNX engine
+selected by ADR-0019, scanning image-only intake automatically; it performs no
+image egress and no external OCR call. The Document Intelligence producer,
+durable operation, Worker dispatch and optional HTTPS adapter are implemented;
+live endpoint configuration, provider execution and operator activation remain
+unproved. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence. Since release 23 the lookup is enrichment rather than a rival reading: recording an observation also writes its make, model, mileage and mileage unit onto the case's own fields at the **suggestion** tier, which `CaseField.Current` (`Confirmed ?? Fact ?? Suggestion`) ranks below an extracted fact and a staff-confirmed value. A case that knows nothing gains the lookup's answer; a case that already knows keeps what it had, and the lookup's version sits behind it. The same release backfilled every case whose lookup predated the change. Since release 28 there is one mapping and one act, so a lookup value reaches the export carrying its real `Suggested` status rather than being refused.
 
 ### Provider API and Automation MCP
 
