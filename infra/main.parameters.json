@@ -32,15 +32,6 @@
     "alertEmailAddress": {
       "value": "${PEGASUS_ALERT_EMAIL}"
     },
-    "graphMailboxId": {
-      "value": "${GRAPH_MAILBOX_ID}"
-    },
-    "graphInboxFolderId": {
-      "value": "${GRAPH_INBOX_FOLDER_ID}"
-    },
-    "graphSentFolderId": {
-      "value": "${GRAPH_SENT_FOLDER_ID}"
-    },
     "graphChangeNotificationClientStateSecretUri": {
       "value": "${GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI}"
     },
@@ -50,8 +41,17 @@
     "boxClientSecretSecretUri": {
       "value": "${BOX_CLIENT_SECRET_SECRET_URI}"
     },
+    "boxHoldingFolderId": {
+      "value": "${BOX_HOLDING_FOLDER_ID}"
+    },
     "automationMcpClientSecretUri": {
       "value": "${AUTOMATION_MCP_CLIENT_SECRET_URI}"
+    },
+    "automationMcpSigningCertificateSecretUris": {
+      "value": "${AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS}"
+    },
+    "automationMcpEncryptionCertificateSecretUris": {
+      "value": "${AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS}"
     },
     "automationMcpRedirectUris": {
       "value": "${AUTOMATION_MCP_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback}"

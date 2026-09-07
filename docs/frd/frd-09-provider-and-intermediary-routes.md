@@ -39,11 +39,12 @@ is the attributable action actor. Cross-principal query or result disclosure
 fails closed. The transport channel alone never changes extraction, instruction
 eligibility, or automatic allocation: a definitive provider-API instruction
 for its authenticated principal follows the same case-creation path as an
-equally definitive email instruction.
+equally definitive email instruction. API-01 is create-only: it never associates
+material with or mutates an existing Case.
 
-**Source limitation:** the accepted sources do not define an external tenant
-model, exact routes, headers, schema, attachment encoding, request limits,
-throttling policy, administration UI, or a Pegasus identity/field named
+**Additional-contract boundary:** API-01 below owns the accepted current routes,
+schemas, limits and Principal credential contract. It does not establish an
+additional external tenancy model or a Pegasus identity/field named
 `provider_domain_key`. No allowed source proves an owner or current/predecessor
 consumer for that name. Pegasus therefore does not create, migrate, map, alias,
 or retire it. Any later proposal must first establish authoritative source and
@@ -137,6 +138,13 @@ HTTP already holds the fields, and states them.
   vehicle registration — are the only ones that withhold a reference; ordinary
   detail missing from a declaration leaves the case `Not ready`, exactly as it
   does for an e-mail.
+- **Existing-Case rejection.** The existing Case-match policy is applied to the
+  declared claim number, vehicle registration, claimant and incident date. A
+  unique or ambiguous existing-Case match fails with
+  `provider_existing_case_match`; Pegasus allocates no Case or PO and neither
+  associates material with nor mutates an existing Case. With no match, the
+  submission follows the ordinary creation path. Provider updates remain a
+  separate deferred capability under AUTO-017.
 - **Pause.** A paused credential is refused for submission before Pegasus reads
   the request body (403, recorded) and still reads its own receipts and results;
   a revoked one is refused everywhere.
@@ -156,9 +164,9 @@ HTTP already holds the fields, and states them.
 
 For mail on the accepted QDOS direct route only:
 
-1. **Route identity.** QDOS direct sender identity is exact whole-domain equality against `qdosassist.co.uk`, `qdoslaw.co.uk`, or `qdosassists.co.uk` (`qdos_mail_route` v3) — no suffix or subdomain widening. An accepted domain alone still classifies nothing and associates nothing.
+1. **Route identity.** QDOS direct sender identity is exact whole-domain equality against `qdosassist.co.uk`, `qdoslaw.co.uk`, or `qdosassists.co.uk` (`qdos_mail_route` v4) — no suffix or subdomain widening. An accepted domain alone still classifies nothing and associates nothing.
 2. **Match keys** (`qdos_case_match` v1), extracted label-anchored with a required separator, never scraped from free text: the claim reference normalized to its durable token (the `NNNNN/N` tail for `qdosassist` references, full or bare; the letters grammar for `qdoslaw` references), the client-vehicle registration compacted to `[A-Z0-9]` (TP-prefixed labels are never harvested), and the claimant name as title-stripped surname plus first initial. Multiple distinct values for one key withdraw that key. The incident date (labelled fields plus the generated subject `on DD/MM/YYYY`) is never a positive key.
-3. **Eliminator procedure.** Candidates are every QDOS case matching ANY key, in every lifecycle state (the operator confirmed staff do not archive; a post-report case is post-report stage). A candidate contradicted by the message's incident date or by another identity key present on both sides is eliminated. Exactly one survivor is an automatic association; zero is no match (instructions proceed to the normal creation gates); several fail closed as the recorded Ambiguous outcome, forcing `Needs sorting` with the competing candidates visible. A `Created in error` survivor redirects to its linked replacement case and is never associated itself. `NoKeys` remains distinguishable from `NoMatch`. No numeric confidence score, threshold, or display exists anywhere.
+3. **Eliminator procedure.** Candidates are every QDOS case matching ANY key, in every lifecycle state (the operator confirmed staff do not archive; a post-report case is post-report stage). A candidate contradicted by the message's incident date or by another identity key present on both sides is eliminated. Exactly one survivor is an automatic association; zero is no match (instructions proceed to the normal creation gates); several fail closed as the recorded Ambiguous outcome, forcing `Unidentified` with the competing candidates visible. A `Created in error` survivor redirects to its linked replacement case and is never associated itself. `NoKeys` remains distinguishable from `NoMatch`. No numeric confidence score, threshold, or display exists anywhere.
 4. **Recording and reversal.** Every evaluation persists a decision record (keys, per-candidate hits and eliminations with reasons, outcome, policy key and version) one-to-one with the intake receipt. An automatic association is written idempotently by the system-worker identity with the match policy stamped, no-ops when any active association exists, and is reversible through the ordinary staff unlink with full history.
 
 This pulls the QDOS-direct subset of MAIL-09 forward to `Now / 0.1.0-alpha.1`. General multi-provider association, the classified-email workspace, and every other route's matchers remain allocated `Next / 0.3.0`.
@@ -170,7 +178,7 @@ Consequences: the predicates are Core-owned, code-versioned policy (`QdosCaseMat
 > Owner capability: TRI-01/TRI-02 (QDOS direct). Operator decision 2026-08-23 (INTK-033). Behaviour is owned by [FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence); this records which predicates were accepted and what they may not do.
 
 QDOS sends Triage requests in two disjoint generated templates, and both are accepted
-tells of the same one category (`qdos_mail_classification` v4): the body phrase
+tells of the same one category (`qdos_mail_classification` v5): the body phrase
 `Triage Only Request`, and a subject opening with `Engineer Triage` past any forward or
 reply prefix. Both are matched case-exactly, because the casing is part of the generated
 tell — a human sentence mentioning either is not the tell. Two tells feed **one** triage

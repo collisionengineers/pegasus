@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
@@ -330,6 +331,34 @@ public sealed class ProcessIntakeTests
         Assert.Single(reader.Sources);
         Assert.Single(store.Drafts);
         Assert.Single(artifactStore.StoredHashes);
+    }
+
+    [Fact]
+    public async Task ReceiptReplayResumesHoldingRetentionAfterTheFirstRecordingFailure()
+    {
+        var receiptStore = new RecordingStore();
+        var artifactStore = new RecordingArtifactStore();
+        var retentionStore = new ReplayHoldingRetentionStore();
+        var custody = new RecordingHoldingCustody();
+        var retention = new RetainIncomingArtifact(custody, retentionStore);
+        var reader = new StubReader(Readable());
+        var sut = CreateSut(
+            reader, receiptStore, artifactStore,
+            retainIncomingArtifact: retention);
+        var source = CreateSource();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.ExecuteAsync(source));
+        receiptStore.ExistingRecord = RecordingStore.RecordFrom(
+            Assert.Single(receiptStore.Drafts));
+
+        var replay = await sut.ExecuteAsync(source);
+
+        Assert.True(replay.IsDuplicate);
+        Assert.Single(reader.Sources);
+        Assert.Single(receiptStore.Drafts);
+        Assert.Equal(2, custody.OperationKeys.Count);
+        Assert.Single(custody.OperationKeys.Distinct(StringComparer.Ordinal));
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, retentionStore.State);
     }
 
     [Fact]
@@ -1268,7 +1297,8 @@ public sealed class ProcessIntakeTests
         EvaluateIntakeCaseMatch? caseMatchEvaluator = null,
         IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null,
         IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
-        IRegisterUnidentified? registerUnidentified = null) =>
+        IRegisterUnidentified? registerUnidentified = null,
+        RetainIncomingArtifact? retainIncomingArtifact = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
             mailRoutePolicy ?? new QdosMailRoutePolicy(),
@@ -1276,7 +1306,8 @@ public sealed class ProcessIntakeTests
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc),
             automaticStandaloneAuditEvidence,
-            registerUnidentified);
+            registerUnidentified,
+            retainIncomingArtifact: retainIncomingArtifact);
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
     {
@@ -1475,6 +1506,8 @@ public sealed class ProcessIntakeTests
 
         public List<string> StoredHashes { get; } = [];
 
+        private readonly Dictionary<string, ReadOnlyMemory<byte>> contentByKey = [];
+
         public Task<string> StoreAsync(
             string contentHash,
             ReadOnlyMemory<byte> content,
@@ -1487,13 +1520,62 @@ public sealed class ProcessIntakeTests
                 throw new IOException("controlled artifact failure");
             }
 
-            return Task.FromResult($"sha256/{contentHash[..2]}/{contentHash}");
+            var key = $"sha256/{contentHash[..2]}/{contentHash}";
+            contentByKey[key] = content;
+            return Task.FromResult(key);
         }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken) =>
-            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+            Task.FromResult<ReadOnlyMemory<byte>?>(contentByKey.GetValueOrDefault(storageKey));
+    }
+
+    private sealed class RecordingHoldingCustody : ICaseArtifactCustody
+    {
+        public List<string> OperationKeys { get; } = [];
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            OperationKeys.Add(request.OperationKey);
+            return Task.FromResult(new CaseArtifactCustodyResult(
+                CaseArtifactCustodyDisposition.Confirmed,
+                null, null, null, "holding-file", "holding-version",
+                request.Sha256, request.ContentLength, request.MediaType, null, null));
+        }
+    }
+
+    private sealed class ReplayHoldingRetentionStore : IIncomingArtifactRetentionStore
+    {
+        private int claim = 1;
+        private int recordings;
+
+        public IncomingArtifactCustodyState State { get; private set; } =
+            IncomingArtifactCustodyState.Unknown;
+
+        public Task<RetainedIncomingArtifact?> FindAsync(
+            string operationKey, CancellationToken cancellationToken)
+        {
+            var assetId = Guid.ParseExact(operationKey.Split(':')[2], "N");
+            return Task.FromResult<RetainedIncomingArtifact?>(new(
+                assetId, operationKey, State));
+        }
+
+        public Task<bool> TryClaimHandOverAsync(
+            Guid occurrenceId, CancellationToken cancellationToken) =>
+            Task.FromResult(Interlocked.Exchange(ref claim, 0) == 1);
+
+        public Task RecordAsync(
+            RetainedIncomingArtifact artifact, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref recordings) == 1)
+            {
+                throw new InvalidOperationException("controlled retention recording failure");
+            }
+            State = artifact.State;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingAutomaticAuditEvidence : IRecordAutomaticStandaloneAuditEvidence

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
@@ -11,15 +12,12 @@ namespace Pegasus.Web.Pages.Administration.Accounts;
 /// The one "Staff accounts &amp; roles" administration area (EPIC-011 §1.12).
 /// </summary>
 /// <remarks>
-/// It carries what three separate pages used to: the account list and
-/// creation (<c>Accounts/Index</c>), role assignment (<c>Roles/Index</c>),
-/// account disable (<c>Accounts/Edit</c>) and the access review
-/// (<c>Access/Index</c>). Every operation still runs through the Core use
-/// case that owns it, so the distinct rights those use cases require —
+/// It carries account creation, role assignment and the selected-account
+/// actions. Every operation still runs through the Core use case that owns it,
+/// so the distinct rights those use cases require —
 /// <see cref="StaffAccessRight.ManageStaffAccounts"/>,
-/// <see cref="StaffAccessRight.AssignStaffRoles"/> and
-/// <see cref="StaffAccessRight.ReviewStaffAccess"/> — are unchanged by the
-/// fold; nothing is re-implemented here.
+/// <see cref="StaffAccessRight.AssignStaffRoles"/> — are unchanged here;
+/// nothing is re-implemented in the page.
 ///
 /// Four forms post to this page, so the submitted values arrive as handler
 /// parameters rather than bound properties: a <c>[Required]</c> property
@@ -28,11 +26,14 @@ namespace Pegasus.Web.Pages.Administration.Accounts;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IListStaffAccounts listStaffAccounts,
-    IGetAccessReview getAccessReview,
     ICreateStaffAccount createStaffAccount,
     IAssignStaffRoles assignStaffRoles,
     IDisableStaffAccount disableStaffAccount,
-    IReviewStaffAccess reviewStaffAccess,
+    IEnableStaffAccount enableStaffAccount,
+    IForceStaffLogout forceStaffLogout,
+    IResetStaffPassword resetStaffPassword,
+    IDeleteStaffAccount deleteStaffAccount,
+    IClearCaseEditLease clearCaseEditLease,
     IUpdateStaffAccountSignOff updateStaffAccountSignOff) : AdministrationPageModel
 {
     /// <summary>One row per staff account, in the Core query's order.</summary>
@@ -62,11 +63,7 @@ public sealed class IndexModel(
     /// <summary>The role names submitted by the most recent role post.</summary>
     public IReadOnlyList<string> RolePostSelectedRoles { get; private set; } = [];
 
-    /// <summary>The account targeted by the most recent disable or review post.</summary>
-    public Guid AccountActionStaffId { get; private set; }
-
-    /// <summary>The reason submitted by the most recent disable or review post.</summary>
-    public string AccountActionReason { get; private set; } = string.Empty;
+    public string? ResetTemporaryPassword { get; private set; }
 
     public Guid SignOffPostStaffId { get; private set; }
 
@@ -163,8 +160,6 @@ public sealed class IndexModel(
         string? operationKey,
         CancellationToken cancellationToken)
     {
-        AccountActionStaffId = staffId;
-        AccountActionReason = reason ?? string.Empty;
         return RunAsync(
             async actor =>
             {
@@ -181,14 +176,12 @@ public sealed class IndexModel(
             cancellationToken);
     }
 
-    public Task<IActionResult> OnPostReviewAsync(
+    public Task<IActionResult> OnPostEnableAsync(
         Guid staffId,
         string? reason,
         string? operationKey,
         CancellationToken cancellationToken)
     {
-        AccountActionStaffId = staffId;
-        AccountActionReason = reason ?? string.Empty;
         return RunAsync(
             async actor =>
             {
@@ -197,13 +190,65 @@ public sealed class IndexModel(
                     return null;
                 }
 
-                await reviewStaffAccess.ExecuteAsync(
+                await enableStaffAccount.ExecuteAsync(
                     new(actor, staffId, reason!, operationKey!),
                     cancellationToken);
-                return "The access review was recorded.";
+                return "The account was enabled.";
             },
             cancellationToken);
     }
+
+    public Task<IActionResult> OnPostForceLogoutAsync(Guid staffId, string? reason, string? operationKey,
+        CancellationToken cancellationToken) => RunAdministrativeActionAsync(
+            staffId, reason, operationKey,
+            (actor, validReason, validKey) => forceStaffLogout.ExecuteAsync(
+                new(actor, staffId, validReason, validKey), cancellationToken),
+            "Existing browser sessions were revoked.", cancellationToken);
+
+    public async Task<IActionResult> OnPostResetPasswordAsync(Guid staffId, string? reason, string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!Validate(operationKey, reason) | !RequireStaffId(staffId))
+        {
+            await LoadAsync(actor, cancellationToken);
+            return Page();
+        }
+
+        try
+        {
+            ResetTemporaryPassword = (await resetStaffPassword.ExecuteAsync(
+                new(actor, staffId, reason!, operationKey!), cancellationToken)).TemporaryPassword;
+            Response.Headers.CacheControl = "no-store, no-cache";
+            Response.Headers.Pragma = "no-cache";
+        }
+        catch (StaffAccountAdministrationException exception)
+        {
+            ModelState.AddModelError(string.Empty, MutationErrorMessage(exception.Error));
+        }
+        catch (ArgumentException)
+        {
+            ModelState.AddModelError(string.Empty, "The change was not accepted.");
+        }
+
+        await LoadAsync(actor, cancellationToken);
+        return Page();
+    }
+
+    public Task<IActionResult> OnPostDeleteAsync(Guid staffId, string? reason, string? operationKey,
+        CancellationToken cancellationToken) => RunAdministrativeActionAsync(
+            staffId, reason, operationKey,
+            (actor, validReason, validKey) => deleteStaffAccount.ExecuteAsync(
+                new(actor, staffId, validReason, validKey), cancellationToken),
+            "The account was deleted.", cancellationToken);
+
+    public Task<IActionResult> OnPostClearLeaseAsync(Guid staffId, Guid caseId, long expectedLeaseGeneration,
+        string? reason, string? operationKey, CancellationToken cancellationToken) => RunAdministrativeActionAsync(
+            staffId, reason, operationKey,
+            (actor, validReason, validKey) => clearCaseEditLease.ExecuteAsync(
+                new(caseId, staffId, expectedLeaseGeneration, actor, validKey, validReason), cancellationToken),
+            "The case edit hold was cleared.", cancellationToken,
+            requireCaseId: caseId != Guid.Empty && expectedLeaseGeneration >= 0);
 
     public Task<IActionResult> OnPostSignOffAsync(
         Guid staffId,
@@ -287,6 +332,17 @@ public sealed class IndexModel(
             : row.Account.Roles.Contains(role);
     }
 
+    private Task<IActionResult> RunAdministrativeActionAsync(
+        Guid staffId, string? reason, string? operationKey,
+        Func<ActionActor, string, string, Task> action, string confirmation,
+        CancellationToken cancellationToken, bool requireCaseId = true) =>
+        RunAsync(async actor =>
+        {
+            if (!Validate(operationKey, reason) | !RequireStaffId(staffId) || !requireCaseId) return null;
+            await action(actor, reason!, operationKey!);
+            return confirmation;
+        }, cancellationToken);
+
     /// <summary>
     /// The one place an operation is authorised, run, translated into an
     /// operator message and followed by a reload — so the four handlers hold
@@ -305,6 +361,10 @@ public sealed class IndexModel(
         try
         {
             confirmation = await operation(actor);
+        }
+        catch (CaseEditLeaseConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "The case edit hold changed. Reload the account before trying again.");
         }
         catch (StaffAccountAdministrationException exception)
         {
@@ -380,8 +440,7 @@ public sealed class IndexModel(
             "That username is already assigned.",
         StaffAccountAdministrationError.LastAdministrator =>
             "The change was denied because at least one enabled Administrator must remain.",
-        StaffAccountAdministrationError.SelfAction =>
-            "An account cannot disable or review itself.",
+        StaffAccountAdministrationError.SelfAction => "An account cannot act on itself.",
         StaffAccountAdministrationError.OperationConflict =>
             "The form was already used for a different operation. Retry from the current page.",
         StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole =>
@@ -393,12 +452,6 @@ public sealed class IndexModel(
         _ => "The change was not accepted."
     };
 
-    /// <summary>
-    /// Reads the account list and the access review and joins them by staff
-    /// id. Both are bounded Core queries over the same accounts; the review
-    /// read stays because <c>ReviewIsOutstanding</c> is Core policy and
-    /// re-deriving it here would put a business rule outside Core.
-    /// </summary>
     private async Task LoadAsync(
         ActionActor actor,
         CancellationToken cancellationToken)
@@ -409,32 +462,19 @@ public sealed class IndexModel(
         var accounts = await listStaffAccounts.ExecuteAsync(
             new(actor, PageSize: ListStaffAccounts.MaximumPageSize),
             cancellationToken);
-        var review = await getAccessReview.ExecuteAsync(
-            new(actor, MaximumResults: ListStaffAccounts.MaximumPageSize),
-            cancellationToken);
-        HasMoreAccounts = accounts.HasMoreAccounts || review.HasMoreAccounts;
-        var outstanding = review.Accounts.ToDictionary(
-            item => item.StaffId,
-            item => item.ReviewIsOutstanding);
+        HasMoreAccounts = accounts.HasMoreAccounts;
 
         var currentOperatorId = Guid.TryParse(actor.SubjectId, out var actorStaffId)
             ? actorStaffId
             : (Guid?)null;
 
         Rows = accounts.Accounts
-            .Select(account => new StaffAccountRow(
-                account,
-                outstanding.TryGetValue(account.Id, out var isOutstanding) && isOutstanding,
-                account.Id == currentOperatorId))
+            .Select(account => new StaffAccountRow(account, account.Id == currentOperatorId))
             .ToArray();
     }
 }
 
 /// <summary>
-/// One accounts-table row: the account summary plus Core's outstanding
-/// access-review verdict for it.
+/// One accounts-table row and whether it represents the current operator.
 /// </summary>
-public sealed record StaffAccountRow(
-    StaffAccountSummary Account,
-    bool ReviewIsOutstanding,
-    bool IsCurrentOperator);
+public sealed record StaffAccountRow(StaffAccountSummary Account, bool IsCurrentOperator);

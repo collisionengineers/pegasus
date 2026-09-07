@@ -236,6 +236,50 @@ public sealed class EfAiJobStore(
         return rows.Select(row => Map(row, now)).ToArray();
     }
 
+    public async Task<AiJobQueryPage> ListOpenPageAsync(
+        AiJobKind? kind,
+        string grantId,
+        DateTimeOffset? afterCreatedAtUtc,
+        Guid? afterJobId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(grantId);
+        if ((afterCreatedAtUtc is null) != (afterJobId is null))
+        {
+            throw new ArgumentException("Both AI job cursor values are required together.");
+        }
+        if (limit is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var now = UtcNow();
+        var query = OpenRows(context)
+            .Where(item => item.ExpiresAtUtc > now)
+            .Where(item => item.State == nameof(AiJobState.Queued)
+                || item.LeaseExpiresAtUtc <= now
+                || item.TakenBy == grantId);
+        if (kind is not null)
+        {
+            var kindName = kind.Value.ToString();
+            query = query.Where(item => item.Kind == kindName);
+        }
+        if (afterCreatedAtUtc is not null)
+        {
+            var created = afterCreatedAtUtc.Value;
+            var id = afterJobId!.Value;
+            query = query.Where(item => item.CreatedAtUtc > created
+                || (item.CreatedAtUtc == created && item.JobId.CompareTo(id) > 0));
+        }
+        var rows = await query.OrderBy(item => item.CreatedAtUtc)
+            .ThenBy(item => item.JobId)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+        return new(rows.Take(limit).Select(row => Map(row, now)).ToArray(), rows.Count > limit);
+    }
+
     public async Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
         Guid subjectId,
         CancellationToken cancellationToken)

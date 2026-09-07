@@ -3,6 +3,18 @@ namespace Pegasus.Core.Tests;
 public sealed class LondonCalendarTests
 {
     [Fact]
+    public void RepeatedAutumnHourPreservesTheTwoDistinctOffsets()
+    {
+        var summer = LondonCalendar.LocalAt(new DateTimeOffset(2026, 10, 25, 0, 30, 0, TimeSpan.Zero));
+        var winter = LondonCalendar.LocalAt(new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.Zero));
+
+        Assert.Equal(summer.DateTime, winter.DateTime);
+        Assert.Equal(TimeSpan.FromHours(1), summer.Offset);
+        Assert.Equal(TimeSpan.Zero, winter.Offset);
+        Assert.Equal(TimeSpan.FromHours(1), winter - summer);
+    }
+
+    [Fact]
     public void WinterCivilDateUsesUtcMidnightBoundaries()
     {
         var date = new DateOnly(2026, 1, 15);

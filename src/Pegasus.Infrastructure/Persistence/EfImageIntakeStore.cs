@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -524,6 +525,74 @@ public sealed class EfImageIntakeStore(
             cancellationToken);
     }
 
+    /// <summary>
+    /// The known principal is casework metadata, not registration identity and
+    /// not a lifecycle transition: it writes no lifecycle event. The equality
+    /// check runs before the active-principal check deliberately — a value that
+    /// was legitimately recorded while its principal was active must survive a
+    /// re-submission after that principal is deactivated, as a no-op. Only an
+    /// actual change requires an active principal.
+    /// </summary>
+    /// <remarks>
+    /// The write is guarded by <c>LifecycleVersion</c> rather than a token of
+    /// its own: one Image Intake, one optimistic token. A principal save
+    /// therefore does invalidate a concurrently-open Merge or Close form,
+    /// which is the intended trade — those forms are reloaded, and a second
+    /// token would let two staff members write the same record while each
+    /// believed they held the current version. A same-value re-submission
+    /// leaves the version alone, so the only edits that can invalidate a form
+    /// are ones that genuinely changed the record.
+    /// </remarks>
+    public async Task<ImageIntakeRecord> SetPrincipalAsync(
+        SetImageIntakePrincipalRequest request,
+        CancellationToken cancellationToken)
+    {
+        ImageIntakeLifecycleRules.ValidateSetPrincipal(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var entity = await context.ImageIntakes.SingleOrDefaultAsync(
+            item => item.Id == request.ImageIntakeId,
+            cancellationToken)
+            ?? throw new KeyNotFoundException($"Image intake '{request.ImageIntakeId}' was not found.");
+        if (entity.LifecycleVersion != request.ExpectedVersion)
+        {
+            throw new DbUpdateConcurrencyException(
+                "This Image Intake changed before the principal assignment.");
+        }
+
+        if (entity.PrincipalId == request.PrincipalId)
+        {
+            return Map(entity);
+        }
+
+        if (request.PrincipalId is { } principalId
+            && !await context.Principals.AsNoTracking().AnyAsync(
+                principal => principal.Id == principalId && principal.IsActive,
+                cancellationToken))
+        {
+            throw new InvalidOperationException("The selected principal is not active.");
+        }
+
+        entity.PrincipalId = request.PrincipalId;
+        entity.LifecycleVersion++;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    public async Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var principals = await context.Principals.AsNoTracking()
+            .Where(principal => principal.IsActive)
+            .OrderBy(principal => principal.Code)
+            .ToArrayAsync(cancellationToken);
+        return principals.Select(EfOrganizationAdministration.ToPrincipal).ToArray();
+    }
+
     public async Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,
         CancellationToken cancellationToken)
@@ -695,7 +764,9 @@ public sealed class EfImageIntakeStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
-        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+        return entity is null
+            ? null
+            : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
     }
 
     /// <summary>
@@ -713,6 +784,7 @@ public sealed class EfImageIntakeStore(
     {
         var entity = await context.ImageIntakes
             .AsNoTracking()
+            .Include(item => item.Principal)
             .SingleOrDefaultAsync(
                 item => item.OriginReceiptId == intakeReceiptId,
                 cancellationToken);
@@ -726,7 +798,7 @@ public sealed class EfImageIntakeStore(
             where evaluation.ProcessedReceiptId == intakeReceiptId
             join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
                 on evaluation.StagedReceiptId equals member.StagedReceiptId
-            join intake in context.ImageIntakes.AsNoTracking()
+            join intake in context.ImageIntakes.AsNoTracking().Include(item => item.Principal)
                 on (Guid?)member.GroupId equals intake.SubmissionGroupId
             select intake)
             .FirstOrDefaultAsync(cancellationToken);
@@ -830,20 +902,34 @@ public sealed class EfImageIntakeStore(
             cancellationToken);
     }
 
+    /// <summary>
+    /// The principal code comes out of the same read as a LEFT JOIN through the
+    /// navigation rather than a follow-up lookup, so a detail read stays one
+    /// round trip whether or not a principal is recorded.
+    /// </summary>
     private static async Task<ImageIntakeDetail?> GetDetailAsync(
         PegasusDbContext context,
         System.Linq.Expressions.Expression<Func<ImageIntakeEntity, bool>> predicate,
         CancellationToken cancellationToken)
     {
-        var entity = await context.ImageIntakes
+        var row = await context.ImageIntakes
             .AsNoTracking()
-            .SingleOrDefaultAsync(predicate, cancellationToken);
-        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+            .Where(predicate)
+            .Select(intake => new
+            {
+                Intake = intake,
+                PrincipalCode = intake.Principal != null ? intake.Principal.Code : null
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        return row is null
+            ? null
+            : await ToDetailAsync(context, row.Intake, row.PrincipalCode, cancellationToken);
     }
 
     private static async Task<ImageIntakeDetail> ToDetailAsync(
         PegasusDbContext context,
         ImageIntakeEntity entity,
+        string? principalCode,
         CancellationToken cancellationToken)
     {
         var association = await AssociationAsync(context, entity.OriginReceiptId, cancellationToken);
@@ -852,7 +938,8 @@ public sealed class EfImageIntakeStore(
             entity.CreatedAtUtc,
             association?.CaseId,
             association?.CaseReference,
-            ParseCustodyState(entity.CustodyState));
+            ParseCustodyState(entity.CustodyState),
+            principalCode);
     }
 
     private static async Task<IReadOnlyList<ImageIntakeSummary>> ProjectAsync(
@@ -873,6 +960,10 @@ public sealed class EfImageIntakeStore(
                 intake.CustodyState,
                 intake.LifecycleState,
                 intake.ClosureReason,
+                // The one set-based projection carries the principal code as a
+                // LEFT JOIN: no per-row read, so the queue's read count does not
+                // grow with the number of rows.
+                PrincipalCode = intake.Principal != null ? intake.Principal.Code : null,
                 Association = context.IntakeManualAssociations
                     .Where(association => association.IntakeReceiptId == intake.OriginReceiptId)
                     .Select(association => new { association.IsActive, association.CaseId })
@@ -936,7 +1027,8 @@ public sealed class EfImageIntakeStore(
                     ParseState(row.LifecycleState),
                     row.ClosureReason,
                     row.ImageCount,
-                    ParseChannel(row.SourceChannel));
+                    ParseChannel(row.SourceChannel),
+                    row.PrincipalCode);
             })
             .ToArray();
     }
@@ -1141,7 +1233,8 @@ public sealed class EfImageIntakeStore(
         entity.ClosureReason,
         entity.ClosedAtUtc,
         entity.LifecycleVersion,
-        entity.SubmissionGroupId);
+        entity.SubmissionGroupId,
+        PrincipalId: entity.PrincipalId);
 }
 
 public sealed class EfImageIntakeOriginResolver(

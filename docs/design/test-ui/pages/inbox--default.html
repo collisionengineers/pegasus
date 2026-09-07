@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inbox · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -115,8 +116,8 @@
                 <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
             </div>
                 <div class="rail-user" role="group" aria-label="User">
-                    <span class="avatar" aria-hidden="true">DO</span>
-                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
+                    <span class="avatar" aria-hidden="true">IU</span>
+                    <div><strong>integration-user</strong><small>Administrator</small></div>
                     <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
                         <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
                     </button>
@@ -164,10 +165,10 @@
     </div>
     <div class="page-actions">
         <div class="freshness" data-refresh-region role="status" aria-live="polite">
-    <span class="health-dot failed"></span>
-        <span>Never updated</span>
-        <span class="status status--red">Unavailable</span>
+    <span class="health-dot"></span>
+        <span><time datetime="2031-05-06T10:29:00.0000000&#x2B;00:00">Current · 11:29</time></span>
     <form method="get" data-refresh-form>
+                <input type="hidden" name="selected" value="test-ui-guid-1" />
         <button type="submit" class="btn btn--small" title="Refresh">
             <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
             <span data-refresh-label>Refresh</span>
@@ -183,6 +184,9 @@
         <label for="mailbox-filter">Mailbox</label>
         <select id="mailbox-filter" name="mailbox">
             <option value="" selected="selected">All approved mailboxes</option>
+                <option value="test-ui-guid-2">
+                    browser-mail@collisionengineers.co.uk
+                </option>
         </select>
     </div>
     <div class="field">
@@ -241,7 +245,7 @@
     </button>
 </form>
 
-<section class="pane-layout pane-layout--2"
+<section class="pane-layout pane-layout--3"
          data-mail-preview-workspace aria-label="Retained mail">
     <aside class="pane">
         <div class="pane-head"><h2>Scope</h2></div>
@@ -253,7 +257,7 @@
                                 <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
                             </span>
                             <span>All incoming</span>
-                            <span class="tabular">0</span>
+                            <span class="tabular">2</span>
                         </button>
                     </form>
                     <form method="get">
@@ -263,7 +267,7 @@
                                 <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
                             </span>
                             <span>Unread</span>
-                            <span class="tabular">0</span>
+                            <span class="tabular">2</span>
                         </button>
                     </form>
                     <form method="get">
@@ -328,12 +332,107 @@
                 </a>
         </div>
         <div class="pane-body pane-scroll" tabindex="0">
-                <div class="empty">
-                        <p>No mail has been received.</p>
-                </div>
+                    <div class="row-button unread" data-mail-preview-row>
+                        <span class="row-top">
+                            <span class="row-title">
+                                    <span class="unread-indicator" aria-hidden="true"></span><span class="sr-only">Unread</span>
+                                Browser Sender
+                            </span>
+                            <span class="row-time">
+                                <time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031</time>
+                                <time>11:30</time>
+                            </span>
+                        </span>
+                        <a class="row-title" data-mail-preview-trigger aria-controls="mail-quick-preview" aria-expanded="true" aria-current="true" title="Browser preview message" href="inbox--default.html">Browser preview message</a>
+                            <span class="row-excerpt">The browser preview preserves this retained excerpt.</span>
+                        <span class="row-top">
+                            <span class="cluster">
+                                <span class="status status--neutral">Not yet processed</span>
+
+                            </span>
+                                <span class="row-meta">1 attachment</span>
+                        </span>
+                    </div>
+                    <div class="row-button unread" data-mail-preview-row>
+                        <span class="row-top">
+                            <span class="row-title">
+                                    <span class="unread-indicator" aria-hidden="true"></span><span class="sr-only">Unread</span>
+                                Older Browser Sender
+                            </span>
+                            <span class="row-time">
+                                <time datetime="2031-05-06T09:30:00.0000000&#x2B;00:00">06 May 2031</time>
+                                <time>10:30</time>
+                            </span>
+                        </span>
+                        <a class="row-title" data-mail-preview-trigger aria-controls="mail-quick-preview" aria-expanded="false" title="Older browser message" href="inbox--default.html">Older browser message</a>
+                            <span class="row-excerpt">An older retained excerpt for the transient hover.</span>
+                        <span class="row-top">
+                            <span class="cluster">
+                                <span class="status status--neutral">Not yet processed</span>
+
+                            </span>
+                        </span>
+                    </div>
         </div>
     </div>
 
+        <div class="pane">
+            <div class="pane-head"><h2>Message preview</h2></div>
+            <div class="pane-body pane-scroll" tabindex="0">
+                <aside id="mail-quick-preview" class="mail-preview" data-mail-preview
+                       aria-label="Browser preview message">
+                    <p data-mail-preview-status aria-live="polite" hidden></p>
+                    <div data-mail-preview-facts>
+                        <div class="mail-header">
+                            <div class="cluster cluster--between">
+                                <div>
+                                    <div class="mail-subject" data-mail-preview-subject>Browser preview message</div>
+                                    <div class="mail-route">
+                                        From <span data-mail-preview-sender>Browser Sender</span> ·
+                                        <time data-mail-preview-received datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time> ·
+                                        browser-mail@collisionengineers.co.uk
+                                    </div>
+                                </div>
+                                <span class="status status--neutral">Not yet processed</span>
+
+                            </div>
+                        </div>
+                        <div class="mail-body">
+                            <p data-mail-preview-excerpt>The browser preview preserves this retained excerpt.</p>
+                        </div>
+                        <div class="section-gap">
+                            <ul class="accepted-list" data-mail-preview-attachments>
+                                        <li>estimate.pdf</li>
+                            </ul>
+                        </div>
+                        <div class="section-gap fact-grid">
+                            <dl class="fact">
+                                <dt>Classification</dt>
+                                <dd data-mail-preview-classification>Not yet processed</dd>
+                            </dl>
+                            <dl class="fact">
+                                <dt>Case association</dt>
+                                <dd data-mail-preview-association>No case</dd>
+                            </dl>
+                            <dl class="fact">
+                                <dt>Folder</dt>
+                                <dd>Inbox</dd>
+                            </dl>
+                            <dl class="fact">
+                                <dt>Search match</dt>
+                                <dd>&#x2014;</dd>
+                            </dl>
+                        </div>
+                        <div class="button-row section-gap" data-mail-preview-actions>
+                            <a class="btn btn--dark" href="#">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                <span>Open full message</span>
+                            </a>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
 </section>
 
                 </div>
@@ -351,7 +450,7 @@
         </div>
         <div class="dialog-body">
             <div class="definition-list">
-                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
+                <dl class="definition"><dt>Name</dt><dd>integration-user</dd></dl>
                 <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
                 <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
             </div>
@@ -408,10 +507,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

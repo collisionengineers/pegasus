@@ -406,6 +406,20 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|EngineerNotes")
     }
+    # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries','ClaimSources','OrganizationDirectoryEntries','PublicUploadSessions','PublicUploadOccurrences')
+    foreach ($table in $v1Tables) {
+        $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
+        if ($table -ne 'DocumentContentCacheEntries') {
+            $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+        }
+    }
+    $v1Migration = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) '20260906054658_V1PlatformFoundation.cs')
+    foreach ($grant in [regex]::Matches($v1Migration, 'GRANT (?<permissions>[A-Z,]+) ON OBJECT::\[dbo\]\.\[(?<table>[A-Za-z0-9]+)\] TO \[(?<role>pegasus_(?:web|worker)_runtime_role)\]')) {
+        foreach ($permission in $grant.Groups['permissions'].Value.Split(',')) {
+            $expected.Add("$($grant.Groups['role'].Value)|G|$permission|$($grant.Groups['table'].Value)")
+        }
+    }
     return @($expected | Sort-Object -Unique)
 }
 

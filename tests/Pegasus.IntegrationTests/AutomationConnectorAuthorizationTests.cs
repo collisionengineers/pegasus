@@ -1,10 +1,14 @@
 using System.Net;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Server;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
@@ -24,6 +28,86 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class AutomationConnectorAuthorizationTests
 {
     private const string State = "state-4c1c0d0f";
+
+    [Fact]
+    public async Task AdministrationHealthReadsTheConfiguredClientRegistryAfterEachChange()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var browser = CreateBrowser(mcpFactory);
+        var administrator = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+
+        foreach (var enabled in new[] { true, false, true })
+        {
+            await using (var scope = mcpFactory.Services.CreateAsyncScope())
+            {
+                var registry = scope.ServiceProvider.GetRequiredService<AutomationClientRegistry>();
+                await registry.SetEnabledAsync(
+                    enabled, administrator, "Verify configured health state", Guid.NewGuid().ToString("N"), default);
+            }
+            await using (var scope = mcpFactory.Services.CreateAsyncScope())
+            {
+                var status = scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IAutomationIngressStatusQueries>();
+                Assert.IsType<AutomationIngressStatusQueries>(status);
+                Assert.Equal(enabled, await status.IsEnabledAsync(default));
+            }
+            using var response = await browser.GetAsync("/Administration/Health");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("Automation ingress", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task SeparateConsentsRetainDistinctGrantAttribution()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var browser = CreateBrowser(mcpFactory);
+        using var connector = CreateConnector(mcpFactory);
+
+        for (var index = 0; index < 2; index++)
+        {
+            var (verifier, challenge) = Pkce();
+            using var consent = await browser.GetAsync(AuthorizeUrl(challenge, "automation.cases"));
+            var html = await consent.Content.ReadAsStringAsync();
+            using var approval = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), ConsentForm(html));
+            Assert.Equal(HttpStatusCode.Redirect, approval.StatusCode);
+            var code = ParseQuery(approval.Headers.Location!)["code"]!;
+            using var tokens = await connector.PostAsync(
+                AutomationMcp.TokenEndpointPath,
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["grant_type"] = "authorization_code",
+                    ["code"] = code,
+                    ["code_verifier"] = verifier,
+                    ["redirect_uri"] = ConnectorRedirectUri,
+                    ["client_id"] = ClientId,
+                    ["client_secret"] = ClientSecret
+                }));
+            using var json = JsonDocument.Parse(await tokens.Content.ReadAsStringAsync());
+            var accessToken = json.RootElement.GetProperty("access_token").GetString()!;
+            using var call = await PostMcpAsync(connector, accessToken, ToolCallPayload(
+                90 + index, "pegasus_case_search", new { query = $"no-match-{index}" }));
+            Assert.Equal(HttpStatusCode.OK, call.StatusCode);
+        }
+
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(DISTINCT AggregateId) FROM ActionHistory
+            WHERE EventKind = N'automation_connector_authorized'
+              AND AggregateId LIKE N'grant:%'
+              AND Outcome = N'Succeeded'
+            """));
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(DISTINCT ActorSubjectId) FROM ActionHistory
+            WHERE EventKind = N'pegasus_case_search'
+              AND ActorKind = N'Automation'
+              AND ActorSubjectId LIKE N'grant:%'
+              AND Outcome = N'Succeeded'
+            """));
+    }
 
     [Fact]
     public async Task AdministratorConsentIssuesCodeThenTokensThatReachMcpAndRefresh()
@@ -113,10 +197,94 @@ public sealed partial class AutomationConnectorAuthorizationTests
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE EventKind = N'automation_connector_authorized'
-              AND AggregateId = N'pegasus-automation'
+              AND AggregateId LIKE N'grant:%'
               AND Outcome = N'Succeeded'
               AND Reason LIKE N'Connector https://connector.example%automation.cases automation.documents%'
             """));
+    }
+
+    [Fact]
+    public async Task AccessAndRefreshTokensSurviveAHostRestartWithSharedPersistentCredentials()
+    {
+        using var signing = Certificate(
+            "persistent-signing",
+            new(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new(2035, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        using var encryption = Certificate(
+            "persistent-encryption",
+            new(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new(2035, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        using var baseFactory = new IntakeWebApplicationFactory(TimeProvider.System);
+        string accessToken;
+        string refreshToken;
+
+        using (var firstHost = WithPersistentOAuthCredentials(baseFactory, signing, encryption))
+        using (var browser = CreateBrowser(firstHost))
+        using (var connector = CreateConnector(firstHost))
+        {
+            var (verifier, challenge) = Pkce();
+            using var consent = await browser.GetAsync(AuthorizeUrl(challenge, "automation.cases"));
+            var html = await consent.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, consent.StatusCode);
+            using var approval = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), ConsentForm(html));
+            var code = ParseQuery(approval.Headers.Location!)["code"]!;
+            using var exchange = await connector.PostAsync(
+                AutomationMcp.TokenEndpointPath,
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["grant_type"] = "authorization_code",
+                    ["code"] = code,
+                    ["code_verifier"] = verifier,
+                    ["redirect_uri"] = ConnectorRedirectUri,
+                    ["client_id"] = ClientId,
+                    ["client_secret"] = ClientSecret
+                }));
+            var body = await exchange.Content.ReadAsStringAsync();
+            Assert.True(exchange.IsSuccessStatusCode, body);
+            using var tokens = JsonDocument.Parse(body);
+            accessToken = tokens.RootElement.GetProperty("access_token").GetString()!;
+            refreshToken = tokens.RootElement.GetProperty("refresh_token").GetString()!;
+        }
+
+        using var secondHost = WithPersistentOAuthCredentials(baseFactory, signing, encryption);
+        using var secondConnector = CreateConnector(secondHost);
+        using (var originalAccess = await PostMcpAsync(
+            secondConnector, accessToken, ToolsListPayload(401)))
+        {
+            Assert.Equal(HttpStatusCode.OK, originalAccess.StatusCode);
+        }
+
+        using var refresh = await secondConnector.PostAsync(
+            AutomationMcp.TokenEndpointPath,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "refresh_token",
+                ["refresh_token"] = refreshToken,
+                ["client_id"] = ClientId,
+                ["client_secret"] = ClientSecret
+            }));
+        var refreshBody = await refresh.Content.ReadAsStringAsync();
+        Assert.True(refresh.IsSuccessStatusCode, refreshBody);
+        using var refreshedTokens = JsonDocument.Parse(refreshBody);
+        var rotatedRefreshToken = refreshedTokens.RootElement.GetProperty("refresh_token").GetString()!;
+        Assert.NotEqual(refreshToken, rotatedRefreshToken);
+
+        using var rotatedRefresh = await secondConnector.PostAsync(
+            AutomationMcp.TokenEndpointPath,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "refresh_token",
+                ["refresh_token"] = rotatedRefreshToken,
+                ["client_id"] = ClientId,
+                ["client_secret"] = ClientSecret
+            }));
+        var rotatedRefreshBody = await rotatedRefresh.Content.ReadAsStringAsync();
+        Assert.True(rotatedRefresh.IsSuccessStatusCode, rotatedRefreshBody);
+        using var rotatedTokens = JsonDocument.Parse(rotatedRefreshBody);
+        var rotatedAccessToken = rotatedTokens.RootElement.GetProperty("access_token").GetString()!;
+        using var rotatedAccess = await PostMcpAsync(
+            secondConnector, rotatedAccessToken, ToolsListPayload(402));
+        Assert.Equal(HttpStatusCode.OK, rotatedAccess.StatusCode);
     }
 
     [Fact]
@@ -237,6 +405,39 @@ public sealed partial class AutomationConnectorAuthorizationTests
             HandleCookies = false,
             BaseAddress = new Uri("https://localhost")
         });
+
+    private static WebApplicationFactory<Program> WithPersistentOAuthCredentials(
+        IntakeWebApplicationFactory factory,
+        X509Certificate2 signing,
+        X509Certificate2 encryption) => WithAutomationMcp(factory)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+                services.PostConfigure<OpenIddictServerOptions>(options =>
+                {
+                    options.SigningCredentials.Clear();
+                    options.EncryptionCredentials.Clear();
+                    options.SigningCredentials.Add(new(
+                        new X509SecurityKey(signing),
+                        SecurityAlgorithms.RsaSha256));
+                    options.EncryptionCredentials.Add(new(
+                        new X509SecurityKey(encryption),
+                        SecurityAlgorithms.RsaOAEP,
+                        SecurityAlgorithms.Aes256CbcHmacSha512));
+                })));
+
+    private static X509Certificate2 Certificate(
+        string name,
+        DateTimeOffset notBefore,
+        DateTimeOffset notAfter)
+    {
+        using var key = RSA.Create(2048);
+        var request = new CertificateRequest(
+            $"CN={name}", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var generated = request.CreateSelfSigned(notBefore, notAfter);
+        return X509CertificateLoader.LoadPkcs12(
+            generated.Export(X509ContentType.Pkcs12),
+            null,
+            X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+    }
 
     private static (string Verifier, string Challenge) Pkce()
     {

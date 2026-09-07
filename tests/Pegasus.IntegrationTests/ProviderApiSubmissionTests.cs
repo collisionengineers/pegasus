@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +10,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
 
@@ -419,7 +420,7 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
-    public async Task EnvelopeOverTheUploadLimitIs413AndAnotherPrincipalNeverSeesTheSubmission()
+    public async Task EnvelopeOverTheProviderFileBoundIs413AndAnotherPrincipalNeverSeesTheSubmission()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithProviderApi(factory);
@@ -428,7 +429,7 @@ public sealed class ProviderApiSubmissionTests
 
         using (var oversize = await SubmitAsync(
                    client, secret, "order-4",
-                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumContentLength + 1])]))
+                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1])]))
         {
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversize.StatusCode);
         }
@@ -627,6 +628,238 @@ public sealed class ProviderApiSubmissionTests
             BaseAddress = new Uri("https://localhost:7139")
         });
 
+    /// <summary>
+    /// H13: API-01 is create-only. A second declared instruction naming the
+    /// same claim as an existing Case is durably received (201, its own
+    /// submission id, its staged receipt retained), then terminates in
+    /// processing under provider_existing_case_match with no evaluation, no
+    /// second Case, no PO and no new Case association.
+    /// </summary>
+    [Fact]
+    public async Task ASubmissionMatchingAnExistingCaseIsRejectedWithoutMutationOrDuplicateAllocation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        // Statement 1: the first, unmatched submission creates exactly one Case
+        // and exactly one link.
+        using var first = await SubmitAsync(
+            client,
+            secret,
+            "existing-case-1",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var firstId = (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid();
+        await DrainAsync(api, firstId);
+
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Cases.CountAsync());
+            Assert.Equal(1, await context.CaseIntakeLinks.CountAsync());
+        }
+
+        // Statement 2: HTTP acceptance is unchanged for the duplicate - the
+        // envelope is durably received first, exactly as FRD-09 requires.
+        using var repeated = await SubmitAsync(
+            client,
+            secret,
+            "existing-case-2",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        Assert.Equal(HttpStatusCode.Created, repeated.StatusCode);
+        var repeatedId = (await ReadJsonAsync(repeated)).GetProperty("submissionId").GetGuid();
+        Assert.NotEqual(firstId, repeatedId);
+
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+
+            // Statement 3: the retained staged receipt exists and is untouched.
+            var staged = await StagedReceiptAsync(services, repeatedId);
+
+            // Statement 4: processing terminates as Failed with no evaluation -
+            // so no review fields, no draft and no allocation attempt.
+            var (status, evaluation) = await DrainStagedToTerminalAsync(services, staged.Id);
+            Assert.Equal(QueuedIntakeStatusKind.Failed, status.Status);
+            Assert.Equal(ProviderExistingCaseMatchException.FailureCode, status.FailureCode);
+            Assert.Null(evaluation);
+        }
+
+        // Statement 5: the provider-visible result names the code.
+        using (var refused = await SendAsync(
+            client,
+            HttpMethod.Get,
+            $"{Submissions}/{repeatedId:D}",
+            secret))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            var result = await ReadJsonAsync(refused);
+            Assert.Equal("Failed", result.GetProperty("status").GetString());
+            Assert.Equal(
+                ProviderExistingCaseMatchException.FailureCode,
+                result.GetProperty("failureCode").GetString());
+            Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
+        }
+
+        // Statements 6 and 7: no duplicate allocation, no new link, no mutation
+        // of the matched Case.
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Cases.CountAsync());
+            Assert.Equal(1, await context.CaseIntakeLinks.CountAsync());
+        }
+    }
+
+    /// <summary>
+    /// Statement 8: an AMBIGUOUS match takes the identical path. PR 646 never
+    /// drove this branch through the API - it was proven only by shared code -
+    /// so it is executed here.
+    ///
+    /// Ambiguity needs two candidates that BOTH survive the eliminator, and the
+    /// eliminator is contradiction-driven: a declared claim reference that
+    /// differs from a candidate's ELIMINATES that candidate rather than adding
+    /// a second one. Two cases carrying different claim references are
+    /// therefore never ambiguous - each is eliminated in turn and the outcome
+    /// is NoMatch. The real ambiguity is a duplicate: two cases indexed on the
+    /// SAME identity, which is what this fixture seeds.
+    /// </summary>
+    [Fact]
+    public async Task AnAmbiguousExistingCaseMatchIsRejectedOnTheSamePath()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var created = await SubmitAsync(
+            client,
+            secret,
+            "ambiguous-1",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            claimNumber: "12345/1");
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid());
+
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Cases.CountAsync());
+
+            // A duplicate of the case just created: the same provider, the same
+            // claim token, the same vehicle and the same claimant. Nothing about
+            // the next declaration can tell them apart, which is exactly the
+            // ambiguity the rejection exists for.
+            var template = await context.Cases.AsNoTracking().SingleAsync();
+            var indexed = await context.Set<CaseMatchIndexEntity>().AsNoTracking().SingleAsync();
+            var duplicateId = Guid.NewGuid();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.InstructionConfirmedByStaff}, {template.ImagesConfirmedByStaff}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
+
+            // CaseWorkflows.State is the CaseLifecycleState enum name; the
+            // candidate query joins this row and parses it. It is deliberately
+            // NOT CreatedInError, which would send the candidate through the
+            // replacement redirect instead of leaving it to survive.
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({duplicateId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
+            context.Set<CaseMatchIndexEntity>().Add(new CaseMatchIndexEntity
+            {
+                CaseId = duplicateId,
+                WorkProviderCode = indexed.WorkProviderCode,
+                DurableClaimToken = indexed.DurableClaimToken,
+                NormalizedVrm = indexed.NormalizedVrm,
+                NormalizedSurname = indexed.NormalizedSurname,
+                NormalizedFirstInitial = indexed.NormalizedFirstInitial,
+                IncidentDate = indexed.IncidentDate,
+                MatchPolicyKey = indexed.MatchPolicyKey,
+                MatchPolicyVersion = indexed.MatchPolicyVersion,
+                UpdatedAtUtc = indexed.UpdatedAtUtc
+            });
+            await context.SaveChangesAsync();
+        }
+
+        // The same declared facts again: both indexed cases hit on every key and
+        // neither is contradicted, so two candidates survive.
+        using var ambiguous = await SubmitAsync(
+            client,
+            secret,
+            "ambiguous-2",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            claimNumber: "12345/1");
+        Assert.Equal(HttpStatusCode.Created, ambiguous.StatusCode);
+        var ambiguousId = (await ReadJsonAsync(ambiguous)).GetProperty("submissionId").GetGuid();
+
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var staged = await StagedReceiptAsync(services, ambiguousId);
+            var (status, evaluation) = await DrainStagedToTerminalAsync(services, staged.Id);
+            Assert.Equal(QueuedIntakeStatusKind.Failed, status.Status);
+            Assert.Equal(ProviderExistingCaseMatchException.FailureCode, status.FailureCode);
+            Assert.Null(evaluation);
+        }
+
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+
+            // Nothing was allocated: the two cases are the one created and the
+            // one seeded, and the only link is the first submission's.
+            Assert.Equal(2, await context.Cases.CountAsync());
+            Assert.Equal(1, await context.CaseIntakeLinks.CountAsync());
+        }
+    }
+
+    /// <summary>
+    /// The other half of the same rule, and the reason the fixture above seeds a
+    /// duplicate rather than a second distinct case: a declared claim reference
+    /// that CONTRADICTS the only candidate eliminates it, so the submission is
+    /// an ordinary create-only one and a second case is allocated.
+    /// </summary>
+    [Fact]
+    public async Task ASubmissionContradictingTheExistingCaseCreatesItsOwnCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var first = await SubmitAsync(
+            client,
+            secret,
+            "contradicting-1",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            claimNumber: "12345/1");
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid());
+
+        using var second = await SubmitAsync(
+            client,
+            secret,
+            "contradicting-2",
+            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            claimNumber: "12345/2");
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(second)).GetProperty("submissionId").GetGuid());
+
+        await using var scope = api.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(2, await context.Cases.CountAsync());
+        Assert.Equal(2, await context.CaseIntakeLinks.CountAsync());
+    }
+
     private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client,
         string secret,
@@ -746,10 +979,64 @@ public sealed class ProviderApiSubmissionTests
     {
         await using var scope = api.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var staged = await services.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
+        var staged = await StagedReceiptAsync(services, submissionId);
+        _ = await IntakeWebDriver.DrainStagedAsync(services, staged.Id);
+    }
+
+    private static async Task<IntakeStagedReceipt> StagedReceiptAsync(
+        IServiceProvider services,
+        Guid submissionId) =>
+        await services.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
             new(IntakeSourceChannel.ProviderApi, ProviderSubmissionPolicy.SubmissionToken(submissionId)),
             CancellationToken.None)
             ?? throw new InvalidOperationException("The submission was not retained as a staged receipt.");
-        _ = await IntakeWebDriver.DrainStagedAsync(services, staged.Id);
+
+    /// <summary>
+    /// Pumps a staged receipt until its queued status is terminal - Complete OR
+    /// Failed - and returns that status with the (possibly null) completed
+    /// evaluation. <see cref="IntakeWebDriver.DrainStagedAsync"/> waits for an
+    /// evaluation that a terminal input failure never produces, so it loops for
+    /// ever on this shape. Mirrors that method's dispatch-then-late-dispatch
+    /// retry so a frozen test clock cannot stall a backoff. Private to this
+    /// class: the shared helper is Stream-A-owned test support.
+    /// </summary>
+    private static async Task<(QueuedIntakeStatus Status, IntakeEvaluationRevision? Evaluation)>
+        DrainStagedToTerminalAsync(IServiceProvider services, Guid stagedReceiptId)
+    {
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var statuses = services.GetRequiredService<IQueuedIntakeStatusQueries>();
+        var timeProvider = services.GetRequiredService<TimeProvider>();
+        IIntakeWorkEnqueuer Enqueuer() =>
+            new IntakeWebDriver.ImmediateIntakeWorkEnqueuer(IntakeWebDriver.CreateProcessor(services));
+
+        while (true)
+        {
+            var status = await statuses.GetAsync(stagedReceiptId, CancellationToken.None)
+                ?? throw new InvalidOperationException("The staged receipt has no queued status.");
+            if (status.Status is QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed)
+            {
+                return (
+                    status,
+                    await workStore.GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
+            }
+
+            var dispatched = await new DispatchPendingIntakeWork(workStore, Enqueuer(), timeProvider)
+                .ExecuteAsync(1, CancellationToken.None);
+            if (dispatched == 0)
+            {
+                dispatched = await new DispatchPendingIntakeWork(
+                        workStore,
+                        Enqueuer(),
+                        new LateTimeProvider(timeProvider, TimeSpan.FromMinutes(10)))
+                    .ExecuteAsync(1, CancellationToken.None);
+            }
+
+            Assert.Equal(1, dispatched);
+        }
+    }
+
+    private sealed class LateTimeProvider(TimeProvider inner, TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow() + offset;
     }
 }

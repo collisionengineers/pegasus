@@ -1,8 +1,13 @@
 using System.Globalization;
+using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -204,13 +209,15 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task TriageRowRendersReferenceRegistrationProviderAndAssignee()
+    public async Task TriageRowRendersTheTriageReferenceRegistrationProviderAndAssignee()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        const string reference = "TRIAGE-032";
+        // The provider's claim number, which used to be what the row called
+        // the reference. The row's reference is now the Triage's own.
+        const string claimNumber = "TRIAGE-032";
         const string registration = "TR32AGE";
         const string provider = "QDOS";
         var sourceIdentity = new IntakeSourceIdentity(
@@ -231,7 +238,7 @@ public sealed class TriageQueuesWebTests
             new InstructionDraft(
                 SuggestedPrincipalCode: provider,
                 ClaimantName: null,
-                ClaimNumber: reference,
+                ClaimNumber: claimNumber,
                 VehicleRegistration: registration,
                 VehicleMake: null,
                 VehicleModel: null,
@@ -249,7 +256,7 @@ public sealed class TriageQueuesWebTests
                 new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
                 registration,
                 acceptedMatch,
-                "test-actor",
+                ActionActor.SystemWorker("test-worker"),
                 $"triage-create:{Guid.NewGuid():N}"),
             CancellationToken.None);
         await services.GetRequiredService<IAssignTriage>().ExecuteAsync(
@@ -257,7 +264,7 @@ public sealed class TriageQueuesWebTests
                 triage.Id,
                 triage.Version,
                 DevelopmentOfflineIdentity.AdministratorId,
-                "test-actor",
+                StaffActor(),
                 $"triage-assign:{Guid.NewGuid():N}",
                 "Assigned for the queue-row test."),
             CancellationToken.None);
@@ -266,13 +273,22 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(reference, html, StringComparison.Ordinal);
+        const string triageReference = "T-00001";
+        Assert.Equal(triageReference, triage.Reference);
+        Assert.Contains(triageReference, html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);
         Assert.Contains(provider, html, StringComparison.Ordinal);
         Assert.Contains(
             $"{provider} · {DevelopmentOfflineIdentity.UserName}",
             WebUtility.HtmlDecode(html),
             StringComparison.Ordinal);
+        // The claim number is retained on the summary as its own member, and
+        // is no longer what the row calls the reference.
+        var summary = Assert.Single(
+            await services.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        Assert.Equal(claimNumber, summary.ClaimNumber);
+        Assert.Equal(triageReference, summary.Reference);
     }
 
     [Fact]
@@ -614,6 +630,127 @@ public sealed class TriageQueuesWebTests
     /// Registers one Image-initiated Case from a fresh upload — the same
     /// sequence every Not ready merge test needs.
     /// </summary>
+    /// <summary>
+    /// The Awaiting-instruction read carries each row's principal code out of
+    /// its one set-based projection as a LEFT JOIN, so the number of database
+    /// reads one request performs does not grow with the number of rows.
+    /// </summary>
+    /// <remarks>
+    /// The proof is the comparison, not a pinned number: an absolute count is
+    /// a fact about one base and stops being evidence the moment anything else
+    /// on the page changes, whereas the same request over three rows and over
+    /// six rows must cost the same reads if and only if nothing is read per
+    /// row. The observed count travels in the assertion message so a run
+    /// records it.
+    /// </remarks>
+    [Fact]
+    public async Task AwaitingReadCountDoesNotGrowWithTheNumberOfImageRows()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var actor = StaffActor();
+
+        // Three rows of mixed principal state: one recorded, two `Not known`.
+        var first = await RegisterImageIntakeAsync(factory, client, services, "AA11AAA");
+        await RegisterImageIntakeAsync(factory, client, services, "BB22BBB");
+        await RegisterImageIntakeAsync(factory, client, services, "CC33CCC");
+        var firstDetail = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetAsync(first.Id, CancellationToken.None));
+        await store.SetPrincipalAsync(
+            new(first.Id, alpha, actor, firstDetail.LifecycleVersion),
+            CancellationToken.None);
+
+        var summaries = await queries.ListAsync(false, CancellationToken.None);
+        Assert.Contains(summaries, item => item.PrincipalCode == "ALPHA");
+        Assert.Contains(summaries, item => item.Id != first.Id && item.PrincipalCode is null);
+
+        var counter = new AwaitingRequestCommandCounter();
+        using var countingFactory = CreateCountingFactory(factory, counter);
+        using var countingClient = countingFactory.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
+        var withThreeRows = await MeasureAwaitingReadsAsync(countingClient, counter, first.Id);
+
+        // Three more rows, same request.
+        await RegisterImageIntakeAsync(factory, client, services, "DD44DDD");
+        await RegisterImageIntakeAsync(factory, client, services, "EE55EEE");
+        await RegisterImageIntakeAsync(factory, client, services, "FF66FFF");
+        var withSixRows = await MeasureAwaitingReadsAsync(countingClient, counter, first.Id);
+
+        Assert.True(withThreeRows > 0, "The interceptor observed no reads at all.");
+        Assert.True(
+            withThreeRows == withSixRows,
+            $"The Awaiting read count grew with the rows: {withThreeRows} reads for three "
+            + $"image rows and {withSixRows} for six.");
+    }
+
+    private static WebApplicationFactory<Program> CreateCountingFactory(
+        IntakeWebApplicationFactory factory,
+        AwaitingRequestCommandCounter counter)
+    {
+        var connectionString = factory.Database.ConnectionString;
+        return factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            // The host's own context factory is what the request pipeline
+            // resolves; an interceptor anywhere else counts nothing a request
+            // does.
+            services.RemoveAll<IDbContextFactory<PegasusDbContext>>();
+            services.RemoveAll<DbContextOptions<PegasusDbContext>>();
+            services.RemoveAll<DbContextOptions>();
+            services.AddDbContextFactory<PegasusDbContext>(options =>
+            {
+                options.UseSqlServer(connectionString);
+                options.AddInterceptors(counter);
+            });
+        }));
+    }
+
+    private static async Task<int> MeasureAwaitingReadsAsync(
+        HttpClient client,
+        AwaitingRequestCommandCounter counter,
+        Guid selectedId)
+    {
+        counter.Reset();
+        using var response = await client.GetAsync($"/Cases?tab=awaiting&selected={selectedId:D}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return counter.ExecutedReaderCommands;
+    }
+
+    /// <summary>
+    /// Counts the reader commands one request executes. Registered on the
+    /// host's own context factory, so it observes exactly what the request
+    /// pipeline runs.
+    /// </summary>
+    private sealed class AwaitingRequestCommandCounter : DbCommandInterceptor
+    {
+        private int executedReaderCommands;
+
+        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
+
+        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref executedReaderCommands);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
     private static async Task<ImageIntakeRecord> RegisterImageIntakeAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client,
@@ -648,7 +785,7 @@ public sealed class TriageQueuesWebTests
     /// (<c>IIntakeWorkStore.ReceiveAsync</c>/<c>CompleteProcessingAsync</c>)
     /// without going through the full mail-decision pipeline.
     /// </summary>
-    private static async Task<Guid> StageAndCompleteEvaluationAsync(IServiceProvider services, Guid processedReceiptId)
+    internal static async Task<Guid> StageAndCompleteEvaluationAsync(IServiceProvider services, Guid processedReceiptId)
     {
         var workStore = services.GetRequiredService<IIntakeWorkStore>();
         var now = DateTimeOffset.UtcNow;
@@ -678,7 +815,113 @@ public sealed class TriageQueuesWebTests
         return evaluation.Id;
     }
 
-    private static async Task<Guid> StoreMinimalReceiptAsync(
+    /// <summary>
+    /// The keyset continuation over real SQL: the pages partition the list in
+    /// the newest-first order with no repeat and no gap, the database applies
+    /// both the bound and the limit, and a cursor minted for one query is
+    /// refused by another.
+    /// </summary>
+    [Fact]
+    public async Task TriageKeysetPagesArePartitionedDeterministicallyOverRealSql()
+    {
+        const int total = 7;
+        const int limit = 3;
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        for (var index = 0; index < total; index++)
+        {
+            await OpenTriageForPagingAsync(services, index);
+        }
+
+        var queries = services.GetRequiredService<ITriageQueries>();
+        var listPage = new ListTriagePage(
+            queries,
+            services.GetRequiredService<ICursorProtector>());
+        var actor = StaffActor();
+
+        var seen = new List<TriageSummary>();
+        string? cursor = null;
+        var requests = 0;
+        do
+        {
+            var page = await listPage.ExecuteAsync(
+                new(actor, State: null, cursor, limit),
+                CancellationToken.None);
+            Assert.True(page.Items.Count <= limit);
+            seen.AddRange(page.Items);
+            cursor = page.NextCursor;
+            requests++;
+            Assert.True(requests <= total, "The continuation did not terminate.");
+        }
+        while (cursor is not null);
+
+        // Every Triage exactly once, in the same newest-first order the
+        // unpaged read returns.
+        var expected = await queries.ListAsync(null, CancellationToken.None);
+        Assert.Equal(total, seen.Count);
+        Assert.Equal(
+            expected.Select(item => item.Id).ToArray(),
+            seen.Select(item => item.Id).ToArray());
+        Assert.Equal(total, seen.Select(item => item.Id).Distinct().Count());
+
+        // A cursor is bound to its query: the same page under a state filter
+        // is a different scope and is refused rather than answered.
+        var firstPage = await listPage.ExecuteAsync(
+            new(actor, State: null, null, limit),
+            CancellationToken.None);
+        Assert.NotNull(firstPage.NextCursor);
+        await Assert.ThrowsAsync<CursorRejectedException>(() =>
+            listPage.ExecuteAsync(
+                new(actor, TriageState.Open, firstPage.NextCursor, limit),
+                CancellationToken.None));
+    }
+
+    private static async Task OpenTriageForPagingAsync(IServiceProvider services, int index)
+    {
+        var registration = $"PG{index:00}AGE";
+        var sourceIdentity = new IntakeSourceIdentity(
+            IntakeSourceChannel.ManualUpload,
+            Guid.NewGuid().ToString("N"));
+        var sourceHash = new string((char)('a' + (index % 6)), 64);
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            registration,
+            "Accepted Triage match for the keyset paging test.",
+            MatcherKey: "triage-paging-test",
+            MatcherVersion: 1);
+        var receiptId = await StoreMinimalReceiptAsync(
+            services,
+            $"triage-paging-{index}.pdf",
+            new InstructionDraft(
+                SuggestedPrincipalCode: "QDOS",
+                ClaimantName: null,
+                ClaimNumber: $"PAGING-{index:00}",
+                VehicleRegistration: registration,
+                VehicleMake: null,
+                VehicleModel: null,
+                VehicleMileage: null,
+                AccidentCircumstances: null,
+                DateOfIncident: null,
+                InstructionDate: null,
+                InspectionAddress: null),
+            [acceptedMatch],
+            sourceIdentity,
+            sourceHash);
+        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(services, receiptId);
+        await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
+            new(
+                new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
+                registration,
+                acceptedMatch,
+                ActionActor.SystemWorker("test-worker"),
+                $"triage-paging-create:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+    }
+
+    internal static async Task<Guid> StoreMinimalReceiptAsync(
         IServiceProvider services,
         string sourceFileName,
         InstructionDraft? instructionDraft = null,

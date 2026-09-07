@@ -43,6 +43,7 @@ public sealed class GetTriageDisplayNameTests
                     triageId,
                     "triage_assigned",
                     staffId.ToString("D"),
+                    nameof(ActorKind.Staff),
                     "Assigned for review.",
                     "op-1",
                     NowUtc,
@@ -98,6 +99,7 @@ public sealed class GetTriageDisplayNameTests
                     triageId,
                     "triage_created",
                     staffId.ToString("D"),
+                    nameof(ActorKind.Staff),
                     "Created from mailbox intake.",
                     "op-1",
                     NowUtc,
@@ -169,7 +171,7 @@ public sealed class GetTriageDisplayNameTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == staffId
-                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.User], null)
+                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.User])
                 : null);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

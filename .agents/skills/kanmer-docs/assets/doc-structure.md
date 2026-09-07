@@ -45,7 +45,7 @@ the folder may contain more than one Markdown document:
 | `plan` | `plan/*.md` | approach and governing-document mapping |
 | `checklist` | `checklist/*.md` | executable progress (`- [ ]` / `- [x]`) |
 | `post-implementation-report` | `post-implementation-report/*.md` | reviewers' brief |
-| `proof` | `proof/*.md` | evidence gathered on merged `main` |
+| `proof` | `proof/*.md` | evidence at the exact configured integration-branch SHA after review and merge |
 
 Running notes are `scratch/<slug>.md`. Human-supplied inputs belong in
 `reference/`; binary evidence belongs in `assets/`. Neither is a pipeline
@@ -71,17 +71,7 @@ This asset describes the live format-3 model, not an independent policy.
 
 ## Generation and freshness
 
-`plugins/kanmer/skills/kanmer-docs/assets/doc-structure.md` is the canonical
-skill asset. `docs/contributing/doc-structure.md` is the generated mirror for
-the current board, so its resolved `repoDocs` globs may differ from the
-target-neutral placeholders above. Run `npm run verify:docs` to validate the
-manual, the resolved mirror, and the canonical asset; the check also rejects
-retired format-2 wording and legacy loose-file paths. Update the asset first
-when the board model changes, then regenerate the repository mirror through
-`kanmer-docs`.
-
-When maintaining the Kanmer source repository, edit this canonical asset and
-run `npm run verify:docs`. When `kanmer-setup` materializes the mirror in a
-different repository, it resolves that repository's board globs and emits
-target-appropriate regeneration guidance instead; consumer maintainers should
-rerun their setup/documentation rail rather than edit this source-only path.
+Resolve the consuming repository's document globs and profile gates through
+`get_doc_gates`. Follow that repository's canonical documentation navigation
+and validation commands. No Kanmer-source path or npm command is implied in a
+consumer. Installed copies must agree on this target-neutral contract.

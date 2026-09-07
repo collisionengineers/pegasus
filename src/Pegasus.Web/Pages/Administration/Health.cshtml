@@ -1,0 +1,26 @@
+@page
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Administration.HealthModel
+@{ ViewData["Title"] = "Health"; ViewData["Eyebrow"] = "Administration"; }
+<partial name="Shared/_PageHeader" />
+<div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
+@if (Model.Snapshot is { } snapshot)
+{
+    @if (Model.Metrics is { } metrics)
+    {
+        <section class="panel"><div class="panel-head"><h2>Recorded counts</h2></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Mailbox failures</th><th>Mailbox freshness</th><th>Failed intake</th><th>Oldest pending intake due</th><th>Oldest pending custody</th><th>Poisoned inbox messages</th><th>Unknown sends</th><th>Oldest pending AI job</th><th>Cache entries</th><th>Cache bytes</th><th>Next cache expiry</th><th>Active cache reads</th><th>Cache cleanup failures</th><th>Cache hits since Web start</th><th>Cache misses since Web start</th></tr></thead><tbody><tr><td>@metrics.MailboxFailures</td><td>@metrics.MailboxFreshness.State (@metrics.MailboxFreshness.LastSuccessfulUpdateAtUtc)</td><td>@metrics.IntakeFailed</td><td>@metrics.OldestPendingIntakeDueAtUtc</td><td>@metrics.OldestPendingCustodyCreatedAtUtc</td><td>@metrics.PoisonedInboxMessages</td><td>@metrics.UnknownSends</td><td>@metrics.OldestPendingAiJobCreatedAtUtc</td><td>@metrics.CacheEntries</td><td>@metrics.CacheBytes</td><td>@metrics.NextCacheExpiryAtUtc</td><td>@metrics.ActiveCacheReadLeases</td><td>@metrics.CacheCleanupFailures</td><td>@metrics.CacheHitsSinceStart</td><td>@metrics.CacheMissesSinceStart</td></tr></tbody></table></div></div></section>
+    }
+    <section class="panel">
+        <div class="panel-head"><h2>Service health</h2></div>
+        <div class="panel-body"><div class="table-wrap"><table>
+            <thead><tr><th>Area</th><th>Service</th><th>State</th><th>Recorded time</th><th>Failure code</th><th>Dependency</th></tr></thead>
+            <tbody>
+            @foreach (var row in snapshot.Rows)
+            {
+                <tr><td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td><td>@row.Service</td><td>@OperatorLabels.ServiceHealthStateName(row.State)</td><td>@if (row.Area == Pegasus.Core.Operations.ServiceHealthArea.Mail) { <span>Last successful poll: </span> }@OperatorLabels.OfficeTime(row.LatestEvidenceAtUtc, "")</td><td>@row.FailureCode</td><td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td></tr>
+            }
+            </tbody>
+        </table></div></div>
+    </section>
+}
+</div></div>

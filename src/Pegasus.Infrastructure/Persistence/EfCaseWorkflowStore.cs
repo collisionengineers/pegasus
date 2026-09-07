@@ -15,12 +15,13 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, ICaseArchiveReadinessQueries
+    TimeProvider timeProvider) : ICaseWorkflowStore, IAdministrativeCaseEditLeaseStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, ICaseArchiveReadinessQueries
 {
     private static readonly TimeSpan EditLeaseDuration = TimeSpan.FromMinutes(5);
     private const string ClaimLeaseOperationKind = "claim";
     private const string RenewLeaseOperationKind = "renew";
     private const string ReleaseLeaseOperationKind = "release";
+    private const string ClearLeaseOperationKind = "administrative_clear";
 
     public async Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -178,6 +179,7 @@ public sealed class EfCaseWorkflowStore(
         workflow.EditLeaseHolderKind = request.Actor.Kind.ToString();
         workflow.EditLeaseOperationKey = operationKey;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
+        workflow.EditLeaseGeneration = checked(workflow.EditLeaseGeneration + 1);
         AddLeaseOperation(
             context,
             workflow,
@@ -196,7 +198,10 @@ public sealed class EfCaseWorkflowStore(
             token,
             request.Actor.SubjectId,
             workflow.Version,
-            expiresAtUtc);
+            expiresAtUtc)
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
     }
 
     public async Task<CaseEditLease> RenewAsync(
@@ -276,7 +281,10 @@ public sealed class EfCaseWorkflowStore(
             request.LeaseToken,
             request.Actor.SubjectId,
             workflow.Version,
-            expiresAtUtc);
+            expiresAtUtc)
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
     }
 
     /// <summary>
@@ -320,7 +328,10 @@ public sealed class EfCaseWorkflowStore(
             request.LeaseToken,
             request.Actor.SubjectId,
             workflow.Version,
-            expiresAtUtc);
+            expiresAtUtc)
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
     }
 
     public async Task ReleaseAsync(
@@ -384,6 +395,101 @@ public sealed class EfCaseWorkflowStore(
             resultTokenHash: null);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<ClearCaseEditLeaseResult> ClearAsync(
+        ClearCaseEditLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
+        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId,
+                cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
+
+        var operationKey = request.OperationKey.Trim();
+        var reason = request.Reason.Trim();
+        var requestHash = AdministrativeClearRequestHash(request, operationKey, reason);
+        var replay = await FindLeaseOperationAsync(
+            context,
+            request.CaseId,
+            operationKey,
+            cancellationToken);
+        if (replay is not null)
+        {
+            EnsureLeaseReplay(
+                replay,
+                ClearLeaseOperationKind,
+                requestHash,
+                request.CaseId,
+                operationKey);
+            return new(
+                request.CaseId,
+                request.ExpectedHolderUserId,
+                request.ExpectedLeaseGeneration,
+                replay.ResultVersion,
+                replay.CompletedAtUtc);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        if (!CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now))
+        {
+            throw new CaseEditLeaseExpiredException(workflow.CaseId, workflow.Version);
+        }
+        if (workflow.EditLeaseHolderKind != nameof(ActorKind.Staff)
+            || !Guid.TryParse(workflow.EditLeaseHolder, out var holderUserId)
+            || holderUserId != request.ExpectedHolderUserId
+            || workflow.EditLeaseGeneration != request.ExpectedLeaseGeneration)
+        {
+            throw new CaseEditLeaseConflictException(workflow.CaseId, workflow.Version);
+        }
+
+        var beforeJson = JsonSerializer.Serialize(new
+        {
+            HolderUserId = holderUserId,
+            LeaseGeneration = workflow.EditLeaseGeneration,
+            workflow.EditLeaseExpiresAtUtc
+        });
+        var resultVersion = workflow.Version;
+        ClearLease(workflow);
+        AddLeaseOperation(
+            context,
+            workflow,
+            request.Actor,
+            operationKey,
+            ClearLeaseOperationKind,
+            requestHash,
+            now,
+            resultVersion,
+            resultExpiresAtUtc: null,
+            resultTokenHash: null);
+        AddEvent(
+            context,
+            workflow,
+            request.Actor,
+            operationKey,
+            reason,
+            requestHash,
+            "case_edit_lease_administratively_cleared",
+            resultVersion,
+            resultVersion,
+            now,
+            beforeJson,
+            afterJson: null);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            request.CaseId,
+            holderUserId,
+            request.ExpectedLeaseGeneration,
+            resultVersion,
+            now);
     }
 
     public Task<CaseWorkflowRecord> ChangeStateAsync(
@@ -471,10 +577,22 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, "case_returned_to_review", (context, workflow, now) =>
         {
+            RequireReviewReadiness(workflow);
             workflow.State = nameof(CaseLifecycleState.Review);
             CaseChaseState.Stop(workflow);
             return Task.CompletedTask;
         }, cancellationToken);
+
+    /// <summary>
+    /// CASE-046: the Review gate reads the case's own persisted completeness
+    /// facts inside this transaction. A caller cannot present its own answer,
+    /// so a forged or merely stale posted boolean can no longer open Review.
+    /// </summary>
+    private static void RequireReviewReadiness(CaseWorkflowEntity workflow) =>
+        CaseLifecycleRules.RequireReviewReadiness(
+            workflow.CaseId,
+            workflow.Case.InstructionComplete,
+            workflow.Case.ImagesComplete);
 
     public Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
@@ -482,6 +600,7 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "case_engineer_assigned", (context, workflow, now) =>
         {
+            RequireReviewReadiness(workflow);
             workflow.AssignedEngineerId = request.EngineerId;
             workflow.SignOffEngineerId = signOffEngineerId;
             return Task.CompletedTask;
@@ -639,6 +758,11 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, $"case_reopened_{request.Destination}", (context, workflow, now) =>
         {
+            if (request.Destination == CaseReopenDestination.Review)
+            {
+                RequireReviewReadiness(workflow);
+            }
+
             workflow.State = request.Destination.ToString();
             workflow.ClosureOutcome = null;
             if (request.Destination == CaseReopenDestination.NotReady)
@@ -1277,8 +1401,29 @@ public sealed class EfCaseWorkflowStore(
             token,
             actor.SubjectId,
             replay.ResultVersion,
-            resultExpiresAtUtc);
+            resultExpiresAtUtc)
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
     }
+
+    private static string AdministrativeClearRequestHash(
+        ClearCaseEditLeaseRequest request,
+        string operationKey,
+        string reason) =>
+        Hash(JsonSerializer.Serialize(new
+        {
+            SchemaVersion = 1,
+            OperationKind = ClearLeaseOperationKind,
+            request.CaseId,
+            request.ExpectedHolderUserId,
+            request.ExpectedLeaseGeneration,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            OperationKey = operationKey,
+            Reason = reason
+        }));
 
     private static string LeaseOperationRequestHash(
         string operationKind,

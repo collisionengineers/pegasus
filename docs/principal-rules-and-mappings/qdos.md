@@ -122,7 +122,8 @@ Mapping proved on the corpus: `ENGINEER NOTIFICATION` → Inspection;
 attached to the email — operator-confirmed on EREF10);
 `AUDIT REPORT NOTIFICATION` → Audit. Missing or ambiguous standalone Audit
 evidence withholds only the later Audit reference (product invariant,
-`CLAUDE.md`).
+`AGENTS.md`). Once normal processing and principal gates pass, normal Case/PO
+allocation proceeds; the separate Audit reference still waits for its evidence.
 
 ## 4. Case association — linking mail to an existing case
 

@@ -24,7 +24,8 @@ public sealed class ProductionBoxCustodyTests
             "https://upload.box.com/api/2.0/",
             "0",
             BoxConfigJson,
-            "client-secret"));
+            "client-secret",
+            "test-holding-folder"));
 
         Assert.Contains("405543781910", error.Message, StringComparison.Ordinal);
     }
@@ -37,19 +38,22 @@ public sealed class ProductionBoxCustodyTests
             "https://upload.box.com/api/2.0/",
             "405543781910",
             null,
-            "client-secret"));
+            "client-secret",
+            "test-holding-folder"));
         var missingSecret = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
             "405543781910",
             BoxConfigJson,
-            null));
+            null,
+            "test-holding-folder"));
         var malformedConfiguration = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
             "405543781910",
             "{}",
-            "client-secret"));
+            "client-secret",
+            "test-holding-folder"));
 
         Assert.Contains("ConfigJson", missingConfiguration.Message, StringComparison.Ordinal);
         Assert.Contains("ClientSecret", missingSecret.Message, StringComparison.Ordinal);
@@ -67,13 +71,15 @@ public sealed class ProductionBoxCustodyTests
             "https://upload.box.com/api/2.0/",
             "405543781910",
             "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
-            "client-secret"));
+            "client-secret",
+            "test-holding-folder"));
         var unresolvedSecret = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
             "405543781910",
             BoxConfigJson,
-            "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-client-secret)"));
+            "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-client-secret)",
+            "test-holding-folder"));
 
         Assert.Contains("Box:ConfigJson is an unresolved Key Vault reference", unresolvedConfig.Message, StringComparison.Ordinal);
         Assert.Contains("Box:ClientSecret is an unresolved Key Vault reference", unresolvedSecret.Message, StringComparison.Ordinal);
@@ -140,7 +146,7 @@ public sealed class ProductionBoxCustodyTests
             if (path == "/api/2.0/files/content")
             {
                 Assert.Equal(HttpMethod.Post, request.Method);
-                return Json("""{"entries":[{"id":"file-version","name":"retained","type":"file","etag":"version-1"}]}""");
+                return Json("""{"entries":[{"id":"file-version","name":"retained","type":"file","etag":"version-1","file_version":{"id":"box-version-1"}}]}""");
             }
             return path switch
             {
@@ -570,7 +576,8 @@ public sealed class ProductionBoxCustodyTests
             "https://upload.box.com/api/2.0/",
             "405543781910",
             BoxConfigJson,
-            "client-secret"),
+            "client-secret",
+            "test-holding-folder"),
         new HttpClient(handler),
         new RecordingAuthorizationHeaderProvider());
 
@@ -580,7 +587,8 @@ public sealed class ProductionBoxCustodyTests
             "https://upload.box.com/api/2.0/",
             "405543781910",
             BoxConfigJson,
-            "client-secret"),
+            "client-secret",
+            "test-holding-folder"),
         new HttpClient(new StatefulBoxHandler(box)),
         new RecordingAuthorizationHeaderProvider());
 
@@ -715,6 +723,9 @@ public sealed class ProductionBoxCustodyTests
                         etag = "1",
                         size = node.Content?.LongLength,
                         content_type = node.MediaType,
+                        file_version = node.Type == "file"
+                            ? new { id = $"{node.Id}-version-1" }
+                            : null,
                         parent = node.ParentId is null ? null : new { id = node.ParentId }
                     });
                 return Json(JsonSerializer.Serialize(new { entries }));
@@ -739,6 +750,9 @@ public sealed class ProductionBoxCustodyTests
                     etag = "1",
                     size = node.Content?.LongLength,
                     content_type = node.MediaType,
+                    file_version = node.Type == "file"
+                        ? new { id = $"{node.Id}-version-1" }
+                        : null,
                     parent,
                     trashed_at = (string?)null
                 }));
@@ -866,7 +880,16 @@ public sealed class ProductionBoxCustodyTests
             }
             return item!;
         }
-        private static object ItemValue(Node node) => new { id = node.Id, name = node.Name, type = node.Type, etag = "1" };
+        private static object ItemValue(Node node) => new
+        {
+            id = node.Id,
+            name = node.Name,
+            type = node.Type,
+            etag = "1",
+            file_version = node.Type == "file"
+                ? new { id = $"{node.Id}-version-1" }
+                : null
+        };
         private static HttpResponseMessage Item(Node node) => Json(JsonSerializer.Serialize(ItemValue(node)));
     }
 

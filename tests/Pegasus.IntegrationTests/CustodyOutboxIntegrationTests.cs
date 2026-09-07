@@ -22,6 +22,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -30,6 +31,136 @@ public sealed class CustodyOutboxIntegrationTests
 {
     private static readonly DateTimeOffset FixedUtcNow =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var source = CreateSource();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source,
+            $"reevaluation-retained-source:{Guid.NewGuid():N}",
+            CancellationToken.None);
+        var firstEvaluation = await DrainStagedAsync(
+            services,
+            received.StagedReceiptId,
+            CancellationToken.None);
+        await using (var db = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var stagedStorageKey = await db.IntakeStagedReceipts
+                .Where(item => item.Id == received.StagedReceiptId)
+                .Select(item => item.StorageKey)
+                .SingleAsync();
+            Assert.Null(await services.GetRequiredService<IIntakeArtifactStore>()
+                .GetStagedAsync(stagedStorageKey, CancellationToken.None));
+        }
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            firstEvaluation.ProcessedReceiptId,
+            CancellationToken.None));
+        var originalSource = Assert.Single(original.AssetRecords, asset =>
+            asset.Kind == IntakeAssetKind.Source
+            && asset.Disposition == IntakeAssetDisposition.Source);
+
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
+            new(
+                original.Id,
+                original.Version,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                $"reevaluate-retained-source:{Guid.NewGuid():N}",
+                "Re-evaluate the retained source under the current policy."),
+            CancellationToken.None);
+
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId,
+            now,
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            dispatch.Id,
+            Assert.IsType<string>(dispatch.LeaseToken),
+            now,
+            CancellationToken.None);
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed, outcome);
+        var reevaluated = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id,
+            CancellationToken.None));
+        Assert.True(reevaluated.Version > original.Version);
+        var reevaluatedSource = Assert.Single(reevaluated.AssetRecords, asset =>
+            asset.Kind == IntakeAssetKind.Source
+            && asset.Disposition == IntakeAssetDisposition.Source);
+        Assert.Equal(originalSource.Id, reevaluatedSource.Id);
+        Assert.Equal(originalSource.StorageKey, reevaluatedSource.StorageKey);
+        Assert.Equal(originalSource.ContentHash, reevaluatedSource.ContentHash);
+    }
+
+    [Fact]
+    public async Task ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var source = CreateSource();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source,
+            $"reevaluation-mismatched-source:{Guid.NewGuid():N}",
+            CancellationToken.None);
+        var firstEvaluation = await DrainStagedAsync(
+            services, received.StagedReceiptId, CancellationToken.None);
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            firstEvaluation.ProcessedReceiptId, CancellationToken.None));
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
+            new(
+                original.Id,
+                original.Version,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                $"reevaluate-mismatched-source:{Guid.NewGuid():N}",
+                "Re-evaluate the retained source under the current policy."),
+            CancellationToken.None);
+        var queued = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id, CancellationToken.None));
+
+        await using (var db = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var sourceAsset = await db.IntakeAssets.SingleAsync(asset =>
+                asset.IntakeReceiptId == original.Id
+                && asset.Kind == "source"
+                && asset.Disposition == "source");
+            sourceAsset.ContentHash = new string('F', 64);
+            await db.SaveChangesAsync();
+        }
+
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            dispatch.Id, Assert.IsType<string>(dispatch.LeaseToken), now, CancellationToken.None);
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Failed, outcome);
+        var unchanged = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id, CancellationToken.None));
+        Assert.Equal(queued.Version, unchanged.Version);
+        Assert.Equal("reevaluation_pending", unchanged.FailureCode);
+        var failedWork = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(
+            received.StagedReceiptId, CancellationToken.None));
+        Assert.Equal(IntakeWorkState.Failed, failedWork.State);
+        Assert.Equal("staged_artifact_integrity_failure", failedWork.FailureCode);
+    }
 
     [Fact]
     public async Task AcceptedOfflineCaseRecoversDispatchLeaseAndRetainsExactSourceReplaySafely()
@@ -194,6 +325,74 @@ public sealed class CustodyOutboxIntegrationTests
                 scope.ServiceProvider,
                 accepted.CaseId,
                 "custody_failed"));
+    }
+
+    [Theory]
+    [InlineData(IntakeOcrState.Pending, IntakeOcrState.Failed, "failed", null)]
+    [InlineData(IntakeOcrState.Processing, IntakeOcrState.Unknown, "failed", "provider-operation")]
+    [InlineData(IntakeOcrState.Unknown, IntakeOcrState.Unknown, "failed", null)]
+    [InlineData(IntakeOcrState.Completed, IntakeOcrState.Completed, "completed", "provider-operation")]
+    public async Task PoisonedOcrWorkConvergesWithoutRedispatchOrLosingProviderIdentity(
+        IntakeOcrState initialState,
+        IntakeOcrState expectedState,
+        string expectedWorkState,
+        string? providerOperationId)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var retained = await services.GetRequiredService<ProcessIntake>()
+            .ExecuteAsync(CreateSource().Source, CancellationToken.None);
+        var sourceAsset = Assert.IsType<IntakeAssetRecord>(
+            IntakeFileIdentity.SourceAsset(retained));
+        var workItemId = Guid.NewGuid();
+        var operationKey = $"ocr-poison:{workItemId:N}";
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            context.Set<IntakeOcrOperationEntity>().Add(new()
+            {
+                Id = workItemId,
+                IntakeAssetId = sourceAsset.Id,
+                SourceSha256 = sourceAsset.ContentHash,
+                QualifiedPagesJson = "{}",
+                OperationKey = operationKey,
+                State = initialState.ToString(),
+                ProviderOperationId = providerOperationId,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.Set<ExternalWorkItemEntity>().Add(new()
+            {
+                Id = workItemId,
+                Kind = ExternalWorkKinds.IntakeOcr,
+                OperationKey = operationKey,
+                State = ExternalWorkStatePersistence.Queued,
+                DueAtUtc = FixedUtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var store = services.GetRequiredService<IExternalWorkStore>();
+        await new ReconcilePoisonedExternalWork(store, new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(workItemId, CancellationToken.None);
+
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var operation = await context.Set<IntakeOcrOperationEntity>().AsNoTracking()
+                .SingleAsync(item => item.Id == workItemId);
+            var work = await context.Set<ExternalWorkItemEntity>().AsNoTracking()
+                .SingleAsync(item => item.Id == workItemId);
+            Assert.Equal(expectedState.ToString(), operation.State);
+            Assert.Equal(providerOperationId, operation.ProviderOperationId);
+            Assert.Equal(expectedWorkState, work.State);
+        }
+
+        Assert.Null(await store.ClaimDispatchAsync(
+            workItemId,
+            FixedUtcNow.AddMinutes(10),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
     }
 
     [Fact]
@@ -516,7 +715,10 @@ public sealed class CustodyOutboxIntegrationTests
     public async Task EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay(
         CaseLifecycleState terminalState)
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        // The accepted request upload below is a real submission, so this host
+        // needs the custody adapter Stream A will register in production.
+        using var factory = PublicUploadRetentionWebTests.WithRetention(baseFactory);
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
         var caseId = accepted.CaseId;
@@ -1287,8 +1489,7 @@ public sealed class CustodyOutboxIntegrationTests
             new(
                 outcome.Identity.CaseId,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "77777777777777777777777777777777",
-                EvaSubmissionTrigger.Manual),
+                "77777777777777777777777777777777"),
             CancellationToken.None));
         Assert.Equal(0, evaTransport.CallCount);
         Assert.Equal(
@@ -1326,8 +1527,7 @@ public sealed class CustodyOutboxIntegrationTests
             new(
                 outcome.Identity.CaseId,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                EvaSubmissionTrigger.Manual),
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
             CancellationToken.None));
         Assert.Contains("after an Engineer is assigned", missingSubmission.Message, StringComparison.Ordinal);
 
@@ -1371,8 +1571,7 @@ public sealed class CustodyOutboxIntegrationTests
             new(
                 outcome.Identity.CaseId,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "dddddddddddddddddddddddddddddddd",
-                EvaSubmissionTrigger.Manual),
+                "dddddddddddddddddddddddddddddddd"),
             CancellationToken.None));
         Assert.Contains("Engineer account is disabled", disabledSubmission.Message, StringComparison.Ordinal);
         Assert.Equal(0, evaTransport.CallCount);
@@ -1582,8 +1781,7 @@ public sealed class CustodyOutboxIntegrationTests
             new(
                 outcome.Identity.CaseId,
                 firstActor,
-                "88888888888888888888888888888888",
-                EvaSubmissionTrigger.Manual),
+                "88888888888888888888888888888888"),
             CancellationToken.None);
         Assert.True(firstApi?.IsSubmitted);
         var afterFirstApi = (await services.GetRequiredService<ICaseWorkflowQueries>()
@@ -1595,8 +1793,7 @@ public sealed class CustodyOutboxIntegrationTests
             new(
                 outcome.Identity.CaseId,
                 firstActor,
-                "99999999999999999999999999999999",
-                EvaSubmissionTrigger.Manual),
+                "99999999999999999999999999999999"),
             CancellationToken.None);
         Assert.True(apiResend?.IsSubmitted);
         var afterApiResend = (await services.GetRequiredService<ICaseWorkflowQueries>()
@@ -1656,8 +1853,7 @@ public sealed class CustodyOutboxIntegrationTests
         var versionRaceRequest = new SubmitCaseToEvaRequest(
             outcome.Identity.CaseId,
             firstActor,
-            versionRaceKey,
-            EvaSubmissionTrigger.Manual);
+            versionRaceKey);
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() => racingSubmitter.ExecuteAsync(
             versionRaceRequest,
@@ -1725,7 +1921,7 @@ public sealed class CustodyOutboxIntegrationTests
                 new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
                 services.GetRequiredService<TimeProvider>());
             var undeliveredResult = await undeliveredSubmitter.ExecuteAsync(
-                new(outcome.Identity.CaseId, firstActor, undeliveredKey, EvaSubmissionTrigger.Manual),
+                new(outcome.Identity.CaseId, firstActor, undeliveredKey),
                 CancellationToken.None);
             Assert.True(undeliveredResult?.IsSubmitted);
             Assert.Equal(undeliveredOutcome, undeliveredResult!.Submission!.Outcome);
@@ -1813,186 +2009,6 @@ public sealed class CustodyOutboxIntegrationTests
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                     "33333333333333333333333333333333"),
                 CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task AutomaticEvaSubmissionCompletesAfterDeliveredVersionConflictWithoutRetrying()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-        var services = scope.ServiceProvider;
-
-        var fixtureId = Guid.NewGuid().ToString("N");
-        var message = new MimeKit.MimeMessage();
-        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
-        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
-        message.Subject = "QDOS automatic EVA test instruction";
-        var builder = new MimeKit.BodyBuilder
-        {
-            TextBody = $"QDOS instruction\r\nClaimant Name: Automatic EVA {fixtureId}\r\nClaim Number: AUTO-{fixtureId}"
-        };
-        builder.Attachments.Add(
-            "53364_1_LtrtoEngineerIn.pdf",
-            "%PDF-1.4 synthetic instruction letter"u8.ToArray(),
-            MimeKit.ContentType.Parse("application/pdf"));
-        var imageBytes = SyntheticJpeg();
-        builder.Attachments.Add(
-            "1_CLVoffside-V1.jpg",
-            imageBytes,
-            MimeKit.ContentType.Parse("image/jpeg"));
-        message.Body = builder.ToMessageBody();
-        using var output = new MemoryStream();
-        message.WriteTo(output);
-
-        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
-            new(
-                $"automatic-eva-{fixtureId}.eml",
-                "message/rfc822",
-                output.ToArray(),
-                FixedUtcNow,
-                "custody-test",
-                new IntakeSourceIdentity(
-                    IntakeSourceChannel.ManualUpload,
-                    $"automatic-eva:{Guid.NewGuid():N}")),
-            CancellationToken.None);
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        var outcome = await AcceptAsync(services, receipt.Id);
-        await services.GetRequiredService<IProcessQueuedCustody>()
-            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
-
-        await using (var seed = await services
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
-            .CreateDbContextAsync())
-        {
-            var image = await (
-                    from occurrence in seed.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                    join version in seed.Set<DocumentVersionEntity>().AsNoTracking()
-                        on occurrence.VersionId equals version.Id
-                    where occurrence.CaseId == outcome.Identity.CaseId
-                          && occurrence.SemanticRole == DocumentSemanticRole.Image
-                    select new { version.Id, version.Sha256 })
-                .SingleAsync();
-            await services.GetRequiredService<IDocumentContentStore>().StoreAsync(
-                outcome.Identity.CaseId,
-                outcome.Identity.Reference,
-                image.Id,
-                imageBytes,
-                image.Sha256,
-                CancellationToken.None);
-
-            var principal = await seed.Principals.SingleAsync(
-                item => item.Code == QdosPrincipal.Code);
-            principal.EvaAutomaticSubmission = true;
-            await seed.SaveChangesAsync();
-        }
-        await ConfigureDefaultSignOffEngineerAsync(services);
-
-        var reconciler = new ReconcileAutomaticEvaSubmissions(
-            services.GetRequiredService<IAutomaticEvaSubmissionStore>());
-        Assert.Equal(1, await reconciler.ExecuteAsync(10, CancellationToken.None));
-
-        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        Guid workItemId;
-        string operationKey;
-        await using (var queued = await contextFactory.CreateDbContextAsync())
-        {
-            var workItem = await queued.ExternalWorkItems.SingleAsync(item =>
-                item.CaseId == outcome.Identity.CaseId
-                && item.Kind == ExternalWorkKinds.SubmitCaseToEva);
-            workItemId = workItem.Id;
-            operationKey = EvaSubmissionPolicy.AttemptOperationKey(
-                workItem.OperationKey,
-                attemptCount: 1);
-        }
-
-        var transport = new RecordingEvaTransport(async () =>
-        {
-            await using var race = await contextFactory.CreateDbContextAsync();
-            await race.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE CaseWorkflows SET Version = Version + 1 WHERE CaseId = {outcome.Identity.CaseId}");
-        });
-        var submitter = new EvaSubmissionStore(
-            contextFactory,
-            services.GetRequiredService<ICaseDataQueries>(),
-            services.GetRequiredService<IVehicleEvidenceQueries>(),
-            services.GetRequiredService<IEvaSubmissionModeStore>(),
-            services.GetRequiredService<EvaCaseImageReader>(),
-            transport,
-            new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
-            services.GetRequiredService<TimeProvider>());
-        var workStore = new EfEvaSubmissionWorkStore(contextFactory);
-        var claimedWork = Assert.IsType<EvaSubmissionWorkItem>(
-            await workStore.ClaimProcessingAsync(
-                workItemId,
-                FixedUtcNow,
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None));
-        await Assert.ThrowsAsync<CaseVersionConflictException>(() => submitter.ExecuteAsync(
-            new(
-                claimedWork.CaseId,
-                ActionActor.SystemWorker("pegasus-worker"),
-                EvaSubmissionPolicy.AttemptOperationKey(
-                    claimedWork.OperationKey,
-                    claimedWork.AttemptCount),
-                EvaSubmissionTrigger.Automatic),
-            CancellationToken.None));
-
-        Assert.Equal(1, transport.CallCount);
-        await using (var expired = await contextFactory.CreateDbContextAsync())
-        {
-            var processingWork = await expired.ExternalWorkItems.SingleAsync(
-                item => item.Id == workItemId);
-            Assert.Equal("processing", processingWork.State);
-            Assert.Equal(
-                nameof(CaseLifecycleState.Review),
-                (await expired.CaseWorkflows.SingleAsync(
-                    item => item.CaseId == outcome.Identity.CaseId)).State);
-            processingWork.LeaseExpiresAtUtc = FixedUtcNow.AddMinutes(-1);
-            await expired.SaveChangesAsync();
-        }
-
-        var processor = new ProcessQueuedEvaSubmission(
-            workStore,
-            submitter,
-            new MutableTimeProvider(FixedUtcNow));
-
-        await processor.ExecuteAsync(workItemId, CancellationToken.None);
-
-        Assert.Equal(1, transport.CallCount);
-        await using var verification = await contextFactory.CreateDbContextAsync();
-        var submission = await verification.EvaSubmissions.SingleAsync(item =>
-            item.CaseId == outcome.Identity.CaseId);
-        Assert.Equal(operationKey, submission.OperationKey);
-        Assert.Equal("eva-1", submission.EvaId);
-        Assert.Equal("file-1", submission.FileReference);
-        Assert.Single(await verification.ActionHistory
-            .Where(item => item.AggregateType == "Case"
-                && item.AggregateId == outcome.Identity.CaseId.ToString("D")
-                && item.EventKind == "eva_api_submitted")
-            .ToListAsync());
-        var completedWork = await verification.ExternalWorkItems.SingleAsync(
-            item => item.Id == workItemId);
-        Assert.Equal("completed", completedWork.State);
-        Assert.Equal(2, completedWork.AttemptCount);
-        Assert.Equal("eva_submission_no_longer_applicable", completedWork.FailureCode);
-        Assert.Null(completedWork.LeaseToken);
-
-        // SHOULD-FIX 3 (CASE-040 review round 4): the assertions above prove
-        // the outcome only through ProcessQueuedEvaSubmission's exception
-        // mapping onto the retried work item. Assert directly against the
-        // store that a wholly independent automatic submission call over the
-        // now-delivered case is refused before EVA is ever called, so the
-        // once-only guard is proved at this level, not only in
-        // EvaSubmissionPolicyTests.
-        var deliveredCallCount = transport.CallCount;
-        await Assert.ThrowsAsync<EvaAutomaticSubmissionAlreadyDeliveredException>(() => submitter.ExecuteAsync(
-            new(
-                outcome.Identity.CaseId,
-                ActionActor.SystemWorker("pegasus-worker"),
-                Guid.NewGuid().ToString("N"),
-                EvaSubmissionTrigger.Automatic),
-            CancellationToken.None));
-        Assert.Equal(deliveredCallCount, transport.CallCount);
     }
 
     private static async Task<Guid> ConfigureDefaultSignOffEngineerAsync(IServiceProvider services)
@@ -2472,7 +2488,9 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
-                services.GetRequiredService<TimeProvider>())
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<IReadLogicalDocumentVersion>(),
+                services.GetRequiredService<IIntakeOcrOperationStore>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
             await services.GetRequiredService<IIntakeReceiptStore>()
@@ -2492,6 +2510,29 @@ public sealed class CustodyOutboxIntegrationTests
             receipt.Id,
             new CaseCompleteness(false, false, false, false));
         return new(accepted.Identity.CaseId, accepted.CustodyWorkId, receipt.Id, source.Content);
+    }
+
+    private static async Task<IntakeEvaluationRevision> DrainStagedAsync(
+        IServiceProvider services,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+        var dispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(processor),
+            services.GetRequiredService<TimeProvider>());
+        Assert.Equal(1, await dispatcher.ExecuteAsync(1, cancellationToken));
+        return Assert.IsType<IntakeEvaluationRevision>(
+            await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken));
+    }
+
+    private sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
+        : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken) =>
+            processor.ExecuteAsync(stagedReceiptId, cancellationToken);
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(

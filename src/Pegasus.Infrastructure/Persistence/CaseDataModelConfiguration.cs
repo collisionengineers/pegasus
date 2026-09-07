@@ -38,12 +38,11 @@ internal static class CaseDataModelConfiguration
 
         builder.Entity<CaseDataFieldEntity>(entity =>
         {
-            var fieldNames = string.Join(", ", CaseDataFieldNames.All.Select(SqlLiteral));
             entity.ToTable("CaseDataFields", table =>
             {
                 table.HasCheckConstraint(
                     "CK_CaseDataFields_FieldName",
-                    $"[FieldName] IN ({fieldNames})");
+                    "[FieldName] <> '' AND LEN([FieldName]) <= 60");
                 table.HasCheckConstraint(
                     "CK_CaseDataFields_ValueKind",
                     "[ValueKind] IN ('fact', 'suggestion', 'confirmed')");

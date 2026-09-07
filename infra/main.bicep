@@ -40,20 +40,23 @@ param sqlAdministratorLogin string
 @description('Email address for production platform and budget notifications.')
 param alertEmailAddress string
 
-@description('Exact Microsoft Graph mailbox object ID for instructions@collisionengineers.co.uk.')
-param graphMailboxId string
-@description('Exact immutable Microsoft Graph Inbox folder ID.')
-param graphInboxFolderId string
-@description('Exact immutable Microsoft Graph Sent Items folder ID.')
-param graphSentFolderId string
 @description('Versioned Key Vault secret URI containing the Microsoft Graph notification clientState.')
 param graphChangeNotificationClientStateSecretUri string
 @description('Versioned Key Vault secret URI containing the Box JWT configuration JSON.')
 param boxConfigJsonSecretUri string
 @description('Versioned Key Vault secret URI containing the Box client secret.')
 param boxClientSecretSecretUri string
+@description('Operator-created Box holding folder below the approved Pegasus root.')
+@minLength(1)
+param boxHoldingFolderId string
 @description('Versioned Key Vault secret URI containing the Automation MCP OAuth client secret.')
 param automationMcpClientSecretUri string
+@description('Comma-separated versioned Key Vault secret URIs for current and retained OAuth signing certificates (passwordless PFX).')
+@minLength(1)
+param automationMcpSigningCertificateSecretUris string
+@description('Comma-separated versioned Key Vault secret URIs for current and retained OAuth encryption certificates (passwordless PFX).')
+@minLength(1)
+param automationMcpEncryptionCertificateSecretUris string
 @description('Exact redirect URIs (comma separated) of the external MCP connectors allowed to use the authorization-code flow; empty disables that flow.')
 param automationMcpRedirectUris string = ''
 @description('Versioned Key Vault secret URI containing the DVLA VES API key.')
@@ -109,13 +112,13 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     workerActivation: workerActivation
     webImageDigest: webImageDigest
     webRevisionSuffix: webRevisionSuffix
-    graphMailboxId: graphMailboxId
-    graphInboxFolderId: graphInboxFolderId
-    graphSentFolderId: graphSentFolderId
     graphChangeNotificationClientStateSecretUri: graphChangeNotificationClientStateSecretUri
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
+    boxHoldingFolderId: boxHoldingFolderId
     boxClientSecretSecretUri: boxClientSecretSecretUri
     automationMcpClientSecretUri: automationMcpClientSecretUri
+    automationMcpSigningCertificateSecretUris: automationMcpSigningCertificateSecretUris
+    automationMcpEncryptionCertificateSecretUris: automationMcpEncryptionCertificateSecretUris
     automationMcpRedirectUris: automationMcpRedirectUris
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri

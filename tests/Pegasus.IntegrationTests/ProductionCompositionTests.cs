@@ -2,16 +2,25 @@ using Azure.Storage.Blobs;
 using Azure.Core;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
+using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Eva;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -23,6 +32,120 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class ProductionCompositionTests
 {
+    [Fact]
+    public async Task DevelopmentOfflineComposesFailClosedStaffMailWithoutMailTransport()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var reportSender = services.GetRequiredService<IStaffReportSend>();
+        var mailSender = services.GetRequiredService<IStaffMailSend>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var generationId = Guid.NewGuid();
+        var attachments = Array.Empty<StaffMailAttachment>();
+        var command = new StaffReportSendCommand(
+            new StaffMailSendCommand(
+                actor, Guid.NewGuid(), 1, StaffMailPurpose.CaseReport, generationId, 1,
+                StaffMailComposeMode.New, null, [new("operator@example.test", null)], [],
+                "Case report", "Body", attachments, "offline-report-send"),
+            new ReportSendReadinessRequest(
+                actor, Guid.NewGuid(), 1, generationId, 1, Guid.NewGuid(), 1, attachments));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => reportSender.SendAsync(command, CancellationToken.None));
+
+        Assert.Equal(
+            "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
+            error.Message);
+        var mailError = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => mailSender.SendAsync(command.Mail, CancellationToken.None));
+        Assert.Equal(error.Message, mailError.Message);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => mailSender.GetAsync(actor, Guid.NewGuid(), new CancellationToken(canceled: true)));
+        Assert.Null(services.GetService<IStaffMailTransport>());
+        Assert.Null(services.GetService<GraphMailClient>());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExternalHttpClientsKeepIndependentTimeoutsAndHeaders(bool boxFirst)
+    {
+        var services = NewServices();
+        if (boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
+        services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        services.AddEvaApiSubmission(_ => throw new InvalidOperationException("No provider configuration is read by this client test."));
+        if (!boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
+        using var provider = services.BuildServiceProvider();
+        var factory = provider.GetRequiredService<IHttpClientFactory>();
+        using var box = factory.CreateClient(nameof(BoxContentClient));
+        using var graph = factory.CreateClient(nameof(GraphMailClient));
+        using var eva = factory.CreateClient(nameof(EvaApiTransport));
+
+        Assert.Equal(BoxJwtAuthorizationHeaderProvider.RequestTimeout, box.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+        box.DefaultRequestHeaders.Add("X-Composition-Only", "box");
+        box.Timeout = TimeSpan.FromSeconds(1);
+        Assert.False(graph.DefaultRequestHeaders.Contains("X-Composition-Only"));
+        Assert.False(eva.DefaultRequestHeaders.Contains("X-Composition-Only"));
+        Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+    }
+
+    [Fact]
+    public void CasePageAndCanonicalImportResolveTheirEstimateParsersAndGlassSessions()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var parsers = provider.GetServices<IEstimateDocumentParser>().ToArray();
+
+        Assert.Equal(3, parsers.Length);
+        Assert.IsType<AudatexEstimatePdfParser>(provider.GetRequiredService<IEstimateDocumentParser>());
+        Assert.Same(provider.GetRequiredService<JsonEstimateParser>(), Assert.Single(parsers.OfType<JsonEstimateParser>()));
+        Assert.Single(parsers.OfType<GlassEstimateXmlParser>());
+        Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
+        Assert.IsType<EfGlassRepairEstimateSessionStore>(
+            scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>());
+    }
+
+    [Fact]
+    public void GlassGatewayUsesValidatedConfigurationScopedStoreAndInertNamedHandler()
+    {
+        using var provider = BuildGlassProduction(GlassConfiguration());
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.IsType<GlassRepairEstimateGateway>(
+            services.GetRequiredService<IGlassRepairEstimateGateway>());
+        var store = services.GetRequiredService<IGlassRepairEstimateSessionStore>();
+        Assert.Same(store, services.GetRequiredService<IGlassRepairEstimateSessionReader>());
+
+        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>()
+            .CreateHandler(GlassRepairEstimateOptions.HttpClientName);
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler!;
+        }
+        var primary = Assert.IsType<HttpClientHandler>(handler);
+        Assert.False(primary.AllowAutoRedirect);
+        Assert.False(primary.UseCookies);
+    }
+
+    [Fact]
+    public void GlassGatewayRefusesMissingRequiredConfigurationByKey()
+    {
+        var configuration = GlassConfiguration();
+        configuration.Remove("Glass:RepairProfileId");
+        using var provider = BuildGlassProduction(configuration);
+        using var scope = provider.CreateScope();
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateGateway>());
+
+        Assert.Contains("Glass:RepairProfileId", error.Message, StringComparison.Ordinal);
+    }
+
     private const string BoxConfigJson = """
     {
       "boxAppSettings": {
@@ -93,6 +216,21 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionProfileSharesOperationsSnapshotWithAttentionRows()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var snapshot = services.GetRequiredService<GetOperationsSnapshot>();
+
+        Assert.Same(snapshot, services.GetRequiredService<IGetOperationsSnapshot>());
+        Assert.Same(snapshot, services.GetRequiredService<IGetAttentionRows>());
+        Assert.Single(services.GetServices<IGetOperationsSnapshot>());
+        Assert.Single(services.GetServices<IGetAttentionRows>());
+    }
+
+    [Fact]
     public void ProductionProfileDrivesTriageFromTheAcceptedRouteClassification()
     {
         // Automatic Triage matching was pinned inactive while its predicates
@@ -107,6 +245,33 @@ public sealed class ProductionCompositionTests
         Assert.IsType<QdosMailClassificationPolicy>(classification);
         Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
         Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
+    }
+
+    [Fact]
+    public void ProductionProfileComposesAllInstructionProfilesAndTheIntakeProcessor()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var policies = services.GetServices<IInstructionExtractionPolicy>().ToArray();
+        Assert.Equal(15, policies.Length);
+        Assert.Equal(
+            policies.Length,
+            policies.Select(policy => policy.PrincipalCode).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(policies, policy => Assert.IsAssignableFrom<IInstructionDocumentProfile>(policy));
+
+        var qdos = services.GetRequiredService<QdosInstructionExtractionPolicy>();
+        Assert.Same(qdos, Assert.Single(policies, policy => policy is QdosInstructionExtractionPolicy));
+
+        Assert.NotNull(services.GetRequiredService<ProcessIntake>());
+        Assert.NotNull(services.GetRequiredService<InstructionExtractionPolicySelector>());
+        var analysis = services.GetRequiredService<AnalyzeRetainedInstruction>();
+        Assert.Same(analysis, services.GetRequiredService<IAnalyzeRetainedInstruction>());
+        var analysisStore = services.GetRequiredService<EfRetainedInstructionAnalysisStore>();
+        Assert.Same(
+            analysisStore,
+            services.GetRequiredService<IThirdPartyReportCandidateQueries>());
     }
 
     [Fact]
@@ -146,6 +311,9 @@ public sealed class ProductionCompositionTests
 
         Assert.IsType<EfDocumentRequestStore>(
             scope.ServiceProvider.GetRequiredService<IUploadToRequest>());
+        Assert.IsType<EfPublicUploadRetentionStore>(
+            scope.ServiceProvider.GetRequiredService<IIncomingArtifactRetentionStore>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>());
         Assert.IsType<BoxDocumentContentStore>(
             scope.ServiceProvider.GetRequiredService<IDocumentContentStore>());
     }
@@ -232,7 +400,8 @@ public sealed class ProductionCompositionTests
                     "https://upload.box.com/api/2.0/",
                     "405543781910",
                     "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
-                    "client-secret")));
+                    "client-secret",
+                    "test-holding-folder")));
         using var provider = services.BuildServiceProvider();
 
         Assert.IsType<AzureBlobIntakeArtifactStore>(
@@ -255,6 +424,31 @@ public sealed class ProductionCompositionTests
         return services.BuildServiceProvider();
     }
 
+    private static ServiceProvider BuildGlassProduction(Dictionary<string, string?> configuration)
+    {
+        var services = NewServices();
+        services.AddDataProtection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(configuration)
+            .Build());
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxOptions()));
+        return services.BuildServiceProvider();
+    }
+
+    private static Dictionary<string, string?> GlassConfiguration() => new(StringComparer.Ordinal)
+    {
+        ["Glass:MarketValueAssessorBaseUri"] = "https://mva.example.test/",
+        ["Glass:EstimatorBaseUri"] = "https://estimator.example.test/",
+        ["Glass:CallbackBaseUri"] = "https://pegasus.example.test/",
+        ["Glass:RepairProfileId"] = "17",
+    };
+
     private static ServiceCollection NewServices() => new();
 
     private static void ConfigureDatabase(IServiceProvider _, DbContextOptionsBuilder options) =>
@@ -265,7 +459,8 @@ public sealed class ProductionCompositionTests
         "https://upload.box.com/api/2.0/",
         "405543781910",
         BoxConfigJson,
-        "client-secret");
+        "client-secret",
+        "test-holding-folder");
 
     private sealed class CompositionCredential : TokenCredential
     {

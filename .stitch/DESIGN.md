@@ -96,6 +96,11 @@ spacing:
 
 # Design System: Pegasus Operator Interface
 
+This is historical comparison material. Current interface requirements and
+component rules are owned by [the design authority](../docs/design/README.md).
+The accepted v3 design and later operator decisions supersede conflicting
+layout, signatory, account-review and Triage rules in this captured guide.
+
 Pegasus is Collision Engineers' case-management system for independent vehicle
 assessors. Its users are trained staff working queues of email intake, vehicle
 cases, triage and engineer assessments all day on desktop monitors. This is a

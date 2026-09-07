@@ -37,58 +37,6 @@ internal sealed class CaseDataFieldEntity
     public DateTimeOffset? ConfirmedAtUtc { get; set; }
 }
 
-internal static class CaseDataFieldNames
-{
-    public const string WorkProviderCode = "work_provider_code";
-    public const string ClaimantName = "claimant_name";
-    public const string ClaimantContactNumber = "claimant_contact_number";
-    public const string ClaimantAddress = "claimant_address";
-    public const string ClaimNumber = "claim_number";
-    public const string VehicleRegistration = "vehicle_registration";
-    public const string VehicleMake = "vehicle_make";
-    public const string VehicleModel = "vehicle_model";
-    public const string VehicleMileage = "vehicle_mileage";
-    public const string VehicleMileageUnit = "vehicle_mileage_unit";
-    public const string AccidentCircumstances = "accident_circumstances";
-    public const string IncidentDate = "incident_date";
-    public const string ContactName = "contact_name";
-    public const string ContactEmailAddress = "contact_email_address";
-    public const string ContactPhoneNumber = "contact_phone_number";
-    public const string InstructionDate = "instruction_date";
-    public const string VatStatus = "vat_status";
-    public const string InspectionDate = "inspection_date";
-    public const string InspectionDeadline = "inspection_deadline";
-    public const string InspectionAddress = "inspection_address";
-    public const string InspectionMode = "inspection_mode";
-    public const string StorageLocation = "storage_location";
-
-    public static readonly string[] All =
-    [
-        WorkProviderCode,
-        ClaimantName,
-        ClaimantContactNumber,
-        ClaimantAddress,
-        ClaimNumber,
-        VehicleRegistration,
-        VehicleMake,
-        VehicleModel,
-        VehicleMileage,
-        VehicleMileageUnit,
-        AccidentCircumstances,
-        IncidentDate,
-        ContactName,
-        ContactEmailAddress,
-        ContactPhoneNumber,
-        InstructionDate,
-        VatStatus,
-        InspectionDate,
-        InspectionDeadline,
-        InspectionAddress,
-        InspectionMode,
-        StorageLocation
-    ];
-}
-
 internal static class CaseDataCodes
 {
     public const string Fact = "fact";

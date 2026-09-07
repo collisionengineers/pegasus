@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 
@@ -24,7 +25,8 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
                 && item.ExpiresAtUtc > nowUtc
                 && item.ApprovedMailbox.State == approved
                 && item.ApprovedMailbox.AllowInboundIntake
-                && item.ApprovedMailbox.ActivatedAtUtc != null,
+                && item.ApprovedMailbox.ActivatedAtUtc != null
+                && item.Generation == item.ApprovedMailbox.MailboxGeneration,
                 cancellationToken);
         return entity is null ? null : Map(entity);
     }
@@ -64,6 +66,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
                 (mailbox, subscriptions) => new { mailbox, subscription = subscriptions.SingleOrDefault() })
             .Where(item => item.subscription == null
                 || item.subscription.LifecycleState != active
+                || item.subscription.Generation != item.mailbox.MailboxGeneration
                 || item.subscription.LastMaintainedAtUtc == null
                 || item.subscription.LastMaintainedAtUtc <= maintenanceDueBeforeUtc)
             .OrderBy(item => item.mailbox.Id)
@@ -73,20 +76,41 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
                 item.mailbox.Id,
                 item.mailbox.MailboxIdentity!,
                 item.mailbox.InboxFolderIdentity!,
-                item.subscription is null ? null : Map(item.subscription)))
+                item.subscription is null ? null : Map(item.subscription),
+                item.mailbox.MailboxGeneration))
             .ToArray();
     }
 
     public async Task SaveAsync(
         ApprovedMailboxSubscription subscription,
+        string? expectedPriorSubscriptionId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(subscription);
         Validate(subscription);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var approved = ApprovedMailboxState.Approved.ToString();
+        var mailbox = await context.ApprovedMailboxes.SingleOrDefaultAsync(
+            item => item.Id == subscription.ApprovedMailboxId,
+            cancellationToken);
         var entity = await context.ApprovedMailboxSubscriptions.SingleOrDefaultAsync(
             item => item.ApprovedMailboxId == subscription.ApprovedMailboxId,
             cancellationToken);
+        if (mailbox is null
+            || mailbox.State != approved
+            || !mailbox.AllowInboundIntake
+            || mailbox.ActivatedAtUtc is null
+            || mailbox.MailboxGeneration != subscription.Generation
+            || !string.Equals(
+                entity?.SubscriptionId,
+                expectedPriorSubscriptionId,
+                StringComparison.Ordinal))
+        {
+            throw new ApprovedMailboxSubscriptionMaintenanceLostException();
+        }
         if (entity is null)
         {
             entity = new ApprovedMailboxSubscriptionEntity
@@ -104,31 +128,55 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         entity.LifecycleState = subscription.LifecycleState.ToString();
         entity.LastMaintainedAtUtc = subscription.LastMaintainedAtUtc;
         entity.LastMaintenanceFailureCode = subscription.LastMaintenanceFailureCode;
+        entity.Generation = subscription.Generation;
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task RecordMaintenanceFailureAsync(
         Guid approvedMailboxId,
+        long expectedGeneration,
+        string? expectedSubscriptionId,
         string failureCode,
         DateTimeOffset attemptedAtUtc,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(failureCode);
-        if (approvedMailboxId == Guid.Empty || failureCode.Length > 100)
+        if (approvedMailboxId == Guid.Empty
+            || expectedGeneration <= 0
+            || expectedSubscriptionId?.Length > 200
+            || failureCode.Length > 100)
         {
             throw new ArgumentException("Valid mailbox and failure identities are required.");
         }
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var approved = ApprovedMailboxState.Approved.ToString();
+        var mailbox = await context.ApprovedMailboxes.SingleOrDefaultAsync(
+            item => item.Id == approvedMailboxId,
+            cancellationToken);
         var entity = await context.ApprovedMailboxSubscriptions.SingleOrDefaultAsync(
             item => item.ApprovedMailboxId == approvedMailboxId,
             cancellationToken);
-        if (entity is null)
+        if (mailbox is null
+            || mailbox.State != approved
+            || !mailbox.AllowInboundIntake
+            || mailbox.ActivatedAtUtc is null
+            || mailbox.MailboxGeneration != expectedGeneration
+            || entity?.Generation != expectedGeneration
+            || !string.Equals(
+                entity.SubscriptionId,
+                expectedSubscriptionId,
+                StringComparison.Ordinal))
         {
-            return;
+            throw new ApprovedMailboxSubscriptionMaintenanceLostException();
         }
         entity.LastMaintainedAtUtc = attemptedAtUtc;
         entity.LastMaintenanceFailureCode = failureCode;
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static ApprovedMailboxSubscription Map(ApprovedMailboxSubscriptionEntity entity) => new(
@@ -138,7 +186,8 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         entity.ExpiresAtUtc,
         Enum.Parse<ApprovedMailboxSubscriptionLifecycleState>(entity.LifecycleState),
         entity.LastMaintainedAtUtc,
-        entity.LastMaintenanceFailureCode);
+        entity.LastMaintenanceFailureCode,
+        entity.Generation);
 
     private static void Validate(ApprovedMailboxSubscription subscription)
     {
@@ -148,6 +197,7 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             || string.IsNullOrWhiteSpace(subscription.Resource)
             || subscription.Resource.Length > 500
             || !Enum.IsDefined(subscription.LifecycleState)
+            || subscription.Generation <= 0
             || subscription.LastMaintenanceFailureCode?.Length > 100)
         {
             throw new ArgumentException("The approved mailbox subscription is invalid.", nameof(subscription));

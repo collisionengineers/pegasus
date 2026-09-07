@@ -112,6 +112,55 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task ReviewGatedTransitionsRefuseOnIncompletePersistedFacts()
+    {
+        // CASE-046: the gate reads the case's own Instruction complete and
+        // Images complete columns inside the transition's transaction. The
+        // request still carries the old readiness envelope claiming both are
+        // true, and it changes nothing.
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET InstructionComplete = {false} WHERE Id = {harness.CaseId}");
+        }
+
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-return-refused"),
+            default);
+        await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
+            harness.Store.ReturnToReviewAsync(
+                new(
+                    harness.CaseId,
+                    0,
+                    actor,
+                    "return-to-review-refused",
+                    "Claimed readiness the record does not hold",
+                    lease.Token,
+                    new(true, true, "case-completeness-projection")),
+                default));
+
+        await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
+            harness.Store.AssignEngineerAsync(
+                new(
+                    harness.CaseId,
+                    0,
+                    actor,
+                    "assign-engineer-refused",
+                    "Claimed readiness the record does not hold",
+                    lease.Token,
+                    Guid.NewGuid(),
+                    new(true, true, "case-completeness-projection")),
+                null,
+                default));
+
+        var workflow = Assert.IsType<CaseWorkflowRecord>(
+            await harness.Store.GetAsync(harness.CaseId, default));
+        Assert.Equal(0, workflow.Version);
+    }
+
+    [Fact]
     public async Task StartRejectsEngineerDisabledAfterAssignment()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
@@ -161,9 +210,9 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(CaseLifecycleState.ReportPreparation, started.State);
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(3));
 
-        const string mailboxId = "report-auto-link-mailbox";
-        const string mailboxAddress = "instructions@collisionengineers.co.uk";
-        const string sentFolderId = "report-auto-link-sent-folder";
+        const string mailboxId = WorkflowHarness.ApprovedMailboxIdentity;
+        const string mailboxAddress = WorkflowHarness.ApprovedMailboxAddress;
+        const string sentFolderId = WorkflowHarness.ApprovedSentFolderIdentity;
         const string immutableItemId = "report-auto-link-item";
         var item = new ApprovedSentItem(
             "report-auto-link-occurrence",
@@ -203,6 +252,10 @@ public sealed class CaseWorkflowPersistenceTests
         var worker = ActionActor.SystemWorker("sent-evidence-poll");
 
         var first = await poll.ExecuteAsync(1, 10, worker, default);
+        // The completing poll schedules the next claim a minute out; the
+        // replay below must be a real due claim, so the fixture clock moves
+        // past that delay first.
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(2));
         var replay = await poll.ExecuteAsync(1, 10, worker, default);
 
         Assert.Equal(first, replay);
@@ -1499,6 +1552,144 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task AdministratorClearsTheExactStaffLeaseAndExactReplayReturnsItsOutcome()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holderId = Guid.NewGuid();
+        var holder = ActionActor.Staff(holderId, [StaffRole.User]);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "claim-for-admin-clear"),
+            default);
+        var request = new ClearCaseEditLeaseRequest(
+            harness.CaseId,
+            holderId,
+            lease.Generation,
+            administrator,
+            "admin-clear",
+            "User cannot close the editor");
+        var command = new ClearCaseEditLease(harness.Store);
+
+        var cleared = await command.ExecuteAsync(request, default);
+        var replay = await command.ExecuteAsync(request, default);
+
+        Assert.Equal(cleared, replay);
+        Assert.Equal(lease.Generation, cleared.LeaseGeneration);
+        Assert.Equal(0, cleared.CaseVersion);
+        Assert.False(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
+        Assert.Equal(1, await harness.LeaseOperationCountAsync(harness.CaseId, "admin-clear"));
+        Assert.Equal(
+            1,
+            await harness.WorkflowEventTypeCountAsync(
+                harness.CaseId,
+                "case_edit_lease_administratively_cleared"));
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
+    }
+
+    [Fact]
+    public async Task AdministrativeClearRejectsWrongTargetGenerationAndChangedReplayMaterial()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holderId = Guid.NewGuid();
+        var holder = ActionActor.Staff(holderId, [StaffRole.User]);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "claim-for-admin-refusal"),
+            default);
+        var command = new ClearCaseEditLease(harness.Store);
+        var request = new ClearCaseEditLeaseRequest(
+            harness.CaseId,
+            holderId,
+            lease.Generation,
+            administrator,
+            "admin-clear-refusal",
+            "User cannot close the editor");
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            command.ExecuteAsync(request with { ExpectedHolderUserId = Guid.NewGuid() }, default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            command.ExecuteAsync(request with { ExpectedLeaseGeneration = lease.Generation + 1 }, default));
+        Assert.True(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
+
+        await command.ExecuteAsync(request, default);
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            command.ExecuteAsync(request with { Reason = "Changed reason" }, default));
+    }
+
+    [Fact]
+    public async Task EachClaimAdvancesLeaseGenerationAndStaleClearCannotRemoveReplacement()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holderId = Guid.NewGuid();
+        var holder = ActionActor.Staff(holderId, [StaffRole.User]);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var first = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "first-generation"),
+            default);
+        await harness.Store.ReleaseAsync(
+            new(harness.CaseId, holder, "release-first-generation", first.Token),
+            default);
+        var replacement = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "replacement-generation"),
+            default);
+
+        Assert.Equal(first.Generation + 1, replacement.Generation);
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            new ClearCaseEditLease(harness.Store).ExecuteAsync(
+                new(
+                    harness.CaseId,
+                    holderId,
+                    first.Generation,
+                    administrator,
+                    "stale-admin-clear",
+                    "Stale screen"),
+                default));
+
+        var stillHeld = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, holder, replacement.Token),
+            default);
+        Assert.Equal(replacement.Generation, stillHeld.Generation);
+    }
+
+    [Fact]
+    public async Task ConcurrentRenewAndAdministrativeClearSerializeWithTheLeaseCleared()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holderId = Guid.NewGuid();
+        var holder = ActionActor.Staff(holderId, [StaffRole.User]);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "claim-for-concurrent-clear"),
+            default);
+
+        var renew = Record.ExceptionAsync(() => harness.Store.RenewAsync(
+            new(
+                harness.CaseId,
+                0,
+                holder,
+                "renew-concurrent-with-clear",
+                lease.Token),
+            default));
+        var clear = new ClearCaseEditLease(harness.Store).ExecuteAsync(
+            new(
+                harness.CaseId,
+                holderId,
+                lease.Generation,
+                administrator,
+                "clear-concurrent-with-renew",
+                "User cannot close the editor"),
+            default);
+
+        var renewException = await renew;
+        await clear;
+
+        Assert.True(renewException is null or CaseEditLeaseExpiredException);
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
+    }
+
+    [Fact]
     public async Task ALiveLeaseProjectsItsHolderAndExpiryAndAnExpiredOneProjectsNoActiveEditor()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
@@ -2132,6 +2323,10 @@ public sealed class CaseWorkflowPersistenceTests
 
     private sealed class WorkflowHarness : IAsyncDisposable
     {
+        public const string ApprovedMailboxIdentity = "instructions";
+        public const string ApprovedMailboxAddress = "instructions@collisionengineers.co.uk";
+        public const string ApprovedSentFolderIdentity = "sent-items";
+
         private static readonly DateTimeOffset StartUtc =
             new(2026, 7, 29, 9, 0, 0, TimeSpan.Zero);
         private readonly LocalDbTestDatabase database;
@@ -2330,7 +2525,8 @@ public sealed class CaseWorkflowPersistenceTests
                 var timeProvider = new MutableTimeProvider(StartUtc);
                 var organizationId = Guid.NewGuid();
                 var tstLineageId = Guid.NewGuid();
-                var qdosLineageId = Guid.NewGuid();
+                var qdos = await SeededPrincipals.QdosAsync(context);
+                var qdosLineageId = qdos.SequenceLineageId;
                 var principalId = Guid.NewGuid();
                 var engineerId = Guid.NewGuid();
                 var caseId = Guid.NewGuid();
@@ -2340,16 +2536,21 @@ public sealed class CaseWorkflowPersistenceTests
                 var secondCaseReceiptId = Guid.NewGuid();
                 var notReadyReceiptId = Guid.NewGuid();
 
-                await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"UPDATE ApprovedMailboxes SET AllowSentEvidence = {true}, Version = {2} WHERE Address = {"instructions@collisionengineers.co.uk"}");
+                // The Sent-evidence mailbox as the approved estate records it: the
+                // stable mailbox and Sent-folder identities, activated, on the seeded
+                // row whose generation is already positive.
+                var mailbox = (await context.ApprovedMailboxes.FindAsync(
+                    await TestMailboxId.EnsureApprovedAsync(
+                        context, ApprovedMailboxIdentity, ApprovedMailboxAddress, StartUtc.AddDays(-1))))!;
+                mailbox.AllowSentEvidence = true;
+                mailbox.SentFolderIdentity = ApprovedSentFolderIdentity;
+                mailbox.Version = 2;
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Workflow test organization"}, {0L})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({tstLineageId}, {StartUtc}), ({qdosLineageId}, {StartUtc})");
+                    $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({tstLineageId}, {StartUtc})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"TST"}, {tstLineageId}, {true}, {0L})");
-                await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({Guid.NewGuid()}, {organizationId}, {"QDOS"}, {qdosLineageId}, {true}, {0L})");
                 var engineerRoleId = await context.Roles
                     .Where(role => role.NormalizedName == "ENGINEER")
                     .Select(role => role.Id)

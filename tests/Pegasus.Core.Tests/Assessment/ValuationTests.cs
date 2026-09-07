@@ -24,8 +24,47 @@ public sealed class ValuationTests
         Assert.False(ValuationSources.IsSupported((ValuationSource)99));
         Assert.Equal(
             [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue,
-                ValuationSource.AiMarketResearch],
+                ValuationSource.AiMarketResearch, ValuationSource.Brego, ValuationSource.SuperCap],
             Enum.GetValues<ValuationSource>());
+    }
+
+    /// <summary>
+    /// Collision Engineers reads the Glass's, Brego and Super CAP guides and
+    /// types the figure in; none of them is a live call here. Cazana stays a
+    /// disabled seam and AI market research is written only by the automation
+    /// completion, so neither is offered to the staff save and edit actions.
+    /// </summary>
+    [Fact]
+    public void OnlyTheTypedGuidesAndTheEngineersValueAreManuallyRecordable()
+    {
+        Assert.All(
+            new[]
+            {
+                ValuationSource.Glasses,
+                ValuationSource.Brego,
+                ValuationSource.SuperCap,
+                ValuationSource.EngineersValue
+            },
+            source => Assert.True(ValuationPolicy.IsManuallyRecordable(source)));
+        Assert.False(ValuationPolicy.IsManuallyRecordable(ValuationSource.Cazana));
+        Assert.False(ValuationPolicy.IsManuallyRecordable(ValuationSource.AiMarketResearch));
+    }
+
+    /// <summary>
+    /// The guide month is the month the figure was published, which is a
+    /// different fact from the day it was recorded. It is held as the first
+    /// day of that month so two cards for the same month compare as one
+    /// value.
+    /// </summary>
+    [Fact]
+    public void AGuideMonthIsHeldAsTheFirstDayOfItsMonth()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(Details(guideMonth: new DateOnly(2030, 4, 2))));
+
+        var details = Details(guideMonth: new DateOnly(2030, 4, 1));
+        Assert.Equal(details, ValuationPolicy.ValidateDetails(details));
+        Assert.Null(ValuationPolicy.ValidateDetails(Details()).GuideMonth);
     }
 
     [Fact]
@@ -130,13 +169,24 @@ public sealed class ValuationTests
         var glasses = await save.ExecuteAsync(
             SaveRequest(User, "valuation-user-glasses"),
             CancellationToken.None);
-        var cazana = await save.ExecuteAsync(
-            SaveRequest(User, "valuation-user-cazana", ValuationSource.Cazana),
+
+        var brego = await save.ExecuteAsync(
+            SaveRequest(User, "valuation-user-brego", ValuationSource.Brego),
+            CancellationToken.None);
+        var superCap = await save.ExecuteAsync(
+            SaveRequest(User, "valuation-user-super-cap", ValuationSource.SuperCap),
             CancellationToken.None);
 
         Assert.Equal(ValuationSource.Glasses, glasses.Details.Source);
-        Assert.Equal(ValuationSource.Cazana, cazana.Details.Source);
-        Assert.Equal(2, store.Saves.Count);
+        Assert.Equal(ValuationSource.Brego, brego.Details.Source);
+        Assert.Equal(ValuationSource.SuperCap, superCap.Details.Source);
+        Assert.Equal(3, store.Saves.Count);
+
+        // Cazana is a disabled seam, not a source staff may type in.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            save.ExecuteAsync(
+                SaveRequest(User, "valuation-user-cazana", ValuationSource.Cazana),
+                CancellationToken.None));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             save.ExecuteAsync(
@@ -206,8 +256,16 @@ public sealed class ValuationTests
         ValuationSource source = ValuationSource.Glasses,
         long mileage = 45000,
         decimal retail = 12000m,
-        decimal trade = 10000m) =>
-        new(source, new DateOnly(2030, 5, 6), new TimeOnly(10, 30), mileage, retail, trade);
+        decimal trade = 10000m,
+        DateOnly? guideMonth = null) =>
+        new(
+            source,
+            new DateOnly(2030, 5, 6),
+            new TimeOnly(10, 30),
+            mileage,
+            retail,
+            trade,
+            guideMonth);
 
     private sealed class RecordingStore : IValuationStore
     {

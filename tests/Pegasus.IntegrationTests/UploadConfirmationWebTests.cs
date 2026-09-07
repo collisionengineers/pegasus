@@ -299,7 +299,38 @@ public sealed class UploadConfirmationWebTests
             ]);
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
-        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        Guid[] stagedReceiptIds;
+        await using (var lookupScope = factory.Services.CreateAsyncScope())
+        {
+            var group = await lookupScope.ServiceProvider
+                .GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId)
+                ?? throw new InvalidOperationException("The upload group was not persisted.");
+            stagedReceiptIds = group.Members
+                .OrderBy(member => member.Ordinal)
+                .Select(member => member.StagedReceiptId)
+                .ToArray();
+        }
+
+        // The normal test helper drains whichever same-due work item the
+        // store chooses next. Dispatch both members first, then process their
+        // recorded submission order so the rail's U references are stable.
+        await using (var dispatchScope = factory.Services.CreateAsyncScope())
+        {
+            var dispatcher = new DispatchPendingIntakeWork(
+                dispatchScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>(),
+                new IntakeWebDriver.NoOpIntakeWorkEnqueuer(),
+                dispatchScope.ServiceProvider.GetRequiredService<TimeProvider>());
+            Assert.Equal(2, await dispatcher.ExecuteAsync(2));
+        }
+
+        await using (var processScope = factory.Services.CreateAsyncScope())
+        {
+            var processor = IntakeWebDriver.CreateProcessor(processScope.ServiceProvider);
+            await processor.ExecuteAsync(stagedReceiptIds[0]);
+            await processor.ExecuteAsync(stagedReceiptIds[1]);
+        }
+
         await using (var reconcileScope = factory.Services.CreateAsyncScope())
         {
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);

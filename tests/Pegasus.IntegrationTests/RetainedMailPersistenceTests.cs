@@ -26,6 +26,64 @@ public sealed class RetainedMailPersistenceTests
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task LocalEmailDisplayUsesStructuredReplyToInsteadOfOtherAddressHeaders()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.Sender = new MailboxAddress("Transport", "transport@example.invalid");
+            message.ReplyTo.Add(new MailboxAddress("Replies", "replies@example.invalid"));
+            message.To.Add(new MailboxAddress("To", "to@example.invalid"));
+            message.Cc.Add(new MailboxAddress("Copy", "copy@example.invalid"));
+        });
+
+        Assert.Equal(["replies@example.invalid"], display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task LocalEmailDisplayUsesActualFromMailboxesOnlyWhenReplyToIsAbsent()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("First", "first@example.invalid"));
+            message.From.Add(new MailboxAddress("Second", "second@example.invalid"));
+            message.Sender = new MailboxAddress("Transport", "transport@example.invalid");
+            message.To.Add(new MailboxAddress("To", "to@example.invalid"));
+        });
+
+        Assert.Equal(
+            ["first@example.invalid", "second@example.invalid"],
+            display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task LocalEmailDisplayPreservesMultipleReplyToMailboxOrder()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.ReplyTo.Add(new MailboxAddress("First reply", "first-reply@example.invalid"));
+            message.ReplyTo.Add(new MailboxAddress("Second reply", "second-reply@example.invalid"));
+        });
+
+        Assert.Equal(
+            ["first-reply@example.invalid", "second-reply@example.invalid"],
+            display.ReplyToAddresses);
+    }
+
+    [Fact]
+    public async Task PresentButUnusableReplyToDoesNotFallBackToFrom()
+    {
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.From.Add(new MailboxAddress("From", "from@example.invalid"));
+            message.Headers.Add(HeaderId.ReplyTo, string.Empty);
+        });
+
+        Assert.Empty(display.ReplyToAddresses);
+    }
+
+    [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {
         var message = new MimeMessage();
@@ -159,12 +217,115 @@ public sealed class RetainedMailPersistenceTests
 
         var detail = Assert.IsType<RetainedMailDetail>(
             await queries.GetAsync(summary.Id, CancellationToken.None));
+        Assert.Equal("message-1", detail.ImmutableMessageId);
+        Assert.Equal("<message-1@example.invalid>", detail.InternetMessageId);
+        Assert.Equal("conversation-1", detail.ConversationId);
         Assert.Equal(["intake@collisionengineers.co.uk"], detail.ToAddresses);
         Assert.Equal(["copied@collisionengineers.co.uk"], detail.CcAddresses);
+        Assert.Equal(["reply@example.invalid"], detail.ReplyToAddresses);
         Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
         var attachment = Assert.Single(detail.Attachments);
         Assert.Equal("estimate.pdf", attachment.FileName);
         Assert.Equal(2048, attachment.ContentLength);
+    }
+
+    [Fact]
+    public async Task OriginMailboxReceiptResolvesItsExactRetainedMessage()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("origin-query");
+        await RetainAsync(database, message);
+        var receipt = await StoreClassifiedReceiptAsync(
+            database,
+            message,
+            MailClassificationResult.Unclassified([], "Fixture.", "test", 1));
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetByOriginReceiptAsync(receipt.Id, CancellationToken.None));
+
+        Assert.Equal("origin-query", detail.ImmutableMessageId);
+        Assert.Equal(
+            await database.ScalarAsync<Guid>(
+                "SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = 'origin-query';"),
+            detail.Summary.Id);
+    }
+
+    [Fact]
+    public async Task OriginReceiptLookupReturnsNullOutsideTheExactMailboxMapping()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var nonMailboxId = Guid.NewGuid();
+        var missingTokenId = Guid.NewGuid();
+        var unretainedId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var missingToken = Receipt(missingTokenId, "");
+            missingToken.SourceChannel = "mailbox";
+            var unretained = Receipt(unretainedId, "origin:unretained");
+            unretained.SourceChannel = "mailbox";
+            context.IntakeReceipts.AddRange(
+                Receipt(nonMailboxId, "origin:non-mailbox"),
+                missingToken,
+                unretained);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        Assert.Null(await queries.GetByOriginReceiptAsync(Guid.NewGuid(), CancellationToken.None));
+        Assert.Null(await queries.GetByOriginReceiptAsync(nonMailboxId, CancellationToken.None));
+        Assert.Null(await queries.GetByOriginReceiptAsync(missingTokenId, CancellationToken.None));
+        Assert.Null(await queries.GetByOriginReceiptAsync(unretainedId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OriginReceiptLookupRefusesAnAmbiguousRetainedToken()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var first = Message("ambiguous-origin");
+        var second = Message("ambiguous-origin-copy") with
+        {
+            ExternalReceiptToken = first.ExternalReceiptToken
+        };
+        await RetainAsync(database, first);
+        await RetainAsync(database, second);
+        var receipt = await StoreClassifiedReceiptAsync(
+            database,
+            first,
+            MailClassificationResult.Unclassified([], "Fixture.", "test", 1));
+
+        await using var scope = database.CreateAsyncScope();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetByOriginReceiptAsync(receipt.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task MissingStoredReplyToMetadataRemainsUnavailable()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message("message-without-reply-metadata"));
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.RetainedMailboxMessages.ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.ReplyToAddressesJson, (string?)null));
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(
+                await database.ScalarAsync<Guid>(
+                    "SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = 'message-without-reply-metadata';"),
+                CancellationToken.None));
+
+        Assert.Null(detail.ReplyToAddresses);
     }
 
     [Fact]
@@ -1419,6 +1580,20 @@ public sealed class RetainedMailPersistenceTests
         return output.ToArray();
     }
 
+    private static async Task<LocalEmailDisplay> ReadDisplayAsync(Action<MimeMessage> configure)
+    {
+        var message = new MimeMessage
+        {
+            Subject = "Reply target fixture",
+            Body = new TextPart("plain") { Text = "Body" }
+        };
+        configure(message);
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        stream.Position = 0;
+        return await LocalEmailDisplayReader.ReadAsync(stream, CancellationToken.None);
+    }
+
     private static RetainedMailboxMessage Message(
         string immutableMessageId,
         string? subject = "An instruction",
@@ -1444,6 +1619,7 @@ public sealed class RetainedMailPersistenceTests
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
+            ["reply@example.invalid"],
             subject,
             bodyPlainText,
             [new("estimate.pdf", "application/pdf", 2048)],
@@ -1490,30 +1666,17 @@ public sealed class RetainedMailPersistenceTests
     private static async Task<(Guid CaseId, Guid OtherCaseId)> SeedQueryCasesAsync(
         LocalDbTestDatabase database)
     {
-        var organizationId = Guid.NewGuid();
-        var lineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
         var originId = Guid.NewGuid();
         var otherOriginId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         var otherCaseId = Guid.NewGuid();
         await using var context = await database.CreateContextAsync();
+        var principal = await SeededPrincipals.QdosAsync(context);
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "Query test", Version = 0 },
-            new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = ReceivedAtUtc },
-            new PrincipalEntity
-            {
-                Id = principalId,
-                OrganizationId = organizationId,
-                SequenceLineageId = lineageId,
-                Code = "QDOS",
-                IsActive = true,
-                Version = 0
-            },
             Receipt(originId, "origin:query-test"),
             Receipt(otherOriginId, "origin:query-test-other"),
-            Case(caseId, principalId, lineageId, originId, 1),
-            Case(otherCaseId, principalId, lineageId, otherOriginId, 2),
+            Case(caseId, principal.Id, principal.SequenceLineageId, originId, 1),
+            Case(otherCaseId, principal.Id, principal.SequenceLineageId, otherOriginId, 2),
             Workflow(caseId),
             Workflow(otherCaseId));
         await context.SaveChangesAsync();
@@ -1611,6 +1774,7 @@ public sealed class RetainedMailPersistenceTests
                 "Sender",
                 [MailboxAddress],
                 [],
+                ["sender@example.invalid"],
                 "Subject",
                 "Body",
                 [],

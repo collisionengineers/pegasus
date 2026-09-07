@@ -37,6 +37,10 @@ at all, a member of staff supplies the physical location directly at Case
 creation and it is retained with their identity as its source; the prohibition
 is on Pegasus inferring an address, never on a person stating one.
 
+Every assessment is desktop. The report address is blank, `Image Based
+Assessment`, or a selected physical vehicle location with recorded provenance;
+it never states attendance.
+
 A manual selection of `Image Based Assessment`, and any override of the
 autofilled mode, requires an attributed staff reason in permanent Case
 history; the always-image-based autofill records its provider-setting
@@ -159,9 +163,11 @@ fills the field only when chosen, with the accepted value recorded as above.
 There is no checks panel and no suggestion table. Experian stays a disabled
 seam (D7, `ENG-001`).
 
-**Source limitation:** no allowed source selects the live DVLA/DVSA provider,
-API, licence, exact response fields, credentials, rate/limit behavior, error
-contract, target, or caller proof. Those items remain activation gates.
+**Evidence boundary:** the DVLA/DVSA production adapter and its composition
+exist. Returned fields remain source-labelled suggestions; unavailable fields
+are explicit and never inferred. Credential configuration, an exact deployed
+artifact, real caller/failure evidence and operator acceptance remain separate
+from source presence.
 Vehicle enrichment does not activate valuation behavior.
 
 ### Professional engineering findings and correction
@@ -202,9 +208,12 @@ advice, Engineer approval, or product policy merely by existing.
 
 ### Damage record
 
-Damage is a list of zones (D39, 2026-09-02): front, left front, right front,
-left side, right side, left rear, right rear, rear, roof, the four wheels,
-underside, interior and mechanical. Each zone carries a severity and a note;
+The retired D18 Engineer name, qualifications and signature readiness items
+are removed. The Sign-off Engineer account tuple is their sole owner
+(ENG-038).
+
+Damage records use 23 detailed regions with a parent-region map beside the
+broad regions. Each region carries a severity and a note;
 collision work has no separate damage type (D45, 2026-09-03). The record also
 carries tyres and seat belts per corner, the spare tyre, the centre belt,
 unrelated damage with its deduction, and paint or
@@ -215,9 +224,9 @@ diagram
 
 ### Valuation sources
 
-The valuation sources in this programme are Glass's (valuation), Cazana (a
-disabled seam under D7), Engineer's Value and AI market research (D40,
-2026-09-02). Every entry keeps its date, time, mileage, retail and trade
+Valuation records keep guide month and source: Glass's, Brego and Super CAP
+are manual sources; Cazana is a disabled seam; AI market research is
+automation-only. Every entry keeps its date, time, mileage, retail and trade
 values; guide month is an additional per-entry field owned by `CASE-029`
 (EPIC-012 context). Glass's
 valuation and Glass's repair estimating are two systems and both are used:
@@ -225,8 +234,12 @@ the valuation source and the estimate import source keep separate label
 entries and are never merged. An AI market research entry is the proposal
 recorded by the `MarketResearch` job
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list));
-it never becomes the Engineer's Value by itself. Valuation adjustments,
-rationale and revaluation history stay with `EXT-10` (later).
+it never becomes the Engineer's Value by itself. Engineer's Value is adopted
+only by an explicit Apply using this order: commercial VAT 20%, prior total
+loss 10% or 20%, fixed additions, then condition deduction, with whole-pound
+rounding away from zero. A generic assessment save never writes the adopted
+value (AUTO-015). Valuation adjustments, rationale and revaluation history
+stay with `EXT-10` (later).
 
 ### Settlement
 
@@ -280,7 +293,7 @@ When DVSA history must estimate Case mileage, Pegasus preserves raw observations
 
 This deliberately favours a reviewable abstention or qualified range over a plausible but unsupported mileage value. It applies only after the separately accepted DVSA/DVLA route, input contract, and caller evidence activate vehicle enrichment; it neither selects a provider nor authorises an external call.
 
-- **Deferred:** DVLA/DVSA provider selection, licence, contract, credentials, caller, and live activation remain open.
+- **Activation evidence:** the DVLA/DVSA adapter is selected and composed; credentials, real caller evidence and live acceptance remain independently evidenced.
 - **Preserved seam:** raw observations, normalized units, model/rule version, estimate/range, calibration evidence, and staff disposition remain distinct source-labelled identities.
 - **Excluded:** this creates no provider adapter, scheduled lookup, cohort dataset, automatic external call, or unreviewed Case mutation.
 - **Activation evidence:** representative chronological holdouts, contract and failure/recovery proof, a real caller, and operator acceptance are required.

@@ -12,6 +12,52 @@ Repository maintainers are authorized to maintain and organize repository docume
 
 Code, references, plans, predecessor behaviour, and tool availability do not override this authority. Everything recorded here is authoritative operator truth.
 
+## Current v1 decisions — 6 September 2026
+
+These later direct operator decisions govern conflicting earlier descriptions
+below. Earlier observations remain historical evidence, not current delivery
+claims. The implementation instruction activates the approved three-stream
+plan; the planning package's former planning-only boundary is not a product
+restriction.
+
+- The v3 interface is the target, subject to the task and later answers.
+  Engineering and final reports are completed in Pegasus. EVA is optional.
+- Integrate Glass's repair estimates, not its valuation service. Credentials
+  are per Engineer in Administration. Initial alex configuration and all live
+  Glass's acceptance belong to the operator; no secret is seeded.
+- Triage is separate from normal Case/PO allocation. Its global increasing
+  `T-00001` sequence has no yearly or Principal reset or reuse. Formal
+  instructions allocate a normal Case and link the Triage.
+- Administrators onboard existing authorized Microsoft 365 mailboxes through
+  Pegasus. Mailbox creation and one-time infrastructure setup are separate.
+- Staff initiate every report and chaser send. Sent evidence must be truthful;
+  there are no unattended scheduled chasers or autonomous connector sends.
+- Unknown repairer VAT requires explicit status or VAT-category selection
+  before estimate totals can be accepted.
+- Include address suggestions and configurable Principal defaults for the
+  `Image Based Assessment` location. Preserve provider-controlled report
+  addresses; a physical address does not imply CE attendance.
+- HDUK-branded instructions in the supplied YML samples belong to the
+  confirmed YML route. Preserve document issuer separately from Principal.
+- Existing application email/Case data is disposable development data. Build
+  one target schema without obsolete-data conversion. This is no permission
+  to delete source references or perform an unreviewed cloud reset.
+- Three scoped owner tickets deliver exactly three replacement PRs to `dev`,
+  left open and unmerged. Required work from PRs 639, 646, 670 and 671 is
+  preserved and verified before those PRs close as superseded. Preserve their
+  original branches and evidence; existing tickets get reasoned dispositions.
+- Defer the one-off customer workflow and additional spreadsheet-driven
+  recipient/package/chase and garage-procedure automation. Include the named
+  location defaults, address suggestions and top-15 extraction.
+- Remove periodic account reviews. Include disable/delete access, password
+  reset, force logout and targeted lease clearance. Historical actor and
+  printed signatory records remain stable.
+- Box is durable file storage. Azure holds processing bytes and a 24-hour
+  idle cache. SQL retains minimal arrival, idempotency and provenance records.
+- Preserve the four-project architecture and one Core business-policy owner.
+  No prerelease compatibility layers, replacement platforms, generic workflow
+  engine or speculative abstractions are required.
+
 ## Evidence and delivery states
 
 > **Source labels:** `pre-consolidation operator source: README`; `pre-consolidation operator source: systems-and-integrations — README`; `pre-consolidation operator source: systems-and-integrations — cedocumentmapper`

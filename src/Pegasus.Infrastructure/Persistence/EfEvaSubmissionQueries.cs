@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core.Custody;
 using Pegasus.Core.Eva;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -90,18 +89,9 @@ public sealed class EfEvaSubmissionQueries(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // The same rows and state words EfEvaSubmissionWorkStore claims from:
-        // anything not yet completed or failed is still pending work.
-        var pending = await context.ExternalWorkItems
-            .AsNoTracking()
-            .CountAsync(
-                item => item.Kind == ExternalWorkKinds.SubmitCaseToEva
-                    && item.State != ExternalWorkStatePersistence.Completed
-                    && item.State != ExternalWorkStatePersistence.Failed,
-                cancellationToken);
         var latest = await context.EvaSubmissions
             .AsNoTracking()
             .MaxAsync(item => (DateTimeOffset?)item.SubmittedAtUtc, cancellationToken);
-        return new(pending, latest);
+        return new(latest);
     }
 }

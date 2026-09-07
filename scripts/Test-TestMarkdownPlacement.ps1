@@ -6,10 +6,35 @@ $ErrorActionPreference = 'Stop'
 
 $validator = Join-Path $PSScriptRoot 'Test-MarkdownPlacement.ps1'
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "pegasus-markdown-placement-$([guid]::NewGuid().ToString('N'))"
+$savedGitEnvironment = @{}
+$gitEnvironmentNames = @(Get-ChildItem Env:GIT_* | Select-Object -ExpandProperty Name)
+foreach ($name in $gitEnvironmentNames) {
+    $savedGitEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+    Remove-Item -LiteralPath "Env:$name"
+}
+
+function Assert-TemporaryRepositoryRoot {
+    $resolvedRoot = (Resolve-Path -LiteralPath $testRoot).Path
+    $expectedRoot = [System.IO.Path]::GetFullPath($testRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+    if (-not [string]::Equals($resolvedRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar), $expectedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Markdown fixture root resolved outside its temporary directory: '$resolvedRoot'."
+    }
+
+    $gitRoot = (& git -C $testRoot rev-parse --show-toplevel).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not [string]::Equals(
+        [System.IO.Path]::GetFullPath($gitRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar),
+        $expectedRoot,
+        [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Markdown fixture Git root is not its temporary directory: '$gitRoot'."
+    }
+}
 
 function Invoke-Git {
     param([Parameter(Mandatory)][string[]] $Arguments)
 
+    if ($Arguments[0] -ne 'init') {
+        Assert-TemporaryRepositoryRoot
+    }
     & git -C $testRoot @Arguments | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "Test setup Git command failed: git $($Arguments -join ' ')"
@@ -66,6 +91,7 @@ function Assert-Fails {
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     Invoke-Git -Arguments @('init', '--initial-branch=main')
+    Assert-TemporaryRepositoryRoot
     Invoke-Git -Arguments @('config', 'user.email', 'markdown-placement@example.invalid')
     Invoke-Git -Arguments @('config', 'user.name', 'Markdown Placement Test')
 
@@ -121,6 +147,10 @@ try {
 }
 finally {
     if (Test-Path -LiteralPath $testRoot) {
+        Assert-TemporaryRepositoryRoot
         Remove-Item -LiteralPath $testRoot -Recurse -Force
+    }
+    foreach ($name in $gitEnvironmentNames) {
+        [Environment]::SetEnvironmentVariable($name, $savedGitEnvironment[$name], 'Process')
     }
 }

@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 ## Unidentified intake boundary
 
@@ -25,6 +25,54 @@ Implementation, caller proof, deployment, and acceptance are distinct:
 Registration, tests, migration presence, generated infrastructure, predecessor behavior, and source imports do not by themselves prove a caller, deployment, authority, or acceptance.
 
 ## System shape
+
+### v1 development assembly
+
+PLAT-075 owns platform changes; CASE-047 owns Case engineering and reports;
+INTK-060 owns intake, directories and the shell. They consume identical shared
+Foundation commits and later shared corrections. This source assembly is not
+the release-38 deployment recorded in Operations.
+
+The platform extends the existing staff-account and Data Protection owners
+for access deletion, forced logout/reset, lease recovery and per-user external
+credentials. Approved mailboxes own generation-scoped Inbox/Sent polling.
+The staff-send engine persists draft/upload/submission progress; the retained
+MIME pipeline alone confirms Sent after exact operation/artifact correlation.
+The staged-artifact reconciliation function resumes Pending custody by its
+durable logical version. Box remains the durable content owner; the SQL-indexed
+Azure cache validates hashes and expires after 24 hours idle.
+
+Queued intake re-evaluation resolves the receipt's single retained source asset
+through the same logical content reader after its transient staging copy has
+been deleted. The Worker supplies the exact receipt, current Case, source hash
+and length; both content adapters require its system-work right and preserve
+the source association checks. Re-evaluation reuses the durable source identity
+and does not recreate staging or upload a second source copy.
+
+Request-link custody checks the current upload-link identity and Case binding.
+A short SQL transaction orders revocation against the Pending custody intent;
+provider storage runs after that acceptance commit. Worker retention uses its
+system-work right. Custody status reads also admit the exact active upload link
+for its own accepted artifacts. The status lookup can recover logical identities
+by the original operation key after a lost response; an absent row does not
+prove that an in-flight acceptance cannot commit or permit a new operation key.
+Matching Pending or Failed retention replays return the existing intent without
+another provider write; accepted Pending work remains owned by reconciliation.
+
+The `/mcp` adapters use persistent signing/encryption certificates and separate
+grant attribution. Authorized metadata precedes content reads; large documents
+use the same bearer-scoped exact-version streaming route. The source tool
+inventory contains the 43 existing tools plus `pegasus_estimate_import`.
+The import adapter refuses execution without B's canonical command binding;
+its combined caller validation remains pending. Discovery, working domain
+composition and real external-client acceptance remain distinct.
+
+Administration adds Action Logs, AI Jobs, Reports and Health over existing
+Core query owners. Action Logs combines permanent action history and security
+events in one SQL-paged projection with search, area, actor, operation, record,
+result, correlation and time filters plus chronological sorting.
+Source wiring and local validation do not establish that
+these pages, certificates or provider integrations are deployed.
 
 Pegasus is a four-project modular monolith:
 
@@ -91,16 +139,9 @@ superseding `Needs sorting` for that meaning — are owned by
 section reports how the running system is wired to them; it does not restate or
 compete with that owner.
 
-Two current engineering conventions are not yet stated in AGENTS.md and remain
-in force here:
-
-- Do not introduce horizontal `Common`, `Helpers`, `Utilities` packages or
-  version-suffixed names such as `V2`, `New`, or `Manager`.
-- Classifier and extraction precedence must be explicit, ordered, documented,
-  and covered by contradiction tests. External clients and catch paths
-  distinguish `terminal`, `transient`, and `unknown`; terminal outcomes stop
-  retries, unknown outcomes remain unknown, and metrics count successful effects
-  rather than attempts.
+Shared-code naming, classifier precedence and external-outcome conventions
+are owned by [AGENTS.md](../AGENTS.md#simplicity-rails). This snapshot describes
+their implementation rather than defining another operating contract.
 
 ## Current callers and entry points
 
@@ -162,13 +203,26 @@ in `src/Pegasus.Infrastructure/Vision/` behind the Core `ImageIntake`
 automation; [operations § dated evidence](operations.md#dated-evidence-qualifications) owns the accepted evaluation numbers.
 Implementation is not live-caller acceptance.
 
-The following remain planned or absent, not merely unverified:
+The following boundaries distinguish source capability from live proof:
 
-- broad Graph mailbox categorisation or any Graph mutation;
-- Document Intelligence OCR;
-- automated legacy DOC and MSG extraction;
-- provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
-- live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
+- Broad Graph mailbox categorisation, flag/delete/folder mutation and
+  unattended sending remain excluded. v1 adds the separately authorized
+  staff-initiated draft/send adapter; this branch has not been deployed.
+  `DevelopmentOffline` composes an explicit report-send refusal and no
+  Graph mail transport; it does not simulate a submitted or sent operation.
+- Document Intelligence has an optional Production Worker adapter and typed
+  external-work dispatch. `DocumentIntelligence:Endpoint` must be an absolute
+  HTTPS URI; the adapter reuses the Worker managed identity. Intake processing
+  and retained re-analysis enqueue qualified persisted pages through the
+  durable OCR operation. Live provider execution and later operator activation
+  remain unproved. Neither the Web nor `DevelopmentOffline` composes the
+  provider.
+- DOC/MSG extraction is implemented by the bounded in-process readers below;
+  format recognition is not proof for every genuine sample.
+- Provider API and Automation MCP are composed, with their production ingress
+  flags observed enabled on 6 September in [operations](operations.md#production-environment).
+  Ingress activation does not establish external-client acceptance or v1
+  certificate deployment.
 - correlated live telemetry retention for a full working day remains unproved.
   Both hosts are instrumented: the Worker has reported continuously throughout
   the retained window, and release 19 instrumented the Web host, which had
@@ -198,10 +252,10 @@ The following remain planned or absent, not merely unverified:
 
 ## Current intake and extraction boundary
 
-The locally verified slice includes provider-neutral intake, one concrete QDOS
-extraction policy, and bounded production adapter implementations. It does not
-prove deployed mailbox automation, live production custody/enrichment, the
-full MVP, a second provider, or operator acceptance.
+The locally verified slice includes provider-neutral intake, 15 concrete
+principal extraction profiles, and bounded production adapter implementations.
+It does not prove deployed mailbox automation, live production
+custody/enrichment, the full MVP, or operator acceptance.
 
 This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and INT-23](capabilities.md); the inventory owns allocation only, and each broader capability contract remains unproved.
 
@@ -212,7 +266,7 @@ Staff Intake Razor Page
   -> one-minute Worker recovery republishes only interrupted Pending work
   -> intake-work queue
   -> Worker ProcessQueuedIntake
-  -> QDOS IInstructionExtractionPolicy
+  -> principal/profile IInstructionExtractionPolicy selector (15 profiles)
   -> MimeKit/PdfPig/Open XML source reader
   -> ignored content-addressed artifact storage
   -> EF Core receipt and typed-draft persistence
@@ -221,7 +275,10 @@ Staff Intake Razor Page
 
 ### Accepted local inputs
 
-The PageModel accepts one file no larger than 10 MiB with one of these extensions:
+The PageModel accepts up to 20 files. Each file may be no larger than 100 MiB,
+and the files in one multipart request may total no more than 200 MiB, with a
+further fixed 64 KiB allowance for the multipart envelope. Accepted extensions
+are:
 
 - `.eml`
 - `.pdf`
@@ -238,8 +295,8 @@ The current enforced resource limits are:
 
 | Boundary | Limit |
 | --- | --- |
-| ASP.NET Core multipart request | 10 MiB file allowance plus 64 KiB for the multipart envelope |
-| PageModel file | One file; 10 MiB |
+| ASP.NET Core multipart request | 200 MiB aggregate file bytes plus 64 KiB for the multipart envelope |
+| PageModel files | Up to 20 files; 100 MiB per file and 200 MiB aggregate |
 | Received mailbox message | One message, envelope and attachments together; 750 MiB |
 | PDF reader | 5,242,880 extracted characters; 512 discrete image objects; 100,000,000 decoded image-sample pixels; 25 MiB extracted image bytes; 30 seconds |
 | EML reader | Eight nested-message levels; 128 MIME entities; 25 MiB cumulatively decoded MIME bytes |
@@ -250,7 +307,13 @@ The current enforced resource limits are:
 
 The multipart boundary is enforced before Core. Reader-limit outcomes remain visible and cannot allocate a case or reference.
 
-A received message and an uploaded file are bounded separately. The upload figure bounds one file arriving in one HTTP request; an instruction email carries the covering message plus the documents and photographs of the job, and the two shared one figure until a 16.7 MB QDOS instruction was refused unread on 2026-08-05. The mailbox figure is permissive by intent rather than a capacity claim: the reader limits above still apply to what it admits, the poll materialises a message in memory, and no mail transport carries anything near it — the practical ceiling is set by the Worker instance.
+A received message and a staff upload are bounded separately. The staff-upload
+figures bound each file and the aggregate multipart request; an instruction
+email carries the covering message plus the documents and photographs of the
+job. The mailbox figure is permissive by intent rather than a capacity claim:
+the reader limits above still apply to what it admits, the poll materialises a
+message in memory, and no mail transport carries anything near it — the
+practical ceiling is set by the Worker instance.
 
 ### Source reading and retained evidence
 
@@ -275,13 +338,23 @@ CollisionDocNet-derived readers under `Pegasus.Infrastructure` (SIMPLI-013,
 unreadable, encrypted, or over-limit containers fail closed into Unidentified
 without a reference. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
 
-For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
+For PDFs, only low-text pages with a dominant raster are marked as scan-like
+OCR candidates. Intake processing and retained re-analysis persist qualified
+pages as durable OCR work. The optional Worker adapter processes that work and
+preserves the result for retained analysis when a Document Intelligence HTTPS
+endpoint is configured. Source composition and dispatch are implemented; no
+live OCR call, configured production endpoint, deployment, or operator
+acceptance is claimed. Document- and attachment-level OCR-required state
+remains visible during review.
 
 The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Web and Worker composition roots.
 
 ### QDOS applicability and drafts
 
-QDOS is the sole concrete extraction policy until another principal has approved rules and genuine evidence. It is applied only to fully readable input.
+Fifteen principal-specific extraction profiles are implemented and selected by
+their established principal and document-profile identity. QDOS remains the
+only automatic direct-mail route into QDOS policy; a document profile never
+establishes a principal. Extraction is applied only to fully readable input.
 
 - Positive instruction content is required; QDOS is not a fallback principal.
 - Strong instruction content may outrank a weak transport signal such as a staff-forwarding sender.
@@ -295,7 +368,7 @@ Suggestions and typed drafts are neither editable nor approved case records. Rec
 
 **Definitive authorised intake attempts typed case allocation at processing time.** QDOS classification persists `Inspection`, `Audit`, or `Inspection + Audit` beside its policy version. With no definitive existing-case match, the durable processing path calls the Core `IAllocateIntake` owner for a `CaseCreated` processing decision and consumes only that persisted type and the extracted principal. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. The evaluation-scoped automatic attempt and its outcome are durable and replay-safe. A failed attempt leaves the completed receipt and a bounded operator-safe failure; completed-work replay cannot call acceptance again. Only an authenticated, reasoned staff retry can reuse the frozen failed command.
 
-Only an **ambiguous** case match is withheld from automatic allocation. An Audit is definitive only where the retained email contains its instruction and a separate original report carrying one literal outcome, `repairable` or `total loss`; that creates its `a.` or `ap.` reference automatically without a staff confirmation. Missing, conflicting, or unclear Audit evidence is `Needs sorting`. A missing or disabled Principal is instead a visible recoverable allocation failure on the completed receipt. The create screen (`INT-26`) records detail and settles the inspection address. `EfCaseAcceptanceStore` still applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so eligibility does not depend on which caller asks, while actual success is projected only from the Case intake link.
+Only an **ambiguous** case match is withheld from automatic allocation. An Audit is definitive only where the retained email contains its instruction and a separate original report carrying one literal outcome, `repairable` or `total loss`; that creates its `a.` or `ap.` reference automatically without a staff confirmation. Missing, conflicting, or unclear standalone Audit evidence withholds the later Audit reference; it does not withhold an otherwise eligible normal Case/PO reference. A missing or disabled Principal is instead a visible recoverable allocation failure on the completed receipt. The create screen (`INT-26`) records detail and settles the inspection address. `EfCaseAcceptanceStore` still applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so eligibility does not depend on which caller asks, while actual success is projected only from the Case intake link.
 
 ### Idempotency and persisted semantics
 
@@ -303,7 +376,7 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
+- `Unidentified` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
 
 ## Operations workspace subsystems
 
@@ -332,7 +405,7 @@ engine.
   new table, giving an estimate a name and a current-version flag so a case can
   carry several and one is current.
 - **`CaseValuations`** — Engineer-entered valuations on a case (ENG-027), read
-  by the Assessment workspace in the same process. Worker has no caller and no
+  by the Case workspace's Valuation section in the same process. Worker has no caller and no
   grant; valuations are Case records, so `DELETE` is deliberately absent.
 
 Two surfaces became reachable in production for the first time at this release:
@@ -460,7 +533,7 @@ Sequential receipt-token/content conflicts are rejected before artifact storage.
 | Long-term original-file custody | Box |
 | Mailbox content and exact sent-message evidence | Outlook |
 | Accepted classification and source associations | Pegasus |
-| Named Engineer assignment and downstream engineering | EVA until an accepted replacement slice |
+| Named Engineer assignment, estimates, valuations and reports | Pegasus Case records; EVA remains an optional external hand-off |
 | Transient processing bytes and delivery work | Private Azure Blob and queues; never long-term custody |
 | Local content-addressed artifacts | Development evidence only |
 
@@ -514,7 +587,8 @@ is what lets one Graph client serve the whole estate. Each mailbox holds its own
 lease, its own cursor, and its own last-failure code, so a mailbox that fails is
 released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
-Sent-evidence polling remains configuration-driven for one mailbox.
+Sent-evidence polling also iterates approved mailbox leases, each with its own
+Sent-folder identity and cursor.
 
 Inbound state uses `ApprovedMailbox.Id` as its durable source identity, with a
 versioned Graph cursor-scope fingerprint, immutable receipt-token identity and
@@ -537,6 +611,14 @@ the accepted `ReceiveIntake` and the cursor advance, and never updated: a
 redelivery is refused by the unique index on mailbox and message identity, so
 what the row records is what arrived. The Worker holds `SELECT, INSERT` on
 those tables and Web holds `SELECT` alone.
+
+The retained read model also stores structured reply targets in nullable JSON.
+Graph and local ingestion obtain the ordered MIME Reply-To addresses, using
+the original From addresses only when the header is absent. A present unusable
+header produces an empty list. SQL NULL means that the metadata was not
+retained; `GetRetainedMail` preserves that distinction without substituting
+transport Sender, To or Cc. This projection is available to the correspondence
+caller; it does not establish that the complete reply UI has passed acceptance.
 
 That read model stores `BodyPlainText`, not only the excerpt. The alternative —
 re-reading the retained MIME artifact on every view, or waiting for the
@@ -572,32 +654,39 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence. Since release 23 the lookup is enrichment rather than a rival reading: recording an observation also writes its make, model, mileage and mileage unit onto the case's own fields at the **suggestion** tier, which `CaseField.Current` (`Confirmed ?? Fact ?? Suggestion`) ranks below an extracted fact and a staff-confirmed value. A case that knows nothing gains the lookup's answer; a case that already knows keeps what it had, and the lookup's version sits behind it. The same release backfilled every case whose lookup predated the change. Since release 28 there is one mapping and one act, so a lookup value reaches the export carrying its real `Suggested` status rather than being refused.
+A first Document Intelligence caller submits only persisted scan-like PDF page
+candidates. Ordinary images and vehicle photographs are outside that slice.
+Vehicle-registration recognition is implemented as the in-process ONNX engine
+selected by ADR-0019, scanning image-only intake automatically; it performs no
+image egress and no external OCR call. The Document Intelligence producer,
+durable operation, Worker dispatch and optional HTTPS adapter are implemented;
+live endpoint configuration, provider execution and operator activation remain
+unproved. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence. Since release 23 the lookup is enrichment rather than a rival reading: recording an observation also writes its make, model, mileage and mileage unit onto the case's own fields at the **suggestion** tier, which `CaseField.Current` (`Confirmed ?? Fact ?? Suggestion`) ranks below an extracted fact and a staff-confirmed value. A case that knows nothing gains the lookup's answer; a case that already knows keeps what it had, and the lookup's version sits behind it. The same release backfilled every case whose lookup predated the change. Since release 28 there is one mapping and one act, so a lookup value reaches the export carrying its real `Suggested` status rather than being refused.
 
 ### Provider API and Automation MCP
 
 Provider API and Automation MCP are separate Web ingress boundaries. They must invoke the same Core business actions as staff UI or Worker callers rather than introducing parallel policy engines. The provider API's composition gate was opened at release 37 (`Features:ProviderApi=true`); an unauthenticated request answers 401, so the route admits nobody until a credential is issued, which is a separately approved step. Its exact client and real caller evidence therefore remain outstanding. The provider accept path's staged-receipt back-reference and `Accepted` history row are repaired by that same existing Worker reconciliation timer after an interrupted accept.
 
-The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0031, and ADR-0026: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict registration authenticates the single vendor-neutral Automation client by client credentials or, for external connectors with administrator-configured redirect URIs, by authorization code with PKCE after Administrator consent (ADR-0027), and a streamable-HTTP MCP endpoint at `/mcp` exposes 33 typed tools wrapping existing Core case, intake, Unidentified, Triage, document, assessment, and mail use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`, `automation.mail`). Unidentified receipt/group detail and exact-member source download use the retained intake owners; Triage reads, source retrieval, lifecycle, evidence, and Case association use the same queries, commands, integrity checks, versions, replay rules, and Case leases as staff. Explicit named-Engineer assignment remains separately tracked by INTK-019 and no actor-relative assignment shortcut is exposed. Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, they renew that lease through the same Core renew use case the staff no-script renew control uses rather than re-claiming (the browser heartbeat is not exposed as a tool, so the tool census is unchanged), their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, EVA-export, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it with valid Automation MCP settings (ADR-0026); the deployed state of that gate and its dated activation evidence are owned by [operations](operations.md#production-environment), and source inventory must not be mistaken for deployed inventory.
+The Automation MCP ingress is implemented in `Pegasus.Web` per ADR-0011, ADR-0031, and ADR-0026: `ActorKind.Automation` is a Core actor granted exactly the ordinary casework surface (every administration, system-work, and request-upload right is denied and unknown rights fail closed), one seeded OpenIddict registration authenticates the single vendor-neutral Automation client by client credentials or, for external connectors with administrator-configured redirect URIs, by authorization code with PKCE after Administrator consent (ADR-0027), and a streamable-HTTP MCP endpoint at `/mcp` exposes the registered typed tools wrapping existing Core case, intake, Unidentified, Triage, document, assessment, and mail use cases with per-area scopes (`automation.cases`, `automation.intake`, `automation.documents`, `automation.assessment`, `automation.mail`). Unidentified receipt/group detail and exact-member source download use the retained intake owners; Triage reads, source retrieval, lifecycle, evidence, and Case association use the same queries, commands, integrity checks, versions, replay rules, and Case leases as staff. Explicit named-Engineer assignment remains separately tracked by INTK-019 and no actor-relative assignment shortcut is exposed. Automation writes are direct writes with logging parity: they present the same edit lease, operation-key replay, and version guard as staff saves, they renew that lease through the same Core renew use case the staff no-script renew control uses rather than re-claiming (the browser heartbeat is not exposed as a tool, so the tool census is unchanged), their assessment values are stored unconfirmed for review at manual engineer assignment, professional-finding confirmation stays staff-Engineer-only, and no confirmation, report-approval, EVA-export, or outward-dispatch tool exists. Every tool invocation and material denial is attributable permanent history. The whole surface registers only when `Features:AutomationMcp` enables it with valid Automation MCP settings (ADR-0026); the deployed state of that gate and its dated activation evidence are owned by [operations](operations.md#production-environment), and source inventory must not be mistaken for deployed inventory.
 
 The Send to AI hand-off (AI-09, ADR-0031) is a second gated boundary beside it: `Pegasus.Core` owns the work-request lifecycle (`AiWork`), `Pegasus.Web` composes the loopback channel transport behind `Features:SendToAi` (DevelopmentOffline only), and the channel carries operator chat only — a case-reference pointer and short instruction out, a short confirmation reply back. Business content returns exclusively through the Automation MCP ingress above; the external channel connector is a non-owned client, never a policy owner, and never part of any deployment.
 
 ### EVA and case lifecycle
 
-Pegasus records optional assignment to an eligible Engineer account, independently of readiness and EVA receipt; an unassigned Engineer may take the work later. Pegasus has two send-to-Engineer routes, both reached from the one **Send to EVA** control on the Case action bar, which opens `/Cases/{caseId}/Eva/Send`. The operator export of a case (`IExportCaseBundle`) produces the package locally for staff to import into EVA. The API submission (`ISubmitCaseToEva`, EXT-04) sends the same case to EVA directly over `POST /Instruction/Inspection`. `Review` is the one readiness owner, and requires complete instructions and images. Export has no separate EVA activation switch and does not duplicate field, evidence-status, Case-custody, or Audit-custody gates. Suggested values travel with `Suggested` provenance; VAT and mileage are optional, mileage requires its unit when present, and a blank inspection date resolves to the export date. The antiforgery-protected POST carries a replay key, writes structured Case action history for every successful export, writes the once-per-case `EvaFirstHandoffProxies` row on the first, updates its latest exported Review-cycle version on later exports, and returns the archive SHA-256 as `Content-Digest`; it does not take an edit lease or move the case version. Assessment is available only in Review or Report preparation after an export in the current Review cycle; assignment is not an access gate. Saving case data already invalidates completeness and returns the case to `Not ready`, with an operator notice. The archive is the two-space-indented thirteen-key JSON and `Images/` only. The superseded frozen-revision handoff, reasoned download route, Automation MCP surface, activation configuration, and three dedicated tables are removed.
+Pegasus records optional assignment to an eligible Engineer account, independently of readiness and EVA receipt; an unassigned Engineer may take the work later. The Case record owns the native Valuation, Estimate and Report sections. Report generation, preview and delivery are available in Report preparation and later without an EVA export. Estimate and valuation editing retains the current-cycle EVA-export access rule; assignment is not an access gate. Pegasus also has two optional EVA hand-off routes, both reached from the **Send to EVA** control on the Case action bar, which opens `/Cases/{caseId}/Eva/Send`. The operator export of a case (`IExportCaseBundle`) produces the package locally for staff to import into EVA. The API submission (`ISubmitCaseToEva`, EXT-04) sends the same case to EVA directly over `POST /Instruction/Inspection`. `Review` is the one readiness owner, and requires complete instructions and images. Export has no separate EVA activation switch and does not duplicate field, evidence-status, Case-custody, or Audit-custody gates. Suggested values travel with `Suggested` provenance; VAT and mileage are optional, mileage requires its unit when present, and a blank inspection date resolves to the export date. The antiforgery-protected POST carries a replay key, writes structured Case action history for every successful export, writes the once-per-case `EvaFirstHandoffProxies` row on the first, updates its latest exported Review-cycle version on later exports, and returns the archive SHA-256 as `Content-Digest`; it does not take an edit lease or move the case version. Saving case data already invalidates completeness and returns the case to `Not ready`, with an operator notice. The archive is the two-space-indented thirteen-key JSON and `Images/` only. The superseded frozen-revision handoff, reasoned download route, Automation MCP surface, activation configuration, and three dedicated tables are removed.
 
-The API submission is the export's sibling and reuses its machinery: the same Review gate, the same `CaseEvaMapping` values through the shared `EvaCaseEvidenceReader`, and the same eligible photographs through the shared `EvaCaseImageReader` — one query each, so the two routes cannot state a case differently. `CaseEvaApiMapping` renames those settled values into EVA's own field names; the inspection date, the mileage and the work provider have no EVA instruction field and travel as labelled note lines, and the instruction date is left for EVA to set on receipt. `Pegasus.Infrastructure.Eva.EvaApiTransport` is the one component that talks to EVA: a minutes-based token cache, retry-once on 401, case-insensitive envelope reading, and tolerance of a `text/plain` body from a JSON endpoint. `EvaSubmissionPolicy` owns the four-outcome model FRD-07 requires stay distinct and the rule that only an unknown outcome is retried. Every attempt is persisted to `EvaSubmissions`; a filtered unique index makes at most one delivery per case a database constraint, because EVA has no idempotency of its own — an acceptance that returned no identifier counts as a delivery, since EVA created the claim either way. Each queued attempt runs under its own derived operation key, so a retry reaches EVA rather than replaying the attempt before it. Two independent `Principals` columns (ADR-0034) decide whether a Principal gets the manual button, automatic submission, both or neither, and are editable in place from Administration. Automatic submission is a Worker reconciliation sweep on the existing timer — three separate places write `State = Review`, so a sweep is one insertion point that self-heals — feeding the existing durable external-work queue as `submit_case_to_eva`, with its own retry policy, poison arm and Operations retry surface. Web and Worker each compose the transport only in the Production profile; without EVA credentials there is no `ISubmitCaseToEva`, the case page offers the export alone, and a submission work row fails closed rather than being quietly completed. Custody retry remains a separate use case. The remaining planned successors are direct estimating-system integrations that replace EVA; AI-generated estimates can instead remain in Pegasus for Engineer review and report generation.
+The API submission is the export's sibling and reuses its machinery: the same Review gate, the same `CaseEvaMapping` values through the shared `EvaCaseEvidenceReader`, and the same eligible photographs through the shared `EvaCaseImageReader` — one query each, so the two routes cannot state a case differently. `CaseEvaApiMapping` renames those settled values into EVA's own field names; the inspection date, the mileage and the work provider have no EVA instruction field and travel as labelled note lines, and the instruction date is left for EVA to set on receipt. `Pegasus.Infrastructure.Eva.EvaApiTransport` is the one component that talks to EVA: a minutes-based token cache, retry-once on 401, case-insensitive envelope reading, and tolerance of a `text/plain` body from a JSON endpoint. `EvaSubmissionPolicy` owns the four-outcome model FRD-07 requires stay distinct and the rule that only an unknown outcome is retried. Every staff attempt is persisted to `EvaSubmissions`; its operation key makes replay exact. Manual staff submission is the only current submission path; the superseded automatic Principal setting, reconciliation sweep and external-work kind have been removed. Web and Worker each compose the transport only in the Production profile; without EVA credentials there is no `ISubmitCaseToEva`, the case page offers the export alone. Custody retry remains a separate use case. The remaining planned successors are direct estimating-system integrations that replace EVA; AI-generated estimates can instead remain in Pegasus for Engineer review and report generation.
 
 The Box adapters use the immutable Case/PO reference for final folder names. Since release 18 an audit carries **one** identity, not two: its own reference holds the `a.` (Repairable) or `ap.` (Total Loss) prefix taken from the original report, no separate Audit reference is allocated, and its files sit in that one case folder — which also closed a split where the root was created under the audit identity while lookups used the case reference. A later Audit reference on a non-audit case still gets its own folder. A predeclared creation-owner token is used only in a transient staging folder so a lost create response can be reconciled through the same replay; an ETag-guarded same-parent promotion completes creation. The durable folder identity is the database-stored remote folder id — root validation compares that id, and no marker file is written inside the folder (the operator-decided release-15 change; the image fold still deletes a legacy binding file when present). Each attachment of the accepted instruction is retained beside the source, flat in the case folder at ordinals `002` onward, replay-verified — and since release 23 its semantic role follows its media type, so a photograph that arrived attached is recorded as `Image` rather than `Instruction`; before that every attachment was an instruction document whatever it was, which hid a case's own photographs from both the Evidence gallery's image test and EVA image selection — release 17 removed the `Evidence/<role>/<occurrence>/<revision>` nesting and its two binding sidecars, which were never asked for, and recorded intake's files as case documents so the case can list and open what Box already held. Release 18 completed the other half: the case Evidence gallery reads those document records and serves the images through the case-document route rather than from the Azure staging blob, which is transient and ages out. A case accepted before those records existed still renders from its retained asset. Since release 16 the same custody operation also promotes the receipt's extracted embedded photographs as individual files after the attachments: `InstructionEvidenceImages.Select` (Core) admits attached images always and embedded images at or above the 40 KB photograph floor, never inline images, hash-deduped preferring the attached copy; the selected images render as the case Evidence tab's instruction-photographs gallery through the receipt-asset image endpoint. Managed source, document, version, and nested Audit paths remain business-readable. Local in-memory-adapter and SQL caller proof does not establish production Box migration, deployment, external receipt, named-Engineer assignment, or operator drag-and-drop acceptance. The EVA API route is proved against the vendor's recorded traffic only. Pegasus has made no EVA call from any environment, so vendor acceptance of the payload, deployment and operator acceptance are all unestablished; the first submission and the live-credential swap are separately operator-gated.
 
 ### Workspaces
 
-`workspaces/` contains independently buildable source workspaces:
+`workspaces/` retains provenance for the retired source imports:
 
 - document extraction;
 - report rendering.
 
-They are not:
+The retired imports are not:
 
 - projects in `Pegasus.slnx`;
 - application dependencies;
@@ -694,7 +783,7 @@ The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are ser
 | Manual upload staging and staged-receipt status callers | `src/Pegasus.Web/Pages/Upload.cshtml.cs`, `src/Pegasus.Web/Pages/UploadStatus.cshtml.cs`, `src/Pegasus.Infrastructure/Persistence/EfQueuedIntakeStatusQueries.cs` |
 | Canonical mail-workspace callers (`/Inbox`) | `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` |
 | Canonical Triage and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
-| Case workspace and its capability pages | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` (the workspace: query, edit lease, completeness, save) with `Workflow`, `Tasks`, `Custody`, `Vehicle` and `Closure` `.cshtml.cs` beside it, each a family of named handlers on the shared `src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs`, which owns the edit-mode state both edit-mode surfaces read and the `HeartbeatLease` handler each answers — `Pages/Shared/_EditHeartbeat.cshtml` posts it at `CaseEditAuthority.HeartbeatInterval` so an open editor is never timed out mid-edit, while the manual `RenewLease` control remains the no-script path and is hidden where script runs; `Pages/Cases/Assessment/Index.cshtml.cs` enters the same edit mode over the same one lease rather than claiming a lease per save; the partials under `src/Pegasus.Web/Pages/Cases/Shared/` post to the owning page; every mutation redirects back to the workspace, while `Documents/Export` answers with a file from two POST handlers — `?handler=Bundle` for the EVA package, and the unnamed one for a selective export of chosen document versions |
+| Case workspace and its capability pages | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` owns the one scrolling Case record, its Valuation, Estimate and Report sections, query, edit lease, completeness and saves. `Workflow`, `Tasks`, `Custody`, `Vehicle` and `Closure` `.cshtml.cs` beside it each carry a family of named handlers on the shared `src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs`. That base owns the edit-mode state and `HeartbeatLease` handler — `Pages/Shared/_EditHeartbeat.cshtml` posts it at `CaseEditAuthority.HeartbeatInterval` so an open editor is never timed out mid-edit, while the manual `RenewLease` control remains the no-script path and is hidden where script runs. The former `Pages/Cases/Assessment/Index.cshtml.cs` route permanently redirects to the Case record's Estimate section. Partials under `src/Pegasus.Web/Pages/Cases/Shared/` post to the owning page; every mutation redirects back to the workspace, while `Documents/Export` answers with a file from two POST handlers — `?handler=Bundle` for the EVA package, and the unnamed one for a selective export of chosen document versions |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
 | Route-denial evidence | `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` |
 | Stable persistence and unsupported-source evidence | `tests/Pegasus.IntegrationTests/IntakeStablePersistenceTests.cs` |

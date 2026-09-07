@@ -19,20 +19,28 @@ public sealed record BoxCustodyOptions(
     string JwtKeyId,
     string PrivateKey,
     string PrivateKeyPassphrase,
-    string EnterpriseId)
+    string EnterpriseId,
+    string HoldingFolderId)
 {
     public static BoxCustodyOptions Create(
         string? baseUri,
         string? uploadUri,
         string? rootFolderId,
         string? configJson,
-        string? clientSecret)
+        string? clientSecret,
+        string? holdingFolderId = null)
     {
         var api = RequireBoxUri(baseUri, "api.box.com", "Box:BaseUri");
         var upload = RequireBoxUri(uploadUri, "upload.box.com", "Box:UploadUri");
         if (!string.Equals(rootFolderId, "405543781910", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Box:RootFolderId must be the approved pegasus root 405543781910.");
+        }
+        if (string.IsNullOrWhiteSpace(holdingFolderId)
+            || string.Equals(holdingFolderId, rootFolderId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Box:HoldingFolderId must identify the configured holding folder below the approved root.");
         }
         if (string.IsNullOrWhiteSpace(configJson))
         {
@@ -71,7 +79,8 @@ public sealed record BoxCustodyOptions(
                 RequireJsonString(appAuth, "publicKeyID"),
                 RequireJsonString(appAuth, "privateKey"),
                 RequireJsonString(appAuth, "passphrase"),
-                RequireJsonString(root, "enterpriseID"));
+                RequireJsonString(root, "enterpriseID"),
+                holdingFolderId);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
         {
@@ -265,11 +274,13 @@ internal sealed class BoxContentClient(
     HttpClient httpClient,
     IBoxAuthorizationHeaderProvider authorizationHeaderProvider)
 {
+    internal string HoldingFolderId => options.HoldingFolderId;
     internal sealed record BoxItem(
         string Id,
         string Name,
         string Type,
         string? ETag,
+        string? VersionId,
         long? Size,
         string? MediaType,
         string? ParentId);
@@ -303,7 +314,7 @@ internal sealed class BoxContentClient(
         while (true)
         {
             var uri = new Uri(options.BaseUri,
-                $"folders/{Uri.EscapeDataString(parentId)}/items?fields=id,name,type,etag,size,content_type,parent&limit={pageLimit}&offset={offset}");
+                $"folders/{Uri.EscapeDataString(parentId)}/items?fields=id,name,type,etag,file_version,size,content_type,parent&limit={pageLimit}&offset={offset}");
             using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
             using var document = await ReadSuccessJsonAsync(response, cancellationToken);
             var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
@@ -401,7 +412,7 @@ internal sealed class BoxContentClient(
         using var response = await SendAsync(
             HttpMethod.Get,
             new Uri(options.BaseUri,
-                $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,size,content_type,parent,trashed_at"),
+                $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,file_version,size,content_type,parent,trashed_at"),
             null,
             cancellationToken);
         using var document = await ReadSuccessJsonAsync(response, cancellationToken);
@@ -448,6 +459,47 @@ internal sealed class BoxContentClient(
         fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
         multipart.Add(fileContent, "file", name);
         using var response = await SendAsync(HttpMethod.Post, new Uri(options.UploadUri, "files/content"), multipart, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var errorCode = await ReadBoxErrorCodeAsync(response, cancellationToken);
+            if (string.Equals(errorCode, "item_name_in_use", StringComparison.Ordinal))
+            {
+                var existing = await FindChildAsync(parentId, name, "file", cancellationToken)
+                    ?? throw new HttpRequestException(
+                        "Box reported an occupied file name but the exact existing file could not be resolved.",
+                        null,
+                        HttpStatusCode.Conflict);
+                if (string.IsNullOrWhiteSpace(existing.VersionId))
+                {
+                    throw new InvalidDataException("Box omitted the existing file version identity.");
+                }
+                if (existing.Size is { } size && size != content.Length)
+                {
+                    throw new InvalidDataException(
+                        "The occupied Box file name contains different content.");
+                }
+                await using var retained = await OpenVersionReadAsync(
+                    existing.Id,
+                    existing.VersionId,
+                    content.Length,
+                    cancellationToken);
+                var verified = new byte[content.Length];
+                await retained.ReadExactlyAsync(verified, cancellationToken);
+                if (await retained.ReadAsync(new byte[1], cancellationToken) != 0
+                    || !verified.AsSpan().SequenceEqual(content.Span))
+                {
+                    throw new InvalidDataException(
+                        "The occupied Box file name contains different content.");
+                }
+                return existing;
+            }
+            throw new HttpRequestException(
+                string.Equals(errorCode, "name_temporarily_reserved", StringComparison.Ordinal)
+                    ? "Box temporarily reserved the deterministic custody file name; retry reconciliation later."
+                    : "Box rejected the deterministic custody file name.",
+                null,
+                HttpStatusCode.Conflict);
+        }
         using var document = await ReadSuccessJsonAsync(response, cancellationToken);
         var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
         if (entries.Length != 1)
@@ -463,6 +515,122 @@ internal sealed class BoxContentClient(
     {
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
         return await DownloadContentAsync(fileId, cancellationToken);
+    }
+
+    public async Task<Stream> OpenVersionReadAsync(
+        string fileId,
+        string versionId,
+        long maximumLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(versionId);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumLength);
+        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        return await DownloadVersionAsync(fileId, versionId, maximumLength, cancellationToken);
+    }
+
+    public async Task<Stream> OpenOwnedVersionReadAsync(
+        string fileId,
+        string versionId,
+        string expectedParentId,
+        long maximumLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedParentId);
+        using var metadataResponse = await SendAsync(
+            HttpMethod.Get,
+            new Uri(options.BaseUri,
+                $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,file_version,size,content_type,parent,trashed_at"),
+            null,
+            cancellationToken);
+        using var metadataDocument = await ReadSuccessJsonAsync(metadataResponse, cancellationToken);
+        var file = ParseItem(metadataDocument.RootElement);
+        if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Box returned the wrong type for a custody file.");
+        }
+        if (!string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The Box file is outside its expected Case root.");
+        }
+        await EnsureDescendantAsync(expectedParentId, cancellationToken);
+        return await DownloadVersionWithoutAncestryAsync(
+            fileId, versionId, maximumLength, cancellationToken);
+    }
+
+    private async Task<Stream> DownloadVersionAsync(
+        string fileId,
+        string versionId,
+        long maximumLength,
+        CancellationToken cancellationToken) =>
+        await DownloadVersionWithoutAncestryAsync(
+            fileId, versionId, maximumLength, cancellationToken);
+
+    private async Task<Stream> DownloadVersionWithoutAncestryAsync(
+        string fileId,
+        string versionId,
+        long maximumLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(versionId);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumLength);
+        using var response = await SendAsync(
+            HttpMethod.Get,
+            new Uri(options.BaseUri,
+                $"files/{Uri.EscapeDataString(fileId)}/content?version={Uri.EscapeDataString(versionId)}"),
+            null,
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Box version download returned {(int)response.StatusCode}.",
+                null,
+                response.StatusCode);
+        }
+        if (response.Content.Headers.ContentLength is { } length && length > maximumLength)
+        {
+            throw new InvalidDataException("Box version content exceeds its recorded length.");
+        }
+
+        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var temporaryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"pegasus-box-version-{Guid.NewGuid():N}.tmp");
+        var retained = new FileStream(
+            temporaryPath,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        try
+        {
+            var buffer = new byte[81920];
+            long copied = 0;
+            while (true)
+            {
+                var read = await source.ReadAsync(buffer, cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+                copied = checked(copied + read);
+                if (copied > maximumLength)
+                {
+                    throw new InvalidDataException("Box version content exceeds its recorded length.");
+                }
+                await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+            retained.Position = 0;
+            return retained;
+        }
+        catch
+        {
+            await retained.DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>
@@ -649,11 +817,31 @@ internal sealed class BoxContentClient(
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
     }
 
+    private static async Task<string?> ReadBoxErrorCodeAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return ReadString(document.RootElement, "code");
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static BoxItem ParseItem(JsonElement value) => new(
         ReadString(value, "id") ?? throw new InvalidDataException("Box omitted an item identity."),
         ReadString(value, "name") ?? string.Empty,
         ReadString(value, "type") ?? string.Empty,
         ReadString(value, "etag"),
+        value.TryGetProperty("file_version", out var fileVersion)
+            && fileVersion.ValueKind == JsonValueKind.Object
+                ? ReadString(fileVersion, "id")
+                : null,
         value.TryGetProperty("size", out var size)
             && size.ValueKind == JsonValueKind.Number
             && size.TryGetInt64(out var length)
@@ -766,7 +954,13 @@ internal sealed class BoxCaseCustody(
         var fileName = $"001 {SafeName(source.SourceFileName)}";
         var file = await UploadOrVerifyFileAsync(
             root.RemoteId, fileName, content, source.MediaType, leaseGuard, cancellationToken);
-        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+        return new(
+            root.CaseId,
+            file.Id,
+            actualHash,
+            file.ETag ?? actualHash,
+            file.VersionId
+                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
     }
 
     public async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
@@ -806,7 +1000,13 @@ internal sealed class BoxCaseCustody(
         var fileName = $"{ordinal:D3} {SafeName(attachment.SourceFileName)}";
         var file = await UploadOrVerifyFileAsync(
             root.RemoteId, fileName, content, attachment.MediaType, leaseGuard, cancellationToken);
-        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+        return new(
+            root.CaseId,
+            file.Id,
+            actualHash,
+            file.ETag ?? actualHash,
+            file.VersionId
+                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
     }
 
     public async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
@@ -846,7 +1046,13 @@ internal sealed class BoxCaseCustody(
         var fileName = $"{ordinal:000} {SafeName(source.SourceFileName)}";
         var file = await UploadOrVerifyFileAsync(
             root.RemoteId, fileName, content, source.MediaType, leaseGuard, cancellationToken);
-        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+        return new(
+            root.CaseId,
+            file.Id,
+            actualHash,
+            file.ETag ?? actualHash,
+            file.VersionId
+                ?? throw new InvalidDataException("Box omitted the retained file version identity."));
     }
 
     public async Task MergeImageCaseContentsAsync(

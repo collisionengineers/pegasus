@@ -49,6 +49,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             SenderDisplayName = message.Metadata.SenderDisplayName,
             ToAddressesJson = JsonSerializer.Serialize(message.Metadata.ToAddresses, JsonOptions),
             CcAddressesJson = JsonSerializer.Serialize(message.Metadata.CcAddresses, JsonOptions),
+            ReplyToAddressesJson = JsonSerializer.Serialize(message.Metadata.ReplyToAddresses, JsonOptions),
             Subject = message.Metadata.Subject,
             BodyExcerpt = Excerpt(message.Metadata.BodyPlainText),
             BodyPlainText = message.Metadata.BodyPlainText,
@@ -173,6 +174,56 @@ internal sealed class EfRetainedMailboxMessageStore(
             await HasUnretainedHistoryAsync(context, scope, cancellationToken));
     }
 
+    public async Task<RetainedMailCursorPage> ListByCursorAsync(
+        MailWorkspaceScope scope,
+        DateTimeOffset? beforeReceivedAtUtc,
+        Guid? beforeId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var searchTerm = scope.SearchTerm?.Trim();
+        var matches = BuildMatches(context, scope);
+        if (beforeReceivedAtUtc is not null)
+        {
+            var received = beforeReceivedAtUtc.Value;
+            var id = beforeId!.Value;
+            matches = matches.Where(item => item.ReceivedAtUtc < received
+                || (item.ReceivedAtUtc == received && item.Id.CompareTo(id) < 0));
+        }
+        var rows = await matches
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(limit + 1)
+            .Select(item => new SummaryRow(
+                item.Id, item.MailboxId, item.MailboxAddress, item.SenderAddress,
+                item.SenderDisplayName, item.Subject, item.BodyExcerpt, item.ReceivedAtUtc,
+                item.IsRead, item.Attachments.Count, item.ExternalReceiptToken,
+                searchTerm != null && context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.AttachmentFileName == null && document.Text != null
+                        && document.Text.Contains(searchTerm))),
+                context.RetainedMailFolderMoves
+                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
+                    .OrderByDescending(move => move.RecordedAtUtc).ThenByDescending(move => move.Id)
+                    .Select(move => move.FolderType).FirstOrDefault(),
+                item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600)))
+            .ToListAsync(cancellationToken);
+        var hasMore = rows.Count > limit;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+        if (searchTerm is not null && rows.Count > 0)
+        {
+            rows = await AddSearchMatchesAsync(context, rows, searchTerm, cancellationToken);
+        }
+        return new(
+            await MapSummariesAsync(context, rows, cancellationToken),
+            hasMore,
+            await HasUnretainedHistoryAsync(context, scope, cancellationToken));
+    }
+
     public async Task<RetainedMailDetail?> GetAsync(
         Guid id,
         CancellationToken cancellationToken,
@@ -285,6 +336,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             summary,
             Deserialize(entity.ToAddressesJson),
             Deserialize(entity.CcAddressesJson),
+            entity.ReplyToAddressesJson is null
+                ? null
+                : Deserialize(entity.ReplyToAddressesJson),
             body,
             entity.Attachments
                 .OrderBy(item => item.Ordinal)
@@ -300,7 +354,36 @@ internal sealed class EfRetainedMailboxMessageStore(
                 ? ParseClassificationOutcome(classification)
                 : null,
             receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
+            entity.ImmutableMessageId,
+            entity.InternetMessageIdentity,
+            entity.ConversationIdentity,
             await LoadClassificationAsync(context, id, cancellationToken));
+    }
+
+    public async Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var retainedIds = await (
+                from receipt in context.IntakeReceipts.AsNoTracking()
+                join retained in context.RetainedMailboxMessages.AsNoTracking()
+                    on receipt.ExternalReceiptToken equals retained.ExternalReceiptToken
+                where receipt.Id == originReceiptId
+                    && receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken != ""
+                select retained.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        if (retainedIds.Count > 1)
+        {
+            throw new InvalidOperationException(
+                "The origin receipt matches more than one retained mailbox message.");
+        }
+
+        return retainedIds.Count == 0
+            ? null
+            : await GetAsync(retainedIds[0], cancellationToken);
     }
 
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(

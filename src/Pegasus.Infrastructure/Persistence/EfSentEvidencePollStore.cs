@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Workflow;
@@ -7,14 +9,30 @@ using Pegasus.Infrastructure.Email;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfSentEvidencePollStore(
-    IDbContextFactory<PegasusDbContext> contextFactory,
-    IApprovedSentSourceSettings options) : ISentEvidencePollStore
+    IDbContextFactory<PegasusDbContext> contextFactory) : ISentEvidencePollStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan CompletedPollDelay = TimeSpan.FromMinutes(1);
 
-    public async Task<ApprovedSentPollLease?> ClaimAsync(
+    public Task<ApprovedSentPollLease?> ClaimAsync(
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
+        CancellationToken cancellationToken) =>
+        ClaimCoreAsync(null, nowUtc, leaseDuration, cancellationToken);
+
+    public Task<ApprovedSentPollLease?> ClaimAsync(
+        Guid approvedMailboxId, DateTimeOffset nowUtc, TimeSpan leaseDuration,
+        CancellationToken cancellationToken)
+    {
+        if (approvedMailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("An approved mailbox is required.", nameof(approvedMailboxId));
+        }
+        return ClaimCoreAsync(approvedMailboxId, nowUtc, leaseDuration, cancellationToken);
+    }
+
+    private async Task<ApprovedSentPollLease?> ClaimCoreAsync(
+        Guid? approvedMailboxId, DateTimeOffset nowUtc, TimeSpan leaseDuration,
         CancellationToken cancellationToken)
     {
         RequireUtc(nowUtc, nameof(nowUtc));
@@ -23,42 +41,78 @@ internal sealed class EfSentEvidencePollStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        var state = await context.ApprovedSentPollStates.SingleOrDefaultAsync(
-            item => item.MailboxId == options.MailboxId,
-            cancellationToken);
-        if (state is null)
+        var approvedState = Pegasus.Core.Identity.ApprovedMailboxState.Approved.ToString();
+        var mailboxes = await context.ApprovedMailboxes
+            .Where(item => item.State == approvedState
+                && item.AllowSentEvidence
+                && (approvedMailboxId == null || item.Id == approvedMailboxId)
+                && item.MailboxIdentity != null
+                && item.SentFolderIdentity != null
+                && item.ActivatedAtUtc != null
+                && item.MailboxGeneration > 0)
+            .OrderBy(item => item.MailboxIdentity)
+            .ToArrayAsync(cancellationToken);
+        if (mailboxes.Length == 0)
         {
-            state = new()
-            {
-                MailboxId = options.MailboxId,
-                MailboxAddress = options.MailboxAddress,
-                SentFolderIdentity = options.SentFolderIdentity,
-                DueAtUtc = nowUtc
-            };
-            context.ApprovedSentPollStates.Add(state);
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
         }
-        else if (!string.Equals(
-                     state.MailboxAddress,
-                     options.MailboxAddress,
-                     StringComparison.OrdinalIgnoreCase)
-                 || !string.Equals(
-                     state.SentFolderIdentity,
-                     options.SentFolderIdentity,
-                     StringComparison.Ordinal))
+        var mailboxIds = mailboxes.Select(value => value.MailboxIdentity!).ToArray();
+        var states = await context.ApprovedSentPollStates
+            .Where(item => mailboxIds.Contains(item.MailboxId))
+            .ToDictionaryAsync(item => item.MailboxId, StringComparer.Ordinal, cancellationToken);
+        foreach (var mailbox in mailboxes)
         {
-            throw new InvalidOperationException(
-                "The configured approved-Sent mailbox identity is already bound to another address or Sent folder.");
+            var mailboxId = mailbox.MailboxIdentity!;
+            var sentFolderIdentity = mailbox.SentFolderIdentity!;
+            var activatedAtUtc = mailbox.ActivatedAtUtc!.Value;
+            var fingerprint = ScopeFingerprint(mailboxId, sentFolderIdentity);
+            if (!states.TryGetValue(mailboxId, out var existing))
+            {
+                existing = new()
+                {
+                    MailboxId = mailboxId,
+                    MailboxAddress = mailbox.Address,
+                    SentFolderIdentity = sentFolderIdentity,
+                    ScopeFingerprint = fingerprint,
+                    Generation = mailbox.MailboxGeneration,
+                    StartBoundaryUtc = activatedAtUtc,
+                    DueAtUtc = nowUtc
+                };
+                states.Add(mailboxId, existing);
+                context.ApprovedSentPollStates.Add(existing);
+            }
+            else if (!string.Equals(existing.ScopeFingerprint, fingerprint, StringComparison.Ordinal)
+                || existing.Generation != mailbox.MailboxGeneration)
+            {
+                existing.MailboxAddress = mailbox.Address;
+                existing.SentFolderIdentity = sentFolderIdentity;
+                existing.ScopeFingerprint = fingerprint;
+                existing.Generation = mailbox.MailboxGeneration;
+                existing.StartBoundaryUtc = activatedAtUtc;
+                existing.Cursor = null;
+                existing.DueAtUtc = nowUtc;
+                existing.LeaseToken = null;
+                existing.LeaseExpiresAtUtc = null;
+                existing.LastCompletedAtUtc = null;
+                existing.LastFailureCode = null;
+            }
         }
 
-        ValidateLeaseState(state);
-        if (state.DueAtUtc > nowUtc
-            || state.LeaseExpiresAtUtc is { } leaseExpiresAtUtc && leaseExpiresAtUtc > nowUtc)
+        var state = states.Values
+            .Where(value => (approvedMailboxId is not null || value.DueAtUtc <= nowUtc)
+                && (value.LeaseExpiresAtUtc is null || value.LeaseExpiresAtUtc <= nowUtc))
+            .OrderBy(value => value.DueAtUtc)
+            .ThenBy(value => value.MailboxId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (state is null)
         {
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return null;
         }
 
+        ValidateLeaseState(state);
         state.LeaseToken = Guid.NewGuid().ToString("N");
         state.LeaseExpiresAtUtc = nowUtc.Add(leaseDuration);
         await context.SaveChangesAsync(cancellationToken);
@@ -68,7 +122,10 @@ internal sealed class EfSentEvidencePollStore(
             state.MailboxAddress,
             state.SentFolderIdentity,
             state.Cursor,
-            state.LeaseToken);
+            state.LeaseToken,
+            mailboxes.Single(value => value.MailboxIdentity == state.MailboxId).Id,
+            state.Generation,
+            state.StartBoundaryUtc);
     }
 
     public async Task RecordOutcomeAsync(
@@ -126,7 +183,7 @@ internal sealed class EfSentEvidencePollStore(
             state =>
             {
                 state.Cursor = nextCursor;
-                state.DueAtUtc = completedAtUtc;
+                state.DueAtUtc = completedAtUtc.Add(CompletedPollDelay);
                 state.LeaseToken = null;
                 state.LeaseExpiresAtUtc = null;
                 state.LastCompletedAtUtc = completedAtUtc;
@@ -384,4 +441,8 @@ internal sealed class EfSentEvidencePollStore(
             throw new ArgumentException("Approved-Sent persistence instants must be UTC.", parameterName);
         }
     }
+
+    private static string ScopeFingerprint(string mailboxId, string sentFolderIdentity) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{mailboxId}\n{sentFolderIdentity}")));
 }

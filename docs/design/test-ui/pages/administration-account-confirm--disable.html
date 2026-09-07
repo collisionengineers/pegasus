@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Disable account · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -170,8 +171,8 @@
         <h2 id="account-action-title">Disable account</h2>
     </div>
     <div class="panel-body">
+        <dl class="detail-list"><div><dt>Account</dt><dd>plat027-web-caller</dd></div></dl>
             <div class="notice notice--warning">
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                 <span>Disabling revokes existing browser sessions; the account is retained permanently.</span>
             </div>
         <form method="post" class="stack" action="administration-accounts--default.html">
@@ -191,6 +192,7 @@
         <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
     </div>
 </section>
+
 
                 </div>
             </main>
@@ -264,10 +266,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

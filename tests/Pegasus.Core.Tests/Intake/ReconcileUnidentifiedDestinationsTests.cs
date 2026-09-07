@@ -25,7 +25,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), result);
         var resolve = Assert.Single(harness.Resolve.Requests);
         Assert.Equal(item.Id, resolve.UnidentifiedItemId);
         Assert.Equal(UnidentifiedResolutionTargetKind.ImageIntake, resolve.TargetKind);
@@ -33,7 +33,14 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal("AB12CDE-01", resolve.TargetReference);
         Assert.Equal(ActorKind.Automation, resolve.Actor.Kind);
         Assert.Equal(
-            $"intake-unidentified-reconcile:{receipt.Id:N}:{receipt.Version}",
+            ReconcileUnidentifiedDestinations.AutomationActorId,
+            resolve.Actor.SubjectId);
+
+        // The key is the ITEM's own version, never the receipt's: a destination
+        // change need not mutate the receipt, so a receipt-keyed re-resolve
+        // rebuilds a key its own first resolution already took (INTK-048).
+        Assert.Equal(
+            $"intake-unidentified-reconcile:{item.Id:N}:{item.Version}",
             resolve.OperationKey);
     }
 
@@ -59,6 +66,78 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal("QDOS26009", resolve.TargetReference);
     }
 
+    // Statement 1 (PR 639 preservation table §4) — the rule INTK-048 exists for.
+    [Fact]
+    public async Task ManuallyLinkedUnidentifiedReceiptResolvesToTheInstructionCase()
+    {
+        var harness = new Harness();
+        var caseId = Guid.NewGuid();
+        // A manual link never rewrites the immutable processing decision, so
+        // the receipt is still NeedsSorting and still unidentified-eligible.
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            caseId,
+            "QDOS26030",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), result);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(item.Id, resolve.UnidentifiedItemId);
+        Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
+        Assert.Equal(caseId.ToString("N"), resolve.TargetId);
+        Assert.Equal("QDOS26030", resolve.TargetReference);
+    }
+
+    // Statement 2 — established precedence beats the trailing manual-link branch.
+    [Fact]
+    public async Task AManuallyLinkedImageReceiptStillResolvesToTheImageIntake()
+    {
+        var harness = new Harness();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered),
+            Guid.NewGuid(),
+            "QDOS26031",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var intakeId = Guid.NewGuid();
+        harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] = Detail(intakeId, receipt, "AB12CDE-01");
+
+        await harness.Reconciler.ExecuteAsync(50);
+
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.ImageIntake, resolve.TargetKind);
+        Assert.Equal(intakeId.ToString("N"), resolve.TargetId);
+    }
+
+    // Statement 3 — a Triage also outranks the trailing manual-link branch.
+    [Fact]
+    public async Task AManuallyLinkedTriageRequestStillResolvesToTheTriage()
+    {
+        var harness = new Harness();
+        var receipt = ManuallyLinked(
+            TriageRequestReceipt(Guid.NewGuid()),
+            Guid.NewGuid(),
+            "QDOS26032",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var triageId = Guid.NewGuid();
+        harness.Triages.SummariesByOriginReceipt[receipt.Id] = Triage(triageId, "VO75DFJ");
+
+        await harness.Reconciler.ExecuteAsync(50);
+
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
+        Assert.Equal(triageId.ToString("N"), resolve.TargetId);
+        Assert.Equal("VO75DFJ", resolve.TargetReference);
+    }
+
+    // Statement 4.
     [Fact]
     public async Task StillUnidentifiedReceiptsAreNeverForceClosed()
     {
@@ -74,7 +153,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(2, 0, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(2, 0, 0, 0), result);
         Assert.Empty(harness.Resolve.Requests);
     }
 
@@ -86,7 +165,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), result);
         Assert.Empty(harness.Resolve.Requests);
     }
 
@@ -98,30 +177,37 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         var succeeding = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
         harness.Receipts.Receipts[failing.Id] = failing;
         harness.Receipts.Receipts[succeeding.Id] = succeeding;
-        harness.AddOpenItem(6, UnidentifiedOrigin.Receipt(failing.Id));
+        var failingItem = harness.AddOpenItem(6, UnidentifiedOrigin.Receipt(failing.Id));
         harness.AddOpenItem(7, UnidentifiedOrigin.Receipt(succeeding.Id));
         harness.ImageIntakes.DetailsByOriginReceipt[failing.Id] = Detail(Guid.NewGuid(), failing, "AB12CDE-01");
         harness.ImageIntakes.DetailsByOriginReceipt[succeeding.Id] = Detail(Guid.NewGuid(), succeeding, "AB12CDE-02");
-        harness.Resolve.FailForReceiptOperationKeys.Add(
-            $"intake-unidentified-reconcile:{failing.Id:N}:{failing.Version}");
+        harness.Resolve.FailForOperationKeys.Add(
+            $"intake-unidentified-reconcile:{failingItem.Id:N}:{failingItem.Version}");
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(2, 1, 1), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(2, 1, 0, 1), result);
     }
 
     [Fact]
-    public async Task AnAlreadyResolvedItemIsANoOp()
+    public async Task AnAlreadyResolvedItemWithAnUnchangedDestinationIsANoOp()
     {
         var harness = new Harness();
         var receipt = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
-        harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] = Detail(Guid.NewGuid(), receipt, "AB12CDE-01");
-        harness.AddResolvedItem(8, UnidentifiedOrigin.Receipt(receipt.Id));
+        var intakeId = Guid.NewGuid();
+        harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] = Detail(intakeId, receipt, "AB12CDE-01");
+        harness.AddAutomationResolvedItem(
+            8,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.ImageIntake,
+            intakeId.ToString("N"),
+            "AB12CDE-01");
 
-        var resolved = await harness.Reconciler.ResolveForReceiptAsync(receipt, CancellationToken.None);
+        var written = await harness.Reconciler.SynchronizeForReceiptAsync(receipt, CancellationToken.None);
 
-        Assert.False(resolved);
+        Assert.False(written);
         Assert.Empty(harness.Resolve.Requests);
+        Assert.Empty(harness.Store.ReopenRequests);
     }
 
     [Fact]
@@ -138,20 +224,11 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         harness.Receipts.Receipts[receipt.Id] = receipt;
         var item = harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
         var triageId = Guid.NewGuid();
-        harness.Triages.SummariesByOriginReceipt[receipt.Id] = new(
-            triageId,
-            "VO75DFJ",
-            TriageState.Open,
-            AssigneeId: null,
-            LinkedCaseId: null,
-            Now,
-            Version: 0,
-            Reference: null,
-            Provider: null);
+        harness.Triages.SummariesByOriginReceipt[receipt.Id] = Triage(triageId, "VO75DFJ");
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), result);
         var resolve = Assert.Single(harness.Resolve.Requests);
         Assert.Equal(item.Id, resolve.UnidentifiedItemId);
         Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
@@ -171,9 +248,309 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), result);
         Assert.Empty(harness.Resolve.Requests);
     }
+
+    // Statement 5.
+    [Fact]
+    public async Task AStaffResolutionIsNeverReopenedOrReTargeted()
+    {
+        var harness = new Harness();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            Guid.NewGuid(),
+            "QDOS26040",
+            associationVersion: 7);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddResolvedItem(
+            9,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            UnidentifiedResolutionTargetKind.ExternalReference,
+            "a-staff-decision",
+            null);
+        harness.Store.RecheckItems.Add(item.Id);
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        // The recheck row is still examined — and therefore counted — but the
+        // sweep writes nothing at all for a resolution it does not own.
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), result);
+        Assert.Empty(harness.Store.ReopenRequests);
+        Assert.Empty(harness.Resolve.Requests);
+        Assert.Empty(harness.Store.RecheckMarks);
+
+        // And directly, past the queue: still no write.
+        Assert.False(await harness.Reconciler.SynchronizeForReceiptAsync(receipt, CancellationToken.None));
+    }
+
+    // Statement 6.
+    [Fact]
+    public async Task AWithdrawnDestinationReopensTheItemAndClearsEveryResolutionField()
+    {
+        var harness = new Harness();
+        var caseId = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            caseId,
+            "QDOS26041",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddAutomationResolvedItem(
+            10,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.InstructionCase,
+            caseId.ToString("N"),
+            "QDOS26041");
+        harness.Store.RecheckItems.Add(item.Id);
+
+        // Unlink: the association moves on and names no case any more.
+        harness.Receipts.Receipts[receipt.Id] = Unlinked(receipt, associationVersion: 2);
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 1, 0), result);
+        var reopen = Assert.Single(harness.Store.ReopenRequests);
+        Assert.Equal(item.Id, reopen.UnidentifiedItemId);
+        Assert.Equal(item.Version, reopen.ExpectedVersion);
+        Assert.Equal(ActorKind.Automation, reopen.Actor.Kind);
+        Assert.Empty(harness.Resolve.Requests);
+
+        var reopened = Assert.Single(harness.Store.Items);
+        Assert.Equal(UnidentifiedState.Open, reopened.State);
+        Assert.Null(reopened.ResolvedAtUtc);
+        Assert.Null(reopened.ResolvedBy);
+        Assert.Null(reopened.ResolutionReason);
+        Assert.Null(reopened.ResolutionTargetKind);
+        Assert.Null(reopened.ResolutionTargetId);
+        Assert.Null(reopened.ResolutionTargetReference);
+        Assert.Equal(item.Version + 1, reopened.Version);
+    }
+
+    // Statement 7.
+    [Fact]
+    public async Task AChangedDestinationReopensAndReResolvesInTheSamePass()
+    {
+        var harness = new Harness();
+        var caseA = Guid.NewGuid();
+        var caseB = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            caseA,
+            "QDOS26050",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddAutomationResolvedItem(
+            11,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.InstructionCase,
+            caseA.ToString("N"),
+            "QDOS26050");
+        harness.Store.RecheckItems.Add(item.Id);
+
+        harness.Receipts.Receipts[receipt.Id] = ManuallyLinked(receipt, caseB, "QDOS26051", associationVersion: 3);
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 1, 0), result);
+        Assert.Single(harness.Store.ReopenRequests);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
+        Assert.Equal(caseB.ToString("N"), resolve.TargetId);
+        Assert.Equal("QDOS26051", resolve.TargetReference);
+
+        // The re-resolve is applied at the version the reopen produced.
+        Assert.Equal(item.Version + 1, resolve.ExpectedVersion);
+    }
+
+    // Statement 8 — operation-key uniqueness per transition, at a receipt whose
+    // own Version never moves.
+    [Fact]
+    public async Task TwoSuccessiveCorrectionsProduceFourDistinctOperationKeys()
+    {
+        var harness = new Harness();
+        var caseId = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            TriageRequestReceipt(Guid.NewGuid()),
+            caseId,
+            "QDOS26060",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddAutomationResolvedItem(
+            12,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.InstructionCase,
+            caseId.ToString("N"),
+            "QDOS26060");
+        harness.Store.RecheckItems.Add(item.Id);
+
+        // Correction one: a Triage is opened for the already-linked receipt.
+        // Opening a Triage leaves the receipt itself untouched.
+        var triageId = Guid.NewGuid();
+        harness.Triages.SummariesByOriginReceipt[receipt.Id] = Triage(triageId, "VO75DFJ");
+        await harness.Reconciler.ExecuteAsync(50);
+
+        // Correction two: the Triage's registration is corrected. Again the
+        // receipt's own Version does not move.
+        harness.Triages.SummariesByOriginReceipt[receipt.Id] = Triage(triageId, "VO75DFK");
+        harness.Store.RecheckItems.Clear();
+        harness.Store.RecheckItems.Add(item.Id);
+        await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(receipt.Version, harness.Receipts.Receipts[receipt.Id].Version);
+        string[] keys =
+        [
+            .. harness.Store.ReopenRequests.Select(request => request.OperationKey),
+            .. harness.Resolve.Requests.Select(request => request.OperationKey)
+        ];
+        Assert.Equal(4, keys.Length);
+        Assert.Equal(4, keys.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    // Statement 9 — replay stability: a reopen that commits and a re-resolve
+    // that fails must present the SAME resolve key on the retry.
+    [Fact]
+    public async Task ARetriedReResolvePresentsTheSameOperationKey()
+    {
+        var harness = new Harness();
+        var caseA = Guid.NewGuid();
+        var caseB = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            caseA,
+            "QDOS26070",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddAutomationResolvedItem(
+            13,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.InstructionCase,
+            caseA.ToString("N"),
+            "QDOS26070");
+        harness.Store.RecheckItems.Add(item.Id);
+        harness.Receipts.Receipts[receipt.Id] = ManuallyLinked(receipt, caseB, "QDOS26071", associationVersion: 3);
+
+        var expectedResolveKey = $"intake-unidentified-reconcile:{item.Id:N}:{item.Version + 1}";
+        harness.Resolve.FailForOperationKeys.Add(expectedResolveKey);
+
+        var first = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 1), first);
+        Assert.Single(harness.Store.ReopenRequests);
+        Assert.Empty(harness.Resolve.Requests);
+        // The failed correction left the recheck incomplete (statement 12).
+        Assert.Empty(harness.Store.RecheckMarks);
+
+        // Next sweep: the item is Open again, so the open loop picks it up and
+        // rebuilds the identical key — the store replays rather than rejecting.
+        harness.Resolve.FailForOperationKeys.Clear();
+        harness.Store.RecheckItems.Clear();
+
+        var second = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), second);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(expectedResolveKey, resolve.OperationKey);
+    }
+
+    // Statements 10 and 11.
+    [Fact]
+    public async Task ACompletedNoChangeRecheckRecordsTheAssociationVersionThisPassRead()
+    {
+        var harness = new Harness();
+        var caseId = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            caseId,
+            "QDOS26080",
+            associationVersion: 5);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddAutomationResolvedItem(
+            14,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.InstructionCase,
+            caseId.ToString("N"),
+            "QDOS26080");
+        harness.Store.RecheckItems.Add(item.Id);
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        // Nothing changed, so no resolution is written — yet the recheck is
+        // completed, or the row would hold the head of the bounded page for
+        // ever and starve every later stale resolution (INTK-048).
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), result);
+        Assert.Empty(harness.Resolve.Requests);
+        Assert.Empty(harness.Store.ReopenRequests);
+        var mark = Assert.Single(harness.Store.RecheckMarks);
+        Assert.Equal(item.Id, mark.ItemId);
+        // Statement 11: the version recorded is the one THIS pass read, never
+        // "now" — an association that moves mid-pass is picked up next pass.
+        Assert.Equal(5, mark.AssociationVersion);
+    }
+
+    // Statement 12.
+    [Fact]
+    public async Task AFailedCorrectionCountsAFailureAndLeavesTheRecheckIncomplete()
+    {
+        var harness = new Harness();
+        var caseA = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            caseA,
+            "QDOS26090",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddAutomationResolvedItem(
+            15,
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedResolutionTargetKind.InstructionCase,
+            caseA.ToString("N"),
+            "QDOS26090");
+        harness.Store.RecheckItems.Add(item.Id);
+        harness.Receipts.Receipts[receipt.Id] = Unlinked(receipt, associationVersion: 2);
+        harness.Store.FailReopenForItems.Add(item.Id);
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 1), result);
+        Assert.Empty(harness.Store.RecheckMarks);
+        Assert.Equal(UnidentifiedState.Resolved, Assert.Single(harness.Store.Items).State);
+    }
+
+    private static TriageSummary Triage(Guid id, string registration) =>
+        new(
+            id,
+            registration,
+            TriageState.Open,
+            AssigneeId: null,
+            LinkedCaseId: null,
+            Now,
+            Version: 0,
+            Reference: null,
+            Provider: null);
+
+    private static IntakeReceipt ManuallyLinked(
+        IntakeReceipt receipt,
+        Guid caseId,
+        string caseReference,
+        long associationVersion) =>
+        receipt with
+        {
+            ManualLinkedCaseId = caseId,
+            ManualLinkedCaseReference = caseReference,
+            ManualAssociationVersion = associationVersion,
+            ManualAssociationActorKind = ActorKind.Staff
+        };
+
+    private static IntakeReceipt Unlinked(IntakeReceipt receipt, long associationVersion) =>
+        receipt with
+        {
+            ManualLinkedCaseId = null,
+            ManualLinkedCaseReference = null,
+            ManualAssociationVersion = associationVersion,
+            ManualAssociationActorKind = ActorKind.Staff
+        };
 
     private static IntakeReceipt TriageRequestReceipt(Guid id) =>
         Receipt(id, IntakeDecision.NeedsSorting, "message/rfc822") with
@@ -253,17 +630,21 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
     private sealed class Harness
     {
-        public Harness() => Reconciler = new ReconcileUnidentifiedDestinations(
-            Store,
-            Resolve,
-            Receipts,
-            ImageIntakes,
-            Triages,
-            TimeProvider.System);
+        public Harness()
+        {
+            Resolve = new FakeResolveUnidentified(Store);
+            Reconciler = new ReconcileUnidentifiedDestinations(
+                Store,
+                Resolve,
+                Receipts,
+                ImageIntakes,
+                Triages,
+                TimeProvider.System);
+        }
 
         public FakeUnidentifiedStore Store { get; } = new();
 
-        public FakeResolveUnidentified Resolve { get; } = new();
+        public FakeResolveUnidentified Resolve { get; }
 
         public FakeReceiptQueries Receipts { get; } = new();
 
@@ -296,7 +677,31 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             return item;
         }
 
-        public UnidentifiedItem AddResolvedItem(long sequence, UnidentifiedOrigin origin)
+        /// <summary>
+        /// An item this reconciliation itself resolved — the only shape the
+        /// recheck sweep may ever write to.
+        /// </summary>
+        public UnidentifiedItem AddAutomationResolvedItem(
+            long sequence,
+            UnidentifiedOrigin origin,
+            UnidentifiedResolutionTargetKind targetKind,
+            string targetId,
+            string? targetReference) =>
+            AddResolvedItem(
+                sequence,
+                origin,
+                ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+                targetKind,
+                targetId,
+                targetReference);
+
+        public UnidentifiedItem AddResolvedItem(
+            long sequence,
+            UnidentifiedOrigin origin,
+            ActionActor resolvedBy,
+            UnidentifiedResolutionTargetKind targetKind,
+            string targetId,
+            string? targetReference)
         {
             var item = new UnidentifiedItem(
                 Guid.NewGuid(),
@@ -309,11 +714,11 @@ public sealed class ReconcileUnidentifiedDestinationsTests
                 Now,
                 Now,
                 ActionActor.SystemWorker("intake-processing"),
-                ActionActor.Automation("intake-processing"),
+                resolvedBy,
                 "Previously resolved.",
-                UnidentifiedResolutionTargetKind.ExternalReference,
-                "earlier-target",
-                null,
+                targetKind,
+                targetId,
+                targetReference,
                 1);
             Store.Items.Add(item);
             return item;
@@ -323,6 +728,21 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     private sealed class FakeUnidentifiedStore : IUnidentifiedStore
     {
         public List<UnidentifiedItem> Items { get; } = [];
+
+        /// <summary>Item ids the recheck queue hands back this pass.</summary>
+        public HashSet<Guid> RecheckItems { get; } = [];
+
+        public HashSet<Guid> FailReopenForItems { get; } = [];
+
+        public List<ReopenUnidentifiedRequest> ReopenRequests { get; } = [];
+
+        public List<(Guid ItemId, long AssociationVersion)> RecheckMarks { get; } = [];
+
+        public void Replace(UnidentifiedItem item)
+        {
+            var index = Items.FindIndex(candidate => candidate.Id == item.Id);
+            Items[index] = item;
+        }
 
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
@@ -339,6 +759,83 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<UnidentifiedReopenResult> ReopenAsync(
+            ReopenUnidentifiedRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            UnidentifiedValidation.ValidateReopen(request);
+            if (FailReopenForItems.Contains(request.UnidentifiedItemId))
+            {
+                throw new UnidentifiedVersionConflictException();
+            }
+
+            var existing = Items.Single(item => item.Id == request.UnidentifiedItemId);
+            if (existing.Version != request.ExpectedVersion
+                || existing.State != UnidentifiedState.Resolved)
+            {
+                throw new UnidentifiedVersionConflictException();
+            }
+
+            ReopenRequests.Add(request);
+            var reopened = existing with
+            {
+                State = UnidentifiedState.Open,
+                ResolvedAtUtc = null,
+                ResolvedBy = null,
+                ResolutionReason = null,
+                ResolutionTargetKind = null,
+                ResolutionTargetId = null,
+                ResolutionTargetReference = null,
+                Version = existing.Version + 1
+            };
+            Replace(reopened);
+            return Task.FromResult(new UnidentifiedReopenResult(
+                reopened,
+                new UnidentifiedHistoryEntry(
+                    Guid.NewGuid(),
+                    request.UnidentifiedItemId,
+                    UnidentifiedState.Resolved,
+                    UnidentifiedState.Open,
+                    request.Actor,
+                    request.ReopenedAtUtc,
+                    request.Reason,
+                    request.OperationKey,
+                    null,
+                    null,
+                    null),
+                false));
+        }
+
+        public Task<IReadOnlyList<UnidentifiedItem>> ListResolutionsToRecheckAsync(
+            int maximum,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<UnidentifiedItem>>(
+                Items
+                    .Where(item => RecheckItems.Contains(item.Id)
+                        && item.State == UnidentifiedState.Resolved)
+                    .OrderBy(item => item.Sequence)
+                    .Take(maximum)
+                    .ToArray());
+
+        public Task MarkResolutionRecheckedAsync(
+            Guid unidentifiedItemId,
+            long associationVersion,
+            CancellationToken cancellationToken = default)
+        {
+            // Mirrors EfUnidentifiedStore: the update is scoped to the
+            // still-resolved item, so a watermark is never resurrected onto a
+            // resolution the same pass reopened and left open.
+            var item = Items.SingleOrDefault(candidate => candidate.Id == unidentifiedItemId);
+            if (item is not { State: UnidentifiedState.Resolved })
+            {
+                return Task.CompletedTask;
+            }
+
+            RecheckMarks.Add((unidentifiedItemId, associationVersion));
+            RecheckItems.Remove(unidentifiedItemId);
+            return Task.CompletedTask;
+        }
 
         public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(Items.FirstOrDefault(item => item.Id == id));
@@ -368,39 +865,39 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class FakeResolveUnidentified : IResolveUnidentified
+    /// <summary>
+    /// Advances the stored item's version exactly as the real resolve does, so
+    /// each transition in a pass builds its key from a version of its own.
+    /// </summary>
+    private sealed class FakeResolveUnidentified(FakeUnidentifiedStore store) : IResolveUnidentified
     {
         public List<ResolveUnidentifiedRequest> Requests { get; } = [];
 
-        public HashSet<string> FailForReceiptOperationKeys { get; } = [];
+        public HashSet<string> FailForOperationKeys { get; } = [];
 
         public Task<UnidentifiedResolveResult> ExecuteAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (FailForReceiptOperationKeys.Contains(request.OperationKey))
+            if (FailForOperationKeys.Contains(request.OperationKey))
             {
                 throw new InvalidOperationException("Simulated transient resolution failure.");
             }
 
             Requests.Add(request);
-            var resolved = new UnidentifiedItem(
-                request.UnidentifiedItemId,
-                1,
-                UnidentifiedReferenceFormat.Create(1),
-                UnidentifiedOrigin.Receipt(Guid.NewGuid()),
-                UnidentifiedReasonCode.NoUsableIdentification,
-                "Recorded safe detail.",
-                UnidentifiedState.Resolved,
-                Now,
-                request.ResolvedAtUtc,
-                ActionActor.SystemWorker("intake-processing"),
-                request.Actor,
-                request.Reason,
-                request.TargetKind,
-                request.TargetId,
-                request.TargetReference,
-                1);
+            var existing = store.Items.Single(item => item.Id == request.UnidentifiedItemId);
+            var resolved = existing with
+            {
+                State = UnidentifiedState.Resolved,
+                ResolvedAtUtc = request.ResolvedAtUtc,
+                ResolvedBy = request.Actor,
+                ResolutionReason = request.Reason,
+                ResolutionTargetKind = request.TargetKind,
+                ResolutionTargetId = request.TargetId,
+                ResolutionTargetReference = request.TargetReference,
+                Version = existing.Version + 1
+            };
+            store.Replace(resolved);
             return Task.FromResult(new UnidentifiedResolveResult(
                 resolved,
                 new UnidentifiedHistoryEntry(

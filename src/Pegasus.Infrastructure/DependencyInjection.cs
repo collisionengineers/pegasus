@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.AiWork;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -11,6 +11,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
@@ -23,6 +24,7 @@ using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Vision;
@@ -57,7 +59,19 @@ public static class DependencyInjection
         });
 
         services.AddLogging();
+        services.AddScoped<IActionLogQueries, EfActionLogQueries>();
+        services.AddScoped<ListActionLogs>();
+        services.AddScoped<IV1ActivityReportQueries, EfV1ActivityReportQueries>();
+        services.AddScoped<GetV1ActivityReport>();
+        services.AddScoped<IAdministrationAiJobQueries, EfAdministrationAiJobQueries>();
+        services.AddScoped<GetAdministrationAiJobs>();
+        services.AddScoped<IAdministrationHealthMetricsQueries, EfAdministrationHealthMetricsQueries>();
+        services.AddScoped<GetAdministrationHealthMetrics>();
+        services.AddSingleton<DocumentContentCacheMetrics>();
+        services.AddSingleton<IDocumentContentCacheMetrics>(provider =>
+            provider.GetRequiredService<DocumentContentCacheMetrics>());
         services.AddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IDocumentContentCacheCleanup, NoDocumentContentCacheCleanup>();
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<EfIntakeSubmissionGroupStore>();
@@ -71,7 +85,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
         services.AddScoped<IAllocateIntake, AllocateIntake>();
         services.AddScoped<IListIntake, ListIntake>();
+        services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
         services.AddScoped<IGetIntake, GetIntake>();
+        services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
         // The read half of retained mail only. The write port is registered by the
         // poll compositions below, so nothing in Web can add a retained message.
         services.AddScoped<EfRetainedMailboxMessageStore>();
@@ -116,6 +132,7 @@ public static class DependencyInjection
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
         services.AddScoped<EfUnidentifiedStore>();
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
+        services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
@@ -125,9 +142,11 @@ public static class DependencyInjection
         services.AddScoped<ITriageResponseEvidenceCandidateQueries>(
             provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<IListTriage, ListTriage>();
+        services.AddScoped<IListTriagePage, ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<IAssignTriage, AssignTriage>();
+        services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
         services.AddScoped<IRecordTriageFinding, RecordTriageFinding>();
@@ -154,7 +173,38 @@ public static class DependencyInjection
         services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
-        services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
+        services.AddSingleton<QdosInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy>(provider =>
+            provider.GetRequiredService<QdosInstructionExtractionPolicy>());
+        services.AddSingleton<IInstructionExtractionPolicy, AlsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, AxInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, BcInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, BlackInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, DfdInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, FwInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, KbsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, MpInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, OakInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, PchInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, QclInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, RjsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, SblInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, YmlInstructionExtractionPolicy>();
+        services.AddScoped<InstructionExtractionPolicySelector>();
+        services.AddScoped<EfRetainedInstructionAnalysisStore>();
+        services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<ISourceCandidateQueries>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<IThirdPartyReportCandidateQueries>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
+        services.AddScoped<AnalyzeRetainedInstruction>();
+        services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
+            provider.GetRequiredService<AnalyzeRetainedInstruction>());
+        services.AddScoped<EfIntakeOcrOperationStore>();
+        services.AddScoped<IIntakeOcrOperationStore>(provider =>
+            provider.GetRequiredService<EfIntakeOcrOperationStore>());
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because
@@ -168,34 +218,58 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
-        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
+        services.AddScoped<EfStaffAccountQueries>();
+        services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<IStaffHeldCaseEditLeaseQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IAssignStaffRolesStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IReviewStaffAccessStore>(provider =>
+        services.AddScoped<IEnableStaffAccountStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IForceStaffLogoutStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IResetStaffPasswordStore>(provider =>
+            provider.GetRequiredService<EfStaffAccountAdministration>());
+        services.AddScoped<IDeleteStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IUpdateStaffAccountSignOffStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
-        services.AddScoped<IGetAccessReview, GetAccessReview>();
+        services.AddScoped<IGetStaffHeldCaseEditLeases, GetStaffHeldCaseEditLeases>();
         services.AddScoped<IGetRoleAssignments, GetRoleAssignments>();
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IAssignStaffRoles, AssignStaffRoles>();
-        services.AddScoped<IReviewStaffAccess, ReviewStaffAccess>();
+        services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
+        services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
+        services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
+        services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
         services.AddScoped<IUpdateStaffAccountSignOff, UpdateStaffAccountSignOff>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
         services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
+        services.AddScoped<EfPerUserExternalCredentialStore>();
+        services.AddScoped<IPerUserExternalCredentialReader>(provider =>
+            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
+        services.AddScoped<IPerUserExternalCredentialAdministration>(provider =>
+            provider.GetRequiredService<EfPerUserExternalCredentialStore>());
         services.AddScoped<EfOrganizationAdministration>();
         services.AddScoped<IOrganizationAdministrationStore>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
+        services.AddScoped<EfClaimSourceAdministration>();
+        services.AddScoped<IClaimSourceAdministration>(
+            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
+        services.AddScoped<IClaimSourceQueries>(
+            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
+        services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
+        services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(
             provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
@@ -249,8 +323,6 @@ public static class DependencyInjection
         services.AddScoped<IAutomaticVehicleLookupStore>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
-        services.AddScoped<IAutomaticEvaSubmissionStore, EfAutomaticEvaSubmissionStore>();
-        services.AddScoped<ReconcileAutomaticEvaSubmissions>();
         services.AddScoped<ReconcileProviderSubmissions>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
@@ -269,7 +341,11 @@ public static class DependencyInjection
         services.AddScoped<RetryMailboxProcessing>();
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
-        services.AddScoped<IGetOperationsSnapshot, GetOperationsSnapshot>();
+        services.AddScoped<GetOperationsSnapshot>();
+        services.AddScoped<IGetOperationsSnapshot>(provider =>
+            provider.GetRequiredService<GetOperationsSnapshot>());
+        services.AddScoped<IGetAttentionRows>(provider =>
+            provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
         services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
         services.AddScoped<GetEngineerActivityReport>();
@@ -313,19 +389,29 @@ public static class DependencyInjection
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
+        services.AddScoped<IAdministrativeCaseEditLeaseStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IClearCaseEditLease, ClearCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<EfCaseQueryStore>();
         services.AddScoped<ICaseQueryStore>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ISearchCases, SearchCases>();
+        services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
+        services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
+        services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
+        services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<EfCaseDataStore>();
         services.AddScoped<ICaseDataStore>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<ICaseDataQueries>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
-        services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
+        services.AddScoped<InspectionAddressChoicesQueries>();
+        services.AddScoped<IInspectionAddressChoicesQueries>(
+            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
+        services.AddScoped<IInspectionLocationChoices>(
+            provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
@@ -336,19 +422,58 @@ public static class DependencyInjection
             provider.GetRequiredService<EfEngineerNoteStore>());
         services.AddScoped<IAddEngineerNote, AddEngineerNote>();
         services.AddScoped<ISaveCase, SaveCase>();
+        services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
+        services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
-        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
         // the import dialog selects the parser by the chosen source route.
         services.AddSingleton<JsonEstimateParser>();
+        services.AddSingleton<IEstimateDocumentParser>(provider =>
+            provider.GetRequiredService<JsonEstimateParser>());
+        services.AddSingleton<IEstimateDocumentParser, GlassEstimateXmlParser>();
+        // Details still requests the PDF parser singly and JSON by its concrete
+        // type; canonical import consumes all parsers through the collection.
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        services.AddScoped<EfGlassRepairEstimateSessionStore>();
+        services.AddScoped<IGlassRepairEstimateSessionStore>(provider =>
+            provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
+        services.AddScoped<IGlassRepairEstimateSessionReader>(provider =>
+            provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
+        services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
+            key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
+        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+            });
+        services.AddScoped<IGlassRepairEstimateCaseAuthority, EfGlassRepairEstimateCaseAuthority>();
+        services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
+        services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
         services.AddScoped<IDiscardEstimate, DiscardEstimate>();
         services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
         services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
+        services.AddScoped<IListCaseEstimatesByCursor, ListCaseEstimatesByCursor>();
+        services.AddScoped<EfCaseAssetPreparationStore>();
+        services.AddScoped<ICaseAssetPreparationStore>(provider =>
+            provider.GetRequiredService<EfCaseAssetPreparationStore>());
+        services.AddScoped<ICaseAssetPreparationQueries>(provider =>
+            provider.GetRequiredService<EfCaseAssetPreparationStore>());
         services.AddScoped<EfValuationStore>();
         services.AddScoped<IValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<IAppliedValuationStore>(provider =>
+            provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<EfValuationPresetStore>();
+        services.AddScoped<IValuationPresetStore>(provider =>
+            provider.GetRequiredService<EfValuationPresetStore>());
+        services.AddScoped<IListValuationPresets, ListValuationPresets>();
+        services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
+        services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
+        services.AddScoped<IApplyValuationCalculation, ApplyValuationCalculation>();
+        services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<ISaveValuation, SaveValuation>();
         services.AddScoped<IEditValuation, EditValuation>();
         services.AddScoped<IListCaseValuations, ListCaseValuations>();
@@ -433,6 +558,17 @@ public static class DependencyInjection
                 new LocalDocumentContentStore(Path.Combine(localArtifactRootFactory(provider), "custody")));
             services.AddSingleton<IDocumentContentStore>(provider =>
                 provider.GetRequiredService<LocalDocumentContentStore>());
+            services.AddScoped<IReadLogicalDocumentVersion, LocalLogicalDocumentVersionReader>();
+            services.AddScoped<ReconcilePendingArtifactCustody>();
+            services.AddScoped(provider => new EfCaseArtifactCustody(
+                provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                provider.GetRequiredService<IDocumentContentStore>(),
+                provider.GetRequiredService<IIntakeArtifactStore>(),
+                provider.GetRequiredService<TimeProvider>()));
+            services.AddScoped<ICaseArtifactCustody>(provider =>
+                provider.GetRequiredService<EfCaseArtifactCustody>());
+            services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
+                provider.GetRequiredService<EfCaseArtifactCustody>());
             services.AddSingleton<IEvaHandoffProxy, LocalEvaHandoffProxy>();
             services.AddSingleton<ICaseCustody>(provider =>
                 new LocalCaseCustody(
@@ -453,13 +589,20 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
+            services.AddScoped<EfPublicUploadRetentionStore>();
+            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
+                provider.GetRequiredService<EfPublicUploadRetentionStore>());
+            services.AddScoped<RetainIncomingArtifact>();
             // The Provider API reader decorates the ordinary one: it answers for
             // its own channel and defers for every other (API-01).
             services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
             services.AddScoped<IIntakeSourceReader>(provider =>
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
-            services.AddScoped<ProcessIntake>();
+            services.AddScoped(provider =>
+                ActivatorUtilities.CreateInstance<ProcessIntake>(
+                    provider,
+                    provider.GetRequiredService<QdosInstructionExtractionPolicy>()));
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.
@@ -472,6 +615,8 @@ public static class DependencyInjection
             services.AddScoped<IAddCaseDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IDownloadCaseDocument>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IGetCaseDocumentMetadata>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IExportCaseDocuments>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
@@ -518,7 +663,24 @@ public static class DependencyInjection
     {
         services.AddSingleton<IAssessmentReportRenderer, PlaywrightAssessmentReportRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
-        services.AddScoped<IAssessmentReportProjectionSource, EfAssessmentReportProjectionSource>();
+        services.AddScoped<EfAssessmentReportProjectionSource>();
+        services.AddScoped<IAssessmentReportProjectionSource>(provider =>
+            provider.GetRequiredService<EfAssessmentReportProjectionSource>());
+        services.AddScoped<ICaseReportSnapshotSource>(provider =>
+            provider.GetRequiredService<EfAssessmentReportProjectionSource>());
+        services.AddScoped<EfCaseReportGenerationStore>();
+        services.AddScoped<ICaseReportGenerationStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<ICaseReportGenerationQueries>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<IGeneratedCaseArtifactStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
+        services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
+        services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
+        services.AddScoped<IPrepareCaseReportDelivery, PrepareCaseReportDelivery>();
+        services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
+        services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
         return services;
     }
@@ -528,8 +690,6 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(optionsFactory);
         services.AddSingleton<LocalApprovedInboxOptions>(optionsFactory);
-        services.AddSingleton<IApprovedInboxSourceSettings>(provider =>
-            provider.GetRequiredService<LocalApprovedInboxOptions>());
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<IRetainedMailboxMessageStore>(
@@ -544,11 +704,11 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(optionsFactory);
         services.AddSingleton<LocalApprovedSentOptions>(optionsFactory);
-        services.AddSingleton<IApprovedSentSourceSettings>(provider =>
-            provider.GetRequiredService<LocalApprovedSentOptions>());
         services.AddSingleton<IApprovedSentSource, LocalDurableApprovedSentSource>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollSentEvidence>();
+        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
+            provider.GetRequiredService<PollSentEvidence>());
         return services;
     }
 
@@ -574,6 +734,16 @@ public static class DependencyInjection
             provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
         services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>
             provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
+        services.AddScoped(provider => new CachedDocumentContentStore(
+            provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            intakeContainerFactory(provider),
+            provider.GetRequiredService<BoxContentClient>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<IDocumentContentCacheMetrics>()));
+        services.AddScoped<IReadLogicalDocumentVersion>(provider =>
+            provider.GetRequiredService<CachedDocumentContentStore>());
+        services.AddScoped<IDocumentContentCacheCleanup>(provider =>
+            provider.GetRequiredService<CachedDocumentContentStore>());
         return services.AddProductionBoxCustody(boxOptions);
     }
 
@@ -593,10 +763,8 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(boxOptions);
 
         services.AddSingleton(provider => boxOptions(provider));
-        services.TryAddSingleton(static _ => new HttpClient
-        {
-            Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout
-        });
+        services.AddHttpClient(nameof(BoxContentClient), client =>
+            client.Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout);
         // The header provider needs a clock. Every caller reaches this through
         // AddPegasusInfrastructure, which registers one, but the storage
         // profile should stand up on its own rather than depend on the order
@@ -608,13 +776,25 @@ public static class DependencyInjection
                 provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton(provider => new BoxContentClient(
             provider.GetRequiredService<BoxCustodyOptions>(),
-            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),
             provider.GetRequiredService<IBoxAuthorizationHeaderProvider>()));
         services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
             provider.GetRequiredService<IIntakeArtifactStore>(),
             provider.GetRequiredService<BoxContentClient>()));
         services.AddSingleton<IDocumentContentStore>(provider => new BoxDocumentContentStore(
             provider.GetRequiredService<BoxContentClient>()));
+        services.AddScoped(provider => new EfCaseArtifactCustody(
+            provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            provider.GetRequiredService<IDocumentContentStore>(),
+            provider.GetRequiredService<IIntakeArtifactStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<BoxContentClient>(),
+            provider.GetRequiredService<BoxCustodyOptions>().HoldingFolderId));
+        services.AddScoped<ICaseArtifactCustody>(provider =>
+            provider.GetRequiredService<EfCaseArtifactCustody>());
+        services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
+            provider.GetRequiredService<EfCaseArtifactCustody>());
+        services.AddScoped<ReconcilePendingArtifactCustody>();
         return services;
     }
 
@@ -643,18 +823,15 @@ public static class DependencyInjection
         services.AddSingleton(optionsFactory);
         services.AddSingleton(provider =>
             provider.GetRequiredService<EvaApiOptions>().Instruction);
-        services.TryAddSingleton(static _ => new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(100)
-        });
+        services.AddHttpClient(nameof(EvaApiTransport), client =>
+            client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton<IEvaApiTransport>(provider => new EvaApiTransport(
             provider.GetRequiredService<EvaApiOptions>(),
-            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(EvaApiTransport)),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<EvaSubmissionStore>();
         services.AddScoped<ISubmitCaseToEva>(provider =>
             provider.GetRequiredService<EvaSubmissionStore>());
-        services.AddScoped<IEvaSubmissionWorkStore, EfEvaSubmissionWorkStore>();
         return services;
     }
 
@@ -673,17 +850,16 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
         services.AddSingleton(graphOptions);
-        services.AddSingleton<IApprovedInboxSourceSettings>(graphOptions);
-        services.AddSingleton<IApprovedSentSourceSettings>(graphOptions);
         services.AddSingleton(vehicleOptions);
-        services.TryAddSingleton(static _ => new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(100)
-        });
+        services.AddHttpClient(nameof(GraphMailClient), client =>
+            client.Timeout = TimeSpan.FromSeconds(100));
+        services.AddHttpClient(nameof(DvlaDvsaProductionAdapter), client =>
+            client.Timeout = TimeSpan.FromSeconds(100));
         services.AddSingleton(provider => new GraphMailClient(
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
-            provider.GetRequiredService<HttpClient>()));
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
+        AddStaffMailSending(services);
         services.AddSingleton<GraphMailboxChangeSubscriptions>();
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
         services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
@@ -693,18 +869,20 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
+        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
+            provider.GetRequiredService<PollSentEvidence>());
         services.AddSingleton(VehicleLookupAvailability.ProductionLive);
         services.AddSingleton<IVehicleLookupAdapter>(provider => new DvlaDvsaProductionAdapter(
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
-            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DvlaDvsaProductionAdapter)),
             provider.GetRequiredService<TimeProvider>()));
         return services;
     }
 
     /// <summary>
     /// The mailbox-administration "add an address" resolve port alone — independent of
-    /// <see cref="AddProductionExternalAdapters"/>, which also composes the single
-    /// configured polling mailbox and its Worker-only pollers. Web composes only this:
+    /// <see cref="AddProductionExternalAdapters"/>, which composes Worker-only pollers
+    /// over database-backed approved mailbox leases. Web composes only this:
     /// it never polls, it only resolves an address the operator just typed.
     /// </summary>
     public static IServiceCollection AddProductionApprovedMailboxResolver(
@@ -713,20 +891,47 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
         var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
-        services.TryAddSingleton(static _ => new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(100)
-        });
-        services.AddSingleton<IResolveApprovedMailboxIdentity>(provider => new GraphApprovedMailboxResolver(
+        services.AddHttpClient(nameof(GraphMailClient), client =>
+            client.Timeout = TimeSpan.FromSeconds(100));
+        services.AddSingleton(provider => new GraphApprovedMailboxResolver(
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
-            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient)),
             provider.GetRequiredService<ILogger<GraphApprovedMailboxResolver>>()));
+        services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>
+            provider.GetRequiredService<GraphApprovedMailboxResolver>());
+        services.AddSingleton<ICheckApprovedMailboxAccess>(provider =>
+            provider.GetRequiredService<GraphApprovedMailboxResolver>());
         services.AddSingleton(provider => new GraphMailClient(
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
-            provider.GetRequiredService<HttpClient>()));
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
+        services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
+        services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
+        services.AddScoped<PollSentEvidence>();
+        services.AddScoped<IStaffMailEvidenceReconciler>(provider =>
+            provider.GetRequiredService<PollSentEvidence>());
+        AddStaffMailSending(services);
         services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
+    }
+
+    private static void AddStaffMailSending(IServiceCollection services)
+    {
+        services.AddScoped<EfStaffMailSendStore>();
+        services.AddScoped<IStaffMailSendStore>(provider => provider.GetRequiredService<EfStaffMailSendStore>());
+        services.AddScoped<IApprovedStaffSendMailboxQueries>(provider => provider.GetRequiredService<EfStaffMailSendStore>());
+        services.AddScoped<IStaffMailUploadProgress, EfStaffMailUploadProgress>();
+        services.AddScoped<IStaffMailExecutionLock, SqlStaffMailExecutionLock>();
+        services.AddScoped<StaffMailSend>();
+        services.AddScoped<IStaffMailSend>(provider => provider.GetRequiredService<StaffMailSend>());
+        services.AddScoped<IStaffReportSend>(provider => new StaffReportSend(
+            provider.GetRequiredService<IReportSendReadiness>(),
+            provider.GetRequiredService<StaffMailSend>()));
+        services.AddHttpClient(nameof(GraphStaffMailSender), client => client.Timeout = TimeSpan.FromSeconds(100));
+        services.AddScoped<IStaffMailTransport>(provider => new GraphStaffMailSender(
+            provider.GetRequiredService<GraphMailClient>(),
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphStaffMailSender)),
+            provider.GetRequiredService<IStaffMailUploadProgress>()));
     }
 }

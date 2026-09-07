@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using Pegasus.Core.Workflow;
@@ -148,8 +148,14 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(new DateOnly(2031, 3, 4), typed.DateOfIncident);
         Assert.Equal(new DateOnly(2031, 3, 5), typed.InstructionDate);
         Assert.Equal("Image Based Assessment", typed.InspectionAddress);
-        // 12 since INTK-021 added the combined vehicle-description field.
-        Assert.Equal(12, receipt.Fields.Count);
+        // QDOS extraction v8 retains the complete 26-field instruction,
+        // party, damage, repairer and requested-work projection, including
+        // unavailable optional fields for review.
+        Assert.Equal(26, receipt.Fields.Count);
+        Assert.Contains(receipt.Fields, field => field.Name == "Vehicle description");
+        Assert.Contains(receipt.Fields, field => field.Name == "Third-party registration");
+        Assert.Contains(receipt.Fields, field => field.Name == "Repairer details");
+        Assert.Contains(receipt.Fields, field => field.Name == "Requested work");
 
         using var review = await client.GetAsync(upload.Location);
         var html = await review.Content.ReadAsStringAsync();
@@ -202,7 +208,9 @@ public sealed class InstructionDraftWebTests
         Assert.Equal("awaiting confirmation", mileage.SuggestedValue);
         var mileageCandidate = Assert.Single(mileage.Candidates);
         Assert.Equal(IntakeEvidenceSource.EmailBody, mileageCandidate.Source);
-        Assert.Contains("email body", mileageCandidate.SourceLabel, StringComparison.Ordinal);
+        Assert.Equal(
+            "uploaded controlled-invalid-values.eml, message body",
+            mileageCandidate.SourceLabel);
         var incidentDate = Assert.Single(receipt.Fields, field => field.Name == "Date of incident");
         Assert.True(incidentDate.HasConflict);
         Assert.Null(incidentDate.SuggestedValue);
@@ -214,7 +222,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(HttpStatusCode.OK, review.StatusCode);
         Assert.Contains("awaiting confirmation", html, StringComparison.Ordinal);
         Assert.Contains("Conflicting suggestions", html, StringComparison.Ordinal);
-        Assert.Contains("uploaded controlled-invalid-values.eml, email body", html, StringComparison.Ordinal);
+        Assert.Contains("uploaded controlled-invalid-values.eml, message body", html, StringComparison.Ordinal);
     }
 
     private static string CompleteBody() =>

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 
@@ -30,7 +29,6 @@ internal static class DevelopmentOfflineInitialization
         RequireLocalOnly(services);
         await MigrateAsync(services, cancellationToken);
         await EnsureIdentityAsync(services);
-        await EnsureQdosPrincipalAsync(services, cancellationToken);
     }
 
     public static async Task MigrateAsync(
@@ -139,33 +137,6 @@ internal static class DevelopmentOfflineInitialization
                 StaffRoleNames.Administrator));
         }
     }
-
-    private static async Task EnsureQdosPrincipalAsync(
-        IServiceProvider services,
-        CancellationToken cancellationToken)
-    {
-        var actor = DevelopmentAdministratorActor();
-        var organization = await services.GetRequiredService<ICreateOrganization>().ExecuteAsync(
-            new(
-                "QDOS development fixture",
-                [OrganizationRole.WorkProvider],
-                actor,
-                "development-qdos-organization"),
-            cancellationToken);
-        await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new(
-                organization.Id,
-                QdosPrincipal.Code,
-                actor,
-                "development-qdos-principal",
-                CaseInspectionMode.ImageBasedAssessment),
-            cancellationToken);
-    }
-
-    private static ActionActor DevelopmentAdministratorActor() =>
-        ActionActor.Staff(
-            DevelopmentOfflineIdentity.AdministratorId,
-            [StaffRole.Administrator]);
 
     private static void RequireLocalOnly(IServiceProvider services)
     {

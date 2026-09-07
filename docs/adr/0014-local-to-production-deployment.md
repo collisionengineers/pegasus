@@ -2,7 +2,7 @@
 id: ADR-0014
 status: accepted
 date: 2026-07-31
-supersedes: []
+supersedes: [ADR-0007]
 superseded_by: []
 related_capabilities: []
 related_frd: []

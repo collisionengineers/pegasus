@@ -10,7 +10,13 @@ Accepted decisions move to an [ADR](adr/README.md) or their canonical owner. Del
 
 Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity), [matching and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association), [Triage](frd/frd-03-triage.md#normal-workflow-and-completion-evidence), [case lifecycle](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence), [case edit authority](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery), [staff role access](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), and [outbound correspondence evidence](frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
 
-## First production journey and release sequencing
+## Historical QDOS-alpha release sequencing
+
+The sequence below records the earlier alpha decision. The 6 September v1
+decisions in [operator authority](operator-notes.md#current-v1-decisions--6-september-2026)
+supersede its EVA-dependent completion scope: Pegasus owns engineering and
+final reports, EVA is optional, and every send is staff-initiated. The three
+v1 PRs remain unmerged; this history is not fresh release authorization.
 
 Decided 2026-08-02: the first live journey is the full QDOS cutover — a genuine
 QDOS instruction email through intake, review, Case/PO allocation, Box custody,
@@ -50,10 +56,10 @@ and approval.
 
 ## Future AI Operations boundary
 
-The future AI job catalogue and AI Viewer remain unresolved and unimplemented.
-Before allocation, decide the permitted job types and eligibility, request and
-execution lifecycle, transcript/event wire format, retention, redaction, and
-the production transport and activation evidence. Operations must not imply
+The AI job catalogue and durable lifecycle are settled by AI-10 and ADR-0035;
+the ledger and administration viewer are implementation work under PLAT-075.
+External transport, real client round-trip and production activation still need
+their own evidence. Operations must not imply
 that `Features:SendToAi` is production enabled — it is not, and it cannot be:
 `src/Pegasus.Web/AiWork/SendToAi.cs:42` throws unless the runtime profile is
 `DevelopmentOffline`, so setting it in production crash-loops the host rather
@@ -77,63 +83,43 @@ accepted match rules.
 [Operations § dated evidence](operations.md#dated-evidence-qualifications) owns
 the accepted numbers and their qualification.
 
-1. **`INT-31` upload-link limits** — **Partially settled 2026-08-29.** Still
-   open: **one-time vs reuse**, and the **revocation/expiry error contract**.
-   Settled as an interim activation, not a closure: token lifetime, aggregate
-   and per-file byte limits, file count, allowed content types, and both rate
-   bounds. Unchanged and still binding: hashed 256-bit token, anonymous
-   `/Uploads/{token}` form, no case disclosure.
+1. **`INT-31` upload-link limits** — **Settled for the v1 source target.**
+   The anonymous link remains a hashed 256-bit token and discloses no Case.
+   The accepted source limits are 100 MiB per file, 20 files and 200 MiB
+   aggregate bytes per multipart request, plus 64 KiB of fixed multipart
+   overhead. The Provider API keeps its separate 30 MiB decoded envelope and
+   42 MiB encoded request limits.
 
-   The operator accepted the interim set below on 2026-08-29 so upload links
-   compose in production from release 37 ([[INTK-051]]). It is named
-   `int-31-interim-v1` so that accepting the full decision later is a version
-   change rather than an untracked edit — but see the warning below about what
-   a version change actually does today.
+   | Setting | Accepted source value |
+   | --- | --- |
+   | Aggregate file bytes | 209 715 200 (200 MiB) |
+   | Multipart request | 200 MiB plus 64 KiB fixed overhead |
+   | Per-file bytes | 104 857 600 (100 MiB) |
+   | File count | 20 |
+   | Link lifetime | 168 h (7 days) |
+   | Submission session | Fixed, non-sliding 15 minutes |
+   | Rate, per token | 20 per 10 minutes |
+   | Rate, per address | 30 per minute |
+   | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook` |
 
-   | Setting | Interim value | Basis |
-   | --- | --- | --- |
-   | Aggregate bytes | 10 485 760 | the interim bound already recorded here — the same 10 MB as `IntakeEnvelopeLimits.MaximumContentLength` (`IntakeContracts.cs:13`) |
-   | Per-file bytes | 10 485 760 | one file may use the whole aggregate |
-   | File count | 10 | |
-   | Token lifetime | 168 h (7 days) | matches the existing chase cadence (CASE-17/18, MAIL-18) |
-   | Rate, per token | 20 per 10 minutes | `RequestUploadAttemptLimiter`, partitioned by token digest |
-   | Rate, per address | 30 per minute | `PublicUploadLink`, partitioned by calling address, as staff sign-in, the MCP ingress and the Provider API already are |
-   | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook` | exactly the seven `MimeKitPdfPigOpenXmlIntakeSourceReader.DetectFormat` maps to a `SourceFormat` (`:971-1014`) |
+   `IntakeEnvelopeLimits` is the single Core owner of the manual/public
+   per-file, file-count and aggregate ceilings. `RequestUploadLimits` may
+   tighten those ceilings for a configured estate and may never raise them.
+   The public-upload session reserves capacity before custody, admits at most
+   one current successor for a replacement occurrence, and expires after its
+   fixed 15-minute window. Expiry, revocation, limit-version mismatch and
+   capacity refusal are typed outcomes; none authorises a fresh upload.
 
-   **Both rate bounds are needed, and the per-token one alone was not enough.**
-   `RequestUploadAttemptLimiter` partitions on the token digest, and
-   `RequestModel.OnPostAsync` answers `NotFound` for an unknown token before the
-   limiter is consulted — so a caller holding no token spends nothing. That gap
-   was unreachable while the composition gate was closed, because the middleware
-   short-circuited `/Uploads` to 404 before any body was read; opening the gate
-   makes the page reachable, and Razor Pages' antiforgery filter buffers the
-   whole multipart body before the page can reject it. The per-address bound
-   closes that, and it runs at `UseRateLimiter` — after routing, before endpoint
-   execution — so a rejected caller never has its body read.
+   The per-address limiter remains necessary because an unknown token is
+   refused before the token-partitioned limiter runs, while Razor's antiforgery
+   handling may otherwise buffer the multipart request first. It runs after
+   routing and before endpoint execution.
 
-   **A version change is not yet a migration.** Two mechanisms invalidate every
-   outstanding link the moment either value moves, and neither is graceful:
-   `RequestUploadPolicy.Authorize` (`:372-376`) **throws**
-   `InvalidOperationException` when a stored link's `LimitsVersion` differs from
-   the configured one, and `HasAcceptedLifetime` (`:440-455`) requires
-   `ExpiresAtUtc == CreatedAtUtc + limits.Lifetime` exactly, so changing
-   `LifetimeHours` alone makes every already-issued link `Unavailable`. Harmless
-   while production holds zero links; **settle the migration path before the
-   second version.**
-
-   These are **not** the integration fixture's values
-   (`integration-fixture-v1`, 1-hour lifetime, 1 MB per file); those are test
-   values and must never become production policy.
-
-   No larger target is accepted. Manual upload remains **10 MiB per file**;
-   the Provider API envelope stays 30 MB. [[INTK-052]] researches representative
-   requirements, cost, performance and Azure constraints before an operator
-   decision,
-   and is a Core change rather than a configuration one — `DurableIntake`
-   bounds the `ManualUpload` channel by
-   `IntakeEnvelopeLimits.MaximumContentLength`, and the batch budget derived
-   from it feeds a global multipart limit. Until INTK-052 lands, the
-   `int-31-interim-v1` values above remain the truthful current policy.
+   The repository's deployment configuration and dated live evidence are
+   separate from this accepted source policy and remain owned by
+   [operations](operations.md). Existing links are bound to the limits version
+   and lifetime recorded when issued; a mismatch fails closed, after which
+   staff may issue a new link through the existing Case action.
 
 2. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
@@ -152,7 +138,10 @@ the accepted numbers and their qualification.
 4. **Telemetry sampling and daily cap** — Exact sampling rate and daily
    ingestion cap (31-day interactive retention is settled), accepted from
    measured alpha workload and cost evidence; the deployed adaptive sampling
-   and 0.1 GB/day cap are interim.
+   and 0.5 GB/day cap are the recorded deployed settings (release 35), as
+   qualified in [operations](operations.md#production-environment). A full
+   working-day workload and an accepted measured budget remain evidence work;
+   this does not reopen the configured cap as an absent decision.
 5. **Azure budget wiring** — Billing scope, notification contacts/Action Group,
    and budget start/end dates were wired in the executed release (£75/month
    alert-only monitoring; see
@@ -307,8 +296,9 @@ What settled each of the boundaries this decision was held open for:
 - **Structured success/failure.** Four distinct outcomes — succeeded,
   rejected, partial, unknown — persisted per attempt.
 - **Idempotency.** EVA provides none, so Pegasus owns it: at most one
-  successful submission per case, enforced by a unique index, and only an
-  unknown outcome is ever retried.
+  successful submission per case, enforced by a unique index. Unknown delivery
+  is retained without automatic retry; another send requires explicit staff
+  action under FRD-07.
 - **Coexistence.** The manual export is unchanged and remains available to
   every Principal, from the same Send to EVA control.
 
@@ -329,12 +319,12 @@ inside Pegasus is open here.
 
 | Decision | Evidence needed | Impact | Recommended default | Decision question |
 | --- | --- | --- | --- | --- |
-| Glass's direct repair-estimate access | Accepted licensing, API or embedded-access terms, technical access, and cost. | Repair-estimate integration and its commercial viability cannot be established. | Do not select or represent Glass's as an available direct estimate adapter. | Are Glass's licensing, access mode, technical contract, and cost accepted for direct repair estimates? |
+| Glass's direct repair-estimate access | Accepted licensing, API or embedded-access terms, technical access, and cost. | Repair-estimate integration and its commercial viability cannot be established. | D03 selects per-Engineer Glass's repair estimates. Operator-owned live acceptance remains outstanding; no valuation service is selected. | D03 settles repair-estimate integration; the operator performs all live acceptance. |
 | Direct valuation access | Accepted direct-access contracts and terms for CAP, Glass's, and Cazana, including the basis for selecting any adapter. | Valuation sourcing, permissions, and cost remain uncertain. | Treat all three as candidates only; do not imply that any valuation adapter is selected. | Is there an accepted direct-access and commercial contract for a selected valuation source? |
-| Provider API tenancy and wire contract | An accepted client/tenant representation, exact routes, headers, schemas, attachment encoding, request limits, throttling/error contract, administration workflow, named clients, and rollout. The settled isolation boundary remains one principal-scoped client with own receipt/status/result only. | Treating an email domain, intermediary, or shared external tenant as the API principal could disclose another principal's work or create a second policy engine. | Keep the API absent. Use stable Pegasus principal identity as the isolation boundary and infer no tenancy model from provider-domain evidence. | What exact provider API contract and client/tenant representation preserves the accepted principal-scoped isolation boundary? |
+| Provider API tenancy and wire contract | An accepted client/tenant representation, exact routes, headers, schemas, attachment encoding, request limits, throttling/error contract, administration workflow, named clients, and rollout. The settled isolation boundary remains one principal-scoped client with own receipt/status/result only. | Treating an email domain, intermediary, or shared external tenant as the API principal could disclose another principal's work or create a second policy engine. | API-01 in FRD-09 defines the current contract. Use stable Pegasus Principal identity; additional tenancy, named credentials and live caller/rollout evidence remain separate. | What exact provider API contract and client/tenant representation preserves the accepted principal-scoped isolation boundary? |
 | `provider_domain_key` migration or retirement | An authoritative source definition and owner; current and predecessor uses; mapping to stable Pegasus principal/route/evidence identities; collision and unknown handling; cutover, rollback, retention, and exact retirement proof. No allowed accepted source currently defines this name as a Pegasus identity. | Importing, translating, or deleting an undefined key could misattribute a principal, destroy provenance, or leave a hidden compatibility dependency. | Do not create, migrate, map, alias, or retire `provider_domain_key`. Keep provider-domain evidence versioned and separate from principal and route identity. | Is there any approved source and consumer that requires this key, and if so what reviewed migration and retirement contract applies? |
 | Provider report submission and delivery | Exact provider API formats, delivery contracts, and provider identities. | Reports or work could be sent in an unsupported format or to an unproved identity. | Keep provider delivery behind review or existing supported procedures until each provider contract is accepted. | Has the exact format and identity contract been accepted for the provider being activated? |
-| DVLA/DVSA vehicle and MOT lookup | Selected provider/API and licence; exact make/model/year/engine/fuel and MOT/mileage fields; credentials; limits/rates; error and stale-data behavior; target; integration of the accepted mileage-estimation contract; and caller proof. | A guessed field or stale/failed result could overwrite confirmed vehicle data or present an estimate as supplied fact. | Keep live lookup disabled. Preserve source-labelled suggestions and return `Unavailable` when approved local replay evidence is absent. | Is the exact lookup contract accepted for the named provider and caller? |
+| DVLA/DVSA vehicle and MOT lookup | Selected provider/API and licence; exact make/model/year/engine/fuel and MOT/mileage fields; credentials; limits/rates; error and stale-data behavior; target; integration of the accepted mileage-estimation contract; and caller proof. | A guessed field or stale/failed result could overwrite confirmed vehicle data or present an estimate as supplied fact. | Keep live lookup disabled. Preserve source-labelled suggestions and return `Unavailable` when approved local replay evidence is absent. | The DVLA/DVSA adapter is selected and composed; are its exact credentials, deployed caller and live response evidence accepted? |
 | Post-report query and dispute lifecycle | Allowed states/transitions and actors; case/report/reply-chain evidence; correction/reopen and due/chaser interaction; response proof; closure; and dispute resolution. | A mailbox event could silently change case state, close work prematurely, lose a correction, or create a duplicate case/reference. | Preserve the correspondence against the existing case for staff review; let no Outlook adapter decide lifecycle or closure. | What exact CASE-23 lifecycle governs a received query/dispute through Engineer response and reasoned completion? |
 | Audatex PDF ingestion | Representative PDF variants and accepted field-mapping evidence. | Variant layouts could produce incomplete or incorrect extraction. | Do not activate generic Audatex PDF mapping from unrepresentative examples. | Have the supported Audatex PDF variants and their mappings been accepted from representative evidence? |
 | Mandatory global vehicle checks | Global requirements are settled as vehicle identity/specification, vehicle-history/risk, and market valuation. All three require a result or explicit exception before Engineers-queue eligibility. The authorised staff reviewer records each exception as a named, reasoned Case action. Each provider/route still needs its exact source, required result, and unavailable/failure contract. | A Case could proceed to an Engineer without a globally required result, or a provider-specific behavior could silently override the common baseline. | Preserve the global checks; use source-labelled `Unavailable` or approved local replay while live callers are unaccepted; retain unmet checks as `Not ready` rather than inventing a result. | What unavailable/failure contract applies to each global check for each provider/route? |

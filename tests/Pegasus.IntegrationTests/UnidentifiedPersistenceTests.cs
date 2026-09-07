@@ -1,4 +1,5 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -255,5 +256,206 @@ public sealed class UnidentifiedPersistenceTests
 
         var receipt = await receiptStore.StoreAsync(draft, CancellationToken.None);
         return receipt.Id;
+    }
+
+    /// <summary>
+    /// The reopen and recheck members carry interface defaults so that
+    /// in-memory doubles with no recheck queue stay honest (empty page, no
+    /// watermark). That default is a trap for the one implementation that MUST
+    /// override it: a production store silently inheriting it would report no
+    /// stale resolutions for ever and the correction loop would never run.
+    /// </summary>
+    [Fact]
+    public void TheProductionStoreDeclaresEveryReopenAndRecheckMemberItself()
+    {
+        var declared = typeof(Pegasus.Infrastructure.Persistence.EfUnidentifiedStore)
+            .GetMethods(
+                System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.DeclaredOnly)
+            .Select(method => method.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains(nameof(IUnidentifiedStore.ReopenAsync), declared);
+        Assert.Contains(nameof(IUnidentifiedStore.ListResolutionsToRecheckAsync), declared);
+        Assert.Contains(nameof(IUnidentifiedStore.MarkResolutionRecheckedAsync), declared);
+    }
+
+    /// <summary>
+    /// Keyset continuation over the Unidentified queue, against real SQL. The
+    /// queue is oldest-first and moves constantly, so the pages must partition
+    /// it exactly however small the page is.
+    /// </summary>
+    [Fact]
+    public async Task TheUnidentifiedQueuePagesDeterministicallyByCursor()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+
+        for (var index = 0; index < 5; index++)
+        {
+            var receiptId = await StoreReceiptAsync(
+                services.GetRequiredService<IIntakeReceiptStore>(),
+                IntakeSourceChannel.ManualUpload,
+                "application/pdf",
+                $"cursor-{index}.pdf");
+            await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(receiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "Retained for staff sorting.",
+                    ActionActor.SystemWorker("intake-processing"),
+                    $"unidentified-cursor-{index}",
+                    CreatedAtUtc.AddMinutes(index)),
+                CancellationToken.None);
+        }
+
+        var whole = await store.ListQueueAsync(null, CancellationToken.None);
+        Assert.Equal(5, whole.Count);
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var list = new ListUnidentifiedQueueByCursor(
+            store,
+            new IntakeStablePersistenceTests.FakeCursorProtector());
+
+        foreach (var pageSize in new[] { 1, 2, 5 })
+        {
+            var seen = new List<Guid>();
+            string? cursor = null;
+            var pages = 0;
+            do
+            {
+                var page = await list.ExecuteAsync(new(actor, null, cursor, pageSize));
+                Assert.True(page.Items.Count <= pageSize);
+                seen.AddRange(page.Items.Select(item => item.Id));
+                cursor = page.NextCursor;
+                pages++;
+                Assert.True(pages <= 10, "The continuation did not terminate.");
+            }
+            while (cursor is not null);
+
+            Assert.Equal(whole.Select(row => row.Id), seen);
+            Assert.Equal(seen.Count, seen.Distinct().Count());
+        }
+    }
+
+    /// <summary>
+    /// C01-R-1: the media-kind filter must not truncate the continuation.
+    ///
+    /// The queue is seeded so the OLDEST rows carry no matching row at all: with
+    /// a page size of one, a filter applied after a bounded fetch window would
+    /// return an empty page and a null cursor, and every matching row behind the
+    /// non-matching ones would be silently unreachable. The filter runs in SQL
+    /// beside the keyset bound and the Take, so the first page already holds the
+    /// first matching row and the continuation ends only when the queue is
+    /// exhausted.
+    /// </summary>
+    [Fact]
+    public async Task AFilteredQueuePagesPastNonMatchingRowsWithoutDroppingAny()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+
+        // Oldest first: four documents, then two e-mails, then two images. Every
+        // filter therefore has to page past rows that do not match it, and the
+        // Email and Image filters have to page past four and six of them.
+        (IntakeSourceChannel Channel, string MediaType)[] seeds =
+        [
+            (IntakeSourceChannel.ManualUpload, "application/pdf"),
+            (IntakeSourceChannel.ManualUpload, "application/pdf"),
+            (IntakeSourceChannel.Automation, "application/msword"),
+            (IntakeSourceChannel.ManualUpload, "application/pdf"),
+            (IntakeSourceChannel.Mailbox, "message/rfc822"),
+            // A mailbox receipt is an e-mail whatever its content type is, so
+            // this row must be caught by Email and NOT by Image.
+            (IntakeSourceChannel.Mailbox, "image/jpeg"),
+            (IntakeSourceChannel.ManualUpload, "image/jpeg"),
+            // Upper case on purpose: the policy compares case-insensitively and
+            // the SQL predicate must agree with it whatever the collation is.
+            (IntakeSourceChannel.ManualUpload, "IMAGE/PNG")
+        ];
+
+        for (var index = 0; index < seeds.Length; index++)
+        {
+            var (channel, mediaType) = seeds[index];
+            var receiptId = await StoreReceiptAsync(
+                services.GetRequiredService<IIntakeReceiptStore>(),
+                channel,
+                mediaType,
+                $"filtered-{index}{Path.GetExtension(mediaType) ?? string.Empty}");
+            await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(receiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "Retained for staff sorting.",
+                    ActionActor.SystemWorker("intake-processing"),
+                    $"unidentified-filtered-{index}",
+                    CreatedAtUtc.AddMinutes(index)),
+                CancellationToken.None);
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var list = new ListUnidentifiedQueueByCursor(
+            store,
+            new IntakeStablePersistenceTests.FakeCursorProtector());
+        var whole = await store.ListQueueAsync(null, CancellationToken.None);
+        Assert.Equal(seeds.Length, whole.Count);
+
+        var byKind = new Dictionary<UnidentifiedMediaKind, List<Guid>>();
+        foreach (var kind in new[]
+        {
+            UnidentifiedMediaKind.Document,
+            UnidentifiedMediaKind.Email,
+            UnidentifiedMediaKind.Image
+        })
+        {
+            // Page size one: the smallest window, and the one that exposes an
+            // after-the-fetch filter immediately.
+            var seen = new List<Guid>();
+            string? cursor = null;
+            var pages = 0;
+            do
+            {
+                var page = await list.ExecuteAsync(new(actor, kind, cursor, 1));
+                Assert.True(page.Items.Count <= 1);
+                // Every row a filtered page returns really is of that kind, as
+                // the policy classifies it - which is what holds the SQL
+                // predicate and UnidentifiedMediaKindPolicy together.
+                Assert.All(page.Items, row => Assert.Equal(kind, row.MediaKind));
+                seen.AddRange(page.Items.Select(row => row.Id));
+                cursor = page.NextCursor;
+                pages++;
+                Assert.True(pages <= 20, "The filtered continuation did not terminate.");
+            }
+            while (cursor is not null);
+
+            // The same rows, in the same order, as the unfiltered queue's own
+            // rows of that kind: nothing skipped and nothing repeated.
+            Assert.Equal(
+                whole.Where(row => row.MediaKind == kind).Select(row => row.Id),
+                seen);
+            byKind[kind] = seen;
+        }
+
+        // The three filters partition the queue exactly. A row lost to a
+        // truncated continuation, or claimed by two filters, breaks this.
+        Assert.Equal(4, byKind[UnidentifiedMediaKind.Document].Count);
+        Assert.Equal(2, byKind[UnidentifiedMediaKind.Email].Count);
+        Assert.Equal(2, byKind[UnidentifiedMediaKind.Image].Count);
+        Assert.Equal(
+            whole.Select(row => row.Id).OrderBy(id => id),
+            byKind.Values.SelectMany(ids => ids).OrderBy(id => id));
+
+        // And a page large enough to hold every match still terminates with a
+        // null cursor rather than offering an empty page after it.
+        var single = await list.ExecuteAsync(new(actor, UnidentifiedMediaKind.Email, null, 50));
+        Assert.Equal(2, single.Items.Count);
+        Assert.Null(single.NextCursor);
     }
 }

@@ -53,7 +53,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                 "QDOS",
                 new(true, true, true, true),
                 new(true, "concurrency-test-policy", 1),
-                CaseInspectionMode.PhysicalAddress),
+                CaseInspectionMode.ImageBasedAssessment),
             CancellationToken.None);
 
         var acceptedMatch = new IntakeEvidence(
@@ -75,7 +75,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                     seed.EvaluationId),
                 "AB12CDE",
                 acceptedMatch,
-                "staff:concurrency-test",
+                Pegasus.Core.Identity.ActionActor.SystemWorker("concurrency-test"),
                 "create-triage-concurrency-test"),
             CancellationToken.None);
 
@@ -184,9 +184,6 @@ public sealed class ConcurrencyTokenPersistenceTests
     private static async Task<Seed> SeedPrerequisitesAsync(
         IDbContextFactory<PegasusDbContext> factory)
     {
-        var organizationId = Guid.NewGuid();
-        var lineageId = Guid.NewGuid();
-        var principalId = Guid.NewGuid();
         var caseReceiptId = Guid.NewGuid();
         var triageReceiptId = Guid.NewGuid();
         var stagedReceiptId = Guid.NewGuid();
@@ -195,20 +192,7 @@ public sealed class ConcurrencyTokenPersistenceTests
         var triageSourceHash = new string('b', 64);
 
         await using var context = await factory.CreateDbContextAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO Organizations (Id, Name, Version)
-            VALUES ({organizationId}, {"Concurrency Test Organization"}, {0L})
-            """);
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc)
-            VALUES ({lineageId}, {FixedUtcNow})
-            """);
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO Principals
-                (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version)
-            VALUES
-                ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {0L})
-            """);
+        _ = await SeededPrincipals.QdosAsync(context);
         await InsertReceiptAsync(
             context,
             caseReceiptId,

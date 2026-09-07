@@ -30,6 +30,38 @@ public sealed class AssignTriage(ITriageStore store) : IAssignTriage
     }
 }
 
+/// <summary>
+/// Appends one operator note to the Triage's permanent history.
+/// </summary>
+/// <remarks>
+/// The note goes into the same replay-probed history every other Triage
+/// mutation writes, so a retried append returns the committed entry rather
+/// than recording the note twice. A note is never editable and never replaces
+/// an earlier one; correcting a note means writing another.
+/// </remarks>
+public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
+{
+    private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public async Task<TriageRecord> ExecuteAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        TriageLifecycleRules.ValidateNote(request);
+        if (await _store.ProbeAddNoteReplayAsync(request, cancellationToken) is { } replay)
+        {
+            return replay.Result;
+        }
+
+        var current = await TriageLifecycleRules.GetRequiredAsync(
+            _store,
+            request.TriageId,
+            cancellationToken);
+        TriageLifecycleRules.RequireMutable(current.Record, "note");
+        return await _store.AddNoteAsync(request, cancellationToken);
+    }
+}
+
 public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
 {
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -303,7 +335,7 @@ public static class TriageLifecycleRules
         ValidateOrigin(request.Origin);
         ValidateNormalizedRegistration(request.NormalizedVehicleRegistration);
         ValidateAcceptedMatchEvidence(request.AcceptedMatchEvidence);
-        ValidateActorAndOperation(request.Actor, request.OperationKey);
+        ValidateActorAndOperation(request.Actor, request.OperationKey, allowSystemWorker: true);
     }
 
     public static void ValidateMutation(TriageMutationRequest request)
@@ -312,6 +344,18 @@ public static class TriageLifecycleRules
         ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
+    }
+
+    public static void ValidateNote(AddTriageNoteRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
+        ValidateActorAndOperation(request.Actor, request.OperationKey);
+        RequireText(
+            request.Note,
+            "A note is required.",
+            TriageNotes.MaximumLength,
+            nameof(request));
     }
 
     public static void ValidateAssign(AssignTriageRequest request)
@@ -412,7 +456,7 @@ public static class TriageLifecycleRules
 
         ArgumentNullException.ThrowIfNull(request.Actor);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        ValidateActorAndOperation(request.Actor.SubjectId, request.OperationKey);
+        ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
         RequireText(
             request.CaseEditLeaseToken,
@@ -539,12 +583,39 @@ public static class TriageLifecycleRules
         }
     }
 
-    private static void ValidateActorAndOperation(string actor, string operationKey)
+    private static void ValidateActorAndOperation(
+        ActionActor actor,
+        string operationKey,
+        bool allowSystemWorker = false)
     {
-        RequireText(actor, "An actor is required.", 200, nameof(actor));
+        RequireActor(actor, allowSystemWorker);
         RequireText(operationKey, "An operation key is required.", 100, nameof(operationKey));
     }
 
+    /// <summary>
+    /// Triage carries the acting identity, not a subject string, so history records
+    /// the kind that made each mutation. Staff and Automation require casework
+    /// authority; the system worker is admitted only by the intake-creation route.
+    /// Nothing infers a kind from a prefix or defaults to Staff.
+    /// </summary>
+    private static void RequireActor(ActionActor actor, bool allowSystemWorker)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind == ActorKind.SystemWorker && allowSystemWorker)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
+        }
+        else if (actor.Kind is ActorKind.Staff or ActorKind.Automation)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        }
+        else
+        {
+            throw new UnauthorizedAccessException("This actor cannot mutate Triage material.");
+        }
+
+        RequireText(actor.SubjectId, "An actor is required.", 200, nameof(actor));
+    }
 
     private static void RequireText(string value, string message, int maximumLength, string parameterName)
     {

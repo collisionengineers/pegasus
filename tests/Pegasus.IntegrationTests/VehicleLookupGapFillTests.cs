@@ -3,8 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -75,6 +77,185 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal("121823", await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'suggestion'"));
     }
+
+    [Fact]
+    public async Task AcceptingOneSuggestionClearsOnlyThatFieldAndMileageIsAtomic()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var observationId = await database.ScalarAsync<Guid>(
+            $"SELECT TOP (1) Id FROM VehicleLookupObservations WHERE Registration = 'ST66BCE' ORDER BY RecordedAtUtc DESC");
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var caseVersion = await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+        await using var scope = database.CreateAsyncScope();
+        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+        var accept = scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>();
+        var makeLease = await leases.ClaimAsync(
+            new(caseId, caseVersion, actor, "gap-fill-make-lease"),
+            CancellationToken.None);
+        var acceptedMake = await accept.ExecuteAsync(
+            new(
+                caseId,
+                makeLease.Version,
+                observationId,
+                VehicleSuggestionDecision.Accept,
+                null,
+                actor,
+                "gap-fill-accept-make",
+                "Accepted the make suggestion.",
+                makeLease.Token)
+            {
+                Field = VehicleSuggestionField.Make
+            },
+            CancellationToken.None);
+
+        Assert.Equal("RENAULT", acceptedMake.Values.Make);
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'suggestion'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'suggestion'"));
+
+        var mileageLease = await leases.ClaimAsync(
+            new(caseId, acceptedMake.ResultingCaseVersion, actor, "gap-fill-mileage-lease"),
+            CancellationToken.None);
+        await accept.ExecuteAsync(
+            new(
+                caseId,
+                mileageLease.Version,
+                observationId,
+                VehicleSuggestionDecision.Accept,
+                null,
+                actor,
+                "gap-fill-accept-mileage",
+                "Accepted the mileage suggestion.",
+                mileageLease.Token)
+            {
+                Field = VehicleSuggestionField.Mileage
+            },
+            CancellationToken.None);
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit') AND ValueKind = 'suggestion'"));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit') AND ValueKind = 'confirmed' AND SourceIdentity = '{observationId:D}'"));
+    }
+
+    /// <summary>
+    /// Stream A review (comment 5560667174): accepting a confirmed vehicle
+    /// suggestion changes frozen report inputs, so it stales the Case's
+    /// current generation inside the same serializable acceptance
+    /// transaction. Replay returns before staling, a superseded generation
+    /// never moves, and a lookup alone — which only records suggestions —
+    /// stales nothing.
+    /// </summary>
+    [Fact]
+    public async Task AcceptingASuggestionStalesOnlyTheCurrentGeneration()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var (currentId, supersededId) = await SeedGenerationsAsync(database, caseId);
+        var observationId = await database.ScalarAsync<Guid>(
+            $"SELECT TOP (1) Id FROM VehicleLookupObservations WHERE Registration = 'ST66BCE' ORDER BY RecordedAtUtc DESC");
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var caseVersion = await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+        await using var scope = database.CreateAsyncScope();
+        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+        var accept = scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>();
+        var lease = await leases.ClaimAsync(
+            new(caseId, caseVersion, actor, "stale-accept-lease"), CancellationToken.None);
+        var request = new AcceptVehicleSuggestionCommand(
+            caseId,
+            lease.Version,
+            observationId,
+            VehicleSuggestionDecision.Accept,
+            null,
+            actor,
+            "stale-accept-make",
+            "Accepted the make suggestion.",
+            lease.Token)
+        {
+            Field = VehicleSuggestionField.Make
+        };
+        var accepted = await accept.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.Equal("RENAULT", accepted.Values.Make);
+        Assert.Equal("Stale", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal("Confirmed", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(database, caseId));
+
+        // Replay of the same acceptance returns before any mutation: the
+        // stale row count does not move.
+        var replayed = await accept.ExecuteAsync(request, CancellationToken.None);
+        Assert.True(replayed.IsReplay);
+        Assert.Equal(accepted.ConfirmationId, replayed.ConfirmationId);
+        Assert.Equal(1, await StaleRowCountAsync(database, caseId));
+    }
+
+    [Fact]
+    public async Task ALookupAloneStalesNoGeneration()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.Equal("Confirmed", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(database, caseId));
+    }
+
+    private static async Task<(Guid CurrentId, Guid SupersededId)> SeedGenerationsAsync(
+        LocalDbTestDatabase database,
+        Guid caseId)
+    {
+        await using var context = await database.CreateContextAsync();
+        var currentId = Guid.NewGuid();
+        var supersededId = Guid.NewGuid();
+        context.AddRange(
+            new CaseReportGenerationEntity
+            {
+                Id = supersededId,
+                CaseId = caseId,
+                CaseVersion = 0,
+                SnapshotHash = new string('1', 64),
+                SnapshotJson = "{\"operationKey\":\"seed-generation-superseded\"}",
+                TemplateVersion = "assessment-report/v1",
+                RendererVersion = "playwright/v1",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = FixedUtcNow,
+                Version = 1
+            },
+            new CaseReportGenerationEntity
+            {
+                Id = currentId,
+                CaseId = caseId,
+                CaseVersion = 0,
+                SnapshotHash = new string('2', 64),
+                SnapshotJson = "{\"operationKey\":\"seed-generation-current\"}",
+                TemplateVersion = "assessment-report/v1",
+                RendererVersion = "playwright/v1",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = FixedUtcNow.AddMinutes(1),
+                Version = 1
+            });
+        await context.SaveChangesAsync();
+        await database.ExecuteAsync(
+            $"UPDATE CaseReportGenerations SET SupersededById = '{Guid.NewGuid():D}' WHERE Id = '{supersededId:D}'");
+        return (currentId, supersededId);
+    }
+
+    private static Task<int> StaleRowCountAsync(LocalDbTestDatabase database, Guid caseId) =>
+        database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'");
 
     private static async Task RecordLookupAsync(
         LocalDbTestDatabase database,
