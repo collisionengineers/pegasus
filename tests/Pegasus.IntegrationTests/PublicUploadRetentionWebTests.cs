@@ -1292,6 +1292,93 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
+    [Fact]
+    public async Task PublicPageAddsReplacesFinalizesAndRefusesLaterBytes()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var link = await SeedLinkAsync(factory.Services, "PUBSESSION");
+
+        var added = await PostEvidenceAsync(factory, link.Token);
+        Assert.Equal(HttpStatusCode.Redirect, added.StatusCode);
+        DateTimeOffset fixedExpiry;
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            fixedExpiry = (await context.Set<PublicUploadSessionEntity>()
+                .AsNoTracking()
+                .SingleAsync(value => value.RequestUploadLinkId == link.LinkId)).ExpiresAtUtc!.Value;
+        }
+
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var page = await client.GetAsync($"/Uploads/{link.Token}");
+        var html = await page.Content.ReadAsStringAsync();
+        var occurrenceId = Guid.Parse(FieldValue(html, "ReplacementOccurrenceId"));
+        var replacementKey = FieldValue(html, "OperationKey");
+        var replacement = "replacement evidence"u8.ToArray();
+        using var file = new ByteArrayContent(replacement);
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        using var replaceForm = new MultipartFormDataContent
+        {
+            { new StringContent(FieldValue(html, "__RequestVerificationToken")), "__RequestVerificationToken" },
+            { new StringContent(link.Token), "Token" },
+            { new StringContent(replacementKey), "OperationKey" },
+            { new StringContent(occurrenceId.ToString("D")), "ReplacementOccurrenceId" },
+            { file, "Upload", "replacement.txt" }
+        };
+        using var replaced = await client.PostAsync(
+            $"/Uploads/{link.Token}?handler=Upload",
+            replaceForm);
+        Assert.Equal(HttpStatusCode.Redirect, replaced.StatusCode);
+
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync(value => value.Id == occurrenceId);
+            Assert.Equal("replacement.txt", occurrence.ProposedName);
+            Assert.Equal(Sha256Hex(replacement), occurrence.Sha256);
+            Assert.Equal((1, replacement.LongLength), await ReadLinkTotalsAsync(context, link.LinkId));
+            Assert.Equal(fixedExpiry, (await context.Set<PublicUploadSessionEntity>()
+                .AsNoTracking()
+                .SingleAsync(value => value.RequestUploadLinkId == link.LinkId)).ExpiresAtUtc);
+        }
+
+        using var refreshed = await client.GetAsync($"/Uploads/{link.Token}");
+        var refreshedHtml = await refreshed.Content.ReadAsStringAsync();
+        var finalizeVerificationToken = FieldValue(refreshedHtml, "__RequestVerificationToken");
+        using var finalizeForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = finalizeVerificationToken,
+            ["Token"] = link.Token
+        });
+        using var finalized = await client.PostAsync(
+            $"/Uploads/{link.Token}?handler=Finalize",
+            finalizeForm);
+        Assert.Equal(HttpStatusCode.Redirect, finalized.StatusCode);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var upload = scope.ServiceProvider.GetRequiredService<IUploadToRequest>();
+            var replay = await upload.FinalizeAsync(link.Token);
+            Assert.Equal(RequestUploadDecision.Accepted, replay.Decision);
+            Assert.True(replay.IsReplay);
+        }
+
+        using var refusedFile = new ByteArrayContent(Evidence);
+        refusedFile.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        using var refusedForm = new MultipartFormDataContent
+        {
+            { new StringContent(finalizeVerificationToken), "__RequestVerificationToken" },
+            { new StringContent(link.Token), "Token" },
+            { new StringContent(Guid.NewGuid().ToString("N")), "OperationKey" },
+            { refusedFile, "Upload", "late.txt" }
+        };
+        using var refused = await client.PostAsync(
+            $"/Uploads/{link.Token}?handler=Upload",
+            refusedForm);
+        Assert.Equal(HttpStatusCode.NotFound, refused.StatusCode);
+    }
+
     /// <summary>
     /// Asks custody what became of an arrival under an authority that may make
     /// the status read. Same operation key, so the command reconciles rather

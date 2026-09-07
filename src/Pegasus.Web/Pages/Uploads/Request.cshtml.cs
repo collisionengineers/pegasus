@@ -23,6 +23,9 @@ public sealed partial class RequestModel(
     [BindProperty]
     public string OperationKey { get; set; } = string.Empty;
 
+    [BindProperty]
+    public Guid? ReplacementOccurrenceId { get; set; }
+
     public RequestUploadPublicView? UploadPolicy { get; private set; }
 
     public string? StatusMessage { get; private set; }
@@ -93,7 +96,10 @@ public sealed partial class RequestModel(
     private static string NextOperationKey(RequestUploadPublicView view) =>
         view.UnresolvedOperationKey ?? StaffPageModel.NewOperationKey();
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    public Task<IActionResult> OnPostAsync(CancellationToken cancellationToken) =>
+        OnPostUploadAsync(cancellationToken);
+
+    public async Task<IActionResult> OnPostUploadAsync(CancellationToken cancellationToken)
     {
         UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
         if (UploadPolicy is null)
@@ -150,7 +156,8 @@ public sealed partial class RequestModel(
                             : Upload.ContentType,
                         content.ToArray(),
                         operationKey),
-                    attemptsInCurrentWindow),
+                    attemptsInCurrentWindow,
+                    ReplacementOccurrenceId),
                 cancellationToken);
 
             switch (result.Decision)
@@ -227,6 +234,36 @@ public sealed partial class RequestModel(
             ModelState.AddModelError(string.Empty, "The document could not be retained. Try again using the same upload operation.");
             return Page();
         }
+    }
+
+    public async Task<IActionResult> OnPostFinalizeAsync(CancellationToken cancellationToken)
+    {
+        UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
+        if (UploadPolicy is null)
+        {
+            return NotFound();
+        }
+
+        var result = await uploadToRequest.FinalizeAsync(Token, cancellationToken);
+        return result.Decision switch
+        {
+            RequestUploadDecision.Accepted when result.IsReplay =>
+                RedirectToPage("/Uploads/Request", new { token = Token }),
+            RequestUploadDecision.Accepted =>
+                RedirectToPage("/Uploads/Request", new { token = Token }),
+            RequestUploadDecision.LimitsVersionMismatch =>
+                FinalizeError("This link is no longer valid. Ask for a new one."),
+            RequestUploadDecision.NotRetained =>
+                FinalizeError("A document is still being stored. Try again."),
+            _ => NotFound()
+        };
+    }
+
+    private PageResult FinalizeError(string message)
+    {
+        ModelState.AddModelError(string.Empty, message);
+        OperationKey = NextOperationKey(UploadPolicy!);
+        return Page();
     }
 
     public string AcceptedMediaTypes => UploadPolicy is null

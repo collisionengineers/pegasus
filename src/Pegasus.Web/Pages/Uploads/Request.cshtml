@@ -1,5 +1,6 @@
 @page "/Uploads/{token}"
 @model Pegasus.Web.Pages.Uploads.RequestModel
+@using Pegasus.Core.Documents
 @{
     ViewData["Title"] = OperatorLabels.Upload.RequestTitle;
 }
@@ -22,7 +23,32 @@
 
 @if (Model.UploadPolicy is not null)
 {
-    <form method="post" enctype="multipart/form-data" class="section-gap">
+    @if (Model.UploadPolicy.Files.Count > 0)
+    {
+        <ul class="section-gap">
+            @foreach (var file in Model.UploadPolicy.Files)
+            {
+                <li>
+                    <span>@file.FileName</span>
+                    @if (Model.UploadPolicy.SessionState == PublicUploadSessionState.Open)
+                    {
+                        <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
+                            <input asp-for="Token" type="hidden" />
+                            <input asp-for="OperationKey" type="hidden" />
+                            <input name="ReplacementOccurrenceId" value="@file.Id" type="hidden" />
+                            <label for="replacement-@file.Id">@OperatorLabels.Upload.RequestReplace</label>
+                            <input id="replacement-@file.Id" name="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
+                            <button type="submit" class="btn btn--secondary">@OperatorLabels.Upload.RequestReplace</button>
+                        </form>
+                    }
+                </li>
+            }
+        </ul>
+    }
+
+    @if (Model.UploadPolicy.SessionState is PublicUploadSessionState.NotStarted or PublicUploadSessionState.Open)
+    {
+    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="section-gap">
         <input asp-for="Token" type="hidden" />
         <input asp-for="OperationKey" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
@@ -41,4 +67,15 @@
             <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.RequestSubmit</button>
         </div>
     </form>
+    }
+
+    @if (Model.UploadPolicy.SessionState == PublicUploadSessionState.Open)
+    {
+        <form method="post" asp-page-handler="Finalize" class="section-gap">
+            <input asp-for="Token" type="hidden" />
+            <div class="button-row">
+                <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.RequestFinish</button>
+            </div>
+        </form>
+    }
 }
