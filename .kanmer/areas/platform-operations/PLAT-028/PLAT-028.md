@@ -12,14 +12,14 @@ stageEntered:
 taken_at: '2026-09-07T20:10:46.013Z'
 branch: PLAT-028-principal-customer
 worktree: .worktrees/plat-028
-claim_expires_at: '2026-09-07T21:29:10.123Z'
+claim_expires_at: '2026-09-07T21:43:25.351Z'
 claim_controller: principal_delivery_audit
 lease_id: 898e963f-db89-4b9c-830b-c8faf286e861
-lease_revision: 6
+lease_revision: 7
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-028'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T20:59:10.123Z'
+lease_heartbeat_at: '2026-09-07T21:13:25.351Z'
 labels:
   - ui
   - administration
@@ -43,7 +43,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T20:59:10.123Z'
+updated: '2026-09-07T21:13:25.351Z'
 ---
 
 ## What
