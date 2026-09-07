@@ -785,3 +785,34 @@ Gates: Web build exit 0, 0 warnings 0 errors. IntegrationTests build exit 1 with
 expected A-owned CS0246 EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs(462,35),
 0 warnings. Report:
 C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
+
+## C07 review round 1 COMPLETE — 2026-09-07 (branch c07-retention-caller, HEAD 3a13a6e3d)
+
+Controller authorised R-1 half (a), so round 1 now closes every finding R-1a..R-18; only R-1b
+(the ReplacesOccurrenceId relation, a Stream A column) is round 2, marked by one
+`// round 2 (R-1b):` comment in EfDocumentRequestStore.ReplaceAsync.
+
+R-1a/R-5 (3a13a6e3d): a replacement inserts a NEW occurrence row with its own server-issued Id
+and operation key and is offered to custody under that identity; the superseded row keeps the
+CustodyState, DocumentId and DocumentVersionId custody gave it; derived link totals count both
+byte sets. This is also the whole of R-0: the old path reused the occurrence identity, so custody
+inserted a second CaseDocuments row for it and CustodyModelConfiguration.cs:15 refused the pair
+as non-unique — DbUpdateException, page 200 instead of 302 at PublicUploadRetentionWebTests:1331.
+Unavailable is now reserved for an occurrence outside this link's session; an addressed slot
+custody has not answered for is OperationConflict.
+
+Earlier commits: 324cf08f8 (R-2/R-3/R-4/R-6/R-7/R-8/R-10/R-12..R-18 — one RefuseLink rule for
+link validity, LockLinkAsync first in FinalizeAsync and the arrival path, real custody states
+projected and rendered with Finish naming what blocks it, refusal-only view for a limits-version
+mismatch, labels and minors), 64cc0e90e (R-9/R-11 tests).
+
+Tests: six new cases plus the two corrected assertions at :1338/:1340 that had encoded the defect.
+Nothing weakened. Gates at HEAD: Web build exit 0, 0 warnings 0 errors; IntegrationTests build
+exit 1 with only the expected A-owned CS0246 EfCaseArtifactCustody at
+DocumentCustodyDurabilityTests.cs(462,35), 0 warnings.
+
+Still open for the controller: docs/design/test-ui/pages/upload-request--{default,validation}.html
+are stale (controller handles the capture); a replacement now consumes a file slot against
+MaximumFileCount until R-1b lets the page mark a row superseded — worth confirming as product
+behaviour. Report:
+C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
