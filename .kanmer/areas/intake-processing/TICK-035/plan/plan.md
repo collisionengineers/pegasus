@@ -124,3 +124,25 @@ Preparation stops when required docs are ready; no take/worktree/source edit
 until PLAT-028 merge and execution assignment. Execution later stops at a
 frozen diff ready for root focused verification, then independent review.
 Never self-review, merge, deploy or mark Done.
+
+## Execution refinement approved by root
+
+Fresh base is 522e67f270ab4d6086d9fba04095988db3598888; PLAT-028 and
+INTK-061 are merged, Done and released. Read research version411e3d10a118729b:
+live pegasus database has zero Cases, so do not add any index backfill.
+
+The existing classifier and match interfaces already bind WorkProviderCode.
+Use one generalized implementation of each, instantiated per existing
+registered extraction profile; derive composition from those registrations,
+not a second provider list. Their evaluator/projector/five store callers may
+remain unchanged when the existing contract suffices. Route metadata remains
+one Core identity owner. This is a simpler equivalent implementation of the
+planned context propagation, not a parallel matcher.
+
+QDOS's document profile does not cover accepted body-only Triage and all
+current route-anchored extraction shapes. Retain its evidenced existing
+extractor/classification behavior when no competing document profile matched;
+a conflicting or ambiguous profile fails closed. Additional principals still
+require an agreeing selected profile before automatic instruction extraction.
+Tests must preserve body-only QDOS and cross-provider-conflict coverage.
+Root explicitly approved this refinement; no blanket Inspection default.
