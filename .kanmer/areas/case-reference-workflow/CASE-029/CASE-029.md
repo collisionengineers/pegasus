@@ -29,7 +29,10 @@ labels:
 groups:
   - EPIC-011
   - EPIC-012
-links: []
+links:
+  - CASE-047
+  - PLAT-075
+  - INTK-060
 blocks:
   - CASE-012
   - UIIMP-014
@@ -40,9 +43,9 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/670'
-archived: false
+archived: true
 created: '2026-08-28T08:35:24.142Z'
-updated: '2026-09-04T23:24:40.870Z'
+updated: '2026-09-07T20:46:56.018Z'
 ---
 
 ## What
@@ -74,3 +77,5 @@ Operator direction 2026-09-02; mockup source `Pegasus_UI_v2_src/src/21-case-sect
 The frame ticket and the vocabulary ticket in EPIC-012; [[ENG-027]] (valuation record).
 
 ## Outcome
+
+Archived as semantically superseded under the operator's 7 September 2026 instruction to close superseded work. Original PR670 closed unmerged at f22751cad3d5a713f39503ef48ff30422d67c97f; its obligations were checked against the integrated PR674 tree 3da60bd0c270111d5168dc17246dc831882108ea: valuation cards/Add and guide fields, one lookup and per-field chips, upload Recipient/Reason/replay and manual chase mapping all have production callers. [[CASE-047]], [[PLAT-075]] and [[INTK-060]] retain integrated acceptance ownership; later valuation adjustments remain [[TICK-083]]. This is not Done, proof or deployment acceptance. Preserve the remote task/case-029-valuation-lookup-chips branch and foreign-host expired claim/worktree metadata; no unseen workspace cleanup or ancestry claim was made. Detailed audit: EPIC-014 remediation pack current/groom-batch-01.md.

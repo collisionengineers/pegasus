@@ -15,11 +15,12 @@ groups:
   - EPIC-003
 links:
   - ENG-031
+  - CASE-047
 refs:
   - docs/frd/frd-12-operator-experience.md
-archived: false
+archived: true
 created: '2026-08-12T15:06:02.616Z'
-updated: '2026-09-03T15:15:29.416Z'
+updated: '2026-09-07T20:46:56.121Z'
 ---
 
 ## What
@@ -51,3 +52,5 @@ The newly activated report-image crop/selection/order behavior has the precise o
 - Report image preparation/selection: [[ENG-031]].
 
 ## Outcome
+
+Archived under the operator's 7 September 2026 instruction to close superseded work. This umbrella explicitly names no remaining concrete capability and duplicates the precise [[CASE-047]] workspace and [[ENG-031]] report-image owners. Original Astra B08 calls for retiring redundant umbrella wording. No hypothetical future work is claimed delivered and no Done/proof/deployment claim is made. Existing precise tickets keep their own acceptance obligations.

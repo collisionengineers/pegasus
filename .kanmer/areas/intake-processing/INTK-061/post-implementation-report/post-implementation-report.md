@@ -113,3 +113,11 @@ independent-review preparation; do not merge this ticket's own PR.
    `submissionGroup`; no semantics changed. Static query-context inspection and
    `git diff --check` then completed with exit code 0. Root owns the build rerun;
    the failed attempt remains recorded regardless of its later result.
+
+2. Root Release build retry failed with exit code 1 after 15.8 seconds: one
+   CA1310 diagnostic for the query's `StartsWith(string)` overload. No tests ran.
+   Replaced it with the existing EF-translatable `EF.Functions.Like` pattern
+   using Core's literal image media-type prefix plus `%` (the prefix contains
+   no LIKE wildcard characters). This does not use an untranslatable
+   StringComparison overload. `git diff --check` completed with exit code 0;
+   the real-SQL grouped-image tests remain required on root's rerun.
