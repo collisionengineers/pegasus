@@ -103,3 +103,13 @@ The simplification pass removed superseded advisory-failure commentary and the
 unused failed-Triage outcome, retained existing stores/dispatchers and current
 columns, and introduced no parallel pipeline. Stop after root validation and
 independent-review preparation; do not merge this ticket's own PR.
+
+## Verification attempts supplied by root
+
+1. Locked restore passed. First Release build failed with exit code 1 after
+   18 seconds: 27 parser diagnostics from the single LINQ query range identifier
+   `group` in `EfIntakeSubmissionGroupStore.cs` (CS1001/CS1525 cascade). No tests
+   ran. Corrected that contextual-keyword identifier consistently to
+   `submissionGroup`; no semantics changed. Static query-context inspection and
+   `git diff --check` then completed with exit code 0. Root owns the build rerun;
+   the failed attempt remains recorded regardless of its later result.
