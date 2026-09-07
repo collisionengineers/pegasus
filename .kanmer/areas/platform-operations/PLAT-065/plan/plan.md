@@ -14,7 +14,7 @@ d367219669ad26d5f2b727bd10b582330febc906, including accepted ADR-0040
 and the implemented source-context contract; not activated.
 No live Cognitive Services account or Worker endpoint exists. Preserve
 EPIC-011 and EPIC-014 membership. Root now authorizes bounded implementation
-on the six expected paths in a fresh ticket worktree after the packet/claim.
+on the seven expected paths in a fresh ticket worktree after the packet/claim.
 No build/test runs until root schedules; no cloud writes or deployment.
 
 ## Governing docs
@@ -50,13 +50,27 @@ workerApp appSettings, using the account's custom-domain endpoint. Worker
 depends on assignment. No Web role or endpoint. Expose non-secret account ID/
 endpoint outputs through platform/main for release readback.
 
+Root validation amendment (before correction edits): Bicep compilation passed
+with the installed tool. Local deployment-plan validation then failed, exit 1,
+with `Deferred Azure services are prohibited from the alpha deployment.` at
+its existing guard; build/tests did not start. Root explicitly authorizes the
+seventh file, `scripts/Test-AzureDeploymentPlan.ps1`, and bounded tests in the
+already owned contract-test class. Require exactly the planned named
+Document Intelligence account declaration, FormRecognizer/S0 and disabled
+local auth, then reject any other Cognitive Services declaration. Keep the
+Foundry/Maps/Vision/StaticWebApp exclusions unchanged. Reuse the existing
+isolated Local validator mutation test for changed kind, extra account and
+other deferred-service negatives; keep the rogue Worker-setting test case.
+No new mode, flag, helper framework or deployment convention.
+
 ## Expected files
 
 | Action | Repo-root-relative path | Responsibility |
 | --- | --- | --- |
 | Modify | infra/modules/platform.bicep | Account, Worker role, endpoint and dependency |
 | Modify | infra/main.bicep | Non-secret deployment outputs |
-| Modify | tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs | Focused existing-template contract assertions |
+| Modify | tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs | Focused existing-template contract assertions and existing isolated Local negative cases |
+| Modify | scripts/Test-AzureDeploymentPlan.ps1 | Replace obsolete blanket OCR ban with the single approved account exception; preserve other deferred-service rejection |
 | Modify | docs/runbook.md | Existing OCR activation/readback/rollback paragraph |
 | Modify | docs/current-architecture.md | Actual source/caller state |
 | Modify | docs/operations.md | Exact dated resource/cost/deployment/live proof |
@@ -69,7 +83,7 @@ endpoint outputs through platform/main for release readback.
 - corpus/**
 - pegasus_pack/glasses-integration/glass_ref_docs/**
 
-Only the six Expected files are writable. No new module or project.
+Only the seven Expected files are writable. No new module or project.
 
 ## Constraints
 
@@ -148,7 +162,7 @@ Exact release rollback preserves the approved prior artifact/activation state.
 
 ## Stop condition
 
-Current assignment ends with the six-file implementation frozen for root's
+Current assignment ends with the seven-file implementation frozen for root's
 coordinated focused checks; after matching PASS evidence publish PR/Review for
 independent review. Do not self-review, merge, deploy or perform cloud writes.
 Root owns exact-target release and live acceptance.

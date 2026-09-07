@@ -6,7 +6,8 @@
 | --- | --- |
 | infra/modules/platform.bicep | One FormRecognizer/S0 account, disabled local authentication, custom subdomain, one resource-scoped Worker role and Worker endpoint. Preserve all existing release inputs/resources. |
 | infra/main.bicep | Propagate non-secret account ID and endpoint outputs for release readback; no new parameter. |
-| tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs | Extend existing template contract tests for account, identity/scope and Worker-only endpoint; no new test framework. |
+| tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs | Extend existing template contract tests and isolated Local negative cases for the narrowly authorized OCR exception; no new test framework. |
+| scripts/Test-AzureDeploymentPlan.ps1 | Permit only the planned FormRecognizer/S0 keyless account through the existing deferred-service guard; retain other service exclusions and Worker census. |
 | docs/runbook.md | Existing OCR activation/recovery paragraph gets concrete endpoint, RBAC and rollback procedure. |
 | docs/current-architecture.md | Distinguish implemented source from activated caller; refresh after release. |
 | docs/operations.md | Record dated exact target, price/role, deployment identity and honest live results. |
