@@ -162,6 +162,12 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 
 Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL Entra, throttling, backup, restore, RPO, or RTO. Azurite does not prove Azure Files, ADLS, Entra/RBAC, managed identity, durability, replication, quotas, networking, scale, or production timing.
 
+A read-only Azure census on 7 September 2026 returned no
+`Microsoft.CognitiveServices/accounts` resources in the current subscription.
+The v1 OCR work did not create a resource, grant access, configure an endpoint
+or deploy the optional Worker adapter. Provider activation and live OCR
+evidence remain absent from this implementation record.
+
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
 
 ### Automation MCP is implemented and enabled in production
@@ -1613,7 +1619,7 @@ Deferred capabilities must attach to an existing Core port and a real compositio
 | Graph webhooks | Signature, replay, expiry, duplicate-notification contracts | Approved public callback and subscription | Endpoint or subscription |
 | PDF-engine replacement | Frozen cohort/holdout and contract-parity suite | Licence, security, maintenance review, single-path cutover | Parallel permanent engines |
 
-Scan-like PDF OCR and the provider API are deferred caller gates whose exact targets are owned by the [capability inventory](capabilities.md); neither blocks `0.1.0-alpha.1`.
+Scan-like PDF OCR remains an unactivated caller gate; its optional Worker adapter does not establish a queued producer or live provider evidence. Provider API caller and deployment evidence are recorded separately in the [capability inventory](capabilities.md) and this document's release history.
 
 SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows, and predecessor application/data migration remain exclusions until separately authorised.
 

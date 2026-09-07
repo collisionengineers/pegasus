@@ -210,8 +210,11 @@ The following boundaries distinguish source capability from live proof:
   staff-initiated draft/send adapter; this branch has not been deployed.
   `DevelopmentOffline` composes an explicit report-send refusal and no
   Graph mail transport; it does not simulate a submitted or sent operation.
-- Document Intelligence OCR remains subject to C's qualified-page caller and
-  later operator activation evidence.
+- Document Intelligence has an optional Production Worker adapter and typed
+  external-work dispatch. `DocumentIntelligence:Endpoint` must be an absolute
+  HTTPS URI; the adapter reuses the Worker managed identity. The queued
+  producer and end-to-end caller proof remain pending, as does later operator
+  activation. Neither the Web nor `DevelopmentOffline` composes the provider.
 - DOC/MSG extraction is implemented by the bounded in-process readers below;
   format recognition is not proof for every genuine sample.
 - Provider API and Automation MCP are composed, with their production ingress
@@ -324,7 +327,12 @@ CollisionDocNet-derived readers under `Pegasus.Infrastructure` (SIMPLI-013,
 unreadable, encrypted, or over-limit containers fail closed into Unidentified
 without a reference. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
 
-For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
+For PDFs, only low-text pages with a dominant raster are marked as scan-like
+OCR candidates. The optional Worker adapter accepts persisted qualified pages
+and preserves the result for retained analysis. The queued producer and its
+end-to-end proof remain pending; this work has made no live OCR call or
+deployed an endpoint. Document- and attachment-level OCR-required state remains
+visible during review.
 
 The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Web and Worker composition roots.
 
@@ -629,7 +637,7 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence. Since release 23 the lookup is enrichment rather than a rival reading: recording an observation also writes its make, model, mileage and mileage unit onto the case's own fields at the **suggestion** tier, which `CaseField.Current` (`Confirmed ?? Fact ?? Suggestion`) ranks below an extracted fact and a staff-confirmed value. A case that knows nothing gains the lookup's answer; a case that already knows keeps what it had, and the lookup's version sits behind it. The same release backfilled every case whose lookup predated the change. Since release 28 there is one mapping and one act, so a lookup value reaches the export carrying its real `Suggested` status rather than being refused.
+A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. The optional Worker Document Intelligence adapter for scan-like PDFs still awaits its queued producer, end-to-end caller proof and operator activation. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence. Since release 23 the lookup is enrichment rather than a rival reading: recording an observation also writes its make, model, mileage and mileage unit onto the case's own fields at the **suggestion** tier, which `CaseField.Current` (`Confirmed ?? Fact ?? Suggestion`) ranks below an extracted fact and a staff-confirmed value. A case that knows nothing gains the lookup's answer; a case that already knows keeps what it had, and the lookup's version sits behind it. The same release backfilled every case whose lookup predated the change. Since release 28 there is one mapping and one act, so a lookup value reaches the export carrying its real `Suggested` status rather than being refused.
 
 ### Provider API and Automation MCP
 
