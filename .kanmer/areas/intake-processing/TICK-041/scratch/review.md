@@ -6,8 +6,8 @@ verdict: pass
 reviewer: "principal_delivery_audit"
 independent: true
 plan_hash: "8ba337c6edc7ca54"
-ticket_updated: "2026-09-07T22:56:59.913Z"
-board_sha: "20ee91a518bd85873cd0aa86dace7c7dbd98f265"
+ticket_updated: "2026-09-07T23:08:36.981Z"
+board_sha: "5db393b0c25bbe28ab5999190a415876d95da39a"
 expected_reviewers: ["principal_delivery_audit"]
 threads_snapshot: []
 findings: []
@@ -105,4 +105,7 @@ Integrated exact-SHA proof and final integrated CI remain outstanding.
 No Done, deployment, live OCR accuracy, completed estimate import or manual
 visual acceptance is claimed. The review and Azure skills kept source
 authority, current protocol selection and live acceptance as separate claims.
-Root must read this whole verdict before any authorized merge.
+Root read and accepted review99a9e2a5fd4a260e, then explicitly authorized
+merge of this exact head. This whole-file refresh updates only the lease-driven
+ticket timestamp and pushed board binding; source, plan, verdict and public
+review remain unchanged. Fresh head/thread/policy checks remained unchanged.
