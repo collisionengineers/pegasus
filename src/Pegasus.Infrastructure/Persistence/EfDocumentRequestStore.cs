@@ -1561,9 +1561,6 @@ internal sealed class EfPublicUploadRetentionStore(
     private static string ScopePrefix(Guid requestUploadLinkId) =>
         $"request:{requestUploadLinkId:N}:";
 
-    internal static string ScopeIntakeOperationKey(Guid receiptId, Guid assetId) =>
-        IncomingArtifactOperationKey.ForIntake(receiptId, assetId);
-
     private static bool TryParseIntakeOperationKey(
         string operationKey, out Guid receiptId, out Guid assetId)
     {
