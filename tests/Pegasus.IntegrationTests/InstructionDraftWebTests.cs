@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using Pegasus.Core.Workflow;
@@ -209,7 +209,7 @@ public sealed class InstructionDraftWebTests
         var mileageCandidate = Assert.Single(mileage.Candidates);
         Assert.Equal(IntakeEvidenceSource.EmailBody, mileageCandidate.Source);
         Assert.Equal(
-            "uploaded controlled-invalid-values.eml, email body",
+            "uploaded controlled-invalid-values.eml, message body",
             mileageCandidate.SourceLabel);
         var incidentDate = Assert.Single(receipt.Fields, field => field.Name == "Date of incident");
         Assert.True(incidentDate.HasConflict);
@@ -222,7 +222,7 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(HttpStatusCode.OK, review.StatusCode);
         Assert.Contains("awaiting confirmation", html, StringComparison.Ordinal);
         Assert.Contains("Conflicting suggestions", html, StringComparison.Ordinal);
-        Assert.Contains("uploaded controlled-invalid-values.eml, email body", html, StringComparison.Ordinal);
+        Assert.Contains("uploaded controlled-invalid-values.eml, message body", html, StringComparison.Ordinal);
     }
 
     private static string CompleteBody() =>

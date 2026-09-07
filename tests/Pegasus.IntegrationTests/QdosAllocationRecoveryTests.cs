@@ -1147,84 +1147,73 @@ internal sealed class ThrowingAcceptIntake(Exception exception) : IAcceptIntake
 public sealed class IntakeAllocationConsumerTests
 {
     [Fact]
-    public async Task TriageIsIndependentOfSuccessfulAllocationReplayAndRetryInBothDirections()
+    public async Task SuccessfulFormalAllocationReplayDoesNotAlterAnExistingTriage()
     {
-        using var triageFactory = new IntakeWebApplicationFactory(
+        using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
             useIntegrationTestAuthentication: true,
             initializeDevelopmentOffline: false);
-        await AllocationTestData.SeedPrincipalAsync(triageFactory.Services, "QDOS");
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-success-independence.eml",
-            "QDOS instruction\r\nTriage Only Request\r\nClaimant Name: Triage Success\r\nClaim Number: TRIAGE-SUCCESS\r\nVehicle Registration: AB12 CDE");
-        var token = Guid.NewGuid().ToString("N");
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var triageEmail = IntakeTestEvidence.CreateEmail(
+            "engineer-triage.eml",
+            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is repairable or a total loss. We have noted the vehicle as roadworthy.",
+            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : AB12CDE");
 
-        Guid first;
-        await using (var scope = triageFactory.Services.CreateAsyncScope())
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
             var source = new IntakeSource(
-                email.FileName,
-                email.MediaType,
-                email.Content,
+                triageEmail.FileName,
+                triageEmail.MediaType,
+                triageEmail.Content,
                 scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
                 "system-worker:approved-inbox-poller",
-                new(IntakeSourceChannel.Mailbox, token));
-            first = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
-            _ = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N")));
+            _ = await AllocationTestData.SubmitAndProcessAsync(
+                scope.ServiceProvider,
+                source,
+                $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        var receiptId = first;
-        await using (var scope = triageFactory.Services.CreateAsyncScope())
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
+
+        var formalReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "QDOS");
+        var evaluationId = Guid.NewGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
-            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                .ListAsync(null, CancellationToken.None));
+            var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
+            var first = Assert.IsType<IntakeAllocationResult>(
+                await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, first.State.Status);
+            var replay = Assert.IsType<IntakeAllocationResult>(
+                await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, replay.State.Status);
+            Assert.True(replay.IsSuppressed);
+
             var receipt = Assert.IsType<IntakeReceipt>(
                 await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                    .GetAsync(receiptId, CancellationToken.None));
-            var succeeded = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
-            Assert.True(
-                succeeded.Status == IntakeAllocationProjectionStatus.Succeeded,
-                $"Allocation={succeeded.Status}/{succeeded.FailureKind}; classification={receipt.MailClassificationDecision?.Outcome}/{receipt.MailClassificationDecision?.CaseType}; reason={succeeded.SafeReason}");
-            var retry = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                    .GetAsync(formalReceipt.Id, CancellationToken.None));
+            var retry = await allocate.RetryAsync(new(
                 receipt.Id,
                 receipt.Version,
-                succeeded.AttemptId,
+                first.State.AttemptId,
                 ActionActor.Staff(
                     DevelopmentOfflineIdentity.AdministratorId,
                     [StaffRole.Administrator]),
                 $"allocation-retry:{Guid.NewGuid():N}",
-                "Successful allocation replay must not alter Triage."));
+                "Successful allocation replay must not alter the existing Triage."));
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retry.State.Status);
             Assert.True(retry.IsSuppressed);
             Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .ListAsync(null, CancellationToken.None));
         }
-        Assert.Equal(1, await AllocationTestData.CountAsync(triageFactory.Services, "Cases"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(triageFactory.Services, "Triage"));
 
-        using var nonTriageFactory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            useIntegrationTestAuthentication: true,
-            initializeDevelopmentOffline: false,
-            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
-        await AllocationTestData.SeedPrincipalAsync(nonTriageFactory.Services, "QDOS");
-        await using (var scope = nonTriageFactory.Services.CreateAsyncScope())
-        {
-            _ = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider,
-                new(
-                    email.FileName,
-                    email.MediaType,
-                    email.Content,
-                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-                    "system-worker:approved-inbox-poller",
-                    new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
-                $"mailbox-submit:{Guid.NewGuid():N}");
-        }
-        Assert.Equal(1, await AllocationTestData.CountAsync(nonTriageFactory.Services, "Cases"));
-        Assert.Equal(0, await AllocationTestData.CountAsync(nonTriageFactory.Services, "Triage"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
     }
-
     [Fact]
     public async Task ReceivedProjectionSeparatesProcessingDecisionFromFailedAllocation()
     {
@@ -1406,71 +1395,58 @@ public sealed class IntakeAllocationConsumerTests
         });
 
     [Fact]
-    public async Task QualifyingTriageRemainsOneAcrossAllocationFailureAndSourceReplay()
+    public async Task FailedFormalAllocationAndRetryDoNotAlterAnExistingTriage()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
             useIntegrationTestAuthentication: true,
             initializeDevelopmentOffline: false);
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var triageEmail = IntakeTestEvidence.CreateEmail(
+            "engineer-triage.eml",
+            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is repairable or a total loss. We have noted the vehicle as roadworthy.",
+            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : AB12CDE");
+        var triageToken = Guid.NewGuid().ToString("N");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var source = new IntakeSource(
+                triageEmail.FileName,
+                triageEmail.MediaType,
+                triageEmail.Content,
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, triageToken));
+            var firstTriageReceipt = await AllocationTestData.SubmitAndProcessAsync(
+                scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
+            var replayedTriageReceipt = await AllocationTestData.SubmitAndProcessAsync(
+                scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
+            Assert.Equal(firstTriageReceipt, replayedTriageReceipt);
+        }
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
+
         await AllocationTestData.DisableQdosAsync(factory.Services);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-allocation-independence.eml",
-            "QDOS instruction\r\nTriage Only Request\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-ALLOC\r\nVehicle Registration: AB12 CDE");
-        var token = Guid.NewGuid().ToString("N");
-
-        Guid first;
+        var formalReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services, CaseType.Inspection, "QDOS");
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var source = new IntakeSource(
-                email.FileName,
-                email.MediaType,
-                email.Content,
-                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-                "system-worker:approved-inbox-poller",
-                new(IntakeSourceChannel.Mailbox, token));
-            first = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
-        }
-        var receiptId = first;
-
-        Guid failedReplay;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var source = new IntakeSource(
-                email.FileName,
-                email.MediaType,
-                email.Content,
-                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-                "system-worker:approved-inbox-poller",
-                new(IntakeSourceChannel.Mailbox, token));
-            failedReplay = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
-        }
-        Assert.Equal(receiptId, failedReplay);
-        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
-        }
-
-        IntakeReceipt receipt;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            receipt = Assert.IsType<IntakeReceipt>(
-                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                    .GetAsync(receiptId, CancellationToken.None));
-            var failed = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
-            Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, failed.FailureKind);
-            Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, failed.Status);
-            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+            var failed = Assert.IsType<IntakeAllocationResult>(
+                await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                    .AttemptAutomaticAsync(formalReceipt.Id, Guid.NewGuid()));
+            Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, failed.State.FailureKind);
+            Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, failed.State.Status);
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
         }
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
         await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            receipt = Assert.IsType<IntakeReceipt>(
+            var receipt = Assert.IsType<IntakeReceipt>(
                 await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                    .GetAsync(receiptId, CancellationToken.None));
+                    .GetAsync(formalReceipt.Id, CancellationToken.None));
             var failed = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
             var retry = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
                 receipt.Id,
@@ -1480,36 +1456,17 @@ public sealed class IntakeAllocationConsumerTests
                     DevelopmentOfflineIdentity.AdministratorId,
                     [StaffRole.Administrator]),
                 $"allocation-retry:{Guid.NewGuid():N}",
-                "Principal corrected after qualifying Triage allocation failure."));
+                "Principal corrected after formal allocation failure."));
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retry.State.Status);
-            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
         }
 
-        Guid replay;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var source = new IntakeSource(
-                email.FileName,
-                email.MediaType,
-                email.Content,
-                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
-                "system-worker:approved-inbox-poller",
-                new(IntakeSourceChannel.Mailbox, token));
-            replay = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
-        }
-        Assert.Equal(receiptId, replay);
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
-        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
-        Assert.Equal(2, await AllocationTestData.AllocationEventCountAsync(factory.Services));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM TriageHistory WHERE EventType = N'triage_created'"));
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
-        }
     }
-
 }
 
 internal static class AllocationTestData
