@@ -11,16 +11,16 @@ stageEntered:
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T03:57:40.056Z'
+claim_expires_at: '2026-09-07T04:24:32.940Z'
 claim_controller: claude-fable-c2
 lease_id: b03b3df8-dca2-44ae-b628-515528bdf02f
-lease_revision: 70
+lease_revision: 71
 lease_controller_run: claude-fable-c2-20260907
 lease_worker_run: claude-fable-c2-20260907
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
 lease_provider: claude-code
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T01:57:40.056Z'
+lease_heartbeat_at: '2026-09-07T02:24:32.940Z'
 lease_reclaimed_from: codex-stream-c-replacement
 labels:
   - pegasus-v1
@@ -30,7 +30,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T01:57:40.056Z'
+updated: '2026-09-07T02:24:32.940Z'
 ---
 
 ## What

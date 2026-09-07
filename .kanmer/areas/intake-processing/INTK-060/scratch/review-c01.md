@@ -778,3 +778,255 @@ both are reasons to write two more sentences in the C01 report.
 
 Full attestation file:
 `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c01-all15-review.md`
+
+---
+kind: review-attestation
+scope: bounded re-review of correction round 1 (controller override; no merge, no move)
+pr: "none (branch not pushed, no PR open)"
+head_sha: "d57383b2b8c156c143a202469d341dbc99ce6687"
+branch: "c01-retained-analysis"
+worktree: "C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c01"
+range_reviewed: "d505d6078..d57383b2b8c156c143a202469d341dbc99ce6687"
+verdict: PASS
+reviewer: "pegasus-reviewer (INTK-060 C01, round 1)"
+independent: true
+prior_attestation: "scratchpad/takeover/c01-all15-review.md (NEEDS CHANGES, F-001..F-010)"
+author_report: "scratchpad/takeover/c01-all15-report.md (## Round 1)"
+evidence_dir: ".../scratchpad/takeover/wave40-tests"
+evidence_tree_sha: "83df6c00b810fddc18434ec92871df58b041acee (v1-intake-combined-verify, A+B+C)"
+carried_findings: 10
+carried_fixed: 9
+carried_rejected_with_reason: 1
+new_findings: 9
+new_by_severity: { blocker: 0, major: 0, minor: 5, note: 4 }
+---
+
+# INTK-060 C01 — round 1 re-review
+
+Bounded delta review of `d505d6078..d57383b2b`. No git write, no file edit, no test run,
+no push, no ticket move. Full attestation also at
+`.../scratchpad/takeover/c01-r1-review.md`.
+
+**Verdict: PASS.** Both round-0 blockers are genuinely fixed in production and test code,
+the major is resolved and verified against the tree that produced the evidence, the seven
+minors/notes are dispositioned, and the one declined finding is declined for a sound
+reason that the combined tree makes largely moot. Nine new findings — five minor, four
+note, none blocking.
+
+## 1. F-001 — production fix — VERIFIED FIXED
+
+`src/Pegasus.Core/Intake/AnalyzeRetainedInstruction.cs:376-399` — `if (readResult.IsIncomplete)`
+returns `SourceUnavailable`, `Analysis` null, candidates `[]`, replay `false`.
+
+- **Placement**: after the `Status != Readable` guard (`:365-374`), before
+  `selector.Select(...)` (`:401-403`). Every `policy.Extract` path is now unreachable for
+  an incomplete read.
+- **Records nothing**: the only two `store.RecordAsync` sites are `:419` and `:483`, both
+  after the guard. Verified by reading the whole `ExecuteAsync`, not the comment.
+- **No other behaviour change**: the `src/` diff is this guard plus one private helper
+  (`IncompleteSourceReason`, `:884-889`). No policy, reader, selector or DI touched.
+
+**The deviation from the review's literal snippet is correct, and provably better.**
+`IntakeSourceReadResult.FailureReason` (`IntakeContracts.cs:437-446`) defaults to null and
+is set only via `ReadAccumulator.ToResult(status, failureCode, failureReason)`
+(`MimeKitPdfPigOpenXmlIntakeSourceReader.cs:1282-1299`). There is exactly **one** call site
+producing a `Readable` result — `MimeKitPdfPigOpenXmlIntakeSourceReader.cs:72` — and it
+passes no failure reason. So on `Readable + IsIncomplete`, `FailureReason` is **always**
+null and the review's literal `FailureReason ?? "…"` would have emitted the constant every
+time, discarding the reader's account. The author's helper keeps that constant as its
+`Issues.Count == 0` fallback, so the deviation is a strict superset. The matrix shows the
+payoff: PCH rows carry the reader's own sentence, not a generic line.
+
+**Core test proves it.** `AnIncompletelyReadSourceIsUnavailableAndRecordsNothing` asserts
+`SourceUnavailable`, `Analysis` null, the reason carries the reader's issue text,
+`Store.Records` empty, then flips `IsIncomplete` false and asserts the **same key** returns
+`Analyzed` — the "nothing persisted, so a later attempt still analyses" contract tested,
+not asserted in prose. 25/0/0.
+
+## 2. F-002 — corpus-test robustness — VERIFIED FIXED, one narrow gap (G-002)
+
+Typed catch `:341-357` (`ArgumentException or InvalidOperationException or
+IntakeArtifactIntegrityException` → `CorpusSample.Threw`), no blanket catch and no CA1031
+suppression anywhere in the file; `finally` `:383-395` wrapping the whole `foreach` so
+coverage, dispositions, both sections and `WriteCorpusReport` always run;
+`Assert.True(analysed > 0, …)` `:399-401`.
+
+**Does INCONCLUSIVE absorb anything it should not? No, for every case asked about**, and
+structurally so: `CouldNotBeRead` (`:761-778`) is called from exactly one place — the
+`first.Outcome != Analyzed || analysis is null` early return at `:639-666`. Everything else
+is downstream on the Analyzed path with no inconclusive escape:
+
+- wrong profile `Ambiguous`/`NoProfile` → `:639-666` **Failed** (unless `CouldNotBeRead`
+  fires — see G-002)
+- missing candidates `:687-690`; retained-asset hash mismatch `:624-629`; analysis-vs-asset
+  hash `:678-685`; persisted-row source hash `:700-710`; persisted rows ≠ recorded
+  `:712-727`; replay duplicate `:729-736`; receipt moved/allocated `:740-748`; per-sample
+  `Cases != 0` or any `CaseIntakeLinks` `:750-754` → all **Failed**
+- whole-run Cases / CaseIntakeLinks / IntakeManualAssociations → hard `Assert.Equal(0, …)`
+  at `:403-415`, outside the try/finally
+
+Two details a weaker fix would have got wrong: (1) the hash-mismatch failure at `:624-629`
+does not return early, and the inconclusive return is
+`unreadable is null ? [.. failures, line] : failures` — the pre-existing `failures` list is
+carried through **in both arms**, so a hash mismatch on an unreadable original still fails
+the run; (2) `Assert.True(failures.Count == 0, …)` at `:417` and the allocation asserts sit
+**after** the finally — evidence written first, verdict second.
+
+## 3. F-003 — production-graph qualification — VERIFIED ACCURATE
+
+`TryAddScoped` at `:990` plus the rewritten comment `:967-988`. Verified against the real
+trees, not the claim:
+
+- **Standalone C tree**: `Custody/LocalLogicalDocumentVersionReader.cs` does not exist and
+  `IReadLogicalDocumentVersion` appears in neither `DependencyInjection.cs` nor
+  `WorkerDependencyInjection.cs`. The stand-in is genuinely required there.
+- **Combined tree at `83df6c00b`**: `DependencyInjection.cs:543` registers
+  `AddScoped<IReadLogicalDocumentVersion, LocalLogicalDocumentVersionReader>()` inside the
+  `localArtifactRootFactory is not null` profile — the profile the integration factory
+  composes. `TryAddScoped` no-ops, so **wave-40 analysed all 81 originals through A's
+  production reader, not the C stand-in.**
+
+Independent corroboration: A's reader opened 81 pre-case retained intake assets by
+`IntakeAssetId` and delivered 50 whole. Had it refused pre-case assets — the original worry
+behind F-003 — every row would read `SourceUnavailable`. Fifty do not. The suggested
+composition assertion was not added (G-008); it was offered as "recommended, and cheap",
+and the actual obligation (the sentence must not stand unqualified) is met.
+
+## 4. F-004…F-006, F-008…F-010 — all fixed
+
+F-004 corrected and explicitly supersedes the wrong round-0 sentence, conceding
+`ProcessQueuedIntake` does call `AttemptAutomaticAsync`; the real reason (no transport
+sender → `EvaluateMailRoute` null → `EstablishPrincipalContext` null → `NeedsSorting`
+before any policy) is accurate. F-005 restated verbatim to option 2 plus the named
+limitation, still 14 samples (`Assert.Equal(14, …)` `:459`). F-006 tightened past what was
+asked to `!= Usable` (`:840-846`) — the matrix confirms it is safe: **all 50 analysed rows
+are `(Usable)`**. F-008/F-010 stated in the doc comment `:275-281`. F-009 cited as
+`AnalyzeRetainedInstructionTests.cs:148`, superseding round-0 open question 2.
+
+## 5. F-007 declined — the decline is SOUND, and the finding is mostly obsolete
+
+**The 14-sample no-allocation test has no hole from this.** It never builds `host`:
+`NoGenuineNonQdosOriginalIsAllocatedAutomaticallyThroughNormalIntake` uses `factory` for
+upload, for `UploadAndProcessAsync`, for its per-sample scope (`:493`) and for the closing
+`Assert.Equal(0, …)` (`:536-543`). One container throughout. F-007 was raised against
+`AnalyseRetainedOriginalAsync` and does not reach this test.
+
+**In the combined tree the divergence is gone.** `CreateProcessor`
+(`IntakeWebTestSupport.cs:704-711`) hands the processor a refusing double only when
+`GetService<IReadLogicalDocumentVersion>()` is null; at `83df6c00b` the base factory
+composes `LocalLogicalDocumentVersionReader`, so the drain got the **real** reader — the
+same implementation the analysis container resolves through `TryAddScoped`. What remains is
+one wasted host build: a cleanup, not a proof gap. In a standalone C run the drain's double
+refuses **by name**, the safe failure mode. Disposition upheld; recommend re-classifying as
+obsolete-in-the-combined-tree.
+
+## 6. Nothing weakened, nothing out of scope
+
+3 files, +365/−76. **Tightened**: principal disposition. **Preserved**: every hash,
+candidate, persistence, replay, receipt and allocation check plus the whole-run
+`Assert.Equal(0, …)` triple. **Report-only**: `CaseCount int` → `Cases string` so a thrown
+sample prints `not read` rather than a `0` nobody observed — the `caseCount != 0` failure
+check at `:750-754` is untouched, so the count is still asserted, only its rendering
+changed. The one deliberate weakening is the INCONCLUSIVE branch, exactly as F-002 required;
+its edges are G-002.
+
+`Top15InstructionCorpusTests.cs` confirmed **visibility-only** at
+`git diff aa5e669d7..d505d6078`: eight `private` → `internal` on `ExpectedIdentity`,
+`NeighbouringValue`, `SampleExpectation`, `Expectations`, `Cell`, `MediaType`,
+`PackRootVariable`, `PackRoot`. No expectation row copied, moved or edited. Not touched in
+round 1.
+
+## 7. The matrix, parsed directly
+
+159 lines, copied unedited. **81 matrix rows.** Outcomes **50 `Analyzed`, 25
+`SourceUnavailable`, 6 `NoProfile`**. **Every one of the 81 rows has Replay row delta `0`
+and Cases `0`** — no exceptions. **Every one of the 50 analysed rows has principal
+`(Usable)`** — review-only, none Ambiguous/Missing/Conflicting in the principal position.
+Coverage sums to **50 Analysed / 31 Inconclusive / 0 Failed**. The 31 split cleanly: 25
+legacy `.DOC` returning `SourceUnavailable` with the reader's `doc-partial-extraction`
+text, and 6 MP PDFs returning `NoProfile` each tagged
+`[the reader recorded insufficient-embedded-text]`. Every line ends `- INCONCLUSIVE, which
+is not a pass.` Measured dispositions are counted, not asserted, and say so.
+
+**Does the report state the 10/15 ceiling plainly? In the places a reader of the evidence
+will look, yes** — three times, unusually plainly: "10 of 15 profiles, ~50 of 81
+originals"; "the plan's C01 sentence … is not achievable at HEAD"; "A green run here means
+'every original the reader can deliver reaches extraction and allocates nothing' — not 'all
+81 reach extraction'. Read the coverage table, not the exit code." It names the reader/OCR
+owner and declines to work around it. **Where it still reads as 15/15 is the labelling**:
+the document title, the test name, and the immutable round-0 commit subject. See G-003.
+
+## New findings
+
+- **G-001 — MINOR** — `AnalyzeRetainedInstruction.cs:870-891`: `IncompleteSourceReason` was
+  inserted **between** the pre-existing `<summary>` documenting `SelectAsset` and
+  `SelectAsset` itself. The member now carries two consecutive `<summary>` elements for two
+  different things and `SelectAsset` is undocumented. Production file; one move fixes it.
+  *accepted-risk — cosmetic, 0 warnings, branch not being merged on this review.*
+- **G-002 — MINOR** — `CouldNotBeRead` `:761-778`: `insufficient-embedded-text` is a
+  defensible stand-in for Top15's unavailable character floor and **is the only proxy that
+  fired** (all six `NoProfile` rows carry it). But `receipt.ScannedPdfPages.Count > 0` is
+  true for **any single** scanned page and `Decision == OcrRequired` is a whole-receipt
+  decision, so a genuine wrong-profile regression on a mostly-text PDF with one scanned page
+  would be recorded INCONCLUSIVE instead of Failed. Nothing was masked in wave 40 — provable
+  because every inconclusive line names its own trigger. **Correction**: drop the
+  `OcrRequired || ScannedPdfPages` clause, or require `NoProfile` **and** the evidence
+  signal. *accepted-risk — the first change I would take if the branch is touched again.*
+- **G-003 — MINOR** — the loudest labels still assert 15/15: test name
+  `EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating` (31 genuine originals do
+  not), report title "all-15 / 81-original … proof", and commit subject `d505d6078`
+  ("prove all fifteen profiles…") which is permanent since M2 forbids a rebase. The truth
+  lives one level down. *accepted-risk — take before the branch goes to a PR, with G-002.*
+- **G-004 — MINOR** — `wave40-tests/4-matrix.md` ends `Totals: Analysed 45, Inconclusive 36`
+  while the per-profile table **in the same file** sums to **50 / 31**. The authoritative
+  artifact emits no Totals line — `AppendCoverage` writes only the per-profile table — so
+  the wrong figures were added by hand and were carried into this review's dispatch prompt
+  alongside a breakdown (25 + 6 = 31) that contradicts them. Not a defect in the reviewed
+  commits. **Correct to `Analysed 50, Inconclusive 31, Failed 0` before quoting downstream
+  or into C02's framing.** *accepted-risk — artifact is correct and recomputable.*
+- **G-005 — MINOR** — two round-0 report statements are false at HEAD and not superseded:
+  "Nothing under `src/` was touched. No file was created." (round 1 touched
+  `AnalyzeRetainedInstruction.cs`), and the `git log` block lists only `d505d6078` while the
+  header five lines above gives the head as `d57383b2b`. *accepted-risk.*
+- **G-006 — NOTE** — `IncompleteSourceReason` joins **all** issues; the reader adds
+  `doc-engine` unconditionally before the `Partial` check
+  (`…DocMsg.cs:77-88`), so the staff-facing reason concatenates a general caveat with the
+  specific one. Truthful, unbounded in length, nothing persists it. *accepted-risk.*
+- **G-007 — NOTE** — bucket precedence `:359-362`: a sample both inconclusive and carrying a
+  hash-mismatch failure counts Inconclusive in the coverage table while still failing the
+  run. Reporting nuance only. *accepted-risk.*
+- **G-008 — NOTE** — `TryAdd` closes F-003 but fails silently both ways: nothing asserts
+  which implementation served. F-003's suggested composition assertion would close it and is
+  still one line. *accepted-risk — I verified the composition at `83df6c00b` by reading
+  `DependencyInjection.cs:525-543`, so the wave-40 evidence is sound.*
+- **G-009 — NOTE** — the Core test asserts `Analysis` null and `Store.Records` empty but not
+  `result.Candidates` empty; the contract holds by construction. *accepted-risk.*
+
+## Carried dispositions
+
+F-001 fixed · F-002 fixed · F-003 fixed · F-004 fixed · F-005 fixed · F-006 fixed ·
+F-007 rejected-with-reason (upheld; moot in the combined tree) · F-008 fixed · F-009 fixed ·
+F-010 fixed.
+
+## Execution evidence relied on
+
+Build `./Pegasus.slnx` Release @ `83df6c00b` — PASS 0W/0E · Core
+`~AnalyzeRetainedInstruction` — PASS 25/0/0 · Integration
+`~RetainedInstructionAnalysisTests` with `PEGASUS_REFERENCE_PACK_ROOT` — PASS 6/0/0, 58 s ·
+`retained-analysis-corpus.md` 159 lines — 81 rows, 50/31/0, all replay deltas 0, all Cases 0.
+
+All my own commands were read-only (`git rev-parse`/`branch`/`log`/`diff`/`show`, plus
+`sed`/`grep`/`awk` over the worktrees and wave-40 artifacts). No write, no push, no test run.
+
+## Residual risk
+
+The proof is bounded by the reader, and it now says so. A green run establishes that every
+original the reader can deliver whole — 50 of 81, ten of fifteen profiles — reaches
+extraction through the host's own `IAnalyzeRetainedInstruction` (A's real
+`LocalLogicalDocumentVersionReader` in the combined tree), proposes a review-only `Usable`
+principal, replays idempotently, and creates no Case, link or manual association. The other
+31 are recorded INCONCLUSIVE with the reader's own reason and never counted as passes. The
+25 legacy `.DOC` and 6 low-text PDFs are the reader/OCR gap already routed to C02; nothing
+in this branch works around it, relabels it, or hides it. Of the nine new findings, G-002
+and G-003 are the two to take before a PR; neither makes any statement in the current
+evidence untrue.
