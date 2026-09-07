@@ -312,26 +312,24 @@ public sealed partial class PublicUploadRetentionWebTests
     }
 
     /// <summary>
-    /// A refused or uncertain hand-over is not an upload. The page says so, the
-    /// occurrence records what custody said, and nothing is counted against the
-    /// link at the time of the hand-over.
+    /// A refused or uncertain hand-over is not an accepted upload. The page
+    /// says so and the occurrence records what custody said. A definite
+    /// refusal releases its reservation; an uncertain hand-over keeps it,
+    /// because custody may hold the bytes and another file must not spend the
+    /// same capacity.
     /// </summary>
     /// <remarks>
-    /// The totals below are (0, 0) because neither disposition reaches
-    /// <c>RecordAcceptedAsync</c>, so no derivation runs inside this test - not
-    /// because either state is excluded from the counted set. They differ from
-    /// then on, and this test does not reach that far: a refusal is terminal
-    /// and is never counted by any later derivation, while an uncertain
-    /// occurrence is counted by the next one, because custody may be holding
-    /// those bytes and a bound on what an anonymous link can push into custody
-    /// has to assume it is.
+    /// Admission writes the prospective total before custody. A refusal then
+    /// re-derives and releases it, while Unknown deliberately leaves the same
+    /// total in place. Neither opens the confirmed-submission window.
     /// </remarks>
     [Theory]
-    [InlineData(CaseArtifactCustodyDisposition.Failed, "failed")]
-    [InlineData(CaseArtifactCustodyDisposition.Unknown, "unknown")]
-    public async Task ARefusedOrUncertainHandOverIsNeverAcceptedAndNeverCounted(
+    [InlineData(CaseArtifactCustodyDisposition.Failed, "failed", 0)]
+    [InlineData(CaseArtifactCustodyDisposition.Unknown, "unknown", 1)]
+    public async Task ARefusedHandOverReleasesItsReservationButAnUncertainOneKeepsIt(
         CaseArtifactCustodyDisposition disposition,
-        string expectedState)
+        string expectedState,
+        int expectedFileCount)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithRetention(baseFactory);
@@ -358,7 +356,9 @@ public sealed partial class PublicUploadRetentionWebTests
             .AsNoTracking()
             .Where(item => item.RequestId == link.LinkId)
             .ToArrayAsync());
-        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+        Assert.Equal(
+            (expectedFileCount, expectedFileCount == 0 ? 0L : Evidence.LongLength),
+            await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
     /// <summary>
@@ -823,6 +823,15 @@ public sealed partial class PublicUploadRetentionWebTests
 
         await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
+        await using (var reserved = await CreateContextAsync(factory.Services))
+        {
+            var active = await reserved.Set<RequestUploadLinkEntity>()
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == link.LinkId);
+            Assert.Equal(RequestUploadStatus.Active, active.Status);
+            Assert.Equal(maximumFileCount, active.AcceptedFileCount);
+        }
+
         var second = await PostEvidenceAsync(
             factory,
             link.Token,
@@ -845,6 +854,10 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal(maximumFileCount, custody.ProviderInitiations);
 
         await using var context = await CreateContextAsync(factory.Services);
+        var persisted = await context.Set<RequestUploadLinkEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == link.LinkId);
+        Assert.Equal(RequestUploadStatus.Exhausted, persisted.Status);
         var (fileCount, _) = await ReadLinkTotalsAsync(context, link.LinkId);
         Assert.Equal(maximumFileCount, fileCount);
     }
@@ -909,6 +922,15 @@ public sealed partial class PublicUploadRetentionWebTests
             fileName: "byte-candidate-1.txt");
 
         await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        await using (var reserved = await CreateContextAsync(factory.Services))
+        {
+            var active = await reserved.Set<RequestUploadLinkEntity>()
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == link.LinkId);
+            Assert.Equal(RequestUploadStatus.Active, active.Status);
+            Assert.Equal(4_700_000L, active.AcceptedByteCount);
+        }
 
         // The second upload attempts upload while the first is in custody.
         // Because first has reserved 700,000 bytes, remaining is 542,880 < 700,000.
