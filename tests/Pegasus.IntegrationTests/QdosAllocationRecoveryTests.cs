@@ -1152,14 +1152,12 @@ public sealed class IntakeAllocationConsumerTests
         using var triageFactory = new IntakeWebApplicationFactory(
             "Development",
             true,
-            extractionPolicy: new ConsumerTriagePolicy(),
             useIntegrationTestAuthentication: true,
-            initializeDevelopmentOffline: false,
-            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+            initializeDevelopmentOffline: false);
         await AllocationTestData.SeedPrincipalAsync(triageFactory.Services, "QDOS");
         var email = IntakeTestEvidence.CreateEmail(
             "triage-success-independence.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Success\r\nClaim Number: TRIAGE-SUCCESS\r\nVehicle Registration: AB12 CDE");
+            "QDOS instruction\r\nTriage Only Request\r\nClaimant Name: Triage Success\r\nClaim Number: TRIAGE-SUCCESS\r\nVehicle Registration: AB12 CDE");
         var token = Guid.NewGuid().ToString("N");
 
         Guid first;
@@ -1413,14 +1411,12 @@ public sealed class IntakeAllocationConsumerTests
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
-            extractionPolicy: new ConsumerTriagePolicy(),
             useIntegrationTestAuthentication: true,
-            initializeDevelopmentOffline: false,
-            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+            initializeDevelopmentOffline: false);
         await AllocationTestData.DisableQdosAsync(factory.Services);
         var email = IntakeTestEvidence.CreateEmail(
             "triage-allocation-independence.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-ALLOC\r\nVehicle Registration: AB12 CDE");
+            "QDOS instruction\r\nTriage Only Request\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-ALLOC\r\nVehicle Registration: AB12 CDE");
         var token = Guid.NewGuid().ToString("N");
 
         Guid first;
@@ -1514,40 +1510,6 @@ public sealed class IntakeAllocationConsumerTests
         }
     }
 
-    private sealed class ConsumerTriagePolicy : IInstructionExtractionPolicy
-    {
-        private readonly QdosInstructionExtractionPolicy inner = new();
-
-        public string PrincipalCode => inner.PrincipalCode;
-
-        public InstructionExtractionResult Extract(
-            IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
-            EstablishedPrincipalContext principalContext)
-        {
-            var result = inner.Extract(readResult, processedAtUtc, principalContext);
-            if (result.Applicability != InstructionPolicyApplicability.Applicable)
-            {
-                return result;
-            }
-
-            return result with
-            {
-                Evidence =
-                [
-                    .. result.Evidence,
-                    new(
-                        IntakeEvidenceSource.EmailBody,
-                        IntakeEvidenceStrength.Strong,
-                        IntakeEvidenceFinding.AcceptedTriageMatch,
-                        "accepted-triage-allocation-independence",
-                        "The repository test fixture represents an independently accepted Triage matcher result.",
-                        "allocation-consumer-triage-matcher",
-                        1)
-                ]
-            };
-        }
-    }
 }
 
 internal static class AllocationTestData
