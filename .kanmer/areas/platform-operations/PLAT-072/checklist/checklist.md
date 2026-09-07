@@ -4,6 +4,9 @@
 - [x] Remove dead Core/EF/Web confirmation fields and unused arguments while preserving actual completeness and handoff behavior.
 - [x] Drop four columns with coherent target model/snapshot, preserve grants, and reconcile current constructor/SQL/form fixtures and exact migration lists.
 - [x] Add focused existing absence/readiness/schema assertions and hand frozen source plus scoped capture/test filters to root without running heavy checks.
+- [x] Record root's locked restore/Release build, Core 24, Integration 35 and correction capture 1 PASS; preserve initial missing-capture failure.
+- [x] Record actual scoped snapshot update/verify, catalogue, 102 migration grants and diff checks; retain all three hash-checked TRXs.
 
-Source frozen for root verification; these are implementation/check handoff
-items, not executed-test, Review, merge, Done or deployment claims.
+Implementation and focused verification complete. Independent review, exact
+merged proof and final converged release evidence remain; no Done or
+deployment claim.
