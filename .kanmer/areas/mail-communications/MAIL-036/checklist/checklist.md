@@ -6,3 +6,14 @@
 - [x] Prove SQL missing/existing state, scope refresh and Graph old/new reset paths; update workflow docs.
 
 Focused evidence: 72 initial integration cases, 27 notification Core cases and 3 updated SQL cases passed; no live wipe.
+
+## Closeout — MAIL-036
+
+- [x] PR merge verified (PR678, 2026-09-07T20:50:31Z).
+- [x] proof.md finalised and whole-file readback matched.
+- [x] Moved to final stage with PASS.
+- [ ] Outcome recorded in ticket body (PR link, follow-ups).
+- [ ] cd out of worktree; remove exact implementation and verification trees.
+- [ ] Delete merged MAIL-036-wipe-boundary branch locally and remotely.
+- [ ] Fetch/prune reviewed ticket refs.
+- [ ] Release claim after Git cleanup.
