@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -172,6 +172,14 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<ICommittedExternalWorkPublisher>();
             services.AddScoped<ICommittedExternalWorkPublisher, CommittedWorkPublisherDouble>();
             services.AddSingleton(timeProvider);
+            services.TryAddScoped<IReadLogicalDocumentVersion>(_ =>
+                RecordingLogicalDocumentVersionReader.Refusing());
+            services.TryAddScoped<ICaseArtifactCustody>(sp =>
+                new RecordingCaseArtifactCustody(
+                    sp.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                    sp.GetRequiredService<TimeProvider>()));
+            services.TryAddScoped<ICaseArtifactCustodyStatus>(sp =>
+                (RecordingCaseArtifactCustody)sp.GetRequiredService<ICaseArtifactCustody>());
             if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR")))
             {
                 services.AddTransient<IStartupFilter, TestUiResponseCaptureStartupFilter>();

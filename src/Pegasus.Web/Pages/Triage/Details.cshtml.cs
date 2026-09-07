@@ -790,9 +790,55 @@ public sealed class DetailsModel(
             return Forbid();
         }
 
-        if (_staffMailSend is null)
+        if (_staffMailSend is null || _getRetainedMail is null)
         {
             return NotFound();
+        }
+
+        var triage = await _getTriage.ExecuteAsync(new(id, actionActor), cancellationToken);
+        if (triage is null)
+        {
+            return NotFound();
+        }
+
+        if (triage.Record.Origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        {
+            return NotFound();
+        }
+
+        var detail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
+            actionActor,
+            triage.Record.Origin.ReceiptId,
+            cancellationToken);
+        if (detail is null)
+        {
+            return NotFound();
+        }
+
+        var operation = await _staffMailSend.GetAsync(
+            actionActor,
+            operationId,
+            cancellationToken);
+        if (operation is null)
+        {
+            return NotFound();
+        }
+
+        if (operation.Purpose != StaffMailPurpose.TriageChaser
+            || operation.ContextId != triage.Record.Id
+            || operation.OriginalRetainedMessageId is null
+            || operation.OriginalRetainedMessageId != detail.Summary.Id)
+        {
+            return NotFound();
+        }
+
+        if (operation.ExpectedContextVersion != triage.Record.Version)
+        {
+            Message = "The triage workflow was updated concurrently. Refresh and review the latest state.";
+            ModelState.AddModelError(
+                string.Empty,
+                "The triage workflow was updated concurrently. Refresh and review the latest state.");
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
         }
 
         try
