@@ -125,7 +125,10 @@ public sealed partial class QdosTriageIntegrationTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = ConfigureStaffSend(baseFactory, send);
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
 
         var fixture = await SeedMailboxTriageAsync(factory);
         var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Triage/{fixture.TriageId}");
@@ -232,7 +235,10 @@ public sealed partial class QdosTriageIntegrationTests
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = ConfigureStaffSend(baseFactory, send);
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
 
         var fixture = await SeedMailboxTriageAsync(factory);
         var (firstKey, token) = await TriageChaserTokensAsync(client, $"/Triage/{fixture.TriageId}");
