@@ -1,7 +1,9 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -20,7 +22,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <see cref="Pegasus.Core.Identity.PerUserExternalCredentialReference.NormalizedExternalAccountKey"/>,
 /// minted by the credential store that owns that normalization — and this
 /// store writes it to <c>ActiveAccountKey</c> unchanged for exactly the states
-/// in <see cref="AccountOccupyingStates"/>, so the filtered unique index is the
+/// in <see cref="GlassRepairEstimateSessionPolicy.OccupiesAccount"/>, so the filtered unique index is the
 /// rule and this class is only its translator: the database refuses the second
 /// live session and that refusal surfaces as
 /// <see cref="GlassRepairEstimateSessionConflict.ActiveAccount"/> rather than
@@ -91,21 +93,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : IGlassRepairEstimateSessionStore, IGlassRepairEstimateSessionReader
 {
-    /// <summary>
-    /// The states in which the session holds its account's one live slot,
-    /// because the provider's side of it may still be open. Every other state
-    /// releases the account.
-    /// </summary>
-    private static readonly GlassRepairEstimateSessionState[] AccountOccupyingStates =
-    [
-        GlassRepairEstimateSessionState.Prepared,
-        GlassRepairEstimateSessionState.Launching,
-        GlassRepairEstimateSessionState.Active,
-        GlassRepairEstimateSessionState.Unknown,
-        GlassRepairEstimateSessionState.AwaitingImport,
-        GlassRepairEstimateSessionState.Importing,
-    ];
-
     public async Task<GlassRepairEstimateSessionMaterial?> GetAsync(
         Guid sessionId, CancellationToken cancellationToken)
     {
@@ -207,6 +194,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             Version = session.Version,
         };
         context.Add(entity);
+        AddHistory(context, entity, null, session.State, now);
 
         try
         {
@@ -268,6 +256,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         }
 
         var now = timeProvider.GetUtcNow();
+        var previousState = entity.State;
         entity.State = session.State;
         entity.ActiveAccountKey = OccupiesAccount(session.State) ? entity.NormalizedAccountKey : null;
         entity.ExpiresAtUtc = session.ExpiresAtUtc;
@@ -281,6 +270,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         entity.ResultArtifactsJson = material.ResultArtifactsJson;
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
+        AddHistory(context, entity, previousState, session.State, now);
         // CompleteAsync claims a callback by moving the session to Importing.
         // Expiry or failure without a callback must not claim consumption.
         if (session.State == GlassRepairEstimateSessionState.Importing
@@ -385,8 +375,70 @@ public sealed class EfGlassRepairEstimateSessionStore(
             entity.LastError,
             entity.CallbackConsumedAtUtc);
 
+    public async Task<GlassRepairEstimateSession> CloseAsync(
+        GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .SingleAsync(item => item.Id == request.SessionId, cancellationToken);
+        if (entity.Version != request.ExpectedVersion)
+        {
+            throw new GlassRepairEstimateSessionConflictException(
+                GlassRepairEstimateSessionConflict.Version, request.SessionId,
+                "The Glass's session changed before it could be closed.");
+        }
+        GlassRepairEstimateSessionPolicy.ValidateClosure(request, ToSession(entity));
+        var now = timeProvider.GetUtcNow();
+        var previousState = entity.State;
+        entity.State = GlassRepairEstimateSessionState.Cancelled;
+        entity.ActiveAccountKey = null;
+        entity.LastError = null;
+        entity.Version++;
+        entity.UpdatedAtUtc = now;
+        AddHistory(context, entity, previousState, entity.State, now, request.Actor, request.Reason.Trim());
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new GlassRepairEstimateSessionConflictException(
+                GlassRepairEstimateSessionConflict.Version, request.SessionId,
+                "The Glass's session changed before it could be closed.");
+        }
+        return ToSession(entity);
+    }
+
     private static bool OccupiesAccount(GlassRepairEstimateSessionState state) =>
-        Array.IndexOf(AccountOccupyingStates, state) >= 0;
+        GlassRepairEstimateSessionPolicy.OccupiesAccount(state);
+
+    private static void AddHistory(
+        PegasusDbContext context, GlassRepairEstimateSessionEntity entity,
+        GlassRepairEstimateSessionState? before, GlassRepairEstimateSessionState after,
+        DateTimeOffset now, ActionActor? actor = null, string? reason = null)
+    {
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "glass-repair-estimate-session",
+            AggregateId = entity.Id.ToString("D"),
+            EventKind = reason is null ? "glass_session_transition" : "glass_session_closed",
+            ActorKind = actor?.Kind.ToString() ?? ActorKind.SystemWorker.ToString(),
+            ActorSubjectId = actor?.SubjectId ?? "glass-repair-estimate-gateway",
+            ActorRolesJson = JsonSerializer.Serialize(actor?.Roles.OrderBy(role => role).ToArray() ?? []),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = entity.OperationKey,
+            Reason = reason ?? "Glass's session checkpoint",
+            BeforeJson = JsonSerializer.Serialize(new { State = before?.ToString() }),
+            AfterJson = JsonSerializer.Serialize(new { State = after.ToString(), entity.Version, entity.LastError }),
+            PolicyVersion = "glass-session-v1"
+        });
+    }
 
     private static string Digest(string callbackDigest)
     {

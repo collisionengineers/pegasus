@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -130,6 +131,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
             new("estimateId", draft.SpecificationId.ToString("D")),
+            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", draft.Details.Name),
             new("estimateVatPercent", draft.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
         };
@@ -221,6 +223,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
             new("estimateId", draft.SpecificationId.ToString("D")),
+            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", draft.Details.Name),
             new("estimateVatPercent", draft.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
         };
@@ -457,6 +460,37 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
+    public async Task TheEditorKeepsSubmittedVersionAndIntentAcrossIdenticalPosts()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        var existing = DraftSpecification(caseId);
+        store.CurrentDraft = existing;
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={existing.SpecificationId:D}");
+        Assert.Contains($"name=\"expectedVersion\" value=\"{RecordingStores.CaseVersion}\"", html, StringComparison.Ordinal);
+        var fields = NewEnumerable(
+            ("__RequestVerificationToken", AntiforgeryValue(html)),
+            ("operationKey", NewOperationKey()), ("editLeaseToken", RecordingStores.HeldLeaseToken),
+            ("estimateId", existing.SpecificationId.ToString("D")), ("lineId", existing.Lines[0].Id.ToString("D")),
+            ("expectedVersion", "3"), ("estimateName", "Repairer"),
+            ("lineOperation", "Repair"), ("lineDescription", "Repair door"), ("lineLabourHours", "2")).ToArray();
+        using var first = await client.PostAsync($"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate", new FormUrlEncodedContent(fields));
+        using var second = await client.PostAsync($"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Equal(2, store.SubmittedEstimates.Count);
+        Assert.All(store.SubmittedEstimates, request => Assert.Equal(3, request.ExpectedVersion));
+        Assert.Equal(JsonSerializer.Serialize(store.SubmittedEstimates[0]), JsonSerializer.Serialize(store.SubmittedEstimates[1]));
+        using var missingVersion = await client.PostAsync($"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            new FormUrlEncodedContent(fields.Where(field => field.Key != "expectedVersion")));
+        Assert.Equal(HttpStatusCode.Redirect, missingVersion.StatusCode);
+        Assert.Equal(2, store.SubmittedEstimates.Count);
+    }
+
+    [Fact]
     public async Task TheEditorSavesANamedEstimateWithTypedLines()
     {
         var caseId = Guid.NewGuid();
@@ -477,6 +511,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                     ("id", caseId.ToString("D")),
                     ("operationKey", operationKey),
                     ("editLeaseToken", RecordingStores.HeldLeaseToken),
+                    ("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                     ("estimateName", "Repair alternative"),
                     ("estimateRepairDays", "3"),
                     ("estimateLabourRate", "48.50"),
@@ -544,6 +579,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("id", caseId.ToString("D")),
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", "Repairer"),
             new("estimateLabourRate", "52.50"),
             new("estimateVatPercent", "20"),
@@ -629,6 +665,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("id", caseId.ToString("D")),
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", "Repairer"),
             new("estimateLabourRate", "52.50"),
             new("estimateVatPercent", "20"),
@@ -851,6 +888,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
             new("estimateId", seeded.SpecificationId.ToString("D")),
+            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", details.Name),
             new("estimateRepairDays", details.RepairDays!.Value.ToString(CultureInfo.InvariantCulture)),
             new("estimateLabourRate", details.LabourRate!.Value.ToString(CultureInfo.InvariantCulture)),
@@ -1031,7 +1069,11 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<IAddCaseDocument>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IListCaseEstimates>(store);
-                services.AddSingleton<ISaveEstimate>(store);
+                services.AddSingleton<ISaveEstimate>(provider =>
+                {
+                    store.Clock = provider.GetRequiredService<TimeProvider>();
+                    return store;
+                });
                 services.AddSingleton<IDuplicateEstimate>(store);
                 services.AddSingleton<IDiscardEstimate>(store);
                 services.AddSingleton<ISetCurrentEstimate>(store);
@@ -1167,6 +1209,8 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         private int leaseCounter;
 
+        public TimeProvider Clock { get; set; } = TimeProvider.System;
+
         public RepairSpecificationVersion? CurrentDraft { get; set; }
 
         public RepairSpecificationVersion? CurrentAccepted { get; set; }
@@ -1178,6 +1222,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         public List<ClaimCaseEditLeaseRequest> LeaseClaims { get; } = [];
 
         public List<SaveEstimateRequest> SavedEstimates { get; } = [];
+        public List<SaveEstimateRequest> SubmittedEstimates { get; } = [];
 
         public List<DuplicateEstimateRequest> DuplicatedEstimates { get; } = [];
 
@@ -1301,6 +1346,9 @@ public sealed partial class AssessmentEstimateImportWebTests
             SaveEstimateRequest request,
             CancellationToken cancellationToken = default)
         {
+            SubmittedEstimates.Add(request);
+            request = EstimatePolicy.ApplyEditorEvidence(
+                EstimatePolicy.ValidateSave(request), request.EstimateId is null ? null : CurrentDraft, Clock.GetUtcNow());
             SavedEstimates.Add(request);
             // A save replaces the estimate's whole header and line collection,
             // the way the real store does, so reading the estimate back after

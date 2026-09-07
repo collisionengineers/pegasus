@@ -182,7 +182,7 @@
 
     <div class="notice notice--danger mb-2" role="alert">
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span>Edit mode could not be entered because the case changed or is being edited by another member of staff.</span>
+        <span>The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.</span>
     </div>
 
 <article class="record">
@@ -221,9 +221,15 @@
 
         <div class="presence-strip" role="status">
             <span class="presence-dot" aria-hidden="true"></span>
-            <span data-edit-authority>Case locked - AI is editing. Editing cannot be taken over.</span>
+            <span>You are editing this case.</span>
         </div>
     <div class="record-bar">
+            <form method="post" action="#">
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="7" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <button type="submit" class="btn">Recover editing</button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
     </div>
 
 
@@ -292,6 +298,28 @@
                 <section class="case-section" id="section-overview" data-section="overview">
 
 <div class="stack">
+        <section class="panel" aria-labelledby="case-proposed-values-title">
+            <div class="panel-head"><h2 id="case-proposed-values-title">Your change was not applied</h2></div>
+            <div class="panel-body stack">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>
+                        <tbody>
+                                <tr>
+                                    <th>Reason</th>
+                                    <td>Corrected claimant spelling</td>
+                                    <td>&#x2014;</td>
+                                </tr>
+                                <tr>
+                                    <th>Claimant</th>
+                                    <td>Rebecca Proposed</td>
+                                    <td>Case claimant</td>
+                                </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
     <ol class="workflow-stepper" aria-label="Case workflow">
             <li class="workflow-step is-current">
@@ -517,7 +545,8 @@
                     <div class="decision-row">
                         <span>Edit authority</span>
                         <strong>
-AI                        </strong>
+                                You
+                        </strong>
                     </div>
                 </div>
             </section>

@@ -125,6 +125,23 @@
                     </div>
                 }
             </dl>
+            @if (Model.CanCloseGlass)
+            {
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
+                      asp-route-id="@caseId" asp-route-section="estimate" class="panel-body">
+                    <input type="hidden" name="sessionId" value="@glassSession.Id" />
+                    <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                    <label for="glass-close-reason">@GlassLabels.CloseReason</label>
+                    <input id="glass-close-reason" name="reason" maxlength="2000" required aria-required="true" />
+                    <label class="checkbox-label" for="glass-external-closed">
+                        <input id="glass-external-closed" type="checkbox" name="externalSessionClosed"
+                               value="true" required aria-required="true" />
+                        @GlassLabels.ExternalClosedConfirmation
+                    </label>
+                    <p>@GlassLabels.CloseConsequence</p>
+                    <button type="submit" class="btn btn--danger">@GlassLabels.Close</button>
+                </form>
+            }
         </section>
     }
 
@@ -240,6 +257,7 @@
                             {
                                 <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveEstimate"
                                       asp-route-id="@caseId" asp-route-section="estimate">
+                                    <input type="hidden" name="expectedVersion" value="@Model.Case!.Workflow.Version" />
                                     <input type="hidden" name="operationKey" value="@Model.SaveEstimateOperationKey" />
                                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                     <input type="hidden" name="estimateId" value="@(estimate?.SpecificationId)" />

@@ -285,6 +285,31 @@ assessment-report lists—new parts, repairs, and additional operations—are a
 single deterministic names-only projection of those ordered lines, not a
 second renderer-owned repair specification.
 
+The estimate editor saves the Case version and line identities submitted by
+the Engineer. Retrying the same operation preserves that intent: source
+evidence and amendment timestamps are resolved only for a new operation, not
+rebuilt before replay detection. A prior successful operation returns its same
+estimate identity in its current state, even after later edits; it never
+reapplies the older edit. Changed intent under the same operation key is
+refused, as is a new operation against a stale Case version.
+
+### Glass's interrupted sessions
+
+A Glass's launch records its callback and external account before contacting
+the provider. Vehicle and estimate identities are retained as soon as their
+answers arrive. Resume continues an interrupted preparation or a known vehicle
+that has not started an estimate; an existing estimate is reopened by its
+existing identity. These actions are available from the Case estimate section
+and do not require resetting credentials.
+
+An interrupted provider write whose answer was lost remains `Unknown` and
+holds the account. It must not create another vehicle or calculation, or
+release the account merely because local time elapsed. The owning Engineer
+can close that uncertain record only after confirming Glass's is closed and
+no estimate remains open, with a reason. Stale versions and another Engineer's
+closure are refused. Checkpoints and explicit closure are permanently audited
+without provider credentials, callback tokens or document content.
+
 ### Conservative MOT mileage estimation
 
 > Owner capability: ENG (vehicle enrichment). Relocated from ADR-0012 (2026-07-30).
