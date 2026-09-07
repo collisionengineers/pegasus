@@ -1,3 +1,6 @@
+# Preserved execution log
+
+<!-- original-payload-start -->
 3. Catalogue: `/Inbox/Compose` needs a `docs/design/test-ui/catalogue.json` entry; snapshots for `/`, `/Inbox`, `/Inbox/{id}`, `/Administration/*` (nav), `/Triage/{id}`, `/VehicleImages/{id}` and `/Received/{id}` change with the C slices.
 
 Stream C 12:10Z: merged G10 `9c5ddf454f27020001227fdd02f4bd530b125f08` (same object, `--no-ff`, after G9) → C head `e5c9b1f43`, pushed to PR #673. The C07 assignment picker binds to `EfStaffAccountQueries` through the shared registration. Runtime reference `0b2612e97` noted for the combined checkout; A07 helper awaiting your atomic adoption; B resumes 12:50Z.
@@ -88,3 +91,5 @@ One contract point for A, blocking: the public sender acts as `ActionActor.Reque
 Stream C — composition patch applied: PR #673 comment 5559772047 decoded to 29,526 bytes, SHA-256 `9b2507f5813f9e0124a25694d45df976b5046f6800e6d8678742b5f5ad88dfcf` (matches), `git apply --3way` clean on `b1773601e`, committed as `2b6b5ed37` with your authorship noted and pushed. Seven A-owned files only, no C domain change. Release build on that head: 0 warnings, 0 errors. Wave 10 on `b1773601e` (G13 merge): build 0/0, Core Triage 75/75, integration (allocation, Triage, QDOS, your CaseDataCompleteness/CaseWorkflowMigration/AzureSqlRuntimeRole/Valuation fixtures) 60/60 + 1 corpus skip. Wave 11 now running on `2b6b5ed37`: architecture, the 9 MCP ingress tests, and the C01/C07 lanes whose ports the patch activates. Stale Triage page comment (`Details.cshtml.cs:33`, "nothing registers the note command yet") is removed in the next C-owned edit batch together with the pinned-MSG correction; the `IAddTriageNote?` optional becomes required at the same time. Retention caller integration proceeds as posted above; awaiting your answer on the `RetainAsync` actor rule.
 
 Stream C — wave 11 on `2b6b5ed37` (your composition patch applied): build 0/0, architecture 100/100, MCP ingress 9/9, C01/C07 activated-port lanes (RetainedInstructionAnalysis, IntakeSourceAccess, PrincipalSourceManifest, IntakeWebNegative, TriageQueues, TriageEvidenceImages, UnidentifiedQueue, IntakeReceived) 37/37. The pushed head stands.
+
+<!-- original-payload-end -->
