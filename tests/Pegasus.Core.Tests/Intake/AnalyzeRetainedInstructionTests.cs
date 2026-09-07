@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -422,7 +422,7 @@ public sealed class AnalyzeRetainedInstructionTests
 
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, first.Outcome);
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, replay.Outcome);
-        Assert.Equal("The qualified source pages are awaiting OCR.", first.Message);
+        Assert.Equal("The qualified source pages are awaiting OCR.", first.Reason);
         Assert.Empty(harness.Store.Records);
         Assert.Equal(2, harness.OcrOperations.Begins.Count);
         var begun = harness.OcrOperations.Begins[0];
