@@ -196,9 +196,9 @@ public sealed class AnalyzeRetainedInstruction(
     IReadLogicalDocumentVersion documentReader,
     IIntakeSourceReader sourceReader,
     InstructionExtractionPolicySelector selector,
-    VehicleRegistrationCandidateLookup vehicleRegistrationCandidateLookup,
     IRetainedInstructionAnalysisStore store,
-    TimeProvider timeProvider) : IAnalyzeRetainedInstruction
+    TimeProvider timeProvider,
+    VehicleRegistrationCandidateLookup? vehicleRegistrationCandidateLookup = null) : IAnalyzeRetainedInstruction
 {
     private static readonly JsonSerializerOptions LocatorJsonOptions = new()
     {
@@ -271,6 +271,16 @@ public sealed class AnalyzeRetainedInstruction(
                         "The analysis had already been recorded under this operation key.",
                         isReplay: true)
                     : Conflict("The operation key was already used for a different request.");
+        }
+
+        if (request.OcrEvidence is not null && vehicleRegistrationCandidateLookup is null)
+        {
+            return new(
+                RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                null,
+                "OCR registration review is unavailable in this host.",
+                [],
+                false);
         }
 
         var receipt = await receiptQueries.GetAsync(request.ReceiptId, cancellationToken);
@@ -433,7 +443,7 @@ public sealed class AnalyzeRetainedInstruction(
                 var registration = registrations[0];
                 var raw = registration.Candidates[0];
                 var sourceReference = $"ocr:{lookupOcr.SourceSha256}:response:{lookupOcr.Result.ResponseSha256}:page:{raw.Locator?.Page}";
-                var lookup = await vehicleRegistrationCandidateLookup.LookupAsync(
+                var lookup = await vehicleRegistrationCandidateLookup!.LookupAsync(
                     new(raw.SourceValue, MachineReadRegistrationSource.DocumentOcr, sourceReference),
                     cancellationToken);
                 candidates.AddRange(BuildVehicleLookupCandidates(
