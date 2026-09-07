@@ -308,22 +308,44 @@ internal sealed class EfDocumentRequestStore(
             return new(RequestUploadDecision.Unavailable, false);
         }
 
+        Guid linkId;
+        await using (var lookupContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            var found = await lookupContext.Set<RequestUploadLinkEntity>()
+                .AsNoTracking()
+                .Where(value => value.TokenDigest == digest)
+                .Select(value => (Guid?)value.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (found is not { } value)
+            {
+                return new(RequestUploadDecision.Unavailable, false);
+            }
+
+            linkId = value;
+        }
+
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var link = await context.Set<RequestUploadLinkEntity>()
-            .SingleOrDefaultAsync(value => value.TokenDigest == digest, cancellationToken);
+
+        // The link row is the first thing this transaction takes, so a
+        // finalization and an arrival serialize on it the way two accepted
+        // arrivals already do. Without it both commit under READ COMMITTED and
+        // a file is accepted into a session that has already been finished.
+        var link = await LockLinkAsync(context, linkId, cancellationToken);
         var now = timeProvider.GetUtcNow();
-        if (link is null
-            || !RequestUploadToken.Matches(token, link.TokenDigest)
-            || link.Status != RequestUploadStatus.Active
-            || link.RevokedAtUtc is not null
-            || link.ExpiresAtUtc <= now)
+        if (!RequestUploadToken.Matches(token, link.TokenDigest))
         {
             return new(RequestUploadDecision.Unavailable, false);
         }
-        if (!string.Equals(link.LimitsVersion, uploadLimits.Version, StringComparison.Ordinal))
+
+        // One definition of what a valid link is, shared with the upload path
+        // and the public view rather than restated here. An exhausted link is
+        // one of them: a sender who used the last permitted file must still be
+        // able to press Finish.
+        if (uploadPolicy.RefuseLink(ToUploadLink(link)) is { } refusal)
         {
-            return new(RequestUploadDecision.LimitsVersionMismatch, false);
+            return new(refusal, false);
         }
 
         var session = await context.Set<PublicUploadSessionEntity>()
@@ -342,23 +364,40 @@ internal sealed class EfDocumentRequestStore(
         {
             return new(RequestUploadDecision.LimitsVersionMismatch, false);
         }
-        if (await context.Set<PublicUploadOccurrenceEntity>().AnyAsync(
-            value => value.SessionId == session.Id
-                && value.CustodyState != EfPublicUploadRetentionStore.ConfirmedCode,
-            cancellationToken))
+
+        // Only an arrival custody has not answered holds the submission open.
+        // A Failed occurrence is an answer it has given: it is rendered as
+        // failed, it is never counted and it is never called a finalized file,
+        // but it does not trap the sender until the window expires either.
+        var blocking = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(value => value.SessionId == session.Id
+                && EfPublicUploadRetentionStore.UnresolvedCodes.Contains(value.CustodyState))
+            .OrderBy(value => value.ProposedName)
+            .ThenBy(value => value.Id)
+            .Select(value => value.CustodyState)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (blocking is not null)
         {
-            return new(RequestUploadDecision.NotRetained, false);
+            // Named, so the sender is told which of the files they can see is
+            // holding the submission open rather than only that one is.
+            return new(
+                RequestUploadDecision.NotRetained,
+                false,
+                EfPublicUploadRetentionStore.ParseCustodyState(blocking));
         }
 
-        PublicUploadSession finalized;
-        try
-        {
-            finalized = PublicUploadSessionPolicy.Finalize(ToSession(session), now);
-        }
-        catch (InvalidOperationException)
+        // Asked rather than thrown at: a session that never started and one
+        // whose window closed are ordinary states of a public link, and the
+        // policy answers both without an exception standing in for control
+        // flow. Finalized was answered above as the replay it is.
+        if (PublicUploadSessionPolicy.Evaluate(ToSession(session), now)
+            != PublicUploadSessionState.Open)
         {
             return new(RequestUploadDecision.Unavailable, false);
         }
+
+        var finalized = PublicUploadSessionPolicy.Finalize(ToSession(session), now);
         session.FinalizedAtUtc = finalized.FinalizedAtUtc;
         session.Version = finalized.Version;
         await context.SaveChangesAsync(cancellationToken);
@@ -385,8 +424,11 @@ internal sealed class EfDocumentRequestStore(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var link = await context.Set<RequestUploadLinkEntity>()
-            .SingleAsync(value => value.Id == linkId, cancellationToken);
+        // The link row is the first lock this transaction takes, so an
+        // arrival and a finalization serialize on it. Without it the finalize
+        // transaction commits its "nothing is unconfirmed" decision while this
+        // one is still inserting the occurrence that would have refused it.
+        var link = await LockLinkAsync(context, linkId, cancellationToken);
         var senderOperationKey = command.File.OperationKey?.Trim() ?? string.Empty;
         var priorReceipt = await context.Set<RequestUploadReceiptEntity>()
             .SingleOrDefaultAsync(
@@ -468,45 +510,26 @@ internal sealed class EfDocumentRequestStore(
         var scopedOperationKey = EfPublicUploadRetentionStore.ScopeOperationKey(
             linkId,
             senderOperationKey);
-        PublicUploadOccurrenceEntity? occurrence;
         if (command.ReplacementOccurrenceId is { } replacementId)
         {
-            if (await context.Set<PublicUploadOccurrenceEntity>().AnyAsync(
-                value => value.SessionId == session.Id
-                    && value.Id != replacementId
-                    && value.OperationKey == scopedOperationKey,
-                cancellationToken))
-            {
-                return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
-            }
-            occurrence = await context.Set<PublicUploadOccurrenceEntity>()
-                .SingleOrDefaultAsync(
-                    value => value.Id == replacementId
-                        && value.SessionId == session.Id,
-                    cancellationToken);
-            if (occurrence is null
-                || occurrence.CustodyState != EfPublicUploadRetentionStore.ConfirmedCode)
-            {
-                return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
-            }
-
-            occurrence.OperationKey = scopedOperationKey;
-            occurrence.ProposedName = authorization.SafeFileName!;
-            occurrence.MediaType = command.File.MediaType.Trim();
-            occurrence.Size = command.File.Content.Length;
-            occurrence.Sha256 = authorization.ContentHash!;
-            occurrence.CustodyState = EfPublicUploadRetentionStore.ArrivedCode;
-            occurrence.DocumentId = null;
-            occurrence.DocumentVersionId = null;
-        }
-        else
-        {
-            occurrence = await FindOccurrenceAsync(
+            return await ReplaceAsync(
                 context,
+                transaction,
+                link,
                 session.Id,
+                replacementId,
+                command,
+                authorization,
+                senderOperationKey,
                 scopedOperationKey,
                 cancellationToken);
         }
+
+        var occurrence = await FindOccurrenceAsync(
+            context,
+            session.Id,
+            scopedOperationKey,
+            cancellationToken);
         if (occurrence is not null
             && !string.Equals(
                 occurrence.Sha256,
@@ -581,6 +604,141 @@ internal sealed class EfDocumentRequestStore(
             occurrence.MediaType,
             occurrence.Size,
             occurrence.Sha256));
+    }
+
+    /// <summary>
+    /// Points one already-committed occurrence at a different file the sender
+    /// has sent in its place, and returns the arrival that may now be offered
+    /// to custody.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// round 2: R-1/R-5 of the C07 source review replace this in-place
+    /// transition with a new occurrence row carrying its own server-issued
+    /// identity and a <c>ReplacesOccurrenceId</c> column, so the superseded
+    /// arrival keeps the state and the identities custody gave it and both
+    /// sets of bytes stay inside the link's accepted totals. That column is a
+    /// Stream A schema hand-off (PR 673) and lands with it.
+    /// </para>
+    /// <para>
+    /// Until then the transition is at least decided by the database. The
+    /// occurrence row carries no concurrency token, so a read-modify-write
+    /// would let two simultaneous replacements of one slot both pass their
+    /// check and both write; the conditional update below names the expected
+    /// prior state and digest in its WHERE - the same idiom as
+    /// <see cref="EfPublicUploadRetentionStore.TryClaimHandOverAsync"/> - and
+    /// rows affected is the whole of the decision.
+    /// </para>
+    /// </remarks>
+    private static async Task<ArrivalDecision> ReplaceAsync(
+        PegasusDbContext context,
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
+        RequestUploadLinkEntity link,
+        Guid sessionId,
+        Guid replacementId,
+        UploadToRequestCommand command,
+        RequestUploadAuthorization authorization,
+        string senderOperationKey,
+        string scopedOperationKey,
+        CancellationToken cancellationToken)
+    {
+        var occurrences = context.Set<PublicUploadOccurrenceEntity>();
+        var replaced = await occurrences
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                value => value.Id == replacementId && value.SessionId == sessionId,
+                cancellationToken);
+        if (replaced is null)
+        {
+            // The one thing Unavailable may mean here: the addressed slot is
+            // not in this link's session, and nothing more can be said about
+            // it without disclosing a session that is not the sender's.
+            return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
+        }
+        if (await occurrences.AnyAsync(
+            value => value.SessionId == sessionId
+                && value.Id != replacementId
+                && value.OperationKey == scopedOperationKey,
+            cancellationToken))
+        {
+            return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
+        }
+
+        var contentHash = authorization.ContentHash!;
+        if (EfPublicUploadRetentionStore.UnresolvedCodes.Contains(replaced.CustodyState)
+            && string.Equals(replaced.OperationKey, scopedOperationKey, StringComparison.Ordinal)
+            && string.Equals(replaced.Sha256, contentHash, StringComparison.Ordinal))
+        {
+            // This exact replacement again while custody has not answered: a
+            // double submit, a browser retry, a lost response. The row already
+            // records the arrival, so nothing is written and the hand-over
+            // reconciles it under the same operation key. Refusing here would
+            // 404 a link that is perfectly alive.
+            return ArrivalDecision.Accept(new(
+                link.Id,
+                link.CaseId,
+                sessionId,
+                replaced.Id,
+                senderOperationKey,
+                scopedOperationKey,
+                replaced.ProposedName,
+                replaced.MediaType,
+                replaced.Size,
+                replaced.Sha256));
+        }
+        if (!string.Equals(
+            replaced.CustodyState,
+            EfPublicUploadRetentionStore.ConfirmedCode,
+            StringComparison.Ordinal))
+        {
+            // Neither the replay above nor a slot custody has confirmed.
+            // Replacing an arrival that is still in flight would race the
+            // hand-over carrying it, and a refused one is an answer custody
+            // has given.
+            return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
+        }
+
+        var priorDigest = replaced.Sha256;
+        var proposedName = authorization.SafeFileName!;
+        var mediaType = command.File.MediaType.Trim();
+        long size = command.File.Content.Length;
+        var moved = await occurrences
+            .Where(value => value.Id == replacementId
+                && value.CustodyState == EfPublicUploadRetentionStore.ConfirmedCode
+                && value.Sha256 == priorDigest)
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(value => value.OperationKey, scopedOperationKey)
+                    .SetProperty(value => value.ProposedName, proposedName)
+                    .SetProperty(value => value.MediaType, mediaType)
+                    .SetProperty(value => value.Size, size)
+                    .SetProperty(value => value.Sha256, contentHash)
+                    .SetProperty(
+                        value => value.CustodyState,
+                        EfPublicUploadRetentionStore.ArrivedCode)
+                    .SetProperty(value => value.DocumentId, (Guid?)null)
+                    .SetProperty(value => value.DocumentVersionId, (Guid?)null),
+                cancellationToken);
+        if (moved != 1)
+        {
+            // Another replacement of this slot won it. Rows affected is the
+            // whole answer, so the loser is refused rather than overwriting
+            // what the winner committed.
+            return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return ArrivalDecision.Accept(new(
+            link.Id,
+            link.CaseId,
+            sessionId,
+            replacementId,
+            senderOperationKey,
+            scopedOperationKey,
+            proposedName,
+            mediaType,
+            size,
+            contentHash));
     }
 
     /// <summary>
@@ -877,14 +1035,26 @@ internal sealed class EfDocumentRequestStore(
         var entity = await context.Set<RequestUploadLinkEntity>()
             .AsNoTracking()
             .SingleOrDefaultAsync(value => value.TokenDigest == digest, cancellationToken);
-        if (entity is null
-            || !RequestUploadToken.Matches(token, entity.TokenDigest)
-            || entity.Status != RequestUploadStatus.Active
-            || entity.RevokedAtUtc is not null
-            || entity.ExpiresAtUtc <= timeProvider.GetUtcNow()
-            || !string.Equals(entity.LimitsVersion, uploadLimits.Version, StringComparison.Ordinal))
+        if (entity is null || !RequestUploadToken.Matches(token, entity.TokenDigest))
         {
             return null;
+        }
+
+        var link = ToUploadLink(entity);
+        if (uploadPolicy.RefuseLink(link) is { } refusal)
+        {
+            // A link that outlived a limits change is still the sender's link,
+            // so it is served in a refusal-only shape and the page renders the
+            // typed "ask for a new one" (INTK-051) instead of a bare 404 that
+            // reads as a mistyped address. Every other refusal means the link
+            // is gone, and 404 is what discloses nothing about the Case.
+            return refusal == RequestUploadDecision.LimitsVersionMismatch
+                ? new(
+                    uploadLimits.AllowedMediaTypes,
+                    uploadLimits.MaximumFileBytes,
+                    AcceptsMoreFiles: false,
+                    Refusal: refusal)
+                : null;
         }
 
         // A submission that has not resolved keeps its own operation key on the
@@ -908,19 +1078,33 @@ internal sealed class EfDocumentRequestStore(
         var session = await context.Set<PublicUploadSessionEntity>()
             .AsNoTracking()
             .SingleOrDefaultAsync(value => value.RequestUploadLinkId == linkId, cancellationToken);
-        var occurrences = session is null
-            ? Array.Empty<RequestUploadOccurrenceView>()
-            : await context.Set<PublicUploadOccurrenceEntity>()
+        // Every occurrence, each carrying the state custody actually gave
+        // it. Filtering to the confirmed ones hid a pending or failed file
+        // from the only person who can act on it, and made the page's custody
+        // state a constant that could never say anything else. The stored code
+        // is read back and parsed by the one parser, because a projection EF
+        // can translate cannot call it.
+        var occurrences = Array.Empty<RequestUploadOccurrenceView>();
+        if (session is not null)
+        {
+            var rows = await context.Set<PublicUploadOccurrenceEntity>()
                 .AsNoTracking()
-                .Where(value => value.SessionId == session.Id
-                    && value.CustodyState == EfPublicUploadRetentionStore.ConfirmedCode)
+                .Where(value => value.SessionId == session.Id)
                 .OrderBy(value => value.ProposedName)
                 .ThenBy(value => value.Id)
-                .Select(value => new RequestUploadOccurrenceView(
+                .Select(value => new
+                {
                     value.Id,
                     value.ProposedName,
-                    IncomingArtifactCustodyState.Confirmed))
+                    value.CustodyState
+                })
                 .ToArrayAsync(cancellationToken);
+            occurrences = [.. rows.Select(value => new RequestUploadOccurrenceView(
+                value.Id,
+                value.ProposedName,
+                EfPublicUploadRetentionStore.ParseCustodyState(value.CustodyState)))];
+        }
+
         return new(
             uploadLimits.AllowedMediaTypes,
             uploadLimits.MaximumFileBytes,
@@ -930,7 +1114,8 @@ internal sealed class EfDocumentRequestStore(
             session is null
                 ? PublicUploadSessionState.NotStarted
                 : PublicUploadSessionPolicy.Evaluate(ToSession(session), timeProvider.GetUtcNow()),
-            occurrences);
+            occurrences,
+            uploadPolicy.AcceptsMoreFiles(link));
     }
 
     private static async Task<CaseWorkflowEntity> RequireWorkflowAsync(

@@ -348,9 +348,17 @@ public sealed record UploadToRequestResult(
     Guid? ReceiptId,
     bool IsReplay);
 
+/// <param name="BlockingState">
+/// The custody state of the occurrence that refused this finalization, when
+/// <see cref="Decision"/> is <see cref="RequestUploadDecision.NotRetained"/>.
+/// The sender is blocked by a file they can see on the page, so they are told
+/// which state is holding the submission open rather than only that something
+/// is.
+/// </param>
 public sealed record FinalizeRequestUploadResult(
     RequestUploadDecision Decision,
-    bool IsReplay);
+    bool IsReplay,
+    IncomingArtifactCustodyState? BlockingState = null);
 
 /// <summary>
 /// The operation key one public submission is addressed by, and the single
@@ -488,21 +496,49 @@ public static class RequestUploadOperationKey
 /// again instead of a new one, so a retry reconciles the submission custody
 /// may already hold rather than becoming a second one.
 /// </param>
+/// <param name="Files">
+/// Every occurrence this session holds, each with the state custody actually
+/// gave it. One name for the list, because a page that showed only the
+/// confirmed ones would hide the very rows that refuse a finalization.
+/// </param>
+/// <param name="AcceptsMoreFiles">
+/// Whether the link may still take another file. A link whose accepted totals
+/// have reached its limits is exhausted, not gone: the page keeps serving it
+/// and the submission can still be finished, so the upload and replace
+/// controls come off rather than the page.
+/// </param>
+/// <param name="Refusal">
+/// Set when the link is still there but nothing may be done through it, so the
+/// page renders that typed refusal instead of a bare 404 which tells the
+/// sender nothing and offers no way forward.
+/// </param>
 public sealed record RequestUploadPublicView(
     IReadOnlySet<string> AllowedMediaTypes,
     long MaximumFileBytes,
     string? UnresolvedOperationKey = null,
     PublicUploadSessionState SessionState = PublicUploadSessionState.NotStarted,
-    IReadOnlyList<RequestUploadOccurrenceView>? Occurrences = null)
+    IReadOnlyList<RequestUploadOccurrenceView>? Files = null,
+    bool AcceptsMoreFiles = true,
+    RequestUploadDecision? Refusal = null)
 {
-    public IReadOnlyList<RequestUploadOccurrenceView> Files =>
-        Occurrences ?? Array.Empty<RequestUploadOccurrenceView>();
+    public IReadOnlyList<RequestUploadOccurrenceView> Files { get; init; } =
+        Files ?? Array.Empty<RequestUploadOccurrenceView>();
 }
 
 public sealed record RequestUploadOccurrenceView(
     Guid Id,
     string FileName,
-    IncomingArtifactCustodyState CustodyState);
+    IncomingArtifactCustodyState CustodyState)
+{
+    /// <summary>
+    /// Whether this file still holds the submission open. Confirmed is done,
+    /// and Failed is an answer custody has given and will not revise, so
+    /// neither blocks a finalization; everything else is still in flight.
+    /// </summary>
+    public bool IsUnresolved =>
+        CustodyState is not (IncomingArtifactCustodyState.Confirmed
+            or IncomingArtifactCustodyState.Failed);
+}
 
 /// <summary>
 /// The one submission session a public link may have. The window is fixed, not
@@ -744,22 +780,14 @@ public sealed class RequestUploadPolicy
         ArgumentNullException.ThrowIfNull(attempt);
         ArgumentNullException.ThrowIfNull(attempt.File);
 
-        // A long-lived link outliving a limits change is an ordinary state of
-        // the world, not a programming error, so it is a typed refusal the
-        // public page can render and the case owner can act on — never an
-        // exception used as control flow.
-        if (!string.Equals(link.LimitsVersion, limits.Version, StringComparison.Ordinal))
+        if (RefuseLink(link) is { } refusal)
         {
-            return new(RequestUploadDecision.LimitsVersionMismatch, null, null, false, MayReissue: true);
+            return refusal == RequestUploadDecision.LimitsVersionMismatch
+                ? new(refusal, null, null, false, MayReissue: true)
+                : Unavailable();
         }
 
-        if (!HasAcceptedLifetime(link)
-            || !RequestUploadToken.Matches(attempt.Token, link.TokenDigest)
-            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
-            || link.RevokedAtUtc is not null
-            || timeProvider.GetUtcNow() >= link.ExpiresAtUtc
-            || link.AcceptedFileCount < 0
-            || link.AcceptedByteCount < 0)
+        if (!RequestUploadToken.Matches(attempt.Token, link.TokenDigest))
         {
             return Unavailable();
         }
@@ -783,9 +811,7 @@ public sealed class RequestUploadPolicy
                 : new(RequestUploadDecision.OperationConflict, null, null, false);
         }
 
-        if (link.Status != RequestUploadStatus.Active
-            || link.AcceptedFileCount >= limits.MaximumFileCount
-            || link.AcceptedByteCount >= limits.MaximumRequestBytes)
+        if (!AcceptsMoreFiles(link))
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
         }
@@ -813,6 +839,60 @@ public sealed class RequestUploadPolicy
         }
 
         return new(RequestUploadDecision.Accepted, contentHash, safeFileName, false);
+    }
+
+    /// <summary>
+    /// The one link-validity rule: null when this link may still be served,
+    /// finished and offered bytes, and otherwise the typed refusal the sender
+    /// is given. <see cref="Authorize"/>, the public view and finalization all
+    /// ask here, so a link is valid everywhere or nowhere rather than valid on
+    /// one path and gone on another.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="RequestUploadStatus.Exhausted"/> is an ordinary state a
+    /// sender reaches by doing exactly what the link invited, so it is valid.
+    /// It takes no more bytes - that is
+    /// <see cref="AcceptsMoreFiles(RequestUploadLink)"/>, a different question
+    /// - but the page still serves it and the submission can still be
+    /// finished. Restating this rule anywhere else is what let the finalize
+    /// path refuse a link the upload path accepts.
+    /// </remarks>
+    public RequestUploadDecision? RefuseLink(RequestUploadLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+
+        // A long-lived link outliving a limits change is an ordinary state of
+        // the world, not a programming error, so it is a typed refusal the
+        // public page can render and the case owner can act on — never an
+        // exception used as control flow.
+        if (!string.Equals(link.LimitsVersion, limits.Version, StringComparison.Ordinal))
+        {
+            return RequestUploadDecision.LimitsVersionMismatch;
+        }
+
+        return !HasAcceptedLifetime(link)
+            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
+            || link.RevokedAtUtc is not null
+            || timeProvider.GetUtcNow() >= link.ExpiresAtUtc
+            || link.AcceptedFileCount < 0
+            || link.AcceptedByteCount < 0
+                ? RequestUploadDecision.Unavailable
+                : null;
+    }
+
+    /// <summary>
+    /// Whether the link may still take another file. This is the rule
+    /// <see cref="Authorize"/> refuses
+    /// <see cref="RequestUploadDecision.LimitExceeded"/> on, asked by the page
+    /// as well so it never offers an upload or replace control the store would
+    /// then refuse.
+    /// </summary>
+    public bool AcceptsMoreFiles(RequestUploadLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        return link.Status == RequestUploadStatus.Active
+            && link.AcceptedFileCount < limits.MaximumFileCount
+            && link.AcceptedByteCount < limits.MaximumRequestBytes;
     }
 
     private bool HasAcceptedLifetime(RequestUploadLink link)

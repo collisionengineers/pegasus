@@ -1,6 +1,7 @@
 @page "/Uploads/{token}"
 @model Pegasus.Web.Pages.Uploads.RequestModel
 @using Pegasus.Core.Documents
+@using Pegasus.Core.Intake
 @{
     ViewData["Title"] = OperatorLabels.Upload.RequestTitle;
 }
@@ -21,24 +22,43 @@
     </div>
 }
 
-@if (Model.UploadPolicy is not null)
+@* Outside the upload form, because a refusal the sender must read is not
+   always answered by a form that is on the page: an exhausted or closed
+   submission renders no upload control, and Finish refuses through here. *@
+<div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
+
+@if (Model.UploadPolicy is { Refusal: not null })
 {
-    @if (Model.UploadPolicy.Files.Count > 0)
+    @* The link outlived a change to the accepted limits. It is still the
+       sender's link and it is still here, so they are told what to do about
+       it rather than given a 404 that reads as a mistyped address. *@
+    <div class="notice notice--warning" role="alert">
+        <span>@OperatorLabels.Upload.RequestLinkInvalid</span>
+    </div>
+}
+else if (Model.UploadPolicy is { } view)
+{
+    @if (view.Files.Count > 0)
     {
         <ul class="section-gap">
-            @foreach (var file in Model.UploadPolicy.Files)
+            @foreach (var file in view.Files)
             {
                 <li>
                     <span>@file.FileName</span>
-                    @if (Model.UploadPolicy.SessionState == PublicUploadSessionState.Open)
+                    @* Every file, with the state custody actually gave it. A
+                       file custody refused says so and is never counted. *@
+                    <span class="badge">@OperatorLabels.Upload.RequestFileState(file.CustodyState)</span>
+                    @if (view.SessionState == PublicUploadSessionState.Open
+                        && view.AcceptsMoreFiles
+                        && file.CustodyState == IncomingArtifactCustodyState.Confirmed)
                     {
                         <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
                             <input asp-for="Token" type="hidden" />
                             <input asp-for="OperationKey" type="hidden" />
                             <input name="ReplacementOccurrenceId" value="@file.Id" type="hidden" />
-                            <label for="replacement-@file.Id">@OperatorLabels.Upload.RequestReplace</label>
+                            <label for="replacement-@file.Id">@OperatorLabels.Upload.RequestReplaceFile(file.FileName)</label>
                             <input id="replacement-@file.Id" name="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
-                            <button type="submit" class="btn btn--secondary">@OperatorLabels.Upload.RequestReplace</button>
+                            <button type="submit" class="btn btn--secondary" aria-label="@OperatorLabels.Upload.RequestReplaceFile(file.FileName)">@OperatorLabels.Upload.RequestReplace</button>
                         </form>
                     }
                 </li>
@@ -46,30 +66,44 @@
         </ul>
     }
 
-    @if (Model.UploadPolicy.SessionState is PublicUploadSessionState.NotStarted or PublicUploadSessionState.Open)
+    @if (view.SessionState is PublicUploadSessionState.NotStarted or PublicUploadSessionState.Open)
     {
-    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="section-gap">
-        <input asp-for="Token" type="hidden" />
-        <input asp-for="OperationKey" type="hidden" />
-        <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
-        <div class="dropzone" data-dropzone>
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-            <div>
-                <h2><label asp-for="Upload">@OperatorLabels.Upload.RequestDropzone</label></h2>
-                <p>@OperatorLabels.Upload.RequestLimit(Model.MaximumFileSize)</p>
-                <button type="button" class="btn btn--primary" hidden data-dropzone-browse>@OperatorLabels.Upload.RequestChoose</button>
-                <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
-            </div>
-        </div>
-        <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
-        <span asp-validation-for="Upload" class="field-error"></span>
-        <div class="button-row section-gap">
-            <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.RequestSubmit</button>
-        </div>
-    </form>
+        @if (view.AcceptsMoreFiles)
+        {
+            <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="section-gap">
+                <input asp-for="Token" type="hidden" />
+                <input asp-for="OperationKey" type="hidden" />
+                <div class="dropzone" data-dropzone>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <div>
+                        <h2><label asp-for="Upload">@OperatorLabels.Upload.RequestDropzone</label></h2>
+                        <p>@OperatorLabels.Upload.RequestLimit(Model.MaximumFileSize)</p>
+                        <button type="button" class="btn btn--primary" hidden data-dropzone-browse>@OperatorLabels.Upload.RequestChoose</button>
+                        <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
+                    </div>
+                </div>
+                <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
+                <span asp-validation-for="Upload" class="field-error"></span>
+                <div class="button-row section-gap">
+                    <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.RequestSubmit</button>
+                </div>
+            </form>
+        }
+        else
+        {
+            @* The link took every file it was issued for. It is exhausted,
+               not gone: the sender can still finish. *@
+            <p class="muted section-gap">@OperatorLabels.Upload.RequestNoMoreFiles</p>
+        }
+    }
+    else
+    {
+        @* Finished or timed out. Both refuse more bytes, and neither is a
+           reason to show the sender a list of files and no explanation. *@
+        <p class="muted section-gap">@OperatorLabels.Upload.RequestSessionClosed(view.SessionState)</p>
     }
 
-    @if (Model.UploadPolicy.SessionState == PublicUploadSessionState.Open)
+    @if (view.SessionState == PublicUploadSessionState.Open)
     {
         <form method="post" asp-page-handler="Finalize" class="section-gap">
             <input asp-for="Token" type="hidden" />

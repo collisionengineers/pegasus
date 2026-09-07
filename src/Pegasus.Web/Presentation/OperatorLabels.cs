@@ -1721,6 +1721,74 @@ public static class OperatorLabels
         public const string RequestReplace = "Replace";
         public const string RequestFinish = "Finish";
 
+        /// <summary>
+        /// The public request page's refusals. They live here, beside the
+        /// controls they answer, so one sentence has one place and the page
+        /// and its handlers cannot drift apart.
+        /// </summary>
+        public const string RequestLinkInvalid = "This link is no longer valid. Ask for a new one.";
+
+        public const string RequestRefused =
+            "This document was not accepted. Reload the link and try again.";
+
+        public const string RequestTooManyAttempts =
+            "Too many upload attempts were made. Wait before trying again.";
+
+        /// <summary>
+        /// Why the upload control is gone while the submission is still open:
+        /// the link has taken every file it was issued for. The sender can
+        /// still finish, so they are told that rather than left with a form
+        /// that vanished.
+        /// </summary>
+        public const string RequestNoMoreFiles =
+            "This request has taken every file it allows. Finish when you are ready.";
+
+        /// <summary>
+        /// The replace control for one named file. With several files every
+        /// control would otherwise be announced identically, so the label
+        /// names the file it belongs to.
+        /// </summary>
+        public static string RequestReplaceFile(string fileName) =>
+            string.Create(CultureInfo.InvariantCulture, $"Replace {fileName}");
+
+        /// <summary>
+        /// What one file's custody state says to the sender. A file custody
+        /// has not confirmed is never presented as a success, and one it
+        /// refused is never counted as a submitted file.
+        /// </summary>
+        public static string RequestFileState(IncomingArtifactCustodyState state) => state switch
+        {
+            IncomingArtifactCustodyState.Confirmed => "Received",
+            IncomingArtifactCustodyState.Pending => "Being stored",
+            IncomingArtifactCustodyState.Failed => "Not accepted",
+            _ => "Still arriving"
+        };
+
+        /// <summary>
+        /// Why Finish was refused, naming the state that is holding the
+        /// submission open. The sender can see the file on the page, so they
+        /// are told what is happening to it rather than only that something
+        /// is.
+        /// </summary>
+        public static string RequestNotFinished(IncomingArtifactCustodyState? blocking) =>
+            blocking switch
+            {
+                IncomingArtifactCustodyState.Pending =>
+                    "A file is still being stored. Try again in a moment.",
+                _ => "A file has not finished arriving. Try again in a moment."
+            };
+
+        /// <summary>
+        /// Why a closed submission shows its files and no controls. Refusing
+        /// without disclosing the Case does not require saying nothing at all.
+        /// </summary>
+        public static string RequestSessionClosed(PublicUploadSessionState state) => state switch
+        {
+            PublicUploadSessionState.Finalized =>
+                "This submission is finished. No more files can be added.",
+            _ => "This submission has closed. Ask for a new link if you still need to send a file."
+        };
+
         /// <summary>The request's own size limit, which is set per request.</summary>
         public static string RequestLimit(string maximumFileSize) =>
             string.Create(CultureInfo.InvariantCulture, $"Up to {maximumFileSize}.");

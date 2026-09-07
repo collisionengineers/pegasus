@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Uploads;
 
@@ -30,39 +32,6 @@ public sealed partial class RequestModel(
 
     public string? StatusMessage { get; private set; }
     private const string CompletionStatusKey = "RequestUploadCompletion";
-
-    /// <summary>
-    /// What a confirmed submission is allowed to say. Custody holds the exact
-    /// bytes under a known identity, so the claim is true.
-    /// </summary>
-    private const string RetainedCompletionMessage =
-        "Your document was received and retained securely.";
-
-    /// <summary>
-    /// What a durable but unconfirmed submission is allowed to say. It states
-    /// only what is true — the document arrived and is being stored — and makes
-    /// no claim about custody, because custody has not made one.
-    /// </summary>
-    /// <remarks>
-    /// This belongs beside the other sender-facing strings in
-    /// <c>OperatorLabels</c> and moves there with C08's labels batch; that file
-    /// is not this slice's to edit.
-    /// </remarks>
-    private const string StoringCompletionMessage =
-        "Your document was received and is being stored. You do not need to send it again.";
-
-    /// <summary>
-    /// What a refused submission is allowed to say. Custody declined this
-    /// submission outright, so it is not "try the same operation again" - the
-    /// next page load carries a new one - and it discloses nothing about the
-    /// Case, the link or the reason.
-    /// </summary>
-    /// <remarks>
-    /// Belongs beside the other sender-facing strings in <c>OperatorLabels</c>
-    /// and moves there with C08's labels batch, like the two above it.
-    /// </remarks>
-    private const string RefusedMessage =
-        "This document was not accepted. Reload the link and try again.";
 
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -95,9 +64,6 @@ public sealed partial class RequestModel(
     /// </summary>
     private static string NextOperationKey(RequestUploadPublicView view) =>
         view.UnresolvedOperationKey ?? StaffPageModel.NewOperationKey();
-
-    public Task<IActionResult> OnPostAsync(CancellationToken cancellationToken) =>
-        OnPostUploadAsync(cancellationToken);
 
     public async Task<IActionResult> OnPostUploadAsync(CancellationToken cancellationToken)
     {
@@ -137,7 +103,9 @@ public sealed partial class RequestModel(
         if (!attemptLimiter.TryAcquire(Token, out var attemptsInCurrentWindow))
         {
             Response.StatusCode = StatusCodes.Status429TooManyRequests;
-            ModelState.AddModelError(string.Empty, "Too many upload attempts were made. Wait before trying again.");
+            ModelState.AddModelError(
+                string.Empty,
+                OperatorLabels.Upload.RequestTooManyAttempts);
             return Page();
         }
 
@@ -164,18 +132,22 @@ public sealed partial class RequestModel(
             {
                 case RequestUploadDecision.Accepted:
                 case RequestUploadDecision.Replay:
-                    TempData[CompletionStatusKey] = RetainedCompletionMessage;
+                    TempData[CompletionStatusKey] =
+                        OperatorLabels.Upload.RetainedCompletionMessage;
                     return RedirectToPage("/Uploads/Request", new { token = Token });
                 case RequestUploadDecision.AcceptedPending:
                     // Custody took the bytes durably but has not confirmed
                     // them. The submission stands and must not be sent again,
                     // and nothing here says "retained securely" before custody
                     // has said so.
-                    TempData[CompletionStatusKey] = StoringCompletionMessage;
+                    TempData[CompletionStatusKey] =
+                        OperatorLabels.Upload.StoringCompletionMessage;
                     return RedirectToPage("/Uploads/Request", new { token = Token });
                 case RequestUploadDecision.RateLimited:
                     Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                    ModelState.AddModelError(string.Empty, "Too many upload attempts were made. Wait before trying again.");
+                    ModelState.AddModelError(
+                        string.Empty,
+                        OperatorLabels.Upload.RequestTooManyAttempts);
                     break;
                 case RequestUploadDecision.InvalidFile:
                     ModelState.AddModelError(nameof(Upload), "This file type cannot be accepted. Choose one of the permitted document types.");
@@ -190,7 +162,9 @@ public sealed partial class RequestModel(
                     // The link outlived a limits change. The sender did
                     // nothing wrong and nothing about the Case is disclosed;
                     // they need a new link from whoever sent this one.
-                    ModelState.AddModelError(string.Empty, "This link is no longer valid. Ask for a new one.");
+                    ModelState.AddModelError(
+                        string.Empty,
+                        OperatorLabels.Upload.RequestLinkInvalid);
                     break;
                 case RequestUploadDecision.NotRetained:
                     // Custody did not take the file, or did not say whether it
@@ -214,7 +188,7 @@ public sealed partial class RequestModel(
         catch (StaffAuthorizationException exception)
         {
             LogPublicRequestUploadFailure(logger, exception);
-            ModelState.AddModelError(string.Empty, RefusedMessage);
+            ModelState.AddModelError(string.Empty, OperatorLabels.Upload.RequestRefused);
             return Page();
         }
         // The submission path now puts a remote custody adapter behind this
@@ -244,17 +218,26 @@ public sealed partial class RequestModel(
             return NotFound();
         }
 
+        // Finish is anonymous, opens a transaction and runs four queries, so
+        // it is guarded by the same per-token window the upload handler
+        // already keeps rather than by a second limiter with its own policy.
+        if (!attemptLimiter.TryAcquire(Token, out _))
+        {
+            Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            return FinalizeError(OperatorLabels.Upload.RequestTooManyAttempts);
+        }
+
         var result = await uploadToRequest.FinalizeAsync(Token, cancellationToken);
         return result.Decision switch
         {
-            RequestUploadDecision.Accepted when result.IsReplay =>
-                RedirectToPage("/Uploads/Request", new { token = Token }),
+            // A replay is the same finished submission, and the page it lands
+            // on says so; there is nothing different to tell the sender.
             RequestUploadDecision.Accepted =>
                 RedirectToPage("/Uploads/Request", new { token = Token }),
             RequestUploadDecision.LimitsVersionMismatch =>
-                FinalizeError("This link is no longer valid. Ask for a new one."),
+                FinalizeError(OperatorLabels.Upload.RequestLinkInvalid),
             RequestUploadDecision.NotRetained =>
-                FinalizeError("A document is still being stored. Try again."),
+                FinalizeError(OperatorLabels.Upload.RequestNotFinished(result.BlockingState)),
             _ => NotFound()
         };
     }
