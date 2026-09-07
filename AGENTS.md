@@ -293,9 +293,6 @@ ADRs are an append-only decision log of durable technical/architectural choices.
 
 ### New Markdown placement
 
-`NOW.md` is the explicitly approved v1 orientation index. It links the three
-owner tickets and canonical authorities; task plans and proof remain in Kanmer.
-
 A new repository Markdown file is one of: a **PRD** under `docs/prd/`, an
 **FRD** under `docs/frd/`, or a **technical ADR** under `docs/adr/`. Transient
 task research, plans, checklists, reviews, and proof live in the owning Kanmer
@@ -430,64 +427,31 @@ every task carries:
 
 ## Repository task workflow
 
-### Approved v1 three-stream exception
+### V1 remediation authority
 
-The 6 September 2026 implementation uses three owner tickets: PLAT-075
-(A/platform and Foundation), CASE-047 (B/casework), and INTK-060 (C/intake).
-Their branches are `task/pegasus-v1-platform`, `task/pegasus-v1-casework`, and
-`task/pegasus-v1-intake`, based on common dev commit
-`3284f93fc3ea9fd3bbbea9405ec92dc7818378f2`. Each machine records its actual
-worktree on its own owner ticket. The approved sibling worktree convention is
-`../pegasus-worktrees/v1-<stream>`.
+The three-stream implementation was integrated through PR 674 on 7 September
+2026. PLAT-075, CASE-047 and INTK-060 retain its source and review evidence;
+their former branch-sharing exception has ended. Do not replay that workflow
+or infer unfinished product work solely from an old ticket's stage.
 
-A alone authors the common Foundation contracts, schema, migration, grants and
-composition. B/C fast-forward to the exact reviewed Foundation commit before
-domain work; later shared corrections use the same common commit identity.
-The owner-ticket plans carry exact file ownership and contract exceptions.
-Existing claims, branches, commits and dirty files remain preserved. One
-verification process per host owns builds and full tests; PLAT-075 records the
-Codex host's verifier. Other agents perform disjoint work without competing
-builds.
+The operator's subsequent remediation request authorizes implementation,
+independent review, merge and deployment to complete v1. EPIC-014 records the
+scope, remaining work, credentials exclusions and named host verifier. That
+authorization supersedes the former open-unmerged release stop. Record and
+verify each exact candidate and its deployment targets before acting. Test
+email may be sent only to `digital@collisionengineers.co.uk`, using the
+requested `pegasustest` customer. It does not authorize an intake-data wipe.
 
-On 7 September 2026 the operator authorized A to continue orchestration through
-integration: finish and independently review all three streams, merge the
-verified required PRs into `dev`, and open the `dev` to `main` PR. A coordinates
-those merges after review and required checks; this scoped authority supersedes
-the earlier open-unmerged stop. Original PRs are closed as superseded only after
-preservation is proved; any non-superseded work receives its own review before
-integration. A may publish a combined verification ref for the other machines
-to test in isolated worktrees; it is not a fourth implementation PR or a source
-branch to merge into the domain branches.
-
-The operator subsequently consolidated all three streams under the controller
-on this host. Reuse the restored owner branches and worktrees; published
-helper branches remain preservation evidence until their changes are checked
-against the owner branch. The controller retains the same review, validation
-and integration duties across A, B and C.
-
-For this consolidated closeout, merge the frozen B and C source-owner tips
-into A and reconcile only their recorded integration differences. Compare the
-resulting tree to the reviewed combined checkout; do not merge the verification
-branch itself. Advance B and C to the resulting common source head only by
-strict fast-forward after proving their original tips remain ancestors. Keep
-the three existing PRs and each ticket's independent scope review, exact-head
-checks and evidence. Integrating that common head through a normal existing
-PR contains all three histories; verify GitHub's disposition of the other two
-PRs and record containment rather than claiming separate code merges. This
-closeout exception supersedes the pack's original cross-stream source-merge
-prohibition following the operator's all-stream consolidation. It introduces
-no fourth implementation PR or general branch convention.
-
-The `main` PR must remain unmerged. No deployment, reset, real email, Outlook
-mutation, Box write or live provider operation is authorized. This exception
-governs the three owners only; ordinary task rules below continue elsewhere.
+One verification owner per host coordinates focused checks and reuses matching
+CI evidence; no competing whole-repository builds or capacity/soak runs are
+part of this remediation. Product behavior and runtime state remain owned by
+the documents routed from [the documentation index](docs/index.md).
 
 ### Ordinary task rules
 
 The managed Kanmer block owns ticket stages, leases, gates and ordinary
-worktree naming. The explicit three-stream exception above owns the v1
-branches, sibling worktrees, common foundation commits and delivery authority.
-For other work, use the managed convention and branch from `origin/dev`.
+worktree naming. Use that convention and branch from the configured integration
+branch (`dev` for this repository).
 Record and reuse the exact branch and worktree on the owner ticket.
 
 Implement only the claimed scope. Put research, plans, checklists, review and
@@ -501,8 +465,9 @@ Ordinary integration proof is written after the authorized merge at the exact
 configured `get_status.delivery.integrationBranch` SHA. A branch test run is
 pre-merge validation, not that proof. Deployment and live operator acceptance
 are separate evidence. Only a separately authorized exact-SHA `dev` to `main`
-promotion may update the release branch; it requires `MERGE AUTH GRANTED` for
-that candidate immediately before the update. No v1 stream performs it.
+promotion may update the release branch. When the current task has not already
+granted release authority, obtain `MERGE AUTH GRANTED` for that candidate
+immediately before the update.
 
 Preserve other agents' branches, commits, worktrees and dirty files. Never
 force-push, rewrite `dev` or `main`, manually push the board branch, or
