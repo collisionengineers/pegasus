@@ -5,8 +5,8 @@ head_sha: "fbbcff265ffb0c84df8be85b704be1d507951802"
 verdict: pass
 reviewer: "/root/closeout_a_review"
 independent: true
-plan_hash: "ea13be5650fe37f9"
-ticket_updated: "2026-09-07T14:21:46.702Z"
+plan_hash: "57789d3887881907"
+ticket_updated: "2026-09-07T14:21:46.746Z"
 board_sha: "976c6da08aea4c6d629bc46631fb80bea4d6a8c1"
 expected_reviewers:
   - "/root/closeout_a_review"
@@ -14,11 +14,11 @@ threads_snapshot: []
 findings:
   - id: F-001
     severity: major
-    summary: "Earlier Stream A attachment, holding-custody, Graph configuration and UI-state defects"
+    summary: "Historical Stream B report, Glass session, caller-proof and fixture findings"
     disposition: fixed
   - id: F-002
     severity: major
-    summary: "Grouped upload snapshot selected a nondeterministic mixed response"
+    summary: "Glass refusal theories were not individually discoverable for strict CI sharding"
     disposition: fixed
   - id: F-003
     severity: major
@@ -27,21 +27,24 @@ findings:
     reason: "Operator explicitly authorized skipping the unfinished CI jobs and proceeding to bind and merge; cancelled and unfinished jobs remain non-PASS."
 ---
 
-# PLAT-075 final review
+# CASE-047 final review
 
 ## Scope reviewed
 
-I independently reviewed Stream A A01-A09 against the approved plan, shared
-contracts, current production callers, tests, docs and the final PR diff at
-`fbbcff265ffb0c84df8be85b704be1d507951802`. Prior whole-A and bounded
-delta reviews found no unresolved source or caller defect. The final delta
-contains the independently reviewed deterministic group snapshot only.
+I independently reviewed Stream B B01-B09 using its whole-source audit, plans,
+PIR, current callers and tests. No production source changed after the passed B
+audit except already reviewed shared A/C deltas. I independently reviewed the
+B-authored Glass fixture deltas: all 17 launch and four relay refusal cases
+preserve their original routes, responses, states and assertions, expose
+serializable scalar data, and use unique bounded scenario labels.
 
-F-001 is fixed in the current head: Worker holding retention is composed,
-holding replay uses stable verified content, request-link authority remains
-fenced, attachment selections are revalidated before Graph, and current Graph
-configuration/docs and routed UI states agree. F-002 is fixed by the explicit
-ordinal fixture and generated snapshot described below.
+F-001 covers the findings carried by closed PR 672 and the B09 record. Current
+source and caller review confirms their report projection, routed delivery,
+Glass authorization/session/custody, estimate concurrency and evidence gaps
+are fixed or superseded by the coherent final implementation. PR 672 is closed
+superseded, not merged; its branch and 141 issue comments remain preserved.
+Those comments are either evidence/handoffs incorporated into the PIR and
+review records or findings covered by F-001/F-002.
 
 ## Validation decision
 

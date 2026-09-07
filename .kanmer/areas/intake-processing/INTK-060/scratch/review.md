@@ -5,8 +5,8 @@ head_sha: "fbbcff265ffb0c84df8be85b704be1d507951802"
 verdict: pass
 reviewer: "/root/closeout_a_review"
 independent: true
-plan_hash: "ea13be5650fe37f9"
-ticket_updated: "2026-09-07T14:21:46.702Z"
+plan_hash: "26de8923a81fae85"
+ticket_updated: "2026-09-07T14:21:46.788Z"
 board_sha: "976c6da08aea4c6d629bc46631fb80bea4d6a8c1"
 expected_reviewers:
   - "/root/closeout_a_review"
@@ -14,11 +14,11 @@ threads_snapshot: []
 findings:
   - id: F-001
     severity: major
-    summary: "Earlier Stream A attachment, holding-custody, Graph configuration and UI-state defects"
+    summary: "Historical Stream C intake, allocation, OCR, custody, correspondence and fixture findings"
     disposition: fixed
   - id: F-002
     severity: major
-    summary: "Grouped upload snapshot selected a nondeterministic mixed response"
+    summary: "Grouped upload decision snapshot selected unstable member ordering"
     disposition: fixed
   - id: F-003
     severity: major
@@ -27,21 +27,27 @@ findings:
     reason: "Operator explicitly authorized skipping the unfinished CI jobs and proceeding to bind and merge; cancelled and unfinished jobs remain non-PASS."
 ---
 
-# PLAT-075 final review
+# INTK-060 final review
 
 ## Scope reviewed
 
-I independently reviewed Stream A A01-A09 against the approved plan, shared
-contracts, current production callers, tests, docs and the final PR diff at
-`fbbcff265ffb0c84df8be85b704be1d507951802`. Prior whole-A and bounded
-delta reviews found no unresolved source or caller defect. The final delta
-contains the independently reviewed deterministic group snapshot only.
+I independently reviewed Stream C C01-C09 against its plan, source/caller
+audits, production composition, tests and final shared diff. The current
+implementation retains one Core policy owner, fail-closed intake and allocation,
+source-bound extraction/OCR, exact custody and upload replay, principal/profile
+ambiguity handling, Triage and Unidentified separation, and typed operator
+routes. The final automatic-allocation assertion matches the implemented
+completed-receipt no-op while retaining first success, suppressed staff retry
+and exact Case/Triage cardinality.
 
-F-001 is fixed in the current head: Worker holding retention is composed,
-holding replay uses stable verified content, request-link authority remains
-fenced, attachment selections are revalidated before Graph, and current Graph
-configuration/docs and routed UI states agree. F-002 is fixed by the explicit
-ordinal fixture and generated snapshot described below.
+F-001 covers the findings carried by closed PR 673 and the C review records;
+all have current source/c caller-backed fixes and no unresolved source defect.
+PR 673 is closed superseded, not merged; its branch and 220 issue comments
+remain preserved. Those comments are evidence/handoffs incorporated into the
+PIR/review records or technical findings covered by F-001/F-002. F-002 is fixed
+by selecting the settled group decision separately from the working/open
+sibling response, explicit ordinal processing, and deterministic generated
+output.
 
 ## Validation decision
 
