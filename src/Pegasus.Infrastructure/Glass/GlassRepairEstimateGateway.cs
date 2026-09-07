@@ -368,6 +368,16 @@ public sealed class GlassRepairEstimateGateway(
         }
         if (provider.EreId is null && provider.PegasusCallback is not null)
         {
+            if (request.ExpectedCaseVersion is not { } regainedCaseVersion
+                || string.IsNullOrWhiteSpace(request.LeaseToken))
+            {
+                throw new GlassRepairEstimateRefusalException(
+                    "Resuming a new Glass's calculation requires the current Case version and edit lease.");
+            }
+            await caseAuthority.RequireEditAuthorityAsync(
+                request.Actor, session.CaseId, regainedCaseVersion, request.LeaseToken, cancellationToken);
+            provider.CaseVersion = regainedCaseVersion;
+            provider.LeaseToken = request.LeaseToken;
             return await ContinueLaunchAsync(session, provider, credential, material.CallbackDigest, cancellationToken);
         }
         if (provider.MvaVehicleId is not { } vehicleId

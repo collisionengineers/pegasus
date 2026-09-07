@@ -471,7 +471,7 @@ internal sealed partial class GlassMvaClient(
             throw new GlassMvaStageException(GlassFailure.DownloadRequest);
         }
 
-        return await ReadAsync(response, options.MaximumExportBytes, GlassFailure.DownloadOversize, cancellationToken);
+        return await ReadAsync(response, options.MaximumExportBytes, GlassFailure.DownloadOversize, outcomeUnknown: false, cancellationToken);
     }
 
     /// <summary>
@@ -694,7 +694,7 @@ internal sealed partial class GlassMvaClient(
             throw new GlassMvaStageException(failureCode, outcomeUnknown);
         }
 
-        var content = await ReadAsync(response, MaximumTextBytes, failureCode, cancellationToken);
+        var content = await ReadAsync(response, MaximumTextBytes, failureCode, outcomeUnknown, cancellationToken);
         return Encoding.UTF8.GetString(content);
     }
 
@@ -754,7 +754,8 @@ internal sealed partial class GlassMvaClient(
     }
 
     private static async Task<byte[]> ReadAsync(
-        HttpResponseMessage response, int maximumBytes, string failureCode, CancellationToken cancellationToken)
+        HttpResponseMessage response, int maximumBytes, string failureCode, bool outcomeUnknown,
+        CancellationToken cancellationToken)
     {
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var buffer = new MemoryStream();
@@ -764,7 +765,7 @@ internal sealed partial class GlassMvaClient(
         {
             if (buffer.Length + read > maximumBytes)
             {
-                throw new GlassMvaStageException(failureCode);
+                throw new GlassMvaStageException(failureCode, outcomeUnknown);
             }
 
             buffer.Write(chunk, 0, read);

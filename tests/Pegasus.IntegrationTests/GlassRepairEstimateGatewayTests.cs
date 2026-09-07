@@ -3,7 +3,9 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -115,7 +117,7 @@ public sealed class GlassRepairEstimateGatewayTests
 
         var restarted = Restarted(harness, harness.Store);
         var resumed = await restarted.Gateway.ResumeAsync(
-            new(harness.Engineer, held.Id, held.Version), CancellationToken.None);
+            new(harness.Engineer, held.Id, held.Version, Harness.CaseVersion, Harness.LeaseToken), CancellationToken.None);
         Assert.Equal(held.Id, resumed.Id);
         if (uncertain)
         {
@@ -154,10 +156,158 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Null(held.ProviderEstimateId);
 
         var restarted = Restarted(before, before.Store);
-        var resumed = await restarted.Gateway.ResumeAsync(new(before.Engineer, held.Id, held.Version), CancellationToken.None);
+        var resumed = await restarted.Gateway.ResumeAsync(
+            new(before.Engineer, held.Id, held.Version, Harness.CaseVersion, Harness.LeaseToken), CancellationToken.None);
         Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
         Assert.Equal(1, before.Mva.Count("GET /index/create-new-vehicle"));
         Assert.Equal(1, before.Mva.Count("POST /ere/start-ere"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [Trait("Category", "SqlServer")]
+    public async Task ResumedFreshWritesRequireCurrentPersistedCaseAuthorityAndRetainItForImport(bool vehicleAlreadyRecorded)
+    {
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        using var interrupted = new GatedStore(database.NewStore());
+        var checkpoints = 0;
+        interrupted.Refuse = material => (vehicleAlreadyRecorded
+            ? material.Session.State == GlassRepairEstimateSessionState.Launching
+                && material.Session.ProviderVehicleId is not null && ++checkpoints == 2
+            : material.Session.State == GlassRepairEstimateSessionState.Prepared)
+            ? new InvalidOperationException("Host stopped before fresh external work.") : null;
+        var before = Harness.Create(store: interrupted, caseId: database.CaseId,
+            engineerId: database.UserId, otherEngineerId: database.OtherUserId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => before.LaunchAsync());
+        Guid sessionId;
+        await using (var db = await database.Factory.CreateDbContextAsync())
+            sessionId = (await db.Set<GlassRepairEstimateSessionEntity>().SingleAsync()).Id;
+        var held = (await database.Store.GetAsync(sessionId, default))!.Session;
+        Assert.Equal(vehicleAlreadyRecorded ? GlassRepairEstimateSessionState.Launching : GlassRepairEstimateSessionState.Prepared, held.State);
+        Assert.Null(held.ProviderEstimateId);
+        var requestsBefore = before.Mva.Requests.Count;
+        var regainedToken = new string('b', 64);
+        const long regainedVersion = Harness.CaseVersion + 1;
+        await using (var db = await database.Factory.CreateDbContextAsync())
+        {
+            var workflow = await db.CaseWorkflows.Include(value => value.Case).SingleAsync(value => value.CaseId == database.CaseId);
+            workflow.Version = regainedVersion;
+            workflow.EditLeaseHolder = before.Engineer.SubjectId;
+            workflow.EditLeaseHolderKind = nameof(ActorKind.Staff);
+            workflow.EditLeaseTokenHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(regainedToken)));
+            workflow.EditLeaseExpiresAtUtc = StartUtc.AddMinutes(15);
+            db.Add(new CaseDataSnapshotEntity
+            {
+                CaseId = database.CaseId, OriginIntakeReceiptId = workflow.Case.OriginIntakeReceiptId,
+                OriginSourceChannel = "manual_upload", OriginExternalReceiptToken = "glass-authority",
+                OriginSourceHash = new string('0', 64), OriginReceivedAtUtc = StartUtc,
+                SourceReaderKey = "glass-test", SourceReaderVersion = "1", CompletenessPolicyKey = "glass-test",
+                CompletenessPolicyVersion = 1, AcceptedAtUtc = StartUtc,
+                Fields =
+                [
+                    Field(CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, Registration),
+                    Field(CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, MileageMiles.ToString(CultureInfo.InvariantCulture))
+                ]
+            });
+            await db.SaveChangesAsync();
+        }
+        var restarted = Restarted(before, database.NewStore(),
+            new EfGlassRepairEstimateCaseAuthority(database.Factory, database.TimeProvider));
+        var request = new GlassRepairEstimateResumeRequest(before.Engineer, held.Id, held.Version, regainedVersion, regainedToken);
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.Gateway.ResumeAsync(request with { LeaseToken = null }, default));
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.Gateway.ResumeAsync(request with { ExpectedCaseVersion = null }, default));
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => restarted.Gateway.ResumeAsync(request with { ExpectedCaseVersion = Harness.CaseVersion }, default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => restarted.Gateway.ResumeAsync(request with { LeaseToken = Harness.LeaseToken }, default));
+        await using (var db = await database.Factory.CreateDbContextAsync())
+        {
+            var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == database.CaseId);
+            workflow.EditLeaseHolder = before.OtherEngineer.SubjectId;
+            await db.SaveChangesAsync();
+        }
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => restarted.Gateway.ResumeAsync(request, default));
+        await using (var db = await database.Factory.CreateDbContextAsync())
+        {
+            var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == database.CaseId);
+            workflow.EditLeaseHolder = before.Engineer.SubjectId;
+            workflow.EditLeaseExpiresAtUtc = StartUtc.AddSeconds(-1);
+            await db.SaveChangesAsync();
+        }
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => restarted.Gateway.ResumeAsync(request, default));
+        Assert.Equal(requestsBefore, before.Mva.Requests.Count);
+        Assert.Equal(held, (await database.Store.GetAsync(sessionId, default))!.Session);
+        await using (var db = await database.Factory.CreateDbContextAsync())
+        {
+            var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == database.CaseId);
+            workflow.EditLeaseExpiresAtUtc = StartUtc.AddMinutes(15);
+            await db.SaveChangesAsync();
+        }
+
+        var resumed = await restarted.Gateway.ResumeAsync(request, default);
+        Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
+        Assert.Equal(1, before.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(1, before.Mva.Count("POST /ere/start-ere"));
+        var estimator = await restarted.Gateway.GetEstimatorUrlAsync(before.Engineer, held.Id, default);
+        Assert.NotNull(estimator);
+        var correlation = new Uri(QueryOf(estimator)["caller"]).Segments[^1];
+        Assert.Equal(GlassRepairEstimateSessionState.Completed,
+            (await restarted.CompleteAsync(resumed, correlation: correlation)).State);
+        var import = Assert.Single(restarted.Import.Requests);
+        Assert.Equal(regainedVersion, import.ExpectedVersion);
+        Assert.Equal(regainedToken, import.EditLeaseToken);
+
+        CaseDataFieldEntity Field(string name, string type, string value) => new()
+        {
+            CaseId = database.CaseId, FieldName = name, ValueKind = CaseDataCodes.Confirmed,
+            ValueType = type, Value = value, SourceKind = CaseDataCodes.StaffCorrection,
+            SourceIdentity = before.Engineer.SubjectId, SourceLabel = "Glass's authority fixture",
+            PolicyKey = CaseDataPolicy.EditPolicyKey, PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+            ConfirmedByActor = before.Engineer.SubjectId, ConfirmedAtUtc = StartUtc
+        };
+    }
+
+    [Theory]
+    [InlineData("GET /index/create-new-vehicle", GlassFailure.VehicleRequest)]
+    [InlineData("POST /ere/start-ere", GlassFailure.StartRequest)]
+    [Trait("Category", "SqlServer")]
+    public async Task OversizedWriteResponsesRemainUnknownAndReservedAfterRestartAndExpiry(string path, string failureCode)
+    {
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        var harness = Harness.Create(store: database.NewStore(), caseId: database.CaseId,
+            engineerId: database.UserId, otherEngineerId: database.OtherUserId);
+        harness.Mva.Set(path, new(HttpStatusCode.OK, new string('x', 4 * 1024 * 1024 + 1)));
+        var unknown = await harness.LaunchAsync();
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, unknown.State);
+        Assert.Equal(failureCode, unknown.FailureCode);
+        Assert.NotNull(await database.ActiveAccountKeyAsync(unknown.Id));
+        var creates = harness.Mva.Count("GET /index/create-new-vehicle");
+        var starts = harness.Mva.Count("POST /ere/start-ere");
+        Assert.Equal(1, creates);
+        Assert.Equal(path.StartsWith("POST", StringComparison.Ordinal) ? 1 : 0, starts);
+
+        var restarted = Restarted(harness, database.NewStore());
+        var resumed = await restarted.Gateway.ResumeAsync(new(harness.Engineer, unknown.Id, unknown.Version), default);
+        restarted.Clock.Offset = TimeSpan.FromHours(9);
+        var expired = await restarted.Gateway.ResumeAsync(new(harness.Engineer, resumed.Id, resumed.Version), default);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, expired.State);
+        Assert.NotNull(await database.ActiveAccountKeyAsync(unknown.Id));
+        var refusal = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() => restarted.LaunchAsync(operationKey: "no-second-write"));
+        Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refusal.Conflict);
+        Assert.Equal(creates, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(1, await database.SessionCountAsync());
+    }
+
+    [Fact]
+    public async Task AnOversizedReadOnlyResponseRemainsADefinitePreWriteRefusal()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set("GET /login/index", new(HttpStatusCode.OK, new string('x', 4 * 1024 * 1024 + 1)));
+        var refused = await harness.LaunchAsync();
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, refused.State);
+        Assert.False(GlassRepairEstimateSessionPolicy.OccupiesAccount(refused.State));
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/start-ere"));
     }
 
     [Fact]
@@ -1322,14 +1472,16 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>A second gateway over the same store, protector and provider: the host after a restart.</summary>
-    private static Harness Restarted(Harness before, IGlassRepairEstimateSessionStore store) =>
+    private static Harness Restarted(Harness before, IGlassRepairEstimateSessionStore store,
+        IGlassRepairEstimateCaseAuthority? authority = null) =>
         Harness.Create(
             store: store,
             caseId: before.CaseId,
             engineerId: before.EngineerId,
             otherEngineerId: before.OtherEngineerId,
             protection: before.Protection,
-            provider: before.Mva);
+            provider: before.Mva,
+            authority: authority);
 
     private sealed class InterruptedProvider(
         HttpMessageHandler inner, string path, CancellationTokenSource cancelled) : DelegatingHandler(inner)
@@ -1760,7 +1912,8 @@ public sealed class GlassRepairEstimateGatewayTests
             Guid? otherEngineerId = null,
             IDataProtectionProvider? protection = null,
             ScriptedGlass? provider = null,
-            Func<HttpMessageHandler, HttpMessageHandler>? transport = null)
+            Func<HttpMessageHandler, HttpMessageHandler>? transport = null,
+            IGlassRepairEstimateCaseAuthority? authority = null)
         {
             var clock = new TestClock(StartUtc);
             var mva = provider ?? new ScriptedGlass();
@@ -1792,7 +1945,7 @@ public sealed class GlassRepairEstimateGatewayTests
             return new(
                 new GlassRepairEstimateGateway(
                     sessions,
-                    caseAuthority,
+                    authority ?? caseAuthority,
                     credentials,
                     custody,
                     custody,
