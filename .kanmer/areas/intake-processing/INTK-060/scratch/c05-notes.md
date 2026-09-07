@@ -286,3 +286,15 @@ shared indirect one. Still no production fallback: the fallback is test support 
 Build gate on 78cb51c2c: `dotnet build ./Pegasus.slnx --configuration Release
 --no-restore` exit 0, 0 warnings, 0 errors (one MSB3027 file-lock retry after
 `dotnet build-server shutdown`). Tests are the controller's wave loop; none run here.
+
+## C05 seam for A — READY_FOR_TESTS (head 35cc17c66)
+
+- `ThirdPartyReportExtraction.Reconstruct(IReadOnlyList<RetainedInstructionCandidate> rows, ThirdPartyReportSourceContext context)` returns `ThirdPartyReportCandidate?`. One public entry, reuses `Project`/`Lookup`/`Estimates`/`ObservedFields`; `Project` now takes the issuer row instead of the whole selection (all it ever read).
+- Takes `RetainedInstructionCandidate`, not `SourceFieldCandidate`, because only that shape carries `PolicyKey` (needed for the null guard) and `Locator`. A already has `Map(IntakeSourceCandidateEntity)` producing it.
+- Call once per retained analysis (receipt + asset + sha256). Identity: `new ThirdPartyReportSourceContext(receiptId, sha256, occurrence, IntakeAssetId: assetId)`.
+- `null` = these rows record no report candidate: no row with policy key `third-party-report`, or the persisted issuer row is not `Usable` (ambiguous / non-report role / scan-only). Same answer `Extract` gave. Other policies' rows are ignored, not rejected.
+- No bytes re-read, no store call, no signature re-run, no issuer inference, no arithmetic repair; Missing/Ambiguous/Conflicting come back as persisted.
+- Persistence gap fixed inside the existing shape: `ToCandidates` was dropping the locator `Region` ("label"/"section"/"finding"). Now written into the `RetainedInstructionCandidate.Locator` envelope (version 1 → 2 for those rows). No column, no schema, no migration.
+- Open for A: no persisted ordinal, so within-field row order (conflict first row, damage zones, deductions, photographs) follows the order A supplies. `OrderBy(Field).ThenBy(Occurrence)` is stable and adequate; exact declared-rule order would need an A-owned ordinal column.
+- Builds: Core 0/0 exit 0, Pegasus.Core.Tests 0/0 exit 0. No `dotnet test` run here. Runner filter: `FullyQualifiedName~Pegasus.Core.Tests.Intake.ThirdPartyReports.ThirdPartyReportExtractionTests` (whole class), plus `ThirdPartyReportCorpusTests`/`ThirdPartyReportProvenanceWebTests` for the locator change.
+- Report: `...\scratchpad\takeover\c05-seam-report.md`. Not pushed, no PR.
