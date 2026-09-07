@@ -11,7 +11,7 @@
 | `src/Pegasus.Core/Intake/ProcessIntake.cs` | Reuse group registration/reason construction; no new provider routing. |
 | `src/Pegasus.Core/Intake/ReconcileGroupedImageIntake.cs` | Recover eligible oldest groups once and retain group outcome. |
 | `src/Pegasus.Core/Intake/IntakeOcr.cs` | Resume analysis from retained completed OCR output. |
-| `src/Pegasus.Core/Intake/GroupedIntakeSubmission.cs` | Existing submission-group query contract if required. |
+| `src/Pegasus.Core/Intake/GroupedIntake.cs` | Existing submission-group query contract if required. |
 | `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Emit one group-level Unidentified registration with canonical reason. |
 | `src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs` | Claim intake assets directly without probing Web-owned tables. |
 | `src/Pegasus.Infrastructure/Persistence/EfIntakeWorkStore.cs` | Separate evaluation persistence from terminal work completion using current columns. |
@@ -30,10 +30,10 @@
 | --- | --- |
 | `src/Pegasus.Infrastructure/Persistence/Migrations/20260906054658_V1PlatformFoundation.cs` | Worker must not access PublicUploadOccurrences; IntakeAssets UPDATE already exists. |
 | `src/Pegasus.Core/Intake/Unidentified/UnidentifiedContracts.cs` | Existing group origin and canonical reasons. |
-| `src/Pegasus.Infrastructure/Persistence/IntakeEntities.cs` | Current evaluation/work fields and FK constraints. |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` | Current evaluation/work fields and FK constraints. |
 | `src/Pegasus.Infrastructure/Persistence/EfUnidentifiedStore.cs` | Stable group registration replay identity. |
 | `src/Pegasus.Core/Custody/ExternalWorkProcessing.cs` | Shared external work routing, no new queue. |
-| `tests/Pegasus.IntegrationTests/LocalDbTestDatabase.cs` | Existing migrated restricted-role SQL fixture; root owns execution. |
+| `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` | Existing migrated restricted-role SQL fixture; root owns execution. |
 
 ## Ripple effects
 
