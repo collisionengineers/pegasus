@@ -75,3 +75,9 @@ conflict; do not silently delete protected statements or broaden scope.
 
 Commit the focused correction and return for independent review. Open the PR
 with Kanmer footer after focused checks; author does not merge.
+
+## Simplification pass — 7 September 2026
+
+Documentation removal plus deletion of one special-case guard condition.
+Reuses the existing path matcher; no new abstraction or second source. The
+independent reviewer assesses the final five-file diff and dispositions.

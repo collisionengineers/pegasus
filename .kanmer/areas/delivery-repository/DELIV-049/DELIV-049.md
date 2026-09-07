@@ -2,12 +2,13 @@
 id: DELIV-049
 type: ticket
 title: Remove NOW.md and reconcile the canonical documentation authority
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-09-07T20:06:42.765Z'
+  review: '2026-09-07T20:11:54.875Z'
 taken_at: '2026-09-07T20:08:06.522Z'
 branch: DELIV-049-canonical-docs
 worktree: .worktrees/deliv-049
@@ -28,9 +29,13 @@ links:
   - DELIV-045
 refs:
   - docs/index.md
+commits:
+  - a84edccd49de692371fcd04423f9190e1b1cf9f9
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/677'
 archived: false
 created: '2026-09-07T20:01:20.404Z'
-updated: '2026-09-07T20:08:06.522Z'
+updated: '2026-09-07T20:11:54.875Z'
 ---
 
 ## What
