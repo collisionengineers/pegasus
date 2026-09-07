@@ -42,10 +42,15 @@ restriction.
 - Existing application email/Case data is disposable development data. Build
   one target schema without obsolete-data conversion. This is no permission
   to delete source references or perform an unreviewed cloud reset.
-- Three scoped owner tickets deliver exactly three replacement PRs to `dev`,
+- Historical execution instruction (superseded on 7 September): three scoped
+  owner tickets deliver exactly three replacement PRs to `dev`,
   left open and unmerged. Required work from PRs 639, 646, 670 and 671 is
   preserved and verified before those PRs close as superseded. Preserve their
   original branches and evidence; existing tickets get reasoned dispositions.
+  The streams were subsequently integrated through PR 674. The operator's
+  later v1 remediation request grants merge and deployment authority;
+  [repository task workflow](../AGENTS.md#repository-task-workflow) governs
+  execution and Kanmer records the remaining work and evidence.
 - Defer the one-off customer workflow and additional spreadsheet-driven
   recipient/package/chase and garage-procedure automation. Include the named
   location defaults, address suggestions and top-15 extraction.
