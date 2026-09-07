@@ -318,6 +318,10 @@ public sealed class AnalyzeRetainedInstructionTests
         var harness = new Harness(
             InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
             {
+                Variants =
+                [
+                    new("qdos-ocr", new("instruction", ["QDOS"], []))
+                ],
                 Fields =
                 [
                     new("Claimant name", "Jane Smith",
@@ -335,6 +339,8 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.True(replay.IsReplay);
         Assert.All(first.Analysis!.Candidates, candidate =>
             Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
+        Assert.Single(first.Analysis.Candidates,
+            candidate => candidate.Field == AnalyzeRetainedInstruction.MatchedTemplateVariantField);
         var claimant = Assert.Single(first.Analysis.Candidates, candidate => candidate.Field == "Claimant name");
         Assert.Equal(SourceHash, claimant.Locator!.Sha256);
         Assert.Equal($"{IntakeOcrProviderIdentity.Provider}/{IntakeOcrProviderIdentity.ModelId}", claimant.ReaderKey);
