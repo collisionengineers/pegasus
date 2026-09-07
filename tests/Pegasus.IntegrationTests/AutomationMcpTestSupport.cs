@@ -156,7 +156,7 @@ internal static class AutomationMcpTestSupport
                     "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
-                    completeness ?? new(true, true, true, true)),
+                    completeness ?? new(true, true)),
                 CancellationToken.None);
         return outcome.Identity.CaseId;
     }

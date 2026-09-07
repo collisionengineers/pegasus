@@ -612,18 +612,12 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
             caseEntity.AuditCustodyConfirmedAtUtc = now;
         }
-        // CASE-013: this used to restate the readiness rule, and the copy was
-        // stricter than the one in Core — it required staff confirmation that
-        // CaseCompleteness.IsReadyForReview waives for an automatically
-        // definitive intake. Core's rule had no caller at all, which is how
-        // the two came to disagree. It has one now.
+        // Use the same factual completeness rule as intake acceptance.
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
-            caseEntity.ImagesComplete,
-            caseEntity.InstructionConfirmedByStaff,
-            caseEntity.ImagesConfirmedByStaff);
+            caseEntity.ImagesComplete);
         if (workflow.State == CaseLifecycleState.NotReady.ToString()
-            && completeness.IsReadyForReview(automaticallyDefinitive: false))
+            && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
         }

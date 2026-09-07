@@ -136,8 +136,6 @@
                             @* Each checkbox carries a trailing hidden false so an unchecked box still submits its value. *@
                             <label class="choice"><input type="checkbox" name="instructionComplete" value="true" checked="@data.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionComplete" value="false" />
                             <label class="choice"><input type="checkbox" name="imagesComplete" value="true" checked="@data.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" />
-                            <input type="hidden" name="instructionConfirmedByStaff" value="@data.Completeness.Values.InstructionConfirmedByStaff" />
-                            <input type="hidden" name="imagesConfirmedByStaff" value="@data.Completeness.Values.ImagesConfirmedByStaff" />
                             <div class="field"><label class="req" for="completeness-reason">Reason</label><input id="completeness-reason" name="reason" required maxlength="500" /></div>
                         </div>
                         <div class="button-row">
