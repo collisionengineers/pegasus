@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Identity;
@@ -120,5 +121,24 @@ public sealed class AutomationActorTests
         public Task<CaseDetails?> GetAsync(
             GetCaseQuery query,
             CancellationToken cancellationToken) => Task.FromResult<CaseDetails?>(null);
+
+        public Task<CaseHeader?> GetHeaderAsync(
+            GetCaseHeaderQuery query,
+            CancellationToken cancellationToken) => Task.FromResult<CaseHeader?>(null);
+
+        public Task<IReadOnlyList<CaseSearchItem>> SearchByCursorAsync(
+            CaseSearchFilters filters, CaseSearchOrder order, DateTimeOffset? afterReceivedAtUtc,
+            string? afterSortText, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CaseDocumentPageItem>> ListDocumentsByCursorAsync(
+            Guid caseId, DateTimeOffset? afterRecordedAtUtc, Guid? afterId, int fetchCount,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(
+            Guid caseId, DateTimeOffset? afterOccurredAtUtc, Guid? afterId, int fetchCount,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

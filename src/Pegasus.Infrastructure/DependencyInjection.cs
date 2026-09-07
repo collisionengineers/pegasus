@@ -23,6 +23,7 @@ using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Vision;
@@ -168,7 +169,11 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
-        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
+        services.AddScoped<EfStaffAccountQueries>();
+        services.AddScoped<IStaffAccountQueries>(provider =>
+            provider.GetRequiredService<EfStaffAccountQueries>());
+        services.AddScoped<ICaseEngineerChoices>(provider =>
+            provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
@@ -313,12 +318,18 @@ public static class DependencyInjection
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
+        services.AddScoped<IAdministrativeCaseEditLeaseStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IClearCaseEditLease, ClearCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<EfCaseQueryStore>();
         services.AddScoped<ICaseQueryStore>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ISearchCases, SearchCases>();
+        services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
+        services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
+        services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
+        services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
         services.AddScoped<EfCaseDataStore>();
         services.AddScoped<ICaseDataStore>(
@@ -336,19 +347,44 @@ public static class DependencyInjection
             provider.GetRequiredService<EfEngineerNoteStore>());
         services.AddScoped<IAddEngineerNote, AddEngineerNote>();
         services.AddScoped<ISaveCase, SaveCase>();
+        services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
+        services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
-        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
         // the import dialog selects the parser by the chosen source route.
         services.AddSingleton<JsonEstimateParser>();
+        services.AddSingleton<IEstimateDocumentParser>(provider =>
+            provider.GetRequiredService<JsonEstimateParser>());
+        services.AddSingleton<IEstimateDocumentParser, GlassEstimateXmlParser>();
+        // Details still requests the PDF parser singly and JSON by its concrete
+        // type; canonical import consumes all parsers through the collection.
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        services.AddScoped<IGlassRepairEstimateSessionStore, EfGlassRepairEstimateSessionStore>();
+        services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
         services.AddScoped<IDiscardEstimate, DiscardEstimate>();
         services.AddScoped<ISetCurrentEstimate, SetCurrentEstimate>();
         services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
+        services.AddScoped<IListCaseEstimatesByCursor, ListCaseEstimatesByCursor>();
+        services.AddScoped<EfCaseAssetPreparationStore>();
+        services.AddScoped<ICaseAssetPreparationStore>(provider =>
+            provider.GetRequiredService<EfCaseAssetPreparationStore>());
+        services.AddScoped<ICaseAssetPreparationQueries>(provider =>
+            provider.GetRequiredService<EfCaseAssetPreparationStore>());
         services.AddScoped<EfValuationStore>();
         services.AddScoped<IValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<IAppliedValuationStore>(provider =>
+            provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<EfValuationPresetStore>();
+        services.AddScoped<IValuationPresetStore>(provider =>
+            provider.GetRequiredService<EfValuationPresetStore>());
+        services.AddScoped<IListValuationPresets, ListValuationPresets>();
+        services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
+        services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
+        services.AddScoped<IApplyValuationCalculation, ApplyValuationCalculation>();
+        services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<ISaveValuation, SaveValuation>();
         services.AddScoped<IEditValuation, EditValuation>();
         services.AddScoped<IListCaseValuations, ListCaseValuations>();
@@ -518,7 +554,24 @@ public static class DependencyInjection
     {
         services.AddSingleton<IAssessmentReportRenderer, PlaywrightAssessmentReportRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
-        services.AddScoped<IAssessmentReportProjectionSource, EfAssessmentReportProjectionSource>();
+        services.AddScoped<EfAssessmentReportProjectionSource>();
+        services.AddScoped<IAssessmentReportProjectionSource>(provider =>
+            provider.GetRequiredService<EfAssessmentReportProjectionSource>());
+        services.AddScoped<ICaseReportSnapshotSource>(provider =>
+            provider.GetRequiredService<EfAssessmentReportProjectionSource>());
+        services.AddScoped<EfCaseReportGenerationStore>();
+        services.AddScoped<ICaseReportGenerationStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<ICaseReportGenerationQueries>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<IGeneratedCaseArtifactStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
+        services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
+        services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
+        services.AddScoped<IPrepareCaseReportDelivery, PrepareCaseReportDelivery>();
+        services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
+        services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
         return services;
     }

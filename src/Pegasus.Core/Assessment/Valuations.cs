@@ -11,6 +11,8 @@ public enum ValuationSource
     Cazana,
     EngineersValue,
     AiMarketResearch,
+    Brego,
+    SuperCap,
 }
 
 /// <summary>
@@ -28,6 +30,10 @@ public static class ValuationSources
 /// <summary>
 /// One recorded valuation. The operator-entered local date and time are
 /// retained as entered, and are the order the Valuations table is read in.
+/// <see cref="GuideMonth"/> is the month the guide figure was published,
+/// which is a different fact from the day it was recorded here; it is held
+/// as the first day of that month so two cards for the same month sort and
+/// compare as one value.
 /// An <see cref="ValuationSource.EngineersValue"/> row additionally writes
 /// the confirmed <c>assessment.values.engineer</c> field, which stays the one
 /// owner of the Engineer's Value the product consumes.
@@ -38,7 +44,8 @@ public sealed record ValuationDetails(
     TimeOnly Time,
     long Mileage,
     decimal RetailValue,
-    decimal TradeValue);
+    decimal TradeValue,
+    DateOnly? GuideMonth = null);
 
 public sealed record CaseValuation(
     Guid ValuationId,
@@ -78,6 +85,7 @@ public static class ValuationPolicy
     public static SaveValuationRequest ValidateSave(SaveValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        RequireManuallyRecordableSource(request.Details.Source);
         RequireActor(request.Actor, request.Details);
         return request with { Details = ValidateDetails(request.Details) };
     }
@@ -85,6 +93,7 @@ public static class ValuationPolicy
     public static EditValuationRequest ValidateEdit(EditValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        RequireManuallyRecordableSource(request.Details.Source);
         RequireActor(request.Actor, request.Details);
         if (request.ValuationId == Guid.Empty)
         {
@@ -106,6 +115,12 @@ public static class ValuationPolicy
         {
             throw new ArgumentException("Mileage cannot be negative.", nameof(details));
         }
+        if (details.GuideMonth is { Day: not 1 })
+        {
+            throw new ArgumentException(
+                "The valuation guide month must be represented by the first day of the month.",
+                nameof(details));
+        }
         Money(details.RetailValue, "retail value");
         Money(details.TradeValue, "trade value");
 
@@ -114,6 +129,29 @@ public static class ValuationPolicy
         // field is refused here rather than persisted and silently dropped.
         EngineersValueField(details);
         return details;
+    }
+
+    /// <summary>
+    /// The sources staff may type in. Collision Engineers reads Glass's,
+    /// Brego and Super CAP guides and records the figure by hand: none of
+    /// them has a live provider here, and the guide is evidence rather than a
+    /// call. Cazana remains a disabled seam and AI market research is written
+    /// only by the automation completion, so neither is offered to the staff
+    /// save and edit actions.
+    /// </summary>
+    public static bool IsManuallyRecordable(ValuationSource source) =>
+        source is ValuationSource.Glasses
+            or ValuationSource.Brego
+            or ValuationSource.SuperCap
+            or ValuationSource.EngineersValue;
+
+    private static void RequireManuallyRecordableSource(ValuationSource source)
+    {
+        if (!IsManuallyRecordable(source))
+        {
+            throw new InvalidOperationException(
+                "This valuation source cannot be recorded through the staff valuation action.");
+        }
     }
 
     public static ValuationDetails ValidateAutomationMarketResearch(ValuationDetails details)

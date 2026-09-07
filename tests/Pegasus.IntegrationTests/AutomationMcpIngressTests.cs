@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -30,6 +31,7 @@ public sealed class AutomationMcpIngressTests
         "pegasus_document_export",
         "pegasus_estimate_list",
         "pegasus_estimate_save",
+        "pegasus_estimate_import",
         "pegasus_assessment_get",
         "pegasus_assessment_update",
         "pegasus_mail_list",
@@ -158,14 +160,18 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             fullToken,
-            ToolCallPayload(3, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(3, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             var result = document.RootElement.GetProperty("result");
             Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
             var structured = result.GetProperty("structuredContent");
-            Assert.Equal(0, structured.GetProperty("totalCount").GetInt32());
+            Assert.Empty(structured.GetProperty("items").EnumerateArray());
+            Assert.Equal(10, structured.GetProperty("limit").GetInt32());
+            Assert.True(
+                !structured.TryGetProperty("nextCursor", out var nextCursor)
+                || nextCursor.ValueKind == JsonValueKind.Null);
             Assert.False(string.IsNullOrWhiteSpace(
                 structured.GetProperty("correlationId").GetString()));
         }
@@ -211,7 +217,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             casesOnlyToken,
-            ToolCallPayload(5, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(5, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
@@ -231,6 +237,37 @@ public sealed class AutomationMcpIngressTests
     }
 
     [Fact]
+    public async Task CaseGetUsesTheBoundedHeaderAndCursorSubLists()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, "automation.cases");
+
+        using var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(6, "pegasus_case_get", new { caseId, limit = 1 }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var structured = await ReadStructuredContentAsync(response);
+        Assert.Equal(caseId, structured.GetProperty("summary").GetProperty("caseId").GetGuid());
+        Assert.InRange(structured.GetProperty("documents").GetArrayLength(), 0, 1);
+        Assert.InRange(structured.GetProperty("recentHistory").GetArrayLength(), 0, 1);
+        Assert.False(structured.TryGetProperty("documentEntryCount", out _));
+        Assert.False(structured.TryGetProperty("historyEntryCount", out _));
+        foreach (var cursorName in new[] { "nextDocumentCursor", "nextHistoryCursor" })
+        {
+            if (structured.TryGetProperty(cursorName, out var cursor))
+            {
+                Assert.True(cursor.ValueKind is JsonValueKind.Null or JsonValueKind.String);
+                if (cursor.ValueKind == JsonValueKind.String)
+                    Assert.False(string.IsNullOrWhiteSpace(cursor.GetString()));
+            }
+        }
+    }
+
+    [Fact]
     public async Task AdministratorDisableTakesImmediateEffectAndIsRecorded()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
@@ -244,7 +281,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             accessToken,
-            ToolCallPayload(6, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(6, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
@@ -266,7 +303,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             accessToken,
-            ToolCallPayload(7, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(7, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
@@ -323,7 +360,7 @@ public sealed class AutomationMcpIngressTests
         using (var response = await PostMcpAsync(
             client,
             restoredToken,
-            ToolCallPayload(8, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
+            ToolCallPayload(8, "pegasus_intake_queue_list", new { limit = 10 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);

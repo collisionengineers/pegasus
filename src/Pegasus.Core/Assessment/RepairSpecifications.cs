@@ -34,6 +34,14 @@ public sealed record RepairSpecificationSource(
     string? SourceVersion,
     string? Sha256);
 
+/// <summary>
+/// What an accepted estimate was costed at. The four component amounts, the
+/// VAT and the total are the printed figures (B04): each component rounded
+/// to pence away from zero, the net their sum, the total the net plus the
+/// printed VAT. <see cref="Printed"/> carries the same figures with panel
+/// labour, paint labour and materials still separate, and
+/// <see cref="VatPolicy"/> the categories the VAT was charged on.
+/// </summary>
 public sealed record RepairCalculationBasis(
     decimal Labour,
     decimal Parts,
@@ -42,7 +50,9 @@ public sealed record RepairCalculationBasis(
     bool RepairerVatRegistered,
     decimal Vat,
     decimal Total,
-    string PolicyVersion);
+    string PolicyVersion,
+    EstimateVatPolicy? VatPolicy = null,
+    EstimatePrintedTotals? Printed = null);
 
 public sealed record RepairSpecificationVersion(
     Guid SpecificationId,
@@ -76,8 +86,12 @@ public static class RepairSpecificationPolicy
     /// v2: the calculation basis of an estimate made Current is derived by
     /// <see cref="EstimateTotals"/> (FRD-11 § Estimate VAT on the rendered
     /// report) instead of being typed from the source document.
+    /// v3 (B04): the basis is the printed projection — each discounted
+    /// category and the VAT rounded to pence independently, net the sum of
+    /// the printed components — over the seven closed line operations, the
+    /// four discounts and the repairer's VAT categories.
     /// </summary>
-    public const int PolicyVersion = 2;
+    public const int PolicyVersion = 3;
 
     public static void RequireEngineer(ActionActor actor)
     {
@@ -102,6 +116,10 @@ public static class RepairSpecificationPolicy
     public static RepairSpecificationSource ValidateSource(RepairSpecificationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
+        if (!Enum.IsDefined(source.Route))
+        {
+            throw new InvalidOperationException("The repair-specification source names no known route.");
+        }
         if (source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
         {
             throw new InvalidOperationException(
@@ -138,11 +156,25 @@ public static class RepairSpecificationPolicy
         {
             throw new InvalidOperationException("Repair calculation inputs and totals cannot be negative.");
         }
-        var subtotal = basis.Labour + basis.Parts + basis.PaintMaterials + basis.SpecialistOther;
-        if (basis.Total != subtotal + basis.Vat)
+        var printedNet = basis.Labour + basis.Parts + basis.PaintMaterials + basis.SpecialistOther;
+        if (basis.Total != printedNet + basis.Vat)
         {
             throw new InvalidOperationException(
-                "Repair calculation total does not match its accepted raw inputs and recorded VAT.");
+                "Repair calculation total does not match its printed components and recorded VAT.");
+        }
+        if (basis.Printed is { } printed)
+        {
+            var components = printed.Parts + printed.PanelLabour + printed.PaintLabour
+                + printed.Materials + printed.Specialist;
+            if (printed.Net != components
+                || printed.Gross != printed.Net + printed.Vat
+                || printed.Net != printedNet
+                || printed.Vat != basis.Vat
+                || printed.Gross != basis.Total)
+            {
+                throw new InvalidOperationException(
+                    "Printed repair calculation totals must be the sum of their printed components.");
+            }
         }
         Required(basis.PolicyVersion, nameof(basis.PolicyVersion));
         return basis;
@@ -287,5 +319,22 @@ public interface IRepairSpecificationStore
 
     Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
+    /// (CASE-047): newest version first, then estimate id. The after-values
+    /// are the decoded cursor's sort position, both null on the first page;
+    /// <paramref name="fetchCount"/> is the caller's limit plus one. Returns
+    /// the bounded <see cref="CaseEstimatePageItem"/> header projection
+    /// (Stream A review) rather than the full <see
+    /// cref="RepairSpecificationVersion"/> — the page never needs, and never
+    /// pays to read, a specification's lines.
+    /// </summary>
+    Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
+        Guid caseId,
+        int? afterVersion,
+        Guid? afterId,
+        int fetchCount,
         CancellationToken cancellationToken);
 }

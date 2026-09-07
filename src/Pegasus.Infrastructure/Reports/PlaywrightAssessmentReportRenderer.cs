@@ -20,75 +20,109 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
     private IPlaywright? playwright;
     private IBrowser? browser;
 
-    public async Task<AssessmentReportDraft> RenderAsync(
+    public string EngineVersion { get; } =
+        $"Playwright/{typeof(Playwright).Assembly.GetName().Version}; Chromium";
+
+    public async Task<RenderedReportArtifact> RenderAsync(
         AssessmentReportSnapshot snapshot,
+        CaseReportArtifactKind kind,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        AssessmentReportRenderPolicy.RequireBoundedImages(snapshot.Photos);
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var activeBrowser = await GetBrowserAsync().ConfigureAwait(false);
-            var presentation = snapshot.Presentation();
-            var assessment = CommonContext(snapshot);
-            assessment["title"] = presentation.Title;
-            assessment["badge"] = presentation.Badge;
-            assessment["legal_badge"] = snapshot.LegalStatus.ToUpperInvariant();
-            assessment["tiles"] = Tiles(snapshot, presentation);
-            assessment["introduction"] = Introduction(snapshot);
-            assessment["vehicle_rows"] = VehicleRows(snapshot);
-            assessment["impact_rows"] = ImpactRows(snapshot.Damage.Impacts);
-            assessment["damage_rows"] = DamageRows(snapshot.Damage);
-            assessment["restraint_rows"] = RestraintRows(snapshot.Damage);
-            assessment["settlement_rows"] = SettlementRows(snapshot.Settlement);
-            assessment["desktop_assessment"] = snapshot.AssessmentMethod == "image_based"
-                ? "<section class=\"section\"><h2>Desktop Assessment</h2><p>This report has been compiled from a desktop review of the information available relating to this claim.</p></section>"
-                : string.Empty;
-            assessment["nature"] = $"The vehicle has suffered {Encode(Display(snapshot.ImpactSeverity))} collision/impact damage to the {Encode(Display(snapshot.ImpactLocation))}.";
-            assessment["engineer_comments"] = EngineerComments(snapshot);
-            assessment["history"] = Encode(snapshot.HistoryCheck);
-            assessment["condition_text"] = $"The vehicle is considered to be in {Encode(Display(snapshot.Vehicle.Condition))} condition for its age and type.";
-            assessment["settlement_heading"] = presentation.SettlementHeading;
-            assessment["settlement_label"] = presentation.SettlementLabel;
-            assessment["settlement_text"] = Encode(presentation.SettlementText);
-            assessment["settlement_value"] = Money(presentation.RecommendedSettlement!.Value);
-            assessment["salvage"] = Salvage(snapshot);
-            assessment["vehicle_data_rows"] = VehicleDataRows(snapshot);
-            assessment["cost_rows"] = CostRows(snapshot.Costs);
-            assessment["worklists"] = Worklists(snapshot);
-            assessment["photos"] = Photos(snapshot.Photos);
-            assessment["statement_of_truth"] = StatementOfTruth();
-            assessment["signature"] = ImageDataUri(
-                snapshot.Signatory.SignatureContent,
-                snapshot.Signatory.SignatureContentType);
-            assessment["engineer"] = Encode(snapshot.Signatory.PrintedName);
-            assessment["qualifications"] = string.IsNullOrWhiteSpace(snapshot.Signatory.Qualifications)
-                ? null
-                : Encode(snapshot.Signatory.Qualifications);
-            var fee = CommonContext(snapshot);
-            fee["registration"] = Encode(snapshot.Vehicle.Registration);
-            fee["fee_rows"] = FeeRows(snapshot);
-            fee["fee_net_number"] = Number(snapshot.FeeNet);
-            fee["fee_vat_number"] = Number(snapshot.FeeVat);
-            fee["fee_total"] = Money(snapshot.FeeTotal);
-            fee["vat_number"] = AssessmentReportContract.VatNumber;
-            fee["account_name"] = AssessmentReportContract.AccountName;
-            fee["bank"] = AssessmentReportContract.BankName;
-            fee["sort_code"] = AssessmentReportContract.SortCode;
-            fee["account_number"] = AssessmentReportContract.AccountNumber;
-            fee["remittance_email"] = AssessmentReportContract.RemittanceEmail;
-            fee["fee_terms"] = Encode(AssessmentReportContract.FeeTerms);
-            fee["additional_fee_terms"] = Encode(AssessmentReportContract.AdditionalFeeTerms);
-
-            var assessmentPdf = await RenderPdfAsync(activeBrowser, "assessment_report.scriban", assessment, Footer(snapshot, false), cancellationToken).ConfigureAwait(false);
-            var feePdf = await RenderPdfAsync(activeBrowser, "assessment_fee_note.scriban", fee, Footer(snapshot, true), cancellationToken).ConfigureAwait(false);
-            return new AssessmentReportDraft(
-                Artifact($"{Slug(snapshot.OurReference)}_assessment.pdf", assessmentPdf),
-                Artifact($"{Slug(snapshot.OurReference)}_fee_note.pdf", feePdf));
+            return kind switch
+            {
+                CaseReportArtifactKind.AssessmentReport => Artifact(
+                    $"{Slug(snapshot.OurReference)}_assessment.pdf",
+                    await RenderPdfAsync(
+                        activeBrowser,
+                        "assessment_report.scriban",
+                        AssessmentContext(snapshot),
+                        Footer(snapshot, false),
+                        cancellationToken).ConfigureAwait(false)),
+                CaseReportArtifactKind.FeeNote => Artifact(
+                    $"{Slug(snapshot.OurReference)}_fee_note.pdf",
+                    await RenderPdfAsync(
+                        activeBrowser,
+                        "assessment_fee_note.scriban",
+                        FeeNoteContext(snapshot),
+                        Footer(snapshot, true),
+                        cancellationToken).ConfigureAwait(false)),
+                _ => throw new ReportRenderRejectedException(
+                    $"Unsupported report artifact kind '{kind}'."),
+            };
         }
         finally
         {
             gate.Release();
         }
+    }
+
+    private static ScriptObject AssessmentContext(AssessmentReportSnapshot snapshot)
+    {
+        var presentation = snapshot.Presentation();
+        var assessment = CommonContext(snapshot);
+        assessment["title"] = presentation.Title;
+        assessment["badge"] = presentation.Badge;
+        assessment["legal_badge"] = snapshot.LegalStatus.ToUpperInvariant();
+        assessment["tiles"] = Tiles(snapshot, presentation);
+        assessment["introduction"] = Introduction(snapshot);
+        assessment["vehicle_rows"] = VehicleRows(snapshot);
+        assessment["impact_rows"] = ImpactRows(snapshot.Damage.Impacts);
+        assessment["damage_rows"] = DamageRows(snapshot);
+        assessment["restraint_rows"] = RestraintRows(snapshot.Damage);
+        assessment["settlement_rows"] = SettlementRows(snapshot.Settlement);
+        assessment["desktop_assessment"] = snapshot.AssessmentMethod == "image_based"
+            ? "<section class=\"section\"><h2>Desktop Assessment</h2><p>This report has been compiled from a desktop review of the information available relating to this claim.</p></section>"
+            : string.Empty;
+        assessment["nature"] = $"The vehicle has suffered {Encode(Display(snapshot.ImpactSeverity))} collision/impact damage to the {Encode(Display(snapshot.ImpactLocation))}.";
+        assessment["engineer_comments"] = EngineerComments(snapshot);
+        assessment["history"] = Encode(snapshot.HistoryCheck);
+        assessment["condition_text"] = $"The vehicle is considered to be in {Encode(Display(snapshot.Vehicle.Condition))} condition for its age and type.";
+        assessment["settlement_heading"] = presentation.SettlementHeading;
+        assessment["settlement_label"] = presentation.SettlementLabel;
+        assessment["settlement_text"] = Encode(presentation.SettlementText);
+        assessment["settlement_value"] = Money(presentation.RecommendedSettlement!.Value);
+        assessment["salvage"] = Salvage(snapshot);
+        assessment["vehicle_data_rows"] = VehicleDataRows(snapshot);
+        assessment["cost_rows"] = CostRows(snapshot.Costs);
+        assessment["valuation_commentary"] = snapshot.Content.IncludeValuationCommentary
+            ? Paragraph(snapshot.ValuationCommentary)
+            : string.Empty;
+        assessment["worklists"] = Worklists(snapshot);
+        assessment["photos"] = Photos(snapshot.OrderedPhotos);
+        assessment["statement_of_truth"] = StatementOfTruth(snapshot);
+        assessment["signature"] = ImageDataUri(
+            snapshot.Signatory.SignatureContent,
+            snapshot.Signatory.SignatureContentType);
+        assessment["engineer"] = Encode(snapshot.Signatory.PrintedName);
+        assessment["qualifications"] = string.IsNullOrWhiteSpace(snapshot.Signatory.Qualifications)
+            ? null
+            : Encode(snapshot.Signatory.Qualifications);
+        return assessment;
+    }
+
+    private static ScriptObject FeeNoteContext(AssessmentReportSnapshot snapshot)
+    {
+        var fee = CommonContext(snapshot);
+        fee["registration"] = Encode(snapshot.Vehicle.Registration);
+        fee["fee_rows"] = FeeRows(snapshot);
+        fee["fee_net_number"] = Number(snapshot.FeeNet);
+        fee["fee_vat_number"] = Number(snapshot.FeeVat);
+        fee["fee_total"] = Money(snapshot.FeeTotal);
+        fee["vat_number"] = AssessmentReportContract.VatNumber;
+        fee["account_name"] = AssessmentReportContract.AccountName;
+        fee["bank"] = AssessmentReportContract.BankName;
+        fee["sort_code"] = AssessmentReportContract.SortCode;
+        fee["account_number"] = AssessmentReportContract.AccountNumber;
+        fee["remittance_email"] = AssessmentReportContract.RemittanceEmail;
+        fee["fee_terms"] = Encode(AssessmentReportContract.FeeTerms);
+        fee["additional_fee_terms"] = Encode(AssessmentReportContract.AdditionalFeeTerms);
+        return fee;
     }
 
     private async Task<IBrowser> GetBrowserAsync()
@@ -123,8 +157,17 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         {
             throw new ReportRenderRejectedException("The composed report contains an unresolved placeholder.");
         }
+        // Every browser step carries an explicit budget and the caller's
+        // cancellation: a hung page never blocks the process-wide gate.
+        var budget = (float)AssessmentReportRenderPolicy.RenderTimeout.TotalMilliseconds;
         await using var page = await activeBrowser.NewPageAsync().ConfigureAwait(false);
-        await page.SetContentAsync(html, new PageSetContentOptions { WaitUntil = WaitUntilState.Load }).ConfigureAwait(false);
+        page.SetDefaultTimeout(budget);
+        await using var cancellation = cancellationToken.Register(() => _ = page.CloseAsync());
+        await page.SetContentAsync(
+            html,
+            new PageSetContentOptions { WaitUntil = WaitUntilState.Load, Timeout = budget })
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         return await page.PdfAsync(new PagePdfOptions
         {
             Format = "A4",
@@ -136,7 +179,7 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         }).ConfigureAwait(false);
     }
 
-    private static RenderedReportArtifact Artifact(string fileName, byte[] pdf)
+    private RenderedReportArtifact Artifact(string fileName, byte[] pdf)
     {
         using var document = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
         return new RenderedReportArtifact(
@@ -145,7 +188,7 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
             document.PageCount,
             Convert.ToHexStringLower(SHA256.HashData(pdf)),
             AssessmentReportContract.TemplateVersion,
-            $"Playwright/{typeof(Playwright).Assembly.GetName().Version}; Chromium");
+            EngineVersion);
     }
 
     private static ScriptObject CommonContext(AssessmentReportSnapshot snapshot)
@@ -191,10 +234,23 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         : string.Join(string.Empty, impacts.Select(impact =>
             $"<tr><td>{Encode(impact.Zone)}</td><td>{Encode(impact.Severity)}</td><td>{Encode(impact.Note)}</td></tr>"));
 
-    private static string DamageRows(ReportDamage damage) => Rows(
-        ("Unrelated Damage", damage.Unrelated ?? "—"),
-        ("Unrelated Damage Deduction", OptionalMoney(damage.UnrelatedDeduction)),
-        ("Paint / Material Transfer", damage.MaterialTransfer ?? "—"));
+    /// <summary>
+    /// Unrelated damage is an output choice: with "Include unrelated damage"
+    /// off the two unrelated rows are omitted, not blanked. The evidence
+    /// itself is untouched.
+    /// </summary>
+    private static string DamageRows(AssessmentReportSnapshot snapshot)
+    {
+        var damage = snapshot.Damage;
+        var rows = new List<(string, string)>();
+        if (snapshot.Content.IncludeUnrelatedDamage)
+        {
+            rows.Add(("Unrelated Damage", damage.Unrelated ?? "—"));
+            rows.Add(("Unrelated Damage Deduction", OptionalMoney(damage.UnrelatedDeduction)));
+        }
+        rows.Add(("Paint / Material Transfer", damage.MaterialTransfer ?? "—"));
+        return Rows([.. rows]);
+    }
 
     private static string RestraintRows(ReportDamage damage) => Rows(
         ("Right Front Tyre / Belt", Join(" / ", damage.RightFrontTyre, damage.RightFrontBelt)),
@@ -215,12 +271,23 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         ("Salvage Moved", Flag(settlement.SalvageMoved)), ("Owner Retains Salvage", Flag(settlement.SalvageOwnerRetains)),
         ("Salvage Value Agreed", Flag(settlement.SalvageValueAgreed)), ("Salvage Settled", Date(settlement.SalvageSettled)));
 
+    /// <summary>
+    /// The Current estimate's canonical printed breakdown. Hours and the
+    /// hourly rate are descriptive; the five printed components, the printed
+    /// sub total, the printed VAT and the printed total are the estimate's
+    /// own figures and reconcile exactly.
+    /// </summary>
     private static string CostRows(ReportRepairCosts costs) => AmountRows(
-        ("Labour Hours", costs.LabourHours.ToString("0.00", CultureInfo.InvariantCulture)),
-        ("Hourly Rate", Money(costs.HourlyRate)), ("Total Labour", Money(costs.Labour)),
-        ("Parts", Money(costs.Parts)), ("Paint / Materials", Money(costs.PaintMaterials)),
-        ("Specialist / Other", Money(costs.SpecialistOther)), ("Sub Total", Money(costs.Subtotal)),
-        (costs.RepairerVatRegistered ? "VAT (20%)" : "VAT (20% — parts & paint only)", Money(costs.Vat)),
+        ("Labour Hours", Hours(costs.LabourHours)),
+        ("Paint Hours", Hours(costs.PaintHours)),
+        ("Hourly Rate", Money(costs.HourlyRate)),
+        ("Parts", Money(costs.Printed.Parts)),
+        ("Panel Labour", Money(costs.Printed.PanelLabour)),
+        ("Paint Labour", Money(costs.Printed.PaintLabour)),
+        ("Paint Materials", Money(costs.Printed.Materials)),
+        ("Specialist / Other", Money(costs.Printed.Specialist)),
+        ("Sub Total", Money(costs.Printed.Net)),
+        (costs.VatLabel, Money(costs.Printed.Vat)),
         ("Total Estimated Repair Cost", Money(costs.Total)));
 
     private static string Worklists(AssessmentReportSnapshot snapshot) =>
@@ -269,42 +336,73 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
 
     private static string Tiles(AssessmentReportSnapshot snapshot, AssessmentReportPresentation presentation)
     {
-        var tiles = snapshot.Outcome == AssessmentReportOutcome.TotalLoss
-            ? new[]
-            {
+        (string Label, string Value, bool Highlight)[] tiles = snapshot.Outcome == AssessmentReportOutcome.TotalLoss
+            ?
+            [
                 ("Pre-Accident Value", Money(snapshot.EngineerValue), false),
                 ("Repair Cost inc VAT", Money(snapshot.Costs.Total), false),
                 ("Salvage Value", Money(snapshot.SalvageValue!.Value), false),
                 ("Recommended Settlement", Money(presentation.RecommendedSettlement!.Value), true),
-            }
-            : new[]
-            {
+            ]
+            :
+            [
                 ("Pre-Accident Value", Money(snapshot.EngineerValue), false),
-                ("Labour Hours", snapshot.Costs.LabourHours.ToString("0.00", CultureInfo.InvariantCulture), false),
+                ("Labour Hours", Hours(snapshot.Costs.LabourHours), false),
                 (snapshot.Outcome == AssessmentReportOutcome.CashInLieu ? "Cash in Lieu Settlement" : "Repair Cost inc VAT", Money(snapshot.Costs.Total), true),
-            };
-        return string.Join(string.Empty, tiles.Select(x =>
-            $"<div class=\"tile{(x.Item3 ? " red" : string.Empty)}\"><span class=\"tile-label\">{Encode(x.Item1)}</span><span class=\"tile-value\">{Encode(x.Item2)}</span></div>"));
+            ];
+        return string.Join(string.Empty, tiles.Select(tile =>
+            $"<div class=\"tile{(tile.Highlight ? " red" : string.Empty)}\"><span class=\"tile-label\">{Encode(tile.Label)}</span><span class=\"tile-value\">{Encode(tile.Value)}</span></div>"));
     }
 
     private static string Salvage(AssessmentReportSnapshot snapshot) => snapshot.Outcome == AssessmentReportOutcome.TotalLoss
         ? $"<section class=\"section\"><h2>Salvage</h2><p>Under the current salvage categorisation matrix, within the scope of our inspection, we consider that this is Category S (structural damage) and can be sold as repairable salvage. Further information is available at www.abi.org.uk. We suggest that the sale of the salvage will realise in the order of {Encode(Money(snapshot.SalvageValue!.Value))}. We have not taken any action towards removal of the salvage at this time.</p></section>"
         : string.Empty;
 
+    /// <summary>
+    /// Emits each prepared image inside a square frame that honours its
+    /// persisted rotation and fractional crop. The crop fractions are of the
+    /// rotated source, so the rotation is applied to the image and the crop
+    /// to the frame it sits in. Order is the snapshot's: Close-up first,
+    /// Overview second, Supporting by its persisted order.
+    /// </summary>
     private static string Photos(IReadOnlyList<ReportImageEvidence> photos) => string.Join(
         string.Empty,
-        photos.Select(photo => $"<img class=\"vehicle-photo\" src=\"{ImageDataUri(photo.Content, photo.ContentType)}\" alt=\"Vehicle image\">"));
+        photos.Select(photo =>
+        {
+            var crop = photo.AppliedCrop;
+            var style = string.Create(
+                CultureInfo.InvariantCulture,
+                $"width:{100m / crop.Width:0.###}%;height:{100m / crop.Height:0.###}%;left:{-100m * crop.Left / crop.Width:0.###}%;top:{-100m * crop.Top / crop.Height:0.###}%");
+            return $"<figure class=\"photo-frame\"><div class=\"photo-crop\" style=\"{style}\">"
+                + $"<img class=\"vehicle-photo rot{(int)photo.Rotation}\" src=\"{ImageDataUri(photo.Content, photo.ContentType)}\" alt=\"Vehicle image\">"
+                + "</div></figure>";
+        }));
 
     private static string ImageDataUri(byte[] content, string contentType) =>
         $"data:{contentType};base64,{Convert.ToBase64String(content)}";
 
-    private static string StatementOfTruth() => string.Join(string.Empty, new[]
+    /// <summary>
+    /// The accepted statement of truth, source-aware. The Glass's sentence is
+    /// printed only when the operator turned "Disclose guide source" on and a
+    /// Glass's valuation guide was actually used; otherwise it is omitted. No
+    /// substitute sentence is written — the approved v3 specification supplies
+    /// none (H5), and it names no other guide.
+    /// </summary>
+    private static string StatementOfTruth(AssessmentReportSnapshot snapshot)
     {
-        AssessmentReportContract.StatementOfTruth1,
-        AssessmentReportContract.StatementOfTruth2,
-        AssessmentReportContract.StatementOfTruth3,
-        AssessmentReportContract.StatementOfTruth4,
-    }.Select(Paragraph));
+        var paragraphs = new List<string>
+        {
+            AssessmentReportContract.StatementOfTruth1,
+            AssessmentReportContract.StatementOfTruth2,
+        };
+        if (snapshot.PrintsGuideDisclosure)
+        {
+            paragraphs.Add(AssessmentReportContract.StatementOfTruthGuide);
+        }
+        paragraphs.Add(AssessmentReportContract.StatementOfTruth3);
+        paragraphs.Add(AssessmentReportContract.StatementOfTruth4);
+        return string.Join(string.Empty, paragraphs.Select(Paragraph));
+    }
 
     private static string Footer(AssessmentReportSnapshot snapshot, bool feeNote)
     {
@@ -316,6 +414,7 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
 
     private static string Display(string value) =>
         CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(value.Replace('_', ' ').ToLowerInvariant());
+    private static string Hours(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
     private static string Flag(bool? value) => value switch { true => "Yes", false => "No", null => "—" };
     private static string Date(DateOnly? value) => value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—";
     private static string OptionalMoney(decimal? value) => value is { } amount ? Money(amount) : "—";

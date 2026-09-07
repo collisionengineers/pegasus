@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -129,5 +131,141 @@ internal static class CaseMutationGuard
         var presented = SHA256.HashData(Encoding.UTF8.GetBytes(presentedToken));
         return retained.Length == presented.Length
             && CryptographicOperations.FixedTimeEquals(retained, presented);
+    }
+}
+
+/// <summary>
+/// The one operation-replay probe for every case mutation. A retained workflow
+/// event for the same operation key is the record of that operation: an exact
+/// hash match means the caller is retrying and must be served the current
+/// projection, and a different hash means the same key was reused for different
+/// inputs, which is a conflict rather than a second write. The comparison is
+/// fixed-time so a caller cannot learn a retained hash by measuring it.
+/// </summary>
+internal static class CaseOperationReplay
+{
+    public static async Task<bool> FindAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string operationKey,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var replay = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == caseId && item.OperationKey == operationKey,
+                cancellationToken);
+        if (replay is null)
+        {
+            return false;
+        }
+
+        if (!FixedTimeEquals(replay.RequestHash, requestHash))
+        {
+            throw new CaseOperationConflictException(caseId, operationKey);
+        }
+
+        return true;
+    }
+
+    public static string Hash(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    public static bool FixedTimeEquals(string left, string right)
+    {
+        if (left.Length != 64 || right.Length != 64
+            || left.Any(character => !char.IsAsciiHexDigit(character))
+            || right.Any(character => !char.IsAsciiHexDigit(character)))
+        {
+            return false;
+        }
+
+        return CryptographicOperations.FixedTimeEquals(
+            Convert.FromHexString(left),
+            Convert.FromHexString(right));
+    }
+}
+
+/// <summary>
+/// The one owner of the history triple every case mutation writes: the workflow
+/// event that carries the operation key and request hash, the action-history
+/// row that carries the before/after payload, and the case-history row the
+/// operator timeline reads. Three copies of this used to drift apart field by
+/// field; a mutation that wrote only two of the three left the record with a
+/// version bump nothing explains.
+/// </summary>
+internal static class CaseMutationHistory
+{
+    private static readonly JsonSerializerOptions JsonOptions =
+        new(JsonSerializerDefaults.Web);
+
+    public static void Add(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string operationKey,
+        string reason,
+        string eventType,
+        string requestHash,
+        long beforeVersion,
+        long afterVersion,
+        string beforeJson,
+        string afterJson,
+        string policyVersion,
+        DateTimeOffset occurredAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(actor);
+        var rolesJson = JsonSerializer.Serialize(
+            actor.Roles.OrderBy(role => role),
+            JsonOptions);
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            EventType = eventType,
+            OperationKey = operationKey,
+            RequestHash = requestHash,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = rolesJson,
+            Reason = reason,
+            OccurredAtUtc = occurredAtUtc,
+            BeforeVersion = beforeVersion,
+            AfterVersion = afterVersion
+        });
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = workflow.CaseId.ToString("D"),
+            EventKind = eventType,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = rolesJson,
+            OccurredAtUtc = occurredAtUtc,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = reason,
+            BeforeJson = beforeJson,
+            AfterJson = afterJson,
+            PolicyVersion = policyVersion
+        });
+        context.CaseHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Case = workflow.Case,
+            EventType = eventType,
+            Actor = actor.SubjectId,
+            Reason = reason,
+            OccurredAtUtc = occurredAtUtc,
+            OperationKey = operationKey,
+            BeforeVersion = beforeVersion,
+            AfterVersion = afterVersion
+        });
     }
 }

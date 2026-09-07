@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
@@ -53,13 +54,14 @@ internal sealed record EstimateLineToolInput(
 
 internal sealed record EstimateTotalsToolItem(
     decimal Parts,
-    decimal Labour,
-    decimal Paint,
-    decimal Other,
-    decimal Subtotal,
+    decimal PanelLabour,
+    decimal PaintLabour,
+    decimal Materials,
+    decimal Specialist,
+    decimal Net,
     decimal VatPercent,
     decimal Vat,
-    decimal Total);
+    decimal Gross);
 
 internal sealed record EstimateToolItem(
     Guid EstimateId,
@@ -71,7 +73,6 @@ internal sealed record EstimateToolItem(
     Guid? AiJobId,
     int? RepairDays,
     decimal? LabourRate,
-    decimal? PaintLabourRate,
     decimal? PaintMaterials,
     decimal? OtherCosts,
     decimal VatPercent,
@@ -88,9 +89,26 @@ internal sealed record EstimateSaveToolResult(
     string OperationKey,
     string CorrelationId);
 
+internal sealed record EstimateImportToolResult(
+    Guid CaseId,
+    Guid EstimateId,
+    string Name,
+    string OperationKey,
+    string CorrelationId);
+internal sealed record EstimateListToolItem(
+    Guid EstimateId,
+    int Version,
+    string State,
+    string Source,
+    string Name,
+    bool IsCurrent,
+    string? CalculationBasis);
+
 internal sealed record EstimateListToolResult(
     Guid CaseId,
-    IReadOnlyList<EstimateToolItem> Estimates,
+    IReadOnlyList<EstimateListToolItem> Estimates,
+    string? NextCursor,
+    int Limit,
     string CorrelationId);
 
 internal sealed record AssessmentCaseOwnedToolData(
@@ -155,11 +173,64 @@ internal sealed class AssessmentMcpTools(
     ICaseDataQueries caseDataQueries,
     ISaveCase saveCase,
     ISaveEstimate saveEstimate,
-    IListCaseEstimates listEstimates,
+    IListCaseEstimatesByCursor listEstimates,
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor)
+    AutomationMcpAuditor auditor,
+    IImportRawEstimate? importRawEstimate = null)
 {
+    [McpServerTool(
+        Name = "pegasus_estimate_import",
+        Title = "Import retained estimate",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply.")]
+    public async Task<EstimateImportToolResult> ImportEstimateAsync(
+        Guid caseId,
+        long expectedVersion,
+        string editLeaseToken,
+        string operationKey,
+        string name,
+        Guid documentId,
+        Guid documentVersionId,
+        string sha256,
+        string sourceRoute,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_estimate_import",
+            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                AutomationMcpErrors.RequireId(caseId, "case identifier");
+                AutomationMcpErrors.RequireId(documentId, "document identifier");
+                AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
+                if (!Enum.TryParse<RepairSpecificationSourceRoute>(sourceRoute, true, out var route)
+                    || !Enum.IsDefined(route)
+                    || !RepairSpecificationPolicy.IsDocumentRoute(route))
+                {
+                    throw new McpException("The estimate source route is not importable.");
+                }
+                var importer = importRawEstimate
+                    ?? throw new McpException("Estimate import is unavailable in this runtime.");
+                var estimateId = await importer.ExecuteAsync(
+                    new(context.Actor, caseId, expectedVersion, editLeaseToken,
+                        documentId, documentVersionId, sha256, route, key, name),
+                    cancellationToken);
+                return new EstimateImportToolResult(
+                    caseId, estimateId, name.Trim(), key,
+                    AutomationMcpAuditor.CorrelationId(context, key));
+            }),
+            cancellationToken);
+    }
+
     [McpServerTool(
         Name = "pegasus_estimate_save",
         Title = "Save AI-draft estimate",
@@ -180,8 +251,7 @@ internal sealed class AssessmentMcpTools(
         [Description("The ordered estimate lines; the whole collection is replaced.")] IReadOnlyList<EstimateLineToolInput> lines,
         [Description("Existing AI-draft estimate to replace; omit to create a new one.")] Guid? estimateId = null,
         [Description("Repair days.")] int? repairDays = null,
-        [Description("Labour rate per hour.")] decimal? labourRate = null,
-        [Description("Paint labour rate per hour.")] decimal? paintLabourRate = null,
+        [Description("One hourly rate for both panel and paint labour.")] decimal? labourRate = null,
         [Description("Paint materials amount.")] decimal? paintMaterials = null,
         [Description("Other costs amount.")] decimal? otherCosts = null,
         [Description("VAT percentage, 0 to 100; defaults to 20.")] decimal? vatPercent = null,
@@ -220,7 +290,6 @@ internal sealed class AssessmentMcpTools(
                             name,
                             repairDays,
                             labourRate,
-                            paintLabourRate,
                             paintMaterials,
                             otherCosts,
                             vatPercent ?? EstimatePolicy.DefaultVatPercent,
@@ -249,9 +318,11 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists every estimate on a case in version order with its state (Draft, Accepted, Superseded, Discarded), source route, whether it is the Current estimate, the AI job it cites, its header, lines and totals computed by Pegasus.")]
+    [Description("Lists a bounded page of estimate headers on a case in version order with state, source route and Current status.")]
     public async Task<EstimateListToolResult> ListEstimatesAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
+        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -269,10 +340,14 @@ internal sealed class AssessmentMcpTools(
                 {
                     throw new McpException("The case was not found.");
                 }
-                var estimates = await listEstimates.ExecuteAsync(caseId, cancellationToken);
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
+                var estimates = await listEstimates.ExecuteAsync(
+                    new(context.Actor, caseId, cursor, effectiveLimit), cancellationToken);
                 return new EstimateListToolResult(
                     caseId,
-                    estimates.Select(MapEstimate).ToArray(),
+                    estimates.Items.Select(MapEstimateList).ToArray(),
+                    estimates.NextCursor,
+                    effectiveLimit,
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -327,7 +402,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Directly records assessment values on a case under the same edit lease and expected version as a staff save. Scalar values are keyed by the closed field-path vocabulary from the assessment screen (for example 'vehicle.condition' or 'assessment.outcome'); null clears a value; unknown paths fail closed, and case-owned paths (registration, make, model, odometer, incident/instruction dates, inspection) must be saved with pegasus_case_update_details instead. Passing estimateLines replaces the whole ordered estimate-line collection. Values written by the automation are stored unconfirmed and are reviewed by the engineer the case is assigned to; finding confirmation stays a staff Engineer act. The optional workRequestId correlates the write with a Send to AI hand-off.")]
+    [Description("Records ordinary non-finding assessment draft fields under the case edit lease and expected version. Finding, valuation, estimate, signatory and case-owned fields are refused and must use their named commands. Values written by automation remain unconfirmed. The optional workRequestId correlates the write with a Send to AI hand-off.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -335,7 +410,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Scalar assessment values keyed by field path; a null value clears the field.")] Dictionary<string, string?>? fields = null,
-        [Description("Full replacement for the ordered estimate-line collection; omit to leave lines untouched, pass an empty array to clear them.")] IReadOnlyList<EstimateLineToolInput>? estimateLines = null,
+        [Description("Unsupported on this generic command; use a named estimate command.")] IReadOnlyList<EstimateLineToolInput>? estimateLines = null,
         [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
@@ -355,6 +430,30 @@ internal sealed class AssessmentMcpTools(
                 if (string.IsNullOrWhiteSpace(editLeaseToken))
                 {
                     throw new McpException("An active edit lease token is required.");
+                }
+                if (estimateLines is not null)
+                {
+                    throw new McpException(
+                        "Estimate lines must be changed through a named estimate command.");
+                }
+                foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
+                {
+                    if (AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
+                        && definition.IsFinding)
+                    {
+                        throw new McpException(
+                            $"The field '{path}' is owned by a named professional command.");
+                    }
+                    if (IsEstimateOwnedField(path))
+                    {
+                        throw new McpException(
+                            $"The field '{path}' is owned by a named estimate command.");
+                    }
+                    if (IsSignatoryField(path))
+                    {
+                        throw new McpException(
+                            $"The field '{path}' is owned by a named signatory command.");
+                    }
                 }
 
                 var projection = await saveAssessment.ExecuteAsync(
@@ -381,6 +480,20 @@ internal sealed class AssessmentMcpTools(
             }),
             cancellationToken);
     }
+
+    private static bool IsSignatoryField(string path) => path is
+        AssessmentVocabulary.EngineerName
+        or AssessmentVocabulary.EngineerQualifications
+        or AssessmentVocabulary.EngineerSignature;
+
+    private static bool IsEstimateOwnedField(string path) => path is
+        AssessmentVocabulary.RateCard
+        or AssessmentVocabulary.RateClass
+        or AssessmentVocabulary.RateManufacturerApproved
+        or AssessmentVocabulary.RateRegionalUplift
+        or AssessmentVocabulary.CostRecoveryCharge
+        or AssessmentVocabulary.CostStorageCharge
+        or AssessmentVocabulary.CostRepairerVatRegistered;
 
     [McpServerTool(
         Name = "pegasus_case_update_details",
@@ -540,18 +653,34 @@ internal sealed class AssessmentMcpTools(
             estimate.IsCurrent,
             estimate.AiJobId,
             details.RepairDays,
-            details.LabourRate,
-            details.PaintLabourRate,
+            details.HourlyRate,
             details.PaintMaterials,
             details.OtherCosts,
             details.VatPercent,
             details.Notes,
             estimate.Lines.Select(MapLine).ToArray(),
-            new(totals.Parts, totals.Labour, totals.Paint, totals.Other,
-                totals.Subtotal, totals.VatPercent, totals.Vat, totals.Total),
+            new(
+                totals.Printed.Parts,
+                totals.Printed.PanelLabour,
+                totals.Printed.PaintLabour,
+                totals.Printed.Materials,
+                totals.Printed.Specialist,
+                totals.Printed.Net,
+                totals.VatPercent,
+                totals.Printed.Vat,
+                totals.Printed.Gross),
             estimate.CreatedBy,
             estimate.CreatedAtUtc);
     }
+
+    private static EstimateListToolItem MapEstimateList(CaseEstimatePageItem estimate) => new(
+        estimate.SpecificationId,
+        estimate.Version,
+        estimate.State.ToString(),
+        estimate.Source.Route.ToString(),
+        estimate.Name,
+        estimate.IsCurrent,
+        estimate.CalculationBasis?.ToString());
 
     private static AssessmentCaseOwnedToolData MapCaseOwned(AssessmentCaseOwnedData data) => new(
         data.Registration,

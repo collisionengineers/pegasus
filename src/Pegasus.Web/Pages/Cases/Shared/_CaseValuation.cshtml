@@ -1,0 +1,64 @@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Assessment
+@using Pegasus.Web.Presentation
+@using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
+@using SharedLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace
+@{
+    var workflow = Model.Case!.Workflow;
+    var leaseToken = Model.LeaseToken;
+    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var manualSources = Enum.GetValues<ValuationSource>()
+        .Where(ValuationPolicy.IsManuallyRecordable)
+        .ToArray();
+}
+
+<section class="panel" aria-labelledby="case-valuation-title">
+    <div class="panel-head">
+        <h2 id="case-valuation-title">@ValuationLabels.SectionTitle</h2>
+        @if (mayEdit)
+        {
+            <button type="button" class="btn btn--small btn--primary" data-dialog-open="add-valuation">@ValuationLabels.AddValuation</button>
+        }
+    </div>
+    @if (Model.Valuations.Count > 0)
+    {
+        <div class="panel-body valuation-sources">
+            @foreach (var valuation in Model.Valuations)
+            {
+                <article class="valuation-card" data-valuation-source="@valuation.Details.Source">
+                    <h3>@ValuationLabels.SourceLabel(valuation.Details.Source)</h3>
+                    <dl class="figures">
+                        <div><dt>Retail</dt><dd>@valuation.Details.RetailValue.ToString("C")</dd></div>
+                        <div><dt>Trade</dt><dd>@valuation.Details.TradeValue.ToString("C")</dd></div>
+                    </dl>
+                    <div>@(valuation.Details.GuideMonth?.ToString("MMMM yyyy") ?? ValuationLabels.AbsentGuideMonth)</div>
+                    <div>@valuation.Details.Mileage.ToString("N0") miles</div>
+                    <time datetime="@valuation.Details.Date.ToString("yyyy-MM-dd")">@valuation.Details.Date.ToString("d MMM yyyy")</time>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@if (mayEdit)
+{
+    <dialog id="add-valuation" class="dialog">
+        <form method="post" asp-page="/Cases/Details" asp-page-handler="AddValuation" asp-route-id="@workflow.CaseId" asp-route-section="valuation" class="stack">
+            <div class="dialog-head"><h2>@ValuationLabels.AddValuation</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
+            <input type="hidden" name="id" value="@workflow.CaseId" />
+            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <div class="form-grid form-grid--2">
+                <div class="field"><label class="req" for="valuation-source">Source</label><select id="valuation-source" name="source" required>@foreach (var source in manualSources){<option value="@source">@ValuationLabels.SourceLabel(source)</option>}<option value="@ValuationSource.Cazana" disabled>@ValuationLabels.SourceLabel(ValuationSource.Cazana) · @ValuationLabels.CazanaCondition</option></select></div>
+                <div class="field"><label for="valuation-guide-month">Guide month</label><input id="valuation-guide-month" name="guideMonth" type="month" /></div>
+                <div class="field"><label class="req" for="valuation-mileage">Mileage</label><input id="valuation-mileage" name="mileage" type="number" min="0" required /></div>
+                <div class="field"><label class="req" for="valuation-date">Date</label><input id="valuation-date" name="date" type="date" required /></div>
+                <div class="field"><label class="req" for="valuation-time">Time</label><input id="valuation-time" name="time" type="time" required /></div>
+                <div class="field"><label class="req" for="valuation-retail">Retail</label><input id="valuation-retail" name="retailValue" type="number" min="0" step="0.01" required /></div>
+                <div class="field"><label class="req" for="valuation-trade">Trade</label><input id="valuation-trade" name="tradeValue" type="number" min="0" step="0.01" required /></div>
+            </div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Add</button></div>
+        </form>
+    </dialog>
+}

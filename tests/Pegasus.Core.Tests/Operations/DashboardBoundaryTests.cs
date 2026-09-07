@@ -24,37 +24,35 @@ public sealed class DashboardBoundaryTests
     private static readonly DateTimeOffset NowUtc = new(2026, 8, 5, 11, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task BritishSummerTimeDayStartsAtTheOfficeMidnightNotTheUtcOne()
+    public void BritishSummerTimeDayStartsAtTheOfficeMidnightNotTheUtcOne()
     {
         // 00:30 on 5 August in London is 23:30 on 4 August UTC. The office's
         // day has already started; a UTC-midnight boundary would still be
         // counting the previous day.
-        var recorder = new RecordingDashboardQueries();
-        var snapshot = await ExecuteAsync(recorder, new DateTimeOffset(2026, 8, 4, 23, 30, 0, TimeSpan.Zero));
+        var (dayStartUtc, _, _) = LondonCalendar.DayAndWeekBoundariesAt(
+            new DateTimeOffset(2026, 8, 4, 23, 30, 0, TimeSpan.Zero));
 
-        Assert.Equal(new DateTimeOffset(2026, 8, 4, 23, 0, 0, TimeSpan.Zero), recorder.DayStartUtc);
-        Assert.NotNull(snapshot);
+        Assert.Equal(new DateTimeOffset(2026, 8, 4, 23, 0, 0, TimeSpan.Zero), dayStartUtc);
     }
 
     [Fact]
-    public async Task WeekStartsOnMondayBecauseThatIsTheWeekTheOfficeWorksTo()
+    public void WeekStartsOnMondayBecauseThatIsTheWeekTheOfficeWorksTo()
     {
         // Wednesday 5 August 2026, midday London.
-        var recorder = new RecordingDashboardQueries();
-        await ExecuteAsync(recorder, NowUtc);
+        var (_, _, weekStartUtc) = LondonCalendar.DayAndWeekBoundariesAt(NowUtc);
 
         // Monday 3 August, 00:00 London == 23:00 UTC on Sunday 2 August.
-        Assert.Equal(new DateTimeOffset(2026, 8, 2, 23, 0, 0, TimeSpan.Zero), recorder.WeekStartUtc);
+        Assert.Equal(new DateTimeOffset(2026, 8, 2, 23, 0, 0, TimeSpan.Zero), weekStartUtc);
     }
 
     [Fact]
-    public async Task OnAMondayTheWeekStartsThatMorningRatherThanSevenDaysEarlier()
+    public void OnAMondayTheWeekStartsThatMorningRatherThanSevenDaysEarlier()
     {
         // Monday 3 August 2026, 09:00 London.
-        var recorder = new RecordingDashboardQueries();
-        await ExecuteAsync(recorder, new DateTimeOffset(2026, 8, 3, 8, 0, 0, TimeSpan.Zero));
+        var (dayStartUtc, _, weekStartUtc) = LondonCalendar.DayAndWeekBoundariesAt(
+            new DateTimeOffset(2026, 8, 3, 8, 0, 0, TimeSpan.Zero));
 
-        Assert.Equal(recorder.DayStartUtc, recorder.WeekStartUtc);
+        Assert.Equal(dayStartUtc, weekStartUtc);
     }
 
     [Fact]
@@ -245,6 +243,7 @@ public sealed class DashboardBoundaryTests
             NowUtc,
             unidentified: new StubUnidentifiedQueue { Rows = rows });
 
+        Assert.Equal(rows.Length, snapshot.UnidentifiedCount);
         Assert.Equal(GetOperationsSnapshot.MaximumNeedsAttention, snapshot.NeedsAttention.Count);
     }
 
@@ -349,30 +348,8 @@ public sealed class DashboardBoundaryTests
 
     private sealed class RecordingDashboardQueries : IDashboardQueries
     {
-        public DateTimeOffset DayStartUtc { get; private set; }
-
-        public DateTimeOffset WeekStartUtc { get; private set; }
-
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
-
-        public Task<CaseActivityCounts> GetCaseActivityCountsAsync(
-            DateTimeOffset dayStartUtc,
-            DateTimeOffset weekStartUtc,
-            CancellationToken cancellationToken)
-        {
-            DayStartUtc = dayStartUtc;
-            WeekStartUtc = weekStartUtc;
-            return Task.FromResult(new CaseActivityCounts(0, 0, 0, 0, 0));
-        }
-
-        public Task<MailActivityCounts> GetMailActivityCountsAsync(
-            DateTimeOffset dayStartUtc,
-            CancellationToken cancellationToken)
-        {
-            DayStartUtc = dayStartUtc;
-            return Task.FromResult(new MailActivityCounts(0, 0));
-        }
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset nowUtc) : TimeProvider

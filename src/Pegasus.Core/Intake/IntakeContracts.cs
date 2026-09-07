@@ -945,3 +945,17 @@ public interface IReverseIntakeLink
         ReverseIntakeLinkRequest request,
         CancellationToken cancellationToken = default);
 }
+
+public enum SourceCandidateDisposition { Usable, Missing, Ambiguous, Conflicting }
+public sealed record SourceFieldCandidate(
+    Guid Id, Guid ReceiptId, Guid? DocumentId, Guid? DocumentVersionId, Guid? IntakeAssetId, string Sha256,
+    int Occurrence, string DocumentRole, string PartyRole, string ReferenceRole,
+    string Field, string? RawValue, string? NormalizedValue, string? Unit, string? Currency,
+    string SourceLabel, int? Page, string? Cell, string? FormField, string? Region,
+    string ReaderVersion, string PolicyVersion, SourceCandidateDisposition Disposition);
+public interface ISourceCandidateQueries
+{
+    Task<IReadOnlyList<SourceFieldCandidate>> GetAsync(
+        ActionActor actor, Guid receiptId, Guid? documentVersionId, Guid? intakeAssetId,
+        CancellationToken cancellationToken);
+}

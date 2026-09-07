@@ -19,7 +19,7 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
 
     public CaseStageCounts CaseStages { get; private set; } = new(0, 0, 0, 0);
 
-    public MailActivityCounts MailActivity { get; private set; } = new(0, 0);
+    public int UnidentifiedCount { get; private set; }
 
     public IReadOnlyList<NeedsAttentionItem> NeedsAttention { get; private set; } = [];
 
@@ -42,7 +42,7 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
         LoadedAtUtc = snapshot.AsOfUtc;
         Counts = snapshot.Intake;
         CaseStages = snapshot.CaseStages;
-        MailActivity = snapshot.MailActivity;
+        UnidentifiedCount = snapshot.UnidentifiedCount;
         NeedsAttention = snapshot.NeedsAttention;
         Selected = Guid.TryParse(selected, out var selectedId)
             ? NeedsAttention.FirstOrDefault(item => item.Id == selectedId)

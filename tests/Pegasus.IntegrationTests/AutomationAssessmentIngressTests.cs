@@ -1,9 +1,13 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -17,6 +21,65 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomationAssessmentIngressTests
 {
+    [Fact]
+    public async Task EstimateImportInvokesCanonicalTypedBoundaryAndRefusesNonDocumentRoutes()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var importer = new CapturingEstimateImporter();
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IImportRawEstimate>();
+                services.AddSingleton<IImportRawEstimate>(importer);
+            }));
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.AssessmentScope);
+        var caseId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        const string hash = "D4A5AA6B20AE98EE062CC5852A1B1A447B3DA98B0D468DD7E3360A5CC3D2A72C";
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(
+            80, "pegasus_estimate_import", new
+            {
+                caseId,
+                expectedVersion = 7,
+                editLeaseToken = "lease-token",
+                operationKey = "mcp:estimate-import",
+                name = "Audatex 1",
+                documentId,
+                documentVersionId = versionId,
+                sha256 = hash,
+                sourceRoute = "AudatexPdf"
+            })))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.Equal(CapturingEstimateImporter.EstimateId, result.GetProperty("estimateId").GetGuid());
+            Assert.Equal("Audatex 1", result.GetProperty("name").GetString());
+        }
+        var request = Assert.IsType<ImportRawEstimateRequest>(importer.Request);
+        Assert.Equal(ActorKind.Automation, request.Actor.Kind);
+        Assert.Equal(caseId, request.CaseId);
+        Assert.Equal(versionId, request.DocumentVersionId);
+        Assert.Equal(hash, request.Sha256);
+        Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, request.Route);
+
+        foreach (var rejectedRoute in new[] { "AiDraft", "999", "Manual" })
+        {
+            using var refused = await PostMcpAsync(client, token, ToolCallPayload(
+                81, "pegasus_estimate_import", new
+                {
+                    caseId, expectedVersion = 7, editLeaseToken = "lease-token",
+                    operationKey = "mcp:estimate-import-rejected", name = "Rejected",
+                    documentId, documentVersionId = versionId, sha256 = hash,
+                    sourceRoute = rejectedRoute
+                }));
+            using var refusal = await ReadJsonRpcAsync(refused);
+            Assert.Contains("not importable", refusal.RootElement.ToString(), StringComparison.Ordinal);
+            Assert.Equal(1, importer.Calls);
+        }
+    }
+
     [Fact]
     public async Task AssessmentUpdateRejectsDirectWritesToDerivedImpactFields()
     {
@@ -43,6 +106,58 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}'"));
+
+        using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:generic-estimate-rejected",
+                reason = "Attempt a generic estimate write.",
+                estimateLines = new[] { new { description = "Repair" } }
+            }));
+        using var estimateDocument = await ReadJsonRpcAsync(estimateResponse);
+        Assert.Contains("named estimate command", estimateDocument.RootElement.ToString(), StringComparison.Ordinal);
+
+        using var rateResponse = await PostMcpAsync(client, token, ToolCallPayload(43,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:generic-rate-rejected",
+                reason = "Attempt an estimate-owned rate write.",
+                fields = new Dictionary<string, string?> { [AssessmentVocabulary.RateCard] = "standard" }
+            }));
+        using var rateDocument = await ReadJsonRpcAsync(rateResponse);
+        Assert.Contains("named estimate command", rateDocument.RootElement.ToString(), StringComparison.Ordinal);
+
+        using var findingResponse = await PostMcpAsync(client, token, ToolCallPayload(44,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:generic-finding-rejected",
+                reason = "Attempt a professional finding write.",
+                fields = new Dictionary<string, string?> { [AssessmentVocabulary.ValueEngineer] = "12000" }
+            }));
+        using var findingDocument = await ReadJsonRpcAsync(findingResponse);
+        Assert.Contains("named professional command", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
+
+        using var signatoryResponse = await PostMcpAsync(client, token, ToolCallPayload(45,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:generic-signatory-rejected",
+                reason = "Attempt a signatory write.",
+                fields = new Dictionary<string, string?> { [AssessmentVocabulary.EngineerSignature] = "signed" }
+            }));
+        using var signatoryDocument = await ReadJsonRpcAsync(signatoryResponse);
+        Assert.Contains("named signatory command", signatoryDocument.RootElement.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,23 +259,7 @@ public sealed class AutomationAssessmentIngressTests
                     fields = new Dictionary<string, string?>
                     {
                         ["vehicle.condition"] = "good",
-                        ["assessment.values.retail"] = "12000",
-                        ["assessment.values.trade"] = "10500",
-                        ["assessment.values.engineer"] = "12000",
-                        ["vehicle.colour"] = "Blue",
-                        ["damage.impacts"] = "[{\"zone\":\"front\",\"severity\":\"heavy\",\"note\":\"Bonnet\"}]"
-                    },
-                    estimateLines = new[]
-                    {
-                        new
-                        {
-                            type = "repair",
-                            description = "Repair nearside door",
-                            workUnits = 3.5,
-                            status = "estimated",
-                            evidenceLabel = "judgement",
-                            justification = "Visible panel damage"
-                        }
+                        ["vehicle.colour"] = "Blue"
                     },
                     workRequestId = workRequestId.ToString("D")
                 })))
@@ -179,12 +278,12 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // Stored values carry the unconfirmed automation provenance.
-        Assert.Equal(8, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
 
         // Logging parity: the business save is recorded exactly like a staff
@@ -222,23 +321,7 @@ public sealed class AutomationAssessmentIngressTests
                     fields = new Dictionary<string, string?>
                     {
                         ["vehicle.condition"] = "good",
-                        ["assessment.values.retail"] = "12000",
-                        ["assessment.values.trade"] = "10500",
-                        ["assessment.values.engineer"] = "12000",
-                        ["vehicle.colour"] = "Blue",
-                        ["damage.impacts"] = "[{\"zone\":\"front\",\"severity\":\"heavy\",\"note\":\"Bonnet\"}]"
-                    },
-                    estimateLines = new[]
-                    {
-                        new
-                        {
-                            type = "repair",
-                            description = "Repair nearside door",
-                            workUnits = 3.5,
-                            status = "estimated",
-                            evidenceLabel = "judgement",
-                            justification = "Visible panel damage"
-                        }
+                        ["vehicle.colour"] = "Blue"
                     },
                     workRequestId = workRequestId.ToString("D")
                 })))
@@ -673,6 +756,19 @@ public sealed class AutomationAssessmentIngressTests
             """));
     }
 
+    private sealed class CapturingEstimateImporter : IImportRawEstimate
+    {
+        public static readonly Guid EstimateId = Guid.Parse("80b99604-d8b3-4028-9bc4-b744f82c297f");
+        public ImportRawEstimateRequest? Request { get; private set; }
+        public int Calls { get; private set; }
+        public Task<Guid> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            Calls++;
+            return Task.FromResult(EstimateId);
+        }
+    }
+
     /// <summary>
     /// ENG-026 / FRD-10 § AI job and estimate tools: an AI-draft estimate
     /// must cite the Estimate job this client holds, always lands as a
@@ -754,7 +850,6 @@ public sealed class AutomationAssessmentIngressTests
                     aiJobId = jobId,
                     name = "Claude draft",
                     labourRate = 40,
-                    paintLabourRate = 30,
                     paintMaterials = 25,
                     vatPercent = 20,
                     lines
@@ -774,10 +869,34 @@ public sealed class AutomationAssessmentIngressTests
                 line => Assert.False(line.GetProperty("isConfirmed").GetBoolean()));
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
-            Assert.Equal(100m, totals.GetProperty("labour").GetDecimal());
-            Assert.Equal(70m, totals.GetProperty("paint").GetDecimal());
-            Assert.Equal(78.08m, totals.GetProperty("vat").GetDecimal());
-            Assert.Equal(468.48m, totals.GetProperty("total").GetDecimal());
+            Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());
+            Assert.Equal(60m, totals.GetProperty("paintLabour").GetDecimal());
+            Assert.Equal(25m, totals.GetProperty("materials").GetDecimal());
+            Assert.Equal(0m, totals.GetProperty("specialist").GetDecimal());
+            Assert.Equal(405.40m, totals.GetProperty("net").GetDecimal());
+            Assert.Equal(20m, totals.GetProperty("vatPercent").GetDecimal());
+            Assert.Equal(0m, totals.GetProperty("vat").GetDecimal());
+            Assert.Equal(405.40m, totals.GetProperty("gross").GetDecimal());
+            Assert.False(totals.TryGetProperty("labour", out _));
+            Assert.False(totals.TryGetProperty("paint", out _));
+            Assert.False(totals.TryGetProperty("other", out _));
+            Assert.False(totals.TryGetProperty("subtotal", out _));
+            Assert.False(totals.TryGetProperty("total", out _));
+            Assert.Equal(40m, estimate.GetProperty("labourRate").GetDecimal());
+            Assert.False(estimate.TryGetProperty("paintLabourRate", out _));
+        }
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>();
+            var saved = await store.GetVersionAsync(caseId, estimateId, CancellationToken.None);
+            Assert.NotNull(saved);
+            Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
+            Assert.True(saved.Details.VatPolicy.BlocksAcceptance);
+            var refusal = Assert.Throws<InvalidOperationException>(() =>
+                EstimatePolicy.ValidateSetCurrent(
+                    saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])));
+            Assert.Contains("VAT status", refusal.Message, StringComparison.Ordinal);
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -807,13 +926,17 @@ public sealed class AutomationAssessmentIngressTests
         using (var response = await PostMcpAsync(
             client,
             token,
-            ToolCallPayload(13, "pegasus_estimate_list", new { caseId })))
+            ToolCallPayload(13, "pegasus_estimate_list", new { caseId, limit = 1 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(1, structured.GetProperty("limit").GetInt32());
+            Assert.True(!structured.TryGetProperty("nextCursor", out var nextCursor)
+                || nextCursor.ValueKind == JsonValueKind.Null);
             var listed = Assert.Single(structured.GetProperty("estimates").EnumerateArray());
             Assert.Equal(estimateId, listed.GetProperty("estimateId").GetGuid());
-            Assert.Equal(3, listed.GetProperty("lines").GetArrayLength());
+            Assert.False(listed.TryGetProperty("lines", out _));
+            Assert.False(listed.TryGetProperty("totals", out _));
         }
     }
 }

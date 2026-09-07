@@ -87,19 +87,77 @@ public static class CaseDataPolicy
     public static void ValidateMutation(CaseMutationRequest request) =>
         CaseLifecycleRules.ValidateMutation(request);
 
-    public static void ValidateCompleteness(CaseCompleteness completeness)
-    {
+    /// <summary>
+    /// PLAT-072: completeness is two factual controls. The staff-confirmation
+    /// flags are no longer written by any command, so there is no pairing left
+    /// to police here; the columns survive only until their owner removes them.
+    /// </summary>
+    public static void ValidateCompleteness(CaseCompleteness completeness) =>
         ArgumentNullException.ThrowIfNull(completeness);
-        if (completeness.InstructionConfirmedByStaff && !completeness.InstructionComplete)
+
+    /// <summary>
+    /// The one place the stated report-address treatment becomes the stored
+    /// address and inspection mode. Every CE assessment is desktop, so the
+    /// treatment describes where the vehicle is for the report, never
+    /// attendance: it is blank, the accepted Image Based Assessment
+    /// instruction, or a selected physical vehicle location. The treatment is
+    /// stated by the operator, never inferred from the text of an address.
+    /// </summary>
+    public static (string? Address, CaseInspectionMode? Mode) ResolveInspection(
+        CaseReportAddressTreatment treatment,
+        string? address)
+    {
+        if (!Enum.IsDefined(treatment))
         {
-            throw new InvalidOperationException(
-                "Instructions cannot be confirmed while instruction evidence is incomplete.");
+            throw new ArgumentOutOfRangeException(
+                nameof(treatment),
+                "The report-address treatment is invalid.");
         }
 
-        if (completeness.ImagesConfirmedByStaff && !completeness.ImagesComplete)
+        var trimmed = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+        switch (treatment)
         {
-            throw new InvalidOperationException(
-                "Images cannot be confirmed while image evidence is incomplete.");
+            case CaseReportAddressTreatment.Undetermined:
+                if (trimmed is not null)
+                {
+                    throw new InvalidOperationException(
+                        "An undetermined report location cannot carry an address.");
+                }
+
+                return (null, null);
+
+            case CaseReportAddressTreatment.ImageBasedAssessment:
+                if (trimmed is not null
+                    && !string.Equals(
+                        trimmed,
+                        Ext18InspectionAddressPolicy.ImageBasedAssessment,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "Image Based Assessment requires the exact accepted instruction value.");
+                }
+
+                return (
+                    Ext18InspectionAddressPolicy.ImageBasedAssessment,
+                    CaseInspectionMode.ImageBasedAssessment);
+
+            default:
+                if (trimmed is null)
+                {
+                    throw new InvalidOperationException(
+                        "A physical vehicle location requires an address.");
+                }
+
+                if (string.Equals(
+                        trimmed,
+                        Ext18InspectionAddressPolicy.ImageBasedAssessment,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "The Image Based Assessment value cannot be saved as a physical address.");
+                }
+
+                return (trimmed, CaseInspectionMode.PhysicalAddress);
         }
     }
 
@@ -151,7 +209,24 @@ public static class CaseDataPolicy
             ContactPhoneNumber = Text(data.ContactPhoneNumber, 100, nameof(data.ContactPhoneNumber)),
             VatStatus = Text(data.VatStatus, 100, nameof(data.VatStatus)),
             InspectionAddress = Text(data.InspectionAddress, 1000, nameof(data.InspectionAddress)),
-            StorageLocation = Text(data.StorageLocation, 1000, nameof(data.StorageLocation))
+            StorageLocation = Text(data.StorageLocation, 1000, nameof(data.StorageLocation)),
+            RepairerAddress = Paragraphs(data.RepairerAddress, 1000, nameof(data.RepairerAddress)),
+            ClaimSourceName = Text(data.ClaimSourceName, 300, nameof(data.ClaimSourceName)),
+            ClaimSourceContactName = Text(data.ClaimSourceContactName, 300, nameof(data.ClaimSourceContactName)),
+            ClaimSourceContactTelephone = Text(data.ClaimSourceContactTelephone, 100, nameof(data.ClaimSourceContactTelephone)),
+            ClaimSourceContactEmailAddress = Text(data.ClaimSourceContactEmailAddress, 320, nameof(data.ClaimSourceContactEmailAddress)),
+            ClaimSourceCaseNote = Paragraphs(data.ClaimSourceCaseNote, 2000, nameof(data.ClaimSourceCaseNote)),
+            StorageBusinessName = Text(data.StorageBusinessName, 300, nameof(data.StorageBusinessName)),
+            StorageBusinessContactName = Text(data.StorageBusinessContactName, 300, nameof(data.StorageBusinessContactName)),
+            StorageBusinessContactTelephone = Text(data.StorageBusinessContactTelephone, 100, nameof(data.StorageBusinessContactTelephone)),
+            StorageBusinessContactEmailAddress = Text(data.StorageBusinessContactEmailAddress, 320, nameof(data.StorageBusinessContactEmailAddress)),
+            VehicleMileageDisplayUnit = OdometerUnit(data.VehicleMileageDisplayUnit),
+            InspectionLocationSourceLabel = Text(data.InspectionLocationSourceLabel, 300, nameof(data.InspectionLocationSourceLabel)),
+            InspectionCondition = Text(data.InspectionCondition, 300, nameof(data.InspectionCondition)),
+            InspectionContactName = Text(data.InspectionContactName, 300, nameof(data.InspectionContactName)),
+            InspectionContactTelephone = Text(data.InspectionContactTelephone, 100, nameof(data.InspectionContactTelephone)),
+            InspectionContactEmailAddress = Text(data.InspectionContactEmailAddress, 320, nameof(data.InspectionContactEmailAddress)),
+            InspectionNotes = Paragraphs(data.InspectionNotes, 2000, nameof(data.InspectionNotes))
         };
 
         if (normalized.VehicleMileage.HasValue != (normalized.VehicleMileageUnit is not null))
@@ -160,8 +235,77 @@ public static class CaseDataPolicy
                 "Vehicle mileage and mileage unit must be saved together.");
         }
 
+        ValidateEnum(normalized.InspectionAddressTreatment, nameof(data.InspectionAddressTreatment));
+        ValidateEnum(normalized.InspectionLocationChoice, nameof(data.InspectionLocationChoice));
+        ValidateEnum(normalized.InspectionLocationSource, nameof(data.InspectionLocationSource));
+        RequireTogether(
+            normalized.ClaimSourceId.HasValue,
+            normalized.ClaimSourceVersion.HasValue,
+            "A claim source identifier and its version must be saved together.");
+        RequireTogether(
+            normalized.StorageBusinessId.HasValue,
+            normalized.StorageBusinessVersion.HasValue,
+            "A storage business identifier and its version must be saved together.");
+        RequireTogether(
+            normalized.InspectionLocationSourceId.HasValue,
+            normalized.InspectionLocationSourceVersion.HasValue,
+            "An inspection location source identifier and its version must be saved together.");
+        if (normalized.InspectionLocationSourceId.HasValue
+            && normalized.InspectionLocationSource is null)
+        {
+            throw new InvalidOperationException(
+                "An inspection location source identifier requires the source kind it came from.");
+        }
+
+        if (normalized.ClaimSourceId == Guid.Empty
+            || normalized.StorageBusinessId == Guid.Empty
+            || normalized.InspectionLocationSourceId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A recorded source identifier cannot be empty.",
+                nameof(data));
+        }
+
         ValidateInspection(normalized);
         return normalized;
+    }
+
+    private static void RequireTogether(bool left, bool right, string message)
+    {
+        if (left != right)
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
+
+    private static void ValidateEnum<T>(T? value, string parameterName)
+        where T : struct, Enum
+    {
+        if (value is { } present && !Enum.IsDefined(present))
+        {
+            throw new ArgumentOutOfRangeException(parameterName, "The value is invalid.");
+        }
+    }
+
+    /// <summary>
+    /// The canonical spelling of a recorded odometer unit. The stored original
+    /// keeps whatever unit it was read in; the display unit is one of the two
+    /// the record converts between, so an unrecognized one fails closed rather
+    /// than becoming a silent third unit.
+    /// </summary>
+    private static string? OdometerUnit(string? value)
+    {
+        var normalized = Text(value, 40, nameof(CaseEditableData.VehicleMileageDisplayUnit));
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        return CaseOdometer.TryParseUnit(normalized, out var unit)
+            ? CaseOdometer.Format(unit)
+            : throw new ArgumentException(
+                "The odometer display unit must be miles or kilometres.",
+                nameof(value));
     }
 
     private static void ValidateInspection(CaseEditableData data)

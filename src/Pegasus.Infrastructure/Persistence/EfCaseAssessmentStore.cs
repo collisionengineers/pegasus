@@ -74,7 +74,8 @@ public sealed class EfCaseAssessmentStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = RequestHash(request);
-        var replayed = await FindReplayAsync(context, request, requestHash, cancellationToken);
+        var replayed = await CaseOperationReplay.FindAsync(
+            context, request.CaseId, request.OperationKey, requestHash, cancellationToken);
         if (replayed)
         {
             return await GetRequiredAsync(context, request.CaseId, cancellationToken);
@@ -136,152 +137,46 @@ public sealed class EfCaseAssessmentStore(
             .OrderBy(item => item.Position)
             .ToListAsync(cancellationToken);
 
-        var merged = fields.ToDictionary(
-            item => item.FieldPath,
-            item => item.Value,
-            StringComparer.Ordinal);
-        foreach (var (path, value) in request.Fields)
-        {
-            if (value is null)
-            {
-                merged.Remove(path);
-            }
-            else
-            {
-                merged[path] = value;
-            }
-        }
-
-        var fieldsToWrite = new Dictionary<string, string?>(request.Fields, StringComparer.Ordinal);
-        if (request.Fields.TryGetValue(AssessmentVocabulary.DamageImpacts, out var impacts))
-        {
-            var derived = AssessmentPolicy.DeriveImpactValues(impacts);
-            fieldsToWrite[AssessmentVocabulary.ImpactLocation] = derived.Location;
-            fieldsToWrite[AssessmentVocabulary.ImpactSeverity] = derived.Severity;
-            if (derived.Location is null)
-            {
-                merged.Remove(AssessmentVocabulary.ImpactLocation);
-                merged.Remove(AssessmentVocabulary.ImpactSeverity);
-            }
-            else
-            {
-                merged[AssessmentVocabulary.ImpactLocation] = derived.Location;
-                merged[AssessmentVocabulary.ImpactSeverity] = derived.Severity!;
-            }
-        }
-
+        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields);
         AssessmentPolicy.ValidateMergedState(request.Fields, merged);
-
         var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
-        var beforeFields = new Dictionary<string, object?>(StringComparer.Ordinal);
-        var afterFields = new Dictionary<string, object?>(StringComparer.Ordinal);
-        foreach (var (path, value) in fieldsToWrite)
-        {
-            var existing = fields.SingleOrDefault(item => item.FieldPath == path);
-            beforeFields[path] = existing is null
-                ? null
-                : new { existing.Value, existing.ConfirmedBy };
-            if (value is null)
-            {
-                if (existing is not null)
-                {
-                    context.CaseAssessmentFields.Remove(existing);
-                    fields.Remove(existing);
-                }
-                afterFields[path] = null;
-                continue;
-            }
-
-            if (existing is not null
-                && confirmedBy is null
-                && string.Equals(existing.Value, value, StringComparison.Ordinal))
-            {
-                // An automation resubmission of a value that has not changed
-                // leaves the record alone: saving unchanged data must not
-                // reset readiness or advisory state (FRD-01 case identity and
-                // lifecycle, the progression rules), so a value a staff Engineer
-                // already confirmed stays confirmed and keeps its
-                // provenance. A staff save still re-stamps, because that is
-                // how an Engineer confirms a value.
-            }
-            else
-            {
-                var written = AssessmentFieldWriter.Write(
-                    context,
-                    workflow.Case,
-                    request.CaseId,
-                    existing,
-                    path,
-                    value,
-                    request.Actor.Kind,
-                    request.Actor.SubjectId,
-                    now,
-                    confirmedBy);
-                if (existing is null)
-                {
-                    fields.Add(written);
-                }
-                existing = written;
-            }
-
-            afterFields[path] = new { existing.Value, existing.ConfirmedBy };
-        }
+        var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
+            context,
+            workflow.Case,
+            request.CaseId,
+            fields,
+            fieldsToWrite,
+            request.Actor,
+            now);
 
         object? beforeLines = null;
         object? afterLines = null;
         if (request.EstimateLines is { } replacementLines)
         {
-            beforeLines = lines.Select(LineEvidence).ToArray();
-            context.CaseEstimateLines.RemoveRange(lines);
-            lines.Clear();
-            var position = 0;
-            foreach (var line in replacementLines)
-            {
-                position++;
-                var entity = new CaseEstimateLineEntity
-                {
-                    Id = Guid.NewGuid(),
-                    CaseId = request.CaseId,
-                    Case = workflow.Case,
-                    RepairSpecificationId = specificationId,
-                    RepairSpecification = specification,
-                    Position = position,
-                    LineType = line.Type,
-                    GuideCode = line.GuideCode,
-                    Description = line.Description,
-                    WorkUnits = line.WorkUnits,
-                    PaintWorkUnits = line.PaintWorkUnits,
-                    Quantity = line.Quantity,
-                    Price = line.Price,
-                    Unpriced = line.Unpriced,
-                    PartNumber = line.PartNumber,
-                    Betterment = line.Betterment,
-                    Status = line.Status,
-                    EvidenceLabel = line.EvidenceLabel,
-                    Justification = line.Justification,
-                    RecordedByKind = request.Actor.Kind.ToString(),
-                    RecordedBy = request.Actor.SubjectId,
-                    RecordedAtUtc = now,
-                    ConfirmedBy = confirmedBy,
-                    ConfirmedAtUtc = confirmedBy is null ? null : now
-                };
-                context.CaseEstimateLines.Add(entity);
-                lines.Add(entity);
-            }
+            (beforeLines, afterLines) = EstimateLineWriter.Replace(
+                context,
+                request.CaseId,
+                workflow.Case,
+                specification,
+                lines,
+                replacementLines,
+                request.Actor,
+                now);
         }
 
-        afterLines = request.EstimateLines is null
-            ? null
-            : lines.Select(LineEvidence).ToArray();
         var beforeVersion = workflow.Version;
         workflow.Version++;
         ClearLease(workflow);
-        AddHistory(
+        CaseMutationHistory.Add(
             context,
             workflow,
-            request,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
+            "case_assessment_saved",
             requestHash,
             beforeVersion,
+            workflow.Version,
             JsonSerializer.Serialize(
                 new { Fields = beforeFields, EstimateLines = beforeLines },
                 JsonOptions),
@@ -293,6 +188,7 @@ public sealed class EfCaseAssessmentStore(
                     request.AiWorkRequestId
                 },
                 JsonOptions),
+            $"{AssessmentPolicy.PolicyKey}/v{AssessmentPolicy.PolicyVersion}",
             now);
 
         try
@@ -334,91 +230,6 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.CaseId == caseId)
             .ToArrayAsync(cancellationToken);
         return Map(workflow, fields, lines, caseDataFields);
-    }
-
-    private static async Task<bool> FindReplayAsync(
-        PegasusDbContext context,
-        SaveAssessmentRequest request,
-        string requestHash,
-        CancellationToken cancellationToken)
-    {
-        var replay = await context.CaseWorkflowEvents.AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId && item.OperationKey == request.OperationKey,
-                cancellationToken);
-        if (replay is null)
-        {
-            return false;
-        }
-
-        if (!FixedTimeEquals(replay.RequestHash, requestHash))
-        {
-            throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
-        }
-
-        return true;
-    }
-
-    private static void AddHistory(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        SaveAssessmentRequest request,
-        string requestHash,
-        long beforeVersion,
-        string beforeJson,
-        string afterJson,
-        DateTimeOffset occurredAtUtc)
-    {
-        const string EventType = "case_assessment_saved";
-        var rolesJson = JsonSerializer.Serialize(
-            request.Actor.Roles.OrderBy(role => role),
-            JsonOptions);
-        context.CaseWorkflowEvents.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Workflow = workflow,
-            EventType = EventType,
-            OperationKey = request.OperationKey,
-            RequestHash = requestHash,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = rolesJson,
-            Reason = request.Reason,
-            OccurredAtUtc = occurredAtUtc,
-            BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
-        });
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = "case",
-            AggregateId = workflow.CaseId.ToString("D"),
-            EventKind = EventType,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = rolesJson,
-            OccurredAtUtc = occurredAtUtc,
-            Outcome = "Succeeded",
-            CorrelationId = request.OperationKey,
-            Reason = request.Reason,
-            BeforeJson = beforeJson,
-            AfterJson = afterJson,
-            PolicyVersion = $"{AssessmentPolicy.PolicyKey}/v{AssessmentPolicy.PolicyVersion}"
-        });
-        context.CaseHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Case = workflow.Case,
-            EventType = EventType,
-            Actor = request.Actor.SubjectId,
-            Reason = request.Reason,
-            OccurredAtUtc = occurredAtUtc,
-            OperationKey = request.OperationKey,
-            BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
-        });
     }
 
     internal static CaseAssessmentProjection Map(
@@ -489,17 +300,7 @@ public sealed class EfCaseAssessmentStore(
     private static AssessmentCaseOwnedData MapCaseOwned(
         IReadOnlyList<CaseDataFieldEntity> caseDataFields)
     {
-        string? Current(string fieldName)
-        {
-            var values = caseDataFields
-                .Where(item => item.FieldName == fieldName)
-                .ToArray();
-            var current =
-                values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-                ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
-                ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
-            return current?.Value;
-        }
+        string? Current(string fieldName) => CaseDataFieldValues.Current(caseDataFields, fieldName);
 
         DateOnly? CurrentDate(string fieldName) =>
             Current(fieldName) is { } value
@@ -527,25 +328,6 @@ public sealed class EfCaseAssessmentStore(
             inspectionMode,
             Current(CaseDataFieldNames.InspectionAddress));
     }
-
-    private static object LineEvidence(CaseEstimateLineEntity line) => new
-    {
-        line.Position,
-        line.LineType,
-        line.GuideCode,
-        line.Description,
-        line.WorkUnits,
-        line.PaintWorkUnits,
-        line.Quantity,
-        line.Price,
-        line.Unpriced,
-        line.PartNumber,
-        line.Betterment,
-        line.Status,
-        line.EvidenceLabel,
-        line.Justification,
-        line.ConfirmedBy
-    };
 
     private static ActorKind ParseActorKind(string value) =>
         Enum.TryParse<ActorKind>(value, out var kind)
@@ -591,23 +373,23 @@ public sealed class EfCaseAssessmentStore(
             request.EstimateLines,
             request.AiWorkRequestId
         }, JsonOptions);
-        return Hash(material);
+        return CaseOperationReplay.Hash(material);
     }
+}
 
-    private static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
-
-    private static bool FixedTimeEquals(string left, string right)
+/// <summary>
+/// The value a Case currently stands on for a field: a confirmed value, else
+/// an extracted fact, else a suggestion. One owner for every reader of the
+/// Case's own fields.
+/// </summary>
+internal static class CaseDataFieldValues
+{
+    internal static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
     {
-        if (left.Length != 64 || right.Length != 64
-            || left.Any(character => !char.IsAsciiHexDigit(character))
-            || right.Any(character => !char.IsAsciiHexDigit(character)))
-        {
-            return false;
-        }
-
-        return CryptographicOperations.FixedTimeEquals(
-            Convert.FromHexString(left),
-            Convert.FromHexString(right));
+        var values = fields.Where(item => item.FieldName == fieldName).ToArray();
+        var current = values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
+        return current?.Value;
     }
 }

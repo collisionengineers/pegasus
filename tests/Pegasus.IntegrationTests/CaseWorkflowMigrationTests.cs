@@ -105,7 +105,10 @@ public sealed class CaseWorkflowMigrationTests
                  '2031-05-06T10:30:00+00:00', 'migration:evidence');
             """);
 
-        await context.Database.MigrateAsync();
+        // This fixture proves the historical custody/EVA chain. The v1
+        // foundation establishes the documented estate on disposable data;
+        // it does not convert this pre-release fixture into that estate.
+        await context.Database.MigrateAsync("20260905010654_CaseSignOffEngineer");
 
         Assert.Equal(documentId, await database.ScalarAsync<string>(
             $"SELECT CONVERT(varchar(36), Id) FROM CaseDocuments WHERE Id = '{documentId}'"));
@@ -120,7 +123,15 @@ public sealed class CaseWorkflowMigrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaHandoffDownloadOperations'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaFirstHandoffProxies'"));
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(
+            [
+                "20260906054658_V1PlatformFoundation",
+                "20260906170000_FilterActiveCaseReportGenerationSnapshot",
+                "20260906212604_RetainedMailboxReplyTargets",
+                "20260906220638_RemovePaintLabourRate",
+                "20260907093000_PublicUploadOccurrenceReplacementLineage"
+            ],
+            await context.Database.GetPendingMigrationsAsync());
     }
 
     private const string ExistingCasesSql =

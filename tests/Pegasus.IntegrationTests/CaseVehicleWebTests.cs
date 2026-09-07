@@ -19,7 +19,7 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class CaseDetailsWebTests
 {
     [Fact]
-    public async Task VehiclePageBindsLookupAndSuggestionDecisions()
+    public async Task VehiclePageBindsLookupAndOneFieldSuggestionAcceptance()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -38,23 +38,10 @@ public sealed partial class CaseDetailsWebTests
                 "accept-suggestion",
                 "Matches the photographs",
                 ("lookupObservationId", observationId.ToString("D")),
-                ("decision", "Accept")));
-        using var corrected = await workspace.PostAsync(
-            "Vehicle?handler=AcceptVehicleSuggestion",
-            workspace.MutationForm(
-                "correct-suggestion",
-                "Odometer photographed",
-                ("lookupObservationId", observationId.ToString("D")),
-                ("decision", "Correct"),
-                ("registration", "AB12CDE"),
-                ("make", "Ford"),
-                ("model", "Transit"),
-                ("mileage", "43210"),
-                ("mileageUnit", "Miles")));
+                ("field", "Make")));
 
         AssertPrg(requested, store.CaseId);
         AssertPrg(accepted, store.CaseId);
-        AssertPrg(corrected, store.CaseId);
 
         var lookup = Assert.Single(store.LookupRequests);
         AssertClaimant(workspace, lookup.Actor);
@@ -63,22 +50,16 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("request-lookup", lookup.OperationKey);
         Assert.Equal("AB12 CDE", lookup.Registration);
 
-        Assert.Equal(2, store.SuggestionDecisions.Count);
-        var acceptance = store.SuggestionDecisions[0];
+        var acceptance = Assert.Single(store.SuggestionDecisions);
         AssertClaimant(workspace, acceptance.Actor);
         Assert.Equal(store.CaseVersion, acceptance.ExpectedCaseVersion);
         Assert.Equal(store.LeaseToken, acceptance.EditLeaseToken);
         Assert.Equal("accept-suggestion", acceptance.OperationKey);
-        Assert.Equal("Matches the photographs", acceptance.Reason);
+        Assert.Equal("Accepted vehicle lookup suggestion.", acceptance.Reason);
         Assert.Equal(observationId, acceptance.LookupObservationId);
         Assert.Equal(VehicleSuggestionDecision.Accept, acceptance.Decision);
         Assert.Null(acceptance.Correction);
-        var correction = store.SuggestionDecisions[1];
-        Assert.Equal(VehicleSuggestionDecision.Correct, correction.Decision);
-        Assert.Equal("correct-suggestion", correction.OperationKey);
-        Assert.Equal(
-            new VehicleConfirmationValues("AB12CDE", "Ford", "Transit", 43210, VehicleMileageUnit.Miles),
-            correction.Correction);
+        Assert.Equal(VehicleSuggestionField.Make, acceptance.Field);
 
         await AssertRefusalKeepsEditModeAsync(
             workspace,
@@ -93,21 +74,25 @@ public sealed partial class CaseDetailsWebTests
     /// are the case's own lookup observations.
     /// </summary>
     [Fact]
-    public async Task VehicleSectionDrawsBothRefreshControlsAgainstTheOneLookupHandler()
+    public async Task VehicleSectionDrawsOneLookupAndNoLegacyChecksSurface()
     {
         var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
-        Assert.Contains(OperatorLabels.CaseWorkspace.RefreshDvla, html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CaseWorkspace.RefreshDvsaMot, html, StringComparison.Ordinal);
+        Assert.Contains(
+            System.Net.WebUtility.HtmlEncode(CaseWorkspaceLabels.Vehicle.LookupDvlaMot),
+            html,
+            StringComparison.Ordinal);
         Assert.Equal(
-            2,
+            1,
             CountOccurrences(html, $"/Cases/{store.CaseId:D}/Vehicle?handler=RequestVehicleLookup"));
         Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
-        Assert.Contains("Not found", html, StringComparison.Ordinal);
-        Assert.Contains("Rate limited", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vehicle checks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recorded checks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Refresh DVLA", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Refresh DVSA/MOT", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -119,7 +104,11 @@ public sealed partial class CaseDetailsWebTests
     [Fact]
     public async Task VehicleSuggestionDecisionsRenderOnlyInEditContext()
     {
-        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        var store = new RecordingCaseDetailsStore
+        {
+            VehicleLookupEvidence = LookupEvidence(),
+            IncludeVehicleSuggestions = true
+        };
         using var baseFactory = new IntakeWebApplicationFactory();
         using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
@@ -138,16 +127,12 @@ public sealed partial class CaseDetailsWebTests
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
         Assert.Equal(
-            2,
+            3,
             CountOccurrences(editing, $"/Cases/{store.CaseId:D}/Vehicle?handler=AcceptVehicleSuggestion"));
-        Assert.Contains(
-            "value=\"" + nameof(VehicleSuggestionDecision.Accept) + "\"",
-            editing,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "value=\"" + nameof(VehicleSuggestionDecision.Correct) + "\"",
-            editing,
-            StringComparison.Ordinal);
+        Assert.Contains("name=\"field\" value=\"Make\"", editing, StringComparison.Ordinal);
+        Assert.Contains("name=\"field\" value=\"Model\"", editing, StringComparison.Ordinal);
+        Assert.Contains("name=\"field\" value=\"Mileage\"", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"Correct\"", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -306,6 +291,8 @@ public sealed partial class CaseDetailsWebTests
         /// the state a case with no registration is actually in.
         /// </summary>
         public bool OmitVehicleValues { get; init; }
+
+        public bool IncludeVehicleSuggestions { get; init; }
 
         Task<RequestedVehicleLookup> IRequestVehicleLookup.ExecuteAsync(
             RequestVehicleLookupCommand command,

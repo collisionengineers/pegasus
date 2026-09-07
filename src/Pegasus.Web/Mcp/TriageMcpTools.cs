@@ -147,9 +147,9 @@ internal sealed class TriageMcpTools(
 
     private Task<TriageDetailToolResult> MutateAsync(
         string tool, Guid triageId, string operationKey,
-        Func<string, string, Task> action, CancellationToken cancellationToken) =>
-        MutateWithActorAsync(tool, triageId, operationKey,
-            (actor, key) => action(actor.SubjectId, key), cancellationToken);
+        Func<Pegasus.Core.Identity.ActionActor, string, Task> action,
+        CancellationToken cancellationToken) =>
+        MutateWithActorAsync(tool, triageId, operationKey, action, cancellationToken);
 
     private async Task<TriageDetailToolResult> MutateWithActorAsync(
         string tool, Guid triageId, string operationKey,

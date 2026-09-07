@@ -114,7 +114,8 @@ public sealed class GetTriage(
         }
 
         var staffIds = detail.History
-            .Where(entry => Guid.TryParse(entry.Actor, out _))
+            .Where(entry => entry.ActorKind == nameof(ActorKind.Staff)
+                && Guid.TryParse(entry.Actor, out _))
             .Select(entry => Guid.Parse(entry.Actor));
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccountQueries,
@@ -125,7 +126,9 @@ public sealed class GetTriage(
             History = detail.History
                 .Select(entry => entry with
                 {
-                    ActorDisplayName = ActorDisplayNames.Resolve(ActorKind.Staff, entry.Actor, staffNames)
+                    ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var actorKind)
+                        ? ActorDisplayNames.Resolve(actorKind, entry.Actor, staffNames)
+                        : ActorDisplayNames.UnknownStaff
                 })
                 .ToArray()
         };

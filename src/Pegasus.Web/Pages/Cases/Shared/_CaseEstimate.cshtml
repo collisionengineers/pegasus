@@ -2,6 +2,10 @@
 @using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@using TotalsLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateTotals
+@using VatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat
+@using DiscountLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateDiscount
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
@@ -45,6 +49,22 @@
                             </button>
                         </span>
                     }
+                    @* CASE-047 B04: the Engineer's own Glass's account opens the
+                       provider's estimator. Without an enabled account the control
+                       is absent, not disabled: it belongs to the operator's
+                       credential rather than to this deployment. *@
+                    @if (Model.CanLaunchGlass)
+                    {
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
+                              asp-route-id="@caseId" asp-route-section="estimate">
+                            <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                <span>@GlassLabels.Launch</span>
+                            </button>
+                        </form>
+                    }
                     @if (Model.SendToClaudeCondition is null)
                     {
                         <a class="btn btn--primary" asp-page="/Cases/Details" asp-route-id="@caseId"
@@ -67,6 +87,46 @@
             }
         </div>
     </section>
+
+    @* Only the Engineer's own session renders, and only once one exists —
+       another Engineer's runs inside another external account. *@
+    @if (Model.GlassSession is { } glassSession)
+    {
+        <section class="panel" aria-labelledby="section-glass-session-title">
+            <div class="panel-head">
+                <h2 id="section-glass-session-title">@GlassLabels.Launch</h2>
+                @if (Model.CanResumeGlass)
+                {
+                    <div class="button-row">
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
+                              asp-route-id="@caseId" asp-route-section="estimate">
+                            <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                            <input type="hidden" name="sessionId" value="@glassSession.Id" />
+                            <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                                <span>@GlassLabels.Resume</span>
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+            <dl class="detail-list">
+                <div>
+                    <dt>@GlassLabels.State</dt>
+                    <dd>@GlassLabels.StateLabel(glassSession.State)</dd>
+                </div>
+                @if (glassSession.FailureCode is { Length: > 0 } glassFailure)
+                {
+                    <div>
+                        <dt>@GlassLabels.Failure</dt>
+                        <dd>@glassFailure</dd>
+                    </div>
+                }
+            </dl>
+        </section>
+    }
 
     <section class="panel">
         <div class="panel-head"><h2>@EngineerLabels.Estimates</h2></div>
@@ -136,7 +196,8 @@
                                         </button>
                                     </form>
                                 }
-                                @if (Model.SelectedEstimateCanBeCurrent && estimate is not null)
+                                @if (Model.SelectedEstimateCanBeCurrent && estimate is not null
+                                     && Model.UseEstimateCondition is null)
                                 {
                                     <form method="post" asp-page="/Cases/Details" asp-page-handler="SetCurrentEstimate"
                                           asp-route-id="@caseId" asp-route-section="estimate">
@@ -148,6 +209,15 @@
                                             <span>@EngineerLabels.UseEstimate</span>
                                         </button>
                                     </form>
+                                }
+                                else if (Model.SelectedEstimateCanBeCurrent && Model.UseEstimateCondition is { } useCondition)
+                                {
+                                    <span class="gated" data-condition="@useCondition">
+                                        <button type="button" class="btn" disabled aria-disabled="true">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                            <span>@EngineerLabels.UseEstimate</span>
+                                        </button>
+                                    </span>
                                 }
                                 @if (estimate?.IsCurrent == true)
                                 {
@@ -177,10 +247,6 @@
                                             <input id="estimate-labour-rate" name="estimateLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.LabourRate" />
                                         </div>
                                         <div>
-                                            <label for="estimate-paint-rate">@EngineerLabels.PaintLabourRatePerHour</label>
-                                            <input id="estimate-paint-rate" name="estimatePaintLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintLabourRate" />
-                                        </div>
-                                        <div>
                                             <label for="estimate-materials">@EngineerLabels.PaintMaterialsPounds</label>
                                             <input id="estimate-materials" name="estimatePaintMaterials" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintMaterials" />
                                         </div>
@@ -192,7 +258,48 @@
                                             <label for="estimate-vat">@EngineerLabels.VatPercent</label>
                                             <input id="estimate-vat" name="estimateVatPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@details.VatPercent" />
                                         </div>
+                                        @{ var vatPolicy = details.VatPolicy; var discounts = details.AppliedDiscounts; }
+                                        <div>
+                                            <label for="estimate-vat-status">@VatLabels.RepairerStatus</label>
+                                            <select id="estimate-vat-status" name="estimateVatStatus">
+                                                @foreach (var status in Enum.GetValues<RepairerVatStatus>())
+                                                {
+                                                    <option value="@status" selected="@(vatPolicy.RepairerStatus == status ? "selected" : null)">@VatLabels.StatusLabel(status)</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-parts">@DiscountLabels.Percent(DiscountLabels.Parts)</label>
+                                            <input id="estimate-discount-parts" name="estimateDiscountParts" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Parts)" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-materials">@DiscountLabels.Percent(DiscountLabels.Materials)</label>
+                                            <input id="estimate-discount-materials" name="estimateDiscountMaterials" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Materials)" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-specialist">@DiscountLabels.Percent(DiscountLabels.Specialist)</label>
+                                            <input id="estimate-discount-specialist" name="estimateDiscountSpecialist" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Specialist)" />
+                                        </div>
+                                        <div>
+                                            <label for="estimate-discount-overall">@DiscountLabels.Percent(DiscountLabels.Overall)</label>
+                                            <input id="estimate-discount-overall" name="estimateDiscountOverall" type="number" min="0" max="100" step="0.01" inputmode="decimal" class="tabular" value="@DiscountLabels.PercentValue(discounts.Overall)" />
+                                        </div>
                                     </div>
+                                    <fieldset class="section-gap">
+                                        <legend>@VatLabels.ChargedOn</legend>
+                                        <div class="cluster">
+                                            @foreach (var category in VatLabels.Categories)
+                                            {
+                                                var field = Pegasus.Web.Pages.Cases.DetailsModel.VatCategoryField(category);
+                                                <label class="choice">
+                                                    <input id="@field" name="@field" type="checkbox" value="true"
+                                                           checked="@(vatPolicy.Charges(category) ? "checked" : null)" />
+                                                    <input type="hidden" name="@field" value="false" />
+                                                    <span>@VatLabels.CategoryLabel(category)</span>
+                                                </label>
+                                            }
+                                        </div>
+                                    </fieldset>
                                     @{ var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" }); }
                                     <div class="estimate-table-head">
                                         <h3>@EngineerLabels.PartsAndOperations</h3>
@@ -252,7 +359,7 @@
                                     </div>
                                     <div class="estimate-bottom">
                                         <div class="estimate-notes"><label for="estimate-notes">@EngineerLabels.EstimateNotes</label><textarea id="estimate-notes" name="estimateNotes" rows="4" maxlength="4000">@details.Notes</textarea></div>
-                                        RenderEstimateTotals(totals);
+                                        @{ RenderEstimateTotals(totals); }
                                     </div>
                                     <div class="button-row section-gap"><button type="submit" class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@EngineerLabels.SaveEstimate</span></button></div>
                                 </form>
@@ -262,14 +369,19 @@
                                 <dl class="detail-list">
                                     <div><dt>@EngineerLabels.RepairDays</dt><dd>@(details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.LabourRate</dt><dd>@(details.LabourRate is { } labourRate ? $"£{labourRate.ToString("N2")}/h" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-                                    <div><dt>@EngineerLabels.PaintLabourRate</dt><dd>@(details.PaintLabourRate is { } paintRate ? $"£{paintRate.ToString("N2")}/h" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.PaintMaterials</dt><dd>@(details.PaintMaterials is { } paintMaterials ? $"£{paintMaterials.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.OtherCosts</dt><dd>@(details.OtherCosts is { } otherCosts ? $"£{otherCosts.ToString("N2")}" : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
                                     <div><dt>@EngineerLabels.Vat</dt><dd>@($"{totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%")</dd></div>
+                                    <div><dt>@VatLabels.RepairerStatus</dt><dd>@VatLabels.StatusLabel(totals.VatPolicy.RepairerStatus)</dd></div>
+                                    <div><dt>@VatLabels.ChargedOn</dt><dd>@VatLabels.ChargedLabel(totals.VatPolicy)</dd></div>
+                                    <div><dt>@DiscountLabels.Parts</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Parts)</dd></div>
+                                    <div><dt>@DiscountLabels.Materials</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Materials)</dd></div>
+                                    <div><dt>@DiscountLabels.Specialist</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Specialist)</dd></div>
+                                    <div><dt>@DiscountLabels.Overall</dt><dd>@DiscountLabels.Value(details.AppliedDiscounts.Overall)</dd></div>
                                 </dl>
                                 <div class="estimate-bottom">
                                     <div class="estimate-notes"><h3 class="section-label">@EngineerLabels.Notes</h3>@(string.IsNullOrWhiteSpace(details.Notes) ? EngineerLabels.NoneRecorded : details.Notes)</div>
-                                    RenderEstimateTotals(totals);
+                                    @{ RenderEstimateTotals(totals); }
                                 </div>
                                 if (estimate is not null)
                                 {
@@ -416,16 +528,24 @@
 }
 
 @functions {
+    /// <summary>
+    /// The canonical printed breakdown (B04): the five components each
+    /// rounded to pence, the net their sum, the gross the net plus the
+    /// printed VAT. Nothing here adds anything up — every figure is the one
+    /// totals owner's own.
+    /// </summary>
     private void RenderEstimateTotals(EstimateTotals totals)
     {
+        var printed = totals.Printed;
         <dl class="estimate-totals">
-            <div><dt>@EngineerLabels.Parts</dt><dd class="tabular">&#163;@totals.Parts.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Labour</dt><dd class="tabular">&#163;@totals.Labour.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Paint</dt><dd class="tabular">&#163;@totals.Paint.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Other</dt><dd class="tabular">&#163;@totals.Other.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Subtotal</dt><dd class="tabular">&#163;@totals.Subtotal.ToString("N2")</dd></div>
-            <div><dt>@EngineerLabels.Vat</dt><dd class="tabular">&#163;@totals.Vat.ToString("N2")</dd></div>
-            <div class="estimate-total"><dt>@EngineerLabels.Total</dt><dd class="tabular">&#163;@totals.Total.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Parts</dt><dd class="tabular">&#163;@printed.Parts.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.PanelLabour</dt><dd class="tabular">&#163;@printed.PanelLabour.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.PaintLabour</dt><dd class="tabular">&#163;@printed.PaintLabour.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.Materials</dt><dd class="tabular">&#163;@printed.Materials.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.Specialist</dt><dd class="tabular">&#163;@printed.Specialist.ToString("N2")</dd></div>
+            <div><dt>@TotalsLabels.Net</dt><dd class="tabular">&#163;@printed.Net.ToString("N2")</dd></div>
+            <div><dt>@EngineerLabels.Vat</dt><dd class="tabular">&#163;@printed.Vat.ToString("N2")</dd></div>
+            <div class="estimate-total"><dt>@TotalsLabels.Gross</dt><dd class="tabular">&#163;@printed.Gross.ToString("N2")</dd></div>
         </dl>
     }
 

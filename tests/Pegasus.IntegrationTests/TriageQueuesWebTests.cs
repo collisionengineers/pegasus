@@ -249,7 +249,7 @@ public sealed class TriageQueuesWebTests
                 new TriageOrigin(receiptId, sourceIdentity, sourceHash, evaluationRevisionId),
                 registration,
                 acceptedMatch,
-                "test-actor",
+                ActionActor.SystemWorker("test-worker"),
                 $"triage-create:{Guid.NewGuid():N}"),
             CancellationToken.None);
         await services.GetRequiredService<IAssignTriage>().ExecuteAsync(
@@ -257,7 +257,7 @@ public sealed class TriageQueuesWebTests
                 triage.Id,
                 triage.Version,
                 DevelopmentOfflineIdentity.AdministratorId,
-                "test-actor",
+                StaffActor(),
                 $"triage-assign:{Guid.NewGuid():N}",
                 "Assigned for the queue-row test."),
             CancellationToken.None);

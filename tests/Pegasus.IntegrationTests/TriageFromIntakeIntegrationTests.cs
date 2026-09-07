@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
@@ -53,10 +54,16 @@ public sealed class TriageFromIntakeIntegrationTests
         Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
         Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
+        var created = Assert.Single(detail.History, item => item.EventType == "triage_created");
         Assert.Contains(
             QdosMailClassificationPolicy.Key,
-            Assert.Single(detail.History, item => item.EventType == "triage_created").Reason,
+            created.Reason,
             StringComparison.Ordinal);
+        // The intake pipeline opened this Triage, so the history says so in the
+        // one place that can be trusted: the recorded actor kind, not a prefix
+        // read back out of the subject.
+        Assert.Equal(nameof(ActorKind.SystemWorker), created.ActorKind);
+        Assert.Equal("intake-processing", created.Actor);
 
         // The registration is known, so this is not Unidentified material.
         Assert.Null(

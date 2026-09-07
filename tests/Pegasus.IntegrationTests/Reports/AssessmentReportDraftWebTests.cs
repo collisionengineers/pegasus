@@ -29,6 +29,9 @@ namespace Pegasus.IntegrationTests.Reports;
 [Trait("Category", "SqlServer")]
 public sealed partial class AssessmentReportDraftWebTests
 {
+    private static readonly DateTimeOffset ReportFixtureAtUtc =
+        new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
+
     [Fact]
     public async Task CompleteCaseRendersAndReturnsThePdf()
     {
@@ -94,7 +97,7 @@ public sealed partial class AssessmentReportDraftWebTests
             baseFactory,
             new FakeGetCase(caseId),
             FullAssessmentProjection(caseId),
-            new FakeProjectionSource(ReadyInput(caseId) with { Costs = null }),
+            new FakeProjectionSource(ReadyInput(caseId) with { CurrentEstimate = null }),
             new FakeRenderer([1]));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -178,7 +181,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<IDocumentContentStore>(new ThrowingDocumentContentStore());
             }));
 
-    private static AssessmentReportProjectionInput ReadyInput(Guid caseId)
+    internal static AssessmentReportProjectionInput ReadyInput(Guid caseId)
     {
         var image = new byte[] { 137, 80, 78, 71, 1, 2, 3, 4 };
         var photo = new ReportImageEvidence(
@@ -193,9 +196,30 @@ public sealed partial class AssessmentReportDraftWebTests
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
             Sources: [source],
-            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true),
+            CurrentEstimate: CurrentEstimate(),
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
     }
+
+    /// <summary>
+    /// The Current estimate the ready fixture prices from: 50 parts, five
+    /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT.
+    /// </summary>
+    internal static RepairSpecificationVersion CurrentEstimate() => new(
+        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
+        new(RepairSpecificationSourceRoute.Manual, null, null, null),
+        [
+            EstimateLine(1, "repair", "Nearside door", 5m, null),
+            EstimateLine(2, "new_part", "Door skin", null, 50m),
+        ],
+        null, "engineer-1", ReportFixtureAtUtc, "engineer-1", ReportFixtureAtUtc, null, null,
+        new EstimateDetails("Repairer", null, 30m, 20m, 5m, 20m, null), IsCurrent: true);
+
+    private static CaseEstimateLineRecord EstimateLine(
+        int position, string type, string description, decimal? workUnits, decimal? price) => new(
+            Guid.NewGuid(), position, type, null, description, workUnits, price, false, null, null,
+            "confirmed", "case", "Test evidence",
+            ActorKind.Staff, "engineer-1", ReportFixtureAtUtc, "engineer-1", ReportFixtureAtUtc,
+            Quantity: 1);
 
     /// <summary>
     /// Every assessment field <see cref="AssessmentPolicy.EvaluateReadiness"/>
@@ -204,7 +228,7 @@ public sealed partial class AssessmentReportDraftWebTests
     /// so a "ready" web test genuinely reaches the renderer rather than
     /// tripping over the shared readiness rail.
     /// </summary>
-    private static CaseAssessmentProjection FullAssessmentProjection(Guid caseId)
+    internal static CaseAssessmentProjection FullAssessmentProjection(Guid caseId)
     {
         var confirmedAt = DateTimeOffset.UtcNow;
         AssessmentFieldValue Field(string path, string value) => new(
@@ -316,14 +340,16 @@ public sealed partial class AssessmentReportDraftWebTests
 
     private sealed class FakeRenderer(byte[] pdfBytes) : IAssessmentReportRenderer
     {
-        public Task<AssessmentReportDraft> RenderAsync(
-            AssessmentReportSnapshot snapshot, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new AssessmentReportDraft(Artifact("assessment"), Artifact("fee-note")));
+        public string EngineVersion => "fake";
 
-        private RenderedReportArtifact Artifact(string family) => new(
-            $"{family}.pdf", pdfBytes, 1,
-            Convert.ToHexStringLower(SHA256.HashData(pdfBytes)),
-            AssessmentReportContract.TemplateVersion, "fake");
+        public Task<RenderedReportArtifact> RenderAsync(
+            AssessmentReportSnapshot snapshot,
+            CaseReportArtifactKind kind,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RenderedReportArtifact(
+                $"{kind}.pdf", pdfBytes, 1,
+                Convert.ToHexStringLower(SHA256.HashData(pdfBytes)),
+                AssessmentReportContract.TemplateVersion, EngineVersion));
     }
 
     private sealed class ThrowingDocumentContentStore : IDocumentContentStore

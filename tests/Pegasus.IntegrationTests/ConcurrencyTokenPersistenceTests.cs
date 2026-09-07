@@ -75,7 +75,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                     seed.EvaluationId),
                 "AB12CDE",
                 acceptedMatch,
-                "staff:concurrency-test",
+                Pegasus.Core.Identity.ActionActor.SystemWorker("concurrency-test"),
                 "create-triage-concurrency-test"),
             CancellationToken.None);
 

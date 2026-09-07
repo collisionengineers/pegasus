@@ -613,8 +613,8 @@ public sealed partial class DetailsModel(
             id,
             async actor =>
             {
-                // The Triage creation request carries a bare actor string and
-                // validates no rights of its own, so the caller authorises.
+                // The Triage creation request carries the typed actor but checks
+                // only its kind, not this right, so the caller authorises.
                 StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
                 var receipt = await getIntake.ExecuteAsync(new GetIntakeQuery(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException($"Intake receipt '{id}' was not found.");
@@ -634,7 +634,7 @@ public sealed partial class DetailsModel(
                             origin.EvaluationRevisionId),
                         ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
                         acceptedMatch,
-                        actor.SubjectId,
+                        actor,
                         $"triage-from-staff:{operationKey}"),
                     cancellationToken);
                 await CloseUnidentifiedForTriageAsync(receipt, cancellationToken);

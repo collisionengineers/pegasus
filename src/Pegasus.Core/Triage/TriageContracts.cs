@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
@@ -25,6 +27,61 @@ public enum AssessmentFinding
     TotalLoss
 }
 
+/// <summary>
+/// The permanent Triage reference: `T-` followed by the global allocation
+/// sequence zero-padded to five digits, expanding past `T-99999` without
+/// reuse. The sequence is global — not per principal, per vehicle or per year
+/// — so a reference identifies exactly one Triage for the life of the system.
+/// It is allocated once at creation, is never reset and is never reused, so a
+/// number consumed by a failed creation simply leaves a gap.
+/// </summary>
+public static class TriageReferenceFormat
+{
+    public const string Prefix = "T-";
+
+    private static readonly Regex Canonical = new(
+        "^T-[0-9]{5,}$",
+        RegexOptions.CultureInvariant);
+
+    public static string Format(long sequence)
+    {
+        if (sequence <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence),
+                "A Triage reference sequence starts at 1.");
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Prefix}{sequence:00000}");
+    }
+
+    public static bool TryParse(string? value, out long sequence)
+    {
+        sequence = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var candidate = value.Trim();
+        if (!Canonical.IsMatch(candidate)
+            || !long.TryParse(
+                candidate.AsSpan(Prefix.Length),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out sequence)
+            || sequence <= 0)
+        {
+            sequence = 0;
+            return false;
+        }
+
+        return true;
+    }
+}
+
 public sealed record TriageOrigin(
     Guid ReceiptId,
     IntakeSourceIdentity SourceIdentity,
@@ -38,7 +95,9 @@ public sealed record TriageRecord(
     TriageState State,
     Guid? AssigneeId,
     Guid? LinkedCaseId,
-    long Version);
+    long Version,
+    string? Reference = null,
+    Guid? PrincipalId = null);
 
 
 public sealed class TriageVersionConflictException(
@@ -80,13 +139,13 @@ public sealed record CreateTriageFromIntakeRequest(
     TriageOrigin Origin,
     string NormalizedVehicleRegistration,
     IntakeEvidence AcceptedMatchEvidence,
-    string Actor,
+    ActionActor Actor,
     string OperationKey);
 
 public sealed record TriageMutationRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -94,14 +153,14 @@ public sealed record AssignTriageRequest(
     Guid TriageId,
     long ExpectedVersion,
     Guid AssigneeId,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
 public sealed record RecordTriageFindingRequest(
     Guid TriageId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason,
     RoadworthinessFinding? Roadworthiness,
@@ -123,7 +182,7 @@ public sealed record TriageResponseEvidenceLinkRequest(
     Guid PollOutcomeId,
     Guid SentEvidenceId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -131,7 +190,7 @@ public sealed record TriageResponseEvidenceUnlinkRequest(
     Guid TriageId,
     Guid SentEvidenceId,
     long ExpectedVersion,
-    string Actor,
+    ActionActor Actor,
     string OperationKey,
     string Reason);
 
@@ -250,6 +309,7 @@ public sealed record TriageHistoryEntry(
     Guid TriageId,
     string EventType,
     string Actor,
+    string ActorKind,
     string Reason,
     string OperationKey,
     DateTimeOffset OccurredAtUtc,

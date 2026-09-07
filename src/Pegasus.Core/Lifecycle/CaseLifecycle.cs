@@ -136,11 +136,9 @@ public sealed class SetCaseSignOffEngineer(
 
         if (!isReplay)
         {
-            var profiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
-            if (profiles.All(profile => profile.StaffId != request.SignOffEngineerId))
-            {
-                throw new InvalidOperationException("The selected Sign-off Engineer is not eligible.");
-            }
+            CaseSignOffEngineerResolver.RequireEligible(
+                await _staffAccounts.ListSignOffEngineersAsync(cancellationToken),
+                request.SignOffEngineerId);
         }
 
         return await _store.SetSignOffEngineerAsync(request, cancellationToken);
@@ -158,6 +156,28 @@ public static class CaseSignOffEngineerResolver
         return Find(persistedSignOffEngineerId, eligibleProfiles)
             ?? Find(assignedEngineerId, eligibleProfiles)
             ?? eligibleProfiles.SingleOrDefault(profile => profile.IsDefault);
+    }
+
+    /// <summary>
+    /// The one eligibility rule for a chosen Sign-off Engineer, shared by the
+    /// named selection command and the Case save that carries the same choice.
+    /// </summary>
+    public static void RequireEligible(
+        IReadOnlyList<SignOffEngineerProfile> eligibleProfiles,
+        Guid signOffEngineerId)
+    {
+        ArgumentNullException.ThrowIfNull(eligibleProfiles);
+        if (signOffEngineerId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A Sign-off Engineer identifier is required.",
+                nameof(signOffEngineerId));
+        }
+
+        if (Find(signOffEngineerId, eligibleProfiles) is null)
+        {
+            throw new InvalidOperationException("The selected Sign-off Engineer is not eligible.");
+        }
     }
 
     private static SignOffEngineerProfile? Find(
@@ -506,11 +526,14 @@ public static class CaseLifecycleRules
     }
 
 
-    public static void ValidateReturnToReview(ReturnCaseToReviewRequest request)
-    {
+    /// <summary>
+    /// CASE-046: entry to Review is gated on the persisted completeness facts,
+    /// re-read by the transition store inside its own transaction. Nothing a
+    /// client posts is evidence of readiness, so there is nothing to validate
+    /// here beyond the ordinary mutation envelope.
+    /// </summary>
+    public static void ValidateReturnToReview(ReturnCaseToReviewRequest request) =>
         ValidateMutation(request);
-        ValidateReviewReadiness(request.Readiness);
-    }
 
     public static void ValidateAssignment(
         AssignCaseEngineerRequest request,
@@ -522,7 +545,7 @@ public static class CaseLifecycleRules
             throw new ArgumentException("An Engineer identifier is required.", nameof(request));
         }
 
-        ValidateReadiness(request.Readiness, configuration);
+        ValidateWorkflowConfiguration(configuration);
     }
 
     public static void ValidateReportApproval(RecordCaseReportApprovalRequest request)
@@ -593,19 +616,6 @@ public static class CaseLifecycleRules
             throw new ArgumentOutOfRangeException(nameof(request), "The reopen destination is invalid.");
         }
 
-        if (request.Destination == CaseReopenDestination.Review)
-        {
-            if (request.Readiness is null)
-            {
-                throw new ArgumentException("The selected reopen destination requires readiness evidence.", nameof(request));
-            }
-
-            ValidateReviewReadiness(request.Readiness);
-        }
-        else if (request.Readiness is not null)
-        {
-            throw new ArgumentException("Readiness evidence is accepted only for a Review reopen destination.", nameof(request));
-        }
     }
 
     public static void RequireReopenDestinationIsAllowed(
@@ -628,28 +638,30 @@ public static class CaseLifecycleRules
         }
     }
 
-    private static void ValidateReviewReadiness(CaseReadinessEvidence evidence)
+    private static void ValidateWorkflowConfiguration(CaseWorkflowConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(evidence);
-        RequireText(evidence.EvidenceReference, "Readiness evidence is required.", 200, nameof(evidence));
-        if (!evidence.InstructionsComplete || !evidence.ImagesComplete)
-        {
-            throw new InvalidOperationException(
-                "Review requires complete instructions and images.");
-        }
-    }
-
-    private static void ValidateReadiness(CaseReadinessEvidence evidence, CaseWorkflowConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(configuration);
         RequireText(configuration.PolicyKey, "A workflow policy key is required.", 100, nameof(configuration));
         if (configuration.PolicyVersion < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(configuration), "The workflow policy version must be positive.");
         }
+    }
 
-        ValidateReviewReadiness(evidence);
+    /// <summary>
+    /// CASE-046: the one Review readiness rule, applied to the persisted
+    /// completeness facts a transition store reads inside its own transaction.
+    /// A caller cannot reach it with a claim of its own.
+    /// </summary>
+    public static void RequireReviewReadiness(
+        Guid caseId,
+        bool instructionComplete,
+        bool imagesComplete)
+    {
+        if (!instructionComplete || !imagesComplete)
+        {
+            throw new CaseReviewReadinessException(caseId);
+        }
     }
 
     private static void ValidateCaseAndVersion(Guid caseId, long expectedVersion)

@@ -205,3 +205,19 @@ public interface IInspectionAddressChoicesQueries
 
 public sealed class InspectionAddressResolutionConcurrencyException()
     : InvalidOperationException("The intake evidence changed before the inspection address could be resolved.");
+
+public sealed record InspectionLocationChoice(
+    Guid Id, string Label, InspectionAddressEvidenceKind Kind, string? Address,
+    string? Postcode, string Role, InspectionLocationSourceKind SourceKind,
+    Guid SourceRecordId, long SourceVersion);
+public enum InspectionLocationSourceKind
+{
+    Claimant, Repairer, Storage, PriorPrincipalLocation, Directory, PrincipalDefault
+}
+public sealed record InspectionLocationChoicesQuery(
+    ActionActor Actor, Guid CaseId, string Prefix);
+public interface IInspectionLocationChoices
+{
+    Task<IReadOnlyList<InspectionLocationChoice>> SearchAsync(
+        InspectionLocationChoicesQuery query, CancellationToken cancellationToken);
+}

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
@@ -101,7 +102,8 @@ public sealed record CaseEditLeaseSnapshot(
     string Holder,
     ActorKind? HolderKind,
     DateTimeOffset ExpiresAtUtc,
-    string OperationKey);
+    string OperationKey,
+    long Generation = 0);
 
 public sealed record CaseRequestUploadSummary(
     Guid Id,
@@ -111,7 +113,9 @@ public sealed record CaseRequestUploadSummary(
     DateTimeOffset? RevokedAtUtc,
     int AcceptedFileCount,
     long AcceptedByteCount,
-    long Version);
+    long Version,
+    string? Recipient = null,
+    string? Reason = null);
 
 public sealed record CaseHistoryEntry(
     string EventType,
@@ -129,6 +133,15 @@ public sealed record CaseHistoryEntry(
     /// that forgets to populate it never renders the raw subject id.
     /// </summary>
     public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+
+    /// <summary>
+    /// The persisted event's own stable identifier (CASE-047), appended so
+    /// existing positional construction keeps compiling. Populated by the
+    /// store from the row it read the entry from; a history entry built any
+    /// other way (e.g. in a test fake) never had one and stays
+    /// <see cref="Guid.Empty"/>.
+    /// </summary>
+    public Guid EntryId { get; init; }
 }
 
 public sealed record CaseQueryEmail(
@@ -167,6 +180,22 @@ public sealed record CaseDetails(
 
 public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
 
+/// <summary>
+/// A bounded read of a case (CASE-047, Stream A review): everything
+/// <see cref="GetCaseQuery"/> reads except the document, history and task
+/// lists, which collapse to their counts so a host that only needs to know
+/// how much a case carries never pays to read it all.
+/// </summary>
+public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
+
+public sealed record CaseHeader(
+    CaseSearchItem Summary,
+    CaseWorkflowRecord Workflow,
+    CaseEditLeaseSnapshot? ActiveEditLease,
+    int DocumentCount,
+    int HistoryCount,
+    int OpenTaskCount);
+
 public interface ICaseQueryStore
 {
     Task<SearchCasesResult> SearchAsync(
@@ -175,6 +204,61 @@ public interface ICaseQueryStore
 
     Task<CaseDetails?> GetAsync(
         GetCaseQuery query,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The bounded sibling of <see cref="GetAsync"/> (CASE-047, Stream A
+    /// review): the same summary/workflow/edit-lease facts, with the case's
+    /// document, history and open-task lists reduced to their counts instead
+    /// of materializing every row.
+    /// </summary>
+    Task<CaseHeader?> GetHeaderAsync(
+        GetCaseHeaderQuery query,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The keyset-paged sibling of <see cref="SearchAsync"/> (CASE-047). The
+    /// after-values are the decoded cursor's sort position: <paramref
+    /// name="afterReceivedAtUtc"/> for the two received-date orders,
+    /// <paramref name="afterSortText"/> for every text-column order; both
+    /// null on the first page. <paramref name="fetchCount"/> is the caller's
+    /// limit plus one, so it can tell whether another page follows.
+    /// </summary>
+    Task<IReadOnlyList<CaseSearchItem>> SearchByCursorAsync(
+        CaseSearchFilters filters,
+        CaseSearchOrder order,
+        DateTimeOffset? afterReceivedAtUtc,
+        string? afterSortText,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A case's document occurrences, newest recorded first then occurrence
+    /// id (CASE-047, Stream A MCP review). The row unit is the occurrence —
+    /// not the document — so a document carrying more occurrences than the
+    /// caller's limit still enumerates every one of them across consecutive
+    /// pages; a document-unit page cannot split one document's occurrences.
+    /// <paramref name="afterRecordedAtUtc"/>/<paramref name="afterId"/> are
+    /// the decoded cursor's sort position, both null on the first page.
+    /// </summary>
+    Task<IReadOnlyList<CaseDocumentPageItem>> ListDocumentsByCursorAsync(
+        Guid caseId,
+        DateTimeOffset? afterRecordedAtUtc,
+        Guid? afterId,
+        int fetchCount,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A case's history, newest event first then entry id (CASE-047).
+    /// <paramref name="afterOccurredAtUtc"/>/<paramref name="afterId"/> are
+    /// the decoded cursor's sort position, both null on the first page.
+    /// </summary>
+    Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(
+        Guid caseId,
+        DateTimeOffset? afterOccurredAtUtc,
+        Guid? afterId,
+        int fetchCount,
         CancellationToken cancellationToken);
 }
 
@@ -192,6 +276,36 @@ public interface IGetCase
         CancellationToken cancellationToken);
 }
 
+public interface IGetCaseHeader
+{
+    Task<CaseHeader?> ExecuteAsync(
+        GetCaseHeaderQuery query,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The bounded sibling of <see cref="GetCase"/> (CASE-047, Stream A review):
+/// the same actor boundary and case-identifier validation, delegated
+/// straight to the store's counted read.
+/// </summary>
+public sealed class GetCaseHeader(ICaseQueryStore store) : IGetCaseHeader
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<CaseHeader?> ExecuteAsync(
+        GetCaseHeaderQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        return _store.GetHeaderAsync(query, cancellationToken);
+    }
+}
+
 public static class CaseRegistration
 {
     public static string? Normalize(string? value)
@@ -206,59 +320,45 @@ public static class CaseRegistration
     }
 }
 
-public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
+/// <summary>
+/// The filter/order validation and normalization <see cref="SearchCases"/>
+/// and <see cref="SearchCasesByCursor"/> (CASE-047) share, so the two search
+/// entry points can never drift into two rules for what a valid filter is.
+/// </summary>
+internal static class CaseSearchQueryValidation
 {
-    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<SearchCasesResult> ExecuteAsync(
-        SearchCasesQuery query,
-        CancellationToken cancellationToken)
+    public static CaseSearchFilters ValidateAndNormalize(CaseSearchFilters filters, CaseSearchOrder order)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        ArgumentNullException.ThrowIfNull(query.Filters);
-        if (query.Page is < 1 or > 10_000)
+        ArgumentNullException.ThrowIfNull(filters);
+        if (filters.EngineerId == Guid.Empty)
         {
-            throw new ArgumentOutOfRangeException(nameof(query), "The requested page is outside the supported range.");
+            throw new ArgumentException("The Engineer filter is invalid.", nameof(filters));
         }
-        if (query.PageSize is < 1 or > 100)
+        if (filters.State is { } state && !Enum.IsDefined(state))
         {
-            throw new ArgumentOutOfRangeException(nameof(query), "The requested page size is outside the supported range.");
+            throw new ArgumentException("The lifecycle-state filter is invalid.", nameof(filters));
         }
-        if (query.Filters.EngineerId == Guid.Empty)
+        if (!Enum.IsDefined(order))
         {
-            throw new ArgumentException("The Engineer filter is invalid.", nameof(query));
+            throw new ArgumentException("The sort order is invalid.", nameof(order));
         }
-        if (query.Filters.State is { } state && !Enum.IsDefined(state))
-        {
-            throw new ArgumentException("The lifecycle-state filter is invalid.", nameof(query));
-        }
-        if (!Enum.IsDefined(query.Order))
-        {
-            throw new ArgumentException("The sort order is invalid.", nameof(query));
-        }
-        if (query.Filters.FromDate is { } fromDate
-            && query.Filters.ToDate is { } toDate
+        if (filters.FromDate is { } fromDate
+            && filters.ToDate is { } toDate
             && fromDate > toDate)
         {
-            throw new ArgumentException("The start date cannot be after the end date.", nameof(query));
+            throw new ArgumentException("The start date cannot be after the end date.", nameof(filters));
         }
 
-        var normalized = query with
+        return filters with
         {
-            Filters = query.Filters with
-            {
-                CaseReference = Normalize(query.Filters.CaseReference, 100, nameof(query.Filters.CaseReference)),
-                Registration = NormalizeRegistration(query.Filters.Registration),
-                Claimant = Normalize(query.Filters.Claimant, 300, nameof(query.Filters.Claimant)),
-                ClaimNumber = Normalize(query.Filters.ClaimNumber, 100, nameof(query.Filters.ClaimNumber)),
-                Principal = Normalize(query.Filters.Principal, 20, nameof(query.Filters.Principal))?.ToUpperInvariant(),
-                Origin = Normalize(query.Filters.Origin, 100, nameof(query.Filters.Origin)),
-                Query = Normalize(query.Filters.Query, 300, nameof(query.Filters.Query))
-            }
+            CaseReference = Normalize(filters.CaseReference, 100, nameof(CaseSearchFilters.CaseReference)),
+            Registration = NormalizeRegistration(filters.Registration),
+            Claimant = Normalize(filters.Claimant, 300, nameof(CaseSearchFilters.Claimant)),
+            ClaimNumber = Normalize(filters.ClaimNumber, 100, nameof(CaseSearchFilters.ClaimNumber)),
+            Principal = Normalize(filters.Principal, 20, nameof(CaseSearchFilters.Principal))?.ToUpperInvariant(),
+            Origin = Normalize(filters.Origin, 100, nameof(CaseSearchFilters.Origin)),
+            Query = Normalize(filters.Query, 300, nameof(CaseSearchFilters.Query))
         };
-
-        return _store.SearchAsync(normalized, cancellationToken);
     }
 
     private static string? Normalize(string? value, int maximumLength, string parameterName)
@@ -292,6 +392,34 @@ public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
         }
 
         return compact;
+    }
+}
+
+public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<SearchCasesResult> ExecuteAsync(
+        SearchCasesQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.Page is < 1 or > 10_000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(query), "The requested page is outside the supported range.");
+        }
+        if (query.PageSize is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(query), "The requested page size is outside the supported range.");
+        }
+
+        var normalized = query with
+        {
+            Filters = CaseSearchQueryValidation.ValidateAndNormalize(query.Filters, query.Order)
+        };
+
+        return _store.SearchAsync(normalized, cancellationToken);
     }
 }
 
@@ -382,4 +510,284 @@ public sealed class GetCase(
                 : ActorDisplayNames.Resolve(approvedBy.Kind, approvedBy.SubjectId, staffNames)
         };
     }
+}
+
+// --- CASE-047: stable cursor continuations ------------------------------
+
+// Cursor page, limit and rejection primitives are the shared Pegasus.Core
+// CursorPage<T>, CursorPaging and CursorRejectedException (G9); this file adds the Case queries.
+
+
+/// <summary>
+/// The one page-assembly rule every CASE-047 cursor query shares: a store is
+/// asked for one row more than the limit, and that extra row is what says
+/// another page follows. It is dropped from the returned items, and the last
+/// kept row mints the next cursor through the shared <see
+/// cref="ICursorProtector"/> (G9); when it is absent the page is the last one
+/// and carries no cursor.
+/// </summary>
+internal static class CursorPageBuilder
+{
+    public static CursorPage<T> Build<T>(
+        IReadOnlyList<T> rows,
+        int limit,
+        ICursorProtector protector,
+        string scope,
+        Func<T, string> sortKeyOf,
+        Func<T, Guid> idOf)
+    {
+        if (rows.Count <= limit)
+        {
+            return new(rows, null);
+        }
+
+        var items = rows.Take(limit).ToArray();
+        var last = items[^1];
+        return new(items, protector.Protect(scope, sortKeyOf(last), idOf(last)));
+    }
+}
+
+/// <summary>
+/// A stable-cursor sibling of <see cref="SearchCasesQuery"/> (CASE-047,
+/// requested by Stream A's MCP adapters). <see cref="Cursor"/> null starts
+/// from the first page; <see cref="Limit"/> null takes
+/// <see cref="CursorPaging.DefaultLimit"/>.
+/// </summary>
+public sealed record SearchCasesCursorQuery(
+    ActionActor Actor,
+    CaseSearchFilters Filters,
+    CaseSearchOrder Order = CaseSearchOrder.ReceivedDesc,
+    string? Cursor = null,
+    int? Limit = null);
+
+public interface ISearchCasesByCursor
+{
+    Task<CursorPage<CaseSearchItem>> ExecuteAsync(
+        SearchCasesCursorQuery query,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The keyset-paged sibling of <see cref="SearchCases"/>. Shares the same
+/// authorization and filter/order validation
+/// (<see cref="CaseSearchQueryValidation"/>) so the two search entry points
+/// can never disagree about what a valid query is.
+/// </summary>
+public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector protector) : ISearchCasesByCursor
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
+
+    public async Task<CursorPage<CaseSearchItem>> ExecuteAsync(
+        SearchCasesCursorQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var filters = CaseSearchQueryValidation.ValidateAndNormalize(query.Filters, query.Order);
+
+        var scope = CursorPaging.CreateScope(
+            "SearchCases",
+            query.Actor,
+            filters.CaseReference,
+            filters.Registration,
+            filters.Claimant,
+            filters.ClaimNumber,
+            filters.Principal,
+            filters.State?.ToString(),
+            filters.EngineerId?.ToString(),
+            InvariantDate(filters.ReceivedDate),
+            InvariantDate(filters.InstructionDate),
+            InvariantDate(filters.FromDate),
+            InvariantDate(filters.ToDate),
+            filters.Origin,
+            filters.Query,
+            query.Order.ToString());
+
+        DateTimeOffset? afterReceivedAtUtc = null;
+        string? afterSortText = null;
+        Guid? afterId = null;
+        if (query.Cursor is { Length: > 0 } cursor)
+        {
+            var position = _protector.Unprotect(cursor, scope);
+            if (IsReceivedDateOrder(query.Order))
+            {
+                afterReceivedAtUtc = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            }
+            else
+            {
+                afterSortText = position.SortKey;
+            }
+            afterId = position.Id;
+        }
+
+        var rows = await _store.SearchByCursorAsync(
+            filters, query.Order, afterReceivedAtUtc, afterSortText, afterId, limit + 1, cancellationToken);
+
+        return CursorPageBuilder.Build(
+            rows,
+            limit,
+            _protector,
+            scope,
+            item => IsReceivedDateOrder(query.Order)
+                ? CursorPaging.EncodeUtcTimestamp(item.ReceivedAtUtc)
+                : SortTextOf(item, query.Order),
+            item => item.CaseId);
+    }
+
+    private static bool IsReceivedDateOrder(CaseSearchOrder order) =>
+        order is CaseSearchOrder.ReceivedAsc or CaseSearchOrder.ReceivedDesc;
+
+    private static string SortTextOf(CaseSearchItem item, CaseSearchOrder order) => order switch
+    {
+        CaseSearchOrder.ReferenceAsc or CaseSearchOrder.ReferenceDesc => item.Reference,
+        CaseSearchOrder.RegistrationAsc or CaseSearchOrder.RegistrationDesc => item.Registration ?? string.Empty,
+        CaseSearchOrder.ClaimantAsc or CaseSearchOrder.ClaimantDesc => item.Claimant ?? string.Empty,
+        CaseSearchOrder.PrincipalAsc or CaseSearchOrder.PrincipalDesc => item.Principal,
+        _ => throw new ArgumentOutOfRangeException(nameof(order), order, "Unsupported cursor sort order.")
+    };
+
+    private static string? InvariantDate(DateOnly? value) =>
+        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
+/// <summary>
+/// One case's cursor-paged sub-list request (CASE-047): documents, history,
+/// and (Estimates.cs) estimates all share this shape, so a caller only
+/// learns one query record for every per-case list.
+/// </summary>
+public sealed record CaseListCursorQuery(ActionActor Actor, Guid CaseId, string? Cursor = null, int? Limit = null);
+
+/// <summary>
+/// One row of the cursor-paged case document list (CASE-047, Stream A MCP
+/// review): a single occurrence paired with exactly the version it names.
+/// A host that flattens a page item-for-item can never lose occurrences the
+/// way a document-unit page does when one document carries more occurrences
+/// than the limit — the occurrence is the page unit, so the version a host
+/// shows beside it is the one that occurrence itself names, never "the
+/// current one of the document".
+/// </summary>
+public sealed record CaseDocumentPageItem(
+    DocumentOccurrence Occurrence,
+    DocumentVersion Version);
+
+public interface IListCaseDocumentsByCursor
+{
+    Task<CursorPage<CaseDocumentPageItem>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken);
+}
+
+public interface IListCaseHistoryByCursor
+{
+    Task<CursorPage<CaseHistoryEntry>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Applies the same actor boundary <see cref="GetCase"/> applies
+/// (<see cref="StaffAccessRight.PerformCasework"/>) before reading a case's
+/// documents, newest occurrence first then occurrence id.
+/// </summary>
+public sealed class ListCaseDocumentsByCursor(ICaseQueryStore store, ICursorProtector protector)
+    : IListCaseDocumentsByCursor
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
+
+    public async Task<CursorPage<CaseDocumentPageItem>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var scope = CaseListCursorScope.For("ListCaseDocuments", query.Actor, query.CaseId);
+
+        DateTimeOffset? afterRecordedAtUtc = null;
+        Guid? afterId = null;
+        if (query.Cursor is { Length: > 0 } cursor)
+        {
+            var position = _protector.Unprotect(cursor, scope);
+            afterRecordedAtUtc = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            afterId = position.Id;
+        }
+
+        var rows = await _store.ListDocumentsByCursorAsync(
+            query.CaseId, afterRecordedAtUtc, afterId, limit + 1, cancellationToken);
+
+        return CursorPageBuilder.Build(
+            rows,
+            limit,
+            _protector,
+            scope,
+            item => CursorPaging.EncodeUtcTimestamp(item.Occurrence.RecordedAtUtc),
+            item => item.Occurrence.Id);
+    }
+}
+
+/// <summary>
+/// Applies the same actor boundary <see cref="GetCase"/> applies before
+/// reading a case's history, newest event first then entry id.
+/// </summary>
+public sealed class ListCaseHistoryByCursor(ICaseQueryStore store, ICursorProtector protector)
+    : IListCaseHistoryByCursor
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));
+
+    public async Task<CursorPage<CaseHistoryEntry>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var scope = CaseListCursorScope.For("ListCaseHistory", query.Actor, query.CaseId);
+
+        DateTimeOffset? afterOccurredAtUtc = null;
+        Guid? afterId = null;
+        if (query.Cursor is { Length: > 0 } cursor)
+        {
+            var position = _protector.Unprotect(cursor, scope);
+            afterOccurredAtUtc = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            afterId = position.Id;
+        }
+
+        var rows = await _store.ListHistoryByCursorAsync(
+            query.CaseId, afterOccurredAtUtc, afterId, limit + 1, cancellationToken);
+
+        return CursorPageBuilder.Build(
+            rows,
+            limit,
+            _protector,
+            scope,
+            entry => CursorPaging.EncodeUtcTimestamp(entry.OccurredAtUtc),
+            entry => entry.EntryId);
+    }
+}
+
+/// <summary>
+/// The one scope rule every <see cref="CaseListCursorQuery"/>-shaped cursor
+/// (documents, history, and Estimates.cs' estimates) shares: the query name
+/// plus an actor and the case identifier, since these lists carry no
+/// separate filter or order for a cursor to be minted against. Binding the
+/// query name into the scope (<see cref="CursorPaging.CreateScope"/>) also
+/// keeps a documents cursor from being replayed against the history or
+/// estimates list for the same case.
+/// </summary>
+internal static class CaseListCursorScope
+{
+    public static string For(string query, ActionActor actor, Guid caseId) =>
+        CursorPaging.CreateScope(query, actor, caseId.ToString());
 }

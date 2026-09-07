@@ -18,7 +18,14 @@ public sealed class SentEvidencePollPersistenceTests
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await database.ExecuteAsync(
-            "UPDATE ApprovedMailboxes SET AllowSentEvidence = 1 WHERE Address = 'instructions@collisionengineers.co.uk'");
+            """
+            UPDATE ApprovedMailboxes
+            SET AllowSentEvidence = 1,
+                MailboxIdentity = 'instructions',
+                SentFolderIdentity = 'sent-items',
+                ActivatedAtUtc = '2031-05-06T09:00:00Z'
+            WHERE Address = 'instructions@collisionengineers.co.uk'
+            """);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddPegasusInfrastructure(
@@ -127,8 +134,11 @@ public sealed class SentEvidencePollPersistenceTests
             ["<different-request@example.test>"],
             20,
             default));
+        // The resumed claim is a real due claim: the completing store
+        // schedules the next run a minute out, so the fixture asks past that
+        // delay instead of inside it.
         var resumed = Assert.IsType<ApprovedSentPollLease>(
-            await store.ClaimAsync(nowUtc.AddSeconds(1), TimeSpan.FromMinutes(1), default));
+            await store.ClaimAsync(nowUtc.AddMinutes(2), TimeSpan.FromMinutes(1), default));
         Assert.Equal(terminalItem.NextCursor, resumed.Cursor);
     }
     [Fact]
@@ -147,7 +157,14 @@ public sealed class SentEvidencePollPersistenceTests
         email.Content);
         var receiptId = IntakeWebDriver.ReceiptId(upload);
         await factory.Database.ExecuteAsync(
-            "UPDATE ApprovedMailboxes SET AllowSentEvidence = 1 WHERE Address = 'instructions@collisionengineers.co.uk'");
+            """
+            UPDATE ApprovedMailboxes
+            SET AllowSentEvidence = 1,
+                MailboxIdentity = 'instructions',
+                SentFolderIdentity = 'sent-items',
+                ActivatedAtUtc = '2031-05-06T09:00:00Z'
+            WHERE Address = 'instructions@collisionengineers.co.uk'
+            """);
 
         var staffActor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
@@ -182,7 +199,7 @@ public sealed class SentEvidencePollPersistenceTests
             new(
                 triageId,
                 0,
-                actorCode,
+                staffActor,
                 "sent-poll-auto-link-finding",
                 "Retained assessment before exact response",
                 RoadworthinessFinding.Roadworthy,
@@ -239,12 +256,16 @@ public sealed class SentEvidencePollPersistenceTests
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
+        // The completing poll schedules the next claim a minute out and the
+        // fixture clock is fixed, so make this mailbox due again for the
+        // replay: a real due claim, never a weakened idempotency assertion.
+        await factory.Database.ExecuteAsync(
+            "UPDATE ApprovedSentPollStates SET DueAtUtc = DATEADD(minute, -1, DueAtUtc) WHERE MailboxId = 'instructions'");
         var replay = await poll.ExecuteAsync(
             1,
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
-
         Assert.Equal(1, first.TriageResponsesRecorded);
         Assert.Equal(1, replay.TriageResponsesRecorded);
         Assert.Equal(
@@ -286,7 +307,8 @@ public sealed class SentEvidencePollPersistenceTests
         var linkedHistory = Assert.Single(
             detail.History,
             item => item.EventType == "triage_response_linked");
-        Assert.Equal("system-worker:sent-evidence-poll", linkedHistory.Actor);
+        Assert.Equal("sent-evidence-poll", linkedHistory.Actor);
+        Assert.Equal(nameof(ActorKind.SystemWorker), linkedHistory.ActorKind);
         Assert.Equal(1, linkedHistory.BeforeVersion);
         Assert.Equal(2, linkedHistory.AfterVersion);
 
@@ -296,7 +318,7 @@ public sealed class SentEvidencePollPersistenceTests
             triageId,
             sentEvidence.Id,
             2,
-            actorCode,
+            staffActor,
             "sent-poll-response-unlink",
             "Temporarily remove the current response association");
         var unlinkResponse = scopedServices.GetRequiredService<IUnlinkTriageResponseEvidence>();
@@ -325,7 +347,7 @@ public sealed class SentEvidencePollPersistenceTests
             pollOutcomeId,
             sentEvidence.Id,
             3,
-            actorCode,
+            staffActor,
             "sent-poll-response-relink",
             "Restore the retained exact response association");
         var linkResponse = scopedServices.GetRequiredService<ILinkTriageResponseEvidence>();
@@ -363,7 +385,7 @@ public sealed class SentEvidencePollPersistenceTests
             new(
                 triageId,
                 4,
-                actorCode,
+                staffActor,
                 "sent-poll-auto-link-complete",
                 "Finding and exact response evidence confirmed"),
             default);

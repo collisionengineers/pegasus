@@ -33,12 +33,14 @@ namespace Pegasus.Core.Reports;
 /// <para>
 /// Repair costs come from the case's <see cref="CurrentEstimate"/> through
 /// <see cref="EstimateTotals"/> — the one owner of estimate money (EXT-09,
-/// FRD-11 § Estimate VAT on the rendered report). The production source
-/// supplies the Current estimate and never a hand-typed <see cref="Costs"/>;
-/// <see cref="Costs"/> remains for a caller that has figures without an
-/// estimate, where <see cref="ReportRepairCosts"/>'s built-in repairer-VAT
-/// rule then applies. With neither, the draft fails closed naming the
-/// missing Current estimate.
+/// FRD-11 § Estimate VAT on the rendered report). Nothing re-derives them,
+/// and there is no hand-typed cost path: without a Current estimate the
+/// draft fails closed naming it.
+/// </para>
+/// <para>
+/// <see cref="ReportDate"/> is null as loaded. A report date is set only when
+/// a generation freezes it, or when a preview is explicitly rendered at a
+/// stated date; a persisted override wins over both.
 /// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
@@ -47,12 +49,13 @@ public sealed record AssessmentReportProjectionInput(
     string OurReference,
     string? YourReference,
     IReadOnlyList<string> ReportFor,
-    DateOnly ReportDate,
+    DateOnly? ReportDate,
     IReadOnlyList<ReportImageEvidence> Photos,
     IReadOnlyList<AcceptedReportSource> Sources,
-    ReportRepairCosts? Costs,
     RepairSpecificationVersion? CurrentEstimate = null,
-    ReportSignatory? Signatory = null);
+    ReportSignatory? Signatory = null,
+    ReportGuideSources? Guides = null,
+    string? ValuationCommentary = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -76,31 +79,11 @@ public sealed record AssessmentReportProjectionResult(
 /// </summary>
 public static class AssessmentReportProjection
 {
-    public const string RepairCostRequirement = "Current estimate required";
-    public const string LabourRateRequirement = "Current estimate labour rate";
-
-    /// <summary>
-    /// The Current estimate's figures as the report's cost block. Labour and
-    /// paint hours are the estimate's own; the paint bucket carries paint
-    /// labour plus materials; VAT is the estimate's, so the built-in rule in
-    /// <see cref="ReportRepairCosts"/> never runs for an estimate.
-    /// </summary>
-    public static ReportRepairCosts CostsOf(RepairSpecificationVersion estimate)
-    {
-        var totals = EstimateTotals.Compute(estimate);
-        return new(
-            LabourHours: estimate.Lines.Sum(line => line.WorkUnits ?? 0m),
-            HourlyRate: estimate.Details.LabourRate ?? 0m,
-            Parts: totals.Parts,
-            PaintMaterials: totals.Paint,
-            SpecialistOther: totals.Other,
-            RepairerVatRegistered: totals.VatPercent > 0,
-            VatOverride: totals.Vat);
-    }
+    public const string RepairCostRequirement = CaseReportReadiness.CurrentEstimateRequirement;
+    public const string LabourRateRequirement = CaseReportReadiness.LabourRateRequirement;
 
     public static AssessmentReportDraftPreparation Prepare(
         CaseAssessmentProjection assessment,
-        ReportRepairCosts? costs,
         RepairSpecificationVersion? currentEstimate = null,
         ReportSignatory? signatory = null)
     {
@@ -118,20 +101,20 @@ public static class AssessmentReportProjection
 
         Require(
             signatory?.IsComplete == true,
-            "Sign-off Engineer", "Case sign-off account",
+            CaseReportReadiness.SignatoryRequirement, "Case sign-off account",
             "The Case has no complete sign-off Engineer tuple.",
             "Select an eligible sign-off Engineer with a signature on file.");
 
-        // The report's repair cost is the Current estimate's total (EXT-09,
-        // FRD-11 § Estimate VAT on the rendered report). Costs handed in
-        // without an estimate are accepted for callers that have them.
+        // The report's repair cost is the Current estimate's canonical total
+        // (EXT-09, FRD-11 § Estimate VAT on the rendered report). There is no
+        // hand-typed cost path.
         Require(
-            currentEstimate is not null || costs is not null,
+            currentEstimate is not null,
             RepairCostRequirement, "Estimates",
             "No estimate is marked Current on the case (EXT-09).",
             "Use an estimate on the Assessment page.");
         Require(
-            currentEstimate is null || currentEstimate.Details.LabourRate is > 0,
+            currentEstimate is null || currentEstimate.Details.HourlyRate > 0m,
             LabourRateRequirement, "Estimates",
             "The Current estimate has no labour rate, and the report prints the hourly rate.",
             "Record the labour rate on the Current estimate.");
@@ -143,18 +126,25 @@ public static class AssessmentReportProjection
     {
         ArgumentNullException.ThrowIfNull(input);
         var assessment = input.Assessment;
-        var preparation = Prepare(assessment, input.Costs, input.CurrentEstimate, input.Signatory);
+        var preparation = Prepare(assessment, input.CurrentEstimate, input.Signatory);
         if (!preparation.CanGenerate)
         {
             return new(null, preparation.Reasons);
         }
-        var costs = input.CurrentEstimate is { } estimate ? CostsOf(estimate) : input.Costs!;
-        var lines = input.CurrentEstimate?.Lines ?? assessment.EstimateLines;
+        var costs = ReportRepairCosts.For(input.CurrentEstimate!);
+        var lines = input.CurrentEstimate!.Lines;
         var fields = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var field in assessment.Fields)
         {
             fields.TryAdd(field.Path, field.Value);
         }
+
+        var content = CaseReportReadiness.ContentOf(assessment);
+        var (reportDate, reportDateOverridden) = CaseReportReadiness.ResolveReportDate(
+            ParseDate(Field(fields, AssessmentVocabulary.ReportDate)),
+            ParseFlag(Field(fields, AssessmentVocabulary.ReportDateOverride)) == true,
+            input.ReportDate ?? throw new InvalidDataException(
+                "A report date is set only when a generation or a labelled preview is rendered."));
 
         var claimantName = RequiredReviewValue(input.ClaimantName, "claimant name");
         var yourReference = RequiredReviewValue(input.YourReference, "claim number");
@@ -170,7 +160,7 @@ public static class AssessmentReportProjection
         var snapshot = new AssessmentReportSnapshot(
             OurReference: input.OurReference,
             YourReference: yourReference,
-            ReportDate: input.ReportDate,
+            ReportDate: reportDate,
             ClaimantName: claimantName,
             IncidentDate: incidentDate,
             InstructionsReceived: instructionDate,
@@ -208,7 +198,11 @@ public static class AssessmentReportProjection
             AgreedFee: ParseMoney(Field(assessment, AssessmentVocabulary.AgreedFee)) ?? 0m,
             FeeDescriptionLines: SplitLines(Field(assessment, AssessmentVocabulary.FeeDescriptionLines)),
             Photos: input.Photos,
-            Sources: input.Sources);
+            Sources: input.Sources,
+            Content: content,
+            Guides: input.Guides ?? ReportGuideSources.None,
+            ValuationCommentary: input.ValuationCommentary,
+            ReportDateOverridden: reportDateOverridden);
 
         return new(snapshot, []);
     }
@@ -359,8 +353,14 @@ public static class AssessmentReportProjection
             ? parsed
             : null;
 
+    /// <summary>
+    /// ENG-037: persisted dates are invariant <c>yyyy-MM-dd</c>. Parsing them
+    /// under the ambient culture reads a Buddhist- or Hijri-calendar year on a
+    /// th-TH or ar-SA workstation, so the culture is always stated.
+    /// </summary>
     private static DateOnly? ParseDate(string? value) =>
-        value is not null && DateOnly.TryParseExact(value, "yyyy-MM-dd", out var parsed)
+        value is not null && DateOnly.TryParseExact(
+            value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
             ? parsed
             : null;
 
@@ -409,7 +409,7 @@ public enum GenerateCaseAssessmentReportDraftOutcome
 
 public sealed record GenerateCaseAssessmentReportDraftResult(
     GenerateCaseAssessmentReportDraftOutcome Outcome,
-    AssessmentReportDraft? Draft,
+    RenderedReportArtifact? Draft,
     IReadOnlyList<AssessmentReadinessItem> Reasons);
 
 /// <summary>
@@ -423,15 +423,28 @@ public sealed record GenerateCaseAssessmentReportDraftResult(
 public sealed class GenerateCaseAssessmentReportDraft(
     IGetAssessmentAccess getAssessmentAccess,
     IAssessmentReportProjectionSource source,
-    GenerateAssessmentReportDraft generate)
+    GenerateAssessmentReportDraft generate,
+    TimeProvider timeProvider)
 {
+    /// <summary>
+    /// Renders a labelled preview of the working snapshot for exactly the
+    /// requested kind. Nothing is persisted: no generation, no artifact, no
+    /// custody object and no Sent claim. The preview's report date is today's
+    /// unless the Case records an override — a generation is what freezes one.
+    /// </summary>
     public async Task<GenerateCaseAssessmentReportDraftResult> ExecuteAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
+        Guid caseId,
+        ActionActor actor,
+        CaseReportArtifactKind kind,
+        CancellationToken cancellationToken = default)
     {
         var access = await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
             cancellationToken);
-        if (access?.CanOpen != true)
+        // H3: the report journey (preview included) never depends on an EVA
+        // export cycle — the workspace opening rule's state set without its
+        // export clause.
+        if (access is null || !AssessmentAccessPolicy.CanOpenReports(access))
         {
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
         }
@@ -442,13 +455,16 @@ public sealed class GenerateCaseAssessmentReportDraft(
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
         }
 
-        var projected = AssessmentReportProjection.Project(input);
+        var projected = AssessmentReportProjection.Project(input with
+        {
+            ReportDate = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime),
+        });
         if (!projected.IsReady)
         {
             return new(GenerateCaseAssessmentReportDraftOutcome.NotReady, null, projected.Reasons);
         }
 
-        var draft = await generate.ExecuteAsync(projected.Snapshot!, cancellationToken);
+        var draft = await generate.ExecuteAsync(projected.Snapshot!, kind, cancellationToken);
         return new(GenerateCaseAssessmentReportDraftOutcome.Generated, draft, []);
     }
 }
