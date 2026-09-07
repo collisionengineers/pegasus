@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Remove the intake staff-confirmation checkboxes and the CaseCompleteness
   *ConfirmedByStaff properties (D44 residual)
-status: review
+status: verifying
 area: platform-operations
 assignee: principal_delivery_audit
 profile: fix
 stageEntered:
   preparing: '2026-09-07T22:02:01.834Z'
   review: '2026-09-07T23:54:46.238Z'
+  verifying: '2026-09-07T23:59:13.701Z'
 taken_at: '2026-09-07T23:30:33.773Z'
 branch: PLAT-072-remove-staff-confirmation
 worktree: .worktrees/plat-072
@@ -42,7 +43,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/688'
 archived: false
 created: '2026-09-03T16:29:07.376Z'
-updated: '2026-09-07T23:54:46.238Z'
+updated: '2026-09-07T23:59:13.701Z'
 ---
 
 ## What
