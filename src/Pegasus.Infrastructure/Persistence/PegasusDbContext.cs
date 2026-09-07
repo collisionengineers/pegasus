@@ -1162,8 +1162,6 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public DateOnly? AcceptedInspectionDeadline { get; set; }
     public bool InstructionComplete { get; set; }
     public bool ImagesComplete { get; set; }
-    public bool InstructionConfirmedByStaff { get; set; }
-    public bool ImagesConfirmedByStaff { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }

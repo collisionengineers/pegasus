@@ -762,7 +762,7 @@ public sealed class ProviderApiSubmissionTests
             var indexed = await context.Set<CaseMatchIndexEntity>().AsNoTracking().SingleAsync();
             var duplicateId = Guid.NewGuid();
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.InstructionConfirmedByStaff}, {template.ImagesConfirmedByStaff}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
 
             // CaseWorkflows.State is the CaseLifecycleState enum name; the
             // candidate query joins this row and parses it. It is deliberately

@@ -36,7 +36,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                 "Accepted provider API instruction",
                 CaseType.Inspection,
                 "QDOS",
-                new(true, true, false, false)),
+                new(true, true)),
             CancellationToken.None);
         var projection = await harness.DataStore.GetAsync(
             outcome.Identity.CaseId,
@@ -76,7 +76,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                 "Accepted provider API instruction",
                 CaseType.Inspection,
                 "QDOS",
-                new(true, true, false, false)),
+                new(true, true)),
             CancellationToken.None);
         var projection = await harness.DataStore.GetAsync(
             outcome.Identity.CaseId,

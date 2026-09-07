@@ -140,7 +140,7 @@ public sealed class AutomationDocumentIngressTests
         using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
         var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(
             mcpFactory,
-            new CaseCompleteness(false, false, false, false));
+            new CaseCompleteness(false, false));
         using var client = mcpFactory.CreateClient();
         var token = await AutomationMcpTestSupport.RequestTokenAsync(
             client,
