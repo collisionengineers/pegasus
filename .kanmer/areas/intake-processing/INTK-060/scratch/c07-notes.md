@@ -756,3 +756,32 @@ Full brief: scratchpad/takeover/c07-promotion-research.md
 5. Proposed: new C-owned `IAssociateOriginatingTriage` (Triage/AssociateOriginatingTriage.cs), wired as an optional advisory step in `AcceptIntake.ExecuteAsync` right after the existing Image-Intake pairing call — same try/catch-recoverable shape. Uses only existing interfaces (ITriageQueries, ILinkTriageCase, IAcquireCaseEditLease/IReleaseCaseEditLease, IGetCase), Automation actor (PerformCasework already grants Staff-or-Automation for both ValidateCaseLink and the lease seam — no new authz rule). Zero schema change, zero B file edit, zero new Web handler (every existing acceptance path gets it for free). Answers PR 672 comment 5563446827 directly.
 
 Full file/citation map, open questions (advisory-vs-surfaced failure signal; automation actor id) in the brief file above.
+
+## C07 review round 1 — 2026-09-07 (branch c07-retention-caller, HEAD 64cc0e90e)
+
+R-2..R-18 all fixed in two commits (324cf08f8 source, 64cc0e90e tests). One policy rule
+`RequestUploadPolicy.RefuseLink` now decides link validity for Authorize, the public view and
+FinalizeAsync, so an exhausted link serves and finishes (R-3/R-8); `LockLinkAsync` is first in
+both FinalizeAsync and AuthorizeAndRecordArrivalAsync (R-4); every occurrence is projected with
+its real custody state and Finish names what blocks it, while a terminal Failed no longer blocks
+(R-7); the limits-version refusal reaches the sender (R-10); the replacement transition is a
+conditional ExecuteUpdateAsync naming prior state and digest, and a replayed replacement
+reconciles instead of 404ing (R-2/R-6). Five new tests added, none weakened (R-11); the page's
+unnamed OnPostAsync is gone and the suite drives ?handler=Upload (R-9).
+
+BLOCKED on R-0/R-1. The baseline failure of PublicPageAddsReplacesFinalizesAndRefusesLaterBytes
+is R-1 itself: the replacement reuses the occurrence identity, custody then inserts a second
+CaseDocument with the same (CaseId, SourceOccurrenceIdentity), and CustodyModelConfiguration.cs:15
+makes that pair unique — DbUpdateException, page 200 instead of 302. In-place replacement is
+structurally impossible. Fixing it needs only half (a) of R-1 (new occurrence row, new identity,
+superseded row left as custody left it) which requires NO A schema column; the ReplacesOccurrenceId
+column is only half (b). Controller decision needed: authorise half (a) now, or accept that one
+failing test until round 2.
+
+Also stale: docs/design/test-ui/pages/upload-request--{default,validation}.html, since the page
+markup changed. Snapshot tooling not run (dispatch prohibits it).
+
+Gates: Web build exit 0, 0 warnings 0 errors. IntegrationTests build exit 1 with the single
+expected A-owned CS0246 EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs(462,35),
+0 warnings. Report:
+C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
