@@ -80,8 +80,15 @@ public sealed class EstimateTests
     public void DraftProjectionUsesTheCurrentCalculationInputs()
     {
         var draft = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
+        var expected = EstimateTotals.Compute(draft);
+        var projected = EstimateTotals.ForProjection(draft);
 
-        Assert.Equal(EstimateTotals.Compute(draft), EstimateTotals.ForProjection(draft));
+        Assert.Equal(expected.Raw, projected.Raw);
+        Assert.Equal(expected.Printed, projected.Printed);
+        Assert.Equal(expected.VatPolicy, projected.VatPolicy);
+        Assert.Equal(expected.VatPercent, projected.VatPercent);
+        Assert.Equal(expected.CalculationPolicyVersion, projected.CalculationPolicyVersion);
+        Assert.Equal(expected.OffPattern, projected.OffPattern);
     }
 
     [Theory]
