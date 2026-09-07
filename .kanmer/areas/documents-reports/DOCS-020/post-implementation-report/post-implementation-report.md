@@ -89,3 +89,17 @@ replaced the role assignment with parameterized ExecuteSqlInterpolatedAsync
 calling sys.sp_addrolemember; CREATE USER is literal SQL. Assertions unchanged.
 Author git diff --check exit0, line-ending warnings only. No author build/test.
 Candidate frozen again for root verification; this failure remains recorded.
+
+
+## Root focused run feedback — 2026-09-07
+
+Corrected Release build PASS exit0 (18.20s). Focused run17143 completed FAIL
+exit1: 143 passed, 5 failed, 0 skipped, total148 in7m51s. All five failed because
+the report test Harness omitted IDocumentContentStore composition. After root
+confirmed the run complete, the author added one owned per-harness temp root
+via existing localArtifactRootFactory; normal local document/custody/query
+registrations are reused, and the harness removes its owned temp directory.
+Assertions and production files unchanged. Author git diff --check exit0.
+Candidate frozen again; root reruns only the five failed cases after incremental
+build. CaseDetailsWebTests capture cohort already completed in this run; no
+repeat whole-class capture requested.
