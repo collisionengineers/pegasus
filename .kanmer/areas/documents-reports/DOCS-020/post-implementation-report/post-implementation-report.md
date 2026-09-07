@@ -103,3 +103,13 @@ Assertions and production files unchanged. Author git diff --check exit0.
 Candidate frozen again; root reruns only the five failed cases after incremental
 build. CaseDetailsWebTests capture cohort already completed in this run; no
 repeat whole-class capture requested.
+
+## Root UI capture feedback — 2026-09-07
+
+Update-TestUiSnapshots -SkipCapture -Scope case-details failed: 1 passed,
+1 failed, because the retained capture set lacked case-details--unavailable.
+This is a missing capture artifact, not a production failure. Root identified
+TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor as
+the owner and will run only that capture into the retained artifact folder,
+then refresh/verify snapshots, catalogue and grants. No author source changes.
+The earlier failure remains recorded; the rerun is pending.
