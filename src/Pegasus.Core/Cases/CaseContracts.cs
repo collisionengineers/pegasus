@@ -66,11 +66,9 @@ public static class QdosPrincipal
 /// rule sitting in front of the real one, and it made a correctly registered
 /// principal unusable.
 ///
-/// What remains is the shape a code must have to be looked up at all. Reading
-/// a non-QDOS principal *out of a document* is a separate matter and is still
-/// not implemented — the extraction policy recognises QDOS only, so another
-/// principal reaches allocation because a person keyed it, not because
-/// anything inferred it.
+/// What remains is the shape a code must have to be looked up at all.
+/// Document identification belongs to the registered principal policies;
+/// this code-shape check does not identify or activate a principal.
 /// </remarks>
 public static class CasePrincipalCode
 {
