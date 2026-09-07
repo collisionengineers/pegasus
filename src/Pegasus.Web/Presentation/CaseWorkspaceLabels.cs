@@ -293,7 +293,6 @@ public static class CaseWorkspaceLabels
         public const string Account = "Account";
         public const string Username = "Username";
         public const string Password = "Password";
-        public const string Reason = "Reason";
         public const string Generation = "Generation";
         public const string Version = "Version";
         public const string Updated = "Updated";
@@ -304,8 +303,6 @@ public static class CaseWorkspaceLabels
         public const string NotConfigured = "Not configured";
         public const string Saved = "The credential was saved.";
         public const string Cleared = "The credential was cleared.";
-        public const string Expired = "The form has expired. Retry the operation.";
-        public const string ReasonRequired = "Enter a reason.";
         public const string UsernameRequired = "Enter a username.";
         public const string PasswordRequired = "Enter a password.";
         public const string StaleVersion =

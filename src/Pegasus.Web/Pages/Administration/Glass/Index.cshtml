@@ -64,7 +64,6 @@
                     <h2 id="glass-credential-save-title">@CaseWorkspaceLabels.GlassCredential.Save</h2>
                 </div>
                 <form method="post" asp-page-handler="Save" class="field">
-                    <input asp-for="OperationKey" type="hidden" />
                     @* Plain, not asp-for: a redisplay must carry the version the
                        store holds now, never the stale one the refused post sent. *@
                     <input type="hidden" name="ExpectedVersion" value="@status.Version" />
@@ -76,9 +75,6 @@
                        is never written back into this field. *@
                     <input id="glass-password" name="password" type="password" required
                            maxlength="256" autocomplete="new-password" />
-                    <label class="req" for="glass-save-reason">@CaseWorkspaceLabels.GlassCredential.Reason</label>
-                    <input id="glass-save-reason" name="Reason" required maxlength="1000"
-                           value="@Model.SaveReason" />
                     <button type="submit" class="btn btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
                         <span>@CaseWorkspaceLabels.GlassCredential.Save</span>
@@ -93,11 +89,7 @@
                         <h2 id="glass-credential-clear-title">@CaseWorkspaceLabels.GlassCredential.Clear</h2>
                     </div>
                     <form method="post" asp-page-handler="Clear" class="field">
-                        <input type="hidden" name="OperationKey" value="@IndexModel.NewOperationKey()" />
                         <input type="hidden" name="ExpectedVersion" value="@status.Version" />
-                        <label class="req" for="glass-clear-reason">@CaseWorkspaceLabels.GlassCredential.Reason</label>
-                        <input id="glass-clear-reason" name="Reason" required maxlength="1000"
-                               value="@Model.ClearReason" />
                         <button type="submit" class="btn btn--danger">
                             <span>@CaseWorkspaceLabels.GlassCredential.Clear</span>
                         </button>

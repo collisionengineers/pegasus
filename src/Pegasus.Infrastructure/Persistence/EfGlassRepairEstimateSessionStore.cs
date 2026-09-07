@@ -1,6 +1,4 @@
 using System.Data;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
@@ -17,9 +15,11 @@ namespace Pegasus.Infrastructure.Persistence;
 /// one ERE calculation open at a time, so Pegasus holds one live session for
 /// it — across every Pegasus user and every credential generation, because the
 /// constraint belongs to the provider's account and not to who typed it in.
-/// The account is reduced to <see cref="NormalizeAccountKey"/>'s one-way key
-/// and written to <c>ActiveAccountKey</c> for exactly the states in
-/// <see cref="AccountOccupyingStates"/>, so the filtered unique index is the
+/// The account arrives already reduced to the one canonical account key —
+/// <see cref="Pegasus.Core.Identity.PerUserExternalCredentialReference.NormalizedExternalAccountKey"/>,
+/// minted by the credential store that owns that normalization — and this
+/// store writes it to <c>ActiveAccountKey</c> unchanged for exactly the states
+/// in <see cref="AccountOccupyingStates"/>, so the filtered unique index is the
 /// rule and this class is only its translator: the database refuses the second
 /// live session and that refusal surfaces as
 /// <see cref="GlassRepairEstimateSessionConflict.ActiveAccount"/> rather than
@@ -51,7 +51,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// never reads the key ahead of the insert that would take it. But the recorded
 /// session comes back only when the replay names the same launch: the
 /// same Case, the same Pegasus user, the same credential generation and the
-/// same normalized account. Anything else under that key is a collision and is
+/// same account key. Anything else under that key is a collision and is
 /// refused as <see cref="GlassRepairEstimateSessionConflict.OperationKey"/>,
 /// because handing the recorded session back would hand one launch's provider
 /// material to another. The protected provider state is never part of that
@@ -72,8 +72,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <b>The material is the row's whole mutable state.</b> <c>ProtectedSession</c>
 /// is stored exactly as the caller hands it over, and so is
 /// <c>ResultArtifactsJson</c>: both are opaque here — this store never sees,
-/// derives, parses or logs what is inside them, nor the account password, which
-/// contributes nothing to the account key. A save writes every mutable column
+/// derives, parses or logs what is inside them. The account key is opaque in
+/// the same way: it arrives canonical and is written and compared verbatim.
+/// A save writes every mutable column
 /// from the material it is handed, so a null result, failure code or provider
 /// id <i>writes</i> null; null never means "leave what is already there". That
 /// is the rule the row's other mutable columns already followed, and it is safe
@@ -90,13 +91,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : IGlassRepairEstimateSessionStore
 {
-    /// <summary>
-    /// Domain separation for the account key, not a secret: it keeps the
-    /// stored key meaningless outside this application without ever standing
-    /// in for one. Changing it re-keys every session, so it is versioned.
-    /// </summary>
-    private const string AccountKeyDomain = "pegasus.glass-repair-estimate.account-key.v1:";
-
     /// <summary>
     /// The states in which the session holds its account's one live slot,
     /// because the provider's side of it may still be open. Every other state
@@ -126,27 +120,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
         GlassRepairEstimateSessionState.Unknown,
     ];
 
-    /// <summary>
-    /// The one-way key an external Glass's account is recorded under: trimmed,
-    /// lower-cased invariantly and compatibility-composed so the same account
-    /// typed differently is the same account, then hashed. The account's
-    /// password contributes nothing — the key identifies the account, it does
-    /// not authenticate it.
-    /// </summary>
-    /// <remarks>
-    /// This takes the external account as an operator types it. A session read
-    /// back carries the key and not the account — the digest is one-way — so a
-    /// replay is issued from the launch request that holds the account, never
-    /// from a session this store handed out.
-    /// </remarks>
-    public static string NormalizeAccountKey(string externalAccount)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(externalAccount);
-        var normalized = externalAccount.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormKC);
-        return Convert.ToHexStringLower(
-            SHA256.HashData(Encoding.UTF8.GetBytes(AccountKeyDomain + normalized)));
-    }
-
     public async Task<GlassRepairEstimateSessionMaterial?> GetAsync(
         Guid sessionId, CancellationToken cancellationToken)
     {
@@ -164,7 +137,12 @@ public sealed class EfGlassRepairEstimateSessionStore(
         var session = material.Session;
         ArgumentException.ThrowIfNullOrWhiteSpace(session.OperationKey);
         var operationKey = session.OperationKey.Trim();
-        var accountKey = NormalizeAccountKey(session.NormalizedExternalAccountKey);
+        // The canonical account key is minted once, by the credential store
+        // that owns the external account, and is stored and compared here
+        // exactly as it arrives: a second normalization in this layer would be
+        // a second owner of the same rule and could disagree with the first.
+        ArgumentException.ThrowIfNullOrWhiteSpace(session.NormalizedExternalAccountKey);
+        var accountKey = session.NormalizedExternalAccountKey;
         var callbackDigest = Digest(material.CallbackDigest);
         ArgumentException.ThrowIfNullOrEmpty(material.ProtectedProviderState);
 
@@ -316,7 +294,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// <summary>
     /// A replayed operation key must name the same launch: the same Case, the
     /// same Pegasus user, the same credential generation and the same
-    /// normalized account. Anything else under that key is a collision, and
+    /// account key. Anything else under that key is a collision, and
     /// returning the recorded session would hand one launch's provider material
     /// to another — a rotated credential or a different account is a different
     /// launch even when the Case and user match. The protected provider state
