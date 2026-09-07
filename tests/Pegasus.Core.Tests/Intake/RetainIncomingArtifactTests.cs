@@ -912,7 +912,7 @@ public sealed class RetainIncomingArtifactTests
 
         public Task<RetainedIncomingArtifact?> FindAsync(
             string operationKey,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken)
         {
             lock (sync)
             {
@@ -927,7 +927,7 @@ public sealed class RetainIncomingArtifactTests
         /// </summary>
         public Task<bool> TryClaimHandOverAsync(
             Guid occurrenceId,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken)
         {
             lock (sync)
             {
