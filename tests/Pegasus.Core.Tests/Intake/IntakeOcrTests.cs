@@ -13,7 +13,8 @@ public sealed class IntakeOcrTests
 {
     private static readonly DateTimeOffset Now = new(2026, 4, 1, 10, 0, 0, TimeSpan.Zero);
     private static readonly byte[] SourceBytes = [1, 2, 3, 4, 5, 6, 7, 8];
-    private const string SourceHash = "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
+    private const string SourceHash = "aa112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    private const string ResponseHash = "bb112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
     [Fact]
     public async Task AnUnstartedOperationIsSubmittedCompletedAndReanalysedExactlyOnce()
@@ -26,7 +27,7 @@ public sealed class IntakeOcrTests
         var operation = harness.Store.Single();
         Assert.Equal(IntakeOcrState.Completed, operation.State);
         Assert.Equal("provider-op-1", operation.ProviderOperationId);
-        Assert.Equal("response-hash", operation.ResponseSha256);
+        Assert.Equal(ResponseHash, operation.ResponseSha256);
         Assert.Equal([2, 5], operation.PageResults.Select(page => page.Number));
         Assert.Equal(1, harness.Provider.Analyses);
         Assert.Equal(0, harness.Provider.Reconciliations);
@@ -39,6 +40,10 @@ public sealed class IntakeOcrTests
         Assert.Equal(harness.Receipt.Version, request.ExpectedReceiptVersion);
         Assert.Equal(harness.SourceAssetId, request.IntakeAssetId);
         Assert.Equal(ActorKind.Automation, request.Actor.Kind);
+        var evidence = Assert.IsType<CompletedOcrEvidence>(request.OcrEvidence);
+        Assert.Equal(SourceHash, evidence.SourceSha256);
+        Assert.Equal([2, 5], evidence.QualifiedPages);
+        Assert.Equal(ResponseHash, evidence.Result.ResponseSha256);
     }
 
     [Fact]
@@ -375,7 +380,7 @@ public sealed class IntakeOcrTests
             IntakeOcrProviderIdentity.ModelId,
             IntakeOcrProviderIdentity.ApiVersion,
             "provider-op-1",
-            "response-hash",
+            ResponseHash,
             [.. pages.Select(page => new IntakeOcrPage(page, $"page {page}", [], []))]);
 
         public static IntakeOcrResult Failure(IntakeOcrState state, IntakeOcrFailure failure) => new(
@@ -448,12 +453,6 @@ public sealed class IntakeOcrTests
         public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) =>
             Task.FromResult(this.operations.TryGetValue(operationId, out var operation) ? operation : null);
 
-        public Task<IntakeOcrOperation?> FindByOperationKeyAsync(
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(this.operations.Values
-                .FirstOrDefault(operation => operation.OperationKey == operationKey));
-
         public Task<IntakeOcrOperation> BeginAsync(
             Guid operationId,
             IntakeOcrRequest request,
@@ -479,10 +478,23 @@ public sealed class IntakeOcrTests
                 operation => operation));
         }
 
+        public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(
+            Guid operationId,
+            long expectedVersion,
+            DateTimeOffset attemptedAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Update(operationId, expectedVersion, operation => operation with
+            {
+                State = IntakeOcrState.Processing,
+                SubmitAttemptedAtUtc = attemptedAtUtc,
+                RetryAtUtc = null
+            }));
+
         public Task<IntakeOcrOperation> RecordSubmittedAsync(
             Guid operationId,
             long expectedVersion,
             string providerOperationId,
+            DateTimeOffset submittedAtUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult(Update(
                 operationId,
@@ -490,6 +502,7 @@ public sealed class IntakeOcrTests
                 operation => operation with
                 {
                     ProviderOperationId = providerOperationId,
+                    SubmittedAtUtc = submittedAtUtc,
                     State = IntakeOcrState.Processing,
                     RetryAtUtc = null
                 }));
@@ -569,12 +582,24 @@ public sealed class IntakeOcrTests
         public Task<IntakeOcrResult> AnalyzeAsync(
             IntakeOcrRequest request,
             Stream content,
+            Func<string, Task> onAccepted,
             CancellationToken cancellationToken)
         {
             IntakeOcrRequest.Validate(request);
             Analyses++;
-            return Task.FromResult(OnAnalyze?.Invoke()
-                ?? throw new InvalidOperationException("No submission was expected."));
+            var result = OnAnalyze?.Invoke()
+                ?? throw new InvalidOperationException("No submission was expected.");
+            return AcceptedAsync(result, onAccepted);
+        }
+
+        private static async Task<IntakeOcrResult> AcceptedAsync(
+            IntakeOcrResult result, Func<string, Task> onAccepted)
+        {
+            if (result.ProviderOperationId is { } providerOperationId)
+            {
+                await onAccepted(providerOperationId);
+            }
+            return result;
         }
 
         public Task<IntakeOcrResult> ReconcileAsync(

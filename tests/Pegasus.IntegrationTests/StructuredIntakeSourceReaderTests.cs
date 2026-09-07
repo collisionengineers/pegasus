@@ -218,7 +218,7 @@ public sealed class StructuredIntakeSourceReaderTests
     public async Task RtfQuotationControlsRetainTheirPrintedUnicodePunctuation()
     {
         var rtf = Encoding.ASCII.GetBytes(
-            @"{\rtf1\ansi The client\rquote s vehicle was parked.}");
+            @"{\rtf1\ansi The client\rquote s vehicle and \lquote instruction\rquote were retained.}");
         var result = await ReadAsync(new TestEmail(
             "quotation.doc",
             "application/msword",
@@ -226,7 +226,24 @@ public sealed class StructuredIntakeSourceReaderTests
 
         Assert.False(result.IsIncomplete);
         Assert.Contains(result.Content, fragment =>
-            fragment.Text.Contains("client’s vehicle", StringComparison.Ordinal));
+            fragment.Text.Contains("client’s vehicle and ‘instruction’", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MalformedRtfGroupsAreMarkedIncompleteAndCannotCreateCells()
+    {
+        var rtf = Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi \trowd Our Ref:\cell VALUE\cell");
+        var result = await ReadAsync(new TestEmail(
+            "malformed.doc",
+            "application/msword",
+            rtf));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.True(result.IsIncomplete);
+        Assert.Contains(result.Issues, issue => issue.Code == "doc-rtf-partial-extraction");
+        Assert.DoesNotContain(result.Content, fragment =>
+            fragment.Locator?.Kind == IntakeLocatorKind.TableCell);
     }
 
     [Fact]

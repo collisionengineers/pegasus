@@ -343,12 +343,24 @@ public sealed class OcrIntakeRecoveryTests
         public Task<IntakeOcrResult> AnalyzeAsync(
             IntakeOcrRequest request,
             Stream content,
+            Func<string, Task> onAccepted,
             CancellationToken cancellationToken)
         {
             IntakeOcrRequest.Validate(request);
             Analyses++;
-            return Task.FromResult(OnAnalyze?.Invoke()
-                ?? throw new InvalidOperationException("No submission was expected."));
+            var result = OnAnalyze?.Invoke()
+                ?? throw new InvalidOperationException("No submission was expected.");
+            return AcceptedAsync(result, onAccepted);
+        }
+
+        private static async Task<IntakeOcrResult> AcceptedAsync(
+            IntakeOcrResult result, Func<string, Task> onAccepted)
+        {
+            if (result.ProviderOperationId is { } providerOperationId)
+            {
+                await onAccepted(providerOperationId);
+            }
+            return result;
         }
 
         public Task<IntakeOcrResult> ReconcileAsync(
