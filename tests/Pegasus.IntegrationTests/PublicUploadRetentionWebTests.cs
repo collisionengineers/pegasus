@@ -673,7 +673,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 .AsNoTracking()
                 .Where(item => item.CaseId == link.CaseId)
                 .ToArrayAsync());
-            Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+            Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
         }
 
         // The page is still asking for the same key, so the retry is the same
@@ -1343,7 +1343,7 @@ public sealed partial class PublicUploadRetentionWebTests
             .AsNoTracking()
             .Where(item => item.CaseId == link.CaseId)
             .ToArrayAsync());
-        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+        Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
     /// <summary>
@@ -2352,9 +2352,10 @@ public sealed partial class PublicUploadRetentionWebTests
             Assert.Null(replacedOccurrence.ReplacesOccurrenceId);
             replacementId = replacementOccurrence.Id;
 
-            // Custody holds both, so the link's limits go on bounding both.
+            // Custody holds both byte sets, while the replacement occupies the
+            // predecessor's one current file slot.
             Assert.Equal(
-                (2, Evidence.LongLength + replacement.LongLength),
+                (1, Evidence.LongLength + replacement.LongLength),
                 await ReadLinkTotalsAsync(context, link.LinkId));
             Assert.Equal(fixedExpiry, (await context.Set<PublicUploadSessionEntity>()
                 .AsNoTracking()
