@@ -160,7 +160,10 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseAssessmentProjection assessment,
         IAssessmentReportProjectionSource projectionSource,
         IAssessmentReportRenderer renderer,
-        bool canOpen = true) =>
+        bool canOpen = true,
+        IGenerateCaseReport? generateReport = null,
+        IPrepareCaseReportDelivery? prepareDelivery = null,
+        ISendPreparedCaseReport? sendPreparedReport = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -171,6 +174,21 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<IAssessmentReportProjectionSource>();
                 services.RemoveAll<IAssessmentReportRenderer>();
                 services.RemoveAll<IDocumentContentStore>();
+                if (generateReport is not null)
+                {
+                    services.RemoveAll<IGenerateCaseReport>();
+                    services.AddSingleton(generateReport);
+                }
+                if (prepareDelivery is not null)
+                {
+                    services.RemoveAll<IPrepareCaseReportDelivery>();
+                    services.AddSingleton(prepareDelivery);
+                }
+                if (sendPreparedReport is not null)
+                {
+                    services.RemoveAll<ISendPreparedCaseReport>();
+                    services.AddSingleton(sendPreparedReport);
+                }
                 services.AddSingleton(getCase);
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
