@@ -482,7 +482,7 @@
                         <tbody>
                             @foreach (var compared in Model.Estimates)
                             {
-                                var comparedTotals = EstimateTotals.Compute(compared).Printed;
+                                var comparedTotals = EstimateTotals.ForProjection(compared).Printed;
                                 <tr>
                                     <td>@compared.Details.Name@(compared.IsCurrent ? $" · {EngineerLabels.Current}" : null)</td>
                                     <td>@EngineerLabels.EstimateState(compared.State)</td>

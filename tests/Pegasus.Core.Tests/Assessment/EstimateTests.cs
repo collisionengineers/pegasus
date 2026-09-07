@@ -77,6 +77,51 @@ public sealed class EstimateTests
     }
 
     [Fact]
+    public void DraftProjectionUsesTheCurrentCalculationInputs()
+    {
+        var draft = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
+
+        Assert.Equal(EstimateTotals.Compute(draft), EstimateTotals.ForProjection(draft));
+    }
+
+    [Fact]
+    public void AcceptedProjectionUsesItsRecordedBreakdownWhenInputsDiffer()
+    {
+        var original = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
+        var recorded = EstimateTotals.Compute(original);
+        var accepted = original with
+        {
+            State = RepairSpecificationState.Accepted,
+            Details = Header(rate: 90m),
+            Lines = [Line("new_part", price: 999m)],
+            RecordedTotals = recorded,
+        };
+
+        var projected = EstimateTotals.ForProjection(accepted);
+
+        Assert.Equal(recorded.Raw, projected.Raw);
+        Assert.Equal(recorded.Printed, projected.Printed);
+        Assert.NotEqual(EstimateTotals.Compute(accepted).Printed, projected.Printed);
+    }
+
+    [Fact]
+    public void AcceptedProjectionRefusesMissingOrInvalidRecordedBreakdown()
+    {
+        var draft = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
+        var recorded = EstimateTotals.Compute(draft);
+        var accepted = draft with { State = RepairSpecificationState.Accepted };
+
+        Assert.Throws<InvalidOperationException>(() => EstimateTotals.ForProjection(accepted));
+
+        var invalid = recorded with
+        {
+            Printed = recorded.Printed with { Gross = recorded.Printed.Gross + 0.01m },
+        };
+        Assert.Throws<InvalidOperationException>(() =>
+            EstimateTotals.ForProjection(accepted with { RecordedTotals = invalid }));
+    }
+
+    [Fact]
     public void EveryLineTypeMapsToExactlyOneOperationAndBack()
     {
         foreach (var type in EstimateLineCodes.Types)

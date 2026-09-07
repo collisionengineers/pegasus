@@ -264,6 +264,26 @@ public sealed record EstimateTotals(
     int CalculationPolicyVersion,
     IReadOnlyList<EstimateAnomaly> OffPattern)
 {
+    /// <summary>
+    /// Returns the money that may be projected for this version. Editable
+    /// versions use the current calculation policy; accepted versions use
+    /// only the calculation record frozen with that version.
+    /// </summary>
+    public static EstimateTotals ForProjection(RepairSpecificationVersion estimate)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        if (estimate.State is not (RepairSpecificationState.Accepted or RepairSpecificationState.Superseded))
+        {
+            return Compute(estimate);
+        }
+
+        var recorded = estimate.RecordedTotals
+            ?? throw new InvalidOperationException(
+                "An accepted estimate has no recorded calculation breakdown.");
+        ValidateRecorded(recorded);
+        return recorded;
+    }
+
     public static EstimateTotals Compute(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
@@ -372,6 +392,39 @@ public sealed record EstimateTotals(
 
     private static decimal Pence(decimal value) =>
         decimal.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    private static void ValidateRecorded(EstimateTotals totals)
+    {
+        var raw = totals.Raw;
+        var printed = totals.Printed;
+        if (totals.CalculationPolicyVersion <= 0
+            || totals.VatPercent is < 0m or > 100m
+            || new[]
+            {
+                raw.Parts, raw.PanelLabour, raw.PaintLabour, raw.Materials,
+                raw.Specialist, raw.OffPattern, raw.Category, raw.Net,
+                raw.Taxable, raw.Vat, raw.Gross,
+                printed.Parts, printed.PanelLabour, printed.PaintLabour,
+                printed.Materials, printed.Specialist, printed.Net,
+                printed.Vat, printed.Gross,
+            }.Any(value => value < 0m)
+            || raw.Net != raw.Parts + raw.PanelLabour + raw.PaintLabour + raw.Materials + raw.Specialist
+            || raw.Gross != raw.Net + raw.Vat
+            || raw.Taxable > raw.Net
+            || printed.Parts != Pence(raw.Parts)
+            || printed.PanelLabour != Pence(raw.PanelLabour)
+            || printed.PaintLabour != Pence(raw.PaintLabour)
+            || printed.Materials != Pence(raw.Materials)
+            || printed.Specialist != Pence(raw.Specialist)
+            || printed.Net != printed.Parts + printed.PanelLabour + printed.PaintLabour
+                + printed.Materials + printed.Specialist
+            || printed.Vat != Pence(raw.Vat)
+            || printed.Gross != printed.Net + printed.Vat)
+        {
+            throw new InvalidOperationException(
+                "The accepted estimate's recorded calculation breakdown is invalid.");
+        }
+    }
 }
 
 /// <summary>

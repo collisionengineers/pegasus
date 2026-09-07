@@ -1033,6 +1033,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(
             acceptedBreakdown,
             await ReadBreakdownJsonAsync(harness, original.SpecificationId));
+        Assert.Equal(acceptedBreakdown.Raw, reread.RecordedTotals!.Raw);
+        Assert.Equal(acceptedBreakdown.Printed, reread.RecordedTotals.Printed);
+        Assert.Equal(acceptedBreakdown.VatPercent, reread.RecordedTotals.VatPercent);
+        Assert.Equal(
+            acceptedBreakdown.CalculationPolicyVersion,
+            reread.RecordedTotals.CalculationPolicyVersion);
         Assert.Equal(version, (await LeaseAsync("estimate-frozen-lease-final")).Version);
     }
 

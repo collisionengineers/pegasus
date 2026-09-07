@@ -642,7 +642,7 @@ internal sealed class AssessmentMcpTools(
 
     private static EstimateToolItem MapEstimate(RepairSpecificationVersion estimate)
     {
-        var totals = EstimateTotals.Compute(estimate);
+        var totals = EstimateTotals.ForProjection(estimate);
         var details = estimate.Details;
         return new(
             estimate.SpecificationId,

@@ -451,8 +451,9 @@ public sealed class AssessmentReportProjectionTests
     /// hours at 30, 20 materials and 5 specialist, giving a printed net of
     /// 225, 20 per cent VAT of 45 and a printed gross of 270.
     /// </summary>
-    private static RepairSpecificationVersion DefaultCurrentEstimate() => new(
-        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
+    private static RepairSpecificationVersion DefaultCurrentEstimate() => AcceptedEstimate(
+        new(
+        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
             Line(1, "repair", "Nearside door") with { WorkUnits = 5m, Price = null },
@@ -461,17 +462,25 @@ public sealed class AssessmentReportProjectionTests
         ],
         null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
         new EstimateDetails("Repairer", null, 30m, 20m, 5m, 20m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-        IsCurrent: true);
+        IsCurrent: true));
 
-    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details) => new(
-        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
+    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details) => AcceptedEstimate(
+        new(
+        Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
             Line(1, "new_part", "Bonnet") with { WorkUnits = null, Price = 310m, Quantity = 1 },
             Line(2, "repair", "Repair wing") with { WorkUnits = 3m },
             Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true);
+        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true));
+
+    private static RepairSpecificationVersion AcceptedEstimate(RepairSpecificationVersion draft) =>
+        draft with
+        {
+            State = RepairSpecificationState.Accepted,
+            RecordedTotals = EstimateTotals.Compute(draft),
+        };
 
     private static AssessmentReadinessItem AssertNotReady(
         AssessmentReportProjectionResult result, string requirement)
