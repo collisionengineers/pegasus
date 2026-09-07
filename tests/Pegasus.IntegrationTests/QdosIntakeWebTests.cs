@@ -235,10 +235,32 @@ public sealed class QdosIntakeWebTests
         Assert.False(instructionDate.IsDefaulted);
         Assert.Equal("10 July 2026", instructionDate.SuggestedValue);
         Assert.Equal(new DateOnly(2026, 7, 10), draft.InstructionDate);
-        Assert.Null(receipt.CurrentCaseId);
-        Assert.Null(receipt.CurrentCaseReference);
-        Assert.Contains("<h1>Case not created</h1>", html, StringComparison.Ordinal);
-        Assert.Contains("No case reference was allocated", html, StringComparison.Ordinal);
+        Assert.Equal("QDOS", draft.SuggestedPrincipalCode);
+
+        var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
+        Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
+        Assert.Equal(QdosMailRoutePolicy.Key, route.PolicyKey);
+        Assert.Equal(QdosMailRoutePolicy.Version, route.PolicyVersion);
+        var selectedRoute = Assert.IsType<MailRouteSelection>(route.SelectedRoute);
+        Assert.Equal("QDOS", selectedRoute.RouteOwnerCode);
+        Assert.Equal(MailRouteKind.DirectProvider, selectedRoute.Kind);
+        Assert.Equal("QDOS", selectedRoute.WorkProviderCode);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "forward.staff-transport" && predicate.Matched);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "forward.original-exactly-one" && predicate.Matched);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "forward.original-external" && predicate.Matched);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "direct.qdos-domain" && predicate.Matched);
+
+        var caseId = Assert.IsType<Guid>(receipt.CurrentCaseId);
+        var caseReference = Assert.NotNull(receipt.CurrentCaseReference);
+        Assert.False(string.IsNullOrWhiteSpace(caseReference));
+        Assert.Contains("<h1>Case created</h1>", html, StringComparison.Ordinal);
+        Assert.Contains(receipt.SourceFileName, html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{caseId:D}", html, StringComparison.Ordinal);
+        Assert.Contains(caseReference, html, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
