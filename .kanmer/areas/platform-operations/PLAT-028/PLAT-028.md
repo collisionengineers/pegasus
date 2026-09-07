@@ -41,10 +41,9 @@ links:
 refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
   - docs/frd/frd-09-provider-and-intermediary-routes.md
-docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T20:32:27.302Z'
+updated: '2026-09-07T20:33:19.466Z'
 ---
 
 ## What

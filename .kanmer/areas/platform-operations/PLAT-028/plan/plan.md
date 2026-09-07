@@ -6,7 +6,7 @@ Administrator creates and manages one customer identity from Principals, without
 
 ## Starting state
 
-Source: origin/dev 3da60bd0c270111d5168dc17246dc831882108ea. The 7 September appended research and rewritten files map supersede the old organisation-detail plan. EPIC-014 is current authority; prior EPIC-011 organisation backing identity is still usable internally. Sources registry has no declarations. Evidence: research/research.md@e5509bcba4022ec5; files/files.md@5040fb5f00fd8b2e. Existing credential safety is defined in src/Pegasus.Core/Cases/PrincipalCredentials.cs and proved by PrincipalCredentialPersistenceTests.
+Source: origin/dev 3da60bd0c270111d5168dc17246dc831882108ea. The 7 September appended research and rewritten files map supersede the old organisation-detail plan. EPIC-014 is current authority; prior EPIC-011 organisation backing identity is still usable internally. Sources registry has no declarations. Evidence: research/research.md@e5509bcba4022ec5; files/files.md@fb6657fe9614a631. Existing credential safety is defined in src/Pegasus.Core/Cases/PrincipalCredentials.cs and proved by PrincipalCredentialPersistenceTests.
 
 ## Governing docs
 
@@ -29,6 +29,7 @@ Create customer Name and Code together using existing Core/EF owner and permanen
 | src/Pegasus.Web/Pages/Administration/Index.cshtml | Remove obsolete Organisations entry. |
 | src/Pegasus.Web/Presentation/OperatorLabels.cs | One owner for labels. |
 | tests/Pegasus.Core.Tests/Cases/OrganizationAdministrationTests.cs | Updated creation contract/normalization. |
+| tests/Pegasus.IntegrationTests/OrganizationDirectoryWebTests.cs | Update existing create/settings routed caller; preserve independent location/EVA assertions. |
 | tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs | Actual customer create/settings/credential, authorization and replay journeys. |
 | tests/Pegasus.IntegrationTests/OrganizationAdministrationPersistenceTests.cs | Atomic name/code uniqueness and replay. |
 | tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs | Updated existing creation caller. |
@@ -54,7 +55,7 @@ No new package, directory, credential policy, role model, sender-domain activati
 ## Ordered steps
 
 1. Replace the create request's organisation selector with Name, normalize through existing policy, create both records in the existing serializable transaction, and add direct paginated/detail customer projections. Update known callers.
-2. Make Principals the one entry/list/create experience; fold manual EVA/default location/provider controls into Settings with current dialog primitives; remove obsolete Organizations hierarchy routes and successor organisation selection.
+2. Make Principals the one entry/list/create experience; fold manual EVA/default location/provider controls into Settings with the existing Settings page convention (root confirmed; no modal loader); remove obsolete Organizations hierarchy routes and successor organisation selection.
 3. Add focused existing tests for creation/replay/duplicates, single-row list and no owner selector, actual settings forms, provider lifecycle and show-once nonretention, and authorization. Update FRD-04/design wording.
 4. Hand changed files and exact filters/capture scope to root verifier. Record honest focused/final evidence and independent simplification dispositions before PR/Review. Root may collect snapshots in this worktree.
 
@@ -64,7 +65,7 @@ The real Razor routes call current Core commands and EF store; customer create c
 
 ## Commands
 
-Root only: focused Core filter FullyQualifiedName~Cases.OrganizationAdministrationTests; integration filter FullyQualifiedName~OrganizationAdministrationWebTests|FullyQualifiedName~OrganizationAdministrationPersistenceTests|FullyQualifiedName~PrincipalCredentialPersistenceTests|FullyQualifiedName~ProviderApiSubmissionTests. Then scoped Principals/retired-Organizations Test UI capture and catalogue verification; one final coordinated solution rail. Worker uses git diff --check and static caller searches only.
+Root only: focused Core filter FullyQualifiedName~Cases.OrganizationAdministrationTests; integration filter FullyQualifiedName~OrganizationAdministrationWebTests|FullyQualifiedName~OrganizationAdministrationPersistenceTests|FullyQualifiedName~OrganizationDirectoryWebTests|FullyQualifiedName~PrincipalCredentialPersistenceTests|FullyQualifiedName~ProviderApiSubmissionTests. Then scoped Principals/retired-Organizations Test UI capture and catalogue verification; one final coordinated solution rail. Worker uses git diff --check and static caller searches only.
 
 ## Failure and deviation rules
 
@@ -73,3 +74,7 @@ Report new schema requirements, shared-file conflicts, failing checks and eviden
 ## Stop condition
 
 Stop with implementation and focused tests ready for root verification, keeping claim/worktree intact. Do not build, run tests, capture snapshots, create a PR, move to Review or perform external writes until root supplies verification and next handoff.
+
+## 2026-09-07 caller reconciliation
+
+Static route inventory discovered OrganizationDirectoryWebTests still used the retired Organizations create and two-ID settings routes. Its customer setup/settings URL follow this same change; location/manual EVA/history assertions remain. This necessary caller was added to the allowed files before editing. Root confirmed use of the existing Settings page, no new modal loader. Root alone owns snapshot generation; catalogue source metadata is maintained in this lane.

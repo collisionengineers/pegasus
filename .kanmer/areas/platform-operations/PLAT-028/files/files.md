@@ -13,6 +13,7 @@
 | src/Pegasus.Web/Pages/Administration/Index.cshtml | Remove obsolete Organisations entry. |
 | src/Pegasus.Web/Presentation/OperatorLabels.cs | One owner for labels. |
 | tests/Pegasus.Core.Tests/Cases/OrganizationAdministrationTests.cs | Updated creation contract/normalization. |
+| tests/Pegasus.IntegrationTests/OrganizationDirectoryWebTests.cs | Update existing create/settings routed caller; preserve independent location/EVA assertions. |
 | tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs | Actual customer create/settings/credential, authorization and replay journeys. |
 | tests/Pegasus.IntegrationTests/OrganizationAdministrationPersistenceTests.cs | Atomic name/code uniqueness and replay. |
 | tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs | Updated existing creation caller. |
