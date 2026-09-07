@@ -1010,8 +1010,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     OriginIntakeReceiptId = receiptId,
                     InstructionComplete = true,
                     ImagesComplete = true,
-                    InstructionConfirmedByStaff = true,
-                    ImagesConfirmedByStaff = true,
                     CreatedAtUtc = FixedUtcNow,
                     Version = 1,
                     ConcurrencyToken = Guid.NewGuid(),

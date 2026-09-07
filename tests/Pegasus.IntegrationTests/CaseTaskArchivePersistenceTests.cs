@@ -988,7 +988,7 @@ public sealed class CaseTaskArchivePersistenceTests
             string caseType,
             int sequence) =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {sequence}, {reference}, {caseType}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {sequence}, {reference}, {caseType}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
 
         private static async Task InsertReceiptAsync(
             PegasusDbContext context,

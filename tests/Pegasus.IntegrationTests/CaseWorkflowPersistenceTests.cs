@@ -2628,7 +2628,7 @@ public sealed class CaseWorkflowPersistenceTests
             string reference,
             int sequence) =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {sequenceLineageId}, {2026}, {sequence}, {reference}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {sequenceLineageId}, {2026}, {sequence}, {reference}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
 
         private static async Task InsertCaseDataSnapshotAsync(
             PegasusDbContext context,

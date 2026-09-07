@@ -56,7 +56,7 @@ public sealed class ImmediateExternalPublicationTests
             "Accept confirmed instruction.",
             CaseType.Inspection,
             "QDOS",
-            new(true, true, true, true));
+            new(true, true));
 
     private static ActionActor Staff() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);

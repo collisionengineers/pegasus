@@ -158,7 +158,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "Confirmed intake before principal replacement testing.",
                 CaseType.Inspection,
                 predecessor.Code,
-                new(true, true, true, true)),
+                new(true, true)),
             default);
         var originalReference = accepted.Identity.Reference;
         var replacementRequest = new ReplacePrincipalRequest(

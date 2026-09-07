@@ -377,7 +377,7 @@ public sealed class AiWorkTests
                 DateTimeOffset.UnixEpoch,
                 0,
                 state,
-                new(new(true, true, true, true), new(true, "policy", 1)),
+                new(new(true, true), new(true, "policy", 1)),
                 new(Empty<string>()),
                 new(Empty<string>(), Empty<string>(), Empty<string>()),
                 new(Empty<string>()),

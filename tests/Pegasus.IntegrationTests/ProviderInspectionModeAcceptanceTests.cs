@@ -185,9 +185,9 @@ public sealed class ProviderInspectionModeAcceptanceTests
             "Accepted image-based provider case",
             CaseType.Inspection,
             "QDOS",
-            new(true, true, false, false),
+            new(true, true),
             CaseCompletenessPolicy.Evaluate(
-                new(true, true, false, false),
+                new(true, true),
                 await new FixedConfiguration().GetCurrentAsync(CancellationToken.None)),
             CaseInspectionMode.PhysicalAddress,
             AcceptedInspectionDeadline: FixtureInspectionDate);
@@ -288,7 +288,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             "Accepted image-based provider case",
             CaseType.Inspection,
             "QDOS",
-            new(true, true, false, false),
+            new(true, true),
             AcceptedInspectionDeadline: FixtureInspectionDate);
 
         public Task<CaseAcceptanceOutcome> AcceptAsync(

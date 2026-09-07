@@ -889,7 +889,7 @@ public sealed class RetainedMailPersistenceTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {stored.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {false}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"mail-005-fixture"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {caseId}, {"QDOS26099"})");
+                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {stored.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"mail-005-fixture"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {caseId}, {"QDOS26099"})");
         }
 
         await using var scope = database.CreateAsyncScope();

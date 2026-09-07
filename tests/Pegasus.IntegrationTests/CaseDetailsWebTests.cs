@@ -1369,9 +1369,7 @@ public sealed partial class CaseDetailsWebTests
                 ("reason", "Images turned out to be incomplete"),
                 ("instructionComplete", "true"),
                 ("instructionComplete", "false"),
-                ("imagesComplete", "false"),
-                ("instructionConfirmedByStaff", "false"),
-                ("imagesConfirmedByStaff", "false")));
+                ("imagesComplete", "false")));
         AssertPrg(response, store.CaseId);
 
         // The command really did receive false, so the panel must not claim otherwise.
@@ -2273,9 +2271,7 @@ public sealed partial class CaseDetailsWebTests
                 new(
                     new(
                         InstructionComplete: true,
-                        ImagesComplete: true,
-                        InstructionConfirmedByStaff: false,
-                        ImagesConfirmedByStaff: false),
+                        ImagesComplete: true),
                     new(false, "case-completeness", 1)),
                 new(Confirmed("QDOS")),
                 new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),

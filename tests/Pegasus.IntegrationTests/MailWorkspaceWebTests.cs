@@ -1947,7 +1947,7 @@ public sealed class MailWorkspaceWebTests
                     "Reviewed source evidence and confirmed the case intake.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
-                    new(true, true, true, true)),
+                    new(true, true)),
                 CancellationToken.None);
     }
 

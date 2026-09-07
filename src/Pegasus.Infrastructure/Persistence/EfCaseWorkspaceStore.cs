@@ -359,9 +359,7 @@ public sealed class EfCaseWorkspaceStore(
 
     private static CaseCompleteness Completeness(CaseDataSnapshotEntity snapshot) => new(
         snapshot.Case.InstructionComplete,
-        snapshot.Case.ImagesComplete,
-        snapshot.Case.InstructionConfirmedByStaff,
-        snapshot.Case.ImagesConfirmedByStaff);
+        snapshot.Case.ImagesComplete);
 
     private static string RequestHash(SaveCaseWorkspaceRequest request)
     {

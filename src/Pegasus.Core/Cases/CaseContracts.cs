@@ -122,11 +122,9 @@ public enum CaseCustodyState
 
 public sealed record CaseCompleteness(
     bool InstructionComplete,
-    bool ImagesComplete,
-    bool InstructionConfirmedByStaff,
-    bool ImagesConfirmedByStaff)
+    bool ImagesComplete)
 {
-    public bool IsReadyForReview(bool automaticallyDefinitive) =>
+    public bool IsReadyForReview() =>
         InstructionComplete && ImagesComplete;
 }
 

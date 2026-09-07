@@ -284,8 +284,6 @@ public sealed class EfCaseAcceptanceStore(
             AcceptedInspectionDeadline = request.AcceptedInspectionDeadline,
             InstructionComplete = request.Completeness.InstructionComplete,
             ImagesComplete = request.Completeness.ImagesComplete,
-            InstructionConfirmedByStaff = request.Completeness.InstructionConfirmedByStaff,
-            ImagesConfirmedByStaff = request.Completeness.ImagesConfirmedByStaff,
             CreatedAtUtc = acceptedAtUtc,
             Version = 0
         };
@@ -612,7 +610,7 @@ public sealed class EfCaseAcceptanceStore(
         string principalCode)
     {
         var materialJson = JsonSerializer.Serialize(new AcceptanceCommandMaterial(
-            4,
+            5,
             request.IntakeReceiptId,
             request.ExpectedIntakeVersion,
             request.Actor.Kind.ToString(),
@@ -626,8 +624,6 @@ public sealed class EfCaseAcceptanceStore(
             principalCode,
             request.Completeness.InstructionComplete,
             request.Completeness.ImagesComplete,
-            request.Completeness.InstructionConfirmedByStaff,
-            request.Completeness.ImagesConfirmedByStaff,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,
             ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode)));
@@ -653,8 +649,6 @@ public sealed class EfCaseAcceptanceStore(
         string PrincipalCode,
         bool InstructionComplete,
         bool ImagesComplete,
-        bool InstructionConfirmedByStaff,
-        bool ImagesConfirmedByStaff,
         Guid? StandaloneAuditEvidenceId,
         DateOnly? AcceptedInspectionDeadline,
         string ProviderInspectionMode);

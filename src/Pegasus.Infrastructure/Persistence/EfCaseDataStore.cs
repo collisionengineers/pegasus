@@ -97,12 +97,8 @@ public sealed class EfCaseDataStore(
 
         var before = new CaseCompleteness(
             snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete,
-            snapshot.Case.InstructionConfirmedByStaff,
-            snapshot.Case.ImagesConfirmedByStaff);
+            snapshot.Case.ImagesComplete);
         var beforeJson = JsonSerializer.Serialize(before, JsonOptions);
-        // PLAT-072: only the two factual controls are written. The
-        // staff-confirmation columns are inert and keep whatever they hold.
         snapshot.Case.InstructionComplete = request.Completeness.InstructionComplete;
         snapshot.Case.ImagesComplete = request.Completeness.ImagesComplete;
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
@@ -202,9 +198,7 @@ public sealed class EfCaseDataStore(
         var before = CaseDataFieldWriter.ReadEditable(snapshot);
         var completenessBefore = new CaseCompleteness(
             snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete,
-            snapshot.Case.InstructionConfirmedByStaff,
-            snapshot.Case.ImagesConfirmedByStaff);
+            snapshot.Case.ImagesComplete);
         if (before == data)
         {
             throw new InvalidOperationException("SaveCase requires at least one changed confirmed value.");
@@ -224,7 +218,6 @@ public sealed class EfCaseDataStore(
                 now));
         snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         snapshot.Case.InstructionComplete = false;
-        snapshot.Case.InstructionConfirmedByStaff = false;
         snapshot.CompletenessPolicySatisfied = false;
         workflow.State = nameof(CaseLifecycleState.NotReady);
         CaseDueWorkScheduler.Schedule(context, workflow, data.InspectionDeadline, now);
@@ -233,9 +226,7 @@ public sealed class EfCaseDataStore(
         workflow.Version++;
         var completenessAfter = new CaseCompleteness(
             snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete,
-            snapshot.Case.InstructionConfirmedByStaff,
-            snapshot.Case.ImagesConfirmedByStaff);
+            snapshot.Case.ImagesComplete);
         ClearLease(workflow);
         CaseMutationHistory.Add(
             context,
@@ -357,9 +348,7 @@ public sealed class EfCaseDataStore(
         new(
             new(
                 snapshot.Case.InstructionComplete,
-                snapshot.Case.ImagesComplete,
-                snapshot.Case.InstructionConfirmedByStaff,
-                snapshot.Case.ImagesConfirmedByStaff),
+                snapshot.Case.ImagesComplete),
             new(
                 snapshot.CompletenessPolicySatisfied,
                 snapshot.CompletenessPolicyKey,

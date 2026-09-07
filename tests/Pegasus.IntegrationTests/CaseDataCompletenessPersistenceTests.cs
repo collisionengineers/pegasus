@@ -14,6 +14,37 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseDataCompletenessPersistenceTests
 {
     [Fact]
+    public async Task RemovingStaffConfirmationColumnsRetainsCaseFactsAndHistory()
+    {
+        await using var harness = await CaseDataHarness.CreateAsync();
+        var before = await harness.GetRequiredDataAsync();
+        var historyCount = await harness.HistoryCountAsync();
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.False(context.Database.HasPendingModelChanges());
+
+        await context.Database.MigrateAsync("20260907210000_ReportInputInvalidationPermissions");
+        Assert.Equal(4, await CountRetiredColumnsAsync());
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Cases SET InstructionConfirmedByStaff = 1, ImagesConfirmedByStaff = 1 WHERE Id = {harness.CaseId}");
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await CountRetiredColumnsAsync());
+        var after = await harness.GetRequiredDataAsync();
+        Assert.Equal(before.Identity, after.Identity);
+        Assert.Equal(before.State, after.State);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.Completeness, after.Completeness);
+        Assert.Equal(before.Origin, after.Origin);
+        Assert.Equal(historyCount, await harness.HistoryCountAsync());
+        Assert.Equal(41, await harness.HiddenCaseVersionAsync());
+
+        Task<int> CountRetiredColumnsAsync() => context.Database.SqlQuery<int>(
+                $"SELECT COUNT(*) AS [Value] FROM sys.columns WHERE object_id IN (OBJECT_ID('dbo.Cases'), OBJECT_ID('dbo.IntakeAllocationAttempts')) AND name IN ('InstructionConfirmedByStaff', 'ImagesConfirmedByStaff')")
+            .SingleAsync();
+    }
+
+    [Fact]
     public async Task AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues()
     {
         await using var harness = await CaseDataHarness.CreateAsync();
@@ -129,9 +160,7 @@ public sealed class CaseDataCompletenessPersistenceTests
     [Fact]
     public async Task ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory()
     {
-        await using var harness = await CaseDataHarness.CreateAsync(
-            instructionConfirmedByStaff: true,
-            imagesConfirmedByStaff: true);
+        await using var harness = await CaseDataHarness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         Assert.Equal(0, initial.Version);
         Assert.Equal(41, await harness.HiddenCaseVersionAsync());
@@ -145,9 +174,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             lease.Token,
             new(
                 true,
-                true,
-                initial.Completeness.Values.InstructionConfirmedByStaff,
-                initial.Completeness.Values.ImagesConfirmedByStaff));
+                true));
 
         var confirmed = await harness.ConfirmCompleteness.ExecuteAsync(
             confirmation,
@@ -158,12 +185,8 @@ public sealed class CaseDataCompletenessPersistenceTests
 
         Assert.Equal(CaseLifecycleState.Review, confirmed.State);
         Assert.Equal(1, confirmed.Version);
-        Assert.Equal(
-            initial.Completeness.Values.InstructionConfirmedByStaff,
-            confirmed.Completeness.Values.InstructionConfirmedByStaff);
-        Assert.Equal(
-            initial.Completeness.Values.ImagesConfirmedByStaff,
-            confirmed.Completeness.Values.ImagesConfirmedByStaff);
+        Assert.True(confirmed.Completeness.Values.InstructionComplete);
+        Assert.True(confirmed.Completeness.Values.ImagesComplete);
         Assert.Equal(confirmed, replayedConfirmation);
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             harness.ConfirmCompleteness.ExecuteAsync(
@@ -201,7 +224,6 @@ public sealed class CaseDataCompletenessPersistenceTests
         // behaviour is unchanged by CASE-047.
         Assert.Equal(CaseLifecycleState.NotReady, saved.State);
         Assert.False(saved.Completeness.Values.InstructionComplete);
-        Assert.False(saved.Completeness.Values.InstructionConfirmedByStaff);
         Assert.Equal(saved, replayedSave);
         Assert.Equal("Jane Example", saved.Claimant.Name.Fact?.Value);
         Assert.Equal("Jane Example", saved.Claimant.Name.Confirmed?.Value);
@@ -223,7 +245,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                 "confirm-completeness-2",
                 "Reconfirmed after the case-data change",
                 reconfirmLease.Token,
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None);
         Assert.Equal(3, reconfirmed.Version);
         Assert.Equal(CaseLifecycleState.Review, reconfirmed.State);
@@ -280,7 +302,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                     "confirm-wrong-token",
                     "Wrong completeness lease token denial",
                     "not-the-issued-token",
-                    new(true, true, true, true)),
+                    new(true, true)),
                 CancellationToken.None));
 
         var otherStaff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -376,9 +398,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         public static async Task<CaseDataHarness> CreateAsync(
             InspectionAddressStaffDecision addressDecision =
                 InspectionAddressStaffDecision.AcceptSuggestion,
-            string? correctedAddress = null,
-            bool instructionConfirmedByStaff = false,
-            bool imagesConfirmedByStaff = false)
+            string? correctedAddress = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             try
@@ -428,9 +448,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                         "QDOS",
                         new(
                             true,
-                            true,
-                            instructionConfirmedByStaff,
-                            imagesConfirmedByStaff),
+                            true),
                         AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
                     CancellationToken.None);
                 await using (var divergenceContext = await factory.CreateDbContextAsync())

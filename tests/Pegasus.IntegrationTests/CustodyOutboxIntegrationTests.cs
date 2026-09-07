@@ -2304,7 +2304,7 @@ public sealed class CustodyOutboxIntegrationTests
         var outcome = await AcceptAsync(
             services,
             receipt.Id,
-            completeness: new(true, true, false, false),
+            completeness: new(true, true),
             caseType: CaseType.Audit,
             standaloneAuditEvidenceId: evidenceId);
 
@@ -2508,7 +2508,7 @@ public sealed class CustodyOutboxIntegrationTests
         var accepted = await AcceptAsync(
             services,
             receipt.Id,
-            new CaseCompleteness(false, false, false, false));
+            new CaseCompleteness(false, false));
         return new(accepted.Identity.CaseId, accepted.CustodyWorkId, receipt.Id, source.Content);
     }
 
@@ -2555,7 +2555,7 @@ public sealed class CustodyOutboxIntegrationTests
                     "Integration fixture confirmed complete intake evidence.",
                     caseType,
                     principalCode,
-                    completeness ?? new(true, true, true, true),
+                    completeness ?? new(true, true),
                     standaloneAuditEvidenceId),
                 CancellationToken.None);
     }

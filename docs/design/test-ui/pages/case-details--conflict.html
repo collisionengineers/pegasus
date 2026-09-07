@@ -219,16 +219,15 @@
         </div>
     </div>
 
-        <div class="presence-strip" role="status">
-            <span class="presence-dot" aria-hidden="true"></span>
-            <span>You are editing this case.</span>
-        </div>
     <div class="record-bar">
             <form method="post" action="#">
                 <input type="hidden" name="id" value="test-ui-guid-1" />
                 <input type="hidden" name="expectedVersion" value="7" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                <button type="submit" class="btn">Recover editing</button>
+                <button type="submit" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                    <span>Edit Case</span>
+                </button>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
     </div>
 
@@ -307,13 +306,18 @@
                         <tbody>
                                 <tr>
                                     <th>Reason</th>
-                                    <td>Corrected claimant spelling</td>
+                                    <td>Images turned out to be incomplete</td>
                                     <td>&#x2014;</td>
                                 </tr>
                                 <tr>
-                                    <th>Claimant</th>
-                                    <td>Rebecca Proposed</td>
-                                    <td>Case claimant</td>
+                                    <th>Instructions complete</th>
+                                    <td>Yes</td>
+                                    <td>Yes</td>
+                                </tr>
+                                <tr>
+                                    <th>Images complete</th>
+                                    <td>No</td>
+                                    <td>Yes</td>
                                 </tr>
                         </tbody>
                     </table>
@@ -545,7 +549,7 @@
                     <div class="decision-row">
                         <span>Edit authority</span>
                         <strong>
-                                You
+                                Available
                         </strong>
                     </div>
                 </div>

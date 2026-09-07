@@ -79,7 +79,7 @@ public sealed partial class SendToAiIntegrationTests
                     "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
-                    new(true, true, true, true)),
+                    new(true, true)),
                 CancellationToken.None);
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();

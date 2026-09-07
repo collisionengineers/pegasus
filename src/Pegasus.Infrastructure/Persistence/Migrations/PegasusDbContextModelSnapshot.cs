@@ -1771,18 +1771,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ImagesComplete")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("ImagesConfirmedByStaff")
-                        .HasColumnType("bit");
-
                     b.Property<string>("InitialState")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
                     b.Property<bool>("InstructionComplete")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("InstructionConfirmedByStaff")
                         .HasColumnType("bit");
 
                     b.Property<Guid>("OriginIntakeReceiptId")
@@ -4317,13 +4311,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ImagesComplete")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("ImagesConfirmedByStaff")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("InstructionComplete")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("InstructionConfirmedByStaff")
                         .HasColumnType("bit");
 
                     b.Property<Guid>("IntakeReceiptId")

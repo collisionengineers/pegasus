@@ -902,8 +902,6 @@ public sealed partial class DetailsModel(
         string editLeaseToken,
         bool instructionComplete,
         bool imagesComplete,
-        bool instructionConfirmedByStaff,
-        bool imagesConfirmedByStaff,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -919,9 +917,7 @@ public sealed partial class DetailsModel(
                     editLeaseToken,
                     new(
                         instructionComplete,
-                        imagesComplete,
-                        instructionConfirmedByStaff,
-                        imagesConfirmedByStaff)),
+                        imagesComplete)),
                 cancellationToken),
             "Case completeness was confirmed against the current policy.");
 

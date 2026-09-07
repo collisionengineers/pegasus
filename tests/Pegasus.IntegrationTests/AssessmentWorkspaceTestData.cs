@@ -24,7 +24,7 @@ internal static class AssessmentWorkspaceTestData
             assessment.CaseVersion,
             assessment.State,
             new CaseCompletenessProjection(
-                new CaseCompleteness(false, false, false, false),
+                new CaseCompleteness(false, false),
                 new CaseCompletenessEvaluation(false, "test", 1)),
             new CaseProviderData(emptyString),
             new CaseClaimantData(emptyString, emptyString, emptyString),

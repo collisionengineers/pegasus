@@ -231,9 +231,7 @@ public sealed class AllocateIntake(
         new(InstructionComplete: true,
             // The one owner of which assets are photographs, so Review and
             // the EVA export agree by construction rather than by a second rule.
-            ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0,
-            InstructionConfirmedByStaff: false,
-            ImagesConfirmedByStaff: false);
+            ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0);
 
     public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
         Guid receiptId,

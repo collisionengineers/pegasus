@@ -2311,7 +2311,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     "Accepted assessment fixture case",
                     CaseType.Inspection,
                     "QDOS",
-                    new(true, true, false, false),
+                    new(true, true),
                     AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
                 CancellationToken.None);
 
