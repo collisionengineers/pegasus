@@ -437,6 +437,27 @@ public static class DependencyInjection
         // type; canonical import consumes all parsers through the collection.
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<IGlassRepairEstimateSessionStore, EfGlassRepairEstimateSessionStore>();
+        // CASE-047 B04 (Stream B handoff): the Glass's repair-estimate route.
+        // The options are parsed at first use rather than at host build, so a
+        // host with no Glass:* configuration still composes and only a request
+        // that actually reaches Glass's is refused — the lazy shape
+        // AddEvaApiSubmission adopted for the same reason (PLAT-013).
+        services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
+            key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
+        // A Glass's session's cookie jar is per session and durable, so it is
+        // carried in the adapter's protected state rather than in a pooled
+        // handler, and every provider redirect is read rather than followed.
+        services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+            });
+        services.AddScoped<IGlassRepairEstimateCaseAuthority, EfGlassRepairEstimateCaseAuthority>();
+        services.AddScoped<IGlassRepairEstimateSessionReader, EfGlassRepairEstimateSessionStore>();
+        services.AddScoped<GlassRepairEstimateGateway>();
+        services.AddScoped<IGlassRepairEstimateGateway>(provider =>
+            provider.GetRequiredService<GlassRepairEstimateGateway>());
         services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
