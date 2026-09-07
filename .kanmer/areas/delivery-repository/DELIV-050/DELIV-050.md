@@ -2,13 +2,14 @@
 id: DELIV-050
 type: ticket
 title: Record report-input permission migration in the release bootstrap census
-status: review
+status: verifying
 area: delivery-repository
 assignee: codex-v1-remediation-root
 profile: fix
 stageEntered:
   preparing: '2026-09-07T23:40:52.619Z'
   review: '2026-09-07T23:43:38.044Z'
+  verifying: '2026-09-07T23:47:21.174Z'
 taken_at: '2026-09-07T23:41:24.189Z'
 branch: DELIV-050-bootstrap-census
 worktree: .worktrees/deliv-050
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/687'
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:43:38.044Z'
+updated: '2026-09-07T23:47:21.174Z'
 ---
 
 ## What
