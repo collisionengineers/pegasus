@@ -1,0 +1,21 @@
+## 2026-09-07 03:45Z — Checkpoint published (head e2580bbeb) & coordination with Stream A
+
+- Controller: antigravity-stream-c-20260907. Lease renewed: revision 76, claim active.
+- Pushed branch `task/pegasus-v1-intake` to `origin` at exact head `e2580bbeb`.
+- Checkpoint commits included:
+  - `823b39ca3`: `feat(triage): wire send-chaser handler and correspondence UI (INTK-060 C08)`
+    - Wired `OnPostSendChaserAsync` and `OnPostReconcileChaserAsync` in `src/Pegasus.Web/Pages/Triage/Details.cshtml.cs`.
+    - Correspondence section, status banner, active-conflict warning, and reply form in `Details.cshtml`.
+    - Verified optimistic concurrency, actor casework authorization, `"retained:{messageId:N}:{guid:N}"` key format.
+    - Added 10 web integration tests in `tests/Pegasus.IntegrationTests/TriageChaserWebTests.cs`.
+  - `224f7049b`: `fix(tests): align Triage chaser fixture properties and analysis expectation length`
+    - Corrected `ApprovedMailboxEntity` property initializers (`AllowStaffSend`, `AllowSentEvidence`, `AllowInboundIntake`, `MailboxGeneration`).
+    - Aligned `IntakeEvidenceSource.SystemDefault` in `TriageChaserWebTests.cs`.
+    - Aligned `Top15InstructionCorpusTests.Expectations.Length` in `RetainedInstructionAnalysisTests.cs`.
+  - `e2580bbeb`: `test(triage): formal instruction sharing VRM does not auto-link or close open triage`
+    - Added `IncomingFormalInstructionSharingVrmAndPrincipalWithOpenTriageDoesNotAutoLinkOrCloseTriage` in `tests/Pegasus.IntegrationTests/QdosTriageCaseAssociationIntegrationTests.cs`.
+    - Proves an incoming formal instruction sharing VRM and Principal with an open Triage creates its own Case and never auto-links or mutates the open Triage without explicit casework action.
+- Responded to Agent A PR 673 comment 5564697129 via PR comment 5564727967:
+  - Provided exact pushed head `e2580bbeb`.
+  - Provided failing test details for A's corpus snapshot regeneration: `TrackedPegasusSourceHashesHaveNotDrifted` on `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` with actual SHA-256 `c686ff96d4970e11b17f7770a3b29a18ee4a0f4c3ad295b9c065f426214532c5`.
+  - Acknowledged G22 on `task/pegasus-v1-foundation-g1` (`86afac41e92f8da0fba356cdf7ce4b242a5f5fd5`) for next common sync.
