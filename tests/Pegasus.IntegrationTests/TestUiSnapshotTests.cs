@@ -46,12 +46,11 @@ public sealed partial class TestUiSnapshotTests
                 "glass-fixture-account", "Access denied", AlsoRequired: ">Enabled<"),
             ["administration-mailboxes--default"] = new(
                 "instructions@collisionengineers.co.uk", "Access denied", AlsoRequired: "Not activated"),
-            ["inbox--default"] = new("Browser preview message", ">Unavailable<"),
             ["upload-request--default"] = new(
                 "<h1>Upload a file</h1>", "Choose a document to upload.", AlsoRequired: "data-dropzone"),
             ["triage-details--default"] = new(
                 "<article class=\"record\">", "We could not find that page",
-                AlsoRequired: "Available once a finding is recorded"),
+                AlsoRequired: "Available once a finding is recorded", AlsoRequired2: ">Assigned<"),
             ["case-details--default"] = new(
                 "You are editing this case.",
                 AlsoRequired: "case-overview-panel",
@@ -66,7 +65,7 @@ public sealed partial class TestUiSnapshotTests
             ["inbox--empty"] = new(
                 "<p>No mail has been received.</p>", "status--red\">Unavailable<"),
             ["inbox--unavailable"] = new(">Unavailable<"),
-            ["inbox--default"] = new("<h1>Inbox</h1>"),
+            ["inbox--default"] = new("Browser preview message", ">Unavailable<"),
             ["mail-compose--default"] = new("<h1>Compose</h1>", "validation-summary-errors"),
             ["operations--partial-data"] = new(">Partial data</strong>"),
             ["operations--empty"] = new(">No retryable external work<"),
