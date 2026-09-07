@@ -5,7 +5,8 @@ namespace Pegasus.Core.Identity;
 public enum ApprovedMailboxRouteScope
 {
     InboundIntake,
-    SentEvidence
+    SentEvidence,
+    StaffSend
 }
 
 public enum ApprovedMailboxState
@@ -25,7 +26,9 @@ public sealed record ApprovedMailbox(
     bool IdentityIsBound,
     DateTimeOffset? ActivatedAtUtc,
     int Version,
-    IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings);
+    IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings,
+    long Generation = 0,
+    long? VerifiedEncodedMessageSizeLimit = null);
 
 public sealed record ApprovedMailboxFolderBinding(
     MailLogicalFolderType FolderType,
@@ -43,7 +46,8 @@ public sealed record UpdateApprovedMailboxRequest(
     string? MailboxIdentity = null,
     string? InboxFolderIdentity = null,
     string? SentFolderIdentity = null,
-    IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null);
+    IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null,
+    long? VerifiedEncodedMessageSizeLimit = null);
 
 /// <summary>
 /// One mailbox the approved estate says inbound-intake polling may read, with the
@@ -55,7 +59,8 @@ public sealed record ApprovedIntakeMailbox(
     string GraphMailboxId,
     string Address,
     string InboxFolderIdentity,
-    DateTimeOffset ActivatedAtUtc);
+    DateTimeOffset ActivatedAtUtc,
+    long Generation = 1);
 
 public interface IApprovedIntakeMailboxes
 {
@@ -78,7 +83,17 @@ public sealed record ApprovedMailboxPollStatus(
     string MailboxAddress,
     DateTimeOffset DueAtUtc,
     DateTimeOffset? LastCompletedAtUtc,
-    string? LastFailureCode);
+    string? LastFailureCode,
+    DateTimeOffset StartBoundaryUtc = default,
+    long Generation = 0,
+    DateTimeOffset? SubscriptionExpiresAtUtc = null,
+    ApprovedMailboxSubscriptionLifecycleState? SubscriptionState = null,
+    IReadOnlyList<ApprovedMailboxRouteScope>? Capabilities = null)
+{
+    public bool IsFresh(DateTimeOffset nowUtc) =>
+        LastCompletedAtUtc is { } completed
+        && nowUtc - completed <= GetRetainedMailFreshness.StaleAfter;
+}
 
 public interface IApprovedMailboxPollStatusQueries
 {
@@ -107,6 +122,13 @@ public interface IResolveApprovedMailboxIdentity
 {
     Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
         string address,
+        CancellationToken cancellationToken);
+}
+
+public interface ICheckApprovedMailboxAccess
+{
+    Task<bool> CanReadInboxAsync(
+        ApprovedMailboxIdentityResolution mailbox,
         CancellationToken cancellationToken);
 }
 
@@ -185,6 +207,18 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
         var inboxFolderIdentity = NormalizeIdentity(request.InboxFolderIdentity, MaximumFolderIdentityLength);
         var sentFolderIdentity = NormalizeIdentity(request.SentFolderIdentity, MaximumFolderIdentityLength);
         var folderBindings = NormalizeFolderBindings(request.FolderBindings);
+        if (request.VerifiedEncodedMessageSizeLimit is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request), "The verified encoded-message size limit must be positive.");
+        }
+        if (request.State == ApprovedMailboxState.Approved
+            && routeScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+            && request.VerifiedEncodedMessageSizeLimit is null)
+        {
+            throw new ApprovedMailboxUpdateException(
+                ApprovedMailboxUpdateError.MissingVerifiedSendLimit);
+        }
         if (request.State == ApprovedMailboxState.Approved)
         {
             // Fail closed: an approved row that cannot be read is a silent no-op.
@@ -304,7 +338,8 @@ public enum ApprovedMailboxUpdateError
     MissingMailboxIdentity,
     InvalidMailboxIdentity,
     MailboxIdentityImmutable,
-    DuplicateMailboxIdentity
+    DuplicateMailboxIdentity,
+    MissingVerifiedSendLimit
 }
 
 public sealed class ApprovedMailboxUpdateException(

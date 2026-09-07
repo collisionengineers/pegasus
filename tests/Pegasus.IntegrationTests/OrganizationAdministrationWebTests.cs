@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -14,14 +15,48 @@ public sealed partial class OrganizationAdministrationWebTests
     [Fact]
     public async Task AdministratorRoutesAreDiscoverableAndPostThroughCoreEfCallers()
     {
+        // C06 review R-1: this test drives the shared EvaSubmission page (a
+        // page model is activated per request, not at host startup), so it
+        // needs the real C06 registrations to prove the page's actual
+        // behaviour.
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
 
         using var landingResponse = await client.GetAsync("/Administration");
         var landingHtml = await landingResponse.Content.ReadAsStringAsync();
         landingResponse.EnsureSuccessStatusCode();
         Assert.Contains("/Administration/Organizations", landingHtml, StringComparison.Ordinal);
         Assert.Contains("/Administration/Principals", landingHtml, StringComparison.Ordinal);
+
+        var claimSourcesHtml = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            "/Administration/ClaimSources");
+        Assert.Contains("Create claim source", claimSourcesHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
+        var claimSourceForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(
+                claimSourcesHtml,
+                "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(claimSourcesHtml, "OperationKey"),
+            ["Name"] = "Web Caller Claim Source",
+            ["Reason"] = "Web caller claim source proof"
+        };
+        using var claimSourcePost = await client.PostAsync(
+            "/Administration/ClaimSources?handler=Create",
+            new FormUrlEncodedContent(claimSourceForm));
+        Assert.Equal(HttpStatusCode.Redirect, claimSourcePost.StatusCode);
+        var claimSourceId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM ClaimSources WHERE Name = 'Web Caller Claim Source';");
+        var claimSourceEditHtml = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}");
+        Assert.Contains("Edit Web Caller Claim Source</h1>", claimSourceEditHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
 
         using var organizationGet = await client.GetAsync("/Administration/Organizations");
         var organizationHtml = await organizationGet.Content.ReadAsStringAsync();
@@ -105,26 +140,28 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}";
         // GetHtmlAsync so a Test UI capture records this page (it asserts 200).
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
-        Assert.Contains("EVA API submission for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
+        Assert.Contains("Settings for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
                 evaSubmissionHtml,
                 "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(evaSubmissionHtml, "OperationKey"),
+            ["EvaOperationKey"] = InputValue(evaSubmissionHtml, "EvaOperationKey"),
             ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
             ["EvaManualSubmission"] = bool.TrueString,
-            ["EvaAutomaticSubmission"] = bool.FalseString,
-            ["Reason"] = "Web caller EVA submission proof"
+            ["EvaReason"] = "Web caller EVA submission proof"
         };
         using var evaSubmissionPost = await client.PostAsync(
-            $"{evaSubmissionPath}?handler=Update",
+            $"{evaSubmissionPath}?handler=UpdateEva",
             new FormUrlEncodedContent(evaSubmissionForm));
-        Assert.Equal(HttpStatusCode.Redirect, evaSubmissionPost.StatusCode);
+        Assert.True(
+            evaSubmissionPost.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {evaSubmissionPost.StatusCode}. " +
+                $"Validation errors: {await DescribeValidationErrorsAsync(evaSubmissionPost)}");
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT CASE WHEN EvaManualSubmission = 1 AND EvaAutomaticSubmission = 0 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+                $"SELECT CASE WHEN EvaManualSubmission = 1 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
         var replacePath =
             $"/Administration/Principals/Replace/{organizationId:D}/{principalId:D}";
@@ -214,4 +251,31 @@ public sealed partial class OrganizationAdministrationWebTests
         "<input\\b(?=[^>]*\\bname=\"(?<name>[^\"]+)\")(?=[^>]*\\bvalue=\"(?<value>[^\"]*)\")[^>]*>",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex InputTagRegex();
+
+    // C06 review R-20: when a POST unexpectedly redisplays the page instead
+    // of redirecting, name the cause instead of leaving only a status-code
+    // mismatch behind.
+    private static async Task<string> DescribeValidationErrorsAsync(HttpResponseMessage response)
+    {
+        var html = await response.Content.ReadAsStringAsync();
+        var texts = ValidationSummaryRegex().Matches(html)
+            .Cast<Match>()
+            .Concat(FieldValidationErrorRegex().Matches(html).Cast<Match>())
+            .Select(match => WebUtility.HtmlDecode(
+                Regex.Replace(match.Groups["text"].Value, "<[^>]+>", string.Empty)).Trim())
+            .Where(text => text.Length > 0)
+            .Distinct(StringComparer.Ordinal);
+        var joined = string.Join(" | ", texts);
+        return joined.Length > 0 ? joined : "(none found in response body)";
+    }
+
+    [GeneratedRegex(
+        "<div[^>]*class=\"[^\"]*status-card--error[^\"]*\"[^>]*>(?<text>[\\s\\S]*?)</div>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ValidationSummaryRegex();
+
+    [GeneratedRegex(
+        "<span[^>]*class=\"[^\"]*field-validation-error[^\"]*\"[^>]*>(?<text>[\\s\\S]*?)</span>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex FieldValidationErrorRegex();
 }

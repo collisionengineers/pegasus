@@ -257,7 +257,7 @@ internal static class MsgReader
         {
             if (RtfCompression.TryDecompress(compressedRtf, limits.MaximumRtfBytes, out rtf, out string? error, cancellationToken))
             {
-                rtfText = PassiveRtfText.Extract(rtf, issues, cancellationToken);
+                rtfText = PassiveRtfText.Extract(rtf, issues, cancellationToken: cancellationToken);
             }
             else
             {

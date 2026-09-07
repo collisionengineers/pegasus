@@ -3,7 +3,7 @@ id: ADR-0002
 status: accepted
 date: 2026-07-23
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032]
 related_capabilities: []
 related_frd: []
 tags: [architecture, stack, hosting]

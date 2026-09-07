@@ -91,6 +91,11 @@ public sealed record RetainedMailPage(
         : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
+public sealed record RetainedMailCursorPage(
+    IReadOnlyList<RetainedMailSummary> Items,
+    bool HasMore,
+    bool HasUnretainedHistory);
+
 public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
@@ -133,12 +138,16 @@ public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
     IReadOnlyList<string> ToAddresses,
     IReadOnlyList<string> CcAddresses,
+    IReadOnlyList<string>? ReplyToAddresses,
     string? BodyPlainText,
     IReadOnlyList<RetainedMailAttachment> Attachments,
     IReadOnlyList<RetainedMailThreadEntry> Thread,
     MailFolderScope Folder,
     MailClassificationOutcome? ClassificationOutcome,
     MailRouteDisposition? RouteDisposition,
+    string ImmutableMessageId,
+    string? InternetMessageId,
+    string? ConversationId,
     MailClassificationDossier? Classification = null,
     RetainedMailFolderRecommendation? FolderRecommendation = null,
     RetainedMailFolderMoveResult? LatestFolderMove = null,
@@ -376,6 +385,13 @@ public interface IRetainedMailQueries
         int pageSize,
         CancellationToken cancellationToken);
 
+    Task<RetainedMailCursorPage> ListByCursorAsync(
+        MailWorkspaceScope scope,
+        DateTimeOffset? beforeReceivedAtUtc,
+        Guid? beforeId,
+        int limit,
+        CancellationToken cancellationToken);
+
     /// <summary>How many retained messages the scope holds — the scope list's count wells.</summary>
     Task<int> CountAsync(
         MailWorkspaceScope scope,
@@ -385,6 +401,10 @@ public interface IRetainedMailQueries
         Guid id,
         CancellationToken cancellationToken,
         string? searchTerm = null);
+
+    Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
@@ -430,6 +450,28 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
         ArgumentNullException.ThrowIfNull(scope);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         return await queries.CountAsync(Normalize(scope), cancellationToken);
+    }
+
+    public async Task<RetainedMailCursorPage> ExecuteCursorAsync(
+        ActionActor actor,
+        MailWorkspaceScope scope,
+        DateTimeOffset? beforeReceivedAtUtc,
+        Guid? beforeId,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if ((beforeReceivedAtUtc is null) != (beforeId is null))
+        {
+            throw new ArgumentException("Both retained-mail cursor values are required together.");
+        }
+        if (limit is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit));
+        }
+        return await queries.ListByCursorAsync(
+            Normalize(scope), beforeReceivedAtUtc, beforeId, limit, cancellationToken);
     }
 
     private static MailWorkspaceScope Normalize(MailWorkspaceScope scope)
@@ -542,6 +584,31 @@ public sealed class GetRetainedMail(
             messageId,
             cancellationToken,
             normalizedSearchTerm);
+        return await CompleteAsync(detail, messageId, cancellationToken);
+    }
+
+    public async Task<RetainedMailDetail?> ExecuteByOriginReceiptAsync(
+        ActionActor actor,
+        Guid originReceiptId,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (originReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An origin receipt identifier is required.",
+                nameof(originReceiptId));
+        }
+
+        var detail = await queries.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
+        return await CompleteAsync(detail, detail?.Summary.Id ?? Guid.Empty, cancellationToken);
+    }
+
+    private async Task<RetainedMailDetail?> CompleteAsync(
+        RetainedMailDetail? detail,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
         if (detail is null)
         {
             return null;

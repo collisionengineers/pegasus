@@ -9,9 +9,16 @@ Primary users are authorised Collision Engineers staff. The alpha is an Operatio
 
 Required outcomes:
 
+The 6 September 2026 v1 scope completes engineering and final reports in
+Pegasus; EVA is optional. Staff initiate every report/chaser send. Per-Engineer
+Glass's repair estimates are included, while its valuation service and the
+additional spreadsheet-driven workflow automation remain deferred. The later
+[operator decisions](../operator-notes.md#current-v1-decisions--6-september-2026)
+govern conflicting earlier alpha descriptions.
+
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`; an Audit's original report and literal outcome remain identity-critical as stated below;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`; missing or ambiguous standalone Audit evidence withholds only the later Audit reference;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and human approval;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.

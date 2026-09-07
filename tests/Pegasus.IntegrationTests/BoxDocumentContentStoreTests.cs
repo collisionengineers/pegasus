@@ -38,13 +38,13 @@ public sealed class BoxDocumentContentStoreTests
         var content = Encoding.UTF8.GetBytes("managed document content");
         var hash = Sha256(content);
 
-        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
         var expectedPath = $"{CaseReference}/002 evidence.jpg";
         Assert.True(box.PathExists(expectedPath), $"Expected Box path {expectedPath} to exist.");
 
         await using var stream = await store.OpenReadVersionAsync(
-            Address(), hash, content.Length, CancellationToken.None);
+            Persisted(Address(), written), hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
         Assert.Equal(content, buffer.ToArray());
@@ -84,10 +84,94 @@ public sealed class BoxDocumentContentStoreTests
 
         Assert.Equal(DocumentContentWriteDisposition.Created, first.Disposition);
         Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
+        Assert.Equal($"version-{first.RemoteId}", first.BoxVersionId);
+        Assert.Equal(first.BoxVersionId, replay.BoxVersionId);
         // Flat layout: the case binding and the content. The occurrence and
         // version binding sidecars went with the folders that held them.
         Assert.Equal(2, uploadsAfterFirst);
         Assert.Equal(2, box.UploadCount);
+    }
+
+    [Fact]
+    public async Task PersistedVersionReadAndReplayDoNotDriftToANewerIdenticalVersion()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("version-pinned content");
+        var hash = Sha256(content);
+        var first = await store.StoreVersionAsync(Address(), content, hash, default);
+        var persisted = Persisted(Address(), first);
+
+        var newerVersion = box.AddVersion($"{CaseReference}/002 evidence.jpg", content);
+        var replay = await store.StoreVersionAsync(persisted, content, hash, default);
+        box.AddVersion(
+            $"{CaseReference}/002 evidence.jpg",
+            Encoding.UTF8.GetBytes("newer different current bytes"));
+        await using var read = await store.OpenReadVersionAsync(
+            persisted, hash, content.Length, default);
+
+        Assert.Equal(content, await ReadAllAsync(read));
+        Assert.Equal(first.BoxVersionId, replay.BoxVersionId);
+        Assert.NotEqual(newerVersion, replay.BoxVersionId);
+    }
+
+    [Fact]
+    public async Task RollbackRefusesToDeleteAFileThatAdvancedAfterThisWrite()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("created version");
+        await store.StoreVersionAsync(Address(), content, Sha256(content), default);
+        box.AddVersion($"{CaseReference}/002 evidence.jpg", Encoding.UTF8.GetBytes("new owner version"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.DeleteAsync(CaseId, CaseReference, VersionId, default));
+
+        Assert.True(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+        Assert.Equal(0, box.DeleteCount);
+    }
+
+    [Fact]
+    public async Task PersistedExactVersionCannotBeReadThroughAnotherCaseRoot()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("case-owned content");
+        var hash = Sha256(content);
+        var written = await store.StoreVersionAsync(Address(), content, hash, default);
+        var wrongCaseRoot = Persisted(Address(), written) with
+        {
+            CaseRootRemoteId = box.CreateFolderPath("QDOS39999")
+        };
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.OpenReadVersionAsync(wrongCaseRoot, hash, content.Length, default));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.StoreVersionAsync(wrongCaseRoot, content, hash, default));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.ReadVersionsAsync([new(wrongCaseRoot, hash, content.Length)], default));
+    }
+
+    [Fact]
+    public async Task SimultaneousIdenticalStoresConvergeOnOneBoxFileAndVersion()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var firstStore = CreateStore(box);
+        var secondStore = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("simultaneous custody content");
+        var hash = Sha256(content);
+
+        var results = await Task.WhenAll(
+            firstStore.StoreVersionAsync(Address(), content, hash, CancellationToken.None),
+            secondStore.StoreVersionAsync(Address(), content, hash, CancellationToken.None));
+
+        Assert.Equal(2, box.UploadCount);
+        Assert.Single(results.Select(value => value.RemoteId).Distinct());
+        Assert.Single(results.Select(value => value.BoxVersionId).Distinct());
     }
 
     [Fact]
@@ -127,12 +211,12 @@ public sealed class BoxDocumentContentStoreTests
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("original content");
         var hash = Sha256(content);
-        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
         box.CorruptFile($"{CaseReference}/002 evidence.jpg");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadVersionAsync(
-            Address(), hash, content.Length, CancellationToken.None));
+            Persisted(Address(), written), hash, content.Length, CancellationToken.None));
     }
 
     [Fact]
@@ -153,7 +237,7 @@ public sealed class BoxDocumentContentStoreTests
         Assert.True(box.PathExists($"{CaseReference}/pegasus-case-binding.json"));
         Assert.Equal(1, box.DeleteCount);
         await Assert.ThrowsAsync<FileNotFoundException>(() => store.OpenReadVersionAsync(
-            Address(), hash, content.Length, CancellationToken.None));
+            Persisted(Address(), created), hash, content.Length, CancellationToken.None));
 
         var wrongMedia = new InMemoryBox();
         wrongMedia.BindCaseRoot();
@@ -187,10 +271,10 @@ public sealed class BoxDocumentContentStoreTests
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("second page content");
         var hash = Sha256(content);
-        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
         await using var stream = await store.OpenReadVersionAsync(
-            Address(), hash, content.Length, CancellationToken.None);
+            Persisted(Address(), written), hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
 
@@ -210,11 +294,11 @@ public sealed class BoxDocumentContentStoreTests
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("one read");
         var hash = Sha256(content);
-        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
         var before = box.RequestCount;
 
         await using var stream = await store.OpenReadVersionAsync(
-            Address(), hash, content.Length, CancellationToken.None);
+            Persisted(Address(), written), hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
 
@@ -238,8 +322,8 @@ public sealed class BoxDocumentContentStoreTests
         {
             var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
             var address = Address(ordinal, $"photo-{ordinal}.jpg");
-            await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
-            reads.Add(new(address, Sha256(content), content.Length));
+            var written = await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
+            reads.Add(new(Persisted(address, written), Sha256(content), content.Length));
             expected.Add(content);
         }
         var before = box.RequestCount;
@@ -247,7 +331,7 @@ public sealed class BoxDocumentContentStoreTests
         var contents = await store.ReadVersionsAsync(reads, CancellationToken.None);
 
         Assert.Equal(expected, contents.Select(item => item.ToArray()));
-        Assert.Equal(7, box.RequestCount - before);
+        Assert.Equal(15, box.RequestCount - before);
 
         // The archive is built from exactly these bytes in exactly this order,
         // so a batch that disagreed with the one-at-a-time reads would change
@@ -272,17 +356,17 @@ public sealed class BoxDocumentContentStoreTests
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("batched content");
         var hash = Sha256(content);
-        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
         box.CorruptFile($"{CaseReference}/002 evidence.jpg");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => store.ReadVersionsAsync(
-            [new(Address(), hash, content.Length)], CancellationToken.None));
+            [new(Persisted(Address(), written), hash, content.Length)], CancellationToken.None));
 
         var missing = new InMemoryBox();
         missing.BindCaseRoot();
         var missingStore = CreateStore(missing);
         await Assert.ThrowsAsync<FileNotFoundException>(() => missingStore.ReadVersionsAsync(
-            [new(Address(), hash, content.Length)], CancellationToken.None));
+            [new(Address() with { BoxFileId = "missing", BoxVersionId = "missing-version" }, hash, content.Length)], CancellationToken.None));
     }
 
     private static BoxDocumentContentStore CreateStore(InMemoryBox box) => new(
@@ -292,7 +376,8 @@ public sealed class BoxDocumentContentStoreTests
                 "https://upload.box.com/api/2.0/",
                 ApprovedRootId,
                 BoxConfigJson,
-                "client-secret"),
+                "client-secret",
+                "holding-folder"),
             new HttpClient(new InMemoryBoxHandler(box)),
             new StaticAuthorizationHeaderProvider()));
 
@@ -312,8 +397,20 @@ public sealed class BoxDocumentContentStoreTests
         fileName,
         "image/jpeg");
 
+    private static ManagedDocumentContentAddress Persisted(
+        ManagedDocumentContentAddress address,
+        DocumentContentWriteResult write) =>
+        address with { BoxFileId = write.RemoteId, BoxVersionId = write.BoxVersionId };
+
     private static string Sha256(byte[] content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+
+    private static async Task<byte[]> ReadAllAsync(Stream stream)
+    {
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        return buffer.ToArray();
+    }
 
     private sealed class StaticAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider
     {
@@ -333,6 +430,8 @@ public sealed class BoxDocumentContentStoreTests
 
         private readonly Dictionary<string, Node> nodes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> fileBytes = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> currentVersions = new(StringComparer.Ordinal);
+        private readonly Dictionary<(string FileId, string VersionId), byte[]> versionBytes = [];
         private readonly Lock gate = new();
         private int nextId;
 
@@ -385,6 +484,8 @@ public sealed class BoxDocumentContentStoreTests
                 caseId = CaseId,
                 caseReference = CaseReference
             });
+            currentVersions[bindingId] = $"version-{bindingId}";
+            versionBytes[(bindingId, currentVersions[bindingId])] = fileBytes[bindingId];
             UploadCount++;
         }
 
@@ -407,6 +508,17 @@ public sealed class BoxDocumentContentStoreTests
         {
             var fileId = RequireByPath(path);
             fileBytes[fileId] = Encoding.UTF8.GetBytes("corrupted");
+            versionBytes[(fileId, currentVersions[fileId])] = fileBytes[fileId];
+        }
+
+        public string AddVersion(string path, byte[] content)
+        {
+            var fileId = RequireByPath(path);
+            var versionId = $"version-{fileId}-{versionBytes.Keys.Count(key => key.FileId == fileId) + 1}";
+            fileBytes[fileId] = content;
+            currentVersions[fileId] = versionId;
+            versionBytes[(fileId, versionId)] = content;
+            return versionId;
         }
 
         public void SetMediaType(string path, string mediaType)
@@ -454,6 +566,7 @@ public sealed class BoxDocumentContentStoreTests
                         name = node.Name,
                         type = node.Type,
                         etag = "1",
+                        file_version = node.Type == "file" ? new { id = currentVersions[node.Id] } : null,
                         size = node.Type == "file" ? fileBytes[node.Id].LongLength : (long?)null,
                         content_type = node.MediaType,
                         parent = node.ParentId is null ? null : new { id = node.ParentId }
@@ -478,6 +591,7 @@ public sealed class BoxDocumentContentStoreTests
                     name = node.Name,
                     type = node.Type,
                     etag = "1",
+                    file_version = node.Type == "file" ? new { id = currentVersions[node.Id] } : null,
                     size = node.Type == "file" ? fileBytes[node.Id].LongLength : (long?)null,
                     content_type = node.MediaType,
                     parent,
@@ -502,6 +616,16 @@ public sealed class BoxDocumentContentStoreTests
                 using var parsed = JsonDocument.Parse(attributes);
                 var name = parsed.RootElement.GetProperty("name").GetString()!;
                 var parentId = parsed.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
+                if (FindChild(parentId, name, "file") is not null)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Conflict)
+                    {
+                        Content = new StringContent(
+                            """{"code":"item_name_in_use"}""",
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
                 var bytes = multipart.First(part =>
                         part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
                     .ReadAsByteArrayAsync().GetAwaiter().GetResult();
@@ -511,6 +635,8 @@ public sealed class BoxDocumentContentStoreTests
                 var id = $"file-{++nextId}";
                 nodes[id] = new Node(id, name, "file", parentId, mediaType);
                 fileBytes[id] = bytes;
+                currentVersions[id] = $"version-{id}";
+                versionBytes[(id, currentVersions[id])] = bytes;
                 UploadCount++;
                 if (string.Equals(LoseNextUploadResponseForName, name, StringComparison.Ordinal))
                 {
@@ -522,7 +648,17 @@ public sealed class BoxDocumentContentStoreTests
                 }
                 return Json(JsonSerializer.Serialize(new
                 {
-                    entries = new[] { new { id, name, type = "file", etag = "1" } }
+                    entries = new[]
+                    {
+                        new
+                        {
+                            id,
+                            name,
+                            type = "file",
+                            etag = "1",
+                            file_version = new { id = $"version-{id}" }
+                        }
+                    }
                 }));
             }
 
@@ -530,9 +666,18 @@ public sealed class BoxDocumentContentStoreTests
                 && path.EndsWith("/content", StringComparison.Ordinal))
             {
                 var id = path["/2.0/files/".Length..^"/content".Length];
+                if (!currentVersions.TryGetValue(id, out var currentVersion))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NotFound);
+                }
+                var versionId = query["version"] ?? currentVersion;
+                if (!versionBytes.TryGetValue((id, versionId), out var bytes))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NotFound);
+                }
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = new ByteArrayContent(fileBytes[id])
+                    Content = new ByteArrayContent(bytes)
                 };
             }
 
@@ -541,6 +686,11 @@ public sealed class BoxDocumentContentStoreTests
                 var id = path["/2.0/files/".Length..];
                 nodes.Remove(id);
                 fileBytes.Remove(id);
+                currentVersions.Remove(id);
+                foreach (var key in versionBytes.Keys.Where(key => key.FileId == id).ToArray())
+                {
+                    versionBytes.Remove(key);
+                }
                 DeleteCount++;
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }

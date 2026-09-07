@@ -152,21 +152,16 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             Guid receiptId)
         {
             await using var context = await factory.CreateDbContextAsync();
-            var organizationId = Guid.NewGuid();
-            var lineageId = Guid.NewGuid();
-            var principalId = Guid.NewGuid();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var organizationId = principal.OrganizationId;
+            var lineageId = principal.SequenceLineageId;
+            var principalId = principal.Id;
             var sourceHash = new string('b', 64);
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"provider_declaration","sourceLabel":"claimant.name"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"provider_declaration","sourceLabel":"claimNumber"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"provider_declaration","sourceLabel":"vehicle.registration"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
             var sourceChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ProviderApi);
 
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"QDOS provider"}, {0L})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {ProviderInstructionPolicy.SourceFileName}, {ProviderInstructionPolicy.SourceMediaType}, {100L}, {sourceHash}, {sourceChannel}, {Guid.NewGuid().ToString("N")}, {StartUtc}, {StartUtc}, {ProviderInstructionPolicy.ReaderKey}, {ProviderInstructionPolicy.ReaderVersion}, {ProviderInstructionPolicy.PolicyKey}, {ProviderInstructionPolicy.PolicyVersion}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(

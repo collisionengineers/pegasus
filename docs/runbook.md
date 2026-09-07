@@ -1,4 +1,4 @@
-﻿# Repository runbook
+# Repository runbook
 
 ## Unidentified queue operations
 
@@ -184,9 +184,11 @@ operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
 CLI/module versions only; passing it neither signs in nor authorizes a read,
 write, deployment, or SQL bootstrap.
 
-Python creates no virtual environment and installs no package. Playwright
-binaries are an Offline browser-acceptance prerequisite, not an application
-runtime.
+Python creates no virtual environment and installs no package. The integrated
+report renderer requires package-pinned Playwright Chromium and its fonts at
+application runtime; the Web SDK container base supplies them. The browser
+acceptance lane separately uses Chromium to exercise rendered routes. Passing
+that lane does not prove a published image contains its runtime dependencies.
 
 Run the deterministic browser dependency and accessibility gate after
 initialization:
@@ -495,8 +497,8 @@ Generation reads originals without modifying them, deduplicates by SHA-256,
 groups messages by thread root then stable case key then source hash, and
 assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
 regenerates canonical JSON and byte-compares the tracked package. The
-tracked text-source snapshots declare `normalized-lf` hashing so Git checkout
-line endings cannot create false drift; email, PDF, Office, workbook, and
+tracked text-source snapshots declare `normalized-lf` hashing and byte counts
+so Git checkout line endings cannot create false drift; email, PDF, Office, workbook, and
 fixture evidence retains raw-byte hashes. The
 non-corpus tests validate its 49 dossiers, lifecycle counts, crosswalks,
 criterion states, deterministic split, and tracked Pegasus source hashes. The
@@ -535,99 +537,97 @@ must be retried from a reloaded intake receipt.
 
 ## Approved mailbox estate
 
-The approved-mailbox allowlist is the authority for which mailboxes inbound
-Intake polls, under
-[ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md).
-Each row already has a stable Pegasus `ApprovedMailbox.Id` (`Guid`) plus its
-address, route scopes, `Approved`/`Disabled` state, and nullable Graph mailbox,
-Inbox-folder, and Sent-folder coordinates. A row saved `Approved` must carry the
-coordinates required by its route scopes.
-
-The current inbound implementation does **not** yet use that stable `Guid` for
-polling. It keys `ApprovedInboxPollStates`, poison rows, retained messages, and
-the receipt token on the Graph mailbox identity. The seeded production row has
-no saved Graph identities and uses the `Graph:MailboxId` and
-`Graph:InboxFolderId` deployment fallback. Saving a real identity causes the
-current adoption path to re-key the state while carrying the old delta cursor;
-Graph then rejects that cursor against the new scope. Clearing the cursor can
-re-receive the same message under another token. A folder-only scope change is
-also undetectable in current poll state.
-
-The production Worker state is owned by
-[operations](operations.md#production-environment) — currently **enabled**
-(live-verified 2026-08-13). Independently of that, until the stable-ID and
-per-mailbox fresh-start implementation is accepted, migrated, deployed, and
-verified, do not bind or replace production inbound Graph coordinates, clear a
-cursor, or treat Graph 410 as permission to restart enumeration. The current
-fallback is evidence of deployed configuration, not a safe transition mechanism.
-
-Accepted
-[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
-settles the target procedure for later implementation:
-
-- `ApprovedMailbox.Id` is the durable source identity;
-- Graph mailbox and Inbox-folder values are replaceable coordinates whose exact
-  versioned fingerprint scopes a cursor;
-- every mailbox records its own fresh-start activation time when it is enabled;
-- pre-activation messages advance only that mailbox's candidate cursor, while
-  messages at or after the time follow normal exactly-once intake; and
-- global Worker containment, individual Function settings, and per-mailbox
-  enablement are separate controls. Sent-evidence polling remains off unless
-  separately approved.
-
-That accepted ADR has no operational effect until implementation evidence exists.
-
-### Disabling a mailbox
-
-Disabling stops polling at the next tick, for both the Inbox and Sent routes.
-It deletes nothing: retained receipts, assets, staged artifacts, quarantined
-messages, case associations, or cursor state. A poll already inside a page may
-finish that page; mailbox disablement is effective within one page, never
-mid-message.
-
-Do not rely on the current cursor-preservation behavior to re-enable an inbound
-mailbox. A Graph delta token may return 410 after disuse, and automatic initial
-enumeration is unsafe with the current mutable-identity receipt token. Under
-the accepted ADR-0024 contract, every `Disabled → Approved` transition creates
-that mailbox's own fresh-start activation cycle. It ignores mail received
-before the recorded activation time and does not create a backlog.
+The v1 source implements mailbox onboarding in `/Administration/Mailboxes`.
+It is not a deployment or a tenant permission grant. The deployed estate and
+its dated observations remain in [operations](operations.md#production-environment).
+Use this procedure only after the reviewed v1 candidate, schema, runtime roles
+and approved provider configuration have been deployed.
 
 ### Runbook: admitting a new mailbox to the tenant
 
-Approving a mailbox in Pegasus grants no Exchange access, and Pegasus cannot
-request or grant it. These steps are for a human with Microsoft 365 tenant
-rights and are not executed from this repository. They remain blocked for
-production until ADR-0024's stable-ID, scope, per-mailbox fresh-start, and
-Worker-control contracts are implemented and deployed:
+1. A Microsoft 365 administrator creates the mailbox in Microsoft 365
+   administration, if it does not already exist. Pegasus creates no mailbox.
+2. During the separately authorized one-time infrastructure setup, admit the
+   Web and Worker application identities to the intended mailbox scope using
+   Exchange Application RBAC. Configure the read permissions for resolution,
+   Inbox and Sent observation. Staff sending additionally requires scoped
+   `Mail.ReadWrite` and `Mail.Send`. RBAC and unscoped application grants are
+   additive: remove unintended tenant-wide mail grants and record both a
+   permitted-mailbox check and a denied-mailbox check. Record tenant,
+   application identities, mailbox scope, administrator and approval time.
+3. In Pegasus Administration, add the mailbox address. The Web identity
+   resolves its stable Graph identity and performs a read-only folder access
+   check. Select Intake, Sent observation and staff-send capabilities. A saved
+   row does not grant Exchange access. Enable staff-send only after recording
+   the verified effective encoded-message byte ceiling for that mailbox.
+4. Enable the mailbox. Pegasus records its own UTC start boundary and
+   generation. Earlier mail does not become a historic backlog. Check the
+   capability state, last successful poll, last error, activation time and
+   subscription expiry in Mailboxes. The fixed freshness threshold is
+   15 minutes. A Graph subscription notification wakes a direct immutable
+   Inbox-message read; the periodic delta sweep remains the recovery path.
+5. Prove a post-activation Inbox/Sent read in the separately authorized
+   operator acceptance run. A successful administration access check alone
+   proves neither continuing polling nor a real send. Staff initiate any send;
+   Graph acceptance is Submitted until the matching retained Sent item is
+   observed. No unattended chaser initiates mail.
 
-0. (MAIL-002) Administration's "add an address" resolve step runs as the Web
-   container's own managed identity (`webIdentity`), separate from the
-   Worker's. Until that identity's service principal also holds `User.Read.All`
-   and `Mail.Read` application permissions with tenant admin consent, every
-   address resolution fails closed (no row is created) and the operator sees
-   only the honest "could not be found" outcome.
-1. Confirm the Pegasus application registration holds the `Mail.Read`
-   application permission with tenant admin consent.
-2. Add the new mailbox to the Exchange Online application access policy that
-   scopes the application, so it may read that mailbox and no other.
-3. Record, as the evidence for this action: the tenant, the application object
-   id, the mailbox address, the policy scope group, who approved it, and when.
-4. In Pegasus, add the approved-mailbox row with its mailbox and folder
-   coordinates and a reason. Keep the row `Disabled` until the tenant grant is
-   confirmed; then set the row `Approved` while the global Worker switch remains
-   `Disabled`. Do not treat tenant admission or row approval as Worker
-   activation.
-5. Under the implemented release gate, record this mailbox's new UTC activation
-   time and enable its inbound route. The mailbox establishes its own candidate
-   cursor and ignores mail received before that time.
-6. Read back the global Worker and exact individual-Function settings, then
-   require a real post-activation poll completion for this mailbox within the
-   release's liveness window. `SentEvidencePollFunction` remains disabled unless
-   separately approved. Until the tenant admits the application, that mailbox
-   fails with `mailbox_access_denied`; it is not silently skipped.
+The same UI supports instructions, info, desk and engineers mailboxes once the
+operator has admitted each to the application scope. Unknown sender work still
+fails closed through intake policy; approval of a mailbox is not approval of
+all its senders. Operators do not edit SQL rows or raw environment settings to
+add an already-authorized mailbox.
 
-Per-tick Graph cost grows linearly with the estate: the message bound is per
-mailbox, so an estate of *n* mailboxes may read *n* × 50 messages a minute.
+### Disabling a mailbox
+
+Disable prevents new mailbox work and preserves retained material. Re-enable
+or replacement of a disabled target checks access again, establishes a new
+start boundary and advances the mailbox generation. Old workers and
+subscriptions cannot advance the replacement generation's cursor. Do not
+clear cursors manually to manufacture a backfill. Opening or filtering retained
+mail in Pegasus changes no Outlook read state, folder, flag or category.
+
+Global Worker containment, individual Function activation and per-mailbox
+capabilities are independent. Keep Worker functions disabled during the
+approved migration/grant/bootstrap sequence; turn them on only through the
+reviewed release procedure. Development agents do not perform these live
+mailbox, tenant, permission or send operations.
+
+## Automation OAuth certificate operation
+
+v1 production uses separate persistent signing and encryption certificates
+from the existing Key Vault. The Web managed identity reads the passwordless
+PFX secret versions. The release operator must include each named certificate
+secret in the exact-secret census and grant Web secret-read access at that
+secret's scope; the repository prohibits a vault-wide secret-read grant. The
+application fails closed when the configured certificates cannot be loaded or
+are invalid. Development explicitly uses isolated process keys through
+`AutomationMcp:UseDevelopmentKeys`; that setting is rejected in Production.
+
+The approved release operator supplies these deployment inputs:
+
+| Input | Value |
+| --- | --- |
+| `AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned Key Vault secret URIs for the current and retained signing certificates. |
+| `AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned secret URIs for the separate encryption certificates. |
+| `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for non-Case sources. |
+
+Bicep supplies the configured vault origin and indexed certificate URI settings
+to the Web container. These are references, never PFX bytes or passwords in the
+repository. Initial certificate creation and the initial alex Glass's account
+configuration are separately authorized operator actions; no secret is seeded.
+
+For rotation, publish new certificate secret versions, then deploy all replicas
+with both the new and still-required old versions. Verify token issue,
+validation and refresh across a process restart and a second replica before
+removing old versions. Retain old decryption/signature material through the
+maximum lifetime of every token issued with it: access tokens last 10 minutes,
+refresh tokens at most 14 days with sliding expiration disabled. Base removal
+on the last old-key issuance plus that lifetime, not on certificate upload
+time. Emergency invalidation is an explicit operator action and must record
+which grants/tokens were revoked. Certificate rotation, external connector
+round-trip and live provider acceptance are later proof; local cryptographic
+replica tests do not claim that operator run occurred.
 
 ## Local setup and run
 
@@ -757,9 +757,19 @@ Configuration ownership is:
 | Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
 | Ignored local state | `artifacts/` |
 | Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
-| Which mailboxes inbound Intake polls, and their exact tenant identities | The `ApprovedMailboxes` allowlist, edited on `/Administration/Mailboxes` ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)). `Graph:MailboxId` and `Graph:InboxFolderId` are retained as the read-only bootstrap fallback for the already-deployed mailbox and as the Sent route's own configuration. |
+| Which mailboxes inbound Intake polls, and their exact tenant identities | The `ApprovedMailboxes` allowlist, edited on `/Administration/Mailboxes` ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)). v1 poll and Sent claims use each persisted mailbox identity, folder, capability and generation; a global Graph coordinate is not the current mailbox authority. Historical deployment settings are recorded in operations. |
 
 Tool availability does not authorize external action.
+
+The optional Production Worker OCR adapter reads `DocumentIntelligence:Endpoint`
+as an absolute HTTPS URI and reuses the credential selected by
+`AzureIdentity:WorkerClientId`. It adds no API-key setting. An absent endpoint
+leaves the provider and processor unregistered; an OCR work row then fails
+closed through the existing external-work dispatcher. `DevelopmentOffline`
+rejects the endpoint setting and composes no OCR provider. The durable OCR
+store remains available to both hosts. Configuration, resource permission,
+deployment and live provider proof require their separately approved targets;
+local composition tests do not establish any of them.
 
 Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
 
@@ -919,7 +929,7 @@ The following contracts must be proved through the owning Core policy and actual
 - preparing, viewing, or copying a manual chaser is not sent evidence;
 - explicit staff confirmation stores actor, time, case, channel, outcome, and optional note exactly once, performs no outbound call, rejects unauthorised, stale, closed, or `Held` submissions, and stores no message body;
 - the separate Triage state, finding, correction, reopen, and link contract is complete;
-- no-registration Triage remains `Needs sorting` without case/reference creation;
+- a Triage request without a registration remains `Unidentified` without Triage or Case/reference creation;
 - reply-chain evidence uses the exact allowlist and does not fall back to subject, registration, or manual selection;
 - the in-house upload caller proves authenticated staff creation, isolated request-local upload/result presentation, expiry, revocation, bounded retry/abuse behavior, durable custody, and cross-request/non-disclosing failures without a Box File Request route;
 - Case and later-Audit custody use the immutable business reference hierarchy with the database-stored remote folder id as the identity authority (no marker files inside folders), and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
@@ -1064,9 +1074,10 @@ on 2026-08-19 (release 12, DELIV-012) and applied through the
 enabled the SentEvidence route scope for the approved mailbox; before that
 approval the enabled function had failed once a minute against the
 unapproved mailbox. The
-implemented inbound caller path must define and test the exact supporting
-dispatch, queue, recovery, and reconciliation Function set. That contract is
-not implemented yet.
+activation validator owns the exact supporting dispatch, queue, recovery and
+reconciliation Function census. Worker activation tests and the Local
+deployment-plan check verify its disabled migration boundary; actual trigger
+indexing and post-deployment execution need the later operator proof.
 
 Every Worker readback passes subscription
 `e6076573-23a5-46a8-acef-7e22d264e5db` explicitly and targets the
@@ -1085,12 +1096,12 @@ Run each procedure below from a fresh authorised terminal. Execute the exact
 environment and subscription assignments at the start of that procedure;
 never rely on variables or azd selection inherited from an earlier terminal.
 
-First activation remains blocked until later tickets implement and deploy
-ADR-0024's stable identity, per-mailbox fresh-start, and separate Worker-control
-contract. The current two-state commands below cannot perform that activation
-and must not be used as a substitute. After the later implementation updates
-this section, the operator must separately approve the exact production
-provision and start from a fresh inventory proving the known disabled baseline.
+V1 source implements stable mailbox identity, per-mailbox fresh-start generations
+and separate Worker controls. Source validation does not activate that candidate
+in production. The operator must approve the exact production provision, verify
+the intended mailbox scope and start from a fresh inventory. The two-state
+commands below control the Worker; mailbox approval and activation use the
+Administration flow described above.
 
 ```powershell
 $pegasusAzdEnvironment = 'pegasus-prod'
@@ -1105,7 +1116,10 @@ azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
   -ExpectedLiveWorkerActivation disabled
 ```
 
-`PreProvision` is read-only. It binds the selected azd environment to the exact
+`PreProvision` is read-only. It requires the Box holding folder and both
+certificate URI lists, validates versioned HTTPS Key Vault secret addresses,
+and checks the certificate vault against the environment's vault when recorded.
+It binds the selected azd environment to the exact
 production subscription, tenant, resource group, and Worker, then confirms the
 deployed Worker's settings consistently match the expected activation. It does
 not require the previous release to already use the new release's function

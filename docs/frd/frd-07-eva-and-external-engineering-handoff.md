@@ -80,29 +80,12 @@ deliberate deferral (operator decision, 2026-08-27), not an oversight, and it
 is why every Principal setting defaults to off. Live credentials are a further,
 separately gated change.
 
-Each Principal carries two independent settings, both off by default:
-
-- **Manual API submission** — an operator may submit a case in `Review` from
-  the Send to EVA dialog, and re-send it from `With Engineer` (D36).
-- **Automatic API submission** — a case reaching `Review` is submitted without
-  operator action.
-
-They are independent, so a Principal may submit automatically and offer no
-button. Such a Principal has no case-page recovery from a failed submission:
-the reconciliation sweep does not re-arm a case that already carries a
-submission work row, so a submission that exhausted its retries is recovered
-from the Operations external-work retry surface, which every queued kind
-shares. A replacement Principal inherits its predecessor's settings.
-
-**A case is submitted automatically at most once.** EVA has no idempotency: a
-second accepted instruction creates a second claim with its own File
-Reference, and no API call can withdraw it; EVA's update endpoints are not
-suitable for this product's use case (operator decision, 2026-08-27). So
-automatic submission fires once, on reaching `Review`, the reconciliation
-sweep never re-arms a case that carries a submission work row, and a case
-retracted from `Review`, reworked and returned is not resubmitted
-automatically. Reaching EVA means a `Succeeded` **or** a `Partial` outcome: an
-acceptance that returned no identifier still created the claim.
+Each Principal carries one manual API-submission setting, off by default. When
+enabled, an operator may submit a case in `Review` from the Send to EVA dialog
+and re-send it from `With Engineer` (D36). A replacement Principal inherits
+this setting. A disabled Principal's setting is frozen as part of its
+historical record. Pegasus never submits a case to EVA merely because the case
+reaches `Review`.
 
 The consequence must be stated plainly: **once a case has been submitted,
 later changes to it reach EVA only through an explicit re-send.** The earlier
@@ -121,10 +104,12 @@ Every submission records its outcome, and the four outcomes stay distinct:
 | Succeeded | EVA accepted the instruction and returned its identifiers | no |
 | Rejected | EVA refused it and said why | no — the same payload will be refused again |
 | Partial | EVA accepted it but returned no identifier | no — the case did reach EVA |
-| Unknown | delivery could not be determined | yes, with backoff, to an attempt cap |
+| Unknown | delivery could not be determined | no automatic retry; retain uncertainty and require explicit staff re-send |
 
-Only `Unknown` is retried, because it is the only outcome where the case may
-not have reached EVA. Both EVA identifiers are retained: the response
+An `Unknown` result may already have reached EVA and is never retried without
+operator action. It is terminal; staff review the retained attempt before an
+explicit re-send.
+Both EVA identifiers are retained: the response
 identifier and the File Reference EVA embeds in its message text, which is what
 an operator quotes.
 
@@ -145,8 +130,10 @@ accepted the instruction — a state change or version conflict found on the
 post-delivery re-check — still records the submission and its action
 history, since the delivery already happened and must not be lost, but
 likewise leaves the Case in `Review`. A re-send from `With Engineer` does not
-change state or version. Automatic submission remains a once-only `Review`
-action.
+change state or version. There is no automatic submission action. D47's first
+manual Send via API transition remains one route into report preparation;
+explicit Start Case Work or assignment is the other route, and neither requires
+EVA delivery.
 
 Values EVA's instruction model has no field for — the inspection date and the
 mileage — are sent as labelled lines in the instruction's note rather than

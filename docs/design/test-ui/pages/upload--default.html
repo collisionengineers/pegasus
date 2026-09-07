@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Upload · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -172,7 +173,7 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                 <div>
                     <h2><label for="Upload">Drag files here or choose files</label></h2>
-                    <p>EML, MSG, PDF, DOC, DOCX, JPG or PNG &#xB7; up to 10.0 MB each &#xB7; 20 files</p>
+                    <p>EML, MSG, PDF, DOC, DOCX, JPG or PNG &#xB7; up to 100.0 MB each &#xB7; 20 files</p>
                     <button type="button" class="btn btn--dark" hidden data-dropzone-browse>Choose files</button>
                     <input type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" data-val="true" data-val-required="The Upload field is required." id="Upload" name="Upload" />
                 </div>
@@ -259,10 +260,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

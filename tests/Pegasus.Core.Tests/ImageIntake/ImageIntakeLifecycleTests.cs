@@ -124,6 +124,47 @@ public sealed class ImageIntakeLifecycleTests
             request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
     }
 
+    [Fact]
+    public void ImageIntakeRecordCarriesAnOptionalPrincipal()
+    {
+        var absent = new ImageIntakeRecord(Guid.NewGuid(), Origin(), "AB12CDE", "AB12CDE-01");
+        var principalId = Guid.NewGuid();
+        var recorded = absent with { PrincipalId = principalId };
+
+        // No registration path supplies a principal: recording one is a later,
+        // separate staff decision.
+        Assert.Null(absent.PrincipalId);
+        Assert.Equal(principalId, recorded.PrincipalId);
+    }
+
+    [Fact]
+    public void PrincipalAssignmentRequiresStaffAndValidIdentifiers()
+    {
+        var request = new SetImageIntakePrincipalRequest(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            StaffActor(),
+            0);
+
+        ImageIntakeLifecycleRules.ValidateSetPrincipal(request);
+        // Clearing is a legitimate state, not an error: `Not known` is a value
+        // staff may return to.
+        ImageIntakeLifecycleRules.ValidateSetPrincipal(request with { PrincipalId = null });
+
+        Assert.Throws<StaffAuthorizationException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(
+                request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
+        Assert.Throws<ArgumentException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(
+                request with { ImageIntakeId = Guid.Empty }));
+        Assert.Throws<ArgumentException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(
+                request with { PrincipalId = Guid.Empty }));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ImageIntakeLifecycleRules.ValidateSetPrincipal(
+                request with { ExpectedVersion = -1 }));
+    }
+
     public static TheoryData<CaseLifecycleState, bool, bool> EligibilityCases()
     {
         var data = new TheoryData<CaseLifecycleState, bool, bool>();

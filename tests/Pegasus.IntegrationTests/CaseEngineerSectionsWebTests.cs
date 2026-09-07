@@ -258,7 +258,7 @@ public sealed class CaseEngineerSectionsWebTests
             DateTimeOffset.UtcNow,
             null,
             null,
-            new("Estimate 1", 3, 50m, 50m, 100m, 25m, 20m, "Recorded notes"),
+            new("Estimate 1", 3, 50m, 100m, 25m, 20m, "Recorded notes"),
             true);
     }
 

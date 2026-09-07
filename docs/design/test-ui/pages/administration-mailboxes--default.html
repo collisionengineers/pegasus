@@ -3,8 +3,9 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Access denied · Pegasus</title>
+    <title>Administration · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -70,23 +71,549 @@
   <symbol id="icon-arrow-up-down" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
 </svg>
 
-    <div class="external-shell">
-        <main id="main-content" tabindex="-1">
-            <section class="auth-card">
-                <div class="auth-brand">
-                    <img src="../../../../src/Pegasus.Web/wwwroot/images/logo_no_margin.png" alt="" />
-                    <strong>PEGASUS</strong>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-shell" data-app-shell>
+        <header class="app-rail">
+            <a class="brand" aria-label="Pegasus home" href="dashboard--default.html">
+                <img src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                <span class="brand-copy"><strong>PEGASUS</strong><span>Case management</span></span>
+            </a>
+            <nav class="primary-nav" aria-label="Primary">
+                <div class="nav-label">Work</div>
+                <a class="nav-link" href="dashboard--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                    <a class="nav-link" href="inbox--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <span>Inbox</span>
+                    </a>
+                    <a class="nav-link" href="upload--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <span>Upload</span>
+                    </a>
+                <a class="nav-link" href="queues--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <span>Cases</span>
+                        <span class="nav-count" aria-label="0 outstanding">0</span>
+                </a>
+                <a class="nav-link" href="cases--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <span>Search</span>
+                </a>
+                    <a class="nav-link" href="operations--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                        <span>Operations</span>
+                    </a>
+                    <div class="nav-label">Manage</div>
+                    <a class="nav-link" aria-current="page" href="administration--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="rail-spacer"></div>
+            <div class="rail-health">
+                <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
+            </div>
+                <div class="rail-user" role="group" aria-label="User">
+                    <span class="avatar" aria-hidden="true">DO</span>
+                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
+                    <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                    </button>
+                </div>
+        </header>
+        <div class="app-column">
+            <section class="utility-bar" aria-label="Utility bar">
+                <div class="utility-freshness"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
+                <form class="utility-search" role="search" method="get" action="cases--default.html">
+                    <label class="sr-only" for="global-search">Search Pegasus</label>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <input id="global-search" type="search" name="query" data-command-input aria-label="Search Pegasus" autocomplete="off" />
+                    <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
+                </form>
+                <div class="utility-actions">
+                    <button type="button" class="btn btn--primary" data-dialog-open="add-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add</span>
+                    </button>
+                    <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                    </button>
+                </div>
+            </section>
+            <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
+                <a class="workspace-tab" href="dashboard--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                <button type="button" class="workspace-tab" data-dialog-open="command-dialog" data-workspace-open aria-label="Open another record">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Open</span>
+                </button>
+            </nav>
+            <main id="main-content" class="app-main" tabindex="-1"
+                  data-workspace-record=""
+                  data-workspace-href=""
+                  data-workspace-label="">
+                <div class="content">
+
+<header class="page-header">
+    <div class="page-title">
+        <h1>Administration</h1>
+    </div>
+</header>
+
+
+<div class="admin-layout">
+    <nav class="admin-nav panel" aria-label="Administration areas">
+    <a href="administration-accounts--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+    </a>
+    <a href="administration-principals--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Principals</span>
+    </a>
+    <a href="administration-configuration--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+    </a>
+    <a aria-current="page" href="administration-mailboxes--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+    </a>
+    <a href="administration-action-logs--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+        <span>Action logs</span>
+    </a>
+    <a href="administration-ai-jobs--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+        <span>AI jobs</span>
+    </a>
+    <a href="administration-reports--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+        <span>Reports</span>
+    </a>
+    <a href="administration-health--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+        <span>Service health</span>
+    </a>
+    <a href="administration-valuation-presets--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Valuation presets</span>
+    </a>
+    <a href="#">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Claim sources</span>
+    </a>
+</nav>
+
+    <section class="panel" aria-labelledby="mail-settings-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="mail-settings-title">Mail settings</h2>
+                <div class="muted">Approved mailboxes and mail categories</div>
+                <div class="panel-title-meta">
+                    1 approved mailbox &#xB7; 0 mail categories
+                </div>
+            </div>
+        </div>
+        <div class="panel-body stack">
+
+            <div class="validation-summary-errors" data-valmsg-summary="true"><ul><li>Pegasus could not verify read access to this mailbox. The change was not saved.</li>
+</ul></div>
+
+            <section aria-labelledby="approved-mailboxes-title">
+                <div class="cluster cluster--between">
+                    <h3 id="approved-mailboxes-title">Approved mailboxes</h3>
+                    <a href="https://github.com/collisionengineers/pegasus/blob/dev/docs/runbook.md#approved-mailbox-estate">Mailbox setup</a>
+                </div>
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">Approved mailboxes</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Mailbox</th>
+                                <th scope="col">Scope</th>
+                                <th scope="col">Last update</th>
+                                <th scope="col">State</th>
+                                <th scope="col">Activated</th>
+                                <th scope="col">Subscription</th>
+                                <th scope="col">Review folders / Refresh</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                <tr>
+                                    <td>instructions@collisionengineers.co.uk</td>
+                                    <td>New instructions and Triage mail (Inbox)</td>
+                                    <td>
+                                        Not yet polled.
+                                    </td>
+                                    <td>
+                                        <span class="status status--navy">Approved</span>
+
+                                    </td>
+                                    <td>Not activated</td>
+                                    <td>None.</td>
+                                    <td>
+                                        <details>
+                                            <summary class="btn btn--small">Review folders (0 of 13)</summary>
+                                            <div class="stack section-gap">
+                                                <div class="definition-list">
+                                                        <dl class="definition">
+                                                            <dt>Instructions</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Audits</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Diminution</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>New clients</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Case queries</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Enquiries</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Billing</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Pre-instructions</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>No action</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Images</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Cancellations</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Case updates</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                        <dl class="definition">
+                                                            <dt>Other</dt>
+                                                            <dd>Not configured</dd>
+                                                        </dl>
+                                                </div>
+                                                <form method="post" class="stack" action="administration-mailboxes--default.html">
+                                                    <input type="hidden" name="MailboxForm.MailboxId" value="test-ui-guid-1" />
+                                                    <input type="hidden" name="MailboxForm.ExpectedVersion" value="1" />
+                                                    <input type="hidden" name="MailboxForm.OperationKey" value="test-ui-guid-4" />
+                                                    <div class="field">
+                                                        <label class="req" for="mailbox-address-test-ui-guid-1">Approved address</label>
+                                                        <input id="mailbox-address-test-ui-guid-1" name="MailboxForm.Address" value="instructions@collisionengineers.co.uk"
+                                                               required maxlength="320" inputmode="email" />
+                                                    </div>
+                                                    <fieldset class="stack">
+                                                        <legend>Route scope</legend>
+                                                        <label class="cluster">
+                                                            <input type="checkbox" name="MailboxForm.SelectedRouteScopes"
+                                                                   value="InboundIntake"
+                                                                   checked="checked" />
+                                                            <span>New instructions and Triage mail (Inbox)</span>
+                                                        </label>
+                                                        <label class="cluster">
+                                                            <input type="checkbox" name="MailboxForm.SelectedRouteScopes"
+                                                                   value="SentEvidence" />
+                                                            <span>Exact report and Triage evidence (Sent Items)</span>
+                                                        </label>
+                                                        <label class="cluster">
+                                                            <input type="checkbox" name="MailboxForm.SelectedRouteScopes"
+                                                                   value="StaffSend" />
+                                                            <span>Staff send</span>
+                                                        </label>
+                                                    </fieldset>
+                                                    <div class="field">
+                                                        <label for="mailbox-send-limit-test-ui-guid-1">Verified encoded-message size limit (bytes)</label>
+                                                        <input id="mailbox-send-limit-test-ui-guid-1" name="MailboxForm.VerifiedEncodedMessageSizeLimit" type="number" min="1" step="1" />
+                                                    </div>
+                                                    <div class="field">
+                                                        <label for="mailbox-state-test-ui-guid-1">State</label>
+                                                        <select id="mailbox-state-test-ui-guid-1" name="MailboxForm.SelectedState">
+                                                            <option value="Approved" selected="selected">Approved</option>
+                                                            <option value="Disabled">Disabled</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="field">
+                                                        <label class="req" for="mailbox-reason-test-ui-guid-1">Reason</label>
+                                                        <input id="mailbox-reason-test-ui-guid-1" name="MailboxForm.Reason" value=""
+                                                               required maxlength="1000" />
+                                                    </div>
+                                                    <button type="submit" class="btn btn--dark">
+                                                        Save mailbox
+                                                    </button>
+                                                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                                            </div>
+                                        </details>
+                                    </td>
+                                </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-<h1>Access denied</h1>
-<p>Your account does not have access to this page.</p>
-    <div class="button-row">
-        <a class="btn" href="dashboard--default.html">Return to Work Centre</a>
+                <details class="section-gap">
+                    <summary class="btn btn--dark">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add mailbox</span>
+                    </summary>
+                    <form method="post" class="grid grid-2 section-gap" action="administration-mailboxes--default.html">
+                        <input type="hidden" name="MailboxForm.MailboxId" value="test-ui-guid-2" />
+                        <input type="hidden" name="MailboxForm.ExpectedVersion" value="0" />
+                        <input type="hidden" name="MailboxForm.OperationKey" value="test-ui-guid-5" />
+                        <div class="field">
+                            <label class="req" for="new-mailbox-address">Approved address</label>
+                            <input id="new-mailbox-address" name="MailboxForm.Address" value="estate@collisionengineers.co.uk"
+                                   required maxlength="320" inputmode="email" />
+                        </div>
+                        <fieldset class="stack">
+                            <legend>Route scope</legend>
+                            <label class="cluster">
+                                <input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="InboundIntake"
+                                       checked="checked" />
+                                <span>New instructions and Triage mail (Inbox)</span>
+                            </label>
+                            <label class="cluster">
+                                <input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="SentEvidence" />
+                                <span>Exact report and Triage evidence (Sent Items)</span>
+                            </label>
+                            <label class="cluster">
+                                <input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="StaffSend" />
+                                <span>Staff send</span>
+                            </label>
+                        </fieldset>
+                        <div class="field">
+                            <label for="new-mailbox-send-limit">Verified encoded-message size limit (bytes)</label>
+                            <input id="new-mailbox-send-limit" name="MailboxForm.VerifiedEncodedMessageSizeLimit" type="number" min="1" step="1" />
+                        </div>
+                        <div class="field">
+                            <label for="new-mailbox-state">State</label>
+                            <select id="new-mailbox-state" name="MailboxForm.SelectedState">
+                                <option value="Approved" selected="selected">Approved</option>
+                                <option value="Disabled">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label class="req" for="new-mailbox-reason">Reason</label>
+                            <input id="new-mailbox-reason" name="MailboxForm.Reason" value="Verify the mailbox before enabling it"
+                                   required maxlength="1000" />
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">
+                                Add mailbox
+                            </button>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                </details>
+            </section>
+
+            <section class="section-gap" aria-labelledby="mail-categories-title">
+                <h3 id="mail-categories-title">Mail categories</h3>
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">Mail categories</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Category</th>
+                                <th scope="col">State</th>
+                                <th scope="col">Review</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="3">No mail categories</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <details class="section-gap">
+                    <summary class="btn btn--dark">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add category</span>
+                    </summary>
+                    <form method="post" class="grid grid-2 section-gap" action="administration-mailboxes--default.html">
+                        <input type="hidden" name="CategoryForm.CategoryId" value="test-ui-guid-3" />
+                        <input type="hidden" name="CategoryForm.ExpectedVersion" value="0" />
+                        <input type="hidden" name="CategoryForm.OperationKey" value="test-ui-guid-6" />
+                        <div class="field">
+                            <label class="req" for="new-category-display-name">Display name</label>
+                            <input id="new-category-display-name" name="CategoryForm.DisplayName"
+                                   value="" required maxlength="255" />
+                        </div>
+                        <div class="field">
+                            <label for="new-category-state">State</label>
+                            <select id="new-category-state" name="CategoryForm.SelectedState">
+                                <option value="Active" selected="selected">Active</option>
+                                <option value="Disabled">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label class="req" for="new-category-reason">Reason</label>
+                            <input id="new-category-reason" name="CategoryForm.Reason"
+                                   value="" required maxlength="1000" />
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">
+                                Add category
+                            </button>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                </details>
+            </section>
+        </div>
+    </section>
+</div>
+
+                </div>
+            </main>
+        </div>
     </div>
 
-            </section>
-        </main>
-    </div>
+<div class="dialog-backdrop" data-dialog="account-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+        <div class="dialog-head">
+            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
+                <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
+                <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+            <a class="btn" href="password-change--default.html">
+                <svg class="icon" aria-hidden="true"><use href="#icon-key" /></svg>
+                <span>Change password</span>
+            </a>
+            <form method="post" action="#">
+                <button type="submit" class="btn btn--danger">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-log-out" /></svg>
+                    <span>Sign out</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="add-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="add-dialog-title">
+        <div class="dialog-head">
+            <h2 id="add-dialog-title" tabindex="-1">Add</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="grid grid-2">
+                    <a class="admin-card" href="upload--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <h2>Upload files</h2>
+                    </a>
+                <a class="admin-card" href="case-create--default.html">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <h2>Create Case</h2>
+                </a>
+                    <a class="admin-card" href="inbox--default.html">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <h2>Review Inbox</h2>
+                    </a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="notifications-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
+        <div class="dialog-head">
+            <h2 id="notifications-dialog-title" tabindex="-1">Notifications</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="command-dialog" hidden>
+    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
+        <div class="dialog-head">
+            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="command-search">
+            <label class="sr-only" for="command-input">Search</label>
+            <input id="command-input" type="search" autocomplete="off" data-command-palette-input aria-controls="command-results" />
+        </div>
+        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/">
+                <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                <span><strong>Work Centre</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                    <span><strong>Inbox</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span><strong>Upload</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
+                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                <span><strong>Cases</strong></span>
+            </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                <span><strong>Search</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Operations">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                    <span><strong>Operations</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                    <span><strong>Administration</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback>
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                <span><strong>Search Cases for <span data-command-fallback-term></span></strong></span>
+                <span class="kbd" aria-hidden="true">Enter</span>
+            </button>
+        </div>
+    </section>
+</div>
+
+    <div class="toast-region" aria-live="polite" data-toast-region></div>
+
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
 
 </body>

@@ -14,7 +14,8 @@ internal sealed record ApprovedIntakeMailboxCandidate(
     string Address,
     string? MailboxIdentity,
     string? InboxFolderIdentity,
-    DateTimeOffset? ActivatedAtUtc);
+    DateTimeOffset? ActivatedAtUtc,
+    long Generation);
 
 public sealed class EfApprovedMailboxStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -42,7 +43,8 @@ public sealed class EfApprovedMailboxStore(
                 item.MailboxIdentity!,
                 item.Address,
                 item.InboxFolderIdentity!,
-                item.ActivatedAtUtc!.Value))
+                item.ActivatedAtUtc!.Value,
+                item.Generation))
             .ToArray();
     }
 
@@ -67,10 +69,11 @@ public sealed class EfApprovedMailboxStore(
                 item.Address,
                 item.MailboxIdentity,
                 item.InboxFolderIdentity,
-                item.ActivatedAtUtc))
+                item.ActivatedAtUtc,
+                item.MailboxGeneration))
             .SingleOrDefaultAsync(cancellationToken);
         return candidate is { MailboxIdentity: not null, InboxFolderIdentity: not null, ActivatedAtUtc: not null }
-            ? new(candidate.Id, candidate.MailboxIdentity, candidate.Address, candidate.InboxFolderIdentity, candidate.ActivatedAtUtc.Value)
+            ? new(candidate.Id, candidate.MailboxIdentity, candidate.Address, candidate.InboxFolderIdentity, candidate.ActivatedAtUtc.Value, candidate.Generation)
             : null;
     }
 
@@ -93,7 +96,8 @@ public sealed class EfApprovedMailboxStore(
                 item.Address,
                 item.MailboxIdentity,
                 item.InboxFolderIdentity,
-                item.ActivatedAtUtc))
+                item.ActivatedAtUtc,
+                item.MailboxGeneration))
             .ToListAsync(cancellationToken);
     }
 
@@ -137,9 +141,9 @@ public sealed class EfApprovedMailboxStore(
             .AnyAsync(
                 item => item.Address == normalizedAddress
                     && item.State == approvedState
-                    && (routeScope == ApprovedMailboxRouteScope.InboundIntake
-                        ? item.AllowInboundIntake
-                        : item.AllowSentEvidence),
+                    && (routeScope == ApprovedMailboxRouteScope.InboundIntake && item.AllowInboundIntake
+                        || routeScope == ApprovedMailboxRouteScope.SentEvidence && item.AllowSentEvidence
+                        || routeScope == ApprovedMailboxRouteScope.StaffSend && item.AllowStaffSend),
                 cancellationToken);
     }
 
@@ -190,6 +194,7 @@ public sealed class EfApprovedMailboxStore(
                 ActivatedAtUtc = request.State == ApprovedMailboxState.Approved
                     ? timeProvider.GetUtcNow()
                     : null,
+                MailboxGeneration = request.State == ApprovedMailboxState.Approved ? 1 : 0,
                 Version = 1
             };
             context.Set<ApprovedMailboxEntity>().Add(entity);
@@ -208,10 +213,16 @@ public sealed class EfApprovedMailboxStore(
             }
 
             before = Snapshot(entity);
+            if (before.State == ApprovedMailboxState.Approved
+                && request.State == ApprovedMailboxState.Disabled)
+            {
+                entity.MailboxGeneration = checked(entity.MailboxGeneration + 1);
+            }
             if (request.State == ApprovedMailboxState.Approved
                 && (before.State == ApprovedMailboxState.Disabled || entity.ActivatedAtUtc is null))
             {
                 entity.ActivatedAtUtc = timeProvider.GetUtcNow();
+                entity.MailboxGeneration = checked(entity.MailboxGeneration + 1);
             }
             var mayReplaceCoordinates = before.State == ApprovedMailboxState.Disabled
                 && request.State == ApprovedMailboxState.Disabled;
@@ -265,6 +276,61 @@ public sealed class EfApprovedMailboxStore(
             request.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake);
         entity.AllowSentEvidence =
             request.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence);
+        entity.AllowStaffSend =
+            request.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend);
+        if (request.VerifiedEncodedMessageSizeLimit is { } verifiedLimit
+            && entity.VerifiedEncodedMessageSizeLimit != verifiedLimit)
+        {
+            entity.VerifiedEncodedMessageSizeLimit = verifiedLimit;
+            entity.SendLimitVerifiedAtUtc = timeProvider.GetUtcNow();
+            entity.SendLimitVerifiedBy = request.Actor.SubjectId;
+        }
+        if (before is { State: ApprovedMailboxState.Approved }
+            && request.State == ApprovedMailboxState.Approved
+            && !before.RouteScopes.SequenceEqual(Routes(entity)))
+        {
+            entity.MailboxGeneration = checked(entity.MailboxGeneration + 1);
+            entity.ActivatedAtUtc = timeProvider.GetUtcNow();
+        }
+        if (before is not null && before.Generation != entity.MailboxGeneration)
+        {
+            var boundary = request.State == ApprovedMailboxState.Approved
+                ? entity.ActivatedAtUtc
+                    ?? throw new InvalidOperationException("An active mailbox generation requires a start boundary.")
+                : timeProvider.GetUtcNow();
+            var inboxState = await context.ApprovedInboxPollStates.SingleOrDefaultAsync(
+                item => item.ApprovedMailboxId == entity.Id,
+                cancellationToken);
+            if (inboxState is not null)
+            {
+                inboxState.Generation = entity.MailboxGeneration;
+                inboxState.StartBoundaryUtc = boundary;
+                inboxState.ActivatedAtUtc = boundary;
+                inboxState.Cursor = null;
+                inboxState.DueAtUtc = boundary;
+                inboxState.LeaseToken = null;
+                inboxState.LeaseExpiresAtUtc = null;
+                inboxState.LastCompletedAtUtc = null;
+                inboxState.LastFailureCode = null;
+            }
+            if (entity.MailboxIdentity is { } graphMailboxId)
+            {
+                var sentState = await context.ApprovedSentPollStates.SingleOrDefaultAsync(
+                    item => item.MailboxId == graphMailboxId,
+                    cancellationToken);
+                if (sentState is not null)
+                {
+                    sentState.Generation = entity.MailboxGeneration;
+                    sentState.StartBoundaryUtc = boundary;
+                    sentState.Cursor = null;
+                    sentState.DueAtUtc = boundary;
+                    sentState.LeaseToken = null;
+                    sentState.LeaseExpiresAtUtc = null;
+                    sentState.LastCompletedAtUtc = null;
+                    sentState.LastFailureCode = null;
+                }
+            }
+        }
         var after = Snapshot(entity);
         context.ActionHistory.Add(new ActionHistoryEntity
         {
@@ -381,7 +447,9 @@ public sealed class EfApprovedMailboxStore(
         entity.InboxFolderIdentity,
         entity.SentFolderIdentity,
         entity.ActivatedAtUtc,
+        entity.MailboxGeneration,
         entity.Version,
+        entity.VerifiedEncodedMessageSizeLimit,
         entity.FolderBindings
             .Select(item => new ApprovedMailboxFolderBinding(
                 ParseFolderType(item.FolderType),
@@ -402,11 +470,13 @@ public sealed class EfApprovedMailboxStore(
         snapshot.IdentityIsBound,
         snapshot.ActivatedAtUtc,
         snapshot.Version,
-        snapshot.FolderBindings);
+        snapshot.FolderBindings,
+        snapshot.Generation,
+        snapshot.VerifiedEncodedMessageSizeLimit);
 
     private static ApprovedMailboxRouteScope[] Routes(ApprovedMailboxEntity entity)
     {
-        var routes = new List<ApprovedMailboxRouteScope>(2);
+        var routes = new List<ApprovedMailboxRouteScope>(3);
         if (entity.AllowInboundIntake)
         {
             routes.Add(ApprovedMailboxRouteScope.InboundIntake);
@@ -414,6 +484,10 @@ public sealed class EfApprovedMailboxStore(
         if (entity.AllowSentEvidence)
         {
             routes.Add(ApprovedMailboxRouteScope.SentEvidence);
+        }
+        if (entity.AllowStaffSend)
+        {
+            routes.Add(ApprovedMailboxRouteScope.StaffSend);
         }
         return routes.ToArray();
     }
@@ -439,7 +513,9 @@ public sealed class EfApprovedMailboxStore(
         string? InboxFolderIdentity,
         string? SentFolderIdentity,
         DateTimeOffset? ActivatedAtUtc,
+        long Generation,
         int Version,
+        long? VerifiedEncodedMessageSizeLimit,
         IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings)
     {
         public bool IdentityIsBound => MailboxIdentity is not null;

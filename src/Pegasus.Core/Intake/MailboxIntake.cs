@@ -12,7 +12,9 @@ public sealed record ApprovedInboxPollLease(
     string InboxFolderIdentity,
     DateTimeOffset ActivatedAtUtc,
     string? Cursor,
-    string LeaseToken);
+    string LeaseToken,
+    DateTimeOffset StartBoundaryUtc = default,
+    long Generation = 1);
 
 public sealed record ApprovedInboxSourceRejection(
     string FailureCode,
@@ -68,6 +70,7 @@ public sealed record RetainedMailboxMessageMetadata(
     string? SenderDisplayName,
     IReadOnlyList<string> ToAddresses,
     IReadOnlyList<string> CcAddresses,
+    IReadOnlyList<string> ReplyToAddresses,
     string? Subject,
     string? BodyPlainText,
     IReadOnlyList<RetainedMailboxAttachment> Attachments,
@@ -152,6 +155,11 @@ public interface IApprovedInboxSource
         ApprovedInboxPollLease lease,
         int maximumMessages,
         CancellationToken cancellationToken);
+
+    Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+        ApprovedInboxPollLease lease,
+        string immutableMessageId,
+        CancellationToken cancellationToken) => Task.FromResult<ApprovedInboxMessage?>(null);
 }
 
 public interface IApprovedInboxPollStore
@@ -311,6 +319,66 @@ public sealed class PollApprovedInbox(
         return handled;
     }
 
+    public async Task<int> ExecuteNotificationAsync(
+        Guid approvedMailboxId,
+        long generation,
+        string immutableMessageId,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
+        var actorCode = ValidateRequest(1, actor);
+        var mailbox = await approvedIntakeMailboxes.GetPollableAsync(approvedMailboxId, cancellationToken);
+        if (mailbox is null || mailbox.Generation != generation)
+        {
+            return 0;
+        }
+
+        var lease = await pollStore.ClaimAsync(
+            mailbox,
+            timeProvider.GetUtcNow(),
+            PollLeaseDuration,
+            cancellationToken);
+        if (lease is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var message = await inboxSource.ReadNotifiedAsync(lease, immutableMessageId, cancellationToken);
+            var notificationHandled = false;
+            if (message is not null && message.ReceivedAtUtc >= EffectiveStartBoundary(lease))
+            {
+                var prepared = PrepareMessage(lease, actorCode, message, maximumContentLength);
+                await receiveIntake.ExecuteAsync(
+                    prepared.Source,
+                    CreateOperationKey(prepared.ExternalReceiptToken),
+                    cancellationToken);
+                if (prepared.RetainedMessage is { } retained)
+                {
+                    await retainedMessageStore.RetainAsync(
+                        retained with { RetainedAtUtc = timeProvider.GetUtcNow() },
+                        cancellationToken);
+                }
+                notificationHandled = true;
+            }
+
+            var recovered = await PollOneAsync(lease, 50, actorCode, cancellationToken);
+            return recovered + (notificationHandled ? 1 : 0);
+        }
+        catch
+        {
+            await pollStore.ReleaseAsync(
+                lease.ApprovedMailboxId,
+                lease.LeaseToken,
+                timeProvider.GetUtcNow().Add(FailureRetryDelay),
+                "notification_fetch_failure",
+                cancellationToken);
+            throw;
+        }
+    }
+
     private static string ValidateRequest(int maximumMessages, ActionActor actor)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
@@ -418,7 +486,7 @@ public sealed class PollApprovedInbox(
         var handledMessages = 0;
         foreach (var message in page.Messages)
         {
-            if (message.ReceivedAtUtc < lease.ActivatedAtUtc)
+            if (message.ReceivedAtUtc < EffectiveStartBoundary(lease))
             {
                 await pollStore.AdvanceAsync(
                     lease.ApprovedMailboxId,
@@ -655,8 +723,15 @@ public sealed class PollApprovedInbox(
         {
             throw new ArgumentException("The approved mailbox activation time is required.");
         }
+        if (lease.Generation <= 0)
+        {
+            throw new ArgumentException("The approved mailbox generation boundary is required.");
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.LeaseToken);
     }
+
+    private static DateTimeOffset EffectiveStartBoundary(ApprovedInboxPollLease lease) =>
+        lease.StartBoundaryUtc == default ? lease.ActivatedAtUtc : lease.StartBoundaryUtc;
 
     private static void ValidatePage(ApprovedInboxPage page, int maximumMessages)
     {
@@ -838,6 +913,7 @@ public sealed class PollApprovedInbox(
             && IsOptionalBounded(metadata.Subject, MaximumSubjectLength)
             && IsAddressList(metadata.ToAddresses)
             && IsAddressList(metadata.CcAddresses)
+            && IsAddressList(metadata.ReplyToAddresses)
             && metadata.Attachments is not null
             && metadata.Attachments.All(attachment =>
                 attachment is not null

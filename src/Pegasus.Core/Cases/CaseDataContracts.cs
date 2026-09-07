@@ -1,3 +1,4 @@
+using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -139,7 +140,28 @@ public sealed record CaseDataProjection(
     CaseAccidentData Accident,
     CaseContactData Contact,
     CaseInstructionData Instruction,
-    CaseInspectionData Inspection);
+    CaseInspectionData Inspection,
+    // Appended for the v1 Case workspace (CASE-047).
+    CaseWorkspaceData? Workspace = null);
+
+/// <summary>
+/// The v1 Case workspace facts that carry no intake candidate set: every one
+/// is entered by staff through the one Case save, so the current value is the
+/// whole story and a per-value fact/suggestion/confirmed triple would be three
+/// copies of the same thing.
+/// </summary>
+public sealed record CaseWorkspaceData(
+    CaseWorkspaceClaimSource? ClaimSource,
+    CaseWorkspaceStorageBusiness? StorageBusiness,
+    CaseReportAddressTreatment? InspectionAddressTreatment,
+    CaseLocationProvenance? InspectionLocationProvenance,
+    bool? InspectionVehiclePresent,
+    string? InspectionCondition,
+    string? InspectionContactName,
+    string? InspectionContactTelephone,
+    string? InspectionContactEmailAddress,
+    string? InspectionNotes,
+    CaseOdometerUnit? VehicleMileageDisplayUnit);
 
 public sealed record CaseEditableData(
     string? ClaimantName = null,
@@ -165,7 +187,38 @@ public sealed record CaseEditableData(
     // value after it.
     string? ClaimantContactNumber = null,
     string? ClaimantAddress = null,
-    string? StorageLocation = null);
+    string? StorageLocation = null,
+    // Appended for the v1 Case workspace (CASE-047): the claim source
+    // snapshot, the storage business, the report-address treatment and its
+    // provenance, the inspection values and the repairer address. Same rule
+    // as above — appended, never inserted.
+    string? RepairerAddress = null,
+    Guid? ClaimSourceId = null,
+    long? ClaimSourceVersion = null,
+    string? ClaimSourceName = null,
+    string? ClaimSourceContactName = null,
+    string? ClaimSourceContactTelephone = null,
+    string? ClaimSourceContactEmailAddress = null,
+    string? ClaimSourceCaseNote = null,
+    Guid? StorageBusinessId = null,
+    long? StorageBusinessVersion = null,
+    string? StorageBusinessName = null,
+    string? StorageBusinessContactName = null,
+    string? StorageBusinessContactTelephone = null,
+    string? StorageBusinessContactEmailAddress = null,
+    string? VehicleMileageDisplayUnit = null,
+    CaseReportAddressTreatment? InspectionAddressTreatment = null,
+    InspectionAddressChoiceKind? InspectionLocationChoice = null,
+    InspectionLocationSourceKind? InspectionLocationSource = null,
+    Guid? InspectionLocationSourceId = null,
+    long? InspectionLocationSourceVersion = null,
+    string? InspectionLocationSourceLabel = null,
+    bool? InspectionVehiclePresent = null,
+    string? InspectionCondition = null,
+    string? InspectionContactName = null,
+    string? InspectionContactTelephone = null,
+    string? InspectionContactEmailAddress = null,
+    string? InspectionNotes = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

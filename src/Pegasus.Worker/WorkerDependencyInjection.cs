@@ -1,9 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Custody;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
@@ -11,7 +10,6 @@ using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Custody;
-using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Transport;
@@ -44,6 +42,20 @@ public static class WorkerDependencyInjection
         ProductionExternalOptions? productionOptions = developmentOffline
             ? null
             : GetProductionExternalOptions(configuration);
+        AzureDocumentIntelligenceOptions? ocrOptions = null;
+        var ocrEndpointValue = configuration[WorkerAzureClientFactory.DocumentIntelligenceEndpointKey];
+        if (!developmentOffline && !string.IsNullOrEmpty(ocrEndpointValue))
+        {
+            if (string.IsNullOrWhiteSpace(ocrEndpointValue)
+                || !Uri.TryCreate(ocrEndpointValue, UriKind.Absolute, out var ocrEndpoint)
+                || !ocrEndpoint.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"{WorkerAzureClientFactory.DocumentIntelligenceEndpointKey} must be an absolute HTTPS URI.");
+            }
+
+            ocrOptions = AzureDocumentIntelligenceOptions.Create(ocrEndpoint);
+        }
         var azureClientRegistration = developmentOffline
             ? WorkerAzureClientFactory.CreateDevelopmentOffline(configuration)
             : WorkerAzureClientFactory.CreateProduction(configuration);
@@ -90,14 +102,16 @@ public static class WorkerDependencyInjection
                 productionOptions.Value.Vehicle);
             services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
 
-            // EXT-04. Composed only in production, and only when EVA is
-            // configured: the offline profile reaches no vendor, so it has no
-            // EVA handler and a row of that kind fails closed rather than
-            // being quietly completed.
-            services.AddEvaApiSubmission(_ => GetEvaApiOptions(configuration));
-            services.AddScoped<IProcessQueuedEvaSubmission, ProcessQueuedEvaSubmission>();
+            if (ocrOptions is not null)
+            {
+                services.AddSingleton(ocrOptions);
+                services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>();
+                services.AddScoped<IProcessIntakeOcr, ProcessIntakeOcr>();
+            }
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
+
+        services.AddScoped<VehicleRegistrationCandidateLookup>();
 
         services.AddScoped<EfIntakeWorkStore>();
         services.AddScoped<IIntakeWorkStore>(serviceProvider =>
@@ -151,12 +165,7 @@ public static class WorkerDependencyInjection
     private static ProductionExternalOptions GetProductionExternalOptions(
         IConfiguration configuration)
     {
-        var graph = GraphApprovedMailboxOptions.Create(
-            configuration["Graph:BaseUri"],
-            configuration["Graph:MailboxId"],
-            configuration["Graph:MailboxAddress"],
-            configuration["Graph:InboxFolderId"],
-            configuration["Graph:SentFolderId"]);
+        var graph = GraphApprovedMailboxOptions.Create(configuration["Graph:BaseUri"]);
         var vehicleValues = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Dvla:BaseUri"] = configuration["Dvla:BaseUri"],
@@ -171,23 +180,14 @@ public static class WorkerDependencyInjection
         return new(graph, DvlaDvsaProductionOptions.Create(vehicleValues));
     }
 
-    /// <summary>
-    /// EXT-04: EVA's credentials and the three instruction values that are
-    /// deployment configuration rather than case data. Read lazily by
-    /// <c>AddEvaApiSubmission</c>, because these arrive as Key Vault
-    /// references and parsing one at host build is what crash-looped the
-    /// worker in PLAT-013.
-    /// </summary>
-    private static EvaApiOptions GetEvaApiOptions(IConfiguration configuration) =>
-        EvaApiOptions.Create(key => configuration[key]);
-
     private static BoxCustodyOptions CreateBoxCustodyOptions(IConfiguration configuration) =>
         BoxCustodyOptions.Create(
             configuration["Box:BaseUri"],
             configuration["Box:UploadUri"],
             configuration["Box:RootFolderId"],
             configuration["Box:ConfigJson"],
-            configuration["Box:ClientSecret"]);
+            configuration["Box:ClientSecret"],
+            configuration["Box:HoldingFolderId"]);
 
     private static void ConfigureDatabase(
         IConfiguration configuration,

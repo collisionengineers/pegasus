@@ -7,6 +7,7 @@ design assets remain under [`docs/design/`](design/).
 | Question | File |
 | --- | --- |
 | What is in flight and what can I take? | The Kanmer board (`.kanmer/`, via the `kanmer` tools) |
+| What are the current v1 stream boundaries? | [Current work](../NOW.md), then the owner tickets |
 | Why must Pegasus do it — business need, users, outcomes, scope? | [PRD](prd/README.md) |
 | How must a capability behave — I/O, states, rules, edge cases, acceptance? | [FRD index](frd/README.md) |
 | What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap and capability-ID registry; its *Canonical owner* column joins each ID to its PRD, FRD, or ADR |
@@ -38,6 +39,9 @@ notice it; if the conflict is material and you cannot resolve it, put one line
 in [open decisions](open-decisions.md) and stop the affected work.
 
 ## New Markdown files
+
+The approved v1 task adds `NOW.md` as a canonical orientation index. It is a
+named exception, not a location for task plans, checklists or proof.
 
 A new repository Markdown file is one of: a product requirements document under
 [`docs/prd/`](prd/README.md); a functional requirements document under

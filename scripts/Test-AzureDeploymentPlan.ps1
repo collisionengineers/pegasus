@@ -436,13 +436,44 @@ if ($Mode -eq 'PreProvision') {
         'AZURE_TENANT_ID',
         'AZURE_RESOURCE_GROUP',
         'WORKER_APP_NAME',
-        'PEGASUS_WORKER_ACTIVATION'
+        'PEGASUS_WORKER_ACTIVATION',
+        'BOX_HOLDING_FOLDER_ID',
+        'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
     )
     foreach ($key in $required) {
         if (-not $environmentValues.ContainsKey($key) -or
             [string]::IsNullOrWhiteSpace([string]$environmentValues[$key])) {
             throw "azd environment $Environment is missing $key."
         }
+    }
+    $certificateVaultHost = $null
+    foreach ($key in @('AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS')) {
+        foreach ($value in ([string]$environmentValues[$key]).Split(',')) {
+            $certificateUri = $null
+            if (-not [Uri]::TryCreate($value.Trim(), [UriKind]::Absolute, [ref]$certificateUri) -or
+                $certificateUri.Scheme -ne 'https' -or
+                -not $certificateUri.Host.EndsWith('.vault.azure.net', [StringComparison]::OrdinalIgnoreCase) -or
+                -not $certificateUri.IsDefaultPort -or
+                $certificateUri.UserInfo.Length -ne 0 -or
+                $certificateUri.Query.Length -ne 0 -or
+                $certificateUri.Fragment.Length -ne 0 -or
+                $certificateUri.AbsolutePath -cnotmatch '^/secrets/[^/]+/[^/]+/?$') {
+                throw "$key must contain comma-separated versioned Azure Key Vault HTTPS secret URIs."
+            }
+            if ($null -ne $certificateVaultHost -and
+                -not $certificateVaultHost.Equals($certificateUri.Host, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'Automation MCP signing and encryption certificates must belong to the same Azure Key Vault.'
+            }
+            $certificateVaultHost = $certificateUri.Host
+        }
+    }
+    if ($environmentValues.ContainsKey('AZURE_KEY_VAULT_NAME') -and
+        -not [string]::IsNullOrWhiteSpace([string]$environmentValues['AZURE_KEY_VAULT_NAME']) -and
+        -not $certificateVaultHost.Equals(
+            "$($environmentValues['AZURE_KEY_VAULT_NAME']).vault.azure.net", [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Automation MCP certificates must belong to the deployment environment Azure Key Vault.'
     }
     if (
         $environmentValues['AZURE_SUBSCRIPTION_ID'] -ne 'e6076573-23a5-46a8-acef-7e22d264e5db' -or

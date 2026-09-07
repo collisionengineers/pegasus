@@ -167,9 +167,12 @@ internal static class WordBinaryExtractor
             var issues = pieceIssues.ToBuilder();
             ImmutableArray<WordStory> stories = BuildStories(wordDocument, fib, pieces, issues, cancellationToken);
             AddUnsupportedBranchIssues(compoundFile, fib, issues);
-            WordBinaryOutcome outcome = issues.Count == 0
-                ? WordBinaryOutcome.Complete
-                : HasResourceLimitIssue(issues) ? WordBinaryOutcome.ResourceLimitExceeded : WordBinaryOutcome.Partial;
+            // Partial is a claim that visible text may be missing, so it is
+            // driven by the content-loss class alone. Informational issues stay
+            // on the result for review without degrading the outcome.
+            WordBinaryOutcome outcome = HasResourceLimitIssue(issues)
+                ? WordBinaryOutcome.ResourceLimitExceeded
+                : HasContentLossIssue(issues) ? WordBinaryOutcome.Partial : WordBinaryOutcome.Complete;
             return new(outcome, "word-binary", selectedName, fib, pieces, stories, issues.ToImmutable());
         }
         catch (OperationCanceledException)
@@ -210,11 +213,74 @@ internal static class WordBinaryExtractor
                 }
             }
 
-            storyBuilder.Add(new(StoryOrder[storyIndex], globalStart, globalEnd, segments.ToImmutable()));
+            ImmutableArray<WordTextSegment> storySegments = segments.ToImmutable();
+            storyBuilder.Add(new(
+                StoryOrder[storyIndex], globalStart, globalEnd, storySegments, BuildTableCells(storySegments)));
             globalStart = globalEnd;
         }
 
         return storyBuilder.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// The table structure a binary Word story states in its own character
+    /// stream: each cell's text is terminated by a cell mark, and a row is
+    /// closed by a further mark that terminates no text of its own
+    /// (MS-DOC 2.8.25). The authoritative layout lives in the TAP/PAPX
+    /// structures in the formatting bin table, which this extractor does not
+    /// parse at all, so what is modelled here is exactly what the text stream
+    /// says and no more: cells in the order they were written, rows in the
+    /// order they were closed.
+    ///
+    /// Two consequences are stated rather than hidden. A cell is one or more
+    /// paragraphs and only its LAST paragraph is attributed to it here, because
+    /// nothing in the text stream says where the cell began; the flattened text
+    /// fragment still carries every paragraph. And because an empty run between
+    /// two marks is what ends a row, a row whose final cell its author left
+    /// empty closes one column early. Flat label/value tables - which is what
+    /// the legacy instruction corpus contains - are read exactly.
+    /// </summary>
+    private static ImmutableArray<WordTableCell> BuildTableCells(ImmutableArray<WordTextSegment> segments)
+    {
+        var cells = ImmutableArray.CreateBuilder<WordTableCell>();
+        var pending = new StringBuilder();
+        int row = 0;
+        int column = 0;
+        foreach (WordTextSegment segment in segments)
+        {
+            if (segment.Kind == WordTextSegmentKind.ParagraphMark)
+            {
+                pending.Clear();
+                continue;
+            }
+
+            if (segment.Kind != WordTextSegmentKind.CellOrRowMark)
+            {
+                pending.Append(segment.Text);
+                continue;
+            }
+
+            string value = pending.ToString().Trim();
+            pending.Clear();
+            if (value.Length == 0 && column != 0)
+            {
+                column = 0;
+                continue;
+            }
+
+            if (column == 0)
+            {
+                row++;
+            }
+
+            column++;
+            if (value.Length != 0)
+            {
+                cells.Add(new(1, row, column, value));
+            }
+        }
+
+        return cells.ToImmutable();
     }
 
     private static bool HasSpecializedStory(WordFib fib)
@@ -276,7 +342,7 @@ internal static class WordBinaryExtractor
                 }
 
                 FlushText(text, runCpStart, cp, storyStart, runFileStart, fileOffset - runFileStart, piece.Index, segments, issues, ref surrogateIssueReported);
-                string projection = ControlProjection(kind, value);
+                string projection = ControlProjection(kind);
                 segments.Add(new(kind, projection, cp, cp + 1, cp - storyStart, cp + 1 - storyStart, fileOffset, unitSize, piece.Index));
                 if (kind is WordTextSegmentKind.Picture or WordTextSegmentKind.EmbeddedObjectMarker or WordTextSegmentKind.CellOrRowMark or
                     WordTextSegmentKind.PageOrSectionBreak or WordTextSegmentKind.UnsupportedControl or
@@ -286,7 +352,10 @@ internal static class WordBinaryExtractor
                     uint kindBit = 1u << (int)kind;
                     if ((reportedControlKinds & kindBit) == 0)
                     {
-                        issues.Add(new("doc-control-semantic-partial", $"A {kind} marker in the {storyKind} story requires structure outside this vertical slice.", fileOffset));
+                        issues.Add(new(
+                            WordBinaryIssueClassification.ControlCode(kind),
+                            $"A {kind} marker in the {storyKind} story was recorded rather than resolved to structure outside this text vertical slice.",
+                            fileOffset));
                         reportedControlKinds |= kindBit;
                     }
                 }
@@ -404,7 +473,7 @@ internal static class WordBinaryExtractor
         _ => WordTextSegmentKind.Text,
     };
 
-    private static string ControlProjection(WordTextSegmentKind kind, char original) => kind switch
+    private static string ControlProjection(WordTextSegmentKind kind) => kind switch
     {
         WordTextSegmentKind.Tab => "\t",
         WordTextSegmentKind.LineBreak or WordTextSegmentKind.ParagraphMark => "\n",
@@ -412,7 +481,8 @@ internal static class WordBinaryExtractor
         WordTextSegmentKind.CellOrRowMark => "\t",
         WordTextSegmentKind.NonBreakingHyphen => "\u2011",
         WordTextSegmentKind.OptionalHyphen => "\u00ad",
-        WordTextSegmentKind.UnsupportedControl => original.ToString(),
+        // A stray low-ASCII control byte prints nothing in Word and would only
+        // corrupt a value it lands inside, so it is stripped rather than shown.
         _ => string.Empty,
     };
 
@@ -432,7 +502,7 @@ internal static class WordBinaryExtractor
 
         if (unprocessedRanges != 0)
         {
-            issues.Add(new("doc-fib-ranges-unprocessed", $"{unprocessedRanges} non-CLX FIB range(s) are outside this text vertical slice."));
+            issues.Add(new("doc-fib-ranges-unprocessed", $"{unprocessedRanges} non-CLX FIB range(s) - style sheet, fonts, section descriptors, document properties and the like - are outside this text vertical slice and carry no document text."));
         }
 
         if (fib.NextFibPage != 0)
@@ -442,7 +512,7 @@ internal static class WordBinaryExtractor
 
         if (!fib.IsComplex)
         {
-            issues.Add(new("doc-complex-flag-unset", "A CLX was parsed even though the FIB complex-file flag is unset; the inconsistency prevents a complete outcome."));
+            issues.Add(new("doc-complex-flag-unset", "A CLX was parsed with the FIB complex-file flag unset; the flag records fast-saved status rather than the presence of a piece table, so no text is affected."));
         }
 
         if (fib.HasPictures)
@@ -474,6 +544,18 @@ internal static class WordBinaryExtractor
         }
 
         return null;
+    }
+
+    private static bool HasContentLossIssue(IEnumerable<WordBinaryIssue> issues)
+    {
+        foreach (WordBinaryIssue issue in issues)
+        {
+            if (WordBinaryIssueClassification.IsContentLoss(issue))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool HasResourceLimitIssue(IEnumerable<WordBinaryIssue> issues)

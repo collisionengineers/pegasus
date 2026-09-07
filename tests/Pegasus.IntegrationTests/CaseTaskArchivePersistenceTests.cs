@@ -810,9 +810,11 @@ public sealed class CaseTaskArchivePersistenceTests
                 var administratorId = Guid.NewGuid();
                 var engineerId = Guid.NewGuid();
                 var userId = Guid.NewGuid();
-                var organizationId = Guid.NewGuid();
-                var lineageId = Guid.NewGuid();
-                var principalId = Guid.NewGuid();
+                await using var seedScope = database.CreateAsyncScope();
+                var principal = await SeededPrincipals.QdosAsync(seedScope.ServiceProvider);
+                var organizationId = principal.OrganizationId;
+                var lineageId = principal.SequenceLineageId;
+                var principalId = principal.Id;
                 var taskCaseId = Guid.NewGuid();
                 var findingCaseId = Guid.NewGuid();
 
@@ -832,13 +834,6 @@ public sealed class CaseTaskArchivePersistenceTests
                         RoleId = engineerRoleId
                     });
                     await context.SaveChangesAsync();
-                    await context.Database.ExecuteSqlInterpolatedAsync(
-                        $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Case task and archive test organization"}, {0L})");
-                    await context.Database.ExecuteSqlInterpolatedAsync(
-                        $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-                    await context.Database.ExecuteSqlInterpolatedAsync(
-                        $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {QdosPrincipal.Code}, {lineageId}, {true}, {0L})");
-
                     await InsertReceiptAsync(context, Guid.Parse("10000000-0000-0000-0000-000000000001"), 1);
                     await InsertReceiptAsync(context, Guid.Parse("10000000-0000-0000-0000-000000000002"), 2);
                     await InsertCaseAsync(

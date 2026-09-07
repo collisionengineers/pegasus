@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -114,6 +115,254 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Equal(
             StaffRoleNames.Administrator,
             typeof(MailCategoriesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(HealthModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(ActionLogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(AiJobsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(ReportsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+    }
+
+    [Theory]
+    [InlineData("/Administration/Health")]
+    [InlineData("/Administration/ActionLogs")]
+    [InlineData("/Administration/AiJobs")]
+    [InlineData("/Administration/Reports")]
+    public async Task NewAdministrationRoutesForbidNonAdministrators(string route)
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+
+        using var response = await client.GetAsync(route);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AiJobsShowsUnavailableWhenTheHostDidNotComposeAHandOffTransport()
+    {
+        // The default test composition carries the persistent switch but no
+        // DevelopmentOffline Send-to-AI transport, matching a production host
+        // where the preview capability is absent.
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync("/Administration/AiJobs");
+
+        Assert.Contains("Unavailable", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("· Active</span>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ActionLogPagerTraversesOneHundredAndOneFilteredRows()
+    {
+        const string actor = "pager-actor";
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(Enumerable.Range(0, 101).Select(index => new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = $"case-{index:000}",
+                EventKind = $"action-{index:000}",
+                ActorKind = "Staff",
+                ActorSubjectId = actor,
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(-index),
+                Outcome = "Succeeded",
+                CorrelationId = $"pager-{index:000}"
+            }));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+        var first = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}");
+        Assert.Contains("page=2", first, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Actor=pager-actor", first, StringComparison.OrdinalIgnoreCase);
+
+        var second = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=2");
+        Assert.Contains("page=3", second, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Actor=pager-actor", second, StringComparison.OrdinalIgnoreCase);
+
+        var third = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+        Assert.Contains("action-100", third, StringComparison.Ordinal);
+        Assert.DoesNotContain("page=4", third, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ActionLogsUnifiesSecurityEventsAndFiltersTheDisplayedReference()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.Add(new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = "case-reference",
+                EventKind = "case_saved",
+                ActorKind = "Staff",
+                ActorSubjectId = "action-actor",
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(-1),
+                Outcome = "Succeeded",
+                CorrelationId = "action-correlation"
+            });
+            context.SecurityEvents.Add(new SecurityEventEntity
+            {
+                Id = Guid.NewGuid(),
+                Type = "SignInFailed",
+                SubjectId = "security-subject",
+                OccurredAtUtc = now,
+                Outcome = "Denied",
+                CorrelationId = "security-correlation",
+                ReasonCode = "invalid_credentials"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var security = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security&Record=security-subject");
+        Assert.Contains("SignInFailed", security, StringComparison.Ordinal);
+        Assert.Contains("security-subject", security, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-reference", security, StringComparison.Ordinal);
+
+        var action = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Record=case-reference");
+        Assert.Contains("case_saved", action, StringComparison.Ordinal);
+        Assert.Contains("case-reference", action, StringComparison.Ordinal);
+        Assert.DoesNotContain("security-subject", action, StringComparison.Ordinal);
+
+        var oldest = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Sort=oldest");
+        Assert.True(
+            oldest.IndexOf("case-reference", StringComparison.Ordinal)
+            < oldest.IndexOf("security-subject", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ActionLogsPagesACombinedSqlResultSet()
+    {
+        const string actor = "combined-page-actor";
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            for (var index = 0; index < 51; index++)
+            {
+                var occurredAt = now.AddMinutes(-index);
+                context.ActionHistory.Add(new ActionHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    AggregateType = "Case",
+                    AggregateId = $"combined-action-{index:000}",
+                    EventKind = "case_saved",
+                    ActorKind = "Staff",
+                    ActorSubjectId = actor,
+                    ActorRolesJson = "[]",
+                    OccurredAtUtc = occurredAt,
+                    Outcome = "Succeeded",
+                    CorrelationId = $"combined-action-{index:000}"
+                });
+                context.SecurityEvents.Add(new SecurityEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Type = $"SignInFailed{index:000}",
+                    SubjectId = actor,
+                    OccurredAtUtc = occurredAt.AddSeconds(-30),
+                    Outcome = "Denied",
+                    CorrelationId = $"combined-security-{index:000}",
+                    ReasonCode = "invalid_credentials"
+                });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+        var page = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+
+        Assert.Contains("combined-action-050", page, StringComparison.Ordinal);
+        Assert.Contains("SignInFailed050", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("page=4", page, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ActionLogDefaultPagerKeepsItsInitialTimeWindow()
+    {
+        const string actor = "default-window-actor";
+        using var factory = new IntakeWebApplicationFactory();
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(Enumerable.Range(0, 101).Select(index => new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = $"default-window-{index:000}",
+                EventKind = "case_saved",
+                ActorKind = "Staff",
+                ActorSubjectId = actor,
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(-index - 1),
+                Outcome = "Succeeded",
+                CorrelationId = $"default-window-{index:000}"
+            }));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var first = await client.GetStringAsync($"/Administration/ActionLogs?Actor={actor}");
+        var next = Regex.Match(first, "href=\"([^\"]*page=2[^\"]*)\"").Groups[1].Value
+            .Replace("&amp;", "&", StringComparison.Ordinal);
+        Assert.NotEmpty(next);
+        Assert.Matches("(?:[?&]From=)[^&\"]+", next);
+        Assert.Matches("(?:[?&]To=)[^&\"]+", next);
+        Assert.Contains("default-window-000", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("default-window-050", first, StringComparison.Ordinal);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.Add(new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "Case",
+                AggregateId = "default-window-newer",
+                EventKind = "case_saved",
+                ActorKind = "Staff",
+                ActorSubjectId = actor,
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now.AddMinutes(1),
+                Outcome = "Succeeded",
+                CorrelationId = "default-window-newer"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var second = await client.GetStringAsync(next);
+        Assert.Contains("default-window-050", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("default-window-000", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("default-window-newer", second, StringComparison.Ordinal);
     }
 
     [Fact]

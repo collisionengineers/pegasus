@@ -1,6 +1,8 @@
 using System.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using OpenIddict.Abstractions;
+using OpenIddict.EntityFrameworkCore.Models;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -61,6 +63,26 @@ public sealed class EfStaffPasswordChange(
         }
 
         var subject = request.StaffId.ToString("D");
+        var authorizations = await context.Set<OpenIddictEntityFrameworkCoreAuthorization>()
+            .Where(item => item.Subject == subject
+                && item.Status != OpenIddictConstants.Statuses.Revoked)
+            .ToListAsync(cancellationToken);
+        var tokens = await context.Set<OpenIddictEntityFrameworkCoreToken>()
+            .Where(item => item.Subject == subject
+                && item.Status != OpenIddictConstants.Statuses.Revoked)
+            .ToListAsync(cancellationToken);
+        foreach (var authorization in authorizations)
+        {
+            authorization.Status = OpenIddictConstants.Statuses.Revoked;
+            authorization.ConcurrencyToken = Guid.NewGuid().ToString("N");
+        }
+
+        foreach (var token in tokens)
+        {
+            token.Status = OpenIddictConstants.Statuses.Revoked;
+            token.ConcurrencyToken = Guid.NewGuid().ToString("N");
+        }
+
         context.SecurityEvents.Add(new SecurityEventEntity
         {
             Id = Guid.NewGuid(),
@@ -75,8 +97,8 @@ public sealed class EfStaffPasswordChange(
         await transaction.CommitAsync(cancellationToken);
         return new(
             request.StaffId,
-            RevokedAuthorizations: 0,
-            RevokedTokens: 0,
+            RevokedAuthorizations: authorizations.Count,
+            RevokedTokens: tokens.Count,
             WasReplay: false);
     }
 }

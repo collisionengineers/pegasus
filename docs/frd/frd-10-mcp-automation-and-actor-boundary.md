@@ -36,6 +36,46 @@ ordinary operational Core-action inventory with its own authentication,
 identity, and permanent history; it has no Administrator, configuration,
 credential, cloud, release, deletion, or other management authority.
 
+Connector grants have distinct durable identities. History retains the grant
+identity, shared client ID and human approver separately; an approved scope
+never grants Engineer authority. Code exchange and refresh preserve the grant,
+and revoked, expired or wrong-audience/scope credentials fail before a tool
+runs. Production signing and encryption use separate persistent certificate
+purposes and retain configured rotation overlap so restart or replica changes
+do not invalidate otherwise valid tokens. Missing production keys fail closed.
+
+Lists use stable `(sort value, immutable ID)` continuations, default 50 and
+maximum 100. Continuations are bound to the caller and filters; malformed,
+oversize or foreign cursors fail. Case detail returns bounded summaries with
+document, history and estimate continuations rather than silent truncation.
+
+Case search and per-Case document, history and estimate lists use
+`CursorPage<T>` continuations. Protected tokens bind actor, filters and order;
+the default is 50 and the maximum is 100. Raw-estimate import is one canonical
+`IImportRawEstimate` command after custody retention, shared by the Case page
+and MCP rather than separate import paths.
+
+Document permission and immutable metadata are checked before content is read.
+The existing small embedded response stays bounded. Larger files return their
+logical identity, size, media type, hash and authenticated
+`/automation/documents/{id}/versions/{version}` URL. That endpoint requires the
+same bearer audience and Documents scope, rechecks Case/source authorization,
+and supports exact-version ETag and ranges. Metadata-only requests fetch zero
+content bytes. There are no public signed links or arbitrary URL fetches.
+
+Document exports accept at most 32 exact occurrence/version selections. Small
+archives use the bounded inline response; larger archives return a five-minute,
+grant-bound `/automation/document-exports` URL. It requires the Documents scope
+again and preserves the original lease, version and operation identity. ZIP
+output streams sequentially without ranges. Invalid, expired or foreign export
+tickets return the same non-disclosing unavailable response.
+
+Generic assessment updates reject valuation, estimate, signatory and accepted
+finding fields. Named Core commands own those changes with the same actor,
+lease, version and replay checks as the Case UI. Wire responses use
+`unidentified`; no obsolete `needs_sorting` alias remains. The tool inventory
+contains no autonomous Send or Glass's credential/session exposure.
+
 An externally scheduled automation client may scan an approved network-drive
 scope and submit immutable source occurrences through its approved MCP
 document-action inventory. Claude Desktop may provide the initial accepted
@@ -78,13 +118,14 @@ refused before any tool runs.
 | `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
-| `pegasus_estimate_import` | `automation.assessment` | Import one raw estimate artifact on a Case through the same Core command as the Assessment page drop (D16): takes `case_id`, `expected_version`, `edit_lease_token`, `operation_key`, `file_name`, `media_type` and base64 bytes, and returns the Draft identity, name and status, the replay state, the source hash, the detected parser/provider and structured blockers or errors |
+| `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through B's canonical command using its name, Case and document occurrence/version identities, SHA-256, route, typed actor, expected Case version, edit lease and operation key; return the resulting estimate identity or the same structured refusal as the Case caller |
 
 `pegasus_estimate_import` and the Assessment page's drop are two callers of
 one shared Core command, not two implementations: the same registered parser
 types, the same fail-closed provider auto-detection, the same
 provider-plus-sequence Draft naming and the same replay rule apply to both
-(D16, 2026-09-01). Allocated to [[ENG-033]] and [[AUTO-016]]; not delivered.
+(D16, 2026-09-01). The v1 implementation is owned by CASE-047 and PLAT-075;
+its existence does not establish live provider acceptance.
 
 `automation.jobs` is a new scope with its own consent description on the
 Administrator consent page; a token without it cannot see the ledger. The

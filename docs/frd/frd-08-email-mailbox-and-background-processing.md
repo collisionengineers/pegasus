@@ -382,6 +382,24 @@ The local alpha must not mutate a mailbox. A Worker project, queue registration,
 
 ### Outbound correspondence
 
+The v1 transport has one durable operation keyed by staff actor, mailbox and
+operation key, with a server-computed payload hash. Reusing the key for a
+different payload fails. Reply, Reply all, Forward and Compose use an approved
+mailbox with verified send capability and an encoded-message ceiling. Draft
+creation and upload progress survive restart without a second send attempt.
+Ambiguous provider writes remain Unknown until exact evidence resolves them.
+
+Graph `202 Accepted` means Submitted, never Sent. Sent requires the existing
+retained-MIME pipeline to correlate the immutable item, operation marker,
+mailbox generation and attachment hashes. Provider sent time and observation
+time remain distinct. Each enabled Sent mailbox owns its cursor and activation
+boundary; old items advance the cursor without historic backfill. One failing
+mailbox does not starve the others.
+
+Report sends revalidate B's persisted report readiness and exact generation,
+versions and artifacts immediately before the provider effect. Staff authority
+and mailbox generation are also rechecked. No connector may invoke this send.
+
 Staff-initiated Reply, Forward and Compose exist on the Inbox message and the
 Case correspondence surfaces, and are the technical decision of
 [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md). They are
@@ -398,6 +416,13 @@ surfaces carry no send, Flag or Delete control and no composer.
   (read-only). Reply and Forward preserve the retained message's reply-chain
   and conversation identity; Case defaults to the message's current
   association and may be changed before sending.
+- **Reply targets.** Retain the structured MIME Reply-To addresses in source
+  order; use the original From addresses only when that header is absent.
+  A present but unusable header remains empty. The reply surface shows the
+  retained targets and selected recipients for staff confirmation. Missing
+  retained metadata or an empty target list refuses Reply and Reply All;
+  neither transport Sender nor To/Cc substitutes for those targets. Starting
+  a new message is an explicit staff action.
 - **What is retained.** The immutable Sent item Graph writes for the send is
   the evidence, retained by the existing Sent-evidence poll under
   [Outbound correspondence evidence](#outbound-correspondence-evidence) and

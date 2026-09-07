@@ -6,10 +6,10 @@ namespace Pegasus.Core.Reports;
 
 /// <summary>
 /// The Engineer Report (MI-01; FRD-12 § Administration → Reports): per
-/// Engineer and period, reports sent and queries received. A report is a
-/// case-linked Sent-items evidence item on a case assigned to the Engineer;
-/// a query is a retained message classified post-report and associated with
-/// one of the Engineer's cases (operator decision D12, EPIC-011). Both are
+/// recorded send actor and period, reports sent and queries received. A report
+/// is credited to the recorded staff actor of its case-linked Sent evidence;
+/// a query is credited to the assigned Engineer of its associated case
+/// (operator decision D12, EPIC-011). Those are separate dimensions. Both are
 /// counted by the time the mail was sent or received, in the half-open
 /// period <c>[from, to)</c>.
 /// </summary>
@@ -48,7 +48,7 @@ public sealed record EngineerActivityReport(
 /// </summary>
 public static class EngineerActivityReportCsv
 {
-    public const string Header = "Engineer,Queries received,Reports";
+    public const string Header = "Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor";
 
     public static string ToCsv(IReadOnlyList<EngineerActivityRow> rows)
     {
@@ -58,7 +58,7 @@ public static class EngineerActivityReportCsv
         foreach (var row in rows)
         {
             builder
-                .Append(Quote(row.DisplayName)).Append(',')
+                .Append(EscapeField(row.DisplayName)).Append(',')
                 .Append(row.QueriesReceived).Append(',')
                 .Append(row.ReportsSent)
                 .Append("\r\n");
@@ -67,10 +67,16 @@ public static class EngineerActivityReportCsv
         return builder.ToString();
     }
 
-    private static string Quote(string value) =>
-        value.IndexOfAny([',', '"', '\r', '\n']) < 0
-            ? value
-            : $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    internal static string EscapeField(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var safe = value.Length > 0 && value[0] is '=' or '+' or '-' or '@'
+            ? "'" + value
+            : value;
+        return safe.IndexOfAny([',', '"', '\r', '\n']) < 0
+            ? safe
+            : $"\"{safe.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    }
 }
 
 public sealed class GetEngineerActivityReport(

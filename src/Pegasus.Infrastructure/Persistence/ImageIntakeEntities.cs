@@ -25,6 +25,8 @@ internal sealed class ImageIntakeEntity
 
     public required string NormalizedVehicleRegistration { get; set; }
     public required string ImageIntakeReference { get; set; }
+    public Guid? PrincipalId { get; set; }
+    public PrincipalEntity? Principal { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public required string CreatedByActorKind { get; set; }
     public required string CreatedByActorSubjectId { get; set; }

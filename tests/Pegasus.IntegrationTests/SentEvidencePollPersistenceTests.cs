@@ -6,6 +6,7 @@ using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -17,8 +18,16 @@ public sealed class SentEvidencePollPersistenceTests
     public async Task LeaseCursorAndOutcomeReplayRemainDurable()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
+        var nowUtc = DateTimeOffset.UtcNow;
         await database.ExecuteAsync(
-            "UPDATE ApprovedMailboxes SET AllowSentEvidence = 1 WHERE Address = 'instructions@collisionengineers.co.uk'");
+            $"""
+            UPDATE ApprovedMailboxes
+            SET AllowSentEvidence = 1,
+                MailboxIdentity = 'instructions',
+                SentFolderIdentity = 'sent-items',
+                ActivatedAtUtc = '{nowUtc.AddMinutes(-5):O}'
+            WHERE Address = 'instructions@collisionengineers.co.uk'
+            """);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddPegasusInfrastructure(
@@ -34,7 +43,6 @@ public sealed class SentEvidencePollPersistenceTests
         var store = scope.ServiceProvider.GetRequiredService<ISentEvidencePollStore>();
         var candidateQueries =
             scope.ServiceProvider.GetRequiredService<ISentEvidencePollOutcomeQueries>();
-        var nowUtc = DateTimeOffset.UtcNow;
         var lease = Assert.IsType<ApprovedSentPollLease>(
             await store.ClaimAsync(nowUtc, TimeSpan.FromMinutes(1), default));
         var item = new ApprovedSentItem(
@@ -127,27 +135,91 @@ public sealed class SentEvidencePollPersistenceTests
             ["<different-request@example.test>"],
             20,
             default));
+        // The resumed claim is a real due claim: the completing store
+        // schedules the next run a minute out, so the fixture asks past that
+        // delay instead of inside it.
         var resumed = Assert.IsType<ApprovedSentPollLease>(
-            await store.ClaimAsync(nowUtc.AddSeconds(1), TimeSpan.FromMinutes(1), default));
+            await store.ClaimAsync(nowUtc.AddMinutes(2), TimeSpan.FromMinutes(1), default));
         Assert.Equal(terminalItem.NextCursor, resumed.Cursor);
+    }
+
+    [Fact]
+    public async Task TwoApprovedMailboxesReceiveIndependentGenerationFolderCursorsFairly()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var secondId = Guid.NewGuid();
+        await using (var db = await database.CreateContextAsync())
+        {
+            var first = await db.ApprovedMailboxes.SingleAsync(
+                value => value.Address == "instructions@collisionengineers.co.uk");
+            first.AllowSentEvidence = true;
+            first.MailboxIdentity = "instructions";
+            first.SentFolderIdentity = "sent-one";
+            first.ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
+            db.ApprovedMailboxes.Add(new ApprovedMailboxEntity
+            {
+                Id = secondId,
+                Address = "reports@collisionengineers.co.uk",
+                AllowSentEvidence = true,
+                State = ApprovedMailboxState.Approved.ToString(),
+                MailboxIdentity = "mailbox-two",
+                InboxFolderIdentity = "inbox-two",
+                SentFolderIdentity = "sent-two",
+                MailboxGeneration = 7,
+                ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+                Version = 1
+            });
+            await db.SaveChangesAsync();
+        }
+        var services = new ServiceCollection();
+        services.AddPegasusInfrastructure((_, options) => options.UseSqlServer(database.ConnectionString));
+        services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+        using var scope = provider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<ISentEvidencePollStore>();
+        var now = DateTimeOffset.UtcNow;
+
+        var firstLease = Assert.IsType<ApprovedSentPollLease>(
+            await store.ClaimAsync(now, TimeSpan.FromMinutes(1), default));
+        await store.CompleteAsync(
+            firstLease.MailboxId, firstLease.LeaseToken, "cursor-one", now,
+            hasRemainingItems: true, default);
+        var secondLease = Assert.IsType<ApprovedSentPollLease>(
+            await store.ClaimAsync(now, TimeSpan.FromMinutes(1), default));
+
+        Assert.NotEqual(firstLease.ApprovedMailboxId, secondLease.ApprovedMailboxId);
+        var leases = new[] { firstLease, secondLease };
+        Assert.Contains(leases, value => value.MailboxId == "instructions"
+            && value.SentFolderIdentity == "sent-one" && value.Generation > 0);
+        Assert.Contains(leases, value => value.MailboxId == "mailbox-two"
+            && value.SentFolderIdentity == "sent-two" && value.Generation == 7);
     }
     [Fact]
     public async Task ExactReplyPollAtomicallyLinksTriageAndReplayAllowsStaffCompletion()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
-            true,
-            extractionPolicy: new AcceptedSentPollTriagePolicy());
+            true);
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(
             "triage-request.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
+            "Triage Only Request\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
         email.MediaType,
         email.Content);
         var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var activatedAtUtc = factory.Services.GetRequiredService<TimeProvider>()
+            .GetUtcNow()
+            .AddMinutes(-10);
         await factory.Database.ExecuteAsync(
-            "UPDATE ApprovedMailboxes SET AllowSentEvidence = 1 WHERE Address = 'instructions@collisionengineers.co.uk'");
+            $"""
+            UPDATE ApprovedMailboxes
+            SET AllowSentEvidence = 1,
+                MailboxIdentity = 'instructions',
+                SentFolderIdentity = 'sent-items',
+                ActivatedAtUtc = '{activatedAtUtc:O}'
+            WHERE Address = 'instructions@collisionengineers.co.uk'
+            """);
 
         var staffActor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
@@ -182,7 +254,7 @@ public sealed class SentEvidencePollPersistenceTests
             new(
                 triageId,
                 0,
-                actorCode,
+                staffActor,
                 "sent-poll-auto-link-finding",
                 "Retained assessment before exact response",
                 RoadworthinessFinding.Roadworthy,
@@ -239,12 +311,16 @@ public sealed class SentEvidencePollPersistenceTests
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
+        // The completing poll schedules the next claim a minute out and the
+        // fixture clock is fixed, so make this mailbox due again for the
+        // replay: a real due claim, never a weakened idempotency assertion.
+        await factory.Database.ExecuteAsync(
+            "UPDATE ApprovedSentPollStates SET DueAtUtc = DATEADD(minute, -1, DueAtUtc) WHERE MailboxId = 'instructions'");
         var replay = await poll.ExecuteAsync(
             1,
             10,
             ActionActor.SystemWorker("sent-evidence-poll"),
             default);
-
         Assert.Equal(1, first.TriageResponsesRecorded);
         Assert.Equal(1, replay.TriageResponsesRecorded);
         Assert.Equal(
@@ -286,7 +362,8 @@ public sealed class SentEvidencePollPersistenceTests
         var linkedHistory = Assert.Single(
             detail.History,
             item => item.EventType == "triage_response_linked");
-        Assert.Equal("system-worker:sent-evidence-poll", linkedHistory.Actor);
+        Assert.Equal("sent-evidence-poll", linkedHistory.Actor);
+        Assert.Equal(nameof(ActorKind.SystemWorker), linkedHistory.ActorKind);
         Assert.Equal(1, linkedHistory.BeforeVersion);
         Assert.Equal(2, linkedHistory.AfterVersion);
 
@@ -296,7 +373,7 @@ public sealed class SentEvidencePollPersistenceTests
             triageId,
             sentEvidence.Id,
             2,
-            actorCode,
+            staffActor,
             "sent-poll-response-unlink",
             "Temporarily remove the current response association");
         var unlinkResponse = scopedServices.GetRequiredService<IUnlinkTriageResponseEvidence>();
@@ -325,7 +402,7 @@ public sealed class SentEvidencePollPersistenceTests
             pollOutcomeId,
             sentEvidence.Id,
             3,
-            actorCode,
+            staffActor,
             "sent-poll-response-relink",
             "Restore the retained exact response association");
         var linkResponse = scopedServices.GetRequiredService<ILinkTriageResponseEvidence>();
@@ -363,49 +440,13 @@ public sealed class SentEvidencePollPersistenceTests
             new(
                 triageId,
                 4,
-                actorCode,
+                staffActor,
                 "sent-poll-auto-link-complete",
                 "Finding and exact response evidence confirmed"),
             default);
         Assert.Equal(TriageState.Completed, completed.State);
         Assert.Equal(5, completed.Version);
     }
-
-    private sealed class AcceptedSentPollTriagePolicy : IInstructionExtractionPolicy
-    {
-        private readonly QdosInstructionExtractionPolicy inner = new();
-
-        public string PrincipalCode => inner.PrincipalCode;
-
-        public InstructionExtractionResult Extract(
-            IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
-            EstablishedPrincipalContext principalContext)
-        {
-            var result = inner.Extract(readResult, processedAtUtc, principalContext);
-            if (result.Applicability != InstructionPolicyApplicability.Applicable)
-            {
-                return result;
-            }
-
-            return result with
-            {
-                Evidence =
-                [
-                    .. result.Evidence,
-                    new(
-                        IntakeEvidenceSource.EmailBody,
-                        IntakeEvidenceStrength.Strong,
-                        IntakeEvidenceFinding.AcceptedTriageMatch,
-                        "accepted-sent-poll-auto-link",
-                        "The fixture supplies an independently accepted exact Triage match.",
-                        "sent-poll-auto-link-matcher",
-                        1)
-                ]
-            };
-        }
-    }
-
 
     private sealed class RepeatingApprovedSentSource(ApprovedSentItem item) : IApprovedSentSource
     {

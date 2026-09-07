@@ -321,6 +321,12 @@ public sealed partial class CaseAcceptanceReplayTests
 
     private static async Task SeedPrincipalAsync(IServiceProvider services, string principalCode)
     {
+        if (principalCode == QdosPrincipal.Code)
+        {
+            _ = await SeededPrincipals.QdosAsync(services);
+            return;
+        }
+
         var organizationId = Guid.NewGuid();
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Upload status · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -163,7 +164,7 @@
         <h1>Complete</h1>
     </div>
     <div class="page-actions">
-        <a class="btn" href="upload-status--default.html">
+        <a class="btn" href="#">
             <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
             <span>Refresh</span>
         </a>
@@ -195,7 +196,7 @@
         </div>
         <details class="upload-attach" data-refresh-hold>
             <summary class="btn btn--small">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search action="upload-status--default.html">
+            <form method="post" class="upload-attach__form" data-case-search action="#">
                 <input type="hidden" name="receiptId" value="test-ui-guid-2" />
                 <input type="hidden" name="caseId" value="" data-case-search-value />
                 <div class="field">
@@ -296,10 +297,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

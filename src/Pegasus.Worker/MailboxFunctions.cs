@@ -55,15 +55,31 @@ public sealed partial class InboxRecoveryFunction(
                             LastMaintainedAtUtc = now,
                             LastMaintenanceFailureCode = null
                         };
-                    await subscriptions.SaveAsync(maintained, cancellationToken);
+                    await subscriptions.SaveAsync(
+                        maintained,
+                        candidate.Subscription?.SubscriptionId,
+                        cancellationToken);
+                }
+                catch (ApprovedMailboxSubscriptionMaintenanceLostException)
+                {
+                    LogSubscriptionMaintenanceDeferred(logger, candidate.ApprovedMailboxId, candidate.Generation);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    await subscriptions.RecordMaintenanceFailureAsync(
-                        candidate.ApprovedMailboxId,
-                        "graph_subscription_maintenance_failed",
-                        now,
-                        cancellationToken);
+                    try
+                    {
+                        await subscriptions.RecordMaintenanceFailureAsync(
+                            candidate.ApprovedMailboxId,
+                            candidate.Generation,
+                            candidate.Subscription?.SubscriptionId,
+                            "graph_subscription_maintenance_failed",
+                            now,
+                            cancellationToken);
+                    }
+                    catch (ApprovedMailboxSubscriptionMaintenanceLostException)
+                    {
+                        LogSubscriptionMaintenanceDeferred(logger, candidate.ApprovedMailboxId, candidate.Generation);
+                    }
                 }
             }
         }
@@ -74,6 +90,12 @@ public sealed partial class InboxRecoveryFunction(
             cancellationToken);
         LogApprovedInboxPoll(logger, handled);
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Deferred obsolete subscription maintenance for mailbox {MailboxId}, generation {Generation}.")]
+    private static partial void LogSubscriptionMaintenanceDeferred(
+        ILogger logger, Guid mailboxId, long generation);
 
     [LoggerMessage(
         Level = LogLevel.Information,

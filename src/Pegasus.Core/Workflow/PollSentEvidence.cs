@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Workflow;
@@ -30,7 +31,10 @@ public sealed record ApprovedSentPollLease(
     string MailboxAddress,
     string SentFolderIdentity,
     string? Cursor,
-    string LeaseToken);
+    string LeaseToken,
+    Guid ApprovedMailboxId = default,
+    long Generation = 0,
+    DateTimeOffset StartBoundaryUtc = default);
 
 public sealed record ApprovedSentItemProvenance(
     string MailboxId,
@@ -43,7 +47,12 @@ public sealed record ApprovedSentItemProvenance(
     IReadOnlyList<string> InReplyToIdentities,
     IReadOnlyList<Guid> AuthoritativeCaseIdentities,
     DateTimeOffset SentAtUtc,
-    string MimeSha256);
+    string MimeSha256,
+    Guid? StaffMailOperationId = null,
+    IReadOnlyList<string>? AttachmentSha256 = null,
+    Guid? StaffMailMailboxId = null,
+    long? StaffMailMailboxGeneration = null,
+    string? StaffMailPayloadHash = null);
 
 public sealed record ApprovedSentItem(
     string SourceOccurrenceIdentity,
@@ -81,6 +90,10 @@ public sealed record PollSentEvidenceResult(
 {
     public static PollSentEvidenceResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
 }
+
+public sealed record PollSentEvidenceBatchResult(
+    int MailboxesAttempted, int MailboxesFailed, int PagesRead, int ItemsHandled,
+    int ReportEvidenceRetained, string? FirstFailure);
 
 public sealed record UnlinkedSentEvidenceCandidate(
     Guid PollOutcomeId,
@@ -120,6 +133,13 @@ public interface ISentEvidencePollStore
         DateTimeOffset nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
+
+    Task<ApprovedSentPollLease?> ClaimAsync(
+        Guid approvedMailboxId,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken) =>
+        ClaimAsync(nowUtc, leaseDuration, cancellationToken);
 
     Task RecordOutcomeAsync(
         string mailboxId,
@@ -163,7 +183,8 @@ public sealed class PollSentEvidence(
     IRecordEmailResponseEvidence recordEmailResponseEvidence,
     IRetainApprovedMailboxReportSentEvidence retainReportEvidence,
     IAutoLinkReportEvidence autoLinkReportEvidence,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IStaffMailSendStore? staffMailSendStore = null) : IStaffMailEvidenceReconciler
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
@@ -172,11 +193,74 @@ public sealed class PollSentEvidence(
         SentEvidencePollOutcomeKind Kind,
         bool ReportEvidenceRetained);
 
-    public async Task<PollSentEvidenceResult> ExecuteAsync(
+    public async Task<PollSentEvidenceBatchResult> ExecuteBatchAsync(
+        int maximumMailboxes, int maximumPages, int maximumItemsPerPage,
+        ActionActor actor, CancellationToken cancellationToken = default)
+    {
+        if (maximumMailboxes is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumMailboxes));
+        }
+        var attempted = 0;
+        var failed = 0;
+        var pages = 0;
+        var items = 0;
+        var reportEvidence = 0;
+        string? firstFailure = null;
+        for (var index = 0; index < maximumMailboxes; index++)
+        {
+            try
+            {
+                var result = await ExecuteAsync(
+                    maximumPages, maximumItemsPerPage, actor, cancellationToken);
+                if (result == PollSentEvidenceResult.Empty)
+                {
+                    break;
+                }
+                attempted++;
+                pages += result.PagesRead;
+                items += result.ItemsHandled;
+                reportEvidence += result.ReportEvidenceRetained;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                attempted++;
+                failed++;
+                firstFailure ??= $"{exception.GetType().Name}: {exception.Message}";
+            }
+        }
+        return new(attempted, failed, pages, items, reportEvidence, firstFailure);
+    }
+
+    public Task<PollSentEvidenceResult> ExecuteAsync(
         int maximumPages,
         int maximumItemsPerPage,
         ActionActor actor,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ExecuteCoreAsync(null, maximumPages, maximumItemsPerPage, actor, cancellationToken);
+
+    public async Task ReconcileAsync(
+        Guid approvedMailboxId, CancellationToken cancellationToken)
+    {
+        if (approvedMailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("An approved mailbox is required.", nameof(approvedMailboxId));
+        }
+        _ = await ExecuteCoreAsync(
+            approvedMailboxId, 5, 50,
+            ActionActor.SystemWorker("staff-mail-sent-reconcile"), cancellationToken);
+    }
+
+    private async Task<PollSentEvidenceResult> ExecuteCoreAsync(
+        Guid? approvedMailboxId,
+        int maximumPages,
+        int maximumItemsPerPage,
+        ActionActor actor,
+        CancellationToken cancellationToken)
     {
         if (maximumPages is < 1 or > 10)
         {
@@ -199,10 +283,11 @@ public sealed class PollSentEvidence(
             throw new UnauthorizedAccessException("Sent-evidence polling requires a system-worker actor.");
         }
 
-        var lease = await pollStore.ClaimAsync(
-            timeProvider.GetUtcNow(),
-            LeaseDuration,
-            cancellationToken);
+        var lease = approvedMailboxId is { } targetMailboxId
+            ? await pollStore.ClaimAsync(
+                targetMailboxId, timeProvider.GetUtcNow(), LeaseDuration, cancellationToken)
+            : await pollStore.ClaimAsync(
+                timeProvider.GetUtcNow(), LeaseDuration, cancellationToken);
         if (lease is null)
         {
             return PollSentEvidenceResult.Empty;
@@ -418,6 +503,38 @@ public sealed class PollSentEvidence(
             .Select(group => group.Single())
             .ToArray();
         var caseIdentities = provenance.AuthoritativeCaseIdentities.Distinct().ToArray();
+        StaffMailExecution? staffExecution = null;
+        if (provenance.StaffMailOperationId is { } staffOperationId)
+        {
+            staffExecution = staffMailSendStore is null ? null : await staffMailSendStore.GetExecutionForObservationAsync(
+                actor, staffOperationId, cancellationToken);
+            if (staffExecution is null
+                || staffExecution.Operation.ApprovedMailboxId != lease.ApprovedMailboxId
+                || staffExecution.Operation.MailboxGeneration != lease.Generation
+                || provenance.StaffMailMailboxId != staffExecution.Operation.ApprovedMailboxId
+                || provenance.StaffMailMailboxGeneration != staffExecution.Operation.MailboxGeneration
+                || !string.Equals(provenance.StaffMailPayloadHash,
+                    staffExecution.Operation.PayloadHash, StringComparison.Ordinal)
+                || staffExecution.Operation.State is not (StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown or StaffMailState.Sent)
+                || staffExecution.ContextId == Guid.Empty
+                || staffExecution.Purpose == StaffMailPurpose.CaseReport && staffExecution.CaseId is null
+                || (staffExecution.CaseId is { } resolvedCaseId
+                    && caseIdentities.Length > 0
+                    && (caseIdentities.Length != 1 || caseIdentities[0] != resolvedCaseId))
+                || !staffExecution.Attachments.Select(value => value.Sha256).Order(StringComparer.Ordinal)
+                    .SequenceEqual((provenance.AttachmentSha256 ?? []).Order(StringComparer.Ordinal), StringComparer.Ordinal))
+            {
+                await RecordOutcomeAsync(
+                    lease, item, outcomeId, SentEvidencePollOutcomeKind.Ambiguous,
+                    null, "staff_mail_sent_correlation_mismatch", nowUtc, operationKey,
+                    cancellationToken);
+                return new(SentEvidencePollOutcomeKind.Ambiguous, ReportEvidenceRetained: false);
+            }
+            if (staffExecution.CaseId is { } staffCaseId)
+            {
+                caseIdentities = [staffCaseId];
+            }
+        }
 
         Guid? relatedEvidenceId = null;
         SentEvidencePollOutcomeKind outcomeKind;
@@ -539,6 +656,17 @@ public sealed class PollSentEvidence(
             nowUtc,
             operationKey,
             cancellationToken);
+        if (staffExecution is not null && staffExecution.Operation.State is not StaffMailState.Sent)
+        {
+            await staffMailSendStore!.TransitionObservedSentAsync(
+                actor,
+                staffExecution.Operation.Id,
+                staffExecution.Operation.Version,
+                provenance.ImmutableItemIdentity,
+                provenance.SentAtUtc,
+                nowUtc,
+                cancellationToken);
+        }
         return new(outcomeKind, reportEvidenceRetained);
     }
 
@@ -567,6 +695,11 @@ public sealed class PollSentEvidence(
 
     private static void ValidateLease(ApprovedSentPollLease lease)
     {
+        if (lease.ApprovedMailboxId == Guid.Empty || lease.Generation <= 0
+            || lease.StartBoundaryUtc == default || lease.StartBoundaryUtc.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException("The approved Sent lease boundary is invalid.", nameof(lease));
+        }
         RequireText(lease.MailboxId, 100, nameof(lease));
         RequireText(lease.SentFolderIdentity, 200, nameof(lease));
         RequireText(lease.MailboxAddress, 320, nameof(lease));
@@ -727,6 +860,13 @@ public sealed class PollSentEvidence(
                 != provenance.AuthoritativeCaseIdentities.Count)
         {
             throw new ArgumentException("The authoritative Case identities are invalid.", nameof(provenance));
+        }
+        if ((provenance.AttachmentSha256?.Count ?? 0) > 100
+            || (provenance.AttachmentSha256?.Any(value => value is null || value.Length != 64
+                || !value.All(Uri.IsHexDigit)))
+                == true)
+        {
+            throw new ArgumentException("The Sent attachment hashes are invalid.", nameof(provenance));
         }
     }
 

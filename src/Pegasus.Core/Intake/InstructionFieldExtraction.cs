@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
@@ -10,6 +11,43 @@ namespace Pegasus.Core.Intake;
 /// </summary>
 internal static partial class InstructionFieldEngine
 {
+    /// <param name="FormFields">
+    /// PDF form-field names that carry this field, when the provider's template
+    /// is a form. A form field's identity is its own; it is never inferred from
+    /// a neighbouring label.
+    /// </param>
+    /// <param name="ColumnHeader">
+    /// For a value read from a table row, the header of the column the value
+    /// must sit under. A provider printing two parties in paired columns states
+    /// which column is whose in its header row, and this is how a definition
+    /// says which party it is asking about. Without it every viable column is
+    /// returned and the field is ambiguous rather than guessed.
+    /// </param>
+    /// <param name="PartyRole">
+    /// Which separate role this field's value belongs to — claimant, driver,
+    /// repairer, third party, principal, instruction. The roles the intake
+    /// invariants keep apart are kept apart HERE, on the definition, so a
+    /// policy cannot declare a field without saying whose fact it is and a
+    /// second role map cannot drift from the definition list.
+    /// </param>
+    /// <param name="ReferenceRole">
+    /// For a reference or claim number, whose reference it is: the principal's
+    /// own, an insurer's policy or claim number, a solicitor's file. Two
+    /// numbers printed on one instruction are two roles, never two spellings
+    /// of one field.
+    /// </param>
+    /// <param name="DefaultsToProcessedDate">
+    /// Whether an absent value is filled from the injected clock. Only a field
+    /// a profile has explicitly opted in carries this: today's date is not an
+    /// extracted fact, so a profile that does not ask for the default records
+    /// the absence instead (INTK-060 C03).
+    /// </param>
+    /// <param name="AllowsSoleUnlabelledRegistration">
+    /// Whether the document's single unlabelled registration-shaped value may
+    /// stand in when no labelled one was found. Opt-in per definition rather
+    /// than keyed on a field's name, so the rule belongs to the profile that
+    /// wants it.
+    /// </param>
     internal sealed record FieldDefinition(
         string Name,
         string[] Labels,
@@ -18,7 +56,13 @@ internal static partial class InstructionFieldEngine
         Func<string, bool>? IsValidTyped = null,
         Func<string, string?>? CanonicalValue = null,
         string[]? GuardedPrefixes = null,
-        bool PrefersLatestFragment = false);
+        bool PrefersLatestFragment = false,
+        string[]? FormFields = null,
+        string? ColumnHeader = null,
+        string? PartyRole = null,
+        string? ReferenceRole = null,
+        bool DefaultsToProcessedDate = false,
+        bool AllowsSoleUnlabelledRegistration = false);
 
     /// <summary>
     /// Regexes whose patterns depend on a field definition's labels. The QDOS
@@ -93,6 +137,285 @@ internal static partial class InstructionFieldEngine
             patterns[definition].FollowingLabel(labelIndex);
     }
 
+    /// <summary>
+    /// The document's own structure, as the reader reported it: its PDF form
+    /// fields and its table cells, indexed so a label can find the value bound
+    /// to it.
+    ///
+    /// Two bounded layout rules, and no others. A label printed in a table's
+    /// header row labels the cells BENEATH it in its column; a label printed in
+    /// the body of a table labels the cells BESIDE it on its own row, and only
+    /// when there is nothing beside it does it label the cell beneath. A form
+    /// field's identity is its own name. There is no score, no priority and no
+    /// first-match winner: where a label admits more than one value cell, every
+    /// one of them is returned and the field comes back ambiguous.
+    /// </summary>
+    internal sealed class SourceStructure
+    {
+        private readonly List<(IntakeContentFragment Fragment, int Rank)> formFields = [];
+        private readonly List<TableIndex> tables = [];
+
+        internal SourceStructure(IReadOnlyList<IntakeContentFragment> fragments)
+        {
+            ArgumentNullException.ThrowIfNull(fragments);
+            var byTable = new Dictionary<int, TableIndex>();
+            for (var rank = 0; rank < fragments.Count; rank++)
+            {
+                var fragment = fragments[rank];
+                switch (fragment.Locator)
+                {
+                    case { Kind: IntakeLocatorKind.FormField, FormField: not null }:
+                        this.formFields.Add((fragment, rank));
+                        break;
+                    case { Kind: IntakeLocatorKind.TableCell, Table: { } table, Row: { } row, Column: { } column }:
+                        if (!byTable.TryGetValue(table, out var index))
+                        {
+                            index = new();
+                            byTable.Add(table, index);
+                            this.tables.Add(index);
+                        }
+
+                        index.Add(row, column, fragment, rank);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Every candidate the document's structure binds to one definition, in
+        /// the order it was read. An empty result means the document states this
+        /// field in no cell and no form field, and the caller falls back to the
+        /// flattened line scan.
+        /// </summary>
+        internal IEnumerable<(InstructionFieldCandidate Candidate, int FragmentRank)> Bind(
+            FieldDefinition definition,
+            IReadOnlyList<FieldDefinition> definitions)
+        {
+            ArgumentNullException.ThrowIfNull(definition);
+            ArgumentNullException.ThrowIfNull(definitions);
+            var occurrence = 0;
+            foreach (var bound in BindFormFields(definition).Concat(BindCells(definition, definitions)))
+            {
+                // Occurrence counts the repetitions of one field within one
+                // source, so two printings of the same value stay two readings.
+                var candidate = bound.Candidate.Locator is { } locator
+                    ? bound.Candidate with { Locator = locator with { Occurrence = occurrence } }
+                    : bound.Candidate;
+                occurrence++;
+                // Every structured reading of one field is a PEER of every
+                // other, so they all carry the same rank. Document order is a
+                // rule about a document's parts — an instruction before an
+                // appended report — and it says nothing about two cells of one
+                // row: letting it choose between them would be exactly the
+                // first-match winner the invariants forbid. Two cells the
+                // document supports equally stay ambiguous.
+                yield return (candidate, 0);
+            }
+        }
+
+        private IEnumerable<(InstructionFieldCandidate Candidate, int FragmentRank)> BindFormFields(
+            FieldDefinition definition)
+        {
+            foreach (var (fragment, rank) in this.formFields)
+            {
+                if (!MatchesFormField(definition, fragment.Locator!.FormField!))
+                {
+                    continue;
+                }
+
+                if (Bound(fragment, definition) is { } candidate)
+                {
+                    yield return (candidate, rank);
+                }
+            }
+        }
+
+        private IEnumerable<(InstructionFieldCandidate Candidate, int FragmentRank)> BindCells(
+            FieldDefinition definition,
+            IReadOnlyList<FieldDefinition> definitions)
+        {
+            foreach (var table in this.tables)
+            {
+                foreach (var label in table.LabelCells(definition))
+                {
+                    foreach (var value in table.ValueCellsFor(label, definition, definitions))
+                    {
+                        if (Bound(value.Fragment, definition) is { } candidate)
+                        {
+                            yield return (candidate, value.Rank);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// A definition that names its form fields is bound by those names and
+        /// nothing else — the point of a form field is that its identity is
+        /// stated rather than inferred. A definition that names none falls back
+        /// to its printed labels, which is how a form whose fields are named
+        /// after the labels beside them still reads.
+        /// </summary>
+        private static bool MatchesFormField(FieldDefinition definition, string formField)
+        {
+            var normalized = Normalize(formField);
+            if (normalized.Length == 0)
+            {
+                return false;
+            }
+
+            return definition.FormFields is { Length: > 0 } names
+                ? names.Any(name => string.Equals(Normalize(name), normalized, StringComparison.Ordinal))
+                : definition.Labels.Any(
+                    label => string.Equals(Normalize(label), normalized, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// A candidate from one already-bounded cell or form field. Whitespace is
+        /// collapsed for the value the pipeline reads; the printed text is kept
+        /// beside it whenever the two differ, because normalization never
+        /// destroys the source value.
+        /// </summary>
+        private static InstructionFieldCandidate? Bound(
+            IntakeContentFragment fragment,
+            FieldDefinition definition)
+        {
+            var raw = fragment.Text;
+            var value = WhitespaceRegex().Replace(raw, " ").Trim();
+            return string.IsNullOrWhiteSpace(value)
+                || (definition.AcceptsValue is not null && !definition.AcceptsValue(value))
+                    ? null
+                    : new(
+                        value,
+                        fragment.Source,
+                        fragment.SourceLabel,
+                        fragment.Locator,
+                        string.Equals(raw, value, StringComparison.Ordinal) ? null : raw);
+        }
+
+        /// <summary>
+        /// Punctuation-and-whitespace-insensitive comparison of one printed
+        /// label to one definition label. Bounded label rules may normalize
+        /// punctuation and whitespace; they may not match a substring, which is
+        /// what would let a neighbouring column's header be read as this label.
+        /// </summary>
+        private static string Normalize(string value)
+        {
+            var builder = new StringBuilder(value.Length);
+            foreach (var character in value)
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(char.ToLowerInvariant(character));
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool IsLabelOf(string text, FieldDefinition definition)
+        {
+            var normalized = Normalize(text);
+            return normalized.Length > 0
+                && definition.Labels.Any(
+                    label => string.Equals(Normalize(label), normalized, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// A cell can carry a value when it says something and that something is
+        /// not itself one of the document's known labels — a label cell is never
+        /// another label's value.
+        /// </summary>
+        private static bool IsValueCell(string text, IReadOnlyList<FieldDefinition> definitions)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            var normalized = Normalize(text);
+            return !definitions.Any(definition => definition.Labels.Any(
+                label => string.Equals(Normalize(label), normalized, StringComparison.Ordinal)));
+        }
+
+        private sealed class TableIndex
+        {
+            private readonly Dictionary<(int Row, int Column), (IntakeContentFragment Fragment, int Rank)> cells = [];
+            private int headerRow = int.MaxValue;
+
+            internal void Add(int row, int column, IntakeContentFragment fragment, int rank)
+            {
+                this.cells[(row, column)] = (fragment, rank);
+                this.headerRow = Math.Min(this.headerRow, row);
+            }
+
+            internal IEnumerable<(int Row, int Column)> LabelCells(FieldDefinition definition) =>
+                this.cells
+                    .Where(entry => IsLabelOf(entry.Value.Fragment.Text, definition))
+                    .Select(entry => entry.Key)
+                    .OrderBy(key => key.Row)
+                    .ThenBy(key => key.Column);
+
+            internal (IntakeContentFragment Fragment, int Rank)[] ValueCellsFor(
+                (int Row, int Column) label,
+                FieldDefinition definition,
+                IReadOnlyList<FieldDefinition> definitions)
+            {
+                // A header labels its own column: its values are aligned beneath
+                // it, never beside it.
+                if (label.Row == this.headerRow)
+                {
+                    return
+                    [
+                        .. this.cells
+                            .Where(entry => entry.Key.Column == label.Column
+                                && entry.Key.Row > label.Row
+                                && IsValueCell(entry.Value.Fragment.Text, definitions))
+                            .OrderBy(entry => entry.Key.Row)
+                            .Select(entry => entry.Value)
+                    ];
+                }
+
+                // A label in the body of the table labels what is beside it. Where
+                // the definition names the column header it is asking about — a
+                // provider printing two parties in paired columns — only that
+                // column's cell is viable; without one, every viable column is
+                // returned and the field is ambiguous rather than guessed at.
+                var siblings = this.cells
+                    .Where(entry => entry.Key.Row == label.Row
+                        && entry.Key.Column > label.Column
+                        && IsValueCell(entry.Value.Fragment.Text, definitions)
+                        && (definition.ColumnHeader is null
+                            || HeaderMatches(entry.Key.Column, definition.ColumnHeader)))
+                    .OrderBy(entry => entry.Key.Column)
+                    .Select(entry => entry.Value)
+                    .ToArray();
+                if (siblings.Length > 0)
+                {
+                    return siblings;
+                }
+
+                // Nothing beside it: a label alone on its row labels the cell
+                // beneath. A definition that named a column header is not
+                // satisfied by that, so it stays unbound.
+                return definition.ColumnHeader is null
+                    && this.cells.TryGetValue((label.Row + 1, label.Column), out var below)
+                    && IsValueCell(below.Fragment.Text, definitions)
+                        ? [below]
+                        : [];
+            }
+
+            private bool HeaderMatches(int column, string columnHeader) =>
+                this.cells.TryGetValue((this.headerRow, column), out var header)
+                && string.Equals(
+                    Normalize(header.Fragment.Text),
+                    Normalize(columnHeader),
+                    StringComparison.Ordinal);
+        }
+    }
+
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
             IReadOnlyList<IntakeContentFragment> fragments,
@@ -103,19 +426,34 @@ internal static partial class InstructionFieldEngine
         var fields = new List<InstructionReviewField>();
         var missing = new List<string>();
         var evidence = new List<IntakeEvidence>();
+        // Built once for the whole document: which fragments are table cells and
+        // which are PDF form fields, indexed so a label can find the cell beside
+        // or beneath it without re-scanning the document for every field.
+        var structure = new SourceStructure(fragments);
 
         foreach (var definition in definitions)
         {
-            var discovered = fragments
-                .SelectMany((fragment, rank) => FindCandidates(fragment, definition, definitions, regexCache)
-                    .Select(candidate => (Candidate: candidate, FragmentRank: rank)))
+            // Structure beats flattened text, and does so by construction rather
+            // than by score: where the document states a field in a cell or a
+            // form field, that binding IS the reading, and the line scan's guess
+            // at the same flattened row is not offered beside it. This is what
+            // stops a neighbouring column's value being read as this field's.
+            var structured = structure
+                .Bind(definition, definitions)
                 .DistinctBy(entry => entry.Candidate.Value, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+            var discovered = structured.Length > 0
+                ? structured
+                : fragments
+                    .SelectMany((fragment, rank) => FindCandidates(fragment, definition, definitions, regexCache)
+                        .Select(candidate => (Candidate: candidate, FragmentRank: rank)))
+                    .DistinctBy(entry => entry.Candidate.Value, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
             var candidates = discovered
                 .Select(entry => entry.Candidate)
                 .ToArray();
 
-            if (candidates.Length == 0 && definition.Name == "Instruction date")
+            if (candidates.Length == 0 && definition.DefaultsToProcessedDate)
             {
                 var defaultValue = DateOnly.FromDateTime(processedAtUtc.UtcDateTime)
                     .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -133,7 +471,7 @@ internal static partial class InstructionFieldEngine
                 continue;
             }
 
-            if (candidates.Length == 0 && definition.Name == "Vehicle registration")
+            if (candidates.Length == 0 && definition.AllowsSoleUnlabelledRegistration)
             {
                 var soleRegistration = FindSoleUnlabelledRegistration(fragments);
                 if (soleRegistration is not null)
@@ -208,6 +546,15 @@ internal static partial class InstructionFieldEngine
         IReadOnlyList<FieldDefinition> definitions,
         LabelRegexCache regexCache)
     {
+        // A cell or a form field is already bounded by the document's own
+        // structure. Line-scanning it again would re-create exactly the
+        // flattening this path exists to work around, so structured fragments
+        // are left to SourceStructure.
+        if (fragment.Locator?.Kind is IntakeLocatorKind.TableCell or IntakeLocatorKind.FormField)
+        {
+            yield break;
+        }
+
         // The real correspondence writes typographic apostrophes (\u2019); labels
         // and lookaheads reason in ASCII, so the line text is normalized once here.
         var lines = fragment.Text
@@ -249,13 +596,22 @@ internal static partial class InstructionFieldEngine
                         : string.Empty;
                 }
 
+                // What the line actually printed, kept before the engine bounds
+                // it. The bounded value is what downstream reads; the printed one
+                // is what an operator is shown when two readings compete.
+                var rawValue = value;
                 value = TruncateAtFollowingFieldLabel(value, definitions, regexCache);
                 value = TruncateAtColumnBoundary(value);
                 value = WhitespaceRegex().Replace(value, " ").Trim();
                 if (!string.IsNullOrWhiteSpace(value)
                     && (definition.AcceptsValue is null || definition.AcceptsValue(value)))
                 {
-                    yield return new(value, fragment.Source, fragment.SourceLabel);
+                    yield return new(
+                        value,
+                        fragment.Source,
+                        fragment.SourceLabel,
+                        fragment.Locator,
+                        string.Equals(rawValue, value, StringComparison.Ordinal) ? null : rawValue);
                 }
 
                 break;

@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -473,6 +474,120 @@ public sealed class PollSentEvidenceTests
         Assert.Equal(second.NextCursor, completion.Cursor);
     }
 
+    [Fact]
+    public async Task StaffOperationAttachmentMismatchDoesNotClaimSent()
+    {
+        var lease = Lease();
+        var operationId = Guid.NewGuid();
+        var contextId = Guid.NewGuid();
+        var operation = new StaffMailOperation(
+            operationId, StaffMailState.Sending, StaffMailAttemptStage.Send, 4,
+            NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null);
+        var frozen = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('D', 64), 10,
+            "report.pdf", "application/pdf");
+        var staffStore = new ObservationStore(new StaffMailExecution(
+            Guid.NewGuid().ToString("D"), operation, "draft", [frozen],
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null));
+        var item = Item("staff-mismatch", "sent-items", "cursor", [], []) with
+        {
+            Provenance = Item("staff-mismatch", "sent-items", "cursor", [], []).Provenance! with
+            {
+                StaffMailOperationId = operationId,
+                AttachmentSha256 = [new string('E', 64)],
+                StaffMailMailboxId = lease.ApprovedMailboxId,
+                StaffMailMailboxGeneration = lease.Generation,
+                StaffMailPayloadHash = new string('F', 64)
+            }
+        };
+        var pollStore = new RecordingPollStore(lease);
+        var response = new ResponsePort();
+        var report = new ReportPort();
+        var poll = CreateUseCase(
+            pollStore, new SequencedSource(new ApprovedSentPage([item], "cursor", false)),
+            response, report, staffMailStore: staffStore);
+
+        var result = await poll.ExecuteAsync(
+            1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        Assert.Equal(1, result.ItemsHandled);
+        var outcome = Assert.Single(pollStore.OutcomeAttempts);
+        Assert.Equal(SentEvidencePollOutcomeKind.Ambiguous, outcome.Kind);
+        Assert.Equal("staff_mail_sent_correlation_mismatch", outcome.FailureCode);
+        Assert.Equal(0, staffStore.TransitionCount);
+    }
+
+    [Fact]
+    public async Task RetainedMimeMatchMarksExactStaffOperationSentOnce()
+    {
+        var lease = Lease();
+        var operationId = Guid.NewGuid();
+        var contextId = Guid.NewGuid();
+        var hash = new string('D', 64);
+        var operation = new StaffMailOperation(
+            operationId, StaffMailState.Sending, StaffMailAttemptStage.Send, 4,
+            NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null);
+        var staffStore = new ObservationStore(new StaffMailExecution(
+            Guid.NewGuid().ToString("D"), operation, "draft",
+            [new(Guid.NewGuid(), Guid.NewGuid(), hash, 10, "report.pdf", "application/pdf")],
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null));
+        var template = Item("staff-match", "sent-items", "cursor", [], []);
+        var item = template with
+        {
+            Provenance = template.Provenance! with
+            {
+                StaffMailOperationId = operationId,
+                AttachmentSha256 = [hash],
+                StaffMailMailboxId = lease.ApprovedMailboxId,
+                StaffMailMailboxGeneration = lease.Generation,
+                StaffMailPayloadHash = operation.PayloadHash
+            }
+        };
+        var poll = CreateUseCase(
+            new RecordingPollStore(lease),
+            new SequencedSource(new ApprovedSentPage([item], "cursor", false)),
+            new ResponsePort(), new ReportPort(), staffMailStore: staffStore);
+
+        await poll.ExecuteAsync(1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        Assert.Equal(1, staffStore.TransitionCount);
+        Assert.Equal(item.Provenance!.ImmutableItemIdentity, staffStore.ImmutableMessageId);
+        Assert.Equal(item.Provenance.SentAtUtc, staffStore.ProviderSentAtUtc);
+        Assert.Equal(NowUtc, staffStore.ObservedAtUtc);
+    }
+
+    [Fact]
+    public async Task BatchContinuesToSecondMailboxAfterFirstSourceFailure()
+    {
+        var first = Lease();
+        var second = Lease() with
+        {
+            ApprovedMailboxId = Guid.NewGuid(),
+            MailboxId = "reports",
+            MailboxAddress = "reports@example.test",
+            LeaseToken = "lease-two"
+        };
+        var store = new RecordingPollStore(first, second, null);
+        var source = new SequencedSource(
+            new IOException("first mailbox unavailable"),
+            new ApprovedSentPage([], "second-cursor", false));
+        var poll = CreateUseCase(
+            store, source, new ResponsePort(), new ReportPort(),
+            policy: new MultiMailboxPolicy());
+
+        var result = await poll.ExecuteBatchAsync(
+            3, 1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        Assert.Equal(2, result.MailboxesAttempted);
+        Assert.Equal(1, result.MailboxesFailed);
+        Assert.Single(store.Releases);
+        Assert.Single(store.Completions);
+    }
+
     private static PollSentEvidence CreateUseCase(
         RecordingPollStore pollStore,
         SequencedSource source,
@@ -480,7 +595,8 @@ public sealed class PollSentEvidenceTests
         ReportPort reportPort,
         TimeProvider? timeProvider = null,
         AutoLinkPort? autoLinkPort = null,
-        IApprovedMailboxPolicy? policy = null) => new(
+        IApprovedMailboxPolicy? policy = null,
+        IStaffMailSendStore? staffMailStore = null) => new(
         pollStore,
         source,
         policy ?? new ApprovedPolicy(),
@@ -488,14 +604,18 @@ public sealed class PollSentEvidenceTests
         responsePort,
         reportPort,
         autoLinkPort ?? AutoLinkPort.NotLinked(),
-        timeProvider ?? new AdjustableTimeProvider(NowUtc));
+        timeProvider ?? new AdjustableTimeProvider(NowUtc),
+        staffMailStore);
 
     private static ApprovedSentPollLease Lease() => new(
         "instructions",
         "instructions@example.test",
         "sent-items",
         Cursor: null,
-        "lease-token");
+        "lease-token",
+        Guid.Parse("10000000-0000-0000-0000-000000000001"),
+        1,
+        NowUtc.AddHours(-1));
 
     private static ApprovedSentItem Item(
         string occurrenceIdentity,
@@ -727,5 +847,29 @@ public sealed class PollSentEvidenceTests
         public override DateTimeOffset GetUtcNow() => _utcNow;
 
         public void Advance(TimeSpan duration) => _utcNow += duration;
+    }
+
+    private sealed class MultiMailboxPolicy : IApprovedMailboxPolicy
+    {
+        public Task<bool> IsApprovedAsync(string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
+            Task.FromResult(routeScope == ApprovedMailboxRouteScope.SentEvidence);
+    }
+
+    private sealed class ObservationStore(StaffMailExecution execution) : IStaffMailSendStore
+    {
+        public int TransitionCount { get; private set; }
+        public string? ImmutableMessageId { get; private set; }
+        public DateTimeOffset? ProviderSentAtUtc { get; private set; }
+        public DateTimeOffset? ObservedAtUtc { get; private set; }
+        public Task<StaffMailExecution?> GetExecutionForObservationAsync(ActionActor systemActor, Guid operationId, CancellationToken cancellationToken) =>
+            Task.FromResult<StaffMailExecution?>(operationId == execution.Operation.Id ? execution : null);
+        public Task TransitionObservedSentAsync(ActionActor systemActor, Guid operationId, long expectedVersion, string immutableMessageId, DateTimeOffset providerSentAtUtc, DateTimeOffset observedAtUtc, CancellationToken cancellationToken) { TransitionCount++; ImmutableMessageId = immutableMessageId; ProviderSentAtUtc = providerSentAtUtc; ObservedAtUtc = observedAtUtc; return Task.CompletedTask; }
+        public Task<StaffMailOperation> PrepareAsync(StaffMailSendCommand command, string payloadHash, DateTimeOffset nowUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffMailOperation?> GetAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffMailOperation?> GetLatestForOriginalAsync(string actorSubjectId, Guid retainedMessageId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffMailExecution?> GetExecutionAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task RequireCurrentStaffAsync(string actorSubjectId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffMailOperation> TransitionAsync(string actorSubjectId, Guid operationId, long expectedVersion, StaffMailState state, StaffMailAttemptStage? stage, string? draftImmutableId, DateTimeOffset? submittedAtUtc, DateTimeOffset? observedSentAtUtc, string? failureCode, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffMailOperation> SetReconciliationContinuationAsync(string actorSubjectId, Guid operationId, long expectedVersion, string? continuation, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

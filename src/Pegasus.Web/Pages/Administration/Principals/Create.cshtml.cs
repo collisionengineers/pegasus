@@ -27,15 +27,10 @@ public sealed class CreateModel(
     public CaseInspectionMode InspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
 
     /// <summary>
-    /// EXT-04. Independent by operator decision, so all four combinations are
-    /// legal — including automatic without manual, which submits unattended
-    /// and offers no button.
+    /// EXT-04/EXT-18 item 7: the optional manual EVA submission setting.
     /// </summary>
     [BindProperty]
     public bool EvaManualSubmission { get; set; }
-
-    [BindProperty]
-    public bool EvaAutomaticSubmission { get; set; }
 
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
@@ -82,8 +77,7 @@ public sealed class CreateModel(
                         actor,
                         OperationKey,
                         InspectionMode,
-                        EvaManualSubmission,
-                        EvaAutomaticSubmission),
+                        EvaManualSubmission),
                     cancellationToken);
                 TempData["AdministrationStatus"] = "The principal was created.";
                 return RedirectToPage("Index");

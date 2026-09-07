@@ -26,8 +26,7 @@ public sealed record Principal(
     bool IsActive,
     long Version,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false,
-    bool EvaAutomaticSubmission = false);
+    bool EvaManualSubmission = false);
 
 public enum CaseType
 {
@@ -67,11 +66,9 @@ public static class QdosPrincipal
 /// rule sitting in front of the real one, and it made a correctly registered
 /// principal unusable.
 ///
-/// What remains is the shape a code must have to be looked up at all. Reading
-/// a non-QDOS principal *out of a document* is a separate matter and is still
-/// not implemented — the extraction policy recognises QDOS only, so another
-/// principal reaches allocation because a person keyed it, not because
-/// anything inferred it.
+/// What remains is the shape a code must have to be looked up at all.
+/// Document identification belongs to the registered principal policies;
+/// this code-shape check does not identify or activate a principal.
 /// </remarks>
 public static class CasePrincipalCode
 {
@@ -275,8 +272,7 @@ public sealed record CreatePrincipalRequest(
     ActionActor Actor,
     string OperationKey,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false,
-    bool EvaAutomaticSubmission = false);
+    bool EvaManualSubmission = false);
 
 /// <summary>
 /// EXT-04: change an existing principal's EVA submission settings.
@@ -292,8 +288,7 @@ public sealed record UpdatePrincipalEvaSubmissionRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    bool EvaManualSubmission,
-    bool EvaAutomaticSubmission);
+    bool EvaManualSubmission);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

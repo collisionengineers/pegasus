@@ -8,17 +8,13 @@ internal static class AssessmentModelConfiguration
 {
     public static void Configure(ModelBuilder builder)
     {
-        var fieldPaths = string.Join(
-            ", ",
-            AssessmentVocabulary.Definitions.Keys.OrderBy(path => path, StringComparer.Ordinal)
-                .Select(SqlLiteral));
         builder.Entity<CaseAssessmentFieldEntity>(entity =>
         {
             entity.ToTable("CaseAssessmentFields", table =>
             {
                 table.HasCheckConstraint(
                     "CK_CaseAssessmentFields_FieldPath",
-                    $"[FieldPath] IN ({fieldPaths})");
+                    "[FieldPath] <> '' AND LEN([FieldPath]) <= 60");
                 table.HasCheckConstraint(
                     "CK_CaseAssessmentFields_RecordedByKind",
                     "[RecordedByKind] IN ('Staff', 'Automation')");
@@ -72,14 +68,20 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.LineType).HasMaxLength(20).IsRequired();
             entity.Property(item => item.GuideCode).HasMaxLength(50);
             entity.Property(item => item.Description).HasMaxLength(300);
-            entity.Property(item => item.WorkUnits).HasPrecision(9, 1);
-            entity.Property(item => item.PaintWorkUnits).HasPrecision(9, 1);
+            entity.Property(item => item.WorkUnits).HasPrecision(18, 6);
+            entity.Property(item => item.PaintWorkUnits).HasPrecision(18, 6);
+            entity.Property(item => item.Materials).HasPrecision(18, 2);
             entity.Property(item => item.Price).HasPrecision(18, 2);
             entity.Property(item => item.PartNumber).HasMaxLength(100);
             entity.Property(item => item.Betterment).HasMaxLength(100);
             entity.Property(item => item.Status).HasMaxLength(20);
             entity.Property(item => item.EvidenceLabel).HasMaxLength(20);
             entity.Property(item => item.Justification).HasMaxLength(500);
+            entity.Property(item => item.Operation).HasMaxLength(200);
+            entity.Property(item => item.SourceDocumentIdentity).HasMaxLength(200);
+            entity.Property(item => item.SourceDocumentSha256).HasMaxLength(64).IsFixedLength();
+            entity.Property(item => item.SourceRowIdentity).HasMaxLength(200);
+            entity.Property(item => item.AmendedBy).HasMaxLength(200);
             entity.Property(item => item.RecordedByKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ConfirmedBy).HasMaxLength(200);
@@ -137,9 +139,14 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.SupersessionReason).HasMaxLength(500);
             entity.Property(item => item.Name).HasMaxLength(EstimatePolicy.MaximumNameLength).IsRequired();
             entity.Property(item => item.LabourRate).HasPrecision(18, 2);
-            entity.Property(item => item.PaintLabourRate).HasPrecision(18, 2);
             entity.Property(item => item.PaintMaterials).HasPrecision(18, 2);
             entity.Property(item => item.OtherCosts).HasPrecision(18, 2);
+            entity.Property(item => item.PartsDiscountPercent).HasPrecision(7, 4);
+            entity.Property(item => item.MaterialsDiscountPercent).HasPrecision(7, 4);
+            entity.Property(item => item.SpecialistDiscountPercent).HasPrecision(7, 4);
+            entity.Property(item => item.OverallDiscountPercent).HasPrecision(7, 4);
+            entity.Property(item => item.RepairerVatStatus).HasMaxLength(20);
+            entity.Property(item => item.VatOverrideReason).HasMaxLength(500);
             entity.Property(item => item.VatPercent).HasPrecision(5, 2);
             entity.Property(item => item.Notes).HasMaxLength(EstimatePolicy.MaximumNotesLength);
             entity.Property(item => item.DiscardedBy).HasMaxLength(200);
@@ -182,6 +189,7 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.Source).HasMaxLength(30).IsRequired();
             entity.Property(item => item.Date).HasColumnType("date");
             entity.Property(item => item.Time).HasColumnType("time");
+            entity.Property(item => item.GuideMonth).HasColumnType("date");
             entity.Property(item => item.RetailValue).HasPrecision(18, 2);
             entity.Property(item => item.TradeValue).HasPrecision(18, 2);
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();

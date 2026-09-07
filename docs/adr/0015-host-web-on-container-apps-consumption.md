@@ -2,7 +2,7 @@
 id: ADR-0015
 status: accepted
 date: 2026-08-01
-supersedes: []
+supersedes: [ADR-0002, ADR-0007]
 superseded_by: []
 related_capabilities: []
 related_frd: []
