@@ -1,5 +1,4 @@
 ﻿using Pegasus.Core.Vehicle;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -184,8 +183,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ReconcileProviderSubmissions reconcileProviderSubmissions,
-    ILogger<StagedArtifactReconciliationFunction> logger,
-    ReconcileAutomaticEvaSubmissions? reconcileAutomaticEvaSubmissions = null)
+    ILogger<StagedArtifactReconciliationFunction> logger)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
@@ -254,24 +252,6 @@ public sealed partial class StagedArtifactReconciliationFunction(
         var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
         LogAutomaticVehicleLookups(logger, vehicleLookups);
 
-        // EXT-04: a case sitting in Review whose principal has automatic EVA
-        // submission switched on gets one submission enqueued; the existing
-        // dispatch timer and unified work queue carry it from there. Same
-        // existing timer trigger deliberately; this is not a new schedule.
-        //
-        // A sweep rather than a hook because three separate places write
-        // State = Review, each inside its own transaction — and because a
-        // sweep self-heals, where a missed hook would leave a case unsent
-        // forever. Null where EVA is not composed, which is the offline
-        // profile and any host without credentials.
-        if (reconcileAutomaticEvaSubmissions is not null)
-        {
-            var evaSubmissions = await reconcileAutomaticEvaSubmissions.ExecuteAsync(
-                50,
-                cancellationToken);
-            LogAutomaticEvaSubmissions(logger, evaSubmissions);
-        }
-
         // AUTO-012: repairs the staged-receipt back-reference and the missing
         // first Accepted history row after a process loss between the
         // Provider API's separate writes. Same existing timer trigger
@@ -286,11 +266,6 @@ public sealed partial class StagedArtifactReconciliationFunction(
             providerSubmissions.Failures,
             providerSubmissions.FirstFailure);
     }
-
-    [LoggerMessage(
-        Level = LogLevel.Information,
-        Message = "Enqueued {Enqueued} automatic EVA submissions.")]
-    private static partial void LogAutomaticEvaSubmissions(ILogger logger, int enqueued);
 
     [LoggerMessage(
         Level = LogLevel.Information,

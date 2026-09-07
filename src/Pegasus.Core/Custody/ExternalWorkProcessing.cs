@@ -10,7 +10,6 @@ public static class ExternalWorkKinds
     public const string CreateImageCaseCustody = "create_image_case_custody";
     public const string MergeImageCaseCustody = "merge_image_case_custody";
     public const string VehicleLookup = "vehicle_lookup";
-    public const string SubmitCaseToEva = "submit_case_to_eva";
 }
 
 public sealed record QueuedExternalWork(Guid Id, string Kind);
@@ -55,25 +54,13 @@ public interface IProcessQueuedExternalWork
 }
 
 /// <summary>
-/// EXT-04: the durable arm of automatic EVA submission. A case whose principal
-/// has automatic submission enabled reaches EVA through this, never through
-/// the page, so an outage retries and recovers instead of failing in front of
-/// an operator.
-/// </summary>
-public interface IProcessQueuedEvaSubmission
-{
-    Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken);
-}
-
-/// <summary>
 /// Resolves one ID-only durable external-work row and invokes exactly one typed handler.
 /// Unknown persisted kinds fail closed and are never treated as custody by default.
 /// </summary>
 public sealed class ProcessQueuedExternalWork(
     IQueuedExternalWorkReader workReader,
     IProcessQueuedCustody custody,
-    IProcessQueuedVehicleLookup vehicle,
-    IProcessQueuedEvaSubmission? eva = null) : IProcessQueuedExternalWork
+    IProcessQueuedVehicleLookup vehicle) : IProcessQueuedExternalWork
 {
     public async Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
     {
@@ -102,14 +89,6 @@ public sealed class ProcessQueuedExternalWork(
                 return;
             case ExternalWorkKinds.VehicleLookup:
                 await vehicle.ExecuteAsync(workItemId, cancellationToken);
-                return;
-            // EXT-04 composes only where EVA credentials exist, so a host
-            // without them has no handler. A row of this kind reaching such a
-            // host is the same fail-closed case as an unrecognized kind: it is
-            // refused rather than quietly completed, because completing it
-            // would record a case as dealt with that nothing ever sent.
-            case ExternalWorkKinds.SubmitCaseToEva when eva is not null:
-                await eva.ExecuteAsync(workItemId, cancellationToken);
                 return;
             default:
                 throw new UnknownExternalWorkKindException(workItemId, work.Kind);

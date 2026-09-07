@@ -566,14 +566,6 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     "Vehicle lookup exhausted the queue retry policy.");
                 break;
 
-            case ExternalWorkKinds.SubmitCaseToEva:
-                FailWork(
-                    work,
-                    failedAtUtc,
-                    "queue_poisoned",
-                    "EVA submission exhausted the queue retry policy.");
-                break;
-
             default:
                 FailWork(
                     work,
