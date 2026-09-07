@@ -119,13 +119,14 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 () => custody.RetainAsync(request, CancellationToken.None));
             Guid pendingDocumentId;
             Guid pendingVersionId;
+            Guid pendingOccurrenceId;
             await using (var db = await database.CreateContextAsync())
             {
                 var pending = await db.Set<DocumentVersionEntity>().SingleAsync();
                 pendingDocumentId = pending.DocumentId;
                 pendingVersionId = pending.Id;
                 Assert.Equal(DocumentCustodyStatus.Pending, pending.CustodyStatus);
-                Assert.Single(await db.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+                pendingOccurrenceId = (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id;
             }
 
             // The provider result was lost, but the accepted Pending intent is
@@ -136,6 +137,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             Assert.Equal(CaseArtifactCustodyDisposition.Pending, recoveredPending!.Disposition);
             Assert.Equal(pendingVersionId, recoveredPending.VersionId);
             Assert.Equal(pendingDocumentId, recoveredPending.DocumentId);
+            Assert.Equal(pendingOccurrenceId, recoveredPending.OccurrenceId);
             Assert.Equal(hash, recoveredPending.Sha256, ignoreCase: true);
             Assert.Equal(content.LongLength, recoveredPending.ContentLength);
 
@@ -215,6 +217,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, confirmed.Disposition);
         Assert.Equal(replay.DocumentId, confirmed.DocumentId);
         Assert.Equal(replay.VersionId, confirmed.VersionId);
+        Assert.NotNull(replay.OccurrenceId);
+        Assert.Equal(replay.OccurrenceId, confirmed.OccurrenceId);
         Assert.Equal(1, provider.WriteCount);
     }
 
@@ -248,6 +252,19 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 CreatedBy = "test",
                 IsCurrent = true
             });
+            db.Add(new DocumentOccurrenceEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                Ordinal = 1,
+                SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = "failed-custody",
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+                OperationKey = "failed-custody"
+            });
             await db.SaveChangesAsync();
         }
         await using var scope = database.CreateAsyncScope();
@@ -266,6 +283,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             default);
 
         Assert.Equal(CaseArtifactCustodyDisposition.Failed, result.Disposition);
+        Assert.NotNull(result.OccurrenceId);
         Assert.Equal("case_custody_failed", result.FailureCode);
     }
 
@@ -412,6 +430,9 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.NotNull(recovered);
         Assert.Equal(retained.DocumentId, recovered!.DocumentId);
         Assert.Equal(retained.VersionId, recovered.VersionId);
+        Assert.NotNull(retained.OccurrenceId);
+        Assert.Equal(retained.OccurrenceId, status.OccurrenceId);
+        Assert.Equal(retained.OccurrenceId, recovered.OccurrenceId);
         Assert.Equal(retained.Disposition, recovered.Disposition);
         Assert.Equal(retained.Sha256, recovered.Sha256);
         Assert.Equal(retained.ContentLength, recovered.ContentLength);
