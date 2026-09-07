@@ -184,6 +184,19 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/Glass/Index.cshtml",
+    "route": "/Administration/Glass/{staffId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-glass--default.html",
+        "branch": "Configured, enabled credential summary for the seeded Engineer.",
+        "scenario": "administration-glass--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Index.cshtml",
     "route": "/Administration",
     "classification": "visual",

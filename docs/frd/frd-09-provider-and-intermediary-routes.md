@@ -39,7 +39,8 @@ is the attributable action actor. Cross-principal query or result disclosure
 fails closed. The transport channel alone never changes extraction, instruction
 eligibility, or automatic allocation: a definitive provider-API instruction
 for its authenticated principal follows the same case-creation path as an
-equally definitive email instruction.
+equally definitive email instruction. API-01 is create-only: it never associates
+material with or mutates an existing Case.
 
 **Additional-contract boundary:** API-01 below owns the accepted current routes,
 schemas, limits and Principal credential contract. It does not establish an
@@ -137,6 +138,13 @@ HTTP already holds the fields, and states them.
   vehicle registration — are the only ones that withhold a reference; ordinary
   detail missing from a declaration leaves the case `Not ready`, exactly as it
   does for an e-mail.
+- **Existing-Case rejection.** The existing Case-match policy is applied to the
+  declared claim number, vehicle registration, claimant and incident date. A
+  unique or ambiguous existing-Case match fails with
+  `provider_existing_case_match`; Pegasus allocates no Case or PO and neither
+  associates material with nor mutates an existing Case. With no match, the
+  submission follows the ordinary creation path. Provider updates remain a
+  separate deferred capability under AUTO-017.
 - **Pause.** A paused credential is refused for submission before Pegasus reads
   the request body (403, recorded) and still reads its own receipts and results;
   a revoked one is refused everywhere.

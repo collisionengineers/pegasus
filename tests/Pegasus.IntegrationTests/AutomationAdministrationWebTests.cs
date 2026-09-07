@@ -52,6 +52,7 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.Equal("2", FactValue(html, "Active jobs"));
         Assert.Equal("1", FactValue(html, "Failed jobs"));
         Assert.Contains("Stop automation", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"{AutomationRoute}\"", html, StringComparison.Ordinal);
         // The one consequence sentence a destructive action is allowed.
         Assert.Contains(
             "In-flight work remains visible and no result is discarded.",
@@ -163,9 +164,8 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.DoesNotContain("Registered clients", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Stop automation", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Start automation", html, StringComparison.Ordinal);
-        // The shared rail lists Automation &amp; AI only where it is composed;
-        // the sprite still defines the symbol, so the claim is about the use.
-        Assert.DoesNotContain("<use href=\"#icon-sparkles\"", html, StringComparison.Ordinal);
+        // The shared rail lists Automation &amp; AI only where it is composed.
+        Assert.DoesNotContain($"href=\"{AutomationRoute}\"", html, StringComparison.Ordinal);
         // An absent capability is absent, not narrated.
         Assert.DoesNotContain("is not part of this deployment", html, StringComparison.Ordinal);
     }
