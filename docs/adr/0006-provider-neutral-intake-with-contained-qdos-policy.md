@@ -46,7 +46,7 @@ a compatibility boundary.
    content evidence may create one `InstructionDraft` with
    `SuggestedPrincipalCode = "QDOS"`. QDOS in a filename or sender alone is not
    sufficient. Readable non-QDOS or indeterminate material has no principal
-   suggestion and remains in `Needs sorting`; unsupported and incomplete reader
+   suggestion and remains in `Unidentified`; unsupported and incomplete reader
    outcomes retain their distinct fail-closed results.
 5. Intake persistence uses provider-neutral tables and explicit stable stored
    codes with versioned JSON envelopes. CLR names are not durable values;
