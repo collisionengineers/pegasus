@@ -106,12 +106,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
         GlassRepairEstimateSessionState.Importing,
     ];
 
-    /// <summary>
-    /// The states in which the session is still waiting on the provider, so its
-    /// callback has not been acted on yet. <see cref="GlassRepairEstimateSessionState.Unknown"/>
-    /// is one of them: an uncertain outcome is not an answer, and the callback
-    /// that resolves it has not arrived.
-    /// </summary>
     public async Task<GlassRepairEstimateSessionMaterial?> GetAsync(
         Guid sessionId, CancellationToken cancellationToken)
     {
