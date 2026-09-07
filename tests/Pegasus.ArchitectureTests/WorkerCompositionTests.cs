@@ -55,6 +55,9 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
             Assert.NotNull(scopedServices.GetRequiredService<SubmitMailboxImageIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
+            Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
+            var analysis = scopedServices.GetRequiredService<AnalyzeRetainedInstruction>();
+            Assert.Same(analysis, scopedServices.GetRequiredService<IAnalyzeRetainedInstruction>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
@@ -127,6 +130,9 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedExternalWork>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
             Assert.NotNull(scopedServices.GetRequiredService<RunDueChasers>());
+            Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
+            var analysis = scopedServices.GetRequiredService<AnalyzeRetainedInstruction>();
+            Assert.Same(analysis, scopedServices.GetRequiredService<IAnalyzeRetainedInstruction>());
             Assert.Same(
                 scopedServices.GetRequiredService<IIntakeWorkStore>(),
                 scopedServices.GetRequiredService<IStagedArtifactAuthority>());

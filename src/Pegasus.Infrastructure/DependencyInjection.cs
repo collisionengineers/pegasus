@@ -196,6 +196,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
         services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
         services.AddScoped<AnalyzeRetainedInstruction>();
+        services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
+            provider.GetRequiredService<AnalyzeRetainedInstruction>());
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because

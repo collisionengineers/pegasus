@@ -222,6 +222,8 @@ public sealed class ProductionCompositionTests
 
         Assert.NotNull(services.GetRequiredService<ProcessIntake>());
         Assert.NotNull(services.GetRequiredService<InstructionExtractionPolicySelector>());
+        var analysis = services.GetRequiredService<AnalyzeRetainedInstruction>();
+        Assert.Same(analysis, services.GetRequiredService<IAnalyzeRetainedInstruction>());
     }
 
     [Fact]
