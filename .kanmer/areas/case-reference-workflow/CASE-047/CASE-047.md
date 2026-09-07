@@ -11,14 +11,14 @@ stageEntered:
 taken_at: '2026-09-06T05:58:38.228Z'
 branch: task/pegasus-v1-casework
 worktree: ../pegasus-worktrees/v1-casework
-claim_expires_at: '2026-09-07T01:11:46.652Z'
+claim_expires_at: '2026-09-07T01:26:01.092Z'
 claim_controller: claude-fable-b
 lease_id: 0053a7bb-66b1-4c58-81bc-5e0bce9f026f
-lease_revision: 51
+lease_revision: 52
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus-worktrees\v1-casework'
 lease_provider: claude-code
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T00:11:46.652Z'
+lease_heartbeat_at: '2026-09-07T00:26:01.092Z'
 lease_reclaimed_from: 'opencode-backup-b (user-authorized backup for claude-fable-b until 17:50Z)'
 labels:
   - pegasus-v1
@@ -44,7 +44,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/672'
 archived: false
 created: '2026-09-06T05:33:42.471Z'
-updated: '2026-09-07T00:11:46.652Z'
+updated: '2026-09-07T00:26:01.092Z'
 ---
 
 ## What
