@@ -610,6 +610,7 @@ public sealed class QdosAllocationRecoveryTests
             spy,
             clock,
             services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
+            services.GetRequiredService<IIntakeOcrOperationStore>(),
             services.GetService<IImageIntakeAutomation>());
 
         // First pass: processes to a definitive receipt, but the automatic

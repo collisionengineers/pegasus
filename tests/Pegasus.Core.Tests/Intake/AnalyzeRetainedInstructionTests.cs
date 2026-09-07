@@ -377,6 +377,7 @@ public sealed class AnalyzeRetainedInstructionTests
 
         Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, first.Outcome);
         Assert.True(replay.IsReplay);
+        Assert.Empty(harness.OcrOperations.Begins);
         Assert.All(first.Analysis!.Candidates, candidate =>
             Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
         Assert.Single(first.Analysis.Candidates,
@@ -402,6 +403,38 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(1, harness.Documents.Opens);
         Assert.Single(harness.Store.Records);
         Assert.Equal(5, harness.VehicleLookup.Requests.Count);
+    }
+
+    [Fact]
+    public async Task QualifiedPagesBeginOneStableDurableOperationBeforeAnalysis()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        harness.SourceReader.RequiresOcr = true;
+        harness.SourceReader.OcrCandidates =
+        [
+            new("uploaded instruction.pdf", 3),
+            new("uploaded instruction.pdf", 1),
+            new("uploaded instruction.pdf", 3)
+        ];
+
+        var first = await harness.ExecuteAsync(operationKey: "ocr-needed-1");
+        var replay = await harness.ExecuteAsync(operationKey: "ocr-needed-2");
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, first.Outcome);
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, replay.Outcome);
+        Assert.Equal("The qualified source pages are awaiting OCR.", first.Message);
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(2, harness.OcrOperations.Begins.Count);
+        var begun = harness.OcrOperations.Begins[0];
+        Assert.Equal(begun.OperationId, harness.OcrOperations.Begins[1].OperationId);
+        Assert.Equal(begun.Request.OperationKey, harness.OcrOperations.Begins[1].Request.OperationKey);
+        Assert.Equal(harness.Receipt.Id, begun.Request.IntakeReceiptId);
+        Assert.Equal(harness.SourceAssetId, begun.Request.IntakeAssetId);
+        Assert.Null(begun.Request.DocumentVersionId);
+        Assert.Equal(SourceHash, begun.Request.SourceSha256);
+        Assert.Equal(SourceBytes.LongLength, begun.Request.SourceContentLength);
+        Assert.Equal([1, 3], begun.Request.QualifiedPages);
+        Assert.Single(harness.OcrOperations.Operations);
     }
 
     [Fact]
@@ -646,6 +679,7 @@ public sealed class AnalyzeRetainedInstructionTests
                 SourceReader,
                 new InstructionExtractionPolicySelector(policies),
                 Store,
+                OcrOperations,
                 new FixedTimeProvider(Now),
                 composeVehicleLookup ? new VehicleRegistrationCandidateLookup(VehicleLookup) : null);
         }
@@ -661,6 +695,8 @@ public sealed class AnalyzeRetainedInstructionTests
         public FakeLogicalDocumentReader Documents { get; } = new();
 
         public FakeAnalysisStore Store { get; } = new();
+
+        public FakeOcrOperationStore OcrOperations { get; } = new();
 
         public FakeSourceReader SourceReader { get; }
 
@@ -784,6 +820,10 @@ public sealed class AnalyzeRetainedInstructionTests
         /// </summary>
         public bool IsIncomplete { get; set; }
 
+        public bool RequiresOcr { get; set; }
+
+        public IReadOnlyList<ScannedPdfOcrCandidate> OcrCandidates { get; set; } = [];
+
         public Task<IntakeSourceReadResult> ReadAsync(
             IntakeSource source,
             CancellationToken cancellationToken)
@@ -809,11 +849,72 @@ public sealed class AnalyzeRetainedInstructionTests
                             IntakeEvidenceSource.DocumentContent)
                     ]
                     : [],
-                RequiresOcr: false,
+                RequiresOcr,
+                OcrCandidates: OcrCandidates,
                 IsIncomplete: IsIncomplete,
                 ReaderKey: "fake_reader",
                 ReaderVersion: "9"));
         }
+    }
+
+    private sealed class FakeOcrOperationStore : IIntakeOcrOperationStore
+    {
+        public List<(Guid OperationId, IntakeOcrRequest Request)> Begins { get; } = [];
+
+        public Dictionary<string, IntakeOcrOperation> Operations { get; } =
+            new(StringComparer.Ordinal);
+
+        public Task<IntakeOcrOperation?> FindAsync(
+            Guid operationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeOcrOperation?>(Operations.Values.SingleOrDefault(item => item.Id == operationId));
+
+        public Task<IntakeOcrOperation> BeginAsync(
+            Guid operationId,
+            IntakeOcrRequest request,
+            CancellationToken cancellationToken)
+        {
+            IntakeOcrRequest.Validate(request);
+            Begins.Add((operationId, request));
+            if (Operations.TryGetValue(request.OperationKey, out var existing))
+            {
+                if (existing.Id != operationId
+                    || existing.IntakeReceiptId != request.IntakeReceiptId
+                    || existing.IntakeAssetId != request.IntakeAssetId
+                    || !string.Equals(existing.SourceSha256, request.SourceSha256, StringComparison.OrdinalIgnoreCase)
+                    || !existing.QualifiedPages.SequenceEqual(request.QualifiedPages))
+                {
+                    throw new IntakeOcrOperationConflictException();
+                }
+
+                return Task.FromResult(existing);
+            }
+
+            var operation = new IntakeOcrOperation(
+                operationId,
+                request.IntakeReceiptId,
+                request.DocumentVersionId,
+                request.IntakeAssetId,
+                request.SourceSha256,
+                request.QualifiedPages,
+                request.OperationKey,
+                IntakeOcrState.Pending,
+                Version: 1);
+            Operations.Add(request.OperationKey, operation);
+            return Task.FromResult(operation);
+        }
+
+        public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(Guid operationId, long expectedVersion, DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The analysis producer cannot submit OCR.");
+
+        public Task<IntakeOcrOperation> RecordSubmittedAsync(Guid operationId, long expectedVersion, string providerOperationId, DateTimeOffset submittedAtUtc, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The analysis producer cannot submit OCR.");
+
+        public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The analysis producer cannot complete OCR.");
+
+        public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The analysis producer cannot record OCR outcomes.");
     }
 
     public sealed class FakeVehicleLookup : IVehicleLookupAdapter

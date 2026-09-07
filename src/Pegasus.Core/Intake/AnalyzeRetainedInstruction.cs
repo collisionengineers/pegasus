@@ -197,6 +197,7 @@ public sealed class AnalyzeRetainedInstruction(
     IIntakeSourceReader sourceReader,
     InstructionExtractionPolicySelector selector,
     IRetainedInstructionAnalysisStore store,
+    IIntakeOcrOperationStore ocrOperations,
     TimeProvider timeProvider,
     VehicleRegistrationCandidateLookup? vehicleRegistrationCandidateLookup = null) : IAnalyzeRetainedInstruction
 {
@@ -369,6 +370,29 @@ public sealed class AnalyzeRetainedInstruction(
                 RetainedInstructionAnalysisOutcome.SourceUnavailable,
                 null,
                 readResult.FailureReason ?? "The retained source is not readable.",
+                [],
+                false);
+        }
+
+        if (request.OcrEvidence is null
+            && readResult.RequiresOcr
+            && readResult.ScannedPdfPages.Count > 0)
+        {
+            var pages = readResult.ScannedPdfPages
+                .Select(candidate => candidate.PageNumber)
+                .Distinct()
+                .Order()
+                .ToArray();
+            await IntakeOcrOperations.BeginAsync(
+                ocrOperations,
+                receipt.Id,
+                asset,
+                pages,
+                cancellationToken);
+            return new(
+                RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                null,
+                "The qualified source pages are awaiting OCR.",
                 [],
                 false);
         }
