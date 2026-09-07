@@ -219,7 +219,8 @@ public sealed record IntakeOcrOperation(
     int AttemptCount = 0,
     IReadOnlyList<IntakeOcrPage>? Pages = null,
     DateTimeOffset? SubmitAttemptedAtUtc = null,
-    DateTimeOffset? SubmittedAtUtc = null)
+    DateTimeOffset? SubmittedAtUtc = null,
+    IntakeOcrResult? Result = null)
 {
     public IReadOnlyList<IntakeOcrPage> PageResults => Pages ?? [];
 
