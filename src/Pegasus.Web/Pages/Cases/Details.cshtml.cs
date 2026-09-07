@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
@@ -20,7 +21,9 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Assessment;
+using Pegasus.Infrastructure.Glass;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
+using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
@@ -69,6 +72,8 @@ public sealed partial class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
+    IPerUserExternalCredentialReader externalCredentials,
+    IGlassRepairEstimateSessionReader glassSessions,
     TimeProvider clock,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
@@ -432,6 +437,44 @@ public sealed partial class DetailsModel(
 
     public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
 
+    public string LaunchGlassOperationKey { get; private set; } = NewOperationKey();
+
+    public string ResumeGlassOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>
+    /// Whether this Engineer holds an enabled Glass's account. Only the answer
+    /// is kept: the reader hands back the account's secret material, and
+    /// nothing but this boolean survives the call.
+    /// </summary>
+    public bool GlassAccountEnabled { get; private set; }
+
+    /// <summary>
+    /// This Engineer's own Glass's session for this Case, when they have one.
+    /// Another Engineer's session runs inside another external account and is
+    /// never read here.
+    /// </summary>
+    public GlassRepairEstimateSession? GlassSession { get; private set; }
+
+    /// <summary>
+    /// Whether the Estimate section offers the Glass's control at all: an
+    /// Engineer, on a writable open assessment, holding an enabled account.
+    /// Without the account the control is absent rather than disabled — the
+    /// capability belongs to the operator's own credential, not to this
+    /// deployment.
+    /// </summary>
+    public bool CanLaunchGlass =>
+        ActorIsEngineer && AssessmentCanOpen && !AssessmentIsReadOnly && GlassAccountEnabled;
+
+    /// <summary>
+    /// Whether the session on the screen can be picked back up: an open
+    /// calculation to return to, or a held result waiting for the Case's edit
+    /// authority.
+    /// </summary>
+    public bool CanResumeGlass =>
+        CanLaunchGlass
+        && GlassSession is { State: GlassRepairEstimateSessionState.Active
+            or GlassRepairEstimateSessionState.AwaitingImport };
+
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? null
@@ -567,6 +610,7 @@ public sealed partial class DetailsModel(
             ? null
             : await deliveryPreparations.GetCurrentAsync(actor, id, cancellationToken);
         await EvaluateEngineerSectionConditionsAsync(cancellationToken);
+        await LoadGlassSessionAsync(id, actor, cancellationToken);
         OpenDialog = dialog switch
         {
             "import-estimate" when ImportCondition is null => "import-estimate",
@@ -575,6 +619,31 @@ public sealed partial class DetailsModel(
                 && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
             _ => null
         };
+    }
+
+    /// <summary>
+    /// The Estimate section's Glass's surface: whether this Engineer holds an
+    /// enabled account, and the session they already have for this Case. Both
+    /// are read only for an Engineer — nobody else can launch or resume one —
+    /// and the session is read only once the account is known to exist, so a
+    /// Case page for an Engineer without Glass's makes no session query at all.
+    /// </summary>
+    private async Task LoadGlassSessionAsync(
+        Guid id,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (!ActorIsEngineer || !Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            return;
+        }
+
+        GlassAccountEnabled = await externalCredentials.GetEnabledAsync(
+            actor, ExternalCredentialProvider.GlassRepairEstimate, cancellationToken) is not null;
+        if (GlassAccountEnabled)
+        {
+            GlassSession = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+        }
     }
 
     private void ApplyEstimateSelection(string? estimate)
@@ -1934,6 +2003,202 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
     }
+
+    /// <summary>
+    /// CASE-047 B04: starts a Glass's Repair Estimate for this Case and sends
+    /// the Engineer's own browser to the provider's estimator.
+    /// </summary>
+    /// <remarks>
+    /// The launch stands on exactly the authority a Case write stands on — the
+    /// Estimate section's own guard, so the version, the edit lease and the
+    /// operation key are the ones every other Estimate command presents — and
+    /// the gateway re-proves them against the Case before it reaches Glass's.
+    /// The address the operator is sent to is never a form value: it is read
+    /// back from the session's protected state by the Engineer who created it,
+    /// because it carries the one-use token the provider will return with.
+    ///
+    /// The gateway is a handler service rather than a page dependency: it is
+    /// built from <c>Glass:*</c> configuration, and a host that has none must
+    /// still serve every other part of the Case record.
+    /// </remarks>
+    public async Task<IActionResult> OnPostLaunchGlassAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        [FromServices] GlassRepairEstimateGateway glassEstimates,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var session = await glassEstimates.LaunchAsync(
+                new GlassRepairEstimateLaunchRequest(
+                    actor,
+                    id,
+                    // The version the guard read, as the other Estimate
+                    // commands present it; the gateway refuses a stale one.
+                    currentCaseVersion,
+                    editLeaseToken!,
+                    operationKey),
+                cancellationToken);
+            // A double-click replays one operation key and gets the session the
+            // first click created, so this is the same redirect either way.
+            return await OpenEstimatorAsync(
+                id, actor, session, glassEstimates, GlassLabels.LaunchRefused, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsGlassRefusal(exception))
+        {
+            return RefuseGlassCommand(id, editLeaseToken, exception, GlassLabels.LaunchRefused);
+        }
+    }
+
+    /// <summary>
+    /// Picks this Engineer's Glass's session back up: an open calculation is
+    /// re-opened at the provider, and a held result is imported now that the
+    /// Case's edit authority has been regained.
+    /// </summary>
+    /// <remarks>
+    /// The held result is the reason this resume carries the Case's version and
+    /// lease: finishing it writes the Draft, and the shared contract's resume
+    /// has nowhere to put the authority that write stands on, so the
+    /// Infrastructure request that does is used. The session named by the form
+    /// must be the one this Engineer holds for this Case — the gateway proves
+    /// the owner, and this proves the Case.
+    /// </remarks>
+    public async Task<IActionResult> OnPostResumeGlassAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid sessionId,
+        long expectedSessionVersion,
+        [FromServices] GlassRepairEstimateGateway glassEstimates,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor) || !Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            return Forbid();
+        }
+
+        var held = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+        if (held is null || held.Id != sessionId)
+        {
+            TempData["CaseError"] = GlassLabels.ResumeRefused;
+            return RedirectToEstimate(id);
+        }
+
+        try
+        {
+            var session = await glassEstimates.ResumeAsync(
+                new GlassRepairEstimateResumeRequest(
+                    actor,
+                    sessionId,
+                    expectedSessionVersion,
+                    currentCaseVersion,
+                    editLeaseToken!),
+                cancellationToken);
+            return await OpenEstimatorAsync(
+                id, actor, session, glassEstimates, GlassLabels.ResumeRefused, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsGlassRefusal(exception))
+        {
+            return RefuseGlassCommand(id, editLeaseToken, exception, GlassLabels.ResumeRefused);
+        }
+    }
+
+    /// <summary>
+    /// Where a launch or a resume leaves the operator: at the provider's
+    /// estimator while the session is open, and back on the Estimate section
+    /// with what the session came to when it is not.
+    /// </summary>
+    private async Task<IActionResult> OpenEstimatorAsync(
+        Guid id,
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        GlassRepairEstimateGateway glassEstimates,
+        string refusal,
+        CancellationToken cancellationToken)
+    {
+        if (await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken) is { } estimator)
+        {
+            // The edit authority is deliberately kept: the operator is inside
+            // the provider now and the result lands back on this Case.
+            return Redirect(estimator.AbsoluteUri);
+        }
+
+        return ReportGlassSession(id, session, refusal);
+    }
+
+    /// <summary>
+    /// The one operator-facing reading of a settled Glass's session, shared by
+    /// the Estimate section's commands and the provider's own return.
+    /// </summary>
+    public static IActionResult ReportSessionOutcome(
+        GlassRepairEstimateSession session,
+        ITempDataDictionary tempData,
+        Func<IActionResult> estimateSection)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(tempData);
+        ArgumentNullException.ThrowIfNull(estimateSection);
+        tempData[session.State == GlassRepairEstimateSessionState.Completed ? "CaseStatus" : "CaseError"] =
+            GlassLabels.OutcomeMessage(session.State);
+        return estimateSection();
+    }
+
+    private IActionResult ReportGlassSession(
+        Guid id, GlassRepairEstimateSession session, string refusal)
+    {
+        if (session.State is GlassRepairEstimateSessionState.Prepared
+            or GlassRepairEstimateSessionState.Launching)
+        {
+            // Never opened at the provider and never settled: nothing to
+            // report but the refusal the command carries.
+            TempData["CaseError"] = refusal;
+            return RedirectToEstimate(id);
+        }
+
+        return ReportSessionOutcome(session, TempData, () => RedirectToEstimate(id));
+    }
+
+    private RedirectToPageResult RefuseGlassCommand(
+        Guid id, string? editLeaseToken, Exception exception, string refusal)
+    {
+        HandleLeaseFailure(id, editLeaseToken, exception);
+        TempData["CaseError"] = exception is GlassRepairEstimateSessionConflictException
+        {
+            Conflict: not GlassRepairEstimateSessionConflict.ActiveAccount
+        }
+            // A stale session version, a spent callback or another Engineer's
+            // session says nothing an operator can act on beyond the refusal.
+            ? refusal
+            : MutationRefusalMessage(exception, refusal);
+        return RedirectToEstimate(id);
+    }
+
+    private static bool IsGlassRefusal(Exception exception) =>
+        exception is ArgumentException or InvalidOperationException or KeyNotFoundException;
 
     private long currentCaseVersion;
 

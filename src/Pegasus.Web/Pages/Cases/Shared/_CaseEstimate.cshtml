@@ -2,6 +2,7 @@
 @using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
 @using TotalsLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateTotals
 @using VatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat
 @using DiscountLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateDiscount
@@ -48,6 +49,22 @@
                             </button>
                         </span>
                     }
+                    @* CASE-047 B04: the Engineer's own Glass's account opens the
+                       provider's estimator. Without an enabled account the control
+                       is absent, not disabled: it belongs to the operator's
+                       credential rather than to this deployment. *@
+                    @if (Model.CanLaunchGlass)
+                    {
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
+                              asp-route-id="@caseId" asp-route-section="estimate">
+                            <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                <span>@GlassLabels.Launch</span>
+                            </button>
+                        </form>
+                    }
                     @if (Model.SendToClaudeCondition is null)
                     {
                         <a class="btn btn--primary" asp-page="/Cases/Details" asp-route-id="@caseId"
@@ -70,6 +87,46 @@
             }
         </div>
     </section>
+
+    @* Only the Engineer's own session renders, and only once one exists —
+       another Engineer's runs inside another external account. *@
+    @if (Model.GlassSession is { } glassSession)
+    {
+        <section class="panel" aria-labelledby="section-glass-session-title">
+            <div class="panel-head">
+                <h2 id="section-glass-session-title">@GlassLabels.Launch</h2>
+                @if (Model.CanResumeGlass)
+                {
+                    <div class="button-row">
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
+                              asp-route-id="@caseId" asp-route-section="estimate">
+                            <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                            <input type="hidden" name="sessionId" value="@glassSession.Id" />
+                            <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                                <span>@GlassLabels.Resume</span>
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+            <dl class="detail-list">
+                <div>
+                    <dt>@GlassLabels.State</dt>
+                    <dd>@GlassLabels.StateLabel(glassSession.State)</dd>
+                </div>
+                @if (glassSession.FailureCode is { Length: > 0 } glassFailure)
+                {
+                    <div>
+                        <dt>@GlassLabels.Failure</dt>
+                        <dd>@glassFailure</dd>
+                    </div>
+                }
+            </dl>
+        </section>
+    }
 
     <section class="panel">
         <div class="panel-head"><h2>@EngineerLabels.Estimates</h2></div>
