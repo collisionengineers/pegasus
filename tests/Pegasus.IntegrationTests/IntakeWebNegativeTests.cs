@@ -1,6 +1,7 @@
 using System.Net;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
@@ -116,7 +117,12 @@ public sealed class IntakeWebNegativeTests
         Assert.DoesNotContain(receipt.Fields, field => field.SuggestedValue == "QDOS");
     }
 
-    private const int TenMiB = 10 * 1024 * 1024;
+    /// <summary>
+    /// The manual channel's per-file cap, read from the constant that owns it
+    /// rather than restated here: C07 item 5 (residual INTK-052) set it to
+    /// 100 MiB and these boundary tests must move with it.
+    /// </summary>
+    private const int PerFileLimit = IntakeEnvelopeLimits.MaximumContentLength;
 
     [Fact]
     public async Task MissingAntiforgeryTokenIsRejectedBeforePersistence()
@@ -206,7 +212,7 @@ public sealed class IntakeWebNegativeTests
     }
 
     [Fact]
-    public async Task ExactTenMiBUploadPassesTransportValidation()
+    public async Task ExactPerFileLimitUploadPassesTransportValidation()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -217,21 +223,21 @@ public sealed class IntakeWebNegativeTests
             form.AntiforgeryToken,
             "boundary.pdf",
             "application/octet-stream",
-            new byte[TenMiB],
+            new byte[PerFileLimit],
             form.ExternalReceiptToken);
 
         // Exactly at the limit the transport accepts the file and it reaches
-        // the reader. What the reader then makes of ten mebibytes of zeroes is
-        // beside the point; that a receipt exists at all is the boundary this
-        // test guards.
+        // the reader. What the reader then makes of a hundred mebibytes of
+        // zeroes is beside the point; that a receipt exists at all is the
+        // boundary this test guards.
         Assert.Equal(HttpStatusCode.Found, result.StatusCode);
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, result);
         var receipt = Assert.Single(await ListAllAsync(factory));
-        Assert.Equal(TenMiB, (await GetAsync(factory, receipt.Id)).SourceLength);
+        Assert.Equal(PerFileLimit, (await GetAsync(factory, receipt.Id)).SourceLength);
     }
 
     [Fact]
-    public async Task TenMiBPlusOneReturnsValidationAndDoesNotPersist()
+    public async Task PerFileLimitPlusOneReturnsValidationAndDoesNotPersist()
     {
         using var factory = new IntakeWebApplicationFactory();
         var baseline = await CaptureBusinessTableCountsAsync(factory);
@@ -243,11 +249,15 @@ public sealed class IntakeWebNegativeTests
             form.AntiforgeryToken,
             "boundary.pdf",
             "application/octet-stream",
-            new byte[TenMiB + 1],
+            new byte[PerFileLimit + 1],
             form.ExternalReceiptToken);
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
-        Assert.Contains("Files must be 10.0 MB or smaller.", result.ResponseBody, StringComparison.Ordinal);
+        Assert.Contains(
+            $"Files must be {OperatorLabels.FileSize(PerFileLimit)} or smaller.",
+            result.ResponseBody,
+            StringComparison.Ordinal);
+        Assert.Contains("100.0 MB", result.ResponseBody, StringComparison.Ordinal);
         await AssertNoBusinessPersistenceAsync(factory, baseline);
     }
 
