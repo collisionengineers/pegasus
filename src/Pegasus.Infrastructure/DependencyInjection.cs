@@ -11,6 +11,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
@@ -182,10 +183,15 @@ public static class DependencyInjection
             provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
         services.AddScoped<ISourceCandidateQueries>(provider =>
             provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+        services.AddScoped<IThirdPartyReportCandidateQueries>(provider =>
+            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
         services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
         services.AddScoped<AnalyzeRetainedInstruction>();
         services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
             provider.GetRequiredService<AnalyzeRetainedInstruction>());
+        services.AddScoped<EfIntakeOcrOperationStore>();
+        services.AddScoped<IIntakeOcrOperationStore>(provider =>
+            provider.GetRequiredService<EfIntakeOcrOperationStore>());
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because

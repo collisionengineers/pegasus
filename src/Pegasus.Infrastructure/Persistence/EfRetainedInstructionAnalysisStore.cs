@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -15,7 +16,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfRetainedInstructionAnalysisStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
-    : IRetainedInstructionAnalysisStore, ISourceCandidateQueries
+    : IRetainedInstructionAnalysisStore, ISourceCandidateQueries,
+      IThirdPartyReportCandidateQueries
 {
     /// <summary>
     /// The unique index is on the (receipt, asset, key) TRIPLE, so an operation
@@ -208,6 +210,78 @@ public sealed class EfRetainedInstructionAnalysisStore(
                 row.PolicyVersion,
                 Enum.Parse<SourceCandidateDisposition>(row.Disposition));
         }).ToArray();
+    }
+
+    async Task<IReadOnlyList<ThirdPartyReportCandidate>>
+        IThirdPartyReportCandidateQueries.GetAsync(
+        ActionActor actor,
+        Guid receiptId,
+        Guid? documentVersionId,
+        Guid? intakeAssetId,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (receiptId == Guid.Empty)
+        {
+            return [];
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var analysisIds = await (
+                from candidate in context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
+                join analysis in context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
+                    on candidate.AnalysisId equals analysis.Id
+                where analysis.IntakeReceiptId == receiptId
+                    && (documentVersionId == null
+                        || candidate.DocumentVersionId == documentVersionId)
+                    && (intakeAssetId == null || candidate.IntakeAssetId == intakeAssetId)
+                select analysis.Id)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+        if (analysisIds.Length == 0)
+        {
+            return [];
+        }
+
+        var analyses = await context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
+            .Where(analysis => analysisIds.Contains(analysis.Id))
+            .OrderBy(analysis => analysis.CompletedAtUtc)
+            .ThenBy(analysis => analysis.Id)
+            .ToArrayAsync(cancellationToken);
+        var rows = await context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
+            .Where(candidate => analysisIds.Contains(candidate.AnalysisId))
+            .OrderBy(candidate => candidate.Field)
+            .ThenBy(candidate => candidate.ReferenceRole)
+            .ThenBy(candidate => candidate.PartyRole)
+            .ThenBy(candidate => candidate.Id)
+            .ToArrayAsync(cancellationToken);
+        var rowsByAnalysis = rows.ToLookup(candidate => candidate.AnalysisId);
+        var result = new List<ThirdPartyReportCandidate>(analyses.Length);
+        foreach (var analysis in analyses)
+        {
+            var analysisRows = rowsByAnalysis[analysis.Id].ToArray();
+            var sourceRow = Array.Find(
+                analysisRows,
+                row => string.Equals(
+                    row.PolicyKey,
+                    ThirdPartyReportAnalysis.PolicyKey,
+                    StringComparison.Ordinal));
+            var candidate = ThirdPartyReportExtraction.Reconstruct(
+                analysisRows.Select(Map).ToArray(),
+                new(
+                    analysis.IntakeReceiptId,
+                    analysis.SourceSha256,
+                    sourceRow?.Occurrence ?? 0,
+                    DocumentId: null,
+                    DocumentVersionId: sourceRow?.DocumentVersionId,
+                    IntakeAssetId: sourceRow?.IntakeAssetId ?? analysis.IntakeAssetId));
+            if (candidate is not null)
+            {
+                result.Add(candidate);
+            }
+        }
+
+        return result;
     }
 
     private static async Task<RetainedInstructionAnalysis> MapAsync(
