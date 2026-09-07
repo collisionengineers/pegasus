@@ -167,9 +167,12 @@ internal static class WordBinaryExtractor
             var issues = pieceIssues.ToBuilder();
             ImmutableArray<WordStory> stories = BuildStories(wordDocument, fib, pieces, issues, cancellationToken);
             AddUnsupportedBranchIssues(compoundFile, fib, issues);
-            WordBinaryOutcome outcome = issues.Count == 0
-                ? WordBinaryOutcome.Complete
-                : HasResourceLimitIssue(issues) ? WordBinaryOutcome.ResourceLimitExceeded : WordBinaryOutcome.Partial;
+            // Partial is a claim that visible text may be missing, so it is
+            // driven by the content-loss class alone. Informational issues stay
+            // on the result for review without degrading the outcome.
+            WordBinaryOutcome outcome = HasResourceLimitIssue(issues)
+                ? WordBinaryOutcome.ResourceLimitExceeded
+                : HasContentLossIssue(issues) ? WordBinaryOutcome.Partial : WordBinaryOutcome.Complete;
             return new(outcome, "word-binary", selectedName, fib, pieces, stories, issues.ToImmutable());
         }
         catch (OperationCanceledException)
@@ -276,7 +279,7 @@ internal static class WordBinaryExtractor
                 }
 
                 FlushText(text, runCpStart, cp, storyStart, runFileStart, fileOffset - runFileStart, piece.Index, segments, issues, ref surrogateIssueReported);
-                string projection = ControlProjection(kind, value);
+                string projection = ControlProjection(kind);
                 segments.Add(new(kind, projection, cp, cp + 1, cp - storyStart, cp + 1 - storyStart, fileOffset, unitSize, piece.Index));
                 if (kind is WordTextSegmentKind.Picture or WordTextSegmentKind.EmbeddedObjectMarker or WordTextSegmentKind.CellOrRowMark or
                     WordTextSegmentKind.PageOrSectionBreak or WordTextSegmentKind.UnsupportedControl or
@@ -286,7 +289,10 @@ internal static class WordBinaryExtractor
                     uint kindBit = 1u << (int)kind;
                     if ((reportedControlKinds & kindBit) == 0)
                     {
-                        issues.Add(new("doc-control-semantic-partial", $"A {kind} marker in the {storyKind} story requires structure outside this vertical slice.", fileOffset));
+                        issues.Add(new(
+                            WordBinaryIssueClassification.ControlCode(kind),
+                            $"A {kind} marker in the {storyKind} story was recorded rather than resolved to structure outside this text vertical slice.",
+                            fileOffset));
                         reportedControlKinds |= kindBit;
                     }
                 }
@@ -404,7 +410,7 @@ internal static class WordBinaryExtractor
         _ => WordTextSegmentKind.Text,
     };
 
-    private static string ControlProjection(WordTextSegmentKind kind, char original) => kind switch
+    private static string ControlProjection(WordTextSegmentKind kind) => kind switch
     {
         WordTextSegmentKind.Tab => "\t",
         WordTextSegmentKind.LineBreak or WordTextSegmentKind.ParagraphMark => "\n",
@@ -412,7 +418,8 @@ internal static class WordBinaryExtractor
         WordTextSegmentKind.CellOrRowMark => "\t",
         WordTextSegmentKind.NonBreakingHyphen => "\u2011",
         WordTextSegmentKind.OptionalHyphen => "\u00ad",
-        WordTextSegmentKind.UnsupportedControl => original.ToString(),
+        // A stray low-ASCII control byte prints nothing in Word and would only
+        // corrupt a value it lands inside, so it is stripped rather than shown.
         _ => string.Empty,
     };
 
@@ -432,7 +439,7 @@ internal static class WordBinaryExtractor
 
         if (unprocessedRanges != 0)
         {
-            issues.Add(new("doc-fib-ranges-unprocessed", $"{unprocessedRanges} non-CLX FIB range(s) are outside this text vertical slice."));
+            issues.Add(new("doc-fib-ranges-unprocessed", $"{unprocessedRanges} non-CLX FIB range(s) - style sheet, fonts, section descriptors, document properties and the like - are outside this text vertical slice and carry no document text."));
         }
 
         if (fib.NextFibPage != 0)
@@ -442,7 +449,7 @@ internal static class WordBinaryExtractor
 
         if (!fib.IsComplex)
         {
-            issues.Add(new("doc-complex-flag-unset", "A CLX was parsed even though the FIB complex-file flag is unset; the inconsistency prevents a complete outcome."));
+            issues.Add(new("doc-complex-flag-unset", "A CLX was parsed with the FIB complex-file flag unset; the flag records fast-saved status rather than the presence of a piece table, so no text is affected."));
         }
 
         if (fib.HasPictures)
@@ -474,6 +481,18 @@ internal static class WordBinaryExtractor
         }
 
         return null;
+    }
+
+    private static bool HasContentLossIssue(IEnumerable<WordBinaryIssue> issues)
+    {
+        foreach (WordBinaryIssue issue in issues)
+        {
+            if (WordBinaryIssueClassification.IsContentLoss(issue))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool HasResourceLimitIssue(IEnumerable<WordBinaryIssue> issues)
