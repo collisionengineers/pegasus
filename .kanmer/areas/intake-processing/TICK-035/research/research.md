@@ -174,3 +174,13 @@ files for the actual-reader tests, subject to the recorded SHA256 assertion;
 never copy/recreate an email to satisfy a historical path. The first nested
 Test-Path checks returned false; this was corrected by rg --files, not treated
 as missing evidence or a permission blocker.
+
+## Live existing-case check — 7 September 2026
+
+Root performed a permitted read-only estate SQL query and confirmed the actual
+application database is `pegasus`, not `dbpegasus`. It returned no Cases.
+This is root-observed live evidence, not an inference from seed data or an
+agent-run test. There are consequently no existing non-QDOS Cases requiring
+case-match index reprojection for this activation. Do not add a backfill,
+migration, alternate read path or compatibility machinery for absent rows.
+Future allocated Cases use the one generalized existing index projector.
