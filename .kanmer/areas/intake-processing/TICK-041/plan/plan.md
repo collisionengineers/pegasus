@@ -4,7 +4,7 @@
 
 The current operator instruction and EPIC-014 supersede the historical OCR permission deferral. ADR-0040 selects the already implemented Document Intelligence prebuilt-layout GA 2024-11-30 adapter; no new dependency. Keep the existing IntakeOcr operation, external-work router, logical document reader, metadata query, persistence envelope and retry/result policy. TICK-085 supplies the production retained-estimate caller, so this ticket cannot claim that caller delivered before that integration exists.
 
-## Bounded steps
+## Implementation steps
 
 1. Complete ADR-0040, supersede ADR-0001, and align FRD-05/07 plus INT-16/EXT-12. Scan qualification and existing limits do not broaden. Readable text, corrupt/encrypted documents and mere business-parser ambiguity never trigger paid OCR.
 2. Extend the existing request to identify exactly one source: intake receipt+asset OR Case+occurrence+document version, with immutable hash and length. Retain those values in the existing operation envelope, compare all context on replay, and expose deterministic `IntakeOcrOperations.BeginDocumentAsync`. Use the existing metadata query and logical reader to verify the Case source before sending or consuming retained output. Worker completion for Case sources retains the provider output and settles existing work without invoking instruction analysis or saving an estimate. Intake completion keeps its existing durable analysis retry.
@@ -14,3 +14,22 @@ The current operator instruction and EPIC-014 supersede the historical OCR permi
 ## Scope boundaries
 
 No new OCR engine, dispatcher, table, migration or compatibility path. No automatic estimate save under an expired human lease. No confidence-only rejection/acceptance; deterministic provider parsing still verifies fields and totals. No Azure writes or charged calls in this implementation ticket; operator-authorized provisioning is recorded under PLAT-065. Existing test source documents are immutable.
+
+## Expected files
+
+Core IntakeOcr.cs; Infrastructure EfIntakeOcrOperationStore.cs and the adjacent PdfOcrQualification.cs; existing Core IntakeOcrTests/AnalyzeRetainedInstructionTests and SQL OcrIntakeRecoveryTests; new genuine-source PdfOcrQualificationTests. Governing changes are ADR-0040, superseded ADR-0001, ADR index, FRD-05/07 and capabilities. No schema or composition-root change is required: IGetCaseDocumentMetadata is already registered.
+
+## Verification commands
+
+Root alone runs locked solution restore and Release build once, then focused no-build commands:
+
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~IntakeOcrTests|FullyQualifiedName~AnalyzeRetainedInstructionTests"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~OcrIntakeRecoveryTests|FullyQualifiedName~AzureDocumentIntelligenceOcrTests|FullyQualifiedName~PdfOcrQualificationTests"
+```
+
+The last explicit filter intentionally includes the five supplied Corpus PDF cases. It never calls Azure. Missing immutable samples fail honestly. Do not run the full Corpus suite. Keep every failed attempt and rerun only the corrected cohort.
+
+## Stop condition
+
+Return an independently reviewable exact-head PR when the bounded source contract and focused evidence pass. Integration alone is not activation: TICK-085 wires the real retained-estimate caller and PLAT-065 proves approved Azure execution before this ticket's cross-ticket acceptance can be closed.
