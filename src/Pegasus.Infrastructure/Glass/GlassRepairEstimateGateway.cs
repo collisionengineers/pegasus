@@ -108,6 +108,14 @@ public sealed class GlassRepairEstimateGateway(
     /// </summary>
     public const string ProtectionPurpose = "Pegasus.Glass.Session.v1";
 
+    /// <summary>
+    /// The fingerprint a launch records for the callback it will accept. The
+    /// correlation token itself is never stored, so a caller holding one — the
+    /// callback page, reading it out of its own route — finds the session it
+    /// names through this and nothing else.
+    /// </summary>
+    public static string CallbackDigestOf(string correlation) => Sha256Hex(correlation);
+
     /// <summary>The XML export's custody occurrence on the Case.</summary>
     public static string XmlOccurrenceIdentity(Guid sessionId) => $"glass-estimate:{sessionId:D}:xml";
 
