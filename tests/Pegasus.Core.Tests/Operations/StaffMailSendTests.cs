@@ -337,7 +337,8 @@ public sealed class StaffMailSendTests
         {
             operation ??= new(Guid.NewGuid(), StaffMailState.Prepared, null, 1, nowUtc,
                 null, null, null, command.ApprovedMailboxId, command.ExpectedMailboxGeneration,
-                payloadHash, null, null);
+                payloadHash, null, null, command.Purpose, command.ContextId,
+                command.ExpectedContextVersion, command.OriginalMessage?.RetainedMessageId);
             return Task.FromResult(operation);
         }
         public Task<StaffMailOperation?> GetAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) => Task.FromResult(operation);
