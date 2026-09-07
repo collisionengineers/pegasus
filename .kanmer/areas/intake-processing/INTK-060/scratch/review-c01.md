@@ -338,3 +338,443 @@ ten DI registrations; A04's `IReadLogicalDocumentVersion` registered *together*
 with the command (registering the command alone turns the page's optional
 dependency bridge into a 500); the corpus rebuild plus the fingerprint activation
 question; and C03's fourteen remaining profiles with the fifteen-sample run.
+
+---
+kind: review-attestation
+pr: "none — source review of a local branch commit (no PR opened for this slice)"
+head_sha: "d505d60788da096cb11d480a64bd936dba93ca7e"
+branch: "c01-retained-analysis"
+parent_sha: "aa5e669d76ad2f7cc24783f8076644c439509feb"
+worktree: "C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c01"
+verdict: needs-changes
+reviewer: "pegasus-reviewer (INTK-060 source review, review-c01)"
+independent: true
+plan_hash: "sha256:4d3c0b73e770923251c8549197309cdb284701c94f85d81e745d9f70e56d3558 (pegasus_pack/astra_output/v1_implementation_plans/streams/C-intake.md)"
+ticket_updated: "2026-09-07T01:28:05.469Z"
+ticket_revision: "rev1:04b328704d2627c5"
+board_sha: "not read (controller override: reads scoped to this slice; no board push in scope)"
+expected_reviewers: []
+threads_snapshot: []
+reviewed_blobs:
+  - "tests/Pegasus.IntegrationTests/RetainedInstructionAnalysisTests.cs sha256:bb4a3593e2997c1511edffcc1cd0437f5e69988c30162a3dd0d5ed84f05a1a6e"
+  - "tests/Pegasus.IntegrationTests/Top15InstructionCorpusTests.cs sha256:648d377f0ae74c279eceb18d53153b9f07b9797e3d7b2fb5e52d1f143ac54898"
+skill_sha256:
+  - "kanmer-review/SKILL.md eefcbf902c9d6113ce13d37f767d74dd9d09a21921ec64afc0127006b70e6404"
+execution_evidence: "scratchpad/takeover/wave38-tests (combined A+B+C tree v1-intake-combined-verify @ 1d11ac1ebbd58312573c88d9f3f3660c65c5d0f7)"
+findings:
+  - id: F-001
+    severity: blocker
+    disposition: open
+    summary: "AnalyzeRetainedInstruction has no IsIncomplete guard, so every extraction policy's ArgumentException escapes the command; the corpus run aborted on PCH."
+  - id: F-002
+    severity: blocker
+    disposition: open
+    summary: "The 81-original loop cannot survive a throw and writes its matrix only after the loop, so one bad original destroys all evidence; the run stopped at original 6 of 81 and produced no artifact."
+  - id: F-003
+    severity: major
+    disposition: open
+    summary: "No IReadLogicalDocumentVersion implementation exists anywhere under src/, so IAnalyzeRetainedInstruction cannot be resolved by any real host; the report must say the proof is host-dependent."
+  - id: F-004
+    severity: minor
+    disposition: open
+    summary: "The author's report states the drain does not allocate; ProcessQueuedIntake does call allocateIntake.AttemptAutomaticAsync. The tests hold for a different reason."
+  - id: F-005
+    severity: minor
+    disposition: open
+    summary: "The QDOS exclusion from the 14-sample test is justified by a mail-route behaviour that the manual-upload channel cannot reach."
+  - id: F-006
+    severity: minor
+    disposition: open
+    summary: "The principal-disposition assertion accepts Ambiguous, which production cannot emit on this path (forceReviewOnly has no call site)."
+  - id: F-007
+    severity: note
+    disposition: open
+    summary: "Upload/drain run in the base factory's container while the analysis runs in the WithAnalysis host's: two hosts over one LocalDB, and the drain gets the refusing reader double."
+  - id: F-008
+    severity: note
+    disposition: open
+    summary: "All SHA-256 comparisons are OrdinalIgnoreCase and the stand-in reader returns uppercase hex, so 'exact source SHA-256' is proved only up to case."
+  - id: F-009
+    severity: note
+    disposition: open
+    summary: "The plan's 'multiple profiles return Ambiguous' bullet is already satisfied by a Core test; cite it instead of leaving it apparently unmet."
+  - id: F-010
+    severity: note
+    disposition: open
+    summary: "The proof exercises the Web-host composition, which has no VehicleRegistrationCandidateLookup (Worker-only), so INTK-049 candidate expansion is out of its reach."
+---
+
+# C01 all-15 / 81-original retained-analysis proof — independent source review
+
+**Verdict: NEEDS CHANGES.** Bound to commit `d505d60788da096cb11d480a64bd936dba93ca7e`
+on `c01-retained-analysis` (parent `aa5e669d7`), two files changed, +539/-18 in
+`RetainedInstructionAnalysisTests.cs` and 8 visibility lines in
+`Top15InstructionCorpusTests.cs`, nothing under `src/`.
+
+This is **not** a source-only verdict. The controller's runner results were present
+when this review completed (`scratchpad/takeover/wave38-tests`, combined tree
+`v1-intake-combined-verify` @ `1d11ac1eb`, which contains this commit — the stack-trace
+line numbers 321/545/646 match this commit's file exactly). They are decisive:
+
+| Lane | Result |
+| --- | --- |
+| 1 build integration | exit 0, PASS, 0 warnings 0 errors |
+| 2 `FullyQualifiedName~RetainedInstructionAnalysisTests` (pack root set) | exit 1, **FAIL** — Failed 1, Passed 5, Total 6, 53 s |
+| 3 Top15 + manifest suites | exit 0, PASS, 9 tests |
+| 4 `artifacts/evaluation/v1-intake/retained-analysis-corpus.md` | **absent** — nothing written |
+
+`NoGenuineNonQdosOriginalIsAllocatedAutomaticallyThroughNormalIntake` **passed**, and so
+did the four pre-existing tests under the rewritten `WithAnalysis`.
+`EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating` **failed with an unhandled
+exception** after ~6 s:
+
+```
+System.ArgumentException : The PCH extraction policy accepts only fully readable,
+complete reader results. (Parameter 'readResult')
+  at PchInstructionExtractionPolicy.Extract(...)  PchInstructionExtractionPolicy.cs:314
+  at AnalyzeRetainedInstruction.ExecuteAsync(...) AnalyzeRetainedInstruction.cs:417
+  at ...AnalyseRetainedOriginalAsync(...)         RetainedInstructionAnalysisTests.cs:545
+  at ...EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating() ...cs:321
+```
+
+So the headline claim — *every one of the 81 genuine originals reaches extraction through
+the production command, persists review-only candidates with exact source hash and
+occurrence, replays without duplicates, and creates zero Cases/links* — is **unproven**.
+The array runs QDOS 01-05 then PCH 01; the run died at approximately the sixth original,
+and because the matrix is written after the loop, **zero** per-sample evidence exists.
+The second half of the claim (14 non-QDOS originals through the real upload + Worker
+drain are not `case_created`, allocate nothing, and are held Open in Unidentified) **is**
+proven by a green run.
+
+## Answers to the nine questions
+
+**(1) Does the command really come from `AddPegasusInfrastructure`? YES.**
+`WithAnalysis` (`RetainedInstructionAnalysisTests.cs:800-803`) now adds exactly one
+registration — `services.AddScoped<IReadLogicalDocumentVersion, RetainedIntakeAssetReader>()`.
+The diff removed the whole hand-composed graph the previous version registered (selector,
+`EfRetainedInstructionAnalysisStore`, `IRetainedInstructionAnalysisStore`,
+`ISourceCandidateQueries`, `IGetLatestRetainedInstructionAnalysis`,
+`AnalyzeRetainedInstruction`). `src/Pegasus.Infrastructure/DependencyInjection.cs:162-188`
+now supplies all of them plus the fifteen `IInstructionExtractionPolicy` registrations and
+`IAnalyzeRetainedInstruction`. The base `IntakeWebApplicationFactory` is constructed
+through its parameterless ctor, so its optional `extractionPolicy`, `artifactStore`,
+`recognitionEngine`, `mailClassificationPolicy` and `approvedMailboxIdentityResolver`
+overrides are all null and shadow nothing (`IntakeWebTestSupport.cs:178-199`). It does
+replace `TimeProvider` with a frozen clock and the two `ICommitted*WorkPublisher`
+transports with doubles (`:165-172`) — pre-existing, queue transport only, unrelated to
+analysis. That the four pre-existing tests in the class still pass on the real run is the
+strongest available evidence that production composition really does build this command.
+**Caveat: see F-003 — the graph does not close in a real host.**
+
+**(2) Is the staging path the real one? YES.**
+`IntakeWebDriver.UploadAndProcessAsync` (`IntakeWebTestSupport.cs:355-372`) posts the real
+upload endpoint with real antiforgery tokens and then `ProcessQueuedAsync` →
+`DrainStagedAsync` (`:736-…`), which dispatches through `DispatchPendingIntakeWork` and the
+Worker's own `ProcessQueuedIntake`. No synthetic insert anywhere; no `IIntakeReceiptStore`
+write by the test; nothing constructs a receipt by hand.
+
+**(3) Are the assertions member-level and un-loosened? YES, with one dead tolerance.**
+Per original: outcome `Analyzed` or a failure line (`:545-560`); profile equality via
+`principal.RawValue == expectation.Profile` — and I verified every one of the fifteen
+`SupportedPrincipalCode` constants equals its label, including `YML` for the HDUK-named
+files (`Yml/YmlInstructionExtractionPolicy.cs:7`); `PartyRole == "principal"`;
+`analysis.SourceSha256 == asset.ContentHash`; per-row `SourceSha256`; the sorted
+`Field#Occurrence` multiset of persisted rows equals the analysis's (`:596-609`); replay
+`IsReplay` + same `Analysis.Id` + unchanged row count (`:611-619`); receipt version and
+`AcceptedCaseId`/`ManualLinkedCaseId`/`AllocationState` unmoved (`:623-631`); per-sample
+Cases/CaseIntakeLinks; whole-run `Cases`, `CaseIntakeLinks`, `IntakeManualAssociations`
+all zero. Expectations counted from the shared list: **81 rows across 15 profiles**
+(5 each except MP's 11).
+There is **no** per-profile exception list, **no** `Skip` beyond the shared pack gate,
+**no** `if (profile == …)` other than the documented QDOS filter in test 2 (`:391`), **no**
+`try`/`catch` anywhere in the file, and the only "measured not asserted" material is the
+per-profile disposition matrix, which nothing reads back. The one soft spot is F-006.
+
+**(4) Does the 14-sample test use the real drain and assert what it claims? YES.**
+`IntakeWebDriver.CreateClient(factory)` + `UploadAndProcessAsync` (real drain), then
+`receipt.Decision != CaseCreated`, all three allocation fields null, retained hash intact
+via `IntakeFileIdentity.SourceAsset`, and `IUnidentifiedStore.GetByOriginAsync(
+UnidentifiedOrigin.Receipt(receiptId))` returning an item in state `Open` (`:428-467`).
+`Assert.Equal(14, samples.Length)` pins the count. QDOS is cited, not re-proved. See F-005
+for why the citation's reasoning does not fit the channel.
+
+**(5) Were the shared `Expectations` copied? NO — rule 8 is kept, and the visibility
+change is the minimum.** The new test reads `Top15InstructionCorpusTests.Expectations`
+directly; not one of the 81 rows was copied, moved or edited (the Top15 diff is
+`private` → `internal` on eight members and nothing else). All eight are load-bearing:
+`Expectations`, `SampleExpectation`, `PackRoot()`, `PackRootVariable`, `MediaType()` and
+`Cell()` are used by the new test, and `ExpectedIdentity`/`NeighbouringValue` must be at
+least as accessible as `SampleExpectation`'s primary constructor or the file will not
+compile. `internal`, not `public`, is the right widening.
+
+**(6) Does the matrix gate the assertions? NO — but it is destroyed by an abort.**
+`measured` feeds only `AppendMeasuredDispositions`; every consequential check appends to
+`failures`, and `Assert.True(failures.Count == 0, …)` is the gate. The report is honest.
+However `WriteCorpusReport` runs *after* the loop and *before* the asserts, so the observed
+abort produced no artifact at all (lane 4). See F-002.
+
+**(7a) Does the absent production `IReadLogicalDocumentVersion` make this host-dependent?
+YES — and the report must say so in those words.** `grep` over `src/` finds the interface
+(`Core/Documents/DocumentContracts.cs:20`) and four consumers
+(`AnalyzeRetainedInstruction.cs:196`, `DurableIntake.cs:544`, `InstructionEvidenceImages.cs:186`,
+`IntakeOcr.cs:449`) and **no implementation**. So `AddPegasusInfrastructure` registers
+`IAnalyzeRetainedInstruction`, but the graph does not close: a real Web or Worker host
+throws on resolve today. The accurate claim is "every registration in this proof is
+production except the A04 reader port, which no host composes at all" — not "these tests
+resolve what the Web host resolves". The C-owned `RetainedIntakeAssetReader` is a decent
+stand-in (it re-reads by storage key and verifies hash *and* length before returning
+bytes, `:820-855`), which is exactly why it can mask the absence. Recorded as F-003 with a
+concrete way to make the gap enforce itself.
+
+**(7b) "Multiple profiles return `Ambiguous`" versus treating Ambiguous as a failure —
+the author's reading is right, and the plan bullet is already satisfied elsewhere.**
+`RetainedInstructionAnalysisOutcome.Ambiguous` is defined as "More than one profile
+matched" (`AnalyzeRetainedInstruction.cs:18-19`), and the command returns it from the
+selector branch (`:383-386`). It is a property of *documents that match two signatures*,
+never a licence for a labelled original to come back unresolved. For the 81 operator-
+labelled originals, Ambiguous or NoProfile is a failure, and this test is right to treat it
+as one. The plan bullet is discharged by
+`tests/Pegasus.Core.Tests/Intake/AnalyzeRetainedInstructionTests.cs:148
+TwoMatchingProfilesAreAmbiguousAndBothAreNamed` — cite it (F-009) so C01 does not read as
+though the bullet is unmet. No plan change is needed.
+
+**(8) Runtime — 81 uploads + 162 analyses on LocalDB.** No per-sample host rebuild: both
+hosts are built once per test method, outside the loop. Per sample the test does one HTTP
+upload, one drain, two analyses, one scope, one `DbContext` and two count queries. The
+observed pace was roughly a second per original (six originals in ~6 s of a 53 s run
+including two host builds and two database restores), so a complete pass is on the order
+of 90-120 s — acceptable for a standing corpus lane. The one real waste is structural, not
+per-sample: **two web hosts are built over one LocalDB** because the upload/drain go
+through `factory` while the analysis goes through `host` (F-007). Fixing that removes a
+host build, a `DevelopmentOfflineInitialization` pass and the reader-double asymmetry.
+Before this becomes a standing lane, also note the trait shape: the class carries
+`Category=SqlServer` and the two new methods add `Category=Corpus`, so both apply — any
+lane selecting `Category=SqlServer` without excluding `Corpus` now pulls in 81 uploads.
+
+**(9) Nothing weakened elsewhere, nothing out of scope.** Two files, both under `tests/`.
+The Top15 diff is visibility only — no expectation, threshold, negative assertion or
+`inconclusive` rule was touched, and lane 3 confirms that suite still passes green. No
+`src/` file, no `AGENTS.md`, no fixture shared with another stream.
+
+## Findings
+
+### F-001 — BLOCKER — `AnalyzeRetainedInstruction` lets every policy's `ArgumentException` escape
+
+The command guards only the read *status*:
+
+`src/Pegasus.Core/Intake/AnalyzeRetainedInstruction.cs:365-373`
+```csharp
+if (readResult.Status != IntakeSourceReadStatus.Readable)
+{
+    return new(RetainedInstructionAnalysisOutcome.SourceUnavailable, null,
+        readResult.FailureReason ?? "The retained source is not readable.", [], false);
+}
+```
+
+It never inspects `readResult.IsIncomplete`, and then calls `policy.Extract(...)` at
+`:417`, outside the `try`/`catch` that wraps opening and reading (`:351-363`). **All
+fifteen** extraction policies refuse an incomplete result by throwing — `Pch:312-317`,
+`Qdos:289`, `Ax:65`, `Black:75`, `Dfd:46`, `Fw:96`, `Kbs:43`, `Mp:38`, `Oak:74`,
+`Qcl:85`, `Rjs:46`, `Sbl:79`, `Yml:27`, `Als:11`, `Bc:8`. The reader sets
+`IsIncomplete` in a dozen places, several of them on the legacy `.doc`/`.msg` path
+(`MimeKitPdfPigOpenXmlIntakeSourceReader.DocMsg.cs:83,135,143`), which is exactly what a
+PCH `.DOC` original hit on the run.
+
+Both of the other callers of this material already keep the guard the command dropped:
+`src/Pegasus.Core/Intake/ProcessIntake.cs:655` returns `NeedsSorting` for an incomplete
+read before any policy is invoked, and `Top15InstructionCorpusTests.cs:641` records the
+sample INCONCLUSIVE and continues. `AnalyzeRetainedInstruction` is the odd one out.
+
+This is a production defect, not a test artefact: the `/Received/{id}` analysis action
+named in plan C01's "Production callers" will throw `ArgumentException` out to the page for
+any retained `.DOC` or partially-read PDF.
+
+**Exact correction** — in `src/Pegasus.Core/Intake/AnalyzeRetainedInstruction.cs`, replace
+the guard at `:365` with
+
+```csharp
+if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete)
+{
+    return new(
+        RetainedInstructionAnalysisOutcome.SourceUnavailable,
+        null,
+        readResult.FailureReason
+            ?? "The retained source could not be read completely.",
+        [],
+        false);
+}
+```
+
+and add a Core test beside the existing ones in
+`tests/Pegasus.Core.Tests/Intake/AnalyzeRetainedInstructionTests.cs` — an incomplete but
+readable result returns `SourceUnavailable`, records no row and no candidate, and leaves a
+later attempt under the same key free to analyse (the same contract
+`ASourceThatCannotBeOpenedIsReportedRatherThanRecorded:162` already states).
+`SourceUnavailable` is the right member: its own summary is "The immutable logical source
+could not be opened or read", and nothing is recorded, so re-analysis after a better read
+is still possible. Do **not** fix this by catching the exception in the test.
+
+### F-002 — BLOCKER — one bad original destroys the whole proof and its artifact
+
+`EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating` is built to accumulate
+failures ("A run that stopped at the first bad original would say nothing about the other
+eighty", `:531-533`), but nothing in the loop survives an exception from
+`UploadAndProcessAsync` or `analyze.ExecuteAsync`. The run proves the point: it died on
+original ~6 of 81, so 75+ originals were never exercised, and because
+`WriteCorpusReport(...)` is called at `:608` — after the loop — no matrix was written at
+all (lane 4: the file does not exist). The evidence yield of the failed run is one stack
+trace. The author anticipated this as open question 3(b) and left it; it has now happened.
+
+**Exact correction**, in `RetainedInstructionAnalysisTests.cs`:
+
+1. Write the report in a `finally` around the `foreach`, so an abort still leaves the
+   matrix and the failure lines gathered so far on disk.
+2. Give the per-sample body a *typed* catch so one original cannot end the run —
+   `catch (Exception exception) when (exception is ArgumentException
+   or InvalidOperationException or IntakeArtifactIntegrityException)` appending
+   `$"{name} ({expectation.Profile}): analysis threw {exception.GetType().Name} - {exception.Message}"`
+   to `failures`. Typed clauses keep CA1031 satisfied; a blanket `catch (Exception)`
+   would not, and must not be used.
+3. Carry over the discipline the direct-drive suite keeps and this one lost: a separate
+   **INCONCLUSIVE** bucket for an original the reader could not deliver (mirroring
+   `Top15InstructionCorpusTests.cs:641-661`, including its `MinimumRecoveredCharacters`
+   floor), reported in its own section and — per that suite's own words — never counted as
+   a pass. With F-001 fixed, an original that comes back `SourceUnavailable` is a reader
+   gap, and reporting it as an extraction failure blames the wrong component; reporting it
+   as a pass would be worse.
+
+Until this and F-001 land, the C01 claim cannot be re-asserted: rerun and attach a matrix
+covering all 81 rows.
+
+### F-003 — MAJOR — the production graph does not close; say so, and make it enforce itself
+
+Detail under (7a). The C01 report's "production composition" language should be corrected
+to name the exception explicitly and state the consequence: **`IAnalyzeRetainedInstruction`
+cannot be resolved from the Web or Worker host today**, because A04's
+`IReadLogicalDocumentVersion` implementation does not exist in `src/`. Recommended, and
+cheap: add a composition assertion that the Web host can resolve
+`IAnalyzeRetainedInstruction`, marked with a `Skip` naming A04, so the day the reader lands
+the gap closes itself instead of relying on someone remembering. Whatever form it takes,
+the sentence "these tests resolve the command the Web host itself resolves" must not stand
+unqualified in the report.
+
+### F-004 — MINOR — the report's reason for "zero Cases" is wrong
+
+The report states: "the Case is created later by `IAllocateIntake`/`AcceptIntake`, which
+neither `UploadAndProcessAsync` nor `DrainStagedAsync` runs". It does run:
+`ProcessQueuedIntake` takes `IAllocateIntake` (`DurableIntake.cs:542`) and calls
+`allocateIntake.AttemptAutomaticAsync` at `:625` and `:788`; the DI comment at
+`DependencyInjection.cs:190-193` says as much ("allocation is no longer a staff action:
+the Worker's processing path creates the case for a definitive instruction"). The tests
+are still correct, for a different and stronger reason: a manual upload presents no
+transport sender, so `EvaluateMailRoute` returns null (`ProcessIntake.cs:1081-1087`),
+`EstablishPrincipalContext` returns null (`:1022-1030`), and the assessment terminates at
+`NeedsSorting` — "No accepted intake route established the principal for automatic case
+creation" (`:771-772`) — before any extraction policy is consulted. Correct the report;
+as written it would let a genuine allocation regression look expected.
+
+### F-005 — MINOR — the QDOS exclusion cites a behaviour the tested channel cannot reach
+
+Test 2 excludes QDOS because "QDOS keeps its automatic allocation, already proved on
+genuine material by `QdosIntakeWebTests`". That allocation is a *mail-route* behaviour;
+the test drives *manual upload*, where QDOS cannot allocate either, for the reason in
+F-004. Either include the five QDOS originals with the same assertions — they cost nothing
+and widen the proof to 19 samples — or restate the comment as "QDOS's automatic allocation
+belongs to the accepted mail route and is proved there by `QdosIntakeWebTests
+.StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft`; through manual
+upload no profile allocates, QDOS included." Separately worth stating as a limitation of
+this proof: because manual upload never establishes a principal, it cannot distinguish
+"a confident document profile does not allocate" from "this channel never allocates". The
+sharper negative the plan describes for SBL and BC — a document that a profile identifies
+arriving through an *accepted* route for a different principal — is not covered here and
+belongs to C03/C04.
+
+### F-006 — MINOR — the principal-disposition assertion tolerates a state production cannot produce
+
+`ProposedPrincipal` fails only when the disposition is neither `Usable` nor `Ambiguous`
+(`:663-670`). On the `Analyzed` path the principal candidate's disposition is
+`forceReviewOnly ? Ambiguous : Usable` (`AnalyzeRetainedInstruction.cs:516`), and
+`forceReviewOnly` has **no call site** that passes `true` — it is a defaulted parameter at
+`:491` only. So production always emits `Usable` here and the tolerance is unreachable.
+Assert `Assert.Equal(SourceCandidateDisposition.Usable, principal.Disposition)` (as a
+failure line), or keep the set and say in the comment that `Ambiguous` is currently
+unreachable, so a future reader does not read the looser check as a known-failure
+allowance. (The dead `forceReviewOnly` parameter itself is production code and out of
+scope for this slice — worth a note to whoever owns `AnalyzeRetainedInstruction`.)
+
+### F-007 — NOTE — the drain and the analysis run in different containers
+
+`AnalyseRetainedOriginalAsync` uploads with `client` (created from `host`, the
+`WithAnalysis` factory) but drains with `IntakeWebDriver.UploadAndProcessAsync(factory, …)`,
+whose `ProcessQueuedAsync` uses `factory.Services` (`IntakeWebTestSupport.cs:388`). The
+base container has no `IReadLogicalDocumentVersion`, so `CreateProcessor` (`:704-711`)
+gives the Worker processor the **refusing** double while the analysis in the same test uses
+the real stand-in. Two hosts are therefore built over one LocalDB and
+`DevelopmentOfflineInitialization` runs twice. It works (the database is shared through the
+factory's single `LocalDbTestDatabase`), and the pattern is inherited from the pre-existing
+`RetainAsync`, but it is confusing and wasteful. Passing `host` as the first argument to
+`UploadAndProcessAsync` makes one composition serve upload, drain and analysis and removes
+a host build per test.
+
+### F-008 — NOTE — hash equality is only proved case-insensitively
+
+The pack hash and the asset store use `Convert.ToHexStringLower`; the stand-in reader
+returns `Convert.ToHexString` (upper). Every comparison in the new test is
+`StringComparison.OrdinalIgnoreCase`, so the casing that actually lands in
+`IntakeSourceCandidateEntity.SourceSha256` is whatever the reader chose and is never
+asserted. If persisted casing is part of "exact source SHA-256", assert it once; if not,
+say so.
+
+### F-009 — NOTE — cite the Core test that discharges the "Ambiguous" plan bullet
+
+`tests/Pegasus.Core.Tests/Intake/AnalyzeRetainedInstructionTests.cs:148`. See (7b).
+
+### F-010 — NOTE — the proof runs the no-lookup composition
+
+`VehicleRegistrationCandidateLookup` is registered only in
+`src/Pegasus.Worker/WorkerDependencyInjection.cs:102`, so the Web host resolves
+`AnalyzeRetainedInstruction` with its optional lookup null (the contract the Core test
+`OrdinaryAnalysisWorksWithoutVehicleLookupComposition:473` covers). Fine for embedded-text
+originals, which is all the corpus contains — but it means this proof says nothing about
+INTK-049 candidate expansion, and the report should not let the phrase "the host's own
+command" imply otherwise.
+
+## Exact test names, filter and preconditions
+
+Fully-qualified names (both `[ReferencePackFact]` + `[Trait("Category","Corpus")]`, with
+the class trait `Category=SqlServer` also applying):
+
+- `Pegasus.IntegrationTests.RetainedInstructionAnalysisTests.EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating`
+- `Pegasus.IntegrationTests.RetainedInstructionAnalysisTests.NoGenuineNonQdosOriginalIsAllocatedAutomaticallyThroughNormalIntake`
+
+```powershell
+$env:PEGASUS_REFERENCE_PACK_ROOT = 'C:/Users/PGUSER/documents/github/pegasus/pegasus_pack'
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj `
+  --configuration Release --no-build `
+  --filter "FullyQualifiedName~RetainedInstructionAnalysisTests"
+```
+
+`PEGASUS_REFERENCE_PACK_ROOT` **must** be set to the reference pack root and the directory
+must exist, or `ReferencePackFactAttribute` (`PrincipalSourceManifestTests.cs:389-404`)
+sets `Skip` and both tests report as skipped — **INCONCLUSIVE, which is not a pass**. A
+real SQL LocalDB is also required (`LocalDbTestDatabase`). This filter selects **6 test
+cases**: the 4 pre-existing tests plus these 2; the 81 originals and 162 analyses all live
+*inside* the first of the two, so "6 tests" is the expected shape, not a sign the corpus
+did not run (the runner's note on lane 2 reads it as a shortfall — it is not).
+
+Artifact to collect after a complete run:
+`artifacts/evaluation/v1-intake/retained-analysis-corpus.md` (git-ignored) — 81 matrix rows,
+the measured per-profile disposition table, and any Failures / (after F-002) Inconclusive
+sections.
+
+## Residual risk if the two blockers are fixed
+
+The design is sound and the discipline is real: production composition, real upload and
+real Worker drain, one shared expectation list, member-level assertions, no per-profile
+escape hatch, and a measured matrix that gates nothing. What remains after F-001 and F-002
+is honesty about scope — F-003's open reader port, and the fact that a manual-upload
+channel can only prove the negative it proves. Neither is a reason to weaken an assertion;
+both are reasons to write two more sentences in the C01 report.
+
+Full attestation file:
+`C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c01-all15-review.md`
