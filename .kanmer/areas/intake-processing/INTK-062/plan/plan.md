@@ -84,10 +84,11 @@ No claim that transport refusal is a case lifecycle change.
 ## Commands
 
 Worker: git diff --check and static caller/route checks.
-Root: existing Release --no-build integration filter
-FullyQualifiedName~PublicUploadRetentionWebTests and Core/session filter
-FullyQualifiedName~RequestUploadPolicyTests|FullyQualifiedName~PublicUploadSessionTests
-as proportionate. No snapshot scope because Razor markup is unchanged.
+Root: locked restore and Release build, then the focused existing integration
+filter recorded in the report (eight PublicTransport cases plus four existing
+request/custody cases). RequestUploadPolicyTests was an erroneous candidate
+name, not executed; no Core policy changed. No snapshot scope because Razor
+markup is unchanged.
 
 ## Failure and deviation rules
 
@@ -96,6 +97,8 @@ schema/package requirements before editing; no silent transport framework.
 
 ## Stop condition
 
-Freeze implementation/tests/docs and provide root filters for verification.
-Keep lease/worktree. No build/test, commit, PR, Review move or live write
-until root supplies verification and explicit next handoff.
+Initial source freeze is complete. Root supplied locked restore, Release build
+and all 12 focused integration tests PASS on 2026-09-07 and explicitly authorized
+report, scoped [skip ci] commit, push, dev PR and Review handoff. Preserve all
+attempts and evidence limitations; stop for independent review, no self-review,
+merge, deployment or duplicate build/test.
