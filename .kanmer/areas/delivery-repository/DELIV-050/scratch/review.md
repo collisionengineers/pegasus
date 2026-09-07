@@ -56,7 +56,7 @@ unavailable; the direct policy checks resolve that ambiguity rather than
 inventing a green result or bypassing a failed check.
 
 GraphQL returned no review threads, hasNextPage false. The bot activity
-comment reports review running, not a finding; it is not an expected reviewer
+comment now reports review completed with no finding; it is not an expected reviewer
 or gate. No comment has a requested correction to disposition. Initial gh
 view requested unsupported field baseRepository and failed without mutation;
 the supported same-repository fields were then gathered successfully.
