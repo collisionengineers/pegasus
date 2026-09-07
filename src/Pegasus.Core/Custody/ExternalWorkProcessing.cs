@@ -11,6 +11,7 @@ public static class ExternalWorkKinds
     public const string MergeImageCaseCustody = "merge_image_case_custody";
     public const string VehicleLookup = "vehicle_lookup";
     public const string SubmitCaseToEva = "submit_case_to_eva";
+    public const string IntakeOcr = "intake_ocr";
 }
 
 public sealed record QueuedExternalWork(Guid Id, string Kind);
@@ -73,7 +74,8 @@ public sealed class ProcessQueuedExternalWork(
     IQueuedExternalWorkReader workReader,
     IProcessQueuedCustody custody,
     IProcessQueuedVehicleLookup vehicle,
-    IProcessQueuedEvaSubmission? eva = null) : IProcessQueuedExternalWork
+    IProcessQueuedEvaSubmission? eva = null,
+    IProcessIntakeOcr? intakeOcr = null) : IProcessQueuedExternalWork
 {
     public async Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
     {
@@ -110,6 +112,9 @@ public sealed class ProcessQueuedExternalWork(
             // would record a case as dealt with that nothing ever sent.
             case ExternalWorkKinds.SubmitCaseToEva when eva is not null:
                 await eva.ExecuteAsync(workItemId, cancellationToken);
+                return;
+            case ExternalWorkKinds.IntakeOcr when intakeOcr is not null:
+                await intakeOcr.ExecuteAsync(workItemId, cancellationToken);
                 return;
             default:
                 throw new UnknownExternalWorkKindException(workItemId, work.Kind);
