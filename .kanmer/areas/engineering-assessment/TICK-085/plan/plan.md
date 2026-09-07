@@ -78,37 +78,37 @@ chosen card or repairer VAT status.
 
 ## Expected files
 
-| Path | Why |
-| --- | --- |
-| src/Pegasus.Core/Assessment/EstimateImport.cs | Existing canonical command owns retained-source/hash replay, typed pending OCR outcome and completed-format result |
-| src/Pegasus.Core/Assessment/RepairSpecifications.cs | Narrow imported-document persistence method on existing store; no new store |
-| src/Pegasus.Core/Assessment/Estimates.cs | Existing Core import authorization/normalization only; preserve ordinary Automation AiDraft/job rules |
-| src/Pegasus.Infrastructure/Assessment/PdfEstimateDocumentParser.cs | One PDF container registration, shared coordinate extraction, retained OCR words, explicit format dispatch |
-| src/Pegasus.Infrastructure/Assessment/GlassEstimatePdfParser.cs | Glass Body/Auxiliary/Paint reader, source identity/notes, reconciliation, whole-file refusal |
-| src/Pegasus.Infrastructure/Assessment/AudatexEstimatePdfParser.cs | Reuse existing coordinate table logic under PDF container, no second PDF registration |
-| src/Pegasus.Infrastructure/Assessment/JsonEstimateParser.cs | Adapt existing parser result contract |
-| src/Pegasus.Infrastructure/Glass/GlassEstimateXmlParser.cs | Adapt existing parser result contract; do not alter XML time semantics |
-| src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs | Consume explicit canonical imported/pending result; no launch/recovery redesign |
-| src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs | Share current save transaction for narrow validated raw-import entry; provenance and unconfirmed Automation rows |
-| src/Pegasus.Infrastructure/DependencyInjection.cs | One JSON/XML/PDF parser set |
-| src/Pegasus.Web/Pages/Cases/Details.cshtml.cs | Existing upload and retained-source completion callers call canonical import with submitted version/lease; no direct parse/save policy |
-| src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml | Only source auto-detection/pending completion UI and expected-version fields |
-| src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs | Existing centralized concise labels |
-| src/Pegasus.Web/Mcp/AssessmentMcpTools.cs | Real raw import and typed pending/unknown response under existing assessment scope |
-| tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs | Existing ImportRawEstimate tests: canonical source, pending/replay and unauthorized/forged-source cases; ordinary Automation SaveEstimate remains job-bound |
-| tests/Pegasus.IntegrationTests/GlassEstimatePdfParserTests.cs | Hash-bound genuine PDF/oracle lane plus isolated malformed/ambiguous evidence tests |
-| tests/Pegasus.IntegrationTests/AudatexEstimatePdfParserTests.cs | Preserve genuine Audatex parsing under shared container |
-| tests/Pegasus.IntegrationTests/JsonEstimateParserTests.cs | Adapt contract without changing JSON behavior |
-| tests/Pegasus.IntegrationTests/GlassEstimateXmlParserTests.cs | Adapt contract without changing XML behavior |
-| tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs | Existing canonical importer fake/result adaptation |
-| tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs | Prove actual Web caller, pending completion, immutable source, no duplicate source/draft |
-| tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs | Actual runtime-role canonical import; replay and forged source refusal |
-| tests/Pegasus.IntegrationTests/AutomationAssessmentIngressTests.cs | Real Automation import caller, scope/lease/source negatives, not fake-only proof |
-| tests/Pegasus.IntegrationTests/ProductionCompositionTests.cs | Exactly one PDF container and real parser reachability |
-| docs/frd/frd-06-vehicle-and-engineering-evidence.md | Raw PDF behavior, preserved source facts, whole-file refusal and pending completion |
-| docs/frd/frd-10-mcp-automation-and-actor-boundary.md | Explicit pending/unknown import result; no acceptance authority change |
-| docs/design/test-ui/pages/case-details--*.html | Root-generated routed UI snapshot artifacts |
-| docs/design/test-ui/index.html | Root-generated snapshot index |
+| Action | Repo-root-relative path | Responsibility |
+| --- | --- | --- |
+| Modify | `src/Pegasus.Core/Assessment/EstimateImport.cs` | Existing canonical command owns retained-source/hash replay, typed pending OCR outcome and completed-format result |
+| Modify | `src/Pegasus.Core/Assessment/RepairSpecifications.cs` | Narrow imported-document persistence method on existing store; no new store |
+| Modify | `src/Pegasus.Core/Assessment/Estimates.cs` | Existing Core import authorization/normalization only; preserve ordinary Automation AiDraft/job rules |
+| Add | `src/Pegasus.Infrastructure/Assessment/PdfEstimateDocumentParser.cs` | One PDF container registration, shared coordinate extraction, retained OCR words, explicit format dispatch |
+| Add | `src/Pegasus.Infrastructure/Assessment/GlassEstimatePdfParser.cs` | Glass Body/Auxiliary/Paint reader, source identity/notes, reconciliation, whole-file refusal |
+| Modify | `src/Pegasus.Infrastructure/Assessment/AudatexEstimatePdfParser.cs` | Reuse existing coordinate table logic under PDF container, no second PDF registration |
+| Modify | `src/Pegasus.Infrastructure/Assessment/JsonEstimateParser.cs` | Adapt existing parser result contract |
+| Modify | `src/Pegasus.Infrastructure/Glass/GlassEstimateXmlParser.cs` | Adapt existing parser result contract; do not alter XML time semantics |
+| Modify | `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs` | Consume explicit canonical imported/pending result; no launch/recovery redesign |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs` | Share current save transaction for narrow validated raw-import entry; provenance and unconfirmed Automation rows |
+| Modify | `src/Pegasus.Infrastructure/DependencyInjection.cs` | One JSON/XML/PDF parser set |
+| Modify | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Existing upload and retained-source completion callers call canonical import with submitted version/lease; no direct parse/save policy |
+| Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml` | Only source auto-detection/pending completion UI and expected-version fields |
+| Modify | `src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs` | Existing centralized concise labels |
+| Modify | `src/Pegasus.Web/Mcp/AssessmentMcpTools.cs` | Real raw import and typed pending/unknown response under existing assessment scope |
+| Modify | `tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs` | Existing ImportRawEstimate tests: canonical source, pending/replay and unauthorized/forged-source cases; ordinary Automation SaveEstimate remains job-bound |
+| Add | `tests/Pegasus.IntegrationTests/GlassEstimatePdfParserTests.cs` | Hash-bound genuine PDF/oracle lane plus isolated malformed/ambiguous evidence tests |
+| Modify | `tests/Pegasus.IntegrationTests/AudatexEstimatePdfParserTests.cs` | Preserve genuine Audatex parsing under shared container |
+| Modify | `tests/Pegasus.IntegrationTests/JsonEstimateParserTests.cs` | Adapt contract without changing JSON behavior |
+| Modify | `tests/Pegasus.IntegrationTests/GlassEstimateXmlParserTests.cs` | Adapt contract without changing XML behavior |
+| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs` | Existing canonical importer fake/result adaptation |
+| Modify | `tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs` | Prove actual Web caller, pending completion, immutable source, no duplicate source/draft |
+| Modify | `tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs` | Actual runtime-role canonical import; replay and forged source refusal |
+| Modify | `tests/Pegasus.IntegrationTests/AutomationAssessmentIngressTests.cs` | Real Automation import caller, scope/lease/source negatives, not fake-only proof |
+| Modify | `tests/Pegasus.IntegrationTests/ProductionCompositionTests.cs` | Exactly one PDF container and real parser reachability |
+| Modify | `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Raw PDF behavior, preserved source facts, whole-file refusal and pending completion |
+| Modify | `docs/frd/frd-10-mcp-automation-and-actor-boundary.md` | Explicit pending/unknown import result; no acceptance authority change |
+| Modify | `docs/design/test-ui/pages/case-details--*.html` | Root-generated routed UI snapshot artifacts |
+| Modify | `docs/design/test-ui/index.html` | Root-generated snapshot index |
 
 ## Do not modify
 

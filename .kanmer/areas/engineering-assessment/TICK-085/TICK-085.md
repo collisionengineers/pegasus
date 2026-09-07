@@ -27,9 +27,10 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+  - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-07T21:28:21.905Z'
+updated: '2026-09-07T21:54:01.842Z'
 ---
 
 ## What
