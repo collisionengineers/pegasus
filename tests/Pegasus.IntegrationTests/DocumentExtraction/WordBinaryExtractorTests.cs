@@ -274,6 +274,55 @@ public sealed class WordBinaryExtractorTests
             result.Issues.Select(static issue => issue.Code));
     }
 
+    /// <summary>
+    /// A flat label/value table, exactly as a binary Word story states it: each
+    /// cell's text terminated by a cell mark, each row closed by a further
+    /// mark. The cells are an addition to the flattened text, not a
+    /// replacement for it.
+    /// </summary>
+    [Fact]
+    public void ExtractTableMarksProduceCellsInRowAndColumnOrder()
+    {
+        const string table =
+            "Claim Number\u0007CLM-9003\u0007\u0007Registration\u0007AB12 CDE\u0007\u0007";
+        CompoundFile file = WordBinaryFixture.Create([new(0, (uint)table.Length, 700, true, table)]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
+        Assert.Equal(
+            [(1, 1, 1, "Claim Number"), (1, 1, 2, "CLM-9003"), (1, 2, 1, "Registration"), (1, 2, 2, "AB12 CDE")],
+            result.Stories[0].TableCells.Select(
+                static cell => (cell.Table, cell.Row, cell.Column, cell.Text)));
+        Assert.Equal("Claim Number\tCLM-9003\t\tRegistration\tAB12 CDE\t\t", result.Stories[0].Text);
+    }
+
+    [Fact]
+    public void ExtractCellsNeverSwallowTheParagraphTextPrecedingTheTable()
+    {
+        const string text = "Assessment instruction\rOur Ref\u0007S486562.001\u0007\u0007";
+        CompoundFile file = WordBinaryFixture.Create([new(0, (uint)text.Length, 700, true, text)]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        Assert.Equal(
+            [(1, 1, 1, "Our Ref"), (1, 1, 2, "S486562.001")],
+            result.Stories[0].TableCells.Select(
+                static cell => (cell.Table, cell.Row, cell.Column, cell.Text)));
+    }
+
+    [Fact]
+    public void ExtractStoryWithoutTableMarksReportsNoCellsAtAll()
+    {
+        CompoundFile file = WordBinaryFixture.Create([new(0, 12, 700, true, "Our Ref\tABC1")]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        // An ordinary tab is not a cell boundary and never acquires cell
+        // authority, exactly as the RTF branch already refuses to let it.
+        Assert.Empty(result.Stories[0].TableCells);
+    }
+
     [Fact]
     public void ExtractStrayControlByteIsStrippedFromTheProjectedText()
     {

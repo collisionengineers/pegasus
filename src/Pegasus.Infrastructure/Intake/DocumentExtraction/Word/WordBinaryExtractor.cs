@@ -213,11 +213,74 @@ internal static class WordBinaryExtractor
                 }
             }
 
-            storyBuilder.Add(new(StoryOrder[storyIndex], globalStart, globalEnd, segments.ToImmutable()));
+            ImmutableArray<WordTextSegment> storySegments = segments.ToImmutable();
+            storyBuilder.Add(new(
+                StoryOrder[storyIndex], globalStart, globalEnd, storySegments, BuildTableCells(storySegments)));
             globalStart = globalEnd;
         }
 
         return storyBuilder.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// The table structure a binary Word story states in its own character
+    /// stream: each cell's text is terminated by a cell mark, and a row is
+    /// closed by a further mark that terminates no text of its own
+    /// (MS-DOC 2.8.25). The authoritative layout lives in the TAP/PAPX
+    /// structures in the formatting bin table, which this extractor does not
+    /// parse at all, so what is modelled here is exactly what the text stream
+    /// says and no more: cells in the order they were written, rows in the
+    /// order they were closed.
+    ///
+    /// Two consequences are stated rather than hidden. A cell is one or more
+    /// paragraphs and only its LAST paragraph is attributed to it here, because
+    /// nothing in the text stream says where the cell began; the flattened text
+    /// fragment still carries every paragraph. And because an empty run between
+    /// two marks is what ends a row, a row whose final cell its author left
+    /// empty closes one column early. Flat label/value tables - which is what
+    /// the legacy instruction corpus contains - are read exactly.
+    /// </summary>
+    private static ImmutableArray<WordTableCell> BuildTableCells(ImmutableArray<WordTextSegment> segments)
+    {
+        var cells = ImmutableArray.CreateBuilder<WordTableCell>();
+        var pending = new StringBuilder();
+        int row = 0;
+        int column = 0;
+        foreach (WordTextSegment segment in segments)
+        {
+            if (segment.Kind == WordTextSegmentKind.ParagraphMark)
+            {
+                pending.Clear();
+                continue;
+            }
+
+            if (segment.Kind != WordTextSegmentKind.CellOrRowMark)
+            {
+                pending.Append(segment.Text);
+                continue;
+            }
+
+            string value = pending.ToString().Trim();
+            pending.Clear();
+            if (value.Length == 0 && column != 0)
+            {
+                column = 0;
+                continue;
+            }
+
+            if (column == 0)
+            {
+                row++;
+            }
+
+            column++;
+            if (value.Length != 0)
+            {
+                cells.Add(new(1, row, column, value));
+            }
+        }
+
+        return cells.ToImmutable();
     }
 
     private static bool HasSpecializedStory(WordFib fib)

@@ -5,6 +5,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
+using Pegasus.IntegrationTests.DocumentExtraction;
 
 namespace Pegasus.IntegrationTests;
 
@@ -175,6 +176,76 @@ public sealed class StructuredIntakeSourceReaderTests
             .ToArray();
         Assert.Equal(["T1R1C1", "T2R1C1"], cells.Select(cell => cell.Locator!.Cell));
         Assert.Equal(["First table", "Second table"], cells.Select(cell => cell.Text));
+    }
+
+    /// <summary>
+    /// The legacy binary Word branch reports a table the way the RTF and Open
+    /// XML branches already do: the flattened text unchanged, and the cells
+    /// beside it. A paired label/value layout only keeps its party while the
+    /// value stays attached to the column it was printed in.
+    /// </summary>
+    [Fact]
+    public async Task ALegacyWordTableIsReportedCellByCellBesideItsFlattenedText()
+    {
+        const string document =
+            "Assessment instruction\rClaim Number\u0007CLM-9004\u0007\u0007Registration\u0007AB12 CDE\u0007\u0007";
+        var result = await ReadAsync(new TestEmail(
+            "legacy-instruction.doc",
+            "application/msword",
+            WordBinaryFixture.CreateRawCfb([new(0, (uint)document.Length, 700, false, document)])));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.False(result.IsIncomplete);
+
+        var flattened = Assert.Single(result.Content, fragment => fragment.Locator is null);
+        Assert.Contains("CLM-9004", flattened.Text, StringComparison.Ordinal);
+
+        var cells = result.Content
+            .Where(fragment => fragment.Locator?.Kind == IntakeLocatorKind.TableCell)
+            .ToArray();
+        Assert.Equal(
+            ["T1R1C1", "T1R1C2", "T1R2C1", "T1R2C2"],
+            cells.Select(cell => cell.Locator!.Cell));
+        Assert.Equal(
+            ["Claim Number", "CLM-9004", "Registration", "AB12 CDE"],
+            cells.Select(cell => cell.Text));
+        Assert.All(cells, cell => Assert.Equal(
+            $"legacy-instruction.doc, table 1 row {cell.Locator!.Row} column {cell.Locator.Column}",
+            cell.SourceLabel.Replace("uploaded ", string.Empty, StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// A running letterhead is decoded and kept, and is not the body. Merged
+    /// into it, the supplier printed in the header reads as the instructing
+    /// party's address.
+    /// </summary>
+    [Fact]
+    public async Task ALegacyWordHeaderIsItsOwnLabelledFragmentAndNeverJoinsTheBody()
+    {
+        const string body = "Claim Number: CLM-9005\r";
+        const string header = "Collision Engineers, 1 Depot Road\r";
+        var document = body + header + "\r";
+        var result = await ReadAsync(new TestEmail(
+            "letterheaded.doc",
+            "application/msword",
+            WordBinaryFixture.CreateRawCfb(
+                [new(0, (uint)document.Length, 700, false, document)],
+                [(uint)body.Length, 0, (uint)header.Length, 0, 0, 0, 0, 0])));
+
+        Assert.Equal(IntakeSourceReadStatus.Readable, result.Status);
+        Assert.False(result.IsIncomplete);
+
+        var main = Assert.Single(result.Content, fragment => fragment.Locator is null);
+        Assert.Contains("CLM-9005", main.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Collision Engineers", main.Text, StringComparison.Ordinal);
+
+        var headerFragment = Assert.Single(
+            result.Content,
+            fragment => fragment.Locator?.Kind == IntakeLocatorKind.Region);
+        Assert.Equal("word-header-story", headerFragment.Locator!.DocumentRole);
+        Assert.Equal("header and footer text", headerFragment.Locator.Region);
+        Assert.EndsWith("header and footer text", headerFragment.SourceLabel, StringComparison.Ordinal);
+        Assert.Contains("Collision Engineers", headerFragment.Text, StringComparison.Ordinal);
     }
 
     [Fact]
