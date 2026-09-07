@@ -20,9 +20,11 @@ namespace Pegasus.Infrastructure.Persistence;
 /// one operation.
 /// </summary>
 public sealed class EfIntakeOcrOperationStore(
-    IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeOcrOperationStore
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    TimeProvider? timeProvider = null) : IIntakeOcrOperationStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<IntakeOcrOperation?> FindAsync(
         Guid operationId,
@@ -80,21 +82,8 @@ public sealed class EfIntakeOcrOperationStore(
                 .SingleOrDefaultAsync(item => item.Id == existing.Id, cancellationToken);
             if (existingWork is null)
             {
-                context.Set<ExternalWorkItemEntity>().Add(new ExternalWorkItemEntity
-                {
-                    Id = existing.Id,
-                    Kind = ExternalWorkKinds.IntakeOcr,
-                    OperationKey = key,
-                    State = existing.State == nameof(IntakeOcrState.Completed)
-                        ? ExternalWorkStatePersistence.Completed
-                        : existing.State == nameof(IntakeOcrState.Failed) || existing.State == nameof(IntakeOcrState.Unknown)
-                            ? ExternalWorkStatePersistence.Failed
-                            : ExternalWorkStatePersistence.Pending,
-                    AttemptCount = Envelope(existing.QualifiedPagesJson).AttemptCount,
-                    DueAtUtc = existing.RetryAtUtc ?? DateTimeOffset.UtcNow,
-                    CompletedAtUtc = existing.State == nameof(IntakeOcrState.Completed) ? DateTimeOffset.UtcNow : null
-                });
-                await context.SaveChangesAsync(cancellationToken);
+                throw new InvalidOperationException(
+                    "The paired external work item row does not exist for the OCR operation.");
             }
 
             await transaction.CommitAsync(cancellationToken);
@@ -123,7 +112,7 @@ public sealed class EfIntakeOcrOperationStore(
             OperationKey = key,
             State = ExternalWorkStatePersistence.Pending,
             AttemptCount = 0,
-            DueAtUtc = DateTimeOffset.UtcNow
+            DueAtUtc = _timeProvider.GetUtcNow()
         };
         context.Set<ExternalWorkItemEntity>().Add(workItem);
 
@@ -145,12 +134,9 @@ public sealed class EfIntakeOcrOperationStore(
                 SerializerOptions);
             entity.State = nameof(IntakeOcrState.Processing);
             entity.RetryAtUtc = null;
-            if (workItem is not null)
-            {
-                workItem.State = ExternalWorkStatePersistence.Processing;
-                workItem.LeaseToken = null;
-                workItem.LeaseExpiresAtUtc = null;
-            }
+            workItem.State = ExternalWorkStatePersistence.Processing;
+            workItem.LeaseToken = null;
+            workItem.LeaseExpiresAtUtc = null;
         }, cancellationToken);
 
     public Task<IntakeOcrOperation> RecordSubmittedAsync(
@@ -172,13 +158,10 @@ public sealed class EfIntakeOcrOperationStore(
                     envelope with { Version = 2, SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
                 entity.State = nameof(IntakeOcrState.Processing);
                 entity.RetryAtUtc = null;
-                if (workItem is not null)
-                {
-                    workItem.State = ExternalWorkStatePersistence.Processing;
-                    workItem.ExternalReceipt = providerOperationId.Trim();
-                    workItem.LeaseToken = null;
-                    workItem.LeaseExpiresAtUtc = null;
-                }
+                workItem.State = ExternalWorkStatePersistence.Processing;
+                workItem.ExternalReceipt = providerOperationId.Trim();
+                workItem.LeaseToken = null;
+                workItem.LeaseExpiresAtUtc = null;
             },
             cancellationToken);
     }
@@ -221,18 +204,15 @@ public sealed class EfIntakeOcrOperationStore(
                     SerializerOptions);
                 entity.LastError = null;
                 entity.RetryAtUtc = null;
-                if (workItem is not null)
+                workItem.State = ExternalWorkStatePersistence.Completed;
+                workItem.CompletedAtUtc ??= _timeProvider.GetUtcNow();
+                workItem.LeaseToken = null;
+                workItem.LeaseExpiresAtUtc = null;
+                workItem.FailureCode = null;
+                workItem.FailureReason = null;
+                if (!string.IsNullOrWhiteSpace(result.ProviderOperationId))
                 {
-                    workItem.State = ExternalWorkStatePersistence.Completed;
-                    workItem.CompletedAtUtc ??= DateTimeOffset.UtcNow;
-                    workItem.LeaseToken = null;
-                    workItem.LeaseExpiresAtUtc = null;
-                    workItem.FailureCode = null;
-                    workItem.FailureReason = null;
-                    if (!string.IsNullOrWhiteSpace(result.ProviderOperationId))
-                    {
-                        workItem.ExternalReceipt = result.ProviderOperationId;
-                    }
+                    workItem.ExternalReceipt = result.ProviderOperationId;
                 }
             },
             cancellationToken);
@@ -278,24 +258,22 @@ public sealed class EfIntakeOcrOperationStore(
                     },
                     SerializerOptions);
 
-                if (workItem is not null)
-                {
-                    workItem.AttemptCount = envelope.AttemptCount + 1;
-                    workItem.LeaseToken = null;
-                    workItem.LeaseExpiresAtUtc = null;
-                    workItem.FailureCode = failure.Code;
-                    workItem.FailureReason = failure.Reason;
+                var nowUtc = _timeProvider.GetUtcNow();
+                workItem.AttemptCount = envelope.AttemptCount + 1;
+                workItem.LeaseToken = null;
+                workItem.LeaseExpiresAtUtc = null;
+                workItem.FailureCode = failure.Code;
+                workItem.FailureReason = failure.Reason;
 
-                    if (state == IntakeOcrState.RetryScheduled)
-                    {
-                        workItem.State = ExternalWorkStatePersistence.Pending;
-                        workItem.DueAtUtc = retryAtUtc ?? DateTimeOffset.UtcNow;
-                    }
-                    else
-                    {
-                        workItem.State = ExternalWorkStatePersistence.Failed;
-                        workItem.DueAtUtc = retryAtUtc ?? DateTimeOffset.UtcNow;
-                    }
+                if (state == IntakeOcrState.RetryScheduled)
+                {
+                    workItem.State = ExternalWorkStatePersistence.Pending;
+                    workItem.DueAtUtc = retryAtUtc ?? nowUtc;
+                }
+                else
+                {
+                    workItem.State = ExternalWorkStatePersistence.Failed;
+                    workItem.DueAtUtc = retryAtUtc ?? nowUtc;
                 }
             },
             cancellationToken);
@@ -304,7 +282,7 @@ public sealed class EfIntakeOcrOperationStore(
     private async Task<IntakeOcrOperation> UpdateAsync(
         Guid operationId,
         long expectedVersion,
-        Action<IntakeOcrOperationEntity, ExternalWorkItemEntity?> apply,
+        Action<IntakeOcrOperationEntity, ExternalWorkItemEntity> apply,
         CancellationToken cancellationToken)
     {
         if (operationId == Guid.Empty)
@@ -324,7 +302,9 @@ public sealed class EfIntakeOcrOperationStore(
         }
 
         var workItem = await context.Set<ExternalWorkItemEntity>()
-            .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The paired external work item row does not exist for the OCR operation.");
 
         apply(entity, workItem);
         entity.Version++;
