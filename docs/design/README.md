@@ -706,7 +706,7 @@ this section owns only how those decisions appear in the UI.
 Every protected route and action must handle unauthenticated,
 disabled-session, stale-role, denied, loading, and successful outcomes. Hiding
 a route or control never replaces server authorisation. Administration has no
-generic rules editor, credential/cloud/release operation, bulk predecessor
+generic rules editor, cloud/release operation, bulk predecessor
 import, or bulk Case-edit tool. No surface permits permanent deletion or
 direct external/customer Case editing.
 
@@ -1451,7 +1451,7 @@ review, retryable external work, upload links and EVA handoffs; Service
 health is Administration-only and Operations links to it (D37).
 
 **Administration** is Administrator-only and implements the linked role
-matrix through its eight areas. No generic rules editor, credential/cloud
+matrix through its eight areas. No generic rules editor or cloud
 operation, bulk import or bulk Case edit.
 
 ### State matrix
