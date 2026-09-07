@@ -6025,6 +6025,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("ReplacesOccurrenceId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uniqueidentifier");
 
@@ -6039,8 +6042,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("SessionId", "Id");
+
                     b.HasIndex("SessionId", "OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("SessionId", "ReplacesOccurrenceId");
 
                     b.ToTable("PublicUploadOccurrences", (string)null);
                 });
@@ -8782,6 +8789,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", b =>
                 {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId", "ReplacesOccurrenceId")
+                        .HasPrincipalKey("SessionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadSessionEntity", null)
                         .WithMany()
                         .HasForeignKey("SessionId")
