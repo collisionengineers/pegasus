@@ -609,9 +609,10 @@ public sealed partial class PublicUploadRetentionWebTests
             .ToArrayAsync());
 
         // The file the Pending consumed is not handed back at the moment of the
-        // refusal (ASSUMPTION 6): the totals are recomputed from the accepted
-        // occurrences the next time an arrival is accepted, and this refusal is
-        // not one.
+        // refusal (ASSUMPTION 6, amended): the totals are re-derived from the
+        // accepted occurrences on an accepted arrival and at finalization, and
+        // this refusal is neither. This session never started, so it can never
+        // be finalized and the totals stand where the last arrival left them.
         Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
     }
 
@@ -1576,7 +1577,12 @@ public sealed partial class PublicUploadRetentionWebTests
                     occurrenceId),
                 CancellationToken.None);
 
+        // The typed refusal, decided before any row is written. The composite
+        // foreign key would refuse a cross-session lineage underneath, but a
+        // constraint violation is not something a member of the public may be
+        // shown, so the store never reaches it.
         Assert.Equal(RequestUploadDecision.Unavailable, refused.Decision);
+        Assert.Null(refused.ReceiptId);
 
         await using var context2 = await CreateContextAsync(factory.Services);
         var occurrence = await context2.Set<PublicUploadOccurrenceEntity>()
@@ -1586,6 +1592,14 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal("confirmed", occurrence.CustodyState);
         Assert.Equal(Sha256Hex(Evidence), occurrence.Sha256);
         Assert.NotNull(occurrence.DocumentVersionId);
+        Assert.Null(occurrence.ReplacesOccurrenceId);
+
+        // Nothing at all was written for the link that made the attempt: no
+        // session, no occurrence, no movement in its totals.
+        Assert.Empty(await context2.Set<PublicUploadSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.RequestUploadLinkId == stranger.LinkId)
+            .ToArrayAsync());
         Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context2, stranger.LinkId));
     }
 
@@ -1719,6 +1733,65 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal("evidence.txt", untouched.ProposedName);
     }
 
+    /// <summary>
+    /// A replacement is one deliberate submission of one exact file, so sending
+    /// it again under its own operation key is that submission again. It
+    /// returns the receipt the first one earned, offers custody nothing, and
+    /// leaves one replacement row rather than a second lineage out of the same
+    /// slot.
+    /// </summary>
+    [Fact]
+    public async Task ReplayingAReplacementReturnsItsReceiptAndWritesNoSecondOccurrence()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var link = await SeedLinkAsync(factory.Services, "PUBREPLAY");
+
+        Assert.Equal(
+            HttpStatusCode.Redirect,
+            (await PostEvidenceAsync(factory, link.Token)).StatusCode);
+        Guid replacedId;
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            replacedId = (await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync()).Id;
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var upload = scope.ServiceProvider.GetRequiredService<IUploadToRequest>();
+        var replacementKey = $"replace:{Guid.NewGuid():N}";
+        UploadToRequestCommand Replacement() => new(
+            link.Token,
+            new("replacement.txt", "text/plain", OtherEvidence, replacementKey),
+            0,
+            replacedId);
+
+        var first = await upload.ExecuteAsync(Replacement(), CancellationToken.None);
+        Assert.Equal(RequestUploadDecision.Accepted, first.Decision);
+        Assert.False(first.IsReplay);
+        Assert.NotNull(first.ReceiptId);
+
+        var again = await upload.ExecuteAsync(Replacement(), CancellationToken.None);
+
+        Assert.Equal(RequestUploadDecision.Replay, again.Decision);
+        Assert.True(again.IsReplay);
+        Assert.Equal(first.ReceiptId, again.ReceiptId);
+        // Two files, two initiations - the replay initiated nothing.
+        Assert.Equal(2, custody.ProviderInitiations);
+
+        await using var context2 = await CreateContextAsync(factory.Services);
+        var rows = await context2.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .ToArrayAsync();
+        Assert.Equal(2, rows.Length);
+        var lineage = Assert.Single(rows, item => item.ReplacesOccurrenceId is not null);
+        Assert.Equal(replacedId, lineage.ReplacesOccurrenceId);
+        Assert.Equal(Sha256Hex(OtherEvidence), lineage.Sha256);
+    }
+
     [Fact]
     public async Task PublicPageAddsReplacesFinalizesAndRefusesLaterBytes()
     {
@@ -1729,6 +1802,7 @@ public sealed partial class PublicUploadRetentionWebTests
         var added = await PostEvidenceAsync(factory, link.Token);
         Assert.Equal(HttpStatusCode.Redirect, added.StatusCode);
         DateTimeOffset fixedExpiry;
+        Guid replacementId;
         await using (var context = await CreateContextAsync(factory.Services))
         {
             fixedExpiry = (await context.Set<PublicUploadSessionEntity>()
@@ -1785,6 +1859,12 @@ public sealed partial class PublicUploadRetentionWebTests
                 replacedOccurrence.DocumentVersionId,
                 replacementOccurrence.DocumentVersionId);
 
+            // The lineage: the new row records which slot it was sent in place
+            // of, and the superseded row is not the one carrying the relation.
+            Assert.Equal(occurrenceId, replacementOccurrence.ReplacesOccurrenceId);
+            Assert.Null(replacedOccurrence.ReplacesOccurrenceId);
+            replacementId = replacementOccurrence.Id;
+
             // Custody holds both, so the link's limits go on bounding both.
             Assert.Equal(
                 (2, Evidence.LongLength + replacement.LongLength),
@@ -1796,6 +1876,29 @@ public sealed partial class PublicUploadRetentionWebTests
 
         using var refreshed = await client.GetAsync($"/Uploads/{link.Token}");
         var refreshedHtml = await refreshed.Content.ReadAsStringAsync();
+
+        // The page shows the replaced file as replaced and the new one by the
+        // state custody gave it, and offers to replace only the current file.
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Upload.RequestFileState(
+                IncomingArtifactCustodyState.Confirmed,
+                isSuperseded: true),
+            refreshedHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Upload.RequestFileState(
+                IncomingArtifactCustodyState.Confirmed),
+            refreshedHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            $"replacement-{occurrenceId}",
+            refreshedHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"replacement-{replacementId}",
+            refreshedHtml,
+            StringComparison.Ordinal);
+
         var finalizeVerificationToken = FieldValue(refreshedHtml, "__RequestVerificationToken");
         using var finalizeForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -1806,6 +1909,24 @@ public sealed partial class PublicUploadRetentionWebTests
             $"/Uploads/{link.Token}?handler=Finalize",
             finalizeForm);
         Assert.Equal(HttpStatusCode.Redirect, finalized.StatusCode);
+
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            // Finished on one current file. Both rows stand and custody holds
+            // both sets of bytes, so both still count against the link - the
+            // limits bound what custody holds, not what the page lists.
+            var rows = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .ToArrayAsync();
+            Assert.Equal(2, rows.Length);
+            var current = Assert.Single(
+                rows,
+                value => !rows.Any(other => other.ReplacesOccurrenceId == value.Id));
+            Assert.Equal(replacementId, current.Id);
+            Assert.Equal(
+                (2, Evidence.LongLength + replacement.LongLength),
+                await ReadLinkTotalsAsync(context, link.LinkId));
+        }
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {

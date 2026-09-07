@@ -525,20 +525,19 @@ public sealed record RequestUploadPublicView(
         Files ?? Array.Empty<RequestUploadOccurrenceView>();
 }
 
+/// <param name="SupersededByOccurrenceId">
+/// The occurrence the sender sent in this one's place, or null while this is
+/// still one of the files being submitted. A superseded arrival is not deleted
+/// and not rewritten - it is the durable record of bytes custody answered for,
+/// and custody still holds them - but it is no longer a current file: it is
+/// rendered as replaced, it cannot be replaced again, and it neither blocks a
+/// finalization nor counts among the files the sender finished with.
+/// </param>
 public sealed record RequestUploadOccurrenceView(
     Guid Id,
     string FileName,
-    IncomingArtifactCustodyState CustodyState)
-{
-    /// <summary>
-    /// Whether this file still holds the submission open. Confirmed is done,
-    /// and Failed is an answer custody has given and will not revise, so
-    /// neither blocks a finalization; everything else is still in flight.
-    /// </summary>
-    public bool IsUnresolved =>
-        CustodyState is not (IncomingArtifactCustodyState.Confirmed
-            or IncomingArtifactCustodyState.Failed);
-}
+    IncomingArtifactCustodyState CustodyState,
+    Guid? SupersededByOccurrenceId = null);
 
 /// <summary>
 /// The one submission session a public link may have. The window is fixed, not
