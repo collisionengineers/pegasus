@@ -94,7 +94,6 @@ public sealed class EfRepairSpecificationStore(
             VatPercent = predecessor?.VatPercent ?? EstimatePolicy.DefaultVatPercent,
             RepairDays = predecessor?.RepairDays,
             LabourRate = predecessor?.LabourRate,
-            PaintLabourRate = predecessor?.PaintLabourRate,
             PaintMaterials = predecessor?.PaintMaterials,
             OtherCosts = predecessor?.OtherCosts,
             Notes = predecessor?.Notes,
@@ -281,7 +280,6 @@ public sealed class EfRepairSpecificationStore(
                 : name[..EstimatePolicy.MaximumNameLength],
             RepairDays = original.RepairDays,
             LabourRate = original.LabourRate,
-            PaintLabourRate = original.PaintLabourRate,
             PaintMaterials = original.PaintMaterials,
             OtherCosts = original.OtherCosts,
             VatPercent = original.VatPercent,
@@ -487,7 +485,6 @@ public sealed class EfRepairSpecificationStore(
         entity.Name = details.Name;
         entity.RepairDays = details.RepairDays;
         entity.LabourRate = details.LabourRate;
-        entity.PaintLabourRate = details.PaintLabourRate;
         entity.PaintMaterials = details.PaintMaterials;
         entity.OtherCosts = details.OtherCosts;
         entity.VatPercent = details.VatPercent;
@@ -629,7 +626,7 @@ public sealed class EfRepairSpecificationStore(
             entity.CalculationPolicyVersion!) : null,
         entity.CreatedBy, entity.CreatedAtUtc, entity.AcceptedBy, entity.AcceptedAtUtc,
         entity.SupersedesSpecificationId, entity.SupersessionReason,
-        new(entity.Name, entity.RepairDays, entity.LabourRate, entity.PaintLabourRate,
+        new(entity.Name, entity.RepairDays, entity.LabourRate, null,
             entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes),
         entity.IsCurrent, entity.AiJobId, entity.DiscardReason);
 

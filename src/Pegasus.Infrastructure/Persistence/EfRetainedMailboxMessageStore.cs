@@ -49,6 +49,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             SenderDisplayName = message.Metadata.SenderDisplayName,
             ToAddressesJson = JsonSerializer.Serialize(message.Metadata.ToAddresses, JsonOptions),
             CcAddressesJson = JsonSerializer.Serialize(message.Metadata.CcAddresses, JsonOptions),
+            ReplyToAddressesJson = JsonSerializer.Serialize(message.Metadata.ReplyToAddresses, JsonOptions),
             Subject = message.Metadata.Subject,
             BodyExcerpt = Excerpt(message.Metadata.BodyPlainText),
             BodyPlainText = message.Metadata.BodyPlainText,
@@ -285,6 +286,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             summary,
             Deserialize(entity.ToAddressesJson),
             Deserialize(entity.CcAddressesJson),
+            entity.ReplyToAddressesJson is null
+                ? null
+                : Deserialize(entity.ReplyToAddressesJson),
             body,
             entity.Attachments
                 .OrderBy(item => item.Ordinal)
@@ -300,6 +304,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                 ? ParseClassificationOutcome(classification)
                 : null,
             receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
+            entity.ImmutableMessageId,
+            entity.InternetMessageIdentity,
+            entity.ConversationIdentity,
             await LoadClassificationAsync(context, id, cancellationToken));
     }
 

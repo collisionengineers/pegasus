@@ -749,10 +749,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CaseId", "AcceptedAtUtc");
+
                     b.HasIndex("CaseId", "SnapshotHash")
                         .IsUnique();
-
-                    b.HasIndex("CaseId", "AcceptedAtUtc");
 
                     b.ToTable("AppliedValuationSnapshots", (string)null);
                 });
@@ -950,8 +950,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ApprovedMailboxes", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                             t.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
+
+                            t.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                         });
 
                     b.HasData(
@@ -2339,10 +2340,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasPrecision(7, 4)
                         .HasColumnType("decimal(7,4)");
 
-                    b.Property<decimal?>("PaintLabourRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal?>("PaintMaterials")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -3270,10 +3267,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("PendingContentStorageKey")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<long>("ContentLength")
                         .HasColumnType("bigint");
 
@@ -3308,6 +3301,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PendingContentStorageKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("RemovalOperationKey")
                         .HasMaxLength(256)
@@ -6453,6 +6450,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReplyToAddressesJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset>("RetainedAtUtc")
                         .HasColumnType("datetimeoffset");

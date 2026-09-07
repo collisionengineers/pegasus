@@ -7,6 +7,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
@@ -90,6 +91,21 @@ public sealed class ProductionCompositionTests
         Assert.Single(provider.GetServices<ICaseCustody>());
         Assert.Single(provider.GetServices<IDocumentContentStore>());
         Assert.Single(provider.GetServices<IIntakeArtifactStore>());
+    }
+
+    [Fact]
+    public void ProductionProfileSharesOperationsSnapshotWithAttentionRows()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var snapshot = services.GetRequiredService<GetOperationsSnapshot>();
+
+        Assert.Same(snapshot, services.GetRequiredService<IGetOperationsSnapshot>());
+        Assert.Same(snapshot, services.GetRequiredService<IGetAttentionRows>());
+        Assert.Single(services.GetServices<IGetOperationsSnapshot>());
+        Assert.Single(services.GetServices<IGetAttentionRows>());
     }
 
     [Fact]

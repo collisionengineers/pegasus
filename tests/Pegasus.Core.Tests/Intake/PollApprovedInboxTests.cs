@@ -397,6 +397,23 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task TooManyReplyToAddressesIsRefusedAsMalformedMetadata()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage(
+                "a-1",
+                "cursor-a1",
+                Metadata(replyToAddresses:
+                    [.. Enumerable.Range(0, 51).Select(index => $"reply{index}@example.invalid")])));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
     public async Task MissingInternetMessageIdentityIsRefusedAsMalformedMetadata()
     {
         var harness = new Harness(FirstMailbox);
@@ -451,7 +468,8 @@ public sealed class PollApprovedInboxTests
     private static RetainedMailboxMessageMetadata Metadata(
         string? subject = "An instruction",
         IReadOnlyList<string>? toAddresses = null,
-        string? internetMessageIdentity = "<message-1@example.invalid>") =>
+        string? internetMessageIdentity = "<message-1@example.invalid>",
+        IReadOnlyList<string>? replyToAddresses = null) =>
         new(
             "inbox-a",
             "conversation-1",
@@ -460,6 +478,7 @@ public sealed class PollApprovedInboxTests
             "A Sender",
             toAddresses ?? ["intake@collisionengineers.co.uk"],
             [],
+            replyToAddresses ?? ["sender@example.invalid"],
             subject,
             "Body",
             [new("estimate.pdf", "application/pdf", 2048)],
