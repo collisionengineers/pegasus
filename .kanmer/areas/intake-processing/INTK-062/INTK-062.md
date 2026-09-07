@@ -11,14 +11,14 @@ stageEntered:
 taken_at: '2026-09-07T21:30:17.097Z'
 branch: INTK-062-public-upload-bound
 worktree: .worktrees/intk-062
-claim_expires_at: '2026-09-07T22:00:17.098Z'
+claim_expires_at: '2026-09-07T22:06:07.252Z'
 claim_controller: principal_delivery_audit
 lease_id: d0b1cbfa-ae1b-4bd3-ad4d-4ff5fa94c265
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-062'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T21:30:17.097Z'
+lease_heartbeat_at: '2026-09-07T21:36:07.252Z'
 labels: []
 groups:
   - EPIC-014
@@ -28,7 +28,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-07T20:01:20.291Z'
-updated: '2026-09-07T21:30:17.097Z'
+updated: '2026-09-07T21:36:07.252Z'
 ---
 
 ## What
