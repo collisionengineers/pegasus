@@ -12,21 +12,20 @@ stageEntered:
 taken_at: '2026-09-07T22:04:42.073Z'
 branch: TICK-041-qualified-ocr
 worktree: .worktrees/tick-041
-claim_expires_at: '2026-09-07T23:11:59.932Z'
+claim_expires_at: '2026-09-07T23:22:44.315Z'
 claim_controller: codex-v1-remediation-root
 lease_id: 80597482-bbde-49de-afe1-a3a97a0d65c9
-lease_revision: 3
+lease_revision: 4
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: root-ocr
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-041'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T22:41:59.932Z'
+lease_heartbeat_at: '2026-09-07T22:52:44.315Z'
 labels:
   - capability
   - INT-16
   - now
-  - requires-live-approval
   - evidence-required
   - azure
   - ocr
@@ -48,7 +47,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-07T22:41:59.932Z'
+updated: '2026-09-07T22:52:46.594Z'
 ---
 
 ## What
@@ -72,8 +71,8 @@ INT-16 was previously allocated only to scan-like instruction pages. The operato
 
 ## Governing changes
 
-- Write the next-free ADR (currently ADR-0037 on `origin/dev`) and mark ADR-0001 superseded.
-- Update FRD-05, FRD-07 and capabilities INT-16/EXT-12 before implementation leaves Backlog.
+- Write ADR-0040 and mark ADR-0001 superseded; ADR-0039 belongs to release workstation support.
+- Update FRD-05, FRD-07 and capabilities INT-16/EXT-12 alongside the current OCR contract.
 - Leave ADR-0005 accepted for ordinary intake behavior.
 
 ## Verification
