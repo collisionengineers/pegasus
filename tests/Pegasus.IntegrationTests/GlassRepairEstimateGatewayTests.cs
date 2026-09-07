@@ -1433,7 +1433,7 @@ public sealed class GlassRepairEstimateGatewayTests
             }
 
             var consumed = current.Session.CallbackConsumedAtUtc
-                ?? (Awaiting(current.Session.State) && !Awaiting(session.State)
+                ?? (session.State == GlassRepairEstimateSessionState.Importing
                     ? timeProvider.GetUtcNow()
                     : null);
             Sessions[session.Id] = new(
@@ -1458,11 +1458,6 @@ public sealed class GlassRepairEstimateGatewayTests
                 or GlassRepairEstimateSessionState.AwaitingImport
                 or GlassRepairEstimateSessionState.Importing;
 
-        private static bool Awaiting(GlassRepairEstimateSessionState state) =>
-            state is GlassRepairEstimateSessionState.Prepared
-                or GlassRepairEstimateSessionState.Launching
-                or GlassRepairEstimateSessionState.Active
-                or GlassRepairEstimateSessionState.Unknown;
     }
 
     /// <summary>
