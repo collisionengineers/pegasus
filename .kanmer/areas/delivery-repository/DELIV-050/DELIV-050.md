@@ -11,17 +11,6 @@ stageEntered:
   review: '2026-09-07T23:43:38.044Z'
   verifying: '2026-09-07T23:47:21.174Z'
   done: '2026-09-07T23:52:13.608Z'
-taken_at: '2026-09-07T23:41:24.189Z'
-branch: DELIV-050-bootstrap-census
-worktree: .worktrees/deliv-050
-claim_expires_at: '2026-09-08T00:20:20.956Z'
-claim_controller: codex-v1-remediation-root
-lease_id: 82c1a50c-868f-4287-90cb-1fba8b1ca3f0
-lease_revision: 2
-lease_controller_run: 20260907T234022Z-bootstrap-census
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-050'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-07T23:50:20.956Z'
 labels: []
 groups:
   - EPIC-014
@@ -42,7 +31,7 @@ delivery_sha: 32ce9544caa475e121ffb0f261ec045d9c04b46a
 delivery_recorded_at: '2026-09-07T23:52:14.304Z'
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:52:14.304Z'
+updated: '2026-09-07T23:53:05.328Z'
 ---
 
 ## What
