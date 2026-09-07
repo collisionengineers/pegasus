@@ -61,13 +61,11 @@ endpoint outputs through platform/main for release readback.
 
 - src/**
 - infra/main.parameters.json
-- infra/modules/*.bicep other than the explicit platform file above
 - docs/operator-notes.md
 - corpus/**
 - pegasus_pack/glasses-integration/glass_ref_docs/**
 
-The explanatory module exception above is prose, not a wildcard permission:
-only the six Expected files are writable. No new module or project.
+Only the six Expected files are writable. No new module or project.
 
 ## Constraints
 

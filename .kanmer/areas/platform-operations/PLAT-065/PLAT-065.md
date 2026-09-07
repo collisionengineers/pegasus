@@ -23,11 +23,10 @@ blocks: []
 refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
-docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-07T23:01:32.665Z'
+updated: '2026-09-07T23:13:35.621Z'
 ---
 
 ## What
@@ -40,7 +39,7 @@ The current `rg-pegasus-prod` estate has no Document Intelligence resource. TICK
 
 ## Approach
 
-- Wait for TICK-041's accepted next-free ADR and provider-neutral OCR contract.
+- Integrate TICK-041's accepted ADR-0040 and existing OCR source-context contract before activation; its current candidate is recorded in research.
 - Provision the approved Document Intelligence account in the exact authorized region/resource group through existing Bicep conventions.
 - Grant only the Worker managed identity the minimum Cognitive Services data-plane role; do not use application-stored service keys.
 - Use `prebuilt-layout`, pin the GA API/model version, and retain response version/hash/confidence through the existing external-work evidence path.
