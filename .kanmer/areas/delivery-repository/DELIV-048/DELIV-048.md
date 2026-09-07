@@ -2,23 +2,24 @@
 id: DELIV-048
 type: ticket
 title: Restore Windows and Linux release workstation support
-status: implementing
+status: review
 area: delivery-repository
 assignee: principal_delivery_audit
 profile: fix
 stageEntered:
   preparing: '2026-09-07T20:56:46.944Z'
+  review: '2026-09-07T21:22:41.584Z'
 taken_at: '2026-09-07T20:58:55.907Z'
 branch: DELIV-048-portable-release
 worktree: .worktrees/deliv-048
-claim_expires_at: '2026-09-07T21:50:20.187Z'
+claim_expires_at: '2026-09-07T21:52:41.671Z'
 claim_controller: principal_delivery_audit
 lease_id: 3c8db85f-4398-4b63-9133-6f8a1b49830a
-lease_revision: 3
+lease_revision: 4
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-048'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T21:20:20.187Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-07T21:22:41.671Z'
 labels:
   - ci
   - tests
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/681'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-07T21:22:17.136Z'
+updated: '2026-09-07T21:22:41.671Z'
 ---
 
 ## What
