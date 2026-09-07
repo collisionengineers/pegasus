@@ -57,3 +57,5 @@ harness and missing-capture failures stay preserved alongside corrected
 passes. No new build/test/capture/CI/cloud/email was run in this preparation.
 No Done, cleanup, deployed correctness, visual PASS or full-tree equivalence
 is claimed. Whole-file proof remains pending root's executable evidence.
+
+7 September22:43 UTC: exact merged restore/build PASS139.38s, focused53 test cohort52 PASS/1 FAIL134s. Whole FAIL proof50597d092c61d794 read back; returned same ticket to Implementing. Source checkout is clean. `git fetch origin dev` passed; `git merge --ff-only origin/dev` refused with `fatal: Not possible to fast-forward, aborting` because integrated squash history differs from author branch. Wrapper later reads exited0, so that is not the merge's exit code or a merge PASS; no source changed. Preserve existing branch/history with ordinary merge of origin/dev instead of reset/rebase. Only planned follow-up behavior is the exact pending migration expectation.
