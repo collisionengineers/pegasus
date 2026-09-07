@@ -1718,6 +1718,8 @@ public static class OperatorLabels
         public const string RequestDropzone = "Drag a file here or choose one";
         public const string RequestChoose = "Choose file";
         public const string RequestSubmit = "Submit file";
+        public const string RequestReplace = "Replace";
+        public const string RequestFinish = "Finish";
 
         /// <summary>The request's own size limit, which is set per request.</summary>
         public static string RequestLimit(string maximumFileSize) =>

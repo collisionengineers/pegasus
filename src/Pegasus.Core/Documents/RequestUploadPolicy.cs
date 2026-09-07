@@ -340,11 +340,16 @@ public sealed record RequestUploadAuthorization(
 public sealed record UploadToRequestCommand(
     string Token,
     RequestUploadFile File,
-    int AttemptsInCurrentRateWindow);
+    int AttemptsInCurrentRateWindow,
+    Guid? ReplacementOccurrenceId = null);
 
 public sealed record UploadToRequestResult(
     RequestUploadDecision Decision,
     Guid? ReceiptId,
+    bool IsReplay);
+
+public sealed record FinalizeRequestUploadResult(
+    RequestUploadDecision Decision,
     bool IsReplay);
 
 /// <summary>
@@ -473,8 +478,8 @@ public static class RequestUploadOperationKey
 
 /// <summary>
 /// Everything the public page may know. It carries no request reference, no
-/// expiry and no Case identity - only the two limits the sender needs, and the
-/// operation key their next submission must use.
+/// expiry and no Case identity - only the limits, current session state and
+/// server-issued occurrence slots the sender needs for this submission.
 /// </summary>
 /// <param name="UnresolvedOperationKey">
 /// The key of a submission this link has already taken that has not resolved -
@@ -486,7 +491,18 @@ public static class RequestUploadOperationKey
 public sealed record RequestUploadPublicView(
     IReadOnlySet<string> AllowedMediaTypes,
     long MaximumFileBytes,
-    string? UnresolvedOperationKey = null);
+    string? UnresolvedOperationKey = null,
+    PublicUploadSessionState SessionState = PublicUploadSessionState.NotStarted,
+    IReadOnlyList<RequestUploadOccurrenceView>? Occurrences = null)
+{
+    public IReadOnlyList<RequestUploadOccurrenceView> Files =>
+        Occurrences ?? Array.Empty<RequestUploadOccurrenceView>();
+}
+
+public sealed record RequestUploadOccurrenceView(
+    Guid Id,
+    string FileName,
+    IncomingArtifactCustodyState CustodyState);
 
 /// <summary>
 /// The one submission session a public link may have. The window is fixed, not
@@ -669,6 +685,10 @@ public interface IUploadToRequest
 {
     Task<UploadToRequestResult> ExecuteAsync(
         UploadToRequestCommand command,
+        CancellationToken cancellationToken = default);
+
+    Task<FinalizeRequestUploadResult> FinalizeAsync(
+        string token,
         CancellationToken cancellationToken = default);
 }
 

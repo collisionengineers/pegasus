@@ -294,6 +294,78 @@ internal sealed class EfDocumentRequestStore(
             cancellationToken);
     }
 
+    async Task<FinalizeRequestUploadResult> IUploadToRequest.FinalizeAsync(
+        string token,
+        CancellationToken cancellationToken)
+    {
+        string digest;
+        try
+        {
+            digest = RequestUploadToken.ComputeDigest(token);
+        }
+        catch (ArgumentException)
+        {
+            return new(RequestUploadDecision.Unavailable, false);
+        }
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var link = await context.Set<RequestUploadLinkEntity>()
+            .SingleOrDefaultAsync(value => value.TokenDigest == digest, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        if (link is null
+            || !RequestUploadToken.Matches(token, link.TokenDigest)
+            || link.Status != RequestUploadStatus.Active
+            || link.RevokedAtUtc is not null
+            || link.ExpiresAtUtc <= now)
+        {
+            return new(RequestUploadDecision.Unavailable, false);
+        }
+        if (!string.Equals(link.LimitsVersion, uploadLimits.Version, StringComparison.Ordinal))
+        {
+            return new(RequestUploadDecision.LimitsVersionMismatch, false);
+        }
+
+        var session = await context.Set<PublicUploadSessionEntity>()
+            .SingleOrDefaultAsync(
+                value => value.RequestUploadLinkId == link.Id,
+                cancellationToken);
+        if (session is null)
+        {
+            return new(RequestUploadDecision.Unavailable, false);
+        }
+        if (session.FinalizedAtUtc is not null)
+        {
+            return new(RequestUploadDecision.Accepted, true);
+        }
+        if (!string.Equals(session.LimitsVersion, uploadLimits.Version, StringComparison.Ordinal))
+        {
+            return new(RequestUploadDecision.LimitsVersionMismatch, false);
+        }
+        if (await context.Set<PublicUploadOccurrenceEntity>().AnyAsync(
+            value => value.SessionId == session.Id
+                && value.CustodyState != EfPublicUploadRetentionStore.ConfirmedCode,
+            cancellationToken))
+        {
+            return new(RequestUploadDecision.NotRetained, false);
+        }
+
+        PublicUploadSession finalized;
+        try
+        {
+            finalized = PublicUploadSessionPolicy.Finalize(ToSession(session), now);
+        }
+        catch (InvalidOperationException)
+        {
+            return new(RequestUploadDecision.Unavailable, false);
+        }
+        session.FinalizedAtUtc = finalized.FinalizedAtUtc;
+        session.Version = finalized.Version;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(RequestUploadDecision.Accepted, false);
+    }
+
     /// <summary>
     /// Decides whether these bytes may be offered to custody and, if they may,
     /// commits the occurrence that addresses this arrival before any hand-over
@@ -396,11 +468,45 @@ internal sealed class EfDocumentRequestStore(
         var scopedOperationKey = EfPublicUploadRetentionStore.ScopeOperationKey(
             linkId,
             senderOperationKey);
-        var occurrence = await FindOccurrenceAsync(
-            context,
-            session.Id,
-            scopedOperationKey,
-            cancellationToken);
+        PublicUploadOccurrenceEntity? occurrence;
+        if (command.ReplacementOccurrenceId is { } replacementId)
+        {
+            if (await context.Set<PublicUploadOccurrenceEntity>().AnyAsync(
+                value => value.SessionId == session.Id
+                    && value.Id != replacementId
+                    && value.OperationKey == scopedOperationKey,
+                cancellationToken))
+            {
+                return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
+            }
+            occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+                .SingleOrDefaultAsync(
+                    value => value.Id == replacementId
+                        && value.SessionId == session.Id,
+                    cancellationToken);
+            if (occurrence is null
+                || occurrence.CustodyState != EfPublicUploadRetentionStore.ConfirmedCode)
+            {
+                return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
+            }
+
+            occurrence.OperationKey = scopedOperationKey;
+            occurrence.ProposedName = authorization.SafeFileName!;
+            occurrence.MediaType = command.File.MediaType.Trim();
+            occurrence.Size = command.File.Content.Length;
+            occurrence.Sha256 = authorization.ContentHash!;
+            occurrence.CustodyState = EfPublicUploadRetentionStore.ArrivedCode;
+            occurrence.DocumentId = null;
+            occurrence.DocumentVersionId = null;
+        }
+        else
+        {
+            occurrence = await FindOccurrenceAsync(
+                context,
+                session.Id,
+                scopedOperationKey,
+                cancellationToken);
+        }
         if (occurrence is not null
             && !string.Equals(
                 occurrence.Sha256,
@@ -799,12 +905,32 @@ internal sealed class EfDocumentRequestStore(
             .OrderBy(item => item.OperationKey)
             .Select(item => item.OperationKey)
             .FirstOrDefaultAsync(cancellationToken);
+        var session = await context.Set<PublicUploadSessionEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(value => value.RequestUploadLinkId == linkId, cancellationToken);
+        var occurrences = session is null
+            ? Array.Empty<RequestUploadOccurrenceView>()
+            : await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .Where(value => value.SessionId == session.Id
+                    && value.CustodyState == EfPublicUploadRetentionStore.ConfirmedCode)
+                .OrderBy(value => value.ProposedName)
+                .ThenBy(value => value.Id)
+                .Select(value => new RequestUploadOccurrenceView(
+                    value.Id,
+                    value.ProposedName,
+                    IncomingArtifactCustodyState.Confirmed))
+                .ToArrayAsync(cancellationToken);
         return new(
             uploadLimits.AllowedMediaTypes,
             uploadLimits.MaximumFileBytes,
             unresolved is null
                 ? null
-                : EfPublicUploadRetentionStore.UnscopeOperationKey(linkId, unresolved));
+                : EfPublicUploadRetentionStore.UnscopeOperationKey(linkId, unresolved),
+            session is null
+                ? PublicUploadSessionState.NotStarted
+                : PublicUploadSessionPolicy.Evaluate(ToSession(session), timeProvider.GetUtcNow()),
+            occurrences);
     }
 
     private static async Task<CaseWorkflowEntity> RequireWorkflowAsync(
