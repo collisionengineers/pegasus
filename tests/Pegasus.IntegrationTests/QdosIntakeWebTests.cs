@@ -233,7 +233,7 @@ public sealed class QdosIntakeWebTests
             && item.Signal == "established-principal");
         var instructionDate = Assert.Single(receipt.Fields, field => field.Name == "Instruction date");
         Assert.False(instructionDate.IsDefaulted);
-        Assert.Equal("2026-07-10", instructionDate.SuggestedValue);
+        Assert.Equal("10 July 2026", instructionDate.SuggestedValue);
         Assert.Equal(new DateOnly(2026, 7, 10), draft.InstructionDate);
         Assert.Null(receipt.CurrentCaseId);
         Assert.Null(receipt.CurrentCaseReference);
