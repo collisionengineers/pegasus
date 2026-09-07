@@ -2,7 +2,7 @@
 id: MAIL-036
 type: ticket
 title: Preserve the wipe-time email cutoff across Graph replay
-status: verifying
+status: done
 area: mail-communications
 assignee: codex-mcp-client
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-07T20:18:52.479Z'
   review: '2026-09-07T20:44:41.973Z'
   verifying: '2026-09-07T20:50:44.730Z'
+  done: '2026-09-07T21:05:06.369Z'
 taken_at: '2026-09-07T20:22:58.731Z'
 branch: MAIL-036-wipe-boundary
 worktree: .worktrees/mail-036
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/678'
 archived: false
 created: '2026-09-07T20:01:20.357Z'
-updated: '2026-09-07T21:01:06.463Z'
+updated: '2026-09-07T21:05:06.369Z'
 ---
 
 ## What
