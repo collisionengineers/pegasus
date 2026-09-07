@@ -2,11 +2,13 @@
 id: TICK-085
 type: ticket
 title: Complete Glass's repair-estimate import from a representative export
-status: backlog
+status: preparing
 area: engineering-assessment
 order: 1140
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-07T21:28:21.905Z'
 labels:
   - capability
   - EXT-12
@@ -27,7 +29,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-03T15:15:29.297Z'
+updated: '2026-09-07T21:28:21.905Z'
 ---
 
 ## What
