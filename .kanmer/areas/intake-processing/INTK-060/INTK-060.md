@@ -26,9 +26,13 @@ labels:
 links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - 49f05128abf840195cd587f8a14c1d1bb39493fd
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/673'
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T04:58:44.735Z'
+updated: '2026-09-07T05:00:31.637Z'
 ---
 
 ## What
