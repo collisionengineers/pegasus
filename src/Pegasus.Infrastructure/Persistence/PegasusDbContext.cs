@@ -456,10 +456,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DefaultInspectionPostcode).HasMaxLength(20);
             entity.Property(item => item.DefaultInspectionSourceKind).HasMaxLength(40);
             entity.Property(item => item.DefaultInspectionSourceRecordId).HasMaxLength(200);
-            // EXT-04: both default off, so adding the columns switches nothing
-            // on. They are independent by operator decision, which makes
-            // automatic-without-manual legal - that principal submits
-            // unattended and has no button.
+            // Manual EVA submission is opt-in for each principal.
             entity.Property(item => item.EvaManualSubmission)
                 .IsRequired()
                 .HasDefaultValue(false);
