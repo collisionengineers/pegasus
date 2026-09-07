@@ -37,6 +37,8 @@ public sealed record StaffMailOperation(
     DateTimeOffset? ObservedSentAtUtc, string? FailureCode,
     Guid ApprovedMailboxId, long MailboxGeneration, string PayloadHash,
     DateTimeOffset? AttemptRequestedAtUtc, DateTimeOffset? UploadSessionExpiresAtUtc,
+    StaffMailPurpose Purpose, Guid ContextId, long ExpectedContextVersion,
+    Guid? OriginalRetainedMessageId,
     string? ReconciliationContinuation = null,
     string? DraftImmutableId = null);
 
