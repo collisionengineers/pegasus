@@ -607,27 +607,34 @@ internal sealed class EfDocumentRequestStore(
     }
 
     /// <summary>
-    /// Points one already-committed occurrence at a different file the sender
-    /// has sent in its place, and returns the arrival that may now be offered
-    /// to custody.
+    /// Records a file the sender has sent in place of one already in this
+    /// session, and returns the arrival that may now be offered to custody.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// round 2: R-1/R-5 of the C07 source review replace this in-place
-    /// transition with a new occurrence row carrying its own server-issued
-    /// identity and a <c>ReplacesOccurrenceId</c> column, so the superseded
-    /// arrival keeps the state and the identities custody gave it and both
-    /// sets of bytes stay inside the link's accepted totals. That column is a
-    /// Stream A schema hand-off (PR 673) and lands with it.
+    /// A replacement never rewrites the occurrence it names. The occurrence is
+    /// immutable by contract - it is the server-issued identity that addresses
+    /// one arrival, and custody's answer about that arrival is written on it -
+    /// so the replacement is a <em>new</em> row with its own identity and its
+    /// own operation key, and the superseded row keeps the state and the
+    /// document identities custody gave it. Nothing transitions out of
+    /// confirmed or failed, which is the rule
+    /// <see cref="EfPublicUploadRetentionStore.ForwardSourceCodes"/> exists to
+    /// state.
     /// </para>
     /// <para>
-    /// Until then the transition is at least decided by the database. The
-    /// occurrence row carries no concurrency token, so a read-modify-write
-    /// would let two simultaneous replacements of one slot both pass their
-    /// check and both write; the conditional update below names the expected
-    /// prior state and digest in its WHERE - the same idiom as
-    /// <see cref="EfPublicUploadRetentionStore.TryClaimHandOverAsync"/> - and
-    /// rows affected is the whole of the decision.
+    /// Two things follow. Custody is offered a fresh occurrence identity, so
+    /// the document it creates for these bytes is its own rather than a second
+    /// one under an identity that already names a document - which
+    /// <c>CaseDocuments (CaseId, SourceOccurrenceIdentity)</c> is unique on and
+    /// would refuse. And the link's derived totals count both sets of bytes,
+    /// because custody holds both: the per-link limits go on bounding what one
+    /// public link can push into custody.
+    /// </para>
+    /// <para>
+    /// The addressed occurrence must be in an addressable state - an answer
+    /// custody has given. Replacing one that is still in flight would race the
+    /// hand-over carrying it, so it is refused typed rather than raced.
     /// </para>
     /// </remarks>
     private static async Task<ArrivalDecision> ReplaceAsync(
@@ -642,103 +649,84 @@ internal sealed class EfDocumentRequestStore(
         string scopedOperationKey,
         CancellationToken cancellationToken)
     {
-        var occurrences = context.Set<PublicUploadOccurrenceEntity>();
-        var replaced = await occurrences
+        var superseded = await context.Set<PublicUploadOccurrenceEntity>()
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 value => value.Id == replacementId && value.SessionId == sessionId,
                 cancellationToken);
-        if (replaced is null)
+        if (superseded is null)
         {
             // The one thing Unavailable may mean here: the addressed slot is
             // not in this link's session, and nothing more can be said about
             // it without disclosing a session that is not the sender's.
             return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
         }
-        if (await occurrences.AnyAsync(
-            value => value.SessionId == sessionId
-                && value.Id != replacementId
-                && value.OperationKey == scopedOperationKey,
-            cancellationToken))
+        if (superseded.CustodyState is not (EfPublicUploadRetentionStore.ConfirmedCode
+            or EfPublicUploadRetentionStore.FailedCode))
         {
+            // Custody has not answered for the addressed slot. Replacing it
+            // now would race the hand-over that is carrying it, so the sender
+            // is refused typed and told to reload rather than raced. The slot
+            // is in this session, so this is never Unavailable.
             return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
         }
 
-        var contentHash = authorization.ContentHash!;
-        if (EfPublicUploadRetentionStore.UnresolvedCodes.Contains(replaced.CustodyState)
-            && string.Equals(replaced.OperationKey, scopedOperationKey, StringComparison.Ordinal)
-            && string.Equals(replaced.Sha256, contentHash, StringComparison.Ordinal))
+        // The slot this replacement's own arrival lives in: a new one, or the
+        // one an earlier attempt already committed under this operation key. A
+        // repeat - a double submit, a browser retry, a lost response - finds
+        // that row, writes nothing, and reconciles the arrival through the
+        // same-key path rather than committing a second one.
+        var arrival = await FindOccurrenceAsync(
+            context,
+            sessionId,
+            scopedOperationKey,
+            cancellationToken);
+        if (arrival is null)
         {
-            // This exact replacement again while custody has not answered: a
-            // double submit, a browser retry, a lost response. The row already
-            // records the arrival, so nothing is written and the hand-over
-            // reconciles it under the same operation key. Refusing here would
-            // 404 a link that is perfectly alive.
-            return ArrivalDecision.Accept(new(
-                link.Id,
-                link.CaseId,
-                sessionId,
-                replaced.Id,
-                senderOperationKey,
-                scopedOperationKey,
-                replaced.ProposedName,
-                replaced.MediaType,
-                replaced.Size,
-                replaced.Sha256));
+            arrival = new()
+            {
+                Id = Guid.NewGuid(),
+                SessionId = sessionId,
+                OperationKey = scopedOperationKey,
+                ProposedName = authorization.SafeFileName!,
+                MediaType = command.File.MediaType.Trim(),
+                Size = command.File.Content.Length,
+                Sha256 = authorization.ContentHash!,
+                // Not a custody state: the bytes have not been offered yet.
+                CustodyState = EfPublicUploadRetentionStore.ArrivedCode
+
+                // round 2 (R-1b): ReplacesOccurrenceId = replacementId, once
+                // Stream A publishes that column on PublicUploadOccurrences
+                // (PR 673). It records which slot this row supersedes, which
+                // is the only thing missing here: until it exists the session
+                // lists both rows with the states custody gave them, which is
+                // true but does not say that one replaced the other.
+            };
+            context.Add(arrival);
         }
-        if (!string.Equals(
-            replaced.CustodyState,
-            EfPublicUploadRetentionStore.ConfirmedCode,
+        else if (!string.Equals(
+            arrival.Sha256,
+            authorization.ContentHash,
             StringComparison.Ordinal))
         {
-            // Neither the replay above nor a slot custody has confirmed.
-            // Replacing an arrival that is still in flight would race the
-            // hand-over carrying it, and a refused one is an answer custody
-            // has given.
+            // The same operation key carrying different bytes. The key names
+            // one deliberate submission of one exact file, and this is not it.
             return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
         }
 
-        var priorDigest = replaced.Sha256;
-        var proposedName = authorization.SafeFileName!;
-        var mediaType = command.File.MediaType.Trim();
-        long size = command.File.Content.Length;
-        var moved = await occurrences
-            .Where(value => value.Id == replacementId
-                && value.CustodyState == EfPublicUploadRetentionStore.ConfirmedCode
-                && value.Sha256 == priorDigest)
-            .ExecuteUpdateAsync(
-                update => update
-                    .SetProperty(value => value.OperationKey, scopedOperationKey)
-                    .SetProperty(value => value.ProposedName, proposedName)
-                    .SetProperty(value => value.MediaType, mediaType)
-                    .SetProperty(value => value.Size, size)
-                    .SetProperty(value => value.Sha256, contentHash)
-                    .SetProperty(
-                        value => value.CustodyState,
-                        EfPublicUploadRetentionStore.ArrivedCode)
-                    .SetProperty(value => value.DocumentId, (Guid?)null)
-                    .SetProperty(value => value.DocumentVersionId, (Guid?)null),
-                cancellationToken);
-        if (moved != 1)
-        {
-            // Another replacement of this slot won it. Rows affected is the
-            // whole answer, so the loser is refused rather than overwriting
-            // what the winner committed.
-            return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
-        }
-
+        await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ArrivalDecision.Accept(new(
             link.Id,
             link.CaseId,
             sessionId,
-            replacementId,
+            arrival.Id,
             senderOperationKey,
             scopedOperationKey,
-            proposedName,
-            mediaType,
-            size,
-            contentHash));
+            arrival.ProposedName,
+            arrival.MediaType,
+            arrival.Size,
+            arrival.Sha256));
     }
 
     /// <summary>
