@@ -170,6 +170,35 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains("AB12 CDE", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task NotificationFailureDoesNotPreventThePageFromRendering()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetAttentionRows>();
+                services.AddSingleton<IGetAttentionRows>(new UnavailableAttentionRows());
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Notifications unavailable.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No notifications", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("sensitive store failure", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
+    }
+
+    private sealed class UnavailableAttentionRows : IGetAttentionRows
+    {
+        public Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
+            Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("sensitive store failure");
+    }
+
     private sealed class StubAttentionRows(IReadOnlyList<NeedsAttentionItem> rows) : IGetAttentionRows
     {
         public Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
