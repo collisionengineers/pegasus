@@ -3,8 +3,8 @@
 ## Summary
 Implementation candidate on DOCS-020-report-consistency, based on dev
 2e50fde474ce35eb32eff8677eb2327cb6aad272, in .worktrees/docs-020.
-Not committed, reviewed, tested or merged. The parent-directed stop is the
-focused-verifier handoff before PR/Review.
+Root's focused verification is complete; independent review and merge remain
+pending. The parent has now authorized commit/push and PR to dev, then Review.
 
 The report source now captures the Case version before component reads,
 checks workspace and final versions, and the freeze transaction requires the
@@ -74,8 +74,8 @@ kanmer-review then reviews the exact head. Post-merge proof belongs on configure
 integration branch dev, not the stale main wording of the report template.
 
 ## Risks / follow-ups
-All changed behavior and tests remain unexecuted until the root verifier reports
-their exit codes. No deployed correctness claim is made. Keep this worktree and
+Root's final focused validation is recorded below; this is not deployment or
+independent review evidence. No deployed correctness claim is made. Keep this worktree and
 lease as the exact resume target. Root owns any necessary UI capture artifacts.
 INTK-061 and PLAT-028 remain disjoint; neither EfDocumentRequestStore nor
 Core/Cases/CaseContracts was edited. No out-of-scope implementation was started.
@@ -113,3 +113,24 @@ TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor as
 the owner and will run only that capture into the retained artifact folder,
 then refresh/verify snapshots, catalogue and grants. No author source changes.
 The earlier failure remains recorded; the rerun is pending.
+
+## Final root verification — 2026-09-07
+
+Root owns all executable verification. The final incremental Release build
+passed, exit 0, zero warnings/errors, 45.74 s. The focused rerun of only the five
+previously failed test cases plus the missing Razor capture passed 6/6, exit 0,
+52 s. These complement the 143 passed cases in the earlier 148-case run; the
+five failures and their harness cause remain recorded above, not erased.
+
+- Snapshot update: 2 PASS, 538 ms; fresh captured case-details default,
+  conflict and unavailable plus index. Normalized bytes equal their existing
+  tracked versions, so Git may record no snapshot-content diff.
+- Snapshot verification: 2 PASS, 10 s.
+- UI catalogue: PASS, 62 routes, 69 prototypes, zero broken references.
+- Migration-grant check: PASS, 101 migrations.
+- Repository-configured git diff --check: PASS, exit 0.
+
+No manual visual pass is claimed. No author build/test/cloud/email run occurred.
+Root explicitly directed [skip ci] on this scoped branch commit to avoid a
+second duplicate heavy build; independent reviewer must inspect current checks
+and the recorded local evidence and must not silently bypass a required check.
