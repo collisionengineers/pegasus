@@ -118,8 +118,8 @@ the accepted numbers and their qualification.
    The repository's deployment configuration and dated live evidence are
    separate from this accepted source policy and remain owned by
    [operations](operations.md). Existing links are bound to the limits version
-   and lifetime recorded when issued; changing either requires the defined
-   reissue/successor path rather than silently reinterpreting the link.
+   and lifetime recorded when issued; a mismatch fails closed, after which
+   staff may issue a new link through the existing Case action.
 
 2. **External credential ownership** — For each credential (Box, DVLA/DVSA, any
    VRM service, the Exchange application RBAC grant): the named operations owner
