@@ -488,14 +488,14 @@ internal sealed class EfDocumentRequestStore(
         var reservation = scopedSenderOperationKey is null
             ? null
             : await (
-                from session in context.Set<PublicUploadSessionEntity>().AsNoTracking()
-                join occurrence in context.Set<PublicUploadOccurrenceEntity>().AsNoTracking()
-                    on session.Id equals occurrence.SessionId
-                where session.RequestUploadLinkId == linkId
-                    && occurrence.OperationKey == scopedSenderOperationKey
+                from reservedSession in context.Set<PublicUploadSessionEntity>().AsNoTracking()
+                join reservedOccurrence in context.Set<PublicUploadOccurrenceEntity>().AsNoTracking()
+                    on reservedSession.Id equals reservedOccurrence.SessionId
+                where reservedSession.RequestUploadLinkId == linkId
+                    && reservedOccurrence.OperationKey == scopedSenderOperationKey
                     && EfPublicUploadRetentionStore.ProspectiveOrRetainedCodes
-                        .Contains(occurrence.CustodyState)
-                select new { occurrence.Sha256, occurrence.Size })
+                        .Contains(reservedOccurrence.CustodyState)
+                select new { reservedOccurrence.Sha256, reservedOccurrence.Size })
                 .SingleOrDefaultAsync(cancellationToken);
         var policyLink = ToUploadLink(link);
         if (priorReceipt is null && reservation is not null)
