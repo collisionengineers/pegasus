@@ -987,40 +987,27 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
         var receiptId = Guid.NewGuid();
         var assetId = Guid.NewGuid();
-        context.Add(new IntakeReceiptEntity
-        {
-            Id = receiptId,
-            SourceFileName = "ocr-permission.eml",
-            MediaType = "message/rfc822",
-            SourceLength = 1,
-            SourceHash = new string('A', 64),
-            SourceChannel = "manual_upload",
-            ExternalReceiptToken = $"ocr-permission:{receiptId:N}",
-            ReceivedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
-            ProcessedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 31, 0, TimeSpan.Zero),
-            SourceReaderKey = "runtime-role-test",
-            SourceReaderVersion = "1",
-            Version = 0,
-            Decision = "retained",
-            DecisionReason = "runtime role permission fixture",
-            EvidenceJson = "[]",
-            FieldsJson = "{}",
-            OcrCandidatesJson = "[]"
-        });
-        context.Add(new IntakeAssetEntity
-        {
-            Id = assetId,
-            IntakeReceiptId = receiptId,
-            SourceLabel = "attachment",
-            FileName = "evidence.pdf",
-            MediaType = "application/pdf",
-            Kind = "attachment",
-            Disposition = "retained",
-            ContentLength = 1,
-            ContentHash = new string('B', 64),
-            StorageKey = $"runtime-role/{assetId:N}"
-        });
-        await context.SaveChangesAsync();
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO [dbo].[IntakeReceipts] (
+                [Id], [SourceFileName], [MediaType], [SourceLength], [SourceHash],
+                [SourceChannel], [ExternalReceiptToken], [ReceivedAtUtc], [ProcessedAtUtc],
+                [SourceReaderKey], [SourceReaderVersion], [Version], [Decision],
+                [DecisionReason], [EvidenceJson], [FieldsJson], [OcrCandidatesJson])
+            VALUES (
+                '{receiptId:D}', N'ocr-permission.eml', N'message/rfc822', 1,
+                REPLICATE(N'A', 64), N'manual_upload', N'ocr-permission:{receiptId:N}',
+                '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00',
+                N'runtime-role-test', N'1', 0, N'retained',
+                N'runtime role permission fixture', N'[]', N'{{}}', N'[]');
+            INSERT INTO [dbo].[IntakeAssets] (
+                [Id], [IntakeReceiptId], [SourceLabel], [FileName], [MediaType],
+                [Kind], [Disposition], [ContentLength], [ContentHash], [StorageKey])
+            VALUES (
+                '{assetId:D}', '{receiptId:D}', N'attachment', N'evidence.pdf',
+                N'application/pdf', N'attachment', N'retained', 1,
+                REPLICATE(N'B', 64), N'runtime-role/{assetId:N}');
+            """);
 
         var operationId = Guid.NewGuid();
         var workId = Guid.NewGuid();
