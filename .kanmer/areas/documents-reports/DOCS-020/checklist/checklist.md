@@ -13,10 +13,10 @@ and the implementation report.
 
 ## Closeout — DOCS-020
 
-- [ ] PR merge verified (both PR682 and PR685 exact GitHub records).
-- [ ] proof.md finalised with merge identity/date and retained TRX paths.
+- [x] PR merge verified (both PR682 and PR685 exact GitHub records).
+- [x] proof.md finalised with merge identity/date and retained TRX paths.
 - [x] Moved to final stage after root whole-PASS approval.
-- [ ] Outcome and reachable integration SHAs recorded in ticket body.
+- [x] Outcome and reachable integration SHAs recorded in ticket body.
 - [ ] Three hash-verified TRXs retained before removing only three owned clean worktrees.
 - [ ] Merged local/remote branch removed after exact ownership/content checks.
 - [ ] Fetch/prune and worktree census show no owned residue.

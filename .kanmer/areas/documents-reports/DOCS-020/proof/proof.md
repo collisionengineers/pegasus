@@ -175,3 +175,23 @@ Kanmer-verify required exact merged source binding, preserved failure
 history and honest evidence reuse. Root whole-proof read is next; retain
 both detached worktrees, author branch/worktree, claims and all TRX records
 until separate Done/closeout authority.
+
+
+## Closeout evidence retention
+
+Root fully read and accepted PASS7231e7c73e129f2c, then explicitly authorized
+Done and cleanup. This metadata-only addition does not change that verdict.
+[PR682](https://github.com/collisionengineers/pegasus/pull/682) merged
+2026-09-07T21:50:54Z; [PR685](https://github.com/collisionengineers/pegasus/pull/685)
+merged2026-09-07T22:53:39Z. Both exact merge SHAs remain reachable on dev.
+
+Before deleting any worktree, all three TRXs above were copied to the ignored
+pegasus_pack/current/proofs/DOCS-020/ directory, under their same filenames.
+Every copied SHA256 equals the full corresponding hash in the table above.
+These retained paths replace the disposable worktree log locations for later
+inspection; original FAIL and correction evidence remain recoverable.
+
+Cleanup guard initially refused the old detached worktree because a PowerShell
+empty native branch result was compared as a scalar string. No delete ran.
+Explicit symbolic-ref exit1 plus empty joined output, exact root/HEAD/common
+Git and clean status then passed; all evidence copies were hash-verified.

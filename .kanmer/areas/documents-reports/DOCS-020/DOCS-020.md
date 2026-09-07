@@ -32,15 +32,19 @@ links:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 commits:
-  - 1bf9ac613a2b7610d2ddc23e8acfd9f4b462ef79
   - 522e67f270ab4d6086d9fba04095988db3598888
-  - 2b1d700ba70336560934b171fa623d8c66df5559
+  - 4d7ad4a0d2593300fd02527838aa2f1cf6555860
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/682'
   - 'https://github.com/collisionengineers/pegasus/pull/685'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 4d7ad4a0d2593300fd02527838aa2f1cf6555860
+delivery_recorded_at: '2026-09-07T23:21:37.118Z'
 archived: false
 created: '2026-09-07T19:58:09.568Z'
-updated: '2026-09-07T23:18:03.038Z'
+updated: '2026-09-07T23:21:37.118Z'
 ---
 
 ## What
@@ -52,3 +56,7 @@ Repair PR675 report review findings: freeze report inputs from one guarded Case 
 Focused existing persistence tests cover a concurrent source mutation, adding/removing source documents, changing eligibility/name/qualifications/signature and refusing stale delivery. A BST-midnight test proves report dates. No new framework or domain policy owner. Current operator permission includes implementation, merge and deployment; return an independently reviewable PR.
 
 ## Outcome
+
+Integrated and accepted on dev through [PR682](https://github.com/collisionengineers/pegasus/pull/682) merge522e67f270ab4d6086d9fba04095988db3598888 and test-only [PR685](https://github.com/collisionengineers/pegasus/pull/685) merge4d7ad4a0d2593300fd02527838aa2f1cf6555860. Root read whole PASS proof7231e7c73e129f2c and approved Done/closeout. Report snapshots now guard consistent source/version/signatory inputs, invalidate material changes atomically and use London dates; actual-role and focused runtime checks passed. Original failed migration-list consumer and all earlier compiler/harness/capture failures remain recorded; the test-only correction passed on its exact follow-up merge and unchanged52 passes were reused only with source evidence.
+
+Not deployed; no live report delivery or manual visual PASS. No new follow-up required for this bounded fix; related [[CASE-047]] remains context. All three hash-verified TRXs retained in ignored pegasus_pack/current/proofs/DOCS-020 before scoped Git cleanup. Unreachable squash author SHAs remain in report/review history, not the delivered commit list.
