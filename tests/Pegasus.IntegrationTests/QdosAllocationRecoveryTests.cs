@@ -765,6 +765,7 @@ public sealed class QdosAllocationRecoveryTests
             allocateIntake,
             clock,
             services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
+            services.GetRequiredService<IIntakeOcrOperationStore>(),
             automaticMailCaseAssociation: automaticMailCaseAssociation);
 
     private sealed class RecordingProviderAssociationStore(List<string> events)
