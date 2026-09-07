@@ -11,40 +11,6 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
-/// A resume that can also carry the Case edit authority the canonical import
-/// needs.
-/// </summary>
-/// <remarks>
-/// <see cref="IGlassRepairEstimateGateway.ResumeAsync"/> names only the session,
-/// which is everything a provider-side resume needs — signing in again and
-/// re-opening the operator's calculation writes nothing to the Case. Finishing
-/// an <see cref="GlassRepairEstimateSessionState.AwaitingImport"/> session does
-/// write to the Case, so it needs the version and lease the Engineer has just
-/// regained, and the shared contract has nowhere to put them.
-/// </remarks>
-public sealed record GlassRepairEstimateResumeRequest(
-    ActionActor Actor,
-    Guid SessionId,
-    long ExpectedVersion,
-    long? ExpectedCaseVersion = null,
-    string? LeaseToken = null);
-
-/// <summary>
-/// The operator's Save &amp; Exit as it arrived: the correlated callback and
-/// the provider's own query string, untouched.
-/// </summary>
-/// <remarks>
-/// The raw query is the message Glass's relays back to itself — it carries
-/// <c>Total</c>, <c>DoSave</c> and <c>ErrMsg</c>, and re-encoding it would
-/// change what the provider verifies — so it travels verbatim and is the thing
-/// a duplicate delivery is compared against.
-/// <see cref="GlassRepairEstimateCallback"/> has no field for it.
-/// </remarks>
-public sealed record GlassRepairEstimateCallbackDelivery(
-    GlassRepairEstimateCallback Callback,
-    string RawQuery);
-
-/// <summary>
 /// Runs one Glass's Repair Estimate session for a Case: launch, resume, and the
 /// operator's Save &amp; Exit through to a source-labelled Draft (CASE-047 B04).
 ///
@@ -254,10 +220,6 @@ public sealed class GlassRepairEstimateGateway(
                 : null;
     }
 
-    public Task<GlassRepairEstimateSession> ResumeAsync(
-        ActionActor actor, Guid sessionId, long expectedVersion, CancellationToken cancellationToken) =>
-        ResumeAsync(new GlassRepairEstimateResumeRequest(actor, sessionId, expectedVersion), cancellationToken);
-
     /// <summary>
     /// Picks a session back up. A live session is re-opened at the provider —
     /// fresh cookies, the grid selection re-asserted because it is server-side
@@ -356,41 +318,22 @@ public sealed class GlassRepairEstimateGateway(
     }
 
     /// <summary>
-    /// Reports what a correlated callback already produced. Acting on one needs
-    /// the provider's own query, which
-    /// <see cref="GlassRepairEstimateCallback"/> has no field for, so this
-    /// answers a replay from the record and refuses to guess anything else.
-    /// </summary>
-    public async Task<GlassRepairEstimateSession> CompleteAsync(
-        GlassRepairEstimateCallback callback, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(callback);
-        var material = await RequireCorrelatedAsync(callback, cancellationToken);
-        return material.Session.CallbackConsumedAtUtc is not null
-            ? material.Session
-            : throw new InvalidOperationException(
-                "Completing a Glass's session needs the provider's own callback query; deliver it through "
-                + $"{nameof(GlassRepairEstimateCallbackDelivery)}.");
-    }
-
-    /// <summary>
     /// The operator's Save &amp; Exit, end to end: prove the correlation, relay
     /// the provider's message back to it, export and download the calculation,
     /// read it, reconcile it against the vehicle this session launched for,
     /// retain both artifacts, and land the estimate as a Draft.
     /// </summary>
     public async Task<GlassRepairEstimateSession> CompleteAsync(
-        GlassRepairEstimateCallbackDelivery delivery, CancellationToken cancellationToken)
+        GlassRepairEstimateCallback callback, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(delivery);
-        ArgumentNullException.ThrowIfNull(delivery.RawQuery);
-        var callback = delivery.Callback;
+        ArgumentNullException.ThrowIfNull(callback);
+        ArgumentNullException.ThrowIfNull(callback.RawQuery);
         RepairSpecificationPolicy.RequireEngineer(callback.Actor);
         var material = await RequireCorrelatedAsync(callback, cancellationToken);
         var session = material.Session;
         var provider = Unprotect(material.ProtectedProviderState);
         var results = Deserialize(material.ResultArtifactsJson);
-        var queryDigest = Sha256Hex(delivery.RawQuery);
+        var queryDigest = Sha256Hex(callback.RawQuery);
 
         if (session.CallbackConsumedAtUtc is not null)
         {
@@ -427,7 +370,7 @@ public sealed class GlassRepairEstimateGateway(
             // off; the session it opened is no longer this Engineer's to finish.
             return await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken);
         }
-        if (Query(delivery.RawQuery, "DoSave") != "1")
+        if (Query(callback.RawQuery, "DoSave") != "1")
         {
             return await SettleAsync(
                 session,
@@ -449,7 +392,7 @@ public sealed class GlassRepairEstimateGateway(
         try
         {
             await client.RelayCallbackAsync(
-                new Uri(originalCallback, UriKind.Absolute), ereId, delivery.RawQuery, cancellationToken);
+                new Uri(originalCallback, UriKind.Absolute), ereId, callback.RawQuery, cancellationToken);
             var link = await client.WaitForExportAsync(cancellationToken);
             exported = await client.DownloadExportAsync(link, cancellationToken);
         }

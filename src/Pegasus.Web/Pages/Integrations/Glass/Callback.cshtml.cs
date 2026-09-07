@@ -47,7 +47,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 [IgnoreAntiforgeryToken]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class CallbackModel(
-    GlassRepairEstimateGateway glassEstimates,
+    IGlassRepairEstimateGateway glassEstimates,
     IGlassRepairEstimateSessionReader glassSessions) : StaffPageModel
 {
     public Task<IActionResult> OnGetAsync(string correlation, CancellationToken cancellationToken) =>
@@ -101,30 +101,20 @@ public sealed class CallbackModel(
     }
 
     /// <summary>
-    /// The one place this page reaches past
-    /// <see cref="IGlassRepairEstimateGateway"/>: acting on a delivery needs the
-    /// provider's verbatim query, which the shared contract's callback record
-    /// has no field for, so the Infrastructure delivery carries it.
+    /// The provider's message travels verbatim: its identity is the correlation
+    /// and the fingerprint the gateway takes of the query, nothing else.
     /// </summary>
-    /// <remarks>
-    /// <see cref="GlassRepairEstimateCallback.OperationKey"/> is left empty on
-    /// purpose. This delivery's identity is the correlation and the query
-    /// fingerprint the gateway takes of it; an operation key here would be a
-    /// second, weaker identity for the same act, and the gateway reads none.
-    /// </remarks>
     private Task<GlassRepairEstimateSession> CompleteAsync(
         ActionActor actor,
         GlassRepairEstimateSession session,
         string correlation,
         CancellationToken cancellationToken) =>
         glassEstimates.CompleteAsync(
-            new GlassRepairEstimateCallbackDelivery(
-                new GlassRepairEstimateCallback(
-                    actor,
-                    session.Id,
-                    session.Version,
-                    correlation,
-                    OperationKey: string.Empty),
+            new GlassRepairEstimateCallback(
+                actor,
+                session.Id,
+                session.Version,
+                correlation,
                 Request.QueryString.Value ?? string.Empty),
             cancellationToken);
 
