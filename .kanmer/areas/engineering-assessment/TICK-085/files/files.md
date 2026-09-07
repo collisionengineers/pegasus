@@ -19,8 +19,7 @@
 | src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml | Only source auto-detection/pending completion UI and expected-version fields |
 | src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs | Existing centralized concise labels |
 | src/Pegasus.Web/Mcp/AssessmentMcpTools.cs | Real raw import and typed pending/unknown response under existing assessment scope |
-| tests/Pegasus.Core.Tests/Assessment/EstimateImportTests.cs | Canonical source validation, pending/replay and forged/unauthorized import tests; confirm actual filename before dispatch |
-| tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs | Ordinary Automation SaveEstimate remains job-bound; preserve unrelated editor rules |
+| tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs | Existing ImportRawEstimate tests: canonical source, pending/replay and unauthorized/forged-source cases; ordinary Automation SaveEstimate remains job-bound |
 | tests/Pegasus.IntegrationTests/GlassEstimatePdfParserTests.cs | Hash-bound genuine PDF/oracle lane plus isolated malformed/ambiguous evidence tests |
 | tests/Pegasus.IntegrationTests/AudatexEstimatePdfParserTests.cs | Preserve genuine Audatex parsing under shared container |
 | tests/Pegasus.IntegrationTests/JsonEstimateParserTests.cs | Adapt contract without changing JSON behavior |
@@ -51,9 +50,7 @@
 ## Ripple effects
 
 Changing IEstimateDocumentParser and IImportRawEstimate result contracts requires
-all known parser and canonical-import fakes to change in the same diff. Before
-dispatch replace the provisional Core-test path with the actual tracked path.
-Root alone builds/captures. No provider secrets or genuine source artifacts are
+all known parser and canonical-import fakes to change in the same diff. Root alone builds/captures. No provider secrets or genuine source artifacts are
 copied into tracked tests; local corpus lane reads a supplied root and verifies
 hashes. Full line oracles and recorded OCR output remain local evidence.
 
