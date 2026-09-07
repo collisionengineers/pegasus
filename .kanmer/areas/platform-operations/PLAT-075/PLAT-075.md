@@ -29,7 +29,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/674'
 archived: false
 created: '2026-09-06T05:33:42.409Z'
-updated: '2026-09-07T01:30:22.414Z'
+updated: '2026-09-07T01:34:15.712Z'
 ---
 
 ## What
@@ -42,6 +42,6 @@ Implement the assigned v1 stream under the explicit three-owner/three-PR excepti
 
 ## Acceptance
 
-Complete the stream plan and mapped residual acceptance; exact-head independent review, standalone and combined validation. One replacement PR for this stream targets dev and remains open/unmerged. No deployment, reset, live provider writes, mail sends or Outlook mutation. Preserve original branches, commits and dirty work.
+Complete the stream plan and mapped residual acceptance; exact-head independent review, standalone and combined validation. One replacement PR for this stream targets dev. On 7 September 2026 the operator authorized A to finish all streams, integrate reviewed and verified replacement work and any non-superseded original PRs into dev, and open the resulting PR to main. That main PR must remain unmerged. This supersedes the original open/unmerged stop condition. No deployment, reset, live provider writes, mail sends or Outlook mutation. Preserve original branches, commits and dirty work.
 
 ## Outcome
