@@ -9,6 +9,8 @@ $storageAccount = 'pegcustody252ow37gij'
 $container = 'transient-intake'
 $sqlServer = 'pegasus-prod-sql-252ow37gij.database.windows.net'
 $database = 'pegasus'
+$resourceGroup = 'rg-pegasus-prod'
+$workerApp = 'pegasus-prod-worker-252ow37gij'
 
 $preserve = @(
     '__EFMigrationsHistory',
@@ -26,6 +28,7 @@ $preserve = @(
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
 $blobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
+if ($LASTEXITCODE -ne 0) { throw 'Blob inventory failed; refusing.' }
 $blobs = $blobsJson | ConvertFrom-Json
 $blobCount = $blobs.Count
 $blobBytes = ($blobs | ForEach-Object { $_.properties.contentLength } | Measure-Object -Sum).Sum
@@ -33,6 +36,7 @@ Write-Output ("Blobs: {0}; total bytes: {1}" -f $blobCount, $blobBytes)
 
 Write-Output "`n=== SQL inventory: $sqlServer/$database ==="
 $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) { throw 'SQL authentication failed; refusing.' }
 Add-Type -AssemblyName System.Data
 $connection = New-Object System.Data.SqlClient.SqlConnection
 $connection.ConnectionString = "Server=tcp:$sqlServer,1433;Database=$database;Encrypt=True;Connect Timeout=60;"
@@ -75,13 +79,25 @@ if (-not $Execute) {
     return
 }
 
+$workerState = az functionapp show --resource-group $resourceGroup --name $workerApp --query state --output tsv
+if ($LASTEXITCODE -ne 0 -or $workerState -ne 'Stopped') {
+    $connection.Close()
+    throw "Stop $workerApp for the approved maintenance window before executing a wipe."
+}
+$cutoffUtc = [DateTimeOffset]::UtcNow
+$resetMailBoundarySql = Get-Content (Join-Path $PSScriptRoot 'Reset-IntakeMailBoundary.sql') -Raw
+Write-Output ("Mail received before {0:O} will remain excluded after this wipe." -f $cutoffUtc)
+
 Write-Output "`n=== Deleting blobs ==="
 if ($blobCount -gt 0) {
     az storage blob delete-batch --account-name $storageAccount --source $container --auth-mode login | Out-Null
+    if ($LASTEXITCODE -ne 0) { $connection.Close(); throw 'Blob deletion failed; SQL was not wiped.' }
 }
 $afterBlobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
+if ($LASTEXITCODE -ne 0) { $connection.Close(); throw 'Post-delete blob inventory failed; SQL was not wiped.' }
 $afterBlobCount = ($afterBlobsJson | ConvertFrom-Json).Count
 Write-Output ("Blobs remaining in {0}: {1}" -f $container, $afterBlobCount)
+if ($afterBlobCount -ne 0) { $connection.Close(); throw 'Intake blobs remain; SQL was not wiped.' }
 
 Write-Output "`n=== Deleting SQL rows ==="
 $names = $wipe | ForEach-Object { "[{0}].[{1}]" -f $_.SchemaName, $_.TableName }
@@ -89,12 +105,15 @@ $batch = @()
 $batch += $names | ForEach-Object { "ALTER TABLE $_ NOCHECK CONSTRAINT ALL;" }
 $batch += $names | ForEach-Object { "DELETE FROM $_;" }
 $batch += $names | ForEach-Object { "ALTER TABLE $_ WITH CHECK CHECK CONSTRAINT ALL;" }
-$sql = "SET XACT_ABORT ON; BEGIN TRANSACTION;`n" + ($batch -join "`n") + "`nCOMMIT TRANSACTION;"
+$sql = "SET XACT_ABORT ON; BEGIN TRANSACTION;`n" + $resetMailBoundarySql + "`n" + ($batch -join "`n") + "`nCOMMIT TRANSACTION;"
 $command = $connection.CreateCommand()
 $command.CommandText = $sql
 $command.CommandTimeout = 1200
+$parameter = $command.Parameters.Add('@CutoffUtc', [System.Data.SqlDbType]::DateTimeOffset)
+$parameter.Value = $cutoffUtc
 $affected = $command.ExecuteNonQuery()
 Write-Output ("Wipe batch committed; rows affected reported: {0}" -f $affected)
+Write-Output ("Committed mail cutoff: {0:O}; mailbox approval and activation times unchanged." -f $cutoffUtc)
 
 $after = Invoke-Query "SELECT s.name AS SchemaName, t.name AS TableName, SUM(p.rows) AS Rows
 FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
