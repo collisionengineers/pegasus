@@ -118,7 +118,7 @@ refused before any tool runs.
 | `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
-| `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through B's canonical command using its name, Case and document/version identities, SHA-256, route, typed actor, expected Case version, edit lease and operation key; return the resulting estimate identity or the same structured refusal as the Case caller |
+| `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through B's canonical command using its name, Case and document occurrence/version identities, SHA-256, route, typed actor, expected Case version, edit lease and operation key; return the resulting estimate identity or the same structured refusal as the Case caller |
 
 `pegasus_estimate_import` and the Assessment page's drop are two callers of
 one shared Core command, not two implementations: the same registered parser
