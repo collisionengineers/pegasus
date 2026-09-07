@@ -29,7 +29,9 @@ public sealed record StaffMailOperation(
     DateTimeOffset PreparedAtUtc, DateTimeOffset? SubmittedAtUtc,
     DateTimeOffset? ObservedSentAtUtc, string? FailureCode,
     Guid ApprovedMailboxId, long MailboxGeneration, string PayloadHash,
-    DateTimeOffset? AttemptRequestedAtUtc, DateTimeOffset? UploadSessionExpiresAtUtc);
+    DateTimeOffset? AttemptRequestedAtUtc, DateTimeOffset? UploadSessionExpiresAtUtc,
+    StaffMailPurpose Purpose, Guid ContextId, long ExpectedContextVersion,
+    Guid? OriginalRetainedMessageId);
 
 public interface IStaffMailSend
 {
