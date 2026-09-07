@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -260,8 +261,25 @@ public sealed class RetainedInstructionAnalysisTests
     /// NoProfile is a FAILURE, not a measurement; nothing here relabels one as
     /// the other.
     ///
-    /// Failures accumulate and are reported together. A run that stopped at the
-    /// first bad original would say nothing about the other eighty.
+    /// An original the READER could not deliver is a third thing, and it is
+    /// recorded as the direct-drive suite records it: INCONCLUSIVE, in its own
+    /// section, never counted as a pass. Blaming extraction for material that
+    /// reached it truncated would accuse the wrong component, and calling it a
+    /// pass would be worse. The coverage table says how many originals of each
+    /// profile actually reached extraction, so a profile whose every sample is
+    /// inconclusive cannot hide behind a green run.
+    ///
+    /// Failures accumulate, one original cannot end the run, and the matrix is
+    /// written in a finally — a run that stopped at the first bad original
+    /// would say nothing about the other eighty, and one that wrote no artifact
+    /// would leave a stack trace as its whole evidence.
+    ///
+    /// Two limits worth naming. Hash equality is asserted case-insensitively
+    /// throughout: the pack records lower hex and the asset store upper, and
+    /// which casing lands in the candidate row is the reader's choice, not a
+    /// claim this test makes. And the Web host composes no
+    /// <c>VehicleRegistrationCandidateLookup</c> (it is Worker-only), so this
+    /// says nothing about INTK-049 candidate expansion.
     /// </summary>
     [ReferencePackFact]
     [Trait("Category", "Corpus")]
@@ -295,55 +313,92 @@ public sealed class RetainedInstructionAnalysisTests
                 + "| Replay row delta | Cases |")
             .AppendLine("| --- | --- | --- | --- | --- | ---: | ---: | ---: |");
 
-        foreach (var expectation in Top15InstructionCorpusTests.Expectations)
+        var inconclusive = new List<string>();
+        var analysed = 0;
+        var perProfile = new Dictionary<(string Profile, string Bucket), int>();
+        try
         {
-            var name = Path.GetFileName(expectation.PackRelativePath);
-            var absolute = Path.Combine(
-                root,
-                expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(absolute))
+            foreach (var expectation in Top15InstructionCorpusTests.Expectations)
             {
-                failures.Add($"{name}: the pack does not carry this original.");
-                continue;
-            }
+                var name = Path.GetFileName(expectation.PackRelativePath);
+                var absolute = Path.Combine(
+                    root,
+                    expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
+                if (!File.Exists(absolute))
+                {
+                    failures.Add($"{name}: the pack does not carry this original.");
+                    continue;
+                }
 
-            // Read once: the bytes hashed here are the bytes uploaded, so what
-            // was verified is what was analysed.
-            var bytes = await File.ReadAllBytesAsync(absolute);
-            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            if (!string.Equals(sha256, expectation.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                failures.Add(
-                    $"{name}: hashes to {sha256}, and the pack records {expectation.Sha256}.");
-                continue;
-            }
+                // Read once: the bytes hashed here are the bytes uploaded, so
+                // what was verified is what was analysed.
+                var bytes = await File.ReadAllBytesAsync(absolute);
+                var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+                if (!string.Equals(sha256, expectation.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    failures.Add(
+                        $"{name}: hashes to {sha256}, and the pack records {expectation.Sha256}.");
+                    continue;
+                }
 
-            var sample = await AnalyseRetainedOriginalAsync(
-                factory, host, client, expectation, bytes, sha256);
-            failures.AddRange(sample.Failures);
-            report.AppendLine(
-                CultureInfo.InvariantCulture,
-                $"| {expectation.Profile} | {Top15InstructionCorpusTests.Cell(name)} "
-                + $"| {sha256[..12]} | {sample.Outcome} | {sample.PrincipalCandidate} "
-                + $"| {sample.CandidateCount} | {sample.ReplayRowDelta} | {sample.CaseCount} |");
-            foreach (var candidate in sample.Candidates)
-            {
-                var key = (expectation.Profile, candidate.Disposition.ToString());
-                measured[key] = measured.GetValueOrDefault(key) + 1;
+                CorpusSample sample;
+                try
+                {
+                    sample = await AnalyseRetainedOriginalAsync(
+                        factory, host, client, expectation, bytes, sha256);
+                }
+                catch (Exception exception) when (exception is ArgumentException
+                    or InvalidOperationException
+                    or IntakeArtifactIntegrityException)
+                {
+                    // One original must not end the run. The types named are the
+                    // ones this path can actually raise - a policy guard, an
+                    // upload that produced nothing to process, a retained asset
+                    // that failed its integrity check - so a genuinely unexpected
+                    // exception still surfaces as itself rather than being
+                    // flattened into a report line.
+                    sample = CorpusSample.Threw(name, expectation.Profile, exception);
+                }
+
+                failures.AddRange(sample.Failures);
+                inconclusive.AddRange(sample.Inconclusive);
+                var bucket = sample.Inconclusive.Count > 0
+                    ? "Inconclusive"
+                    : sample.Failures.Count > 0 ? "Failed" : "Analysed";
+                if (bucket == "Analysed")
+                {
+                    analysed++;
+                }
+
+                var profileBucket = (expectation.Profile, bucket);
+                perProfile[profileBucket] = perProfile.GetValueOrDefault(profileBucket) + 1;
+                report.AppendLine(
+                    CultureInfo.InvariantCulture,
+                    $"| {expectation.Profile} | {Top15InstructionCorpusTests.Cell(name)} "
+                    + $"| {sha256[..12]} | {sample.Outcome} | {sample.PrincipalCandidate} "
+                    + $"| {sample.CandidateCount} | {sample.ReplayRowDelta} | {sample.Cases} |");
+                foreach (var candidate in sample.Candidates)
+                {
+                    var key = (expectation.Profile, candidate.Disposition.ToString());
+                    measured[key] = measured.GetValueOrDefault(key) + 1;
+                }
             }
         }
-
-        AppendMeasuredDispositions(report, measured);
-        if (failures.Count > 0)
+        finally
         {
-            report.AppendLine().AppendLine("## Failures").AppendLine();
-            foreach (var failure in failures)
-            {
-                report.AppendLine(CultureInfo.InvariantCulture, $"- {failure}");
-            }
+            // The matrix is the evidence. It is written whatever happened to the
+            // run, because a failed run that leaves nothing behind teaches less
+            // than a failed run that says which eighty originals it got through.
+            AppendCoverage(report, perProfile);
+            AppendMeasuredDispositions(report, measured);
+            AppendSection(report, "Inconclusive", inconclusive);
+            AppendSection(report, "Failures", failures);
+            WriteCorpusReport("retained-analysis-corpus.md", report.ToString());
         }
 
-        WriteCorpusReport("retained-analysis-corpus.md", report.ToString());
+        Assert.True(
+            analysed > 0,
+            "No genuine original reached extraction at all, so nothing was proved.");
 
         // The whole-run allocation claim, read from the tables that would carry
         // one: Cases is the case row itself, CaseIntakeLinks the association
@@ -370,10 +425,19 @@ public sealed class RetainedInstructionAnalysisTests
     /// document alone, however confidently a profile identifies it, is not
     /// enough.
     ///
-    /// Fourteen samples, not fifteen. QDOS keeps its automatic allocation, and
-    /// that is already proved on genuine material by
-    /// <c>QdosIntakeWebTests.StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft</c>
-    /// — so it is cited rather than duplicated here.
+    /// Fourteen samples, not fifteen. QDOS's automatic allocation belongs to the
+    /// accepted mail route and is proved there by <c>QdosIntakeWebTests
+    /// .StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft</c>;
+    /// through manual upload no profile allocates, QDOS included.
+    ///
+    /// State the limit of the negative honestly: a manual upload presents no
+    /// transport sender, so <c>EvaluateMailRoute</c> returns null, no principal
+    /// context is established, and the assessment terminates at NeedsSorting
+    /// before any extraction policy is consulted. This therefore proves that a
+    /// confidently identified document does not by itself create work — it does
+    /// NOT distinguish that from "this channel never allocates". The sharper
+    /// negative the plan describes, a document one profile identifies arriving
+    /// through an accepted route for a DIFFERENT principal, belongs to C03/C04.
     ///
     /// "Retained for staff" is asserted as the product records it, not as a
     /// page renders it: an Open item in the Unidentified queue keyed on the
@@ -491,9 +555,28 @@ public sealed class RetainedInstructionAnalysisTests
         string PrincipalCandidate,
         int CandidateCount,
         int ReplayRowDelta,
-        int CaseCount,
+        string Cases,
         IReadOnlyList<RetainedInstructionCandidate> Candidates,
-        IReadOnlyList<string> Failures);
+        IReadOnlyList<string> Failures,
+        IReadOnlyList<string> Inconclusive)
+    {
+        /// <summary>
+        /// An original the retained path could not get through at all. The Cases
+        /// cell says "not read" rather than 0: the run never reached the count,
+        /// and printing a zero it did not observe would be a claim about the
+        /// database nobody made.
+        /// </summary>
+        public static CorpusSample Threw(string name, string profile, Exception exception) =>
+            new(
+                "threw",
+                "none",
+                0,
+                0,
+                "not read",
+                [],
+                [$"{name} ({profile}): analysis threw {exception.GetType().Name} - {exception.Message}"],
+                []);
+    }
 
     private static async Task<CorpusSample> AnalyseRetainedOriginalAsync(
         IntakeWebApplicationFactory factory,
@@ -529,7 +612,14 @@ public sealed class RetainedInstructionAnalysisTests
         {
             failures.Add($"{name}: the upload retained no single source asset to analyse.");
             return new(
-                "not retained", "none", 0, 0, await context.Cases.CountAsync(), [], failures);
+                "not retained",
+                "none",
+                0,
+                0,
+                Cell(await context.Cases.CountAsync()),
+                [],
+                failures,
+                []);
         }
 
         if (!string.Equals(asset.ContentHash, sha256, StringComparison.OrdinalIgnoreCase))
@@ -548,17 +638,32 @@ public sealed class RetainedInstructionAnalysisTests
         var analysis = first.Analysis;
         if (first.Outcome != RetainedInstructionAnalysisOutcome.Analyzed || analysis is null)
         {
-            failures.Add(
-                $"{name}: analysis returned {first.Outcome} where the labeller assigned "
-                + $"{expectation.Profile} - {first.Reason}");
+            // An original the reader could not deliver has given the profile
+            // nothing to identify and the policy nothing to extract. Calling
+            // that an extraction failure blames the wrong component, so it is
+            // recorded INCONCLUSIVE and - in this suite's inherited words -
+            // inconclusive is not a pass and is never counted as one. The
+            // corroboration is production's own second reading of the same
+            // bytes: the receipt the intake pipeline wrote beside it.
+            //
+            // Everything else is a failure. Ambiguous or NoProfile on an
+            // operator-labelled original means the document did not resolve to
+            // the profile a labeller read off it, and no expectation row
+            // records such an outcome, so none is tolerated.
+            var unreadable = CouldNotBeRead(first, receipt);
+            var line = $"{name} ({expectation.Profile}): analysis returned {first.Outcome} "
+                + $"where the labeller assigned {expectation.Profile} - {first.Reason}";
             return new(
                 first.Outcome.ToString(),
                 "none",
                 analysis?.Candidates.Count ?? 0,
                 0,
-                await context.Cases.CountAsync(),
+                Cell(await context.Cases.CountAsync()),
                 [],
-                failures);
+                unreadable is null ? [.. failures, line] : failures,
+                unreadable is null
+                    ? []
+                    : [$"{line} [{unreadable}] - INCONCLUSIVE, which is not a pass."]);
         }
 
         var persistedBefore = await context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
@@ -648,10 +753,43 @@ public sealed class RetainedInstructionAnalysisTests
             principal,
             analysis.Candidates.Count,
             persistedAfter - persistedBefore.Length,
-            caseCount,
+            Cell(caseCount),
             analysis.Candidates,
-            failures);
+            failures,
+            []);
     }
+
+    /// <summary>
+    /// Why the reader could not deliver this original, or null where it could.
+    ///
+    /// The command reports <see cref="RetainedInstructionAnalysisOutcome.SourceUnavailable"/>
+    /// for a source it could not open or could not read completely, and carries
+    /// the reader's own account of what is missing. The receipt adds the second
+    /// half the command cannot see: a PDF whose pages hold too little embedded
+    /// text reads as complete and simply matches nothing, and the intake
+    /// pipeline - reading the same bytes with the same reader - recorded that as
+    /// evidence when the material was retained.
+    /// </summary>
+    private static string? CouldNotBeRead(
+        AnalyzeRetainedInstructionResult result,
+        IntakeReceipt receipt)
+    {
+        if (result.Outcome == RetainedInstructionAnalysisOutcome.SourceUnavailable)
+        {
+            return "the retained source could not be read";
+        }
+
+        if (receipt.Decision == IntakeDecision.OcrRequired || receipt.ScannedPdfPages.Count > 0)
+        {
+            return "the retained source needs text review before it can be read";
+        }
+
+        var lowText = receipt.Evidence.FirstOrDefault(evidence =>
+            evidence.Signal is "insufficient-embedded-text" or "scanned-pdf-page");
+        return lowText is null ? null : $"the reader recorded {lowText.Signal}";
+    }
+
+    private static string Cell(int count) => count.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The principal the document proposed, checked as a PROPOSAL. There is no
@@ -659,8 +797,8 @@ public sealed class RetainedInstructionAnalysisTests
     /// has none — so "never confirmed" is proved by what the row is and where it
     /// lives: one candidate under
     /// <see cref="AnalyzeRetainedInstruction.SuggestedPrincipalField"/>, in the
-    /// candidate table, in a review-only disposition, beside a receipt that
-    /// carries no allocation.
+    /// candidate table, in the review-only disposition production emits, beside
+    /// a receipt that carries no allocation.
     /// </summary>
     private static string ProposedPrincipal(
         RetainedInstructionAnalysis analysis,
@@ -694,15 +832,67 @@ public sealed class RetainedInstructionAnalysisTests
                 $"{name}: the proposed principal carries party role '{principal.PartyRole}'.");
         }
 
-        if (principal.Disposition is not (SourceCandidateDisposition.Usable
-            or SourceCandidateDisposition.Ambiguous))
+        // Usable exactly, not "one of the review-only dispositions". On this
+        // path the disposition is `forceReviewOnly ? Ambiguous : Usable`
+        // (AnalyzeRetainedInstruction.cs:516) and nothing passes forceReviewOnly
+        // true - it is a defaulted parameter with no call site - so Ambiguous is
+        // unreachable here and tolerating it would read as a known-failure
+        // allowance that no production behaviour needs.
+        if (principal.Disposition != SourceCandidateDisposition.Usable)
         {
             failures.Add(
-                $"{name}: the proposed principal was recorded {principal.Disposition}, "
-                + "which is not a review-only disposition.");
+                $"{name}: the proposed principal was recorded {principal.Disposition} "
+                + "rather than Usable.");
         }
 
         return $"{principal.RawValue} ({principal.Disposition})";
+    }
+
+    /// <summary>
+    /// How far each profile actually got. The count that matters is Analysed:
+    /// a profile whose every sample is Inconclusive has not been shown to reach
+    /// extraction at all, and a matrix that only totalled dispositions would
+    /// hide that behind a page of zeroes.
+    /// </summary>
+    private static void AppendCoverage(
+        StringBuilder report,
+        Dictionary<(string Profile, string Bucket), int> perProfile)
+    {
+        report.AppendLine()
+            .AppendLine("## Coverage by profile")
+            .AppendLine()
+            .AppendLine("| Profile | Analysed | Inconclusive | Failed |")
+            .AppendLine("| --- | ---: | ---: | ---: |");
+        foreach (var profile in perProfile.Keys
+            .Select(key => key.Profile)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(profile => profile, StringComparer.Ordinal))
+        {
+            report.AppendLine(
+                CultureInfo.InvariantCulture,
+                $"| {profile} | {perProfile.GetValueOrDefault((profile, "Analysed"))} "
+                + $"| {perProfile.GetValueOrDefault((profile, "Inconclusive"))} "
+                + $"| {perProfile.GetValueOrDefault((profile, "Failed"))} |");
+        }
+    }
+
+    private static void AppendSection(
+        StringBuilder report,
+        string heading,
+        List<string> lines)
+    {
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        report.AppendLine()
+            .AppendLine(CultureInfo.InvariantCulture, $"## {heading}")
+            .AppendLine();
+        foreach (var line in lines)
+        {
+            report.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
+        }
     }
 
     private static void AppendMeasuredDispositions(
@@ -775,25 +965,32 @@ public sealed class RetainedInstructionAnalysisTests
     }
 
     /// <summary>
-    /// The production composition, plus the ONE dependency it still lacks.
+    /// The production composition, plus — in this tree only — the one port it
+    /// does not compose.
     ///
-    /// Stream A's <c>AddPegasusInfrastructure</c> now registers the fifteen
+    /// Stream A's <c>AddPegasusInfrastructure</c> registers the fifteen
     /// extraction policies, the selector, the analysis store, the candidate
     /// queries and both <c>AnalyzeRetainedInstruction</c> registrations, so
-    /// these tests resolve the command the Web host itself resolves rather
-    /// than a hand-composed copy that could pass while production could not
-    /// build it at all.
+    /// these tests resolve the command the host itself resolves rather than a
+    /// hand-composed copy that could pass while production could not build the
+    /// graph at all.
     ///
-    /// What no host registers yet is <see cref="IReadLogicalDocumentVersion"/>:
-    /// A04's concrete readers are Stream A's, and a pre-case retained asset has
-    /// no Case document for them to open by. Until they land, the reader below
-    /// stands in — and it is the only registration added here, so the gap is
-    /// visible rather than hidden inside a re-composed graph.
+    /// The exception is <see cref="IReadLogicalDocumentVersion"/>. A04's
+    /// concrete reader is Stream A's — <c>LocalLogicalDocumentVersionReader</c>,
+    /// registered by A's own <c>DependencyInjection</c> — and it is NOT present
+    /// in this standalone C tree, so nothing here could resolve the command
+    /// without a stand-in. <c>TryAdd</c>, not <c>Add</c>, is what makes that
+    /// sentence true rather than aspirational: where the host composes A's real
+    /// reader, as the combined tree does, this registration does nothing and
+    /// the proof runs against the production reader; only where no host
+    /// composes one does the C-owned stand-in below fill the port. Read a green
+    /// run in the standalone tree accordingly — it proves everything except the
+    /// reader port.
     /// </summary>
     private static WebApplicationFactory<Program> WithAnalysis(
         IntakeWebApplicationFactory factory) =>
         factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-            services.AddScoped<IReadLogicalDocumentVersion, RetainedIntakeAssetReader>()));
+            services.TryAddScoped<IReadLogicalDocumentVersion, RetainedIntakeAssetReader>()));
 
     /// <summary>
     /// A C-owned stand-in for A04's logical-document reader, covering only what
