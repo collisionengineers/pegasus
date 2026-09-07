@@ -61,21 +61,11 @@
         var slug = item.OccurrenceId.ToString("N");
         var isSupporting = item.Role == CaseAssetReportRole.Supporting;
         var place = view.Place(item);
-        // A Supporting card in edit mode carries the shape of its own edit, so
-        // the drag enhancement can submit the same SaveAssetPreparation
-        // command Move up and Move down submit without the server rendering
-        // anything it does not already render.
-        var draggable = view.MayPrepare && isSupporting;
-        <article class="report-image" data-report-image="@item.OccurrenceId"
-                 draggable="@(draggable ? "true" : null)"
-                 data-preparation-version="@(draggable ? item.PreparationVersion.ToString(CultureInfo.InvariantCulture) : null)"
-                 data-report-role="@(draggable ? item.Role.ToString() : null)"
-                 data-report-order="@(draggable ? item.Order?.ToString(CultureInfo.InvariantCulture) : null)"
-                 data-report-rotation="@(draggable ? ((int)item.Rotation).ToString(CultureInfo.InvariantCulture) : null)"
-                 data-crop-left="@(draggable ? item.Crop.Left.ToString(CultureInfo.InvariantCulture) : null)"
-                 data-crop-top="@(draggable ? item.Crop.Top.ToString(CultureInfo.InvariantCulture) : null)"
-                 data-crop-width="@(draggable ? item.Crop.Width.ToString(CultureInfo.InvariantCulture) : null)"
-                 data-crop-height="@(draggable ? item.Crop.Height.ToString(CultureInfo.InvariantCulture) : null)">
+        // A Supporting card in edit mode carries the shape of its own edit,
+        // so the drag enhancement can submit the same SaveAssetPreparation
+        // command Move up and Move down submit; every other card carries none
+        // of it.
+        <article class="report-image" data-report-image="@item.OccurrenceId"@view.DragAttributes(item)>
             <h3>@(view.FileNames.GetValueOrDefault(item.OccurrenceId) ?? OperatorLabels.CaseWorkspace.AbsentValue)</h3>
             <dl class="detail-list">
                 <div><dt>@ReportImageLabels.Role</dt><dd>@ReportImageLabels.RoleLabel(item.Role)</dd></div>

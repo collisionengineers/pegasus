@@ -1,3 +1,5 @@
+using System.Globalization;
+using Microsoft.AspNetCore.Html;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -31,6 +33,51 @@ public sealed record ReportImagePreparationView(
     IReadOnlyList<CaseAssetPreparation> Supporting,
     IReadOnlyDictionary<Guid, string> FileNames)
 {
+    /// <summary>
+    /// The shape of the edit a drop submits, written on the card itself: the
+    /// drag enhancement reads these and posts the same SaveAssetPreparation
+    /// command Move up and Move down post, so it needs no endpoint and no
+    /// value the server does not already render.
+    /// </summary>
+    /// <remarks>
+    /// The whole set is written together or not at all. Razor drops an
+    /// attribute whose value expression is null, but never a <c>data-</c> one
+    /// — it would leave every read-only card carrying empty hooks — so the
+    /// condition is answered here, once, instead of per attribute.
+    /// </remarks>
+    public IHtmlContent DragAttributes(CaseAssetPreparation item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (!MayPrepare || item.Role != CaseAssetReportRole.Supporting)
+        {
+            return HtmlString.Empty;
+        }
+
+        var attributes = new HtmlContentBuilder();
+        Attribute(attributes, "draggable", "true");
+        Attribute(attributes, "data-preparation-version", Number(item.PreparationVersion));
+        Attribute(attributes, "data-report-role", item.Role.ToString());
+        Attribute(attributes, "data-report-order", item.Order is { } order ? Number(order) : string.Empty);
+        Attribute(attributes, "data-report-rotation", Number((int)item.Rotation));
+        Attribute(attributes, "data-crop-left", Number(item.Crop.Left));
+        Attribute(attributes, "data-crop-top", Number(item.Crop.Top));
+        Attribute(attributes, "data-crop-width", Number(item.Crop.Width));
+        Attribute(attributes, "data-crop-height", Number(item.Crop.Height));
+        return attributes;
+    }
+
+    /// <summary>The name is ours; only the value can carry markup, so only it is encoded.</summary>
+    private static void Attribute(HtmlContentBuilder attributes, string name, string value) =>
+        attributes
+            .AppendHtml(" ")
+            .AppendHtml(name)
+            .AppendHtml("=\"")
+            .Append(value)
+            .AppendHtml("\"");
+
+    private static string Number(IFormattable value) =>
+        value.ToString(null, CultureInfo.InvariantCulture);
+
     /// <summary>
     /// Where <paramref name="item"/> sits in the Supporting sequence, or -1
     /// when it is not one. Move up and Move down name their neighbour from
