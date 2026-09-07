@@ -11,15 +11,15 @@ stageEntered:
 taken_at: '2026-09-07T20:22:58.731Z'
 branch: MAIL-036-wipe-boundary
 worktree: .worktrees/mail-036
-claim_expires_at: '2026-09-07T20:52:58.731Z'
+claim_expires_at: '2026-09-07T21:08:31.990Z'
 claim_controller: codex-v1-remediation-root
 lease_id: 7b75a627-f815-47ca-af8e-3349bac00c98
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: root-mail-20260907
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\mail-036'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T20:22:58.731Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-07T20:38:31.990Z'
 labels: []
 groups:
   - EPIC-014
@@ -29,7 +29,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-09-07T20:01:20.357Z'
-updated: '2026-09-07T20:22:58.731Z'
+updated: '2026-09-07T20:38:31.990Z'
 ---
 
 ## What
