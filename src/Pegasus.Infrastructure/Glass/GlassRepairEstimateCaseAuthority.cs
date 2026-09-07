@@ -69,7 +69,7 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
     }
 
     private static string RequireRegistration(IReadOnlyList<CaseDataFieldEntity> fields) =>
-        Current(fields, CaseDataFieldNames.VehicleRegistration) is { Length: > 0 } registration
+        CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleRegistration) is { Length: > 0 } registration
             ? registration
             : throw new InvalidOperationException(
                 "The case records no vehicle registration, so no Glass's estimate can be started for it.");
@@ -83,14 +83,14 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
     /// </summary>
     private static long RequireMileageMiles(IReadOnlyList<CaseDataFieldEntity> fields)
     {
-        if (Current(fields, CaseDataFieldNames.VehicleMileage) is not { Length: > 0 } stated
+        if (CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMileage) is not { Length: > 0 } stated
             || !long.TryParse(stated, NumberStyles.None, CultureInfo.InvariantCulture, out var mileage))
         {
             throw new InvalidOperationException(
                 "The case records no vehicle mileage, so no Glass's estimate can be started for it.");
         }
 
-        var statedUnit = Current(fields, CaseDataFieldNames.VehicleMileageUnit);
+        var statedUnit = CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMileageUnit);
         var unit = CaseOdometerUnit.Miles;
         if (statedUnit is { Length: > 0 } && !CaseOdometer.TryParseUnit(statedUnit, out unit))
         {
@@ -101,19 +101,5 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         return (long)Math.Round(
             CaseOdometer.Display(mileage, unit, CaseOdometerUnit.Miles),
             MidpointRounding.AwayFromZero);
-    }
-
-    /// <summary>
-    /// The value the Case currently stands on: a confirmed value, else an
-    /// extracted fact, else a suggestion — the same precedence
-    /// <c>EfCaseAssessmentStore</c> reads these fields at.
-    /// </summary>
-    private static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
-    {
-        var values = fields.Where(item => item.FieldName == fieldName).ToArray();
-        var current = values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
-        return current?.Value;
     }
 }

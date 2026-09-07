@@ -515,6 +515,7 @@ public sealed class RetainIncomingArtifact(
                         caseId,
                         documentId,
                         versionId,
+                        Guid.Empty, // LOCAL VERIFICATION SHIM ONLY (C owns the G24 adaptation); never published
                         cancellationToken)
                     : await custodyStatus.FindByOperationKeyAsync(
                         actor,

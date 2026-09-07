@@ -35,6 +35,18 @@ namespace Pegasus.Infrastructure.Glass;
 /// </para>
 ///
 /// <para>
+/// <b>A callback is claimed before it is acted on.</b> The delivery's
+/// fingerprint and the move to
+/// <see cref="GlassRepairEstimateSessionState.Importing"/> are written through
+/// the store's version check before the provider hears anything, so two
+/// deliveries racing for one session meet there: one is recorded and acts,
+/// the other reads the record — the same message gets the session as it
+/// stands, a different one is refused. What is lost after the claim stays
+/// <see cref="GlassRepairEstimateSessionState.Unknown"/> on the record, and a
+/// later resume looks the export up again rather than relaying again.
+/// </para>
+///
+/// <para>
 /// <b>What is protected.</b> The session's cookie jar, the prepared estimate
 /// (<c>MvaVehicleId</c>, <c>NatCode</c>, <c>EreId</c>, the provider's own
 /// callback — which carries its <c>ere_session</c> — and the rewritten
@@ -260,6 +272,48 @@ public sealed class GlassRepairEstimateGateway(
                 request.Actor, session, provider, material.CallbackDigest, results, cancellationToken);
         }
 
+        if (session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown
+            && results.CallbackQueryDigest is not null)
+        {
+            // The operator's Save & Exit was claimed and its answer was lost: a
+            // transport failure after the relay, or a host that stopped between
+            // the claim and the record. The relay is never repeated; the export
+            // it produced is looked up again, which is the one safe retry.
+            if (provider.MvaVehicleId is not { } lookupVehicle || provider.EreId is not { } lookupEre)
+            {
+                throw new InvalidOperationException(
+                    "The Glass's session has no vehicle or estimate to look up, so its outcome stays for reconciliation.");
+            }
+
+            var heldCredential = await RequireCredentialAsync(request.Actor, cancellationToken);
+            if (heldCredential.Reference.CredentialGeneration != session.CredentialGeneration)
+            {
+                return await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken);
+            }
+            if (request.ExpectedCaseVersion is { } regainedVersion && !string.IsNullOrWhiteSpace(request.LeaseToken))
+            {
+                provider.CaseVersion = regainedVersion;
+                provider.LeaseToken = request.LeaseToken;
+            }
+
+            provider.Cookies.Clear();
+            var lookup = NewClient(provider.Cookies);
+            try
+            {
+                await lookup.SignInAsync(heldCredential.Username, heldCredential.Password, cancellationToken);
+                await lookup.SelectOnlyAsync(lookupVehicle, cancellationToken);
+            }
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+            {
+                return await SettleAsync(
+                    session, AsFailure(failure), provider, material.CallbackDigest, results, cancellationToken);
+            }
+
+            return await ExportAsync(
+                request.Actor, session, provider, material.CallbackDigest, results, lookup, lookupEre, cancellationToken);
+        }
+
         if (session.State is not (GlassRepairEstimateSessionState.Active
             or GlassRepairEstimateSessionState.Unknown))
         {
@@ -301,19 +355,11 @@ public sealed class GlassRepairEstimateGateway(
                 results,
                 cancellationToken);
         }
-        catch (GlassMvaStageException failure)
-        {
-            return await SettleAsync(session, failure, provider, material.CallbackDigest, results, cancellationToken);
-        }
-        catch (Exception transport) when (IsTransportFailure(transport, cancellationToken))
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.TransportUnknown, outcomeUnknown: true),
-                provider,
-                material.CallbackDigest,
-                results,
-                cancellationToken);
+                session, AsFailure(failure), provider, material.CallbackDigest, results, cancellationToken);
         }
     }
 
@@ -355,7 +401,33 @@ public sealed class GlassRepairEstimateGateway(
                 "This Glass's session is not waiting for a callback.");
         }
         RequireOwner(callback.Actor, session);
+        if (provider.EreId is not { } ereId || provider.OriginalCallback is not { } originalCallback)
+        {
+            throw new InvalidOperationException(
+                "An active Glass's session must carry the estimate it started.");
+        }
+
+        // The claim. This delivery is the one acted on: its fingerprint and the
+        // move to Importing go through the store's version check before the
+        // provider hears anything, so two deliveries racing for the same
+        // version meet here — one is recorded, the other reads the record.
         results.CallbackQueryDigest = queryDigest;
+        try
+        {
+            session = await WriteAsync(
+                session,
+                GlassRepairEstimateSessionState.Importing,
+                null,
+                provider,
+                material.CallbackDigest,
+                results,
+                cancellationToken);
+        }
+        catch (GlassRepairEstimateSessionConflictException lost)
+            when (lost.Conflict == GlassRepairEstimateSessionConflict.Version)
+        {
+            return await ReadClaimAsync(callback, queryDigest, lost, cancellationToken);
+        }
 
         if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
         {
@@ -381,34 +453,78 @@ public sealed class GlassRepairEstimateGateway(
                 cancellationToken);
         }
 
-        if (provider.EreId is not { } ereId || provider.OriginalCallback is not { } originalCallback)
-        {
-            throw new InvalidOperationException(
-                "An active Glass's session must carry the estimate it started.");
-        }
-
         var client = NewClient(provider.Cookies);
-        byte[] exported;
         try
         {
             await client.RelayCallbackAsync(
                 new Uri(originalCallback, UriKind.Absolute), ereId, callback.RawQuery, cancellationToken);
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return await SettleAsync(
+                session, AsFailure(failure), provider, material.CallbackDigest, results, cancellationToken);
+        }
+
+        return await ExportAsync(
+            callback.Actor, session, provider, material.CallbackDigest, results, client, ereId, cancellationToken);
+    }
+
+    /// <summary>
+    /// What a delivery that lost the claim reads: the record the winner made.
+    /// The same message finds its own fingerprint there and gets the session
+    /// as it stands; a different one is a second, contradictory message.
+    /// </summary>
+    private async Task<GlassRepairEstimateSession> ReadClaimAsync(
+        GlassRepairEstimateCallback callback,
+        string queryDigest,
+        GlassRepairEstimateSessionConflictException lost,
+        CancellationToken cancellationToken)
+    {
+        var material = await store.GetAsync(callback.SessionId, cancellationToken) ?? throw lost;
+        var recorded = Deserialize(material.ResultArtifactsJson).CallbackQueryDigest;
+        if (recorded is null)
+        {
+            // Something other than a callback moved the session on.
+            throw lost;
+        }
+
+        return string.Equals(recorded, queryDigest, StringComparison.Ordinal)
+            ? material.Session
+            : throw Conflict(
+                GlassRepairEstimateSessionConflict.Callback,
+                material.Session.Id,
+                "A different Glass's callback has already been acted on for this session.");
+    }
+
+    /// <summary>
+    /// From the provider's export to the Draft: wait for the export the relay
+    /// produced, download it, read it, reconcile it against the vehicle this
+    /// session launched for, retain both artifacts and land the estimate.
+    /// Nothing here writes at the provider, which is what lets a lost answer
+    /// be looked up again instead of relayed again.
+    /// </summary>
+    private async Task<GlassRepairEstimateSession> ExportAsync(
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        ProviderState provider,
+        string callbackDigest,
+        Results results,
+        GlassMvaClient client,
+        string ereId,
+        CancellationToken cancellationToken)
+    {
+        byte[] exported;
+        try
+        {
             var link = await client.WaitForExportAsync(cancellationToken);
             exported = await client.DownloadExportAsync(link, cancellationToken);
         }
-        catch (GlassMvaStageException failure)
-        {
-            return await SettleAsync(session, failure, provider, material.CallbackDigest, results, cancellationToken);
-        }
-        catch (Exception transport) when (IsTransportFailure(transport, cancellationToken))
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.TransportUnknown, outcomeUnknown: true),
-                provider,
-                material.CallbackDigest,
-                results,
-                cancellationToken);
+                session, AsFailure(failure), provider, callbackDigest, results, cancellationToken);
         }
 
         GlassEstimateExport export;
@@ -423,17 +539,17 @@ public sealed class GlassRepairEstimateGateway(
                 session,
                 new GlassMvaStageException(GlassFailure.ExportUnreadable),
                 provider,
-                material.CallbackDigest,
+                callbackDigest,
                 results,
                 cancellationToken);
         }
         catch (GlassMvaStageException failure)
         {
-            return await SettleAsync(session, failure, provider, material.CallbackDigest, results, cancellationToken);
+            return await SettleAsync(session, failure, provider, callbackDigest, results, cancellationToken);
         }
 
         results.Xml = await RetainAsync(
-            callback.Actor,
+            actor,
             session,
             XmlOccurrenceIdentity(session.Id),
             $"{session.OperationKey}:xml",
@@ -444,7 +560,7 @@ public sealed class GlassRepairEstimateGateway(
         if (export.CalculationSheet is { } sheet)
         {
             results.Pdf = await RetainAsync(
-                callback.Actor,
+                actor,
                 session,
                 PdfOccurrenceIdentity(session.Id),
                 $"{session.OperationKey}:pdf",
@@ -454,8 +570,7 @@ public sealed class GlassRepairEstimateGateway(
                 cancellationToken);
         }
 
-        return await FinishAsync(
-            callback.Actor, session, provider, material.CallbackDigest, results, cancellationToken);
+        return await FinishAsync(actor, session, provider, callbackDigest, results, cancellationToken);
     }
 
     /// <summary>
@@ -510,7 +625,9 @@ public sealed class GlassRepairEstimateGateway(
                     session.CaseId,
                     provider.CaseVersion,
                     provider.LeaseToken,
-                    results.Xml.DocumentId!.Value,
+                    results.Xml.OccurrenceId
+                        ?? throw new InvalidOperationException(
+                            "A retained Glass's export names no Case occurrence, so it cannot be imported."),
                     results.Xml.VersionId!.Value,
                     results.Xml.Sha256!,
                     RepairSpecificationSourceRoute.Glasses,
@@ -620,12 +737,14 @@ public sealed class GlassRepairEstimateGateway(
         if (artifact is null
             || Confirmed(artifact)
             || artifact.DocumentId is not { } documentId
-            || artifact.VersionId is not { } versionId)
+            || artifact.VersionId is not { } versionId
+            || artifact.OccurrenceId is not { } occurrenceId)
         {
             return artifact;
         }
 
-        var status = await custodyStatus.GetAsync(actor, caseId, documentId, versionId, cancellationToken);
+        var status = await custodyStatus.GetAsync(
+            actor, caseId, documentId, versionId, occurrenceId, cancellationToken);
         return status.Disposition == CaseArtifactCustodyDisposition.Confirmed
             ? Artifact.From(status, artifact.FileName, artifact.MediaType, artifact.ContentLength ?? 0)
             : artifact;
@@ -669,7 +788,7 @@ public sealed class GlassRepairEstimateGateway(
         if (material is null
             || string.IsNullOrWhiteSpace(callback.Correlation)
             || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(Sha256Hex(callback.Correlation)),
+                SHA256.HashData(Encoding.UTF8.GetBytes(callback.Correlation)),
                 Convert.FromHexString(material.CallbackDigest)))
         {
             throw Conflict(
@@ -757,20 +876,10 @@ public sealed class GlassRepairEstimateGateway(
     }
 
     /// <summary>The Pegasus callback a launch already minted, read back from its estimator URL.</summary>
-    private static Uri PegasusCallbackOf(string estimatorUrl)
-    {
-        var query = new Uri(estimatorUrl, UriKind.Absolute).Query.TrimStart('?');
-        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var separator = part.IndexOf('=', StringComparison.Ordinal);
-            if (separator > 0 && Uri.UnescapeDataString(part[..separator]) == "caller")
-            {
-                return new Uri(Uri.UnescapeDataString(part[(separator + 1)..]), UriKind.Absolute);
-            }
-        }
-
-        throw new InvalidOperationException("The retained Glass's launch URL names no callback.");
-    }
+    private static Uri PegasusCallbackOf(string estimatorUrl) =>
+        Query(new Uri(estimatorUrl, UriKind.Absolute).Query, "caller") is { } caller
+            ? new Uri(caller, UriKind.Absolute)
+            : throw new InvalidOperationException("The retained Glass's launch URL names no callback.");
 
     /// <summary>
     /// A single parameter of the provider's raw callback query. The query is
@@ -801,6 +910,14 @@ public sealed class GlassRepairEstimateGateway(
     private static bool IsTransportFailure(Exception exception, CancellationToken cancellationToken) =>
         !cancellationToken.IsCancellationRequested
         && exception is HttpRequestException or TaskCanceledException or TimeoutException;
+
+    /// <summary>
+    /// A stage's own refusal as it was thrown; a transport failure after the
+    /// provider may have acted becomes the outcome-unknown transport code.
+    /// </summary>
+    private static GlassMvaStageException AsFailure(Exception exception) =>
+        exception as GlassMvaStageException
+            ?? new(GlassFailure.TransportUnknown, outcomeUnknown: true);
 
     private static GlassRepairEstimateSessionConflictException Conflict(
         GlassRepairEstimateSessionConflict conflict, Guid sessionId, string message) =>
@@ -900,6 +1017,9 @@ public sealed class GlassRepairEstimateGateway(
 
         public Guid? VersionId { get; set; }
 
+        /// <summary>The Case occurrence custody minted or reused for it (G23).</summary>
+        public Guid? OccurrenceId { get; set; }
+
         public string? Sha256 { get; set; }
 
         public long? ContentLength { get; set; }
@@ -921,6 +1041,7 @@ public sealed class GlassRepairEstimateGateway(
                 MediaType = result.MediaType ?? mediaType,
                 DocumentId = result.DocumentId,
                 VersionId = result.VersionId,
+                OccurrenceId = result.OccurrenceId,
                 Sha256 = result.Sha256,
                 ContentLength = result.ContentLength ?? contentLength,
                 BoxFileId = result.BoxFileId,

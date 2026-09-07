@@ -818,6 +818,112 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.DoesNotContain(Harness.Password, protectedSession, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The claim race on the persisted store: two deliveries of the same
+    /// return read the session at one version, the database's version check
+    /// admits one write, the other reads the record, and the provider hears
+    /// the relay once. A gateway built afterwards over the same database, as a
+    /// restarted host is, answers the replay from the durable record.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task TwoDeliveriesOfTheSameReturnRaceOnThePersistedStoreAndActOnce()
+    {
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        using var gate = new GatedStore(new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var harness = Harness.Create(
+            store: gate,
+            caseId: database.CaseId,
+            engineerId: database.UserId,
+            otherEngineerId: database.OtherUserId);
+        var session = await harness.LaunchAsync();
+        gate.HoldNext(2);
+
+        var outcomes = await Task.WhenAll(harness.CompleteAsync(session), harness.CompleteAsync(session));
+
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(harness.Import.Requests);
+        Assert.All(outcomes, outcome => Assert.Equal(session.Id, outcome.Id));
+        Assert.All(outcomes, outcome => Assert.True(
+            outcome.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Completed,
+            outcome.State.ToString()));
+        var recorded = (await database.Store.GetAsync(session.Id, CancellationToken.None))!;
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, recorded.Session.State);
+        Assert.NotNull(await database.CallbackConsumedAtAsync(session.Id));
+        Assert.Contains(
+            $"\"callbackQueryDigest\":\"{GlassRepairEstimateGateway.CallbackDigestOf(SavedQuery)}\"",
+            recorded.ResultArtifactsJson,
+            StringComparison.Ordinal);
+
+        var restarted = Restarted(
+            harness, new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var replayed = await restarted.CompleteAsync(
+            recorded.Session, correlation: harness.CorrelationOf(session.Id));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, replayed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// Two different returns racing on the persisted store: the one the
+    /// database's version check admits is acted on and its fingerprint is the
+    /// record's; the other is refused as a contradictory callback, before and
+    /// after a restart.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task TwoDifferentReturnsRacingOnThePersistedStoreLeaveOneRecordAndOneRefusal()
+    {
+        const string otherQuery = "?Total=0&DoSave=1&ErrMsg=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2Fother.xml";
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        using var gate = new GatedStore(new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var harness = Harness.Create(
+            store: gate,
+            caseId: database.CaseId,
+            engineerId: database.UserId,
+            otherEngineerId: database.OtherUserId);
+        var session = await harness.LaunchAsync();
+        gate.HoldNext(2);
+
+        var first = harness.CompleteAsync(session);
+        var second = harness.CompleteAsync(session, rawQuery: otherQuery);
+        var refusals = new List<GlassRepairEstimateSessionConflictException>();
+        var landed = new List<GlassRepairEstimateSession>();
+        foreach (var delivery in new[] { first, second })
+        {
+            try
+            {
+                landed.Add(await delivery);
+            }
+            catch (GlassRepairEstimateSessionConflictException refusal)
+            {
+                refusals.Add(refusal);
+            }
+        }
+
+        Assert.Equal(GlassRepairEstimateSessionConflict.Callback, Assert.Single(refusals).Conflict);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, Assert.Single(landed).State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        var winner = first.IsCompletedSuccessfully ? SavedQuery : otherQuery;
+        var loser = first.IsCompletedSuccessfully ? otherQuery : SavedQuery;
+        Assert.Contains(
+            $"\"callbackQueryDigest\":\"{GlassRepairEstimateGateway.CallbackDigestOf(winner)}\"",
+            await database.ResultArtifactsJsonAsync(session.Id),
+            StringComparison.Ordinal);
+
+        var restarted = Restarted(
+            harness, new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var current = (await database.Store.GetAsync(session.Id, CancellationToken.None))!.Session;
+        var refused = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
+            () => restarted.CompleteAsync(current, correlation: harness.CorrelationOf(session.Id), rawQuery: loser));
+        Assert.Equal(GlassRepairEstimateSessionConflict.Callback, refused.Conflict);
+        var replayed = await restarted.CompleteAsync(
+            current, correlation: harness.CorrelationOf(session.Id), rawQuery: winner);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, replayed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+    }
+
     // ---------------------------------------------------------------- support
 
     private static Dictionary<string, string> QueryOf(Uri uri) => QueryOf(uri.Query);
@@ -849,6 +955,223 @@ public sealed class GlassRepairEstimateGatewayTests
         public override DateTimeOffset GetUtcNow() =>
             start + Offset + Stopwatch.GetElapsedTime(origin);
     }
+
+    // -------------------------------------------------------- callback claim
+
+    /// <summary>
+    /// Two deliveries of the same Save &amp; Exit that both read the session at
+    /// the same version: the claim admits one, the other reads its record, and
+    /// the provider hears the relay once.
+    /// </summary>
+    [Fact]
+    public async Task TwoDeliveriesOfTheSameReturnActOnTheProviderOnce()
+    {
+        using var gate = new GatedStore(new MemorySessionStore(new TestClock(StartUtc)));
+        var harness = Harness.Create(store: gate);
+        var session = await harness.LaunchAsync();
+        gate.HoldNext(2);
+
+        var outcomes = await Task.WhenAll(harness.CompleteAsync(session), harness.CompleteAsync(session));
+
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.All(outcomes, outcome => Assert.Equal(session.Id, outcome.Id));
+        // The loser reads the record as it stands: still importing, or done.
+        Assert.All(outcomes, outcome => Assert.True(
+            outcome.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Completed,
+            outcome.State.ToString()));
+        Assert.Single(harness.Import.Requests);
+        var recorded = (await harness.Sessions.GetAsync(session.Id, CancellationToken.None))!.Session;
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, recorded.State);
+        Assert.NotNull(recorded.CallbackConsumedAtUtc);
+    }
+
+    /// <summary>
+    /// Two different messages racing for one session: the one the claim admits
+    /// is acted on, the other is refused as a contradictory callback, and the
+    /// record carries the fingerprint of the one that acted.
+    /// </summary>
+    [Fact]
+    public async Task TwoDifferentReturnsRacingForOneSessionLeaveOneRecordAndOneRefusal()
+    {
+        const string otherQuery = "?Total=0&DoSave=1&ErrMsg=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2Fother.xml";
+        using var gate = new GatedStore(new MemorySessionStore(new TestClock(StartUtc)));
+        var harness = Harness.Create(store: gate);
+        var session = await harness.LaunchAsync();
+        gate.HoldNext(2);
+
+        var first = harness.CompleteAsync(session);
+        var second = harness.CompleteAsync(session, rawQuery: otherQuery);
+        var refusals = new List<Exception>();
+        var landed = new List<GlassRepairEstimateSession>();
+        foreach (var delivery in new[] { first, second })
+        {
+            try
+            {
+                landed.Add(await delivery);
+            }
+            catch (GlassRepairEstimateSessionConflictException refusal)
+            {
+                refusals.Add(refusal);
+            }
+        }
+
+        var refused = Assert.Single(refusals);
+        Assert.Equal(
+            GlassRepairEstimateSessionConflict.Callback,
+            ((GlassRepairEstimateSessionConflictException)refused).Conflict);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, Assert.Single(landed).State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        var relayed = harness.Mva.Requests.Single(
+            request => request.Path.StartsWith("/ere/ere-callback/", StringComparison.Ordinal));
+        var winner = first.IsCompletedSuccessfully ? SavedQuery : otherQuery;
+        Assert.Equal(winner, relayed.Query);
+        Assert.Contains(
+            $"\"callbackQueryDigest\":\"{GlassRepairEstimateGateway.CallbackDigestOf(winner)}\"",
+            (await harness.Sessions.GetAsync(session.Id, CancellationToken.None))!.ResultArtifactsJson,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The store refuses the claim: the fault surfaces, the provider was never
+    /// touched, and the callback is still the Engineer's to deliver — through
+    /// a fresh gateway, as after a restart.
+    /// </summary>
+    [Fact]
+    public async Task AClaimTheStoreRefusesLeavesTheCallbackUnspentAndTheProviderUntouched()
+    {
+        using var gate = new GatedStore(new MemorySessionStore(new TestClock(StartUtc)));
+        var harness = Harness.Create(store: gate);
+        var session = await harness.LaunchAsync();
+        gate.Refuse = material => material.Session.State == GlassRepairEstimateSessionState.Importing
+            ? new IOException("The session store is unavailable.")
+            : null;
+
+        await Assert.ThrowsAsync<IOException>(() => harness.CompleteAsync(session));
+
+        Assert.Equal(0, harness.Mva.Count("GET /ere/ere-callback/"));
+        var untouched = (await harness.Sessions.GetAsync(session.Id, CancellationToken.None))!.Session;
+        Assert.Equal(GlassRepairEstimateSessionState.Active, untouched.State);
+        Assert.Null(untouched.CallbackConsumedAtUtc);
+
+        gate.Refuse = null;
+        var restarted = Restarted(harness, gate);
+        var completed = await restarted.CompleteAsync(
+            untouched, correlation: harness.CorrelationOf(session.Id));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+    }
+
+    /// <summary>
+    /// The provider fails right after the claim: the outcome is on the record
+    /// with the delivery's fingerprint, and a fresh gateway given the same
+    /// message reads that record — it never relays again — while a different
+    /// message is refused.
+    /// </summary>
+    [Fact]
+    public async Task AFailureAfterTheClaimIsRecordedAndNeverRepeatedByARestartedHost()
+    {
+        using var gate = new GatedStore(new MemorySessionStore(new TestClock(StartUtc)));
+        var harness = Harness.Create(store: gate);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Enqueue("GET /ere/ere-callback/", new Reply(HttpStatusCode.InternalServerError, string.Empty));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.True(
+            settled.State is GlassRepairEstimateSessionState.Failed or GlassRepairEstimateSessionState.Unknown,
+            settled.State.ToString());
+        Assert.NotNull(settled.FailureCode);
+        var recorded = (await harness.Sessions.GetAsync(session.Id, CancellationToken.None))!;
+        Assert.NotNull(recorded.Session.CallbackConsumedAtUtc);
+        Assert.Contains(
+            $"\"callbackQueryDigest\":\"{GlassRepairEstimateGateway.CallbackDigestOf(SavedQuery)}\"",
+            recorded.ResultArtifactsJson,
+            StringComparison.Ordinal);
+
+        var restarted = Restarted(harness, gate);
+        var replayed = await restarted.CompleteAsync(
+            recorded.Session, correlation: harness.CorrelationOf(session.Id));
+        Assert.Equal(settled.State, replayed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        var refused = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
+            () => restarted.CompleteAsync(
+                recorded.Session,
+                correlation: harness.CorrelationOf(session.Id),
+                rawQuery: "?Total=0&DoSave=1&ErrMsg=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2Fother.xml"));
+        Assert.Equal(GlassRepairEstimateSessionConflict.Callback, refused.Conflict);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+    }
+
+    /// <summary>
+    /// The export never appears within the wait: the session is Unknown with
+    /// its claim, a restarted host answers the replay from the record, and the
+    /// Engineer's resume looks the export up again — signing in, selecting the
+    /// vehicle, reading — without a second relay or a second estimate.
+    /// </summary>
+    [Fact]
+    public async Task AnUncertainExportStaysUnknownUntilAResumeLooksItUpAgain()
+    {
+        using var gate = new GatedStore(new MemorySessionStore(new TestClock(StartUtc)));
+        var harness = Harness.Create(store: gate);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("GET /ere/export-vehicle/", new(HttpStatusCode.OK, "<div>nothing published yet</div>"));
+
+        var uncertain = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, uncertain.State);
+        Assert.NotNull((await harness.Sessions.GetAsync(session.Id, CancellationToken.None))!.Session.CallbackConsumedAtUtc);
+        var relaysBefore = harness.Mva.Count("GET /ere/ere-callback/");
+        Assert.Equal(1, relaysBefore);
+
+        var restarted = Restarted(harness, gate);
+        var replayed = await restarted.CompleteAsync(uncertain, correlation: harness.CorrelationOf(session.Id));
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, replayed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+
+        harness.Mva.Set("GET /ere/export-vehicle/", new(
+            HttpStatusCode.OK, "<a href=\"/ndp_download/export_1.xml\">Download</a>"));
+        var completed = await restarted.Gateway.ResumeAsync(
+            new GlassRepairEstimateResumeRequest(
+                restarted.Engineer, session.Id, uncertain.Version, Harness.CaseVersion, Harness.LeaseToken),
+            CancellationToken.None);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Single(restarted.Import.Requests);
+        Assert.Equal(
+            new[]
+            {
+                GlassRepairEstimateGateway.XmlOccurrenceIdentity(session.Id),
+                GlassRepairEstimateGateway.PdfOccurrenceIdentity(session.Id),
+            },
+            restarted.Custody.Retained.Select(item => item.OccurrenceIdentity));
+    }
+
+    /// <summary>The import is named by the occurrence custody minted, not the document (G23).</summary>
+    [Fact]
+    public async Task TheImportIsNamedByTheOccurrenceCustodyMinted()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+
+        await harness.CompleteAsync(session);
+
+        var import = Assert.Single(harness.Import.Requests);
+        Assert.Equal(harness.Custody.OccurrenceIdOf("xml"), import.OccurrenceId);
+        Assert.NotEqual(harness.Custody.DocumentIdOf("xml"), import.OccurrenceId);
+    }
+
+    /// <summary>A second gateway over the same store, protector and provider: the host after a restart.</summary>
+    private static Harness Restarted(Harness before, IGlassRepairEstimateSessionStore store) =>
+        Harness.Create(
+            store: store,
+            caseId: before.CaseId,
+            engineerId: before.EngineerId,
+            otherEngineerId: before.OtherEngineerId,
+            protection: before.Protection,
+            provider: before.Mva);
 
     private sealed class ClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
@@ -900,15 +1223,18 @@ public sealed class GlassRepairEstimateGatewayTests
 
     private sealed class CustodyDouble : ICaseArtifactCustody, ICaseArtifactCustodyStatus
     {
-        private readonly Dictionary<string, (Guid Document, Guid Version)> identities = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (Guid Document, Guid Version, Guid Occurrence)> identities =
+            new(StringComparer.Ordinal);
 
         public CaseArtifactCustodyDisposition Disposition { get; set; } = CaseArtifactCustodyDisposition.Confirmed;
 
         public List<Retention> Retained { get; } = [];
 
-        public List<(Guid Document, Guid Version)> StatusQueries { get; } = [];
+        public List<(Guid Document, Guid Version, Guid Occurrence)> StatusQueries { get; } = [];
 
         public Guid DocumentIdOf(string kind) => identities[kind].Document;
+
+        public Guid OccurrenceIdOf(string kind) => identities[kind].Occurrence;
 
         public async Task<CaseArtifactCustodyResult> RetainAsync(
             CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
@@ -927,19 +1253,20 @@ public sealed class GlassRepairEstimateGatewayTests
             var kind = request.OccurrenceIdentity[(request.OccurrenceIdentity.LastIndexOf(':') + 1)..];
             var identity = identities.TryGetValue(kind, out var existing)
                 ? existing
-                : identities[kind] = (Guid.NewGuid(), Guid.NewGuid());
+                : identities[kind] = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
             return Result(identity, request.Sha256, request.ContentLength, request.MediaType, Disposition);
         }
 
         public Task<CaseArtifactCustodyResult> GetAsync(
-            ActionActor actor, Guid caseId, Guid documentId, Guid versionId, CancellationToken cancellationToken)
+            ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
+            CancellationToken cancellationToken)
         {
-            StatusQueries.Add((documentId, versionId));
+            StatusQueries.Add((documentId, versionId, occurrenceId));
             var retained = Retained.Single(
                 item => identities[item.OccurrenceIdentity[(item.OccurrenceIdentity.LastIndexOf(':') + 1)..]]
-                    .Document == documentId);
+                    .Occurrence == occurrenceId);
             return Task.FromResult(Result(
-                (documentId, versionId),
+                (documentId, versionId, occurrenceId),
                 retained.Sha256,
                 retained.ContentLength,
                 retained.MediaType,
@@ -951,7 +1278,7 @@ public sealed class GlassRepairEstimateGatewayTests
             Task.FromResult<CaseArtifactCustodyResult?>(null);
 
         private static CaseArtifactCustodyResult Result(
-            (Guid Document, Guid Version) identity,
+            (Guid Document, Guid Version, Guid Occurrence) identity,
             string sha256,
             long contentLength,
             string mediaType,
@@ -960,6 +1287,7 @@ public sealed class GlassRepairEstimateGatewayTests
                 disposition,
                 identity.Document,
                 identity.Version,
+                identity.Occurrence,
                 BoxFileId: null,
                 BoxVersionId: null,
                 disposition == CaseArtifactCustodyDisposition.Confirmed ? sha256 : null,
@@ -1108,6 +1436,64 @@ public sealed class GlassRepairEstimateGatewayTests
                 or GlassRepairEstimateSessionState.Unknown;
     }
 
+    /// <summary>
+    /// The real store's shape with two things a test can do to it: hold the
+    /// next N saves until all N have arrived, so two deliveries reach the claim
+    /// having read the same version, and refuse a save outright.
+    /// </summary>
+    private sealed class GatedStore(IGlassRepairEstimateSessionStore inner) : IGlassRepairEstimateSessionStore, IDisposable
+    {
+        private readonly SemaphoreSlim oneWriter = new(1, 1);
+        private TaskCompletionSource? barrier;
+        private int expected;
+        private int arrived;
+
+        public Func<GlassRepairEstimateSessionMaterial, Exception?>? Refuse { get; set; }
+
+        public void HoldNext(int saves)
+        {
+            expected = saves;
+            arrived = 0;
+            barrier = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        public Task<GlassRepairEstimateSessionMaterial?> GetAsync(Guid sessionId, CancellationToken cancellationToken) =>
+            inner.GetAsync(sessionId, cancellationToken);
+
+        public Task<GlassRepairEstimateSessionMaterial> CreateAsync(
+            GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
+            inner.CreateAsync(material, cancellationToken);
+
+        public async Task SaveAsync(
+            GlassRepairEstimateSessionMaterial material, long expectedVersion, CancellationToken cancellationToken)
+        {
+            if (Refuse?.Invoke(material) is { } refusal)
+            {
+                throw refusal;
+            }
+            if (barrier is { } wait)
+            {
+                if (Interlocked.Increment(ref arrived) >= expected)
+                {
+                    wait.TrySetResult();
+                }
+                await wait.Task;
+            }
+
+            await oneWriter.WaitAsync(cancellationToken);
+            try
+            {
+                await inner.SaveAsync(material, expectedVersion, cancellationToken);
+            }
+            finally
+            {
+                oneWriter.Release();
+            }
+        }
+
+        public void Dispose() => oneWriter.Dispose();
+    }
+
     private sealed class Harness
     {
         internal const string Account = "a.engineer";
@@ -1127,11 +1513,13 @@ public sealed class GlassRepairEstimateGatewayTests
             CustodyDouble custody,
             ImportDouble import,
             TestClock clock,
+            IDataProtectionProvider protection,
             Guid caseId,
             Guid engineerId,
             Guid otherEngineerId)
         {
             Gateway = gateway;
+            Protection = protection;
             Sessions = store;
             Memory = memory;
             Mva = mva;
@@ -1168,6 +1556,11 @@ public sealed class GlassRepairEstimateGatewayTests
 
         public TestClock Clock { get; }
 
+        /// <summary>Shared with a second harness that stands in for a restarted host.</summary>
+        public IDataProtectionProvider Protection { get; }
+
+        public string CorrelationOf(Guid sessionId) => correlations[sessionId];
+
         public Guid CaseId { get; }
 
         public Guid EngineerId { get; }
@@ -1185,11 +1578,17 @@ public sealed class GlassRepairEstimateGatewayTests
             IGlassRepairEstimateSessionStore? store = null,
             Guid? caseId = null,
             Guid? engineerId = null,
-            Guid? otherEngineerId = null)
+            Guid? otherEngineerId = null,
+            IDataProtectionProvider? protection = null,
+            ScriptedGlass? provider = null)
         {
             var clock = new TestClock(StartUtc);
-            var mva = new ScriptedGlass();
-            Script(mva);
+            var mva = provider ?? new ScriptedGlass();
+            if (provider is null)
+            {
+                Script(mva);
+            }
+            var protector = protection ?? new EphemeralDataProtectionProvider();
             var memory = store is null ? new MemorySessionStore(clock) : null;
             if (memory is not null)
             {
@@ -1219,7 +1618,7 @@ public sealed class GlassRepairEstimateGatewayTests
                     custody,
                     import,
                     new ClientFactory(mva),
-                    new EphemeralDataProtectionProvider(),
+                    protector,
                     options,
                     clock),
                 sessions,
@@ -1230,6 +1629,7 @@ public sealed class GlassRepairEstimateGatewayTests
                 custody,
                 import,
                 clock,
+                protector,
                 caseId ?? Guid.NewGuid(),
                 engineerId ?? Guid.NewGuid(),
                 otherEngineerId ?? Guid.NewGuid());
