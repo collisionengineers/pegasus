@@ -816,3 +816,33 @@ are stale (controller handles the capture); a replacement now consumes a file sl
 MaximumFileCount until R-1b lets the page mark a row superseded — worth confirming as product
 behaviour. Report:
 C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
+
+## C07 round 1a — wave 39 correction, 2026-09-07 (HEAD ba8ccd79e)
+
+Wave 39 at 3a13a6e3d was 56 PASS / 1 FAIL:
+FinishNamesTheFileItIsWaitingForAndProceedsPastARefusedOne expected (1,32), got (2,77).
+
+Two causes, not one. (i) The counted set is now named once and derived from its single
+exclusion — EfPublicUploadRetentionStore.RetainedOrInFlightCodes is every custody state except
+Failed, built from Enum.GetValues so it cannot drift. That also adds Arrived/Unknown, closing a
+gap where a link could exceed itself with everything in flight. (ii) The real cause: the totals
+are derived, and the only derivation point was "the next accepted arrival" — which is ASSUMPTION 6
+on this ticket, asserted by the existing test at PublicUploadRetentionWebTests.cs:611-615. So the
+state filter alone could never have turned (2,77) into (1,32). FinalizeAsync now re-derives
+through the same method, at the moment the submission closes and while it already holds the link's
+UPDLOCK. No second copy of the rule; the retention port writes the refusal but owns no link, so
+re-deriving there would have split ownership.
+
+ASSUMPTION 6 needs a one-line amendment: totals are re-derived on an accepted arrival AND at
+finalization. The test recording it still passes unchanged (its session never starts, so it never
+finalizes), but its comment is now narrower than the behaviour. Flagged, not rewritten — it is a
+recorded assumption.
+
+Test: the same test now also asserts a Pending row IS counted, (2, Evidence+OtherEvidence), before
+confirmation. All 23 ReadLinkTotalsAsync assertions in the suite were read before widening the
+filter; no other expectation moves.
+
+Gates at HEAD ba8ccd79e: Web build exit 0, 0W/0E. IntegrationTests build exit 1 with only the
+expected A-owned CS0246 EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs(462,35), 0W.
+Commits now: 324cf08f8, 64cc0e90e, 3a13a6e3d, ba8ccd79e. Report (## Round 1a appended):
+C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
