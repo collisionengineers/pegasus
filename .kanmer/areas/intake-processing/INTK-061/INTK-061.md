@@ -11,19 +11,6 @@ stageEntered:
   review: '2026-09-07T21:04:33.926Z'
   verifying: '2026-09-07T21:12:13.772Z'
   done: '2026-09-07T22:01:35.155Z'
-taken_at: '2026-09-07T20:09:50.926Z'
-branch: INTK-061-intake-recovery
-worktree: .worktrees/intk-061
-claim_expires_at: '2026-09-07T22:27:00.686Z'
-claim_controller: /root
-lease_id: caff30a5-8e3d-4009-820d-f471bec4d716
-lease_revision: 13
-lease_controller_run: 20260907T200500Z-v1-remediation
-lease_worker_run: intake_audit
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-061'
-lease_provider: codex
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-07T21:57:00.686Z'
 labels: []
 groups:
   - EPIC-014
@@ -45,7 +32,7 @@ delivery_sha: 783b537f189ead88553f940d03df0d1f9558ef75
 delivery_recorded_at: '2026-09-07T22:01:34.348Z'
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T22:01:35.155Z'
+updated: '2026-09-07T22:03:48.322Z'
 ---
 
 ## What
