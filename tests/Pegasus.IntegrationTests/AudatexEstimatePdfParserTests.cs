@@ -84,6 +84,31 @@ public sealed class AudatexEstimatePdfParserTests
     }
 
     [Fact]
+    public void TheDocumentNamesItsProviderItsPrintedTotalsAndEachRowsIdentity()
+    {
+        var result = parser.Parse(AudatexEstimateFixture.Build());
+
+        Assert.Equal(AudatexEstimatePdfParser.ProviderName, result.ProviderName);
+
+        // The document's own printed section totals are carried as evidence:
+        // Pegasus still costs the estimate from the rows at its own rate,
+        // discounts and VAT categories, and a figure that disagrees with that
+        // calculation is retained beside it rather than adopted.
+        var totals = Assert.IsType<EstimateSourceTotals>(result.SourceTotals);
+        Assert.Equal(21.0m, totals.PanelWorkUnits);
+        Assert.Equal(16.2m, totals.PaintWorkUnits);
+        Assert.Equal(620.20m, totals.Parts);
+        Assert.Equal(110.00m, totals.Specialist);
+        Assert.Null(totals.Net);
+
+        // A row's identity is its section and its ordinal within that section,
+        // so it survives the four sections being concatenated into one set.
+        Assert.Equal(
+            ["labour:1", "labour:2", "paint:1", "parts:1", "parts:2", "extras:1"],
+            result.Lines.Select(line => line.SourceRowIdentity));
+    }
+
+    [Fact]
     public void RejectsWhenPartsDoNotAddUpToTheDocumentsOwnSubTotal()
     {
         var bytes = AudatexEstimateFixture.Build(partsSubTotal: "£999.99");

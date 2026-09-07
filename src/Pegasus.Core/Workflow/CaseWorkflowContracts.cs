@@ -48,6 +48,13 @@ public interface ICaseWorkflowConfiguration
     Task<CaseWorkflowConfiguration> GetCurrentAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// CASE-046: retained only because the Case pages still post it. No gate reads
+/// it: entry to Review is decided by the persisted completeness facts the
+/// transition store re-reads inside its own transaction, so nothing a client
+/// sends here is evidence of anything. Delete this record with the last posting
+/// caller.
+/// </summary>
 public sealed record CaseReadinessEvidence(
     bool InstructionsComplete,
     bool ImagesComplete,
@@ -147,6 +154,19 @@ public sealed class CaseEditLeaseExpiredException(Guid caseId, long caseVersion)
     public long CaseVersion { get; } = caseVersion;
 }
 
+/// <summary>
+/// CASE-046: a Review-gated transition was attempted while the case's own
+/// persisted completeness facts say it is not ready. The facts are re-read by
+/// the transition store inside its own transaction, so this is never a report
+/// of what a client claimed.
+/// </summary>
+public sealed class CaseReviewReadinessException(Guid caseId)
+    : InvalidOperationException(
+        $"Case '{caseId}' requires complete instructions and images before Review.")
+{
+    public Guid CaseId { get; } = caseId;
+}
+
 public sealed class CaseOperationConflictException(Guid caseId, string operationKey)
     : InvalidOperationException($"Operation '{operationKey}' was already applied to case '{caseId}' with different inputs.")
 {
@@ -237,7 +257,7 @@ public sealed record ReturnCaseToReviewRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    CaseReadinessEvidence Readiness)
+    CaseReadinessEvidence? Readiness = null)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record AssignCaseEngineerRequest(
@@ -248,7 +268,7 @@ public sealed record AssignCaseEngineerRequest(
     string Reason,
     string EditLeaseToken,
     Guid EngineerId,
-    CaseReadinessEvidence Readiness)
+    CaseReadinessEvidence? Readiness = null)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record SetCaseSignOffEngineerRequest(

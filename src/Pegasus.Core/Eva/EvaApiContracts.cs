@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Identity;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Eva;
 
@@ -31,8 +31,8 @@ public enum EvaSubmissionOutcome
     /// <summary>
     /// Delivery itself is unknown: a transport failure, a timeout, or an
     /// opaque server error. The instruction may or may not have been created,
-    /// which is why a case in this state is never resubmitted automatically —
-    /// EVA has no idempotency and a blind retry can duplicate the claim.
+    /// so Pegasus never retries it blindly — EVA has no idempotency and a
+    /// blind retry can duplicate the claim.
     /// </summary>
     Unknown
 }
@@ -152,23 +152,6 @@ public interface IEvaApiTransport
 }
 
 /// <summary>
-/// Which of a principal's two settings authorises this submission.
-///
-/// It travels on the request because the settings are independent: a
-/// principal may allow automatic submission and no manual one, or the
-/// reverse, so "may this proceed?" cannot be answered without knowing which
-/// act is being attempted.
-/// </summary>
-public enum EvaSubmissionTrigger
-{
-    /// <summary>An operator pressed the button.</summary>
-    Manual,
-
-    /// <summary>The case reached Review and the worker picked it up.</summary>
-    Automatic
-}
-
-/// <summary>
 /// One submission of one case to EVA.
 ///
 /// Like the export it takes an operation key for replay-safe action history.
@@ -177,8 +160,7 @@ public enum EvaSubmissionTrigger
 public sealed record SubmitCaseToEvaRequest(
     Guid CaseId,
     ActionActor Actor,
-    string OperationKey,
-    EvaSubmissionTrigger Trigger);
+    string OperationKey);
 
 public sealed record SubmitCaseToEvaResult(
     EvaSubmissionResult? Submission,
@@ -241,8 +223,7 @@ public interface IEvaSubmissionQueries
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// How much EVA work is queued and when EVA was last spoken to at all —
-    /// the two facts a health row can state without probing EVA.
+    /// When EVA was last spoken to, without probing the provider.
     /// </summary>
     Task<EvaSubmissionActivity> GetActivityAsync(CancellationToken cancellationToken = default);
 }
@@ -254,12 +235,10 @@ public sealed record EvaSubmissionFailure(
     DateTimeOffset SubmittedAtUtc);
 
 /// <summary>
-/// <see cref="PendingWorkCount"/> counts queued automatic submissions that have
-/// neither completed nor failed; <see cref="LatestSubmittedAtUtc"/> is the
-/// newest attempt of any outcome, or null when no case has ever been sent.
+/// <see cref="LatestSubmittedAtUtc"/> is the newest attempt of any outcome,
+/// or null when no case has ever been sent.
 /// </summary>
 public sealed record EvaSubmissionActivity(
-    int PendingWorkCount,
     DateTimeOffset? LatestSubmittedAtUtc);
 
 /// <summary>
@@ -271,9 +250,3 @@ public sealed class EvaSubmissionNotEnabledException(Guid caseId)
 {
     public Guid CaseId { get; } = caseId;
 }
-
-/// <summary>
-/// Automatic work for a case that has already been delivered to EVA.
-/// </summary>
-public sealed class EvaAutomaticSubmissionAlreadyDeliveredException()
-    : InvalidOperationException("The case already has a delivered EVA submission.");
