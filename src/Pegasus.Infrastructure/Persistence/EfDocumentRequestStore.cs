@@ -251,24 +251,36 @@ internal sealed class EfDocumentRequestStore(
         // The hand-over runs outside the transaction: custody keeps its own
         // durable state and must not be called while our locks are held.
         await using var content = OpenContent(command.File.Content);
-        var retained = await retention.ExecuteAsync(
-            // Stream A's rule: the authority is the persisted upload-link row,
-            // never a document-request identity and never anything the sender
-            // supplied.
-            ActionActor.RequestLink(arrival.LinkId),
-            new(
-                arrival.OccurrenceId,
-                // The link's own Case, read inside the transaction that
-                // authorized this upload.
-                arrival.CaseId,
-                IntakeReceiptId: null,
-                arrival.ScopedOperationKey,
-                arrival.ProposedName,
-                arrival.MediaType,
-                arrival.ContentLength,
-                arrival.Sha256),
-            content,
-            cancellationToken);
+        RetainedIncomingArtifact retained;
+        try
+        {
+            retained = await retention.ExecuteAsync(
+                // Stream A's rule: the authority is the persisted upload-link row,
+                // never a document-request identity and never anything the sender
+                // supplied.
+                ActionActor.RequestLink(arrival.LinkId),
+                new(
+                    arrival.OccurrenceId,
+                    // The link's own Case, read inside the transaction that
+                    // authorized this upload.
+                    arrival.CaseId,
+                    IntakeReceiptId: null,
+                    arrival.ScopedOperationKey,
+                    arrival.ProposedName,
+                    arrival.MediaType,
+                    arrival.ContentLength,
+                    arrival.Sha256),
+                content,
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            // Core records this one definite refusal before surfacing it. The
+            // reserved counters belong to the failed occurrence and can now
+            // be released; every other exception remains uncertain.
+            await ReleaseCapacityOnDefiniteRefusalAsync(arrival, CancellationToken.None);
+            throw;
+        }
         if (retained.State is not (IncomingArtifactCustodyState.Confirmed
             or IncomingArtifactCustodyState.Pending))
         {
@@ -387,17 +399,6 @@ internal sealed class EfDocumentRequestStore(
             return new(RequestUploadDecision.LimitsVersionMismatch, false);
         }
 
-        // Asked before anything else about the files, and asked rather than
-        // thrown at: a session that never started and one whose window closed
-        // are ordinary states of a public link, and neither is "a file is still
-        // being stored, try again" - an expired session would answer that for
-        // ever. Finalized was answered above as the replay it is.
-        if (PublicUploadSessionPolicy.Evaluate(ToSession(session), now)
-            != PublicUploadSessionState.Open)
-        {
-            return new(RequestUploadDecision.Unavailable, false);
-        }
-
         // Only a current arrival custody has not answered holds the submission
         // open. A Failed occurrence is an answer custody has given - rendered
         // as failed, never counted, never called a finalized file, but it does
@@ -419,6 +420,17 @@ internal sealed class EfDocumentRequestStore(
                 RequestUploadDecision.NotRetained,
                 false,
                 EfPublicUploadRetentionStore.ParseCustodyState(blocking));
+        }
+
+        // Asked after unresolved arrivals: a first file still inside custody
+        // has not opened the confirmed window yet, but it is precisely the
+        // file Finish must report as blocking rather than hiding as an
+        // unavailable session. With no blocker, a session that never started
+        // or whose fixed window closed is an ordinary unavailable state.
+        if (PublicUploadSessionPolicy.Evaluate(ToSession(session), now)
+            != PublicUploadSessionState.Open)
+        {
+            return new(RequestUploadDecision.Unavailable, false);
         }
 
         var finalized = PublicUploadSessionPolicy.Finalize(ToSession(session), now);
@@ -470,8 +482,37 @@ internal sealed class EfDocumentRequestStore(
                 value => value.RequestId == linkId
                     && value.OperationKey == senderOperationKey,
                 cancellationToken);
+        var scopedSenderOperationKey = string.IsNullOrWhiteSpace(senderOperationKey)
+            ? null
+            : EfPublicUploadRetentionStore.ScopeOperationKey(linkId, senderOperationKey);
+        var reservation = scopedSenderOperationKey is null
+            ? null
+            : await (
+                from session in context.Set<PublicUploadSessionEntity>().AsNoTracking()
+                join occurrence in context.Set<PublicUploadOccurrenceEntity>().AsNoTracking()
+                    on session.Id equals occurrence.SessionId
+                where session.RequestUploadLinkId == linkId
+                    && occurrence.OperationKey == scopedSenderOperationKey
+                    && EfPublicUploadRetentionStore.ProspectiveOrRetainedCodes
+                        .Contains(occurrence.CustodyState)
+                select new { occurrence.Sha256, occurrence.Size })
+                .SingleOrDefaultAsync(cancellationToken);
+        var policyLink = ToUploadLink(link);
+        if (priorReceipt is null && reservation is not null)
+        {
+            // This exact key already owns these counters. Re-entering its
+            // custody/reconciliation path must not spend the same reservation
+            // twice, while every different key still sees the full totals.
+            policyLink = policyLink with
+            {
+                AcceptedFileCount = command.ReplacementOccurrenceId is null
+                    ? Math.Max(0, policyLink.AcceptedFileCount - 1)
+                    : policyLink.AcceptedFileCount,
+                AcceptedByteCount = Math.Max(0, policyLink.AcceptedByteCount - reservation.Size)
+            };
+        }
         var authorization = uploadPolicy.Authorize(
-            ToUploadLink(link),
+            policyLink,
             new(command.Token, command.File, command.AttemptsInCurrentRateWindow),
             priorReceipt?.ContentHash,
             // A replacement stands in for a file this link already counts, so
@@ -479,6 +520,23 @@ internal sealed class EfDocumentRequestStore(
             // names really is one of those is settled in ReplaceAsync, which
             // refuses anything else before a row is written.
             isReplacement: command.ReplacementOccurrenceId is not null);
+        if (authorization.MayEnterCustody
+            && reservation is not null
+            && !string.Equals(
+                reservation.Sha256,
+                authorization.ContentHash,
+                StringComparison.Ordinal))
+        {
+            // The subtraction belongs only to the bytes already reserved by
+            // this key. Different bytes are a new submission and must pass
+            // the unadjusted aggregate limits before they receive a derived
+            // operation key below.
+            authorization = uploadPolicy.Authorize(
+                ToUploadLink(link),
+                new(command.Token, command.File, command.AttemptsInCurrentRateWindow),
+                priorReceipt?.ContentHash,
+                isReplacement: command.ReplacementOccurrenceId is not null);
+        }
         if (!authorization.MayEnterCustody)
         {
             // A completed prior submission answers here without offering the
@@ -774,6 +832,21 @@ internal sealed class EfDocumentRequestStore(
             // The same operation key carrying different bytes. The key names
             // one deliberate submission of one exact file, and this is not it.
             return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
+        }
+
+        if (link.Status == RequestUploadStatus.Exhausted)
+        {
+            // A replacement is admitted into a link whose file slot is full,
+            // but custody's persisted authority accepts only an Active link.
+            // The counters still block additions while this hand-over is in
+            // flight; accepted or refused completion derives Exhausted again.
+            link.Status = RequestUploadStatus.Active;
+            link.Version = checked(link.Version + 1);
+            var workflow = await RequireWorkflowAsync(context, link.CaseId, cancellationToken);
+            if (IsMutable(workflow))
+            {
+                CaseMutationGuard.Complete(workflow);
+            }
         }
 
         await context.SaveChangesAsync(cancellationToken);
