@@ -16,7 +16,7 @@ public sealed class AnalyzeRetainedInstructionTests
     private static readonly byte[] SourceBytes = Encoding.UTF8.GetBytes(
         "QDOS\nOur Client’s Vehicle: Ford Focus\nRegistration: AB12 CDE");
     private static readonly string SourceHash = Convert.ToHexString(SHA256.HashData(SourceBytes));
-    private const string ResponseHash = "bb11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
+    private const string ResponseHash = "bb112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     private static readonly DateTimeOffset Now = new(2031, 8, 9, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -72,6 +72,7 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal("qdos_instruction_document", observed!.PolicyKey);
         Assert.Equal(1, observed.PolicyVersion);
         Assert.Equal("QDOS", observed.PrincipalCode);
+        Assert.Equal(1, harness.SourceReader.Reads);
     }
 
     [Fact]
@@ -339,6 +340,7 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal($"{IntakeOcrProviderIdentity.Provider}/{IntakeOcrProviderIdentity.ModelId}", claimant.ReaderKey);
         Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, claimant.ReaderVersion);
         Assert.Equal(1, harness.Documents.Opens);
+        Assert.Single(harness.Store.Records);
     }
 
     [Fact]
@@ -361,6 +363,48 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, malformed.Outcome);
         Assert.Empty(harness.Store.Records);
         Assert.Equal(0, harness.Documents.Opens);
+    }
+
+    [Fact]
+    public async Task MalformedOcrIdentityAndPageSetsContributeNothing()
+    {
+        var valid = OcrEvidence(SourceHash);
+        var invalid = new Func<CompletedOcrEvidence, CompletedOcrEvidence>[]
+        {
+            evidence => evidence with { Result = evidence.Result with { ResponseSha256 = "abcd" } },
+            evidence => evidence with { Result = evidence.Result with { ResponseSha256 = new string('g', 64) } },
+            evidence => evidence with { Result = evidence.Result with { Provider = "other" } },
+            evidence => evidence with { Result = evidence.Result with { ModelId = "other" } },
+            evidence => evidence with { Result = evidence.Result with { ApiVersion = "other" } },
+            evidence => evidence with { QualifiedPages = [3] },
+            evidence => evidence with { QualifiedPages = [2, 2] },
+            evidence => evidence with { QualifiedPages = [0] },
+            evidence => evidence with
+            {
+                Result = evidence.Result with
+                {
+                    Pages = [evidence.Result.PageResults[0] with { Text = " " }]
+                }
+            }
+        };
+
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        var actor = ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId);
+        for (var index = 0; index < invalid.Length; index++)
+        {
+            var result = await harness.Command.ExecuteAsync(new(
+                actor,
+                harness.Receipt.Id,
+                harness.Receipt.Version,
+                $"invalid-ocr-{index}",
+                harness.SourceAssetId,
+                invalid[index](valid)));
+            Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        }
+
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+        Assert.Equal(0, harness.SourceReader.Reads);
     }
 
     private static CompletedOcrEvidence OcrEvidence(string sourceHash) => new(
@@ -454,10 +498,11 @@ public sealed class AnalyzeRetainedInstructionTests
             Receipt = BuildReceipt(SourceAssetId);
             Receipts[Receipt.Id] = Receipt;
             Policies = policies;
+            SourceReader = new FakeSourceReader(this);
             Command = new AnalyzeRetainedInstruction(
                 new FakeReceiptQueries(Receipts),
                 Documents,
-                new FakeSourceReader(this),
+                SourceReader,
                 new InstructionExtractionPolicySelector(policies),
                 Store,
                 new FixedTimeProvider(Now));
@@ -474,6 +519,8 @@ public sealed class AnalyzeRetainedInstructionTests
         public FakeLogicalDocumentReader Documents { get; } = new();
 
         public FakeAnalysisStore Store { get; } = new();
+
+        public FakeSourceReader SourceReader { get; }
 
         public AnalyzeRetainedInstruction Command { get; }
 
@@ -582,10 +629,13 @@ public sealed class AnalyzeRetainedInstructionTests
 
     private sealed class FakeSourceReader(Harness harness) : IIntakeSourceReader
     {
+        public int Reads { get; private set; }
+
         public Task<IntakeSourceReadResult> ReadAsync(
             IntakeSource source,
             CancellationToken cancellationToken)
         {
+            Reads++;
             _ = harness;
             return Task.FromResult(new IntakeSourceReadResult(
                 IntakeSourceReadStatus.Readable,
