@@ -13,14 +13,14 @@ stageEntered:
 taken_at: '2026-09-07T21:30:17.097Z'
 branch: INTK-062-public-upload-bound
 worktree: .worktrees/intk-062
-claim_expires_at: '2026-09-07T23:14:35.321Z'
+claim_expires_at: '2026-09-07T23:26:13.404Z'
 claim_controller: principal_delivery_audit
 lease_id: d0b1cbfa-ae1b-4bd3-ad4d-4ff5fa94c265
-lease_revision: 4
+lease_revision: 5
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-062'
-lease_phase: review
-lease_heartbeat_at: '2026-09-07T22:44:35.321Z'
+lease_phase: verifying
+lease_heartbeat_at: '2026-09-07T22:56:13.404Z'
 labels: []
 groups:
   - EPIC-014
@@ -34,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/684'
 archived: false
 created: '2026-09-07T20:01:20.291Z'
-updated: '2026-09-07T22:49:48.666Z'
+updated: '2026-09-07T22:56:13.404Z'
 ---
 
 ## What
