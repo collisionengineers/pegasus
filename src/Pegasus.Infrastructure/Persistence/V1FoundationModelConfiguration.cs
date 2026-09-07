@@ -130,7 +130,7 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<PublicUploadOccurrenceEntity>(e =>
         {
-            e.ToTable("PublicUploadOccurrences"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.SessionId, x.OperationKey }).IsUnique();
+            e.ToTable("PublicUploadOccurrences"); e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.SessionId, x.Id }); e.HasIndex(x => new { x.SessionId, x.OperationKey }).IsUnique(); e.HasIndex(x => new { x.SessionId, x.ReplacesOccurrenceId });
             e.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength();
         });
         builder.Entity<UserExternalCredentialEntity>().HasOne<PegasusIdentityUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
@@ -151,5 +151,6 @@ internal static class V1FoundationModelConfiguration
         builder.Entity<DocumentContentCacheEntryEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<PublicUploadSessionEntity>().HasOne<RequestUploadLinkEntity>().WithMany().HasForeignKey(x => x.RequestUploadLinkId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<PublicUploadOccurrenceEntity>().HasOne<PublicUploadSessionEntity>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PublicUploadOccurrenceEntity>().HasOne<PublicUploadOccurrenceEntity>().WithMany().HasForeignKey(x => new { x.SessionId, x.ReplacesOccurrenceId }).HasPrincipalKey(x => new { x.SessionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     }
 }
