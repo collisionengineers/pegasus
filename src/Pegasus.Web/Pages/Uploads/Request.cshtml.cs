@@ -153,6 +153,7 @@ public sealed partial class RequestModel(
                     ModelState.AddModelError(nameof(Upload), "This file type cannot be accepted. Choose one of the permitted document types.");
                     break;
                 case RequestUploadDecision.LimitExceeded:
+                    ModelState.AddModelError(string.Empty, "This request has reached its document or size limit.");
                     ModelState.AddModelError(nameof(Upload), "This request has reached its document or size limit.");
                     break;
                 case RequestUploadDecision.OperationConflict:
