@@ -846,3 +846,39 @@ Gates at HEAD ba8ccd79e: Web build exit 0, 0W/0E. IntegrationTests build exit 1 
 expected A-owned CS0246 EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs(462,35), 0W.
 Commits now: 324cf08f8, 64cc0e90e, 3a13a6e3d, ba8ccd79e. Report (## Round 1a appended):
 C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
+
+## C07 round 2 — R-1b replacement lineage, 2026-09-07 (HEAD 4476ed138)
+
+On the controller's merge base 52eb79a28 (verified clean first), carrying shared G21.
+
+ASSUMPTION 7 (C07, round 2): a replacement consumes a file against MaximumFileCount. The link's
+accepted totals count every byte set custody holds or may hold, and a superseded Confirmed
+occurrence is still held by custody, so it still counts — because plan C07 item 5 makes the
+per-link limits bound what custody holds, not what the page currently lists. A sender who replaces
+three files on a five-file link has used four of five. Alternatives considered and rejected: stop
+counting a superseded row (the bytes would be unbounded, which is R-5's original defect), or
+release them from custody (needs an explicit custody removal nobody owns). Recorded, not fixed,
+per controller direction.
+
+Changes: the new occurrence carries ReplacesOccurrenceId; the `// round 2 (R-1b):` marker is gone
+and no marker or TODO is left. The superseded row is still never written to. G21's composite FK
+(SessionId, ReplacesOccurrenceId) -> (SessionId, Id) is a floor under a rule the store already
+enforces above, so SQL 547 never reaches the sender. The supersession relation is read in exactly
+one place, SessionOccurrencesOf, which both the public view and FinalizeAsync materialise.
+RequestUploadOccurrenceView gains SupersededByOccurrenceId; the page renders a replaced file as
+"Replaced" via OperatorLabels.Upload.RequestFileState(state, isSuperseded) and offers no replace
+control for it; Finish ignores superseded rows entirely. Dead RequestUploadOccurrenceView
+.IsUnresolved deleted. ASSUMPTION 6's comment amended to "on an accepted arrival and at
+finalization".
+
+Migration: 20260907093000_PublicUploadOccurrenceReplacementLineage added after RemovePaintLabourRate
+in IntakePersistenceIntegrationTests.cs:128.
+
+OWNER ACTION NEEDED, outside this slice: tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests
+.cs:131 asserts the same list as an exact PENDING-migration equality. G21 put the migration on this
+branch, so that assertion now fails unless the same entry is added there. Dispatch said "no other
+migration test file", so it is reported, not edited. Certain wave failure otherwise.
+
+Gates at HEAD 4476ed138: Web exit 0, 0W/0E; IntegrationTests exit 1 with only the A-owned CS0246
+EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs(462,35), 0W. Report (## Round 2 appended):
+C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
