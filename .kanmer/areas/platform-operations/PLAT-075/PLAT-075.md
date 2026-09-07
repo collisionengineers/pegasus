@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-06T05:35:26.823Z'
 branch: task/pegasus-v1-platform
 worktree: ../pegasus-worktrees/v1-platform
-claim_expires_at: '2026-09-07T07:17:00.678Z'
+claim_expires_at: '2026-09-07T07:25:44.977Z'
 claim_controller: codex-astra
 lease_id: beb51d8a-5cb6-4498-9673-8eefd9778711
-lease_revision: 136
+lease_revision: 137
 lease_workspace: 'worktree:c:\users\pc\documents\github\pegasus-worktrees\v1-platform'
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T05:17:00.678Z'
+lease_heartbeat_at: '2026-09-07T05:25:44.977Z'
 labels:
   - pegasus-v1
   - stream-a
@@ -29,7 +29,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/674'
 archived: false
 created: '2026-09-06T05:33:42.409Z'
-updated: '2026-09-07T05:17:00.678Z'
+updated: '2026-09-07T05:25:44.977Z'
 ---
 
 ## What
