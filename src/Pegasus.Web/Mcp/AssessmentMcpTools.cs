@@ -183,7 +183,7 @@ internal sealed class AssessmentMcpTools(
         string editLeaseToken,
         string operationKey,
         string name,
-        Guid documentId,
+        Guid occurrenceId,
         Guid documentVersionId,
         string sha256,
         string sourceRoute,
@@ -199,7 +199,7 @@ internal sealed class AssessmentMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                AutomationMcpErrors.RequireId(documentId, "document identifier");
+                AutomationMcpErrors.RequireId(occurrenceId, "document occurrence identifier");
                 AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
                 if (!Enum.TryParse<RepairSpecificationSourceRoute>(sourceRoute, true, out var route)
                     || !Enum.IsDefined(route)
@@ -211,7 +211,7 @@ internal sealed class AssessmentMcpTools(
                     ?? throw new McpException("Estimate import is unavailable in this runtime.");
                 var estimateId = await importer.ExecuteAsync(
                     new(context.Actor, caseId, expectedVersion, editLeaseToken,
-                        documentId, documentVersionId, sha256, route, key, name),
+                        occurrenceId, documentVersionId, sha256, route, key, name),
                     cancellationToken);
                 return new EstimateImportToolResult(
                     caseId, estimateId, name.Trim(), key,
