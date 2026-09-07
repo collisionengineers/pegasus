@@ -11,18 +11,6 @@ stageEntered:
   review: '2026-09-07T20:44:41.973Z'
   verifying: '2026-09-07T20:50:44.730Z'
   done: '2026-09-07T21:05:06.369Z'
-taken_at: '2026-09-07T20:22:58.731Z'
-branch: MAIL-036-wipe-boundary
-worktree: .worktrees/mail-036
-claim_expires_at: '2026-09-07T21:31:06.463Z'
-claim_controller: codex-v1-remediation-root
-lease_id: 7b75a627-f815-47ca-af8e-3349bac00c98
-lease_revision: 3
-lease_controller_run: 20260907T200500Z-v1-remediation
-lease_worker_run: root-mail-20260907
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\mail-036'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-07T21:01:06.463Z'
 labels: []
 groups:
   - EPIC-014
@@ -41,7 +29,7 @@ delivery_sha: 1d972f05c0f10c2ecf804f271a4fd3155242f1ef
 delivery_recorded_at: '2026-09-07T21:05:53.241Z'
 archived: false
 created: '2026-09-07T20:01:20.357Z'
-updated: '2026-09-07T21:05:53.241Z'
+updated: '2026-09-07T21:07:03.670Z'
 ---
 
 ## What
