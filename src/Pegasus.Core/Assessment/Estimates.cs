@@ -280,7 +280,11 @@ public sealed record EstimateTotals(
         var recorded = estimate.RecordedTotals
             ?? throw new InvalidOperationException(
                 "An accepted estimate has no recorded calculation breakdown.");
-        ValidateRecorded(recorded);
+        if (recorded.Raw is null || recorded.Printed is null || recorded.VatPolicy is null)
+        {
+            throw new InvalidOperationException(
+                "The accepted estimate's recorded calculation breakdown is incomplete.");
+        }
         return recorded;
     }
 
@@ -393,38 +397,6 @@ public sealed record EstimateTotals(
     private static decimal Pence(decimal value) =>
         decimal.Round(value, 2, MidpointRounding.AwayFromZero);
 
-    private static void ValidateRecorded(EstimateTotals totals)
-    {
-        var raw = totals.Raw;
-        var printed = totals.Printed;
-        if (totals.CalculationPolicyVersion <= 0
-            || totals.VatPercent is < 0m or > 100m
-            || new[]
-            {
-                raw.Parts, raw.PanelLabour, raw.PaintLabour, raw.Materials,
-                raw.Specialist, raw.OffPattern, raw.Category, raw.Net,
-                raw.Taxable, raw.Vat, raw.Gross,
-                printed.Parts, printed.PanelLabour, printed.PaintLabour,
-                printed.Materials, printed.Specialist, printed.Net,
-                printed.Vat, printed.Gross,
-            }.Any(value => value < 0m)
-            || raw.Net != raw.Parts + raw.PanelLabour + raw.PaintLabour + raw.Materials + raw.Specialist
-            || raw.Gross != raw.Net + raw.Vat
-            || raw.Taxable > raw.Net
-            || printed.Parts != Pence(raw.Parts)
-            || printed.PanelLabour != Pence(raw.PanelLabour)
-            || printed.PaintLabour != Pence(raw.PaintLabour)
-            || printed.Materials != Pence(raw.Materials)
-            || printed.Specialist != Pence(raw.Specialist)
-            || printed.Net != printed.Parts + printed.PanelLabour + printed.PaintLabour
-                + printed.Materials + printed.Specialist
-            || printed.Vat != Pence(raw.Vat)
-            || printed.Gross != printed.Net + printed.Vat)
-        {
-            throw new InvalidOperationException(
-                "The accepted estimate's recorded calculation breakdown is invalid.");
-        }
-    }
 }
 
 /// <summary>

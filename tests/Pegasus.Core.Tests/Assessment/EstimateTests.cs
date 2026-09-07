@@ -84,14 +84,16 @@ public sealed class EstimateTests
         Assert.Equal(EstimateTotals.Compute(draft), EstimateTotals.ForProjection(draft));
     }
 
-    [Fact]
-    public void AcceptedProjectionUsesItsRecordedBreakdownWhenInputsDiffer()
+    [Theory]
+    [InlineData(RepairSpecificationState.Accepted)]
+    [InlineData(RepairSpecificationState.Superseded)]
+    public void AcceptedProjectionUsesItsRecordedBreakdownWhenInputsDiffer(RepairSpecificationState state)
     {
         var original = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
         var recorded = EstimateTotals.Compute(original);
         var accepted = original with
         {
-            State = RepairSpecificationState.Accepted,
+            State = state,
             Details = Header(rate: 90m),
             Lines = [Line("new_part", price: 999m)],
             RecordedTotals = recorded,
@@ -105,7 +107,7 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void AcceptedProjectionRefusesMissingOrInvalidRecordedBreakdown()
+    public void AcceptedProjectionRefusesMissingOrIncompleteRecordedBreakdown()
     {
         var draft = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
         var recorded = EstimateTotals.Compute(draft);
@@ -113,12 +115,27 @@ public sealed class EstimateTests
 
         Assert.Throws<InvalidOperationException>(() => EstimateTotals.ForProjection(accepted));
 
-        var invalid = recorded with
-        {
-            Printed = recorded.Printed with { Gross = recorded.Printed.Gross + 0.01m },
-        };
         Assert.Throws<InvalidOperationException>(() =>
-            EstimateTotals.ForProjection(accepted with { RecordedTotals = invalid }));
+            EstimateTotals.ForProjection(accepted with { RecordedTotals = recorded with { Raw = null! } }));
+    }
+
+    [Fact]
+    public void RecordedPrintedAmountsAreNotRoundedAgainOnProjection()
+    {
+        var draft = Estimate(Header(rate: 40m), Line("new_part", price: 100.005m));
+        var computed = EstimateTotals.Compute(draft);
+        var recorded = computed with
+        {
+            Printed = computed.Printed with { Parts = 100m, Net = 100m, Gross = 120m },
+        };
+        var accepted = draft with
+        {
+            State = RepairSpecificationState.Accepted,
+            RecordedTotals = recorded,
+        };
+
+        Assert.NotEqual(computed.Printed, recorded.Printed);
+        Assert.Same(recorded, EstimateTotals.ForProjection(accepted));
     }
 
     [Fact]
