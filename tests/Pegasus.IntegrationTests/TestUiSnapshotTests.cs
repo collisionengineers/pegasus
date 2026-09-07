@@ -34,7 +34,7 @@ public sealed partial class TestUiSnapshotTests
             ["administration-account-confirm--reset-password"] = new("Reset password"),
             ["administration-account-confirm--clear-lease"] = new("Clear case edit hold"),
             ["administration-principal-eva-submission--default"] = new(
-                "EVA API submission for WEBP", "We could not complete that request"),
+                "Settings for WEBP", "Manual EVA API submission"),
             // The seeded list before any administrator change: the create
             // form is present and no test-created preset has been added.
             ["administration-valuation-presets--default"] = new("Create preset", "Roof rack"),
