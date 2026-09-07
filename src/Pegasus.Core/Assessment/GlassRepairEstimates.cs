@@ -25,6 +25,10 @@ public sealed class GlassRepairEstimateSessionConflictException(
     public Guid SessionId { get; } = sessionId;
 }
 
+/// <summary>An expected Glass's action refusal whose reason may be shown to staff.</summary>
+public sealed class GlassRepairEstimateRefusalException(string message)
+    : InvalidOperationException(message);
+
 public sealed record GlassRepairEstimateSession(
     Guid Id, Guid CaseId, Guid PegasusUserId, long CredentialGeneration,
     string NormalizedExternalAccountKey, GlassRepairEstimateSessionState State,
