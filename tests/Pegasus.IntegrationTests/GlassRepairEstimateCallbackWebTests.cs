@@ -12,6 +12,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -182,6 +183,39 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Empty(await workspace.SessionsAsync());
     }
 
+    [Fact]
+    public async Task AnHttp200ProviderRefusalReturnsToTheCaseAndRecordsNoEstimate()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        workspace.Mva.Set(
+            "POST /ere/start-ere",
+            new Reply(
+                HttpStatusCode.OK,
+                "{\"message\":\"Profile not available\",\"status\":\"error\",\"ere_url\":\"\"}"));
+        await workspace.ClaimLeaseAsync();
+
+        using var refused = await workspace.LaunchAsync();
+
+        Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
+        Assert.StartsWith($"/Cases/{workspace.CaseId:D}", refused.Headers.Location!.ToString(), StringComparison.Ordinal);
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.StartStatus, session.FailureCode);
+        Assert.Null(session.ProviderEstimateId);
+        Assert.Empty(await workspace.EstimatesAsync());
+        Assert.Empty(await workspace.RetainedMediaTypesAsync());
+        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.NotImported,
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.Imported,
+            html,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// A Glass's account holds one live calculation, so a second launch is
     /// refused where every other Estimate refusal is reported and no second
@@ -263,6 +297,37 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(RepairSpecificationState.Draft, estimate.State);
         Assert.NotEmpty(estimate.Lines);
         Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
+    }
+
+    [Fact]
+    public async Task AnExpiredCallbackReturnsToTheCaseWithoutImportingOrClaimingSuccess()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.ExpireSessionAsync();
+
+        using var returned = await workspace.ReturnAsync(correlation);
+
+        Assert.Equal(HttpStatusCode.Found, returned.StatusCode);
+        Assert.Equal(
+            $"/Cases/{workspace.CaseId:D}?section=estimate",
+            returned.Headers.Location!.ToString());
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Expired, session.State);
+        Assert.Equal(GlassFailure.CallbackExpired, session.FailureCode);
+        Assert.Null(session.CallbackConsumedAtUtc);
+        Assert.Empty(await workspace.EstimatesAsync());
+        Assert.Empty(await workspace.RetainedMediaTypesAsync());
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.NotImported,
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.Imported,
+            html,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -655,6 +720,20 @@ public sealed class GlassRepairEstimateCallbackWebTests
             Assert.NotEmpty(fields);
             context.RemoveRange(fields);
             await context.SaveChangesAsync();
+        }
+
+        public async Task ExpireSessionAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var changed = await context.Set<GlassRepairEstimateSessionEntity>()
+                .Where(item => item.CaseId == CaseId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(
+                    item => item.ExpiresAtUtc,
+                    DateTimeOffset.UnixEpoch));
+            Assert.Equal(1, changed);
         }
 
         public async Task FinishEditingAsync()
