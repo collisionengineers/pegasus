@@ -390,6 +390,10 @@ public interface IRetainedMailQueries
         CancellationToken cancellationToken,
         string? searchTerm = null);
 
+    Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
 
@@ -546,6 +550,31 @@ public sealed class GetRetainedMail(
             messageId,
             cancellationToken,
             normalizedSearchTerm);
+        return await CompleteAsync(detail, messageId, cancellationToken);
+    }
+
+    public async Task<RetainedMailDetail?> ExecuteByOriginReceiptAsync(
+        ActionActor actor,
+        Guid originReceiptId,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (originReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "An origin receipt identifier is required.",
+                nameof(originReceiptId));
+        }
+
+        var detail = await queries.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
+        return await CompleteAsync(detail, detail?.Summary.Id ?? Guid.Empty, cancellationToken);
+    }
+
+    private async Task<RetainedMailDetail?> CompleteAsync(
+        RetainedMailDetail? detail,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
         if (detail is null)
         {
             return null;
