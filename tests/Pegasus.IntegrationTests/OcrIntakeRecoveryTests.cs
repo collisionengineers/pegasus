@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -52,6 +53,14 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal("response-hash-1", operation.Result.ResponseSha256);
         Assert.Equal([1], operation.Result.PageResults.Select(page => page.Number));
         Assert.Single(harness.Analysis.Requests);
+
+        var workItem = await harness.ReadWorkItemAsync();
+        Assert.NotNull(workItem);
+        Assert.Equal(ExternalWorkStatePersistence.Completed, workItem.State);
+        Assert.Equal(ExternalWorkKinds.IntakeOcr, workItem.Kind);
+        Assert.Equal(harness.Request.OperationKey, workItem.OperationKey);
+        Assert.NotNull(workItem.CompletedAtUtc);
+        Assert.Equal("provider-op-1", workItem.ExternalReceipt);
     }
 
     [Fact]
@@ -82,6 +91,12 @@ public sealed class OcrIntakeRecoveryTests
 
         Assert.Equal(harness.WorkItemId, again.Id);
         Assert.Equal(1, await harness.CountOperationsAsync());
+
+        var workItem = await harness.ReadWorkItemAsync();
+        Assert.NotNull(workItem);
+        Assert.Equal(ExternalWorkStatePersistence.Pending, workItem.State);
+        Assert.Equal(ExternalWorkKinds.IntakeOcr, workItem.Kind);
+        Assert.Equal(harness.Request.OperationKey, workItem.OperationKey);
     }
 
     [Fact]
@@ -147,6 +162,11 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal(IntakeOcrState.Unknown, afterSecondDelivery.State);
         Assert.Equal(1, harness.Provider.Analyses);
         Assert.Empty(harness.Analysis.Requests);
+
+        var workItem = await harness.ReadWorkItemAsync();
+        Assert.NotNull(workItem);
+        Assert.Equal(ExternalWorkStatePersistence.Failed, workItem.State);
+        Assert.Equal(harness.Request.OperationKey, workItem.OperationKey);
     }
 
     [Fact]
@@ -162,14 +182,25 @@ public sealed class OcrIntakeRecoveryTests
 
         await harness.ExecuteAsync();
         var first = await harness.ReadAsync();
+        var workAfterFirst = await harness.ReadWorkItemAsync();
+        Assert.NotNull(workAfterFirst);
+        Assert.Equal(ExternalWorkStatePersistence.Pending, workAfterFirst.State);
+        Assert.Equal(first.RetryAtUtc, workAfterFirst.DueAtUtc);
+        Assert.Equal(1, workAfterFirst.AttemptCount);
+
         await harness.ExecuteAsync();
         var second = await harness.ReadAsync();
+        var workAfterSecond = await harness.ReadWorkItemAsync();
 
         Assert.Equal(IntakeOcrState.RetryScheduled, first.State);
         Assert.Equal(1, first.AttemptCount);
         Assert.Equal(IntakeOcrState.RetryScheduled, second.State);
         Assert.Equal(2, second.AttemptCount);
         Assert.NotNull(second.RetryAtUtc);
+        Assert.NotNull(workAfterSecond);
+        Assert.Equal(ExternalWorkStatePersistence.Pending, workAfterSecond.State);
+        Assert.Equal(second.RetryAtUtc, workAfterSecond.DueAtUtc);
+        Assert.Equal(2, workAfterSecond.AttemptCount);
         // A safe retry did resend, because the provider refused the submission
         // outright: nothing was read, so nothing can be read twice.
         Assert.Equal(2, harness.Provider.Analyses);
@@ -291,6 +322,13 @@ public sealed class OcrIntakeRecoveryTests
         public async Task<IntakeOcrOperation> ReadAsync() =>
             await Store.FindAsync(WorkItemId, CancellationToken.None)
             ?? throw new InvalidOperationException("The operation was not recorded.");
+
+        public async Task<ExternalWorkItemEntity?> ReadWorkItemAsync()
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync(CancellationToken.None);
+            return await context.Set<ExternalWorkItemEntity>().AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == WorkItemId, CancellationToken.None);
+        }
 
         public async Task<int> CountOperationsAsync()
         {
