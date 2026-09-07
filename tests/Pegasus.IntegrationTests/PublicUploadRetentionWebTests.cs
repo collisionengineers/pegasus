@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -773,6 +774,267 @@ public sealed partial class PublicUploadRetentionWebTests
             .Where(item => item.CaseId == link.CaseId)
             .ToArrayAsync());
         Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
+    }
+
+    /// <summary>
+    /// Two simultaneous submissions of distinct operation keys arriving when
+    /// the link is one file short of its maximum file count serialize on the
+    /// link lock: the first reserves the final slot before releasing the lock,
+    /// and the second is refused with LimitExceeded while the first is still
+    /// in custody. Exactly one custody initiation takes place.
+    /// (Stream A, PR 673 comment 5564749573).
+    /// </summary>
+    [Fact]
+    public async Task TwoSimultaneousSubmissionsAtFileCountLimitPermitOnlyOneCustodyInitiation()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var link = await SeedLinkAsync(factory.Services, "PUBFCLIM");
+
+        var limits = factory.Services.GetRequiredService<RequestUploadLimits>();
+        var maximumFileCount = limits.MaximumFileCount;
+
+        for (var i = 0; i < maximumFileCount - 1; i++)
+        {
+            var content = System.Text.Encoding.UTF8.GetBytes($"file-seed-{i}");
+            Assert.Equal(
+                HttpStatusCode.Redirect,
+                (await PostEvidenceAsync(
+                    factory,
+                    link.Token,
+                    content: content,
+                    fileName: $"seed-{i}.txt")).StatusCode);
+        }
+
+        Assert.Equal(maximumFileCount - 1, custody.ProviderInitiations);
+
+        custody.HoldHandOver = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var key1 = Guid.NewGuid().ToString("N");
+        var key2 = Guid.NewGuid().ToString("N");
+
+        var first = PostEvidenceAsync(
+            factory,
+            link.Token,
+            operationKey: key1,
+            content: "first-final-evidence"u8.ToArray(),
+            fileName: "first-final.txt");
+
+        await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        var second = await PostEvidenceAsync(
+            factory,
+            link.Token,
+            operationKey: key2,
+            content: "second-final-evidence"u8.ToArray(),
+            fileName: "second-final.txt");
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Contains(
+            "This request has reached its document or size limit.",
+            second.Body,
+            StringComparison.Ordinal);
+
+        custody.HoldHandOver.SetResult();
+        var confirmed = await first;
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
+        Assert.Contains(RetainedMessage, confirmed.CompletionBody, StringComparison.Ordinal);
+
+        Assert.Equal(maximumFileCount, custody.ProviderInitiations);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var (fileCount, _) = await ReadLinkTotalsAsync(context, link.LinkId);
+        Assert.Equal(maximumFileCount, fileCount);
+    }
+
+    /// <summary>
+    /// Two simultaneous submissions of distinct operation keys arriving when
+    /// the link is near its maximum request bytes serialize on the link lock:
+    /// the first reserves the remaining capacity before releasing the lock,
+    /// and the second is refused with LimitExceeded while the first is still
+    /// in custody. Exactly one custody initiation takes place.
+    /// (Stream A, PR 673 comment 5564749573).
+    /// </summary>
+    [Fact]
+    public async Task TwoSimultaneousSubmissionsAtByteCountLimitPermitOnlyOneCustodyInitiation()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory()
+            .WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["DocumentRequests:MaximumFileCount"] = "10"
+                })));
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var link = await SeedLinkAsync(factory.Services, "PUBBYTELIM");
+
+        var limits = factory.Services.GetRequiredService<RequestUploadLimits>();
+        // Test config has MaximumFileBytes = 1,048,576, MaximumRequestBytes = 5,242,880.
+        // Seed 4 files of 1,000,000 bytes each -> 4,000,000 bytes. Remaining capacity = 1,242,880.
+        var largeSeed = new byte[1_000_000];
+        Array.Fill(largeSeed, (byte)0x41);
+
+        for (var i = 0; i < 4; i++)
+        {
+            largeSeed[0] = (byte)i;
+            Assert.Equal(
+                HttpStatusCode.Redirect,
+                (await PostEvidenceAsync(
+                    factory,
+                    link.Token,
+                    content: largeSeed,
+                    fileName: $"seed-bytes-{i}.txt")).StatusCode);
+        }
+
+        Assert.Equal(4, custody.ProviderInitiations);
+
+        // Two files each of 700,000 bytes. Only ONE can fit in the remaining 1,242,880 bytes.
+        var candidate1 = new byte[700_000];
+        Array.Fill(candidate1, (byte)0x42);
+        var candidate2 = new byte[700_000];
+        Array.Fill(candidate2, (byte)0x43);
+
+        custody.HoldHandOver = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var key1 = Guid.NewGuid().ToString("N");
+        var key2 = Guid.NewGuid().ToString("N");
+
+        var first = PostEvidenceAsync(
+            factory,
+            link.Token,
+            operationKey: key1,
+            content: candidate1,
+            fileName: "byte-candidate-1.txt");
+
+        await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        // The second upload attempts upload while the first is in custody.
+        // Because first has reserved 700,000 bytes, remaining is 542,880 < 700,000.
+        // Second is refused with LimitExceeded.
+        var second = await PostEvidenceAsync(
+            factory,
+            link.Token,
+            operationKey: key2,
+            content: candidate2,
+            fileName: "byte-candidate-2.txt");
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Contains(
+            "This request has reached its document or size limit.",
+            second.Body,
+            StringComparison.Ordinal);
+
+        custody.HoldHandOver.SetResult();
+        var confirmed = await first;
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
+        Assert.Contains(RetainedMessage, confirmed.CompletionBody, StringComparison.Ordinal);
+
+        // Exactly 5 custody initiations total (4 seed + 1 held). Candidate 2 never entered custody.
+        Assert.Equal(5, custody.ProviderInitiations);
+
+        await using var context = await CreateContextAsync(factory.Services);
+        var (fileCount, byteCount) = await ReadLinkTotalsAsync(context, link.LinkId);
+        Assert.Equal(5, fileCount);
+        Assert.Equal(4_700_000L, byteCount);
+    }
+
+    /// <summary>
+    /// Two simultaneous replacements targeting the same predecessor with distinct
+    /// operation keys serialize under the link lock: the first commits as the
+    /// current successor and enters custody, while the second is refused with
+    /// OperationConflict. Exactly one current successor exists.
+    /// (Stream A, PR 673 comment 5564749573).
+    /// </summary>
+    [Fact]
+    public async Task TwoSimultaneousReplacementsOfOnePredecessorPermitOnlyOneCurrentSuccessor()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var link = await SeedLinkAsync(factory.Services, "PUBREPCON");
+
+        // Upload original predecessor file X.
+        var original = await PostEvidenceAsync(
+            factory,
+            link.Token,
+            content: "original predecessor evidence"u8.ToArray(),
+            fileName: "predecessor.txt");
+        Assert.Equal(HttpStatusCode.Redirect, original.StatusCode);
+        Assert.Equal(1, custody.ProviderInitiations);
+
+        Guid predecessorId;
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync(item => item.OperationKey == $"request:{link.LinkId:N}:{original.OperationKey}");
+            predecessorId = occurrence.Id;
+            Assert.Equal("confirmed", occurrence.CustodyState);
+        }
+
+        // Park replacement A inside custody.
+        custody.HoldHandOver = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var keyA = Guid.NewGuid().ToString("N");
+        var keyB = Guid.NewGuid().ToString("N");
+
+        var replacementA = PostReplacementAsync(
+            factory,
+            link.Token,
+            predecessorId,
+            operationKey: keyA,
+            content: "replacement A content"u8.ToArray(),
+            fileName: "replacement-a.txt");
+
+        await custody.HandOverEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        // Under the lock, predecessorId is now superseded by replacement A.
+        // Replacement B targeting the same predecessorId is refused with OperationConflict.
+        var replacementB = await PostReplacementAsync(
+            factory,
+            link.Token,
+            predecessorId,
+            operationKey: keyB,
+            content: "replacement B content"u8.ToArray(),
+            fileName: "replacement-b.txt");
+
+        Assert.Equal(HttpStatusCode.OK, replacementB.StatusCode);
+        Assert.Contains(
+            "This upload operation was already used for different content. Reload the link and try again.",
+            replacementB.Body,
+            StringComparison.Ordinal);
+
+        custody.HoldHandOver.SetResult();
+        var confirmedA = await replacementA;
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmedA.StatusCode);
+        Assert.Contains(RetainedMessage, confirmedA.CompletionBody, StringComparison.Ordinal);
+
+        // Exactly 2 custody initiations (original + replacement A). Replacement B never entered custody.
+        Assert.Equal(2, custody.ProviderInitiations);
+
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var occurrences = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .Where(item => item.SessionId == (
+                    context.Set<PublicUploadSessionEntity>()
+                        .Where(s => s.RequestUploadLinkId == link.LinkId)
+                        .Select(s => s.Id)
+                        .Single()))
+                .ToArrayAsync();
+
+            var predecessor = Assert.Single(occurrences, o => o.Id == predecessorId);
+            var successors = occurrences.Where(o => o.ReplacesOccurrenceId == predecessorId).ToArray();
+            var singleSuccessor = Assert.Single(successors);
+            Assert.Equal(keyA, singleSuccessor.OperationKey.Split(':')[^1]);
+            Assert.Equal("confirmed", singleSuccessor.CustodyState);
+            Assert.Equal((1, (long)("original predecessor evidence"u8.Length + "replacement A content"u8.Length)),
+                await ReadLinkTotalsAsync(context, link.LinkId));
+        }
     }
 
     /// <summary>
@@ -2392,6 +2654,43 @@ public sealed partial class PublicUploadRetentionWebTests
         return new(response.StatusCode, body, key, completion);
     }
 
+    private static async Task<PostedUpload> PostReplacementAsync(
+        WebApplicationFactory<Program> factory,
+        string token,
+        Guid replacementOccurrenceId,
+        string? operationKey = null,
+        byte[]? content = null,
+        string fileName = "replacement.txt")
+    {
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var page = await client.GetAsync($"/Uploads/{token}");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var html = await page.Content.ReadAsStringAsync();
+        var key = operationKey ?? FieldValue(html, "OperationKey");
+
+        var file = new ByteArrayContent(content ?? "replacement evidence"u8.ToArray());
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(FieldValue(html, "__RequestVerificationToken")), "__RequestVerificationToken" },
+            { new StringContent(token), "Token" },
+            { new StringContent(key), "OperationKey" },
+            { new StringContent(replacementOccurrenceId.ToString("D")), "ReplacementOccurrenceId" },
+            { file, "Upload", fileName }
+        };
+        using var response = await client.PostAsync($"/Uploads/{token}?handler=Upload", form);
+        var body = await response.Content.ReadAsStringAsync();
+
+        var completion = string.Empty;
+        if (response.StatusCode == HttpStatusCode.Redirect)
+        {
+            using var completed = await client.GetAsync($"/Uploads/{token}");
+            completion = await completed.Content.ReadAsStringAsync();
+        }
+
+        return new(response.StatusCode, body, key, completion);
+    }
+
     /// <summary>
     /// The operation key the page is currently handing senders. It is the
     /// whole of whether a retry reconciles an outstanding submission or
@@ -2961,7 +3260,7 @@ internal sealed class RecordingCaseArtifactCustody(
             .SingleOrDefault(item => item.Id == linkId)
             ?? throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
         if (link.CaseId != caseId
-            || link.Status != RequestUploadStatus.Active
+            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
             || link.RevokedAtUtc is not null
             || link.ExpiresAtUtc <= nowUtc)
         {

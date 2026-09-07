@@ -272,6 +272,11 @@ internal sealed class EfDocumentRequestStore(
         if (retained.State is not (IncomingArtifactCustodyState.Confirmed
             or IncomingArtifactCustodyState.Pending))
         {
+            if (retained.State == IncomingArtifactCustodyState.Failed)
+            {
+                await ReleaseCapacityOnDefiniteRefusalAsync(arrival, cancellationToken);
+            }
+
             // Refused, or neither confirmed nor refused. The occurrence
             // already records that exact state, nothing is counted, the window
             // does not open, and the same operation key may be sent again —
@@ -292,6 +297,23 @@ internal sealed class EfDocumentRequestStore(
             versionId,
             retained.IsConfirmed,
             cancellationToken);
+    }
+
+    private async Task ReleaseCapacityOnDefiniteRefusalAsync(
+        AcceptedArrival arrival,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var link = await LockLinkAsync(context, arrival.LinkId, cancellationToken);
+        if (link is null)
+        {
+            return;
+        }
+
+        await ApplyAcceptedTotalsAsync(context, link, arrival.SessionId, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     async Task<FinalizeRequestUploadResult> IUploadToRequest.FinalizeAsync(
@@ -591,12 +613,13 @@ internal sealed class EfDocumentRequestStore(
                 MediaType = command.File.MediaType.Trim(),
                 Size = command.File.Content.Length,
                 Sha256 = authorization.ContentHash!,
-                // Not a custody state: the bytes have not been offered yet.
-                // A distinct code is what lets the accepted totals count an
-                // occurrence exactly once, when custody first accepts it.
+                // Prospective custody arrival: counts/reserves capacity
+                // under this link lock before releasing the lock.
                 CustodyState = EfPublicUploadRetentionStore.ArrivedCode
             };
             context.Add(occurrence);
+            await context.SaveChangesAsync(cancellationToken);
+            await ApplyAcceptedTotalsAsync(context, link, session.Id, cancellationToken);
         }
         else if (!string.Equals(
             occurrence.Sha256,
@@ -655,7 +678,7 @@ internal sealed class EfDocumentRequestStore(
     /// hand-over carrying it, so it is refused typed rather than raced.
     /// </para>
     /// </remarks>
-    private static async Task<ArrivalDecision> ReplaceAsync(
+    private async Task<ArrivalDecision> ReplaceAsync(
         PegasusDbContext context,
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
         RequestUploadLinkEntity link,
@@ -678,6 +701,17 @@ internal sealed class EfDocumentRequestStore(
             return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
         }
 
+        // The slot this replacement's own arrival lives in: a new one, or the
+        // one an earlier attempt already committed under this operation key. A
+        // repeat - a double submit, a browser retry, a lost response - finds
+        // that row, writes nothing, and reconciles the arrival through the
+        // same-key path rather than committing a second one.
+        var arrival = await FindOccurrenceAsync(
+            context,
+            sessionId,
+            scopedOperationKey,
+            cancellationToken);
+
         // Only a file the link currently counts may be stood in for, which is
         // what makes a replacement count-neutral and lets it through on a link
         // exhausted by file count. Everything else is refused before a row is
@@ -690,25 +724,19 @@ internal sealed class EfDocumentRequestStore(
         //    which the page offers because a refusal is not counted and so
         //    leaves the link a file short of its limit;
         //  - one already replaced has a successor that is the current file.
+        //    Under this link lock, only the same-key retry of the existing
+        //    successor may proceed; a different key targeting an already
+        //    superseded slot is an operation conflict.
         if (!string.Equals(
                 addressed.CustodyState,
                 EfPublicUploadRetentionStore.ConfirmedCode,
                 StringComparison.Ordinal)
-            || addressed.SupersededByOccurrenceId is not null)
+            || (addressed.SupersededByOccurrenceId is not null
+                && addressed.SupersededByOccurrenceId != arrival?.Id))
         {
             return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
         }
 
-        // The slot this replacement's own arrival lives in: a new one, or the
-        // one an earlier attempt already committed under this operation key. A
-        // repeat - a double submit, a browser retry, a lost response - finds
-        // that row, writes nothing, and reconciles the arrival through the
-        // same-key path rather than committing a second one.
-        var arrival = await FindOccurrenceAsync(
-            context,
-            sessionId,
-            scopedOperationKey,
-            cancellationToken);
         if (arrival is null)
         {
             arrival = new()
@@ -720,7 +748,8 @@ internal sealed class EfDocumentRequestStore(
                 MediaType = command.File.MediaType.Trim(),
                 Size = command.File.Content.Length,
                 Sha256 = authorization.ContentHash!,
-                // Not a custody state: the bytes have not been offered yet.
+                // Prospective custody arrival: counts/reserves capacity
+                // under this link lock before releasing the lock.
                 CustodyState = EfPublicUploadRetentionStore.ArrivedCode,
 
                 // Which slot this row was sent in place of. The addressed
@@ -734,6 +763,8 @@ internal sealed class EfDocumentRequestStore(
                 ReplacesOccurrenceId = replacementId
             };
             context.Add(arrival);
+            await context.SaveChangesAsync(cancellationToken);
+            await ApplyAcceptedTotalsAsync(context, link, sessionId, cancellationToken);
         }
         else if (!string.Equals(
             arrival.Sha256,
@@ -790,11 +821,8 @@ internal sealed class EfDocumentRequestStore(
                 value.Size,
                 occurrences
                     .Where(other => other.SessionId == sessionId
-                        && other.ReplacesOccurrenceId == value.Id)
-                    // Ordered so the same row answers twice running. Two files
-                    // sent in one slot's place is a truthful state and not a
-                    // choice to make here; what the page needs to know is that
-                    // the slot was replaced.
+                        && other.ReplacesOccurrenceId == value.Id
+                        && other.CustodyState != EfPublicUploadRetentionStore.FailedCode)
                     .OrderBy(other => other.Id)
                     .Select(other => (Guid?)other.Id)
                     .FirstOrDefault()));
@@ -976,7 +1004,7 @@ internal sealed class EfDocumentRequestStore(
     {
         var counted = (await SessionOccurrencesOf(context, sessionId)
             .ToArrayAsync(cancellationToken))
-            .Where(value => EfPublicUploadRetentionStore.RetainedOrInFlightCodes
+            .Where(value => EfPublicUploadRetentionStore.ProspectiveOrRetainedCodes
                 .Contains(value.CustodyState))
             .ToArray();
         var fileCount = counted.Count(value => value.SupersededByOccurrenceId is null);
@@ -990,6 +1018,11 @@ internal sealed class EfDocumentRequestStore(
         {
             changed = changed || link.Status != RequestUploadStatus.Exhausted;
             link.Status = RequestUploadStatus.Exhausted;
+        }
+        else if (link.Status == RequestUploadStatus.Exhausted)
+        {
+            changed = true;
+            link.Status = RequestUploadStatus.Active;
         }
 
         if (!changed)
@@ -1495,6 +1528,16 @@ internal sealed class EfPublicUploadRetentionStore(
         [.. Enum.GetValues<IncomingArtifactCustodyState>()
             .Where(state => state != IncomingArtifactCustodyState.Failed)
             .Select(ToCode)];
+
+    /// <summary>
+    /// The states that count against a link's accepted totals under the link
+    /// serialization lock: confirmed or in-flight custody states, plus
+    /// prospective custody arrivals (<see cref="ArrivedCode"/>) which reserve
+    /// admission capacity before the lock is released. Capacity is released
+    /// only on definite custody refusal (<see cref="FailedCode"/>).
+    /// </summary>
+    internal static readonly string[] ProspectiveOrRetainedCodes =
+        [ArrivedCode, .. RetainedOrInFlightCodes];
 
     public async Task<RetainedIncomingArtifact?> FindAsync(
         string operationKey,
