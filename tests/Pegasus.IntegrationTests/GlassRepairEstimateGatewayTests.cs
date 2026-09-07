@@ -818,6 +818,112 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.DoesNotContain(Harness.Password, protectedSession, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The claim race on the persisted store: two deliveries of the same
+    /// return read the session at one version, the database's version check
+    /// admits one write, the other reads the record, and the provider hears
+    /// the relay once. A gateway built afterwards over the same database, as a
+    /// restarted host is, answers the replay from the durable record.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task TwoDeliveriesOfTheSameReturnRaceOnThePersistedStoreAndActOnce()
+    {
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        using var gate = new GatedStore(new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var harness = Harness.Create(
+            store: gate,
+            caseId: database.CaseId,
+            engineerId: database.UserId,
+            otherEngineerId: database.OtherUserId);
+        var session = await harness.LaunchAsync();
+        gate.HoldNext(2);
+
+        var outcomes = await Task.WhenAll(harness.CompleteAsync(session), harness.CompleteAsync(session));
+
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(harness.Import.Requests);
+        Assert.All(outcomes, outcome => Assert.Equal(session.Id, outcome.Id));
+        Assert.All(outcomes, outcome => Assert.True(
+            outcome.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Completed,
+            outcome.State.ToString()));
+        var recorded = (await database.Store.GetAsync(session.Id, CancellationToken.None))!;
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, recorded.Session.State);
+        Assert.NotNull(await database.CallbackConsumedAtAsync(session.Id));
+        Assert.Contains(
+            $"\"callbackQueryDigest\":\"{GlassRepairEstimateGateway.CallbackDigestOf(SavedQuery)}\"",
+            recorded.ResultArtifactsJson,
+            StringComparison.Ordinal);
+
+        var restarted = Restarted(
+            harness, new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var replayed = await restarted.CompleteAsync(
+            recorded.Session, correlation: harness.CorrelationOf(session.Id));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, replayed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// Two different returns racing on the persisted store: the one the
+    /// database's version check admits is acted on and its fingerprint is the
+    /// record's; the other is refused as a contradictory callback, before and
+    /// after a restart.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task TwoDifferentReturnsRacingOnThePersistedStoreLeaveOneRecordAndOneRefusal()
+    {
+        const string otherQuery = "?Total=0&DoSave=1&ErrMsg=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2Fother.xml";
+        await using var database = await GlassRepairEstimatePersistenceTests.Harness.CreateAsync();
+        using var gate = new GatedStore(new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var harness = Harness.Create(
+            store: gate,
+            caseId: database.CaseId,
+            engineerId: database.UserId,
+            otherEngineerId: database.OtherUserId);
+        var session = await harness.LaunchAsync();
+        gate.HoldNext(2);
+
+        var first = harness.CompleteAsync(session);
+        var second = harness.CompleteAsync(session, rawQuery: otherQuery);
+        var refusals = new List<GlassRepairEstimateSessionConflictException>();
+        var landed = new List<GlassRepairEstimateSession>();
+        foreach (var delivery in new[] { first, second })
+        {
+            try
+            {
+                landed.Add(await delivery);
+            }
+            catch (GlassRepairEstimateSessionConflictException refusal)
+            {
+                refusals.Add(refusal);
+            }
+        }
+
+        Assert.Equal(GlassRepairEstimateSessionConflict.Callback, Assert.Single(refusals).Conflict);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, Assert.Single(landed).State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+        var winner = first.IsCompletedSuccessfully ? SavedQuery : otherQuery;
+        var loser = first.IsCompletedSuccessfully ? otherQuery : SavedQuery;
+        Assert.Contains(
+            $"\"callbackQueryDigest\":\"{GlassRepairEstimateGateway.CallbackDigestOf(winner)}\"",
+            await database.ResultArtifactsJsonAsync(session.Id),
+            StringComparison.Ordinal);
+
+        var restarted = Restarted(
+            harness, new EfGlassRepairEstimateSessionStore(database.Factory, TimeProvider.System));
+        var current = (await database.Store.GetAsync(session.Id, CancellationToken.None))!.Session;
+        var refused = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
+            () => restarted.CompleteAsync(current, correlation: harness.CorrelationOf(session.Id), rawQuery: loser));
+        Assert.Equal(GlassRepairEstimateSessionConflict.Callback, refused.Conflict);
+        var replayed = await restarted.CompleteAsync(
+            current, correlation: harness.CorrelationOf(session.Id), rawQuery: winner);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, replayed.State);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/ere-callback/"));
+    }
+
     // ---------------------------------------------------------------- support
 
     private static Dictionary<string, string> QueryOf(Uri uri) => QueryOf(uri.Query);
