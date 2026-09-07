@@ -18,6 +18,7 @@ labels:
 groups:
   - EPIC-009
   - EPIC-011
+  - EPIC-014
 links:
   - PLAT-065
   - TICK-085
@@ -32,7 +33,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-03T15:15:28.867Z'
+updated: '2026-09-07T21:14:26.906Z'
 ---
 
 ## What
@@ -69,3 +70,7 @@ INT-16 was previously allocated only to scan-like instruction pages. The operato
 - [ ] No local/test profile calls Azure.
 
 ## Outcome
+
+## Current authority — 7 September 2026
+
+The operator explicitly authorizes Azure Document Intelligence provisioning and implementation for v1. The old no-live-approval assumption is superseded; exact resource/role/cost details will be recorded by [[PLAT-065]]. ADR-0040 is reserved for this application contract (ADR-0039 belongs to [[DELIV-048]]). Current runtime already has the intake OCR port/provider/Worker/store; extend and wire those, do not rebuild them. [[TICK-085]] retains the deterministic Glass's PDF parser and five-sample acceptance scope.
