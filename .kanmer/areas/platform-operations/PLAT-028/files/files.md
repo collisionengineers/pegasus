@@ -40,3 +40,7 @@ Existing callers follow the changed create request. Old URLs are removed, not re
 ## Out of scope
 
 Live pegasustest creation, live credential issuance, sending mail, intake allocation, mail routing policies, report/Glass changes, unrelated administration and directory changes.
+
+## Superseded API removal (root disposition, 2026-09-07)
+
+The completed source-caller audit finds IListOrganizations, IGetOrganization, ICreateOrganization and IUpdateOrganizationRoles only in DI/declarations/implementations; remaining consumers are old tests. Remove these registrations, request/projection/use-case contracts and unused EF methods, plus dead helpers used only by them, in the already-listed CaseContracts, OrganizationAdministration, EfOrganizationAdministration and DependencyInjection files. Preserve Organization/OrganizationRole persistence and helpers still needed by atomic Principal creation, same-customer replacement and the real OrganizationDirectory owner. Replace obsolete API-only test assertions with new Principal creation/concurrency/detail coverage in the already-listed Core and persistence suites. No new file or schema is required. Root asked for this cleanup as removal of the replaced path; no compatibility API remains. Keep the existing no-build/test/capture stop condition.
