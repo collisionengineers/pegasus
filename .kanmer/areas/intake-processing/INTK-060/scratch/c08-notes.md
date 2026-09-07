@@ -293,3 +293,39 @@ No deviations, no new assumptions this round. READY_FOR_TESTS.
 ## Replacement-controller completion — C08 correction round 4
 
 Preserved the exhausted worker's six-file dirty correction and committed it as ab7a69855 on c08-shell. It closes the recorded Inbox href, S12 label, Unknown/replay visibility, ten-row attention bound, and banned-placeholder findings while retaining Stream A's exact StaffSend + positive Generation ruling; SentEvidence alone is not send authority. Standalone tests adapt only the absent A-owned mailbox mapping. dotnet build ./Pegasus.slnx --configuration Release --no-restore exited 0 with 0 warnings and 0 errors. Implementation role ran no tests. Exact head ab7a69855 is READY_FOR_TESTS; focused wave and independent exact-head re-review remain required before integration.
+
+## C08 item 3 research — Triage OnPostSendChaserAsync (read-only, controller override, no packet/move)
+
+Worktree read: v1-intake @ aa5e669d7 (branch task/pegasus-v1-intake). Full brief:
+C:\Users\PGUSER\AppData\Local\Temp\claude\...\scratchpad\takeover\c08-chaser-research.md
+
+Answer: the originating retained-message identity IS truthfully derivable today from existing
+columns/entities — IntakeReceipts.ExternalReceiptToken/SourceChannel joined to
+RetainedMailboxMessages.ExternalReceiptToken (same join EfRetainedMailboxMessageStore.cs already
+runs for classification/list projection, lines ~376-381/640-703). No existing public query exposes
+it though: IRetainedMailQueries has no GetByReceiptId member. Gap closes with one new interface
+member (mirroring ITriageQueries.GetByOriginReceiptAsync naming) + one new EfRetainedMailboxMessageStore
+method, using only existing columns — no EF migration, no A dependency for this part.
+
+Confirmed still-open, unrelated A gap the chaser inherits (not new): EfApprovedMailboxStore.cs still
+does not map AllowStaffSend/Generation (verified via grep at this HEAD) — same gap as ASSUMPTION 2/4
+above; Compose and the future chaser both offer no sendable mailbox until A lands it.
+
+Q1 (Message.cshtml.cs Reply/ReplyAll/Forward, Compose.cshtml.cs OnPostSendAsync) is fully implemented
+on this HEAD already, superseding the old BLOCKED note above in this file — StaffMailOriginalMessage
+now reads real ImmutableMessageId/InternetMessageId/ConversationId/ReplyToAddresses off
+RetainedMailDetail. StaffMailPurpose.TriageChaser enum value already exists in StaffMailSend.cs.
+
+Q3: only Origin.SourceIdentity.Channel==Mailbox Triages can have a retained-mail row; ManualUpload/
+Automation(ImageIntake)/ProviderApi never do (mailbox poll is the only RetainedMailboxMessages writer)
+— handler must refuse Reply and offer only explicit New for those, never inferring from sent evidence.
+
+Details.cshtml.cs today: single OnPostActionAsync(actionName) switch (assign/note/unassign/
+await_information/record_finding/supersede_finding/link_response/unlink_response/complete/cancel/
+reopen/link_case/unlink_case), plain per-page OperationKey reissued each mutation, tag-helper
+antiforgery only. Chaser needs its own handler + its own retained-scoped operation-key (Message.cshtml.cs's
+"retained:{id:N}:{guid:N}" scheme), same as Reply/ReplyAll, not folded into the generic switch.
+
+Test plan (12 cases) targets a new partial QdosTriageIntegrationTests test file (mirroring
+TriageEvidenceImagesWebTests.cs pattern), reusing StaffCorrespondenceWebTests.cs's RecordingStaffMailSend
+double; TriageQueuesWebTests.cs only covers the /Triage list page, not Details, so not extended.
