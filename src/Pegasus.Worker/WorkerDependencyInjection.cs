@@ -99,6 +99,8 @@ public static class WorkerDependencyInjection
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
 
+        services.AddScoped<VehicleRegistrationCandidateLookup>();
+
         services.AddScoped<EfIntakeWorkStore>();
         services.AddScoped<IIntakeWorkStore>(serviceProvider =>
             serviceProvider.GetRequiredService<EfIntakeWorkStore>());
