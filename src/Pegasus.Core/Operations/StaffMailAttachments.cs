@@ -87,7 +87,7 @@ public sealed class StaffMailAttachmentResolver(IGetCase getCase, IGetIntake get
             .ToArray();
     }
 
-    private static IReadOnlyList<StaffMailAttachment> Resolve(
+    private static List<StaffMailAttachment> Resolve(
         IReadOnlyList<StaffMailAttachment> available,
         IReadOnlyList<string> selections)
     {
