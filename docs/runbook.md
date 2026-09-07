@@ -27,11 +27,14 @@ documentation shows a Windows form and a Linux form, run the one matching your
 workstation. Nothing here requires or supports mixing the two in a single run,
 checkout, or evidence record.
 
-Release operations use the authorised Linux x64 terminal on Linux-native
-storage. Web, Worker, OCI and the self-contained `efbundle` migration artifact
-are built once for Linux x64 from the exact clean release SHA. ADR-0037 owns
-the workstation choice; ADR-0007 continues to own the direct-terminal order
-and approval boundaries.
+Release operations support an authorised Windows x64 or Linux x64 terminal
+with PowerShell 7 and native tools/storage throughout the run. The same script
+builds Web and Worker for Linux x64 and the OCI image for linux/amd64 from one
+exact clean release SHA. The self-contained migration bundle runs on the
+workstation: `win-x64`/`efbundle.exe` on Windows or `linux-x64`/`efbundle` on
+Linux. ADR-0039 owns that choice; ADR-0007 retains the direct-terminal order
+and approval boundaries. No Windows container or Docker daemon is needed to
+publish the Linux OCI archive.
 
 Hosted workflow runner choices and their evidence limits are owned by
 [the executable CI workflow](../.github/workflows/ci.yml). Linux development
@@ -981,7 +984,7 @@ dated names are not current identity proof.
 
 ## Deployment and release
 
-The accepted Linux direct-terminal Azure design is indexed by
+The accepted Windows/Linux direct-terminal Azure design is indexed by
 [architecture](current-architecture.md) and the
 [decision register](adr/README.md). The target files are `infra/`,
 `azure.yaml`, and `.azure/deployment-plan.md`.
@@ -1014,9 +1017,18 @@ asset, models embedded in the Infrastructure assembly). Both hosts start and
 serve; until a deployed vision path is exercised, native inference on the
 deployed runtime remains unverified evidence.
 
-Two route facts recorded by release 9 (details in operations):
+The schema-3 manifest records `migrationRuntimeIdentifier` and
+`migrationBundleName` for the release workstation. Artifact validation rejects
+an incompatible workstation or filename/runtime pair, verifies all four hashes
+and the Linux OCI identity, and checks owner-execute permission only on Linux.
+Use `migrationBundleName` from the validated manifest when invoking the bundle;
+do not rename it or switch workstation OS midway through the release.
 
-- `efbundle` builds the Web host, so run it from `src/Pegasus.Web` with
+Route facts recorded by release 9 and subsequent corrections (details in
+operations):
+
+- The manifest's migration bundle builds the Web host, so run it from
+  `src/Pegasus.Web` with
   the Production process environment (`ASPNETCORE_ENVIRONMENT=Production`,
   `Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
   `AzureIdentity__WebClientId`, the two storage account names and the custody

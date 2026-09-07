@@ -8,10 +8,14 @@ description: Promote and release Pegasus through its authorised terminal route, 
 Use the repository scripts and the exact source SHA. `azd up` and `azd deploy
 worker` are not release procedures.
 
-Run the route from the authorised Linux x64 terminal on Linux-native storage.
-Before preflight, require `uname -m` to report `x86_64`, `oras version` to
-report 1.3.4, and both `az account show` and `azd auth login --check-status` to
-identify the intended operator. Authentication is not write approval.
+Run the route from an authorised Windows x64 or Linux x64 PowerShell 7 terminal
+using that platform's native tools and storage throughout the run. Before
+preflight, dot-source `scripts/PegasusPlatform.ps1` and call
+`Get-PegasusMigrationBundle` to verify the supported workstation and its bundle
+identity. Require `oras version` to report 1.3.4, and both `az account show` and
+`azd auth login --check-status` to identify the intended operator.
+Authentication is not write approval. Deployed Web/Worker remain Linux; no
+Windows containers or Docker daemon are needed to build the OCI archive.
 
 [`docs/runbook.md`](../../../docs/runbook.md) and
 [`docs/engineering.md`](../../../docs/engineering.md) are authoritative. Stop
@@ -141,9 +145,12 @@ $manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Ha
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 10
 ```
 
-The manifest must use schema 3, `migrationRuntimeIdentifier` `linux-x64` and
-`migrationBundleName` `efbundle`. The four artifacts are `web.zip`,
-`worker.zip`, `web-image.tar.gz` and `efbundle`.
+The manifest must use schema 3. Its `migrationRuntimeIdentifier` and
+`migrationBundleName` must match the workstation: `win-x64`/`efbundle.exe` on
+Windows or `linux-x64`/`efbundle` on Linux. The four artifacts are `web.zip`,
+`worker.zip`, `web-image.tar.gz` and that migration bundle. The deployed
+packages still target Linux x64 and the OCI image must inspect as linux/amd64.
+Build and migrate on the same workstation platform; do not rename the bundle.
 
 Record the manifest SHA-256, source SHA, image digest, migration identity and
 exact Azure operations. Obtain explicit approval for that manifest and those
