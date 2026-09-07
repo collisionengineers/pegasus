@@ -890,3 +890,48 @@ C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegas
 - For A: `Program.cs:639` follows the constant automatically (now 200 MiB + 64 KiB, no edit needed); Kestrel `MaxRequestBodySize` is configured nowhere, so its 30 MB default would still refuse a 100 MiB upload in production (F host/ingress); `StatusCode.cshtml.cs:60` and `IntakeMcpTools.cs:123` still say "10 MB" in operator/tool text.
 - Deviation: extended `tests/Pegasus.IntegrationTests/IntakeWebNegativeTests.cs` (not in my file list) — it hard-coded `TenMiB` and "Files must be 10.0 MB or smaller."; both boundary tests now read the constant. `tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs:250,264` left alone: still passes, but now allocates ~500 MiB of arrays and its comment is stale.
 - Report: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07-limits-report.md`. READY_FOR_TESTS; no push, no PR.
+
+## C07 round 3 — review corrections, 2026-09-07 (HEAD 77a6f1d0a)
+
+ASSUMPTION 7 is WITHDRAWN and replaced. Round 2 recorded "a replacement consumes a file against
+MaximumFileCount". The independent review (F-4) and the controller ruled otherwise, and the plan
+supports it: C07 item 6 allows replacements until finalization or expiry, and a count-exhausted
+link is neither. ASSUMPTION 7 (revised): the two limits bound different things — MaximumFileCount
+counts the files the sender is currently submitting, so only rows nothing has replaced;
+MaximumRequestBytes counts every byte set custody holds, superseded ones included. A replacement
+therefore consumes bytes but not a file slot, and the byte budget is what stops a link replacing
+its way past its limits. Alternatives rejected: refuse replacement when exhausted (breaches item 6
+and is INTK-051's broken path), or release superseded bytes (needs a custody removal nobody owns).
+
+ASSUMPTION 8: an arrival custody has not been offered yet (arrived) is not counted at all. The
+reviewer showed counting it bounded nothing — the limit reads the link's stored columns, which are
+only written after an accepted hand-over — while making a POST that died before the hand-over cost
+the sender a file for the session's life with nothing to release it. Simultaneous arrivals are
+bounded by the link's update lock and RequestUploadAttemptLimiter instead. Counted set is now the
+enum minus Failed: Confirmed, Pending, Unknown.
+
+Also applied: F-5 UnresolvedCodes derived from the enum; F-6/F-7 one-way exhaustion and the
+finalization workflow bump stated; F-8 FinalizeAsync evaluates the session before asking about
+files (an expired session holding a Pending no longer answers "still being stored" for ever); F-9
+the store no longer accepts a replacement addressed at a refused file, matching the page — a
+refusal is not counted, so the sender re-sends it as a new upload; F-10 LockLinkAsync returns null
+and each caller answers, with the UPDLOCK's provider-conditionality recorded; F-12 the Finish
+limiter is taken before the page is read; F-13/F-14 minors. The duplicated file-count bound inside
+Authorize is gone.
+
+NOT fixed, needs a round 4 item: F-11 — the replace form carries the page's OperationKey, which is
+another file's unresolved key when one exists, so the replacement collides and answers
+OperationConflict with "Reload the link and try again" while reloading returns the same key.
+Fixing it means minting a per-control key server-side; not a one-liner.
+
+Reviewer also asked to narrow the method NAME of
+ARefusedOrUncertainHandOverIsNeverAcceptedAndNeverCounted; the controller scoped round 3 to its
+comment and the name is in the bound attestation's required-test list, so the comment was amended
+(no assertion changed) and the name left. Flagged.
+
+Still open: CaseWorkflowMigrationTests.cs:131 needs the G21 migration entry (certain wave failure,
+not this slice's file); Test UI snapshots stale.
+
+Gates at HEAD 77a6f1d0a: Web exit 0, 0W/0E; IntegrationTests exit 1 with only the A-owned CS0246
+at DocumentCustodyDurabilityTests.cs(462,35), 0W. Report (## Round 3 appended):
+C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
