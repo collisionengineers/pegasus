@@ -8,10 +8,12 @@ Pegasus v1 is under development in three coordinated streams:
 | CASE-047 | `task/pegasus-v1-casework` | Case engineering, estimates, reports |
 | INTK-060 | `task/pegasus-v1-intake` | Intake, directories, shell |
 
-The Stream A controller is the sole heavy verifier on its host. The owners
+The controller now owns all three streams on this host and is the sole heavy
+verifier. The owners
 record implementation and verification in their Kanmer tickets. Shared
 Foundation corrections are consumed as identical commits; each stream keeps
-its own PR to `dev`. All three PRs remain open and unmerged at handoff.
+its own PR to `dev`. Reviewed and verified work is integrated into `dev`;
+the resulting PR to `main` must remain unmerged.
 
 [Repository instructions](AGENTS.md#approved-v1-three-stream-exception)
 own the scoped Git exception. [Operator authority](docs/operator-notes.md)

@@ -451,6 +451,12 @@ integration. A may publish a combined verification ref for the other machines
 to test in isolated worktrees; it is not a fourth implementation PR or a source
 branch to merge into the domain branches.
 
+The operator subsequently consolidated all three streams under the controller
+on this host. Reuse the restored owner branches and worktrees; published
+helper branches remain preservation evidence until their changes are checked
+against the owner branch. The controller retains the same review, validation
+and integration duties across A, B and C.
+
 The `main` PR must remain unmerged. No deployment, reset, real email, Outlook
 mutation, Box write or live provider operation is authorized. This exception
 governs the three owners only; ordinary task rules below continue elsewhere.
