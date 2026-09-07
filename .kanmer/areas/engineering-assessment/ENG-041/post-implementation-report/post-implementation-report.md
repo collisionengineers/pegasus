@@ -79,8 +79,8 @@ Complementary existing estimate persistence (same compiled run if desired):
 FullyQualifiedName~AssessmentPersistenceIntegrationTests.NamedEstimatesSaveDuplicateDiscardSetCurrentAndListWithOneCurrentPerCase|FullyQualifiedName~AssessmentPersistenceIntegrationTests.Estimate
 
 Routed Case estimate UI changed. Root must capture case-details with the
-existing capturing CaseDetailsWebTests cohort (and the two changed estimate/
-Glass Web cohorts for actual form assertions), then scoped snapshot verify and
+minimal default/unavailable/conflict capture tests selected by root (and the
+two changed estimate/Glass Web cohorts for actual form assertions), then scoped snapshot verify and
 catalogue. Generated case-details HTML and index are declared in plan/files.
 
 ## Stop and handoff
@@ -91,3 +91,14 @@ reviews a pinned head after PR. No self-review or delivery claim. DOCS-020
 separate verification is ongoing; no report/intake/principal source file was
 modified here. The temporary DOCS-020 compiler fix was recorded on that ticket
 and worktree, not in this diff.
+
+## Root compiler feedback — 2026-09-07
+
+Locked restore PASS. First Release build FAIL, exit 1, 88.27 s: CS9113 at
+Details.cshtml.cs:77, unused primary-constructor TimeProvider clock after
+amendment timestamps moved to the Core/store owner. No tests started. Author
+removed only the unused injection; source/test search found no explicit
+DetailsModel constructor callers needing adjustment (Razor uses DI).
+Repository-configured git diff --check PASS, exit 0. No author build/test.
+Candidate frozen again for root incremental verification. Earlier failure is
+preserved; this correction is not a claimed compiler PASS.
