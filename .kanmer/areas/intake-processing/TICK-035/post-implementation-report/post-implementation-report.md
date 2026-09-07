@@ -3,7 +3,8 @@
 ## Status and source
 
 Implementation is frozen for root-owned compiler and focused runtime checks.
-Verification is pending, not PASS. No commit, PR, Review move, merge or live
+Final verification is pending, not PASS. Root's first build passed; the first
+Core test attempt failed on obsolete fixture expectations, recorded below. No commit, PR, Review move, merge or live
 deployment is claimed. Stop remains independent review after passing evidence.
 
 Worktree: `.worktrees/tick-035`. Branch: `TICK-035-principal-routes`.
@@ -132,7 +133,23 @@ Integration tests:
   failures, not runtime tests or PASS evidence.
 - Frozen read-through found the new SQL fixture's workflow string expectation
   must be NotReady rather than Cases.InitialState's not_ready. Root was alerted
-  before altering the freeze. Correction/test outcome pending.
+  before altering the freeze. Root authorized that fixture correction together
+  with the following Core failures; production source did not change.
+- Root locked restore PASS, exit 0. Root full Release build PASS, exit 0,
+  zero warnings/errors, 66.00 seconds.
+- Root initial focused Core cohort FAIL, exit 1: 236 total, 224 PASS and
+  12 FAIL, 573 ms. Eleven failures were the obsolete inventory theory
+  rejecting the now-evidenced additional principal domains. The twelfth was
+  the inline-forward fixture expecting old route version 4 rather than 1.
+  Integration did not run after that failure.
+- Corrected the inventory theory to assert each exact accepted principal,
+  retaining its two intermediary NoMatch cases and all other negative tests;
+  corrected the route version and workflow string fixture. Re-frozen after
+  git diff --check exit 0. No production policy changed to satisfy tests.
+  Root rerun will select 14 cases: the 12 failed examples plus the two
+  preserved intermediary negatives in the same theory, not the unchanged
+  224-test cohort. New method: EvidencedInventoryDomainsResolveTheirPrincipalButIntermediariesNeedAProfile.
+  Rerun outcome and the first Integration cohort remain pending.
 
 Root requested commands, from this recorded worktree:
 
