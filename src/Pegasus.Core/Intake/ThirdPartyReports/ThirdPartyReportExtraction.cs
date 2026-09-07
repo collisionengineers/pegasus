@@ -719,9 +719,150 @@ public static class ThirdPartyReportExtraction
         rows.AddRange(observed.Order.SelectMany(key => observed.Rows[key]));
         rows.AddRange(Media(readResult, context, documentRole));
 
-        var candidate = Project(selection, observed, rows, context);
+        var candidate = Project(selection.Issuer, observed, rows, context);
         return Complete(selection, candidate, rows, readResult.RequiresOcr, context, documentRole);
     }
+
+    /// <summary>
+    /// The same typed projection, rebuilt from the rows a reading already
+    /// recorded (INTK-060 C05). It is the read-back half of
+    /// <see cref="ThirdPartyReportAnalysis.ToCandidates"/>: a caller that holds
+    /// the persisted candidates of one retained analysis gets back the
+    /// <see cref="ThirdPartyReportCandidate"/> that reading produced, without a
+    /// second copy of the mapping living anywhere else.
+    ///
+    /// It reads the persisted rows and nothing else. It never opens the source
+    /// bytes, never calls a store, never re-runs a signature or a label rule,
+    /// never infers an issuer from a principal, a folder or a file name, and
+    /// never repairs an arithmetic disagreement — a value that was persisted
+    /// Missing, Ambiguous or Conflicting comes back in exactly that state, and
+    /// a conflicting field still exposes no chosen winner.
+    ///
+    /// Two things decide that there is no candidate, and both are read from the
+    /// rows rather than assumed. Rows carrying another policy's key (an
+    /// instruction profile's, or <see cref="AnalyzeRetainedInstruction.NoPolicyKey"/>)
+    /// are not this policy's rows and are skipped; and the issuer row records
+    /// the selection verdict, so only the <see cref="SourceCandidateDisposition.Usable"/>
+    /// issuer a selected family writes yields a candidate. An ambiguous
+    /// document, an explicit non-report role and a scan-only source each
+    /// persisted a non-usable issuer row, and each reconstructs to null —
+    /// the same answer <see cref="Extract"/> gave when it read them.
+    ///
+    /// The order of <paramref name="rows"/> is the order of the reading: a
+    /// field's competing values, the damage zones, the valuation deductions and
+    /// the photographs come back in the order they are supplied. Nothing here
+    /// re-sorts them, so a caller that reads them back in a different order
+    /// gets that order — see the seam note in the C05 report.
+    /// </summary>
+    /// <param name="rows">
+    /// The persisted candidates of ONE retained analysis — one document, one
+    /// occurrence. Rows of another policy are ignored rather than rejected, so
+    /// a caller may pass an analysis's whole candidate set.
+    /// </param>
+    /// <param name="context">
+    /// The retained source's identity: the receipt, the content hash, the
+    /// occurrence and whichever document or asset handles the caller holds.
+    /// The same record the reading was given, and the only thing the persisted
+    /// rows do not carry themselves.
+    /// </param>
+    /// <returns>
+    /// The reconstructed candidate, or null where these rows record no
+    /// third-party report candidate at all.
+    /// </returns>
+    public static ThirdPartyReportCandidate? Reconstruct(
+        IReadOnlyList<RetainedInstructionCandidate> rows,
+        ThirdPartyReportSourceContext context)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var restored = rows
+            .Where(row => string.Equals(
+                row.PolicyKey,
+                ThirdPartyReportAnalysis.PolicyKey,
+                StringComparison.Ordinal))
+            .Select(row => Restore(row, context))
+            .ToArray();
+        var issuer = Array.Find(restored, row => row.Field == F.Issuer);
+        return issuer is null || issuer.Disposition != SourceCandidateDisposition.Usable
+            ? null
+            : Project(issuer, Observed(restored), restored, context);
+    }
+
+    /// <summary>
+    /// One persisted candidate back as the source row the projection reads.
+    /// Everything the row itself carries is taken from the row — including the
+    /// locator's bounded region, which says whether the value was read from a
+    /// printed label or from a section body — and only the source identity,
+    /// which no candidate row carries, comes from the context.
+    /// </summary>
+    private static SourceFieldCandidate Restore(
+        RetainedInstructionCandidate row,
+        ThirdPartyReportSourceContext context) =>
+        new(
+            row.Id,
+            context.ReceiptId,
+            context.DocumentId,
+            context.DocumentVersionId,
+            context.IntakeAssetId,
+            context.Sha256,
+            row.Occurrence,
+            row.DocumentRole,
+            row.PartyRole ?? string.Empty,
+            row.ReferenceRole ?? string.Empty,
+            row.Field,
+            row.RawValue,
+            row.NormalizedValue,
+            row.Unit,
+            row.Currency,
+            row.SourceLabel,
+            row.Page,
+            row.Locator?.Cell,
+            row.Locator?.FormField,
+            row.Locator?.Region,
+            row.ReaderVersion,
+            row.PolicyVersion,
+            row.Disposition);
+
+    /// <summary>
+    /// The observed field rows, regrouped as <see cref="Observe"/> left them:
+    /// one entry per (field, reference role, party role), in the order the rows
+    /// were persisted, which is the order the rule table declared them in.
+    ///
+    /// The rows that were never observed field values are left out, because
+    /// <see cref="Observe"/> never put them in: the issuer row is the selection
+    /// verdict, a scan-only page row is a locator for text that could not be
+    /// read, a photograph row is an asset, and a finding row states something
+    /// ABOUT the printed values rather than one of them.
+    /// </summary>
+    private static ObservedFields Observed(IReadOnlyList<SourceFieldCandidate> rows)
+    {
+        var order = new List<FieldKey>();
+        var grouped = new Dictionary<FieldKey, List<SourceFieldCandidate>>();
+        foreach (var row in rows)
+        {
+            if (!IsObservedField(row.Field))
+            {
+                continue;
+            }
+
+            var key = new FieldKey(row.Field, row.ReferenceRole, row.PartyRole);
+            if (!grouped.TryGetValue(key, out var values))
+            {
+                values = [];
+                grouped[key] = values;
+                order.Add(key);
+            }
+
+            values.Add(row);
+        }
+
+        return new(order, grouped);
+    }
+
+    private static bool IsObservedField(string field) =>
+        field is not (F.Issuer or F.Photograph or F.PageRequiresHumanVerification)
+        && !F.IsFinding(field);
 
     /// <summary>
     /// Reconciles the rows that were read and records each finding as its own
@@ -995,13 +1136,24 @@ public static class ThirdPartyReportExtraction
         return new(declared, rows);
     }
 
+    /// <summary>
+    /// The one typed projection. It reads nothing but the rows it is handed —
+    /// the issuer row that records the selection verdict, the observed field
+    /// rows, and the full row list the photographs are drawn from — so the same
+    /// mapping serves a freshly read document and a set of rows read back out
+    /// of storage (<see cref="Reconstruct"/>). It takes the issuer row rather
+    /// than the whole <see cref="ThirdPartyReportSelection"/> for exactly that
+    /// reason: the selection's matches, family and reason are evidence about
+    /// the reading, not inputs to the projection, and a reconstruction has only
+    /// what was persisted.
+    /// </summary>
     private static ThirdPartyReportCandidate Project(
-        ThirdPartyReportSelection selection,
+        SourceFieldCandidate issuer,
         ObservedFields observed,
         IReadOnlyList<SourceFieldCandidate> rows,
         ThirdPartyReportSourceContext context)
     {
-        var lookup = new Lookup(observed, selection.Issuer);
+        var lookup = new Lookup(observed, issuer);
         var identity = new ThirdPartyReportIdentity(
             lookup.Text(F.Issuer),
             lookup.Text(F.EngineerName),
@@ -1413,7 +1565,26 @@ public static class ThirdPartyReportAnalysis
                 readerVersion,
                 PolicyKey,
                 row.PolicyVersion,
-                row.Disposition))
+                row.Disposition,
+                Locator(row)))
         ];
     }
+
+    /// <summary>
+    /// The structured half of a row's locator, so the recorded row locates the
+    /// value as precisely as the row that was read.
+    ///
+    /// A third-party row names no table cell and no PDF form field; what it
+    /// carries beyond its page is the bounded region the value came from — a
+    /// printed label, a section body, or a finding about the values. That was
+    /// being dropped on the way to storage, which left every read-back row less
+    /// specific than the one the reading produced. It is written into the
+    /// locator envelope <see cref="RetainedInstructionCandidate.Locator"/>
+    /// already owns, so no column and no schema changes, and a row with no
+    /// region still records exactly the envelope it always did.
+    /// </summary>
+    private static IntakeSourceLocator? Locator(SourceFieldCandidate row) =>
+        row.Region is null
+            ? null
+            : new(IntakeLocatorKind.Region, row.Page, Region: row.Region);
 }

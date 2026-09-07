@@ -137,6 +137,38 @@ public sealed partial class ThirdPartyReportExtractionTests
         Email: enquiries@laird-assessors.com   Web:  www.laird-assessors.com
         """;
 
+    /// <summary>
+    /// The Exclusive EREHR header, in the same narrative shape Connexus prints
+    /// and with the printed claim-reference role that is the only proved
+    /// difference between the two Exclusive signatures. Its issuer block names
+    /// Exclusive rather than Connexus, so exactly one signature matches it.
+    /// </summary>
+    private const string ExclusiveErehrHeader = """
+        Mrs A Whitfield                                      Date:  11/03/2026
+        14 Barnfield Road
+        Leicester                                            Our Ref:  00081204/JT
+        LE3 6PQ                                              Your Ref: EHR97818
+
+                       REPAIRABLE REPORT
+
+        Dear Sirs,
+
+        Client/Insured: Mrs A Whitfield
+
+            Vehicle: FORD FOCUS TITANIUM      Colour: BLUE       Speedo: 61230     Miles
+
+           Reg No: LN19WKC      Registered: Mar 2019    Type: 5 Door Hatchback
+
+            Vin No: WF05XXGCC5KY12345       MOT Exp:
+
+          Damage: Moderate        Accidental Damage Rear       Incident: 07/03/2026
+
+             Vehicle Value: £8,450.00      Repair Cost: £5,210.44 inc VAT     Roadworthy: Yes
+
+        Jason Turner AQP AMIMI
+        Exclusive Vehicle Assessors
+        """;
+
     private const string SPrintTotals = """
                                                      EMAIL:   sprintassessors@btinternet.com
                                                                        Consulting Engineers
@@ -794,6 +826,225 @@ public sealed partial class ThirdPartyReportExtractionTests
         Assert.Empty(empty);
     }
 
+    /// <summary>
+    /// The read-back half of the reading (INTK-060 C05). Everything the typed
+    /// candidate projects — the issuer, both printed reference roles, the
+    /// dates, the vehicle, every amount under its own initial/agreed/revised
+    /// role, the valuation, the supplement's base link and each field's
+    /// usable/missing/ambiguous/conflicting state — comes back out of the rows
+    /// that were recorded, and comes back the same.
+    ///
+    /// It is compared member by member rather than by record equality: the
+    /// candidate carries lists (damage zones, estimates, deductions,
+    /// photographs), and a synthesized record equality compares those by
+    /// reference, so it would pass without reading a single value.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(ConnexusCosts))]
+    [InlineData(nameof(ExclusiveErehrHeader))]
+    [InlineData(nameof(LairdSupplement))]
+    [InlineData(nameof(MontgomeryCosts))]
+    public void TheRecordedRowsReconstructTheTypedCandidateTheReadingProduced(string excerpt)
+    {
+        var result = Read(Excerpt(excerpt));
+
+        Assert.NotNull(result.Candidate);
+        Assert.Equal(Members(result.Candidate), Members(Reconstructed(result)));
+
+        // And the comparison is not vacuous: this document read real values.
+        Assert.Contains(
+            result.Candidates,
+            row => row.Disposition == SourceCandidateDisposition.Usable
+                && row.Field != ThirdPartyReportFields.Issuer);
+    }
+
+    /// <summary>
+    /// The reconstruction reads the persisted rows and nothing else, so a
+    /// document that yielded no candidate reconstructs to none. The issuer row
+    /// is what says so: only a selected family ever wrote a usable one.
+    /// </summary>
+    [Fact]
+    public void ADocumentThatIsNoReportReconstructsToNoCandidateJustAsItReadToNone()
+    {
+        var estimate = Read("""
+            Full Estimate Report
+            Audatex UK Limited
+            Total Estimate      £4,120.55
+            """);
+
+        Assert.Null(estimate.Candidate);
+        Assert.Equal(ThirdPartySelectionReason.NonReportDocumentRole, estimate.Selection.Reason);
+        Assert.NotEmpty(Recorded(estimate));
+        Assert.Null(Reconstructed(estimate));
+
+        // The same for the two other readings that record rows and project no
+        // candidate: an unreadable source, and a document whose text matched
+        // two signatures at once.
+        var scanOnly = ThirdPartyReportExtraction.Extract(
+            new IntakeSourceReadResult(
+                IntakeSourceReadStatus.Readable,
+                [],
+                [],
+                [],
+                RequiresOcr: true,
+                OcrCandidates: [new("uploaded JohnRBell1.pdf", 2)]),
+            Context());
+
+        Assert.Null(scanOnly.Candidate);
+        Assert.NotEmpty(Recorded(scanOnly));
+        Assert.Null(Reconstructed(scanOnly));
+    }
+
+    /// <summary>
+    /// Rows of another policy are not this policy's rows. A caller may hand the
+    /// whole candidate set of one retained analysis over: an instruction
+    /// profile's rows are skipped rather than rejected, and a set that holds
+    /// only those reconstructs to no candidate at all.
+    /// </summary>
+    [Fact]
+    public void RowsThatCarryNoThirdPartyReportPolicyKeyReconstructToNoCandidate()
+    {
+        Assert.Null(ThirdPartyReportExtraction.Reconstruct([], Context()));
+        Assert.Null(ThirdPartyReportExtraction.Reconstruct(
+            [
+                InstructionRow("Instructing principal", "instruction-profile/acme"),
+                InstructionRow("Claim reference", AnalyzeRetainedInstruction.NoPolicyKey)
+            ],
+            Context()));
+
+        // And a mixed set still reconstructs exactly the report it holds.
+        var result = Read(Excerpt(nameof(ConnexusCosts)));
+        var mixed = new List<RetainedInstructionCandidate>
+        {
+            InstructionRow("Instructing principal", "instruction-profile/acme")
+        };
+        mixed.AddRange(Recorded(result));
+
+        Assert.Equal(
+            Members(result.Candidate),
+            Members(ThirdPartyReportExtraction.Reconstruct(mixed, Context())));
+    }
+
+    [Fact]
+    public void AReconstructionIsGivenBothTheRowsAndTheRetainedSourceIdentity()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => ThirdPartyReportExtraction.Reconstruct(null!, Context()));
+        Assert.Throws<ArgumentNullException>(
+            () => ThirdPartyReportExtraction.Reconstruct([], null!));
+    }
+
+    /// <summary>
+    /// A recorded row locates its value as precisely as the row that was read.
+    /// The bounded region — a printed label, a section body, a finding about
+    /// the values — is carried in the locator envelope the recorded candidate
+    /// already owns, so nothing is lost on the way to storage and the
+    /// reconstruction has the same locator the reading had.
+    /// </summary>
+    [Fact]
+    public void TheRecordedLocatorKeepsTheRegionTheValueWasReadFrom()
+    {
+        // The costs narrative plus one heading-delimited section, so both
+        // regions a reading produces are present in the one document.
+        var result = Read(
+            Excerpt(nameof(ConnexusCosts))
+            + "\n\nENGINEER'S COMMENTS\nThe vehicle was inspected at the repairing garage.\n");
+        var read = result.Candidates.First(row =>
+            row.Field == ThirdPartyReportFields.Registration);
+        var recorded = Recorded(result).Single(row => row.Id == read.Id);
+
+        Assert.Equal("label", read.Region);
+        Assert.Equal("label", recorded.Locator?.Region);
+        Assert.Equal(read.Page, recorded.Page);
+
+        // A row that was read from a section body keeps that instead, and a
+        // row with no region records the envelope it always did.
+        Assert.Contains(
+            Recorded(result),
+            row => row.Locator?.Region == "section");
+        Assert.Contains(
+            Recorded(result),
+            row => row.Locator is null);
+    }
+
+    /// <summary>The rows one reading records, in the shape storage keeps.</summary>
+    private static IReadOnlyList<RetainedInstructionCandidate> Recorded(
+        ThirdPartyReportExtractionResult result) =>
+        ThirdPartyReportAnalysis.ToCandidates(result, "intake_source_reader", "1");
+
+    private static ThirdPartyReportCandidate? Reconstructed(
+        ThirdPartyReportExtractionResult result) =>
+        ThirdPartyReportExtraction.Reconstruct(Recorded(result), Context());
+
+    private static RetainedInstructionCandidate InstructionRow(string field, string policyKey) =>
+        new(
+            Guid.NewGuid(),
+            "retained-instruction",
+            field,
+            null,
+            null,
+            "Acme Claims Ltd",
+            "Acme Claims Ltd",
+            null,
+            null,
+            "uploaded report.pdf, page 1",
+            1,
+            0,
+            "intake_source_reader",
+            "1",
+            policyKey,
+            "instruction-profiles/1",
+            SourceCandidateDisposition.Usable);
+
+    /// <summary>
+    /// Every projected member of one candidate, as an ordered list of lines:
+    /// each typed fact's value and the whole source row behind it, walked over
+    /// the projection's own shape so a member added to it later is compared
+    /// without anyone having to remember this test.
+    /// </summary>
+    private static List<string> Members(ThirdPartyReportCandidate? candidate)
+    {
+        var lines = new List<string>();
+        Walk("candidate", candidate, lines);
+        return lines;
+    }
+
+    private static void Walk(string path, object? value, List<string> lines)
+    {
+        switch (value)
+        {
+            case null:
+                lines.Add($"{path}=null");
+                return;
+            case SourceFieldCandidate row:
+                lines.Add($"{path}={Describe(row)}|{row.Id:D}|{row.SourceLabel}|{row.Region}"
+                    + $"|{row.Cell}|{row.FormField}|{row.ReaderVersion}|{row.PolicyVersion}"
+                    + $"|{row.DocumentRole}|{row.Sha256}|{row.Occurrence}|{row.ReceiptId:D}"
+                    + $"|{row.DocumentId:D}|{row.DocumentVersionId:D}|{row.IntakeAssetId:D}");
+                return;
+            case string or decimal or int or Guid or DateOnly or Enum:
+                lines.Add(FormattableString.Invariant($"{path}={value}"));
+                return;
+            case System.Collections.IEnumerable items:
+                var count = 0;
+                foreach (var item in items)
+                {
+                    Walk(FormattableString.Invariant($"{path}[{count}]"), item, lines);
+                    count++;
+                }
+
+                lines.Add(FormattableString.Invariant($"{path}.count={count}"));
+                return;
+            default:
+                foreach (var property in value.GetType().GetProperties())
+                {
+                    Walk($"{path}.{property.Name}", property.GetValue(value), lines);
+                }
+
+                return;
+        }
+    }
+
     private static ThirdPartyReportExtractionResult Read(string text) =>
         ThirdPartyReportExtraction.Extract(Readable(text), Context());
 
@@ -871,6 +1122,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     {
         nameof(ConnexusHeader) => ConnexusHeader,
         nameof(ConnexusCosts) => ConnexusHeader + "\n" + ConnexusCosts,
+        nameof(ExclusiveErehrHeader) => ExclusiveErehrHeader,
         nameof(MontgomeryCosts) => MontgomeryCosts,
         nameof(LairdSupplement) => LairdSupplement,
         nameof(SPrintTotals) => SPrintTotals,
