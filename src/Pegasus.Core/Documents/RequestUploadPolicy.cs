@@ -504,8 +504,14 @@ public static class RequestUploadOperationKey
 /// <param name="AcceptsMoreFiles">
 /// Whether the link may still take another file. A link whose accepted totals
 /// have reached its limits is exhausted, not gone: the page keeps serving it
-/// and the submission can still be finished, so the upload and replace
-/// controls come off rather than the page.
+/// and the submission can still be finished, so the upload control comes off
+/// rather than the page.
+/// </param>
+/// <param name="AcceptsReplacements">
+/// Whether the link may still take a file sent in place of one it already
+/// counts. A link exhausted by file count still may: a replacement supersedes
+/// a current file rather than adding one, and correcting the last file sent is
+/// exactly what a sender needs at that point. Only the byte bound stops it.
 /// </param>
 /// <param name="Refusal">
 /// Set when the link is still there but nothing may be done through it, so the
@@ -519,9 +525,13 @@ public sealed record RequestUploadPublicView(
     PublicUploadSessionState SessionState = PublicUploadSessionState.NotStarted,
     IReadOnlyList<RequestUploadOccurrenceView>? Files = null,
     bool AcceptsMoreFiles = true,
-    RequestUploadDecision? Refusal = null)
+    RequestUploadDecision? Refusal = null,
+    bool AcceptsReplacements = true)
 {
-    public IReadOnlyList<RequestUploadOccurrenceView> Files { get; init; } =
+    // Get-only rather than init: the normalisation below is the only way this
+    // list is set, so a `with` cannot route around it and leave a null where
+    // every reader expects an empty one.
+    public IReadOnlyList<RequestUploadOccurrenceView> Files { get; } =
         Files ?? Array.Empty<RequestUploadOccurrenceView>();
 }
 
@@ -770,10 +780,17 @@ public sealed class RequestUploadPolicy
         return createdAtUtc.Add(limits.Lifetime);
     }
 
+    /// <param name="isReplacement">
+    /// Whether these bytes stand in for a file this link already counts, rather
+    /// than adding one to the submission. Only the caller that resolved the
+    /// addressed occurrence knows this, and it changes which bound applies -
+    /// see <see cref="AcceptsAReplacement(RequestUploadLink)"/>.
+    /// </param>
     public RequestUploadAuthorization Authorize(
         RequestUploadLink link,
         RequestUploadAttempt attempt,
-        string? existingOperationContentHash = null)
+        string? existingOperationContentHash = null,
+        bool isReplacement = false)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(attempt);
@@ -810,7 +827,7 @@ public sealed class RequestUploadPolicy
                 : new(RequestUploadDecision.OperationConflict, null, null, false);
         }
 
-        if (!AcceptsMoreFiles(link))
+        if (!(isReplacement ? AcceptsAReplacement(link) : AcceptsMoreFiles(link)))
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
         }
@@ -822,10 +839,13 @@ public sealed class RequestUploadPolicy
             return new(RequestUploadDecision.InvalidFile, null, null, false);
         }
 
+        // The file count is not re-checked here: the questions above own it,
+        // and a second copy of the bound is how one of them comes to disagree
+        // with the other. The byte bound is checked against these exact bytes,
+        // and it applies to a replacement as much as to an addition, because
+        // custody keeps the superseded set as well as this one.
         var contentLength = attempt.File.Content.Length;
         if (contentLength > limits.MaximumFileBytes
-            || link.AcceptedFileCount == int.MaxValue
-            || link.AcceptedFileCount + 1 > limits.MaximumFileCount
             || contentLength > limits.MaximumRequestBytes - link.AcceptedByteCount)
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
@@ -880,19 +900,54 @@ public sealed class RequestUploadPolicy
     }
 
     /// <summary>
-    /// Whether the link may still take another file. This is the rule
-    /// <see cref="Authorize"/> refuses
-    /// <see cref="RequestUploadDecision.LimitExceeded"/> on, asked by the page
-    /// as well so it never offers an upload or replace control the store would
-    /// then refuse.
+    /// Whether the link may take one more file that adds to the submission.
+    /// Both bounds apply: the file-count bound, which counts the files the
+    /// sender is currently submitting, and the byte bound. The page asks this
+    /// too, so it never offers an upload control the store would refuse.
     /// </summary>
     public bool AcceptsMoreFiles(RequestUploadLink link)
     {
         ArgumentNullException.ThrowIfNull(link);
         return link.Status == RequestUploadStatus.Active
             && link.AcceptedFileCount < limits.MaximumFileCount
-            && link.AcceptedByteCount < limits.MaximumRequestBytes;
+            && AcceptsMoreBytes(link);
     }
+
+    /// <summary>
+    /// Whether the link may take a file sent in place of one it already counts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The file-count bound does not apply: a replacement supersedes a current
+    /// file rather than adding one, so the count of files being submitted does
+    /// not move. Plan item 6 allows replacements until the session is finalized
+    /// or expires, and a link exhausted by file count is neither - it is
+    /// precisely where a sender most needs to correct the last file they sent,
+    /// and refusing there would be the broken path INTK-051 forbids.
+    /// </para>
+    /// <para>
+    /// The byte bound still binds, because custody keeps the superseded bytes
+    /// as well as the new ones: nothing may replace its way past
+    /// <see cref="RequestUploadLimits.MaximumRequestBytes"/>.
+    /// <see cref="RequestUploadStatus.Exhausted"/> is a valid status here for
+    /// the same reason it is in <see cref="RefuseLink"/>.
+    /// </para>
+    /// </remarks>
+    public bool AcceptsAReplacement(RequestUploadLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        return link.Status is RequestUploadStatus.Active or RequestUploadStatus.Exhausted
+            && AcceptsMoreBytes(link);
+    }
+
+    /// <summary>
+    /// The byte bound on its own: every set of bytes custody holds for this
+    /// link, superseded ones included, against
+    /// <see cref="RequestUploadLimits.MaximumRequestBytes"/>. One owner, asked
+    /// by both questions above.
+    /// </summary>
+    private bool AcceptsMoreBytes(RequestUploadLink link) =>
+        link.AcceptedByteCount < limits.MaximumRequestBytes;
 
     private bool HasAcceptedLifetime(RequestUploadLink link)
     {

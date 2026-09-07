@@ -334,7 +334,7 @@ internal sealed class EfDocumentRequestStore(
         // a file is accepted into a session that has already been finished.
         var link = await LockLinkAsync(context, linkId, cancellationToken);
         var now = timeProvider.GetUtcNow();
-        if (!RequestUploadToken.Matches(token, link.TokenDigest))
+        if (link is null || !RequestUploadToken.Matches(token, link.TokenDigest))
         {
             return new(RequestUploadDecision.Unavailable, false);
         }
@@ -365,19 +365,28 @@ internal sealed class EfDocumentRequestStore(
             return new(RequestUploadDecision.LimitsVersionMismatch, false);
         }
 
-        // Only a current arrival custody has not answered holds the
-        // submission open. A Failed occurrence is an answer custody has given -
-        // rendered as failed, never counted, never called a finalized file, but
-        // it does not trap the sender until the window expires either. A
-        // superseded one is not a file the sender is submitting any more,
-        // whatever state it is in.
-        var current = (await SessionOccurrencesOf(context, session.Id)
+        // Asked before anything else about the files, and asked rather than
+        // thrown at: a session that never started and one whose window closed
+        // are ordinary states of a public link, and neither is "a file is still
+        // being stored, try again" - an expired session would answer that for
+        // ever. Finalized was answered above as the replay it is.
+        if (PublicUploadSessionPolicy.Evaluate(ToSession(session), now)
+            != PublicUploadSessionState.Open)
+        {
+            return new(RequestUploadDecision.Unavailable, false);
+        }
+
+        // Only a current arrival custody has not answered holds the submission
+        // open. A Failed occurrence is an answer custody has given - rendered
+        // as failed, never counted, never called a finalized file, but it does
+        // not trap the sender until the window expires either. A superseded one
+        // is not a file the sender is submitting any more, whatever state it is
+        // in.
+        var blocking = (await SessionOccurrencesOf(context, session.Id)
             .ToArrayAsync(cancellationToken))
-            .Where(value => value.SupersededByOccurrenceId is null)
-            .ToArray();
-        var blocking = current
-            .Where(value => EfPublicUploadRetentionStore.UnresolvedCodes
-                .Contains(value.CustodyState))
+            .Where(value => value.SupersededByOccurrenceId is null
+                && EfPublicUploadRetentionStore.UnresolvedCodes
+                    .Contains(value.CustodyState))
             .Select(value => value.CustodyState)
             .FirstOrDefault();
         if (blocking is not null)
@@ -388,16 +397,6 @@ internal sealed class EfDocumentRequestStore(
                 RequestUploadDecision.NotRetained,
                 false,
                 EfPublicUploadRetentionStore.ParseCustodyState(blocking));
-        }
-
-        // Asked rather than thrown at: a session that never started and one
-        // whose window closed are ordinary states of a public link, and the
-        // policy answers both without an exception standing in for control
-        // flow. Finalized was answered above as the replay it is.
-        if (PublicUploadSessionPolicy.Evaluate(ToSession(session), now)
-            != PublicUploadSessionState.Open)
-        {
-            return new(RequestUploadDecision.Unavailable, false);
         }
 
         var finalized = PublicUploadSessionPolicy.Finalize(ToSession(session), now);
@@ -438,6 +437,11 @@ internal sealed class EfDocumentRequestStore(
         // transaction commits its "nothing is unconfirmed" decision while this
         // one is still inserting the occurrence that would have refused it.
         var link = await LockLinkAsync(context, linkId, cancellationToken);
+        if (link is null)
+        {
+            return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
+        }
+
         var senderOperationKey = command.File.OperationKey?.Trim() ?? string.Empty;
         var priorReceipt = await context.Set<RequestUploadReceiptEntity>()
             .SingleOrDefaultAsync(
@@ -447,7 +451,12 @@ internal sealed class EfDocumentRequestStore(
         var authorization = uploadPolicy.Authorize(
             ToUploadLink(link),
             new(command.Token, command.File, command.AttemptsInCurrentRateWindow),
-            priorReceipt?.ContentHash);
+            priorReceipt?.ContentHash,
+            // A replacement stands in for a file this link already counts, so
+            // the file-count bound does not apply to it. Whether the slot it
+            // names really is one of those is settled in ReplaceAsync, which
+            // refuses anything else before a row is written.
+            isReplacement: command.ReplacementOccurrenceId is not null);
         if (!authorization.MayEnterCustody)
         {
             // A completed prior submission answers here without offering the
@@ -658,25 +667,35 @@ internal sealed class EfDocumentRequestStore(
         string scopedOperationKey,
         CancellationToken cancellationToken)
     {
-        var superseded = await context.Set<PublicUploadOccurrenceEntity>()
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                value => value.Id == replacementId && value.SessionId == sessionId,
-                cancellationToken);
-        if (superseded is null)
+        var sessionRows = await SessionOccurrencesOf(context, sessionId)
+            .ToArrayAsync(cancellationToken);
+        var addressed = Array.Find(sessionRows, value => value.Id == replacementId);
+        if (addressed is null)
         {
             // The one thing Unavailable may mean here: the addressed slot is
             // not in this link's session, and nothing more can be said about
             // it without disclosing a session that is not the sender's.
             return ArrivalDecision.Refuse(RequestUploadDecision.Unavailable);
         }
-        if (superseded.CustodyState is not (EfPublicUploadRetentionStore.ConfirmedCode
-            or EfPublicUploadRetentionStore.FailedCode))
+
+        // Only a file the link currently counts may be stood in for, which is
+        // what makes a replacement count-neutral and lets it through on a link
+        // exhausted by file count. Everything else is refused before a row is
+        // written, and the slot is in this session, so none of it is
+        // Unavailable:
+        //  - an arrival custody has not answered would race the hand-over that
+        //    is carrying it;
+        //  - a refused file is not one of the files being submitted, so
+        //    standing in for it would add one - it is re-sent as a new upload,
+        //    which the page offers because a refusal is not counted and so
+        //    leaves the link a file short of its limit;
+        //  - one already replaced has a successor that is the current file.
+        if (!string.Equals(
+                addressed.CustodyState,
+                EfPublicUploadRetentionStore.ConfirmedCode,
+                StringComparison.Ordinal)
+            || addressed.SupersededByOccurrenceId is not null)
         {
-            // Custody has not answered for the addressed slot. Replacing it
-            // now would race the hand-over that is carrying it, so the sender
-            // is refused typed and told to reload rather than raced. The slot
-            // is in this session, so this is never Unavailable.
             return ArrivalDecision.Refuse(RequestUploadDecision.OperationConflict);
         }
 
@@ -768,6 +787,7 @@ internal sealed class EfDocumentRequestStore(
                 value.Id,
                 value.ProposedName,
                 value.CustodyState,
+                value.Size,
                 occurrences
                     .Where(other => other.SessionId == sessionId
                         && other.ReplacesOccurrenceId == value.Id)
@@ -785,6 +805,7 @@ internal sealed class EfDocumentRequestStore(
         Guid Id,
         string ProposedName,
         string CustodyState,
+        long Size,
         Guid? SupersededByOccurrenceId);
 
     /// <summary>
@@ -831,7 +852,11 @@ internal sealed class EfDocumentRequestStore(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var link = await LockLinkAsync(context, arrival.LinkId, cancellationToken);
+        // Custody holds these bytes, so a link that is not there any more is a
+        // broken invariant and not a refusal to render.
+        var link = await LockLinkAsync(context, arrival.LinkId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"The upload request link '{arrival.LinkId}' vanished during a hand-over.");
         var receipt = await context.Set<RequestUploadReceiptEntity>()
             .SingleOrDefaultAsync(
                 value => value.RequestId == arrival.LinkId
@@ -903,16 +928,27 @@ internal sealed class EfDocumentRequestStore(
     /// The totals are derived rather than incremented, because the committed
     /// occurrence — not the receipt — is what says a file was accepted, and it
     /// says it exactly once however many times the same operation key is sent.
-    /// What they count is what custody holds or may still hold —
+    /// Both are taken over the rows custody holds or may still hold —
     /// <see cref="EfPublicUploadRetentionStore.RetainedOrInFlightCodes"/> —
-    /// and the one thing they leave out is a refusal, because that is the one
-    /// answer that says custody kept nothing. A superseded occurrence still
-    /// counts: custody holds those bytes whether or not the sender has since
-    /// sent something in its place, and the limits bound what custody holds
-    /// rather than what the page currently lists. A replacement therefore
-    /// consumes a file against
-    /// <see cref="RequestUploadLimits.MaximumFileCount"/>, which is the point
-    /// of the limit and not a defect of it.
+    /// and they then count different things about them, because the two limits
+    /// bound different things. The byte count is every such row, superseded
+    /// ones included, because custody keeps the bytes it was given whether or
+    /// not the sender has since sent something in their place: that is what
+    /// stops a link replacing its way past
+    /// <see cref="RequestUploadLimits.MaximumRequestBytes"/>. The file count is
+    /// only the rows nothing has replaced, because
+    /// <see cref="RequestUploadLimits.MaximumFileCount"/> bounds the files the
+    /// sender is submitting, and a replacement stands in for one rather than
+    /// adding one.
+    /// </para>
+    /// <para>
+    /// Exhaustion is deliberately one-way: nothing sets the status back to
+    /// active when a re-derivation lowers the totals. A link that reached its
+    /// limits has had its use, and the only re-derivation that can lower them
+    /// is the one at finalization, where the submission is closing anyway. The
+    /// same call bumps the link version and completes the Case workflow when
+    /// the totals move, which is intended: a finalization that changes what the
+    /// link records is a change to the Case's documents like any arrival.
     /// </para>
     /// <para>
     /// Derived means only as current as the last derivation, so this runs on
@@ -938,19 +974,13 @@ internal sealed class EfDocumentRequestStore(
         Guid sessionId,
         CancellationToken cancellationToken)
     {
-        var totals = await context.Set<PublicUploadOccurrenceEntity>()
-            .Where(value => value.SessionId == sessionId
-                && EfPublicUploadRetentionStore.RetainedOrInFlightCodes
-                    .Contains(value.CustodyState))
-            .GroupBy(value => value.SessionId)
-            .Select(group => new
-            {
-                FileCount = group.Count(),
-                ByteCount = group.Sum(value => value.Size)
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-        var fileCount = totals?.FileCount ?? 0;
-        var byteCount = totals?.ByteCount ?? 0;
+        var counted = (await SessionOccurrencesOf(context, sessionId)
+            .ToArrayAsync(cancellationToken))
+            .Where(value => EfPublicUploadRetentionStore.RetainedOrInFlightCodes
+                .Contains(value.CustodyState))
+            .ToArray();
+        var fileCount = counted.Count(value => value.SupersededByOccurrenceId is null);
+        var byteCount = counted.Sum(value => value.Size);
         var changed = fileCount != link.AcceptedFileCount
             || byteCount != link.AcceptedByteCount;
         link.AcceptedFileCount = fileCount;
@@ -983,7 +1013,15 @@ internal sealed class EfDocumentRequestStore(
     /// transaction takes, so concurrent submissions queue on the link rather
     /// than deadlocking against each other.
     /// </summary>
-    private static async Task<RequestUploadLinkEntity> LockLinkAsync(
+    /// <remarks>
+    /// The lock itself is provider-conditional: only SQL Server takes the
+    /// <c>UPDLOCK</c>, and every other provider gets an ordinary read, so a
+    /// suite that does not run on SQL Server proves the ordering these callers
+    /// keep and not the serialization. Null means the row is gone, which each
+    /// caller answers for itself rather than throwing out of an anonymous
+    /// handler.
+    /// </remarks>
+    private static async Task<RequestUploadLinkEntity?> LockLinkAsync(
         PegasusDbContext context,
         Guid linkId,
         CancellationToken cancellationToken)
@@ -996,8 +1034,8 @@ internal sealed class EfDocumentRequestStore(
                     FROM [RequestUploadLinks] WITH (UPDLOCK, HOLDLOCK)
                     WHERE [Id] = {linkId}
                 """)
-                .SingleAsync(cancellationToken)
-            : await links.SingleAsync(value => value.Id == linkId, cancellationToken);
+                .SingleOrDefaultAsync(cancellationToken)
+            : await links.SingleOrDefaultAsync(value => value.Id == linkId, cancellationToken);
     }
 
     /// <summary>
@@ -1168,7 +1206,9 @@ internal sealed class EfDocumentRequestStore(
                 ? PublicUploadSessionState.NotStarted
                 : PublicUploadSessionPolicy.Evaluate(ToSession(session), timeProvider.GetUtcNow()),
             occurrences,
-            uploadPolicy.AcceptsMoreFiles(link));
+            uploadPolicy.AcceptsMoreFiles(link),
+            Refusal: null,
+            AcceptsReplacements: uploadPolicy.AcceptsAReplacement(link));
     }
 
     private static async Task<CaseWorkflowEntity> RequireWorkflowAsync(
@@ -1417,24 +1457,42 @@ internal sealed class EfPublicUploadRetentionStore(
     /// re-presented rather than replaced, so a retry reconciles that arrival
     /// instead of becoming a second one.
     /// </summary>
-    internal static readonly string[] UnresolvedCodes = [ArrivedCode, UnknownCode, PendingCode];
+    internal static readonly string[] UnresolvedCodes =
+        [ArrivedCode, .. Enum.GetValues<IncomingArtifactCustodyState>()
+            .Where(state => state is not (IncomingArtifactCustodyState.Confirmed
+                or IncomingArtifactCustodyState.Failed))
+            .Select(ToCode)];
 
     /// <summary>
-    /// The states whose bytes count against a link's accepted totals:
-    /// everything custody holds or may still hold.
+    /// The states whose bytes count against a link's accepted totals: what
+    /// custody holds or may still hold.
     /// </summary>
     /// <remarks>
-    /// Only <see cref="IncomingArtifactCustodyState.Failed"/> is left out, and
-    /// it is named as the exclusion rather than the rest being listed, so the
-    /// set cannot drift from the enum. A refusal is the one answer that says
-    /// custody kept nothing, and bytes nobody holds must not go on bounding
-    /// what a public link may send. Everything else counts, an arrival that
-    /// has not been offered yet included: it is committed and may land, and a
-    /// limit that ignored it would let a link exceed itself with everything in
-    /// flight.
+    /// <para>
+    /// The set is the enum minus <see cref="IncomingArtifactCustodyState.Failed"/>,
+    /// named as the exclusion rather than listed, so it cannot drift from the
+    /// enum. A refusal is the one answer that says custody kept nothing, and
+    /// bytes nobody holds must not go on bounding what a public link may send.
+    /// An uncertain arrival does count: custody may be holding it, and the
+    /// conservative direction is the safe one for a bound whose job is to
+    /// limit what one anonymous link can push into custody.
+    /// </para>
+    /// <para>
+    /// <see cref="ArrivedCode"/> is not in the set, and the invariant it
+    /// restores is "nothing is counted before custody is even asked". Counting
+    /// it would not bound an arrival in flight anyway - the limit is enforced
+    /// against the link's stored columns, and those are only written after a
+    /// hand-over is accepted, so the next arrival's check reads the same
+    /// numbers either way. What it would do is make a POST that died before
+    /// the hand-over cost the sender a file for the life of the session, with
+    /// nothing to release it short of a staff reconciliation recording a
+    /// refusal. Simultaneous arrivals are bounded by the link's update lock
+    /// and by <c>RequestUploadAttemptLimiter</c>, which is where a bound on
+    /// what is in flight belongs.
+    /// </para>
     /// </remarks>
     internal static readonly string[] RetainedOrInFlightCodes =
-        [ArrivedCode, .. Enum.GetValues<IncomingArtifactCustodyState>()
+        [.. Enum.GetValues<IncomingArtifactCustodyState>()
             .Where(state => state != IncomingArtifactCustodyState.Failed)
             .Select(ToCode)];
 
