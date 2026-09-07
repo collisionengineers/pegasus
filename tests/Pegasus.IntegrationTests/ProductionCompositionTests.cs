@@ -18,6 +18,7 @@ using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Eva;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -91,15 +92,19 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void CasePageAndCanonicalImportResolveTheirSelectedEstimateParsers()
+    public void CasePageAndCanonicalImportResolveTheirEstimateParsersAndGlassSessions()
     {
         using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
         var parsers = provider.GetServices<IEstimateDocumentParser>().ToArray();
 
-        Assert.Equal(2, parsers.Length);
+        Assert.Equal(3, parsers.Length);
         Assert.IsType<AudatexEstimatePdfParser>(provider.GetRequiredService<IEstimateDocumentParser>());
         Assert.Same(provider.GetRequiredService<JsonEstimateParser>(), Assert.Single(parsers.OfType<JsonEstimateParser>()));
+        Assert.Single(parsers.OfType<GlassEstimateXmlParser>());
         Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
+        Assert.IsType<EfGlassRepairEstimateSessionStore>(
+            scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>());
     }
 
     private const string BoxConfigJson = """
