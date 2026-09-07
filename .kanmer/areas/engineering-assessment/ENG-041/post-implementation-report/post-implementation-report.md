@@ -4,8 +4,9 @@
 
 Worktree .worktrees/eng-041; branch ENG-041-glass-recovery; exact base
 1d972f05c0f10c2ecf804f271a4fd3155242f1ef (origin/dev at execution packet).
-Uncommitted implementation candidate, frozen for root verification before PR.
-16 changed files; no package, schema, migration, deployment or live provider call.
+Implementation verified by root and authorized for PR/Review handoff.
+16 source/document/test files plus fresh routed snapshots/catalogue where changed;
+no package, schema, migration, deployment or live provider call.
 
 ## Changes and callers
 
@@ -38,7 +39,7 @@ still conflicts; stale new operations still fail version/lease checks.
 FRD-06 records those end-state rules. The approved Razor action is an ordinary
 POST with labelled reason and confirmation and one consequence sentence.
 
-## Focused evidence authored, not yet run
+## Focused evidence authored
 
 - Core EstimateTests: posted identity validation and unchanged submitted intent
   while hidden source/material/amendment evidence is retained.
@@ -83,9 +84,9 @@ minimal default/unavailable/conflict capture tests selected by root (and the
 two changed estimate/Glass Web cohorts for actual form assertions), then scoped snapshot verify and
 catalogue. Generated case-details HTML and index are declared in plan/files.
 
-## Stop and handoff
+## Initial stop and handoff
 
-Stop before commit/PR/Review/merge. Keep this exact worktree and claim for
+The initial author stop was before commit/PR/Review/merge. Keep this exact worktree and claim for
 compiler/test feedback. Root verifies first, then independent kanmer-review
 reviews a pinned head after PR. No self-review or delivery claim. DOCS-020
 separate verification is ongoing; no report/intake/principal source file was
@@ -119,3 +120,24 @@ assertions are unchanged. No production edit or author build/test occurred.
 Author git diff --check PASS exit 0; candidate frozen. Root reruns only this
 one case after incremental build. Three minimal Case-detail captures in the
 154-case run passed; no whole-cohort recapture/rerun is requested.
+
+## Final root verification and handoff — 2026-09-07
+
+Root's corrected incremental Release build PASS, exit 0, 16.26 s, zero warnings
+and errors. Only the previous failed timestamp test plus the actual default
+Review-state capture test passed: 2 PASS in 36 s. The capture test was
+CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey.
+No 154-test rerun occurred. Core's 56 PASS and the other 153 passing integration
+cases remain the matching earlier evidence; the failed attempt is retained above.
+
+Initial scoped snapshot update was FAIL (1 PASS / 1 FAIL) because default capture
+was missing. The earlier minimal cohort had rendered NotReady rather than the
+required Review plus edit-lease state. The actual route capture above corrected
+the verification input, not production behavior. Final snapshot update PASS:
+2 tests, 292 ms; verify PASS: 2 tests, 5 s; catalogue PASS: 62 routes,
+69 prototypes, zero broken links. Captures and generated case-details snapshots
+were refreshed by root. No manual visual review is claimed.
+
+Author git diff --check PASS, exit 0, after final capture. Root authorized commit
+with [skip ci], push to dev-targeting PR and move Review. Independent reviewer
+must bind attestation to the pushed SHA; no author self-review, merge or deployment.

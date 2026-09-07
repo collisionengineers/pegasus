@@ -123,6 +123,7 @@ proceeding. Unknown outcomes are not success. Do not weaken tests to pass.
 
 ## Stop condition
 
-Stop with code and focused tests ready for root verification, before commit/PR,
-review, merge, deployment or any other ticket. Keep the worktree and claim for
-resume; record exact evidence, unrun tests and the bounded next action.
+Initial author stop was code ready for root verification. Root supplied final
+focused PASS evidence on 2026-09-07 and explicitly authorized the next handoff:
+record all attempts, commit scoped changes with [skip ci], push a PR to dev and
+move to Review. Stop for independent review; do not self-review, merge or deploy.

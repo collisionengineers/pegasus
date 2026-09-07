@@ -6,5 +6,6 @@
 - [x] Focused regression tests authored and lightweight diff check recorded; hand candidate to root, with runtime checks explicitly pending.
 
 
-Author candidate is complete. Runtime tests, UI snapshot capture, independent
-review and merge remain unperformed; root owns the next verification step.
+Author candidate and root focused runtime/snapshot verification are complete;
+all failed attempts and corrected passes are recorded in the report.
+Independent review and merge remain unperformed.
