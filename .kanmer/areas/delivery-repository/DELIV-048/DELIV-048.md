@@ -31,9 +31,11 @@ links:
 refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 docs_todo: true
+commits:
+  - b6ffdeda1f8eee7f71e86ca033260de20483cb60
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-07T21:20:20.187Z'
+updated: '2026-09-07T21:21:50.469Z'
 ---
 
 ## What
