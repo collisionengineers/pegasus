@@ -275,6 +275,11 @@ public static class ProviderSubmissionPolicy
     /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength"/>):
     /// every file arrives inline as base64 in one request body, so the whole
     /// submission is bounded together rather than only file by file.
+    ///
+    /// The per-file bound is the channel's own
+    /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiFileLength"/>) and
+    /// not the manual channel's larger cap: one Provider API file may never be
+    /// allowed past the envelope that carries it (C07 item 5, INTK-052).
     /// </summary>
     public static IReadOnlyList<ProviderSubmissionFile> RequireEnvelope(
         IReadOnlyList<ProviderSubmissionFile>? files)
@@ -284,7 +289,7 @@ public static class ProviderSubmissionPolicy
             throw new ArgumentException("At least one file is required.", nameof(files));
         }
         if (files.Count > IntakeEnvelopeLimits.MaximumBatchFileCount
-            || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumContentLength)
+            || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumProviderApiFileLength)
             || files.Sum(file => (long)file.Content.Length)
                 > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength)
         {
