@@ -178,7 +178,7 @@ public sealed class CaseReportGenerationPersistenceTests
         var status = new RecordingCustodyStatus
         {
             Result = new(
-                CaseArtifactCustodyDisposition.Confirmed, custody.DocumentId, custody.VersionId,
+                CaseArtifactCustodyDisposition.Confirmed, custody.DocumentId, custody.VersionId, custody.OccurrenceId,
                 $"box-file-{custody.VersionId:N}", $"box-version-{custody.VersionId:N}",
                 custody.Sha256, custody.ContentLength, "application/pdf", null, null)
         };
@@ -194,8 +194,8 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(pendingArtifact.Id, settled.Id);
         Assert.Equal(CaseReportArtifactStatus.Confirmed, settled.Status);
         Assert.Equal(custody.Sha256, settled.Sha256);
-        Assert.Equal(
-            (harness.CaseId, custody.DocumentId!.Value, custody.VersionId!.Value), status.LastQuery);
+        Assert.Equal(pendingArtifact.OperationKey, status.LastOperationKey);
+        Assert.Null(status.LastQuery);
         Assert.Equal(["freeze", "confirm"], harness.Sequence);
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_generation_ready"));
     }
@@ -555,6 +555,8 @@ public sealed class CaseReportGenerationPersistenceTests
                     image.OccurrenceId, image.VersionId, image.BoxFileId, image.BoxVersionId))
                 .ToArray();
 
+        private readonly Dictionary<Guid, Guid> occurrences = [];
+
         public async Task<SeededDocument> RetainArtifactAsync(
             CaseArtifactCustodyRequest request, byte[] content, bool confirmed)
         {
@@ -600,7 +602,13 @@ public sealed class CaseReportGenerationPersistenceTests
             Apply(version, confirmed);
             await context.SaveChangesAsync();
             RetainedContent[version.Id] = content;
-            return new(document.Id, version.Id, request.Sha256, content);
+            // One occurrence per retained document, stable across retries, the
+            // way the real custody adapter reuses the occurrence it minted.
+            if (!occurrences.TryGetValue(document.Id, out var occurrenceId))
+            {
+                occurrences[document.Id] = occurrenceId = Guid.NewGuid();
+            }
+            return new(document.Id, version.Id, request.Sha256, content) { OccurrenceId = occurrenceId };
         }
 
         public async Task ConfirmCustodyObjectAsync(Guid versionId)
@@ -1036,6 +1044,8 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public Guid? VersionId { get; private set; }
 
+        public Guid? OccurrenceId { get; private set; }
+
         public string? Sha256 { get; private set; }
 
         public long ContentLength { get; private set; }
@@ -1057,7 +1067,7 @@ public sealed class CaseReportGenerationPersistenceTests
             if (Disposition == CaseArtifactCustodyDisposition.Failed)
             {
                 return new(
-                    CaseArtifactCustodyDisposition.Failed, null, null, null, null, null, null, null,
+                    CaseArtifactCustodyDisposition.Failed, null, null, null, null, null, null, null, null,
                     FailureCode, null);
             }
 
@@ -1065,12 +1075,14 @@ public sealed class CaseReportGenerationPersistenceTests
             var retained = await harness.RetainArtifactAsync(request, buffer.ToArray(), confirmed);
             DocumentId = retained.DocumentId;
             VersionId = retained.VersionId;
+            OccurrenceId = retained.OccurrenceId;
             Sha256 = request.Sha256;
             ContentLength = request.ContentLength;
             return new(
                 Disposition,
                 retained.DocumentId,
                 retained.VersionId,
+                retained.OccurrenceId,
                 confirmed ? $"box-file-{retained.VersionId:N}" : null,
                 confirmed ? $"box-version-{retained.VersionId:N}" : null,
                 request.Sha256,
@@ -1083,29 +1095,32 @@ public sealed class CaseReportGenerationPersistenceTests
 
     private sealed class RecordingCustodyStatus : ICaseArtifactCustodyStatus
     {
-        public (Guid CaseId, Guid DocumentId, Guid VersionId)? LastQuery { get; private set; }
+        public (Guid CaseId, Guid DocumentId, Guid VersionId, Guid OccurrenceId)? LastQuery { get; private set; }
+
+        public string? LastOperationKey { get; private set; }
 
         public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null, null, null, null, null, null, null, null);
+            CaseArtifactCustodyDisposition.Unknown, null, null, null, null, null, null, null, null, null, null);
 
         public Task<CaseArtifactCustodyResult> GetAsync(
-            ActionActor actor, Guid caseId, Guid documentId, Guid versionId,
+            ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
-            LastQuery = (caseId, documentId, versionId);
+            LastQuery = (caseId, documentId, versionId, occurrenceId);
             return Task.FromResult(Result);
         }
 
         /// <summary>
-        /// G15: this fixture's scenarios never lose a retention response, so
-        /// an operation-key lookup would be unexpected - fail loudly rather
-        /// than invent a committed intent.
+        /// The generated artifact's recovery identity is its retain operation
+        /// key (G15), so a restart-safe retry reads by it.
         /// </summary>
         public Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
             ActionActor actor, Guid caseId, string operationKey,
-            CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "This fixture never loses a custody response; no operation-key lookup was modelled.");
+            CancellationToken cancellationToken)
+        {
+            LastOperationKey = operationKey;
+            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+        }
     }
 
     /// <summary>Serves the bytes the fake custody retained, by exact hash.</summary>

@@ -87,14 +87,13 @@ public sealed class CallbackModel(
         {
             return Forbid();
         }
-        catch (Exception refusal)
-            when (refusal is GlassRepairEstimateSessionConflictException
-                or ArgumentException
-                or InvalidOperationException)
+        catch (GlassRepairEstimateSessionConflictException)
         {
             // A session that is not waiting for this message, or a second and
             // different message for one that already answered. Nothing was
-            // recorded, and the Case says so where the operator is going.
+            // recorded, and the Case says so where the operator is going. Every
+            // refusal the gateway has for a return is this one type; anything
+            // else is a fault and surfaces as one.
             TempData["CaseError"] = GlassLabels.NotImported;
             return Estimate(session.CaseId);
         }

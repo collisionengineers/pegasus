@@ -649,14 +649,17 @@ public sealed class GenerateCaseReport(
 
         // Restart-safe retry: a retained Pending or Unknown artifact already
         // has a logical version, so ask custody what actually happened before
-        // rendering the same bytes again.
-        if (artifact is { VersionId: { } versionId, DocumentId: { } documentId }
+        // rendering the same bytes again. The status read is occurrence-exact
+        // (G24) and the artifact record keeps no occurrence id, so the read is
+        // by the retain operation key, which is this artifact's recovery
+        // identity (G15) and addresses the same object.
+        if (artifact is { VersionId: not null, DocumentId: not null }
             && artifact.Status is CaseReportArtifactStatus.Pending or CaseReportArtifactStatus.Unknown)
         {
             var status = await custodyStatus
-                .GetAsync(request.Actor, request.CaseId, documentId, versionId, cancellationToken)
+                .FindByOperationKeyAsync(request.Actor, request.CaseId, artifact.OperationKey, cancellationToken)
                 .ConfigureAwait(false);
-            if (status.Disposition == CaseArtifactCustodyDisposition.Confirmed)
+            if (status is { Disposition: CaseArtifactCustodyDisposition.Confirmed })
             {
                 return Result(await ConfirmAsync(request, generation, artifact, status, cancellationToken)
                     .ConfigureAwait(false));

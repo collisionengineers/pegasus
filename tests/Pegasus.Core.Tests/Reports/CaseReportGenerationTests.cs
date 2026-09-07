@@ -311,7 +311,7 @@ public sealed class CaseReportGenerationTests
         var custody = new RecordingCustody
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(),
+                CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
                 "box-file", "box-version", null, null, null, null, "pending-key"),
         };
 
@@ -335,7 +335,7 @@ public sealed class CaseReportGenerationTests
         var custody = new RecordingCustody
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Unknown, Guid.NewGuid(), Guid.NewGuid(),
+                CaseArtifactCustodyDisposition.Unknown, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
                 null, null, null, null, null, null, null),
         };
 
@@ -352,7 +352,7 @@ public sealed class CaseReportGenerationTests
         var custody = new RecordingCustody
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Failed, null, null,
+                CaseArtifactCustodyDisposition.Failed, null, null, null,
                 null, null, null, null, null, "storage_unavailable", null),
         };
 
@@ -376,14 +376,15 @@ public sealed class CaseReportGenerationTests
         var status = new RecordingCustodyStatus
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Confirmed, documentId, versionId,
+                CaseArtifactCustodyDisposition.Confirmed, documentId, versionId, Guid.NewGuid(),
                 "box-file", "box-version", Sha256Of([1, 2, 3]), 3, "application/pdf", null, null),
         };
 
         var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
 
         Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
-        Assert.Equal((CaseId, documentId, versionId), status.LastQuery);
+        Assert.Equal("operation-1", status.LastOperationKey);
+        Assert.Null(status.LastQuery);
         Assert.Empty(renderer.Kinds);
         Assert.Equal(0, custody.Calls);
         Assert.Single(store.Confirmations);
@@ -398,7 +399,7 @@ public sealed class CaseReportGenerationTests
         var status = new RecordingCustodyStatus
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(),
+                CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
                 null, null, null, null, null, null, "pending-key"),
         };
 
@@ -676,7 +677,7 @@ public sealed class CaseReportGenerationTests
         public CaseArtifactCustodyRequest? LastRequest { get; private set; }
 
         public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(),
+            CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             "box-file", "box-version", null, 3, "application/pdf", null, null);
 
         public Task<CaseArtifactCustodyResult> RetainAsync(
@@ -691,29 +692,32 @@ public sealed class CaseReportGenerationTests
 
     private sealed class RecordingCustodyStatus : ICaseArtifactCustodyStatus
     {
-        public (Guid CaseId, Guid DocumentId, Guid VersionId)? LastQuery { get; private set; }
+        public (Guid CaseId, Guid DocumentId, Guid VersionId, Guid OccurrenceId)? LastQuery { get; private set; }
+
+        public string? LastOperationKey { get; private set; }
 
         public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null,
+            CaseArtifactCustodyDisposition.Unknown, null, null, null,
             null, null, null, null, null, null, null);
 
         public Task<CaseArtifactCustodyResult> GetAsync(
-            ActionActor actor, Guid caseId, Guid documentId, Guid versionId,
+            ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
-            LastQuery = (caseId, documentId, versionId);
+            LastQuery = (caseId, documentId, versionId, occurrenceId);
             return Task.FromResult(Result);
         }
 
         /// <summary>
-        /// G15: this fixture's scenarios never lose a retention response, so
-        /// an operation-key lookup would be unexpected - fail loudly rather
-        /// than invent a committed intent.
+        /// The generated artifact's recovery identity is its retain operation
+        /// key (G15), so a restart-safe retry reads by it.
         /// </summary>
         public Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
             ActionActor actor, Guid caseId, string operationKey,
-            CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "This fixture never loses a custody response; no operation-key lookup was modelled.");
+            CancellationToken cancellationToken)
+        {
+            LastOperationKey = operationKey;
+            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+        }
     }
 }

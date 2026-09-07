@@ -239,6 +239,38 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
     }
 
+    /// <summary>
+    /// Only the gateway's own refusal of a return is reported as one. Any
+    /// other failure inside it is a fault: it surfaces as a server error, and
+    /// the session it was about is exactly as it was, with its return still
+    /// the owner's to deliver.
+    /// </summary>
+    [Fact]
+    public async Task AnUnrelatedGatewayFailureOnTheReturnSurfacesAndSpendsNothing()
+    {
+        var fault = new GatewayFault();
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        fault.OnComplete = true;
+
+        using var failed = await workspace.ReturnAsync(correlation);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Null(session.CallbackConsumedAtUtc);
+        Assert.Equal(0, workspace.Mva.Count("GET /ere/ere-callback/"));
+
+        fault.OnComplete = false;
+        using var delivered = await workspace.ReturnAsync(correlation);
+        Assert.Equal(HttpStatusCode.Found, delivered.StatusCode);
+        Assert.Equal(
+            $"/Cases/{workspace.CaseId:D}?section=estimate",
+            delivered.Headers.Location!.ToString());
+        Assert.NotNull(Assert.Single(await workspace.SessionsAsync()).CallbackConsumedAtUtc);
+    }
+
     /// <summary>A return that names no session Pegasus is waiting for.</summary>
     [Fact]
     public async Task AReturnThatNamesNoSessionIsNotFound()
@@ -397,6 +429,33 @@ public sealed class GlassRepairEstimateCallbackWebTests
         return fields;
     }
 
+    private sealed class GatewayFault
+    {
+        public bool OnComplete { get; set; }
+    }
+
+    /// <summary>The real gateway with one fault a test can switch on: an unrelated failure inside a return.</summary>
+    private sealed class FaultingGateway(IGlassRepairEstimateGateway inner, GatewayFault fault) : IGlassRepairEstimateGateway
+    {
+        public Task<GlassRepairEstimateSession> LaunchAsync(
+            GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
+            inner.LaunchAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession> ResumeAsync(
+            GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
+            inner.ResumeAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession> CompleteAsync(
+            GlassRepairEstimateCallback callback, CancellationToken cancellationToken) =>
+            fault.OnComplete
+                ? throw new InvalidOperationException("An unrelated failure inside the gateway.")
+                : inner.CompleteAsync(callback, cancellationToken);
+
+        public Task<Uri?> GetEstimatorUrlAsync(
+            ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+            inner.GetEstimatorUrlAsync(actor, sessionId, cancellationToken);
+    }
+
     /// <summary>
     /// One Case, one Engineer with a Glass's account, and the scripted provider
     /// on the named client the gateway resolves.
@@ -427,7 +486,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Guid CaseId { get; }
 
         public static async Task<Workspace> CreateAsync(
-            bool credentialed = true, string role = StaffRoleNames.Engineer)
+            bool credentialed = true, string role = StaffRoleNames.Engineer, GatewayFault? fault = null)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
@@ -444,10 +503,21 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         ["Glass:ExportPollSeconds"] = "1",
                         ["Glass:ExportTimeoutSeconds"] = "5",
                     }));
-                builder.ConfigureTestServices(services => services.Configure<HttpClientFactoryOptions>(
-                    GlassRepairEstimateOptions.HttpClientName,
-                    options => options.HttpMessageHandlerBuilderActions.Add(
-                        handlerBuilder => handlerBuilder.PrimaryHandler = mva)));
+                builder.ConfigureTestServices(services =>
+                {
+                    services.Configure<HttpClientFactoryOptions>(
+                        GlassRepairEstimateOptions.HttpClientName,
+                        options => options.HttpMessageHandlerBuilderActions.Add(
+                            handlerBuilder => handlerBuilder.PrimaryHandler = mva));
+                    if (fault is not null)
+                    {
+                        // The host's own gateway, behind a switch the test flips:
+                        // everything else it does is real.
+                        services.AddScoped<GlassRepairEstimateGateway>();
+                        services.AddScoped<IGlassRepairEstimateGateway>(provider =>
+                            new FaultingGateway(provider.GetRequiredService<GlassRepairEstimateGateway>(), fault));
+                    }
+                });
             });
 
             var caseId = await SeedCaseAsync(factory.Services);
