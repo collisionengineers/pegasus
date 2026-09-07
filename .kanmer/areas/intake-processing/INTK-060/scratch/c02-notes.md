@@ -1,72 +1,10 @@
-## C02 — assumptions and deviations (implementer, attempt 1)
+# Lossless compressed scratch record: c02-notes
 
-- [ ] ASSUMPTION 1 (C02 implementer, attempt 1): a field with two readings the
-  document itself supports is recorded `SourceCandidateDisposition.Ambiguous`,
-  not `Conflicting` — because the C02 invariant says "multiple supported
-  interpretations are Ambiguous" and reserves conflict for a candidate that
-  contradicts a confirmed staff/Engineer fact; C01 had it as Conflicting and its
-  one assertion in `AnalyzeRetainedInstructionTests` was corrected with a
-  comment. Alternatives: leave C01's mapping and map Ambiguous only in the B
-  projection (two owners disagreeing), or add a fifth disposition (widens a
-  frozen contract).
-- [ ] ASSUMPTION 2 (C02 implementer, attempt 1): the e-mail reader keeps the
-  retained body whole as its first fragment (unchanged text, unchanged label,
-  now carrying a `CurrentBody` locator whose region bounds the current message)
-  and emits the quoted history as an ADDITIONAL fragment after it — because a
-  true split would move the provider's original from the first fragment to the
-  second and change which candidate wins document order in the existing QDOS
-  corpus output, which the plan requires to stay unchanged. Alternatives: split
-  the body in place (changes existing extraction ranks), or record only a
-  boundary offset and emit no second fragment (fails the "separate fragments"
-  expectation).
-- [ ] ASSUMPTION 3 (C02 implementer, attempt 1): the durable OCR operation id IS
-  the external-work item id, and the attempt count lives inside the request
-  envelope stored in `QualifiedPagesJson` — because F's `IntakeOcrOperations`
-  provides no work-item foreign key and no attempt column, and the vehicle
-  lookup precedent already keys its request row by the work item id.
-  Alternatives: a new column (would need C-F02 reopened), or a separate attempt
-  table (a second aggregate the plan forbids).
-- [ ] ASSUMPTION 4 (C02 implementer, attempt 1): an OCR operation scoped to a
-  logical DOCUMENT VERSION fails closed with `ocr_source_unavailable` rather
-  than guessing a content length — because A04's `ReadLogicalDocumentVersion`
-  requires an expected content length and F's OCR storage records only the
-  source SHA-256, while the pre-case INTAKE ASSET path reads its length from the
-  receipt's own asset record and is fully supported. Alternatives: pass zero (a
-  claim A04 would have to ignore), or query document custody from intake (a
-  second owner of document identity).
+Original byte count: 6887. Original SHA-256: `5f39c6b45f7542e551f608c08a539fb79bf93502f675a11355e79b07f835d299`.
+Decode the Base64 payload and gunzip it to recover the exact prior bytes.
 
-**C-F02 status: no stop needed.** OCR operation/result persistence maps onto the
-storage the foundation already froze — `IntakeOcrOperationEntity` /
-`IntakeOcrOperations` in `V1FoundationEntities.cs` and migration
-`20260906054658_V1PlatformFoundation`, with web/worker grants — plus the
-existing external-work outbox for the queue row. No entity and no table was
-invented. Structured candidate provenance likewise maps onto F's
-`IntakeSourceCandidateEntity.LocatorJson`, widened here to a version 2 envelope.
+## gzip Base64
 
-**Deviation 1:** `src/Pegasus.Infrastructure/Persistence/EfIntakeOcrOperationStore.cs`
-is a new file the C02 file map does not list, although C-F02 assigns "C store
-methods" to C. The alternatives were folding EF code into the Azure adapter or
-into the unrelated receipt store, both of which break ownership.
-
-**Two follow-ups for A (C-F03), written out in full in the report:** register
-`ExternalWorkKinds.IntakeOcr = "intake_ocr"`, route it to `IProcessIntakeOcr` in
-`ProcessQueuedExternalWork`, and compose `IIntakeOcrProvider` /
-`IIntakeOcrOperationStore` / `IProcessIntakeOcr` in DI and the Worker. C edited
-none of those files.
-
-## Replacement-controller completion — C02 correction round 1
-
-Preserved the exhausted worker's dirty IntakeOcr.cs change and completed its coherent provider/store/test contract at commit e203c8100 on c02-provenance. First build failed with six CS0535 interface errors because the worker stopped mid-refactor; retained as failure evidence. After completing Azure accepted-operation callback, request-envelope submission timestamps, durable store transitions, and test doubles, dotnet build ./Pegasus.slnx --configuration Release --no-restore exited 0 with 0 warnings and 0 errors. Implementation role ran no tests. Exact head e203c8100 is READY_FOR_TESTS; independent C02 wave and exact-head re-review remain required before integration.
-
-## C02 doc-Partial research (researcher, read-only pass)
-
-Full report: `scratchpad/takeover/c02-doc-partial-research.md` (this session's temp dir; not in repo).
-
-- `WordBinaryExtractor` decodes all 8 FIB stories fully (text incl. table cells, tab/para-projected); `Outcome=Partial` iff ANY issue accumulated — text is usually present even when Partial.
-- 25/25 `.DOC` originals have `fib.IsComplex=false` (fComplex bit unset) AND ≥1 nonzero non-CLX `FibRgFcLcb97` range (style sheet/fonts/doc-props) → `doc-complex-flag-unset` + `doc-fib-ranges-unprocessed` fire on ALL 25 regardless of tables. These look like near-universal false positives on any real Word-97+ doc, not genuine content loss — a semantics decision, not a parse gap.
-- Genuine content gaps beyond that floor: 20/25 have a nonzero Header story; 10/25 (ALS+BC) have real tables (`` CellOrRowMark, no cell/row structure emitted); 11/25 have an OLE embedded-object marker (by design, ADR-0025 passive); PCH 01 has field codes; MP Word 03 has a Textbox story.
-- OAK's 5 "complete" `.DOC` originals are actually **RTF text saved as .DOC** (`{\rtf1...` signature) — routed to the separate `PassiveRtfText` branch, never entering `WordBinaryExtractor`/FIB/CLX at all. Not evidence the binary-Word branch handles real complexity.
-- C03 policy unit tests (Pch/Rjs/Als/Bc/Mp) feed pre-extracted text, not real bytes: PCH tests use hand-transcribed C# literals; ALS/BC "Category=Corpus" tests read `astra_output/extractions/text/*.txt` (a third-party tool's ground truth, incl. table content), gated on `PEGASUS_REFERENCE_PACK_ROOT`. None exercise `WordBinaryExtractor`. Only `Top15InstructionCorpusTests.cs` runs genuine bytes end-to-end — it's the one that produced the 31 Inconclusive rows.
-- Smallest reader extension: table/cell locators for the 10 ALS/BC files (no new package; extend `WordBinaryExtractor`/`WordBinaryModels`, mirror `AddRtfTableCells`'s `ForCell` pattern) — moderate size, ~150-250 LOC, but by itself does NOT reach `Complete` for any file since complex-flag/fib-ranges still fire; that gate needs a product decision first.
-- 6 low-text MP PDFs (MP PDF 01-04, MP Weird 01-02) confirmed scan-only, zero embedded text, genuinely OCR-only per plan C02 item 2 — truthful Inconclusive, no in-repo fix.
-- No A-stream dependency identified for the table-locator extension itself; the complex-flag/fib-ranges semantics question is a standalone open question, not blocked on another owner's work.
+```text
+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
+```

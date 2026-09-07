@@ -1,68 +1,10 @@
-## C01 — assumptions and deviations (implementer, attempt 1)
+# Lossless compressed scratch record: c01-notes
 
-- [ ] ASSUMPTION 1 (C01 implementer, attempt 1): the Received page takes the new
-  `AnalyzeRetainedInstruction` / `IGetLatestRetainedInstructionAnalysis` as OPTIONAL
-  constructor parameters and renders "not available in this environment" when they are
-  absent, rather than as required parameters — because `DependencyInjection.cs` is A-owned
-  and required parameters would make `/Received/{id}` unresolvable in every A- and C-owned
-  suite that exercises it, breaking work outside C01's scope, which the stop condition
-  forbids. Nothing is swallowed: the absence is stated on the page and the exact
-  registrations A must add are listed in the C01 report. Alternatives: required parameters
-  (breaks the suite until A's patch); a feature flag (a second switch nobody owns).
+Original byte count: 8135. Original SHA-256: `6be17943b31429507645c369abf7b531dfd868e5311479e94fbafb73d2da5734`.
+Decode the Base64 payload and gunzip it to recover the exact prior bytes.
 
-- [ ] ASSUMPTION 2 (C01 implementer, attempt 1): the "Automation actor with the connector
-  scope" on the intake stream boundary is expressed as `StaffAuthorization.Require(actor,
-  StaffAccessRight.PerformCasework)` — because that right is the one ADR-0011 grants the
-  Automation Actor (the ordinary operational casework surface) and no narrower per-actor
-  scope concept exists in `Pegasus.Core.Identity`. Alternatives: inventing a connector
-  scope enum (a new identity concept C01 does not own).
+## gzip Base64
 
-- [ ] ASSUMPTION 3 (C01 implementer, attempt 1): the "Core test asserting `EfUnidentifiedStore`
-  declares the three members" is placed in `tests/Pegasus.IntegrationTests/UnidentifiedPersistenceTests.cs`,
-  not in Core.Tests — because `Pegasus.Core.Tests` references only `Pegasus.Core` and cannot
-  see `Pegasus.Infrastructure`. Core.Tests instead asserts the interface DEFAULTS
-  (empty page / NotSupportedException) in `UnidentifiedContractsTests`.
-
-### Deviations from the file list
-- `src/Pegasus.Core/Intake/DownloadIntakeSource.cs` is NOT in C01's list, but the
-  `IDownloadIntakeSource` implementation lives there, so A05 need (a)'s
-  streaming-through-`IReadLogicalDocumentVersion` change could only be made for the ASSET
-  path (`InstructionEvidenceImages.cs`, in scope). The source path keeps its existing
-  hash-verified artifact read. Recorded, not coded around.
-- `tests/Pegasus.IntegrationTests/LocalIntakeAccessTests.cs` withdrawn by controller
-  message mid-run (Stream A02 owns hunks there); the streaming-authorization tests went to
-  a new C-owned `IntakeSourceAccessTests.cs` instead.
-- Preservation-table statement 15 (opening a Triage for an already-linked receipt through
-  `POST /Received/{id}?handler=OpenTriage`, receipt Version provably unchanged) has no
-  real-SQL test: the property it proves — four distinct operation keys across two
-  corrections at an unmoving receipt version — is asserted at Core level (statement 8).
-  Open risk, listed in the report.
-
-### Known consequence
-`PrincipalIdentificationCorpusTests.TrackedPegasusSourceHashesHaveNotDrifted` WILL fail:
-`QdosInstructionExtractionPolicy.cs` is a tracked snapshot and C01 added its document
-signature to it. The corpus rebuild is Stream A's
-(`scripts/Build-PrincipalIdentificationCorpus.ps1`). The corpus JSON was not edited and
-the test was not weakened.
-
-## C01 all-15 retained-analysis proof — READY_FOR_TESTS (2026-09-07)
-
-- Branch `c01-retained-analysis`, head `d505d6078` (one commit on `aa5e669d7`). Tests only; nothing under `src/`.
-- `EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating`: all 81 originals staged by manual upload, analysed via `IAnalyzeRetainedInstruction` resolved from the host; asserts Analyzed, labeller's profile, review-only principal candidate, per-row source SHA-256 + occurrence, replay writes no duplicate, zero Cases/CaseIntakeLinks/IntakeManualAssociations. Writes `artifacts/evaluation/v1-intake/retained-analysis-corpus.md`.
-- `NoGenuineNonQdosOriginalIsAllocatedAutomaticallyThroughNormalIntake`: 14 non-QDOS originals through the real upload + Worker drain; not `case_created`, no allocation, held Open in Unidentified. QDOS positive control cited (`QdosIntakeWebTests.StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft`), not duplicated.
-- Expectations shared, not copied: `Top15InstructionCorpusTests.Expectations` and 7 helpers widened `private`→`internal` (8 lines). The 81 rows are untouched.
-- `WithAnalysis` now registers ONLY `IReadLogicalDocumentVersion`; the rest comes from A's `AddPegasusInfrastructure` (`136b30a2d`), so the command under test is the host's.
-- Compile check `dotnet build ./tests/Pegasus.IntegrationTests/... -c Release --no-restore`: 0 warnings, 1 error — only the A-owned `CS0246 EfCaseArtifactCustody` at `DocumentCustodyDurabilityTests.cs(462,35)`. That file was not edited or excluded. An earlier run found CA1828 in the new code; fixed before commit.
-- Not executed: `dotnet test` is the runner's, and `PEGASUS_REFERENCE_PACK_ROOT` is unset here, so both tests would skip. Runner must set it; filter `FullyQualifiedName~RetainedInstructionAnalysisTests`. Expect a long run (81 uploads + 162 analyses on LocalDB).
-- Open: (1) no production `IReadLogicalDocumentVersion` in any host — A04 still owes it, C stand-in remains; (2) the plan's "multiple profiles return Ambiguous" bullet conflicts with treating Ambiguous as a failure for the 81 labelled originals — read as being about no-route samples; a real expected-Ambiguous row would need an outcome field on the expectation record.
-- Report: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c01-all15-report.md`
-
-## C01 round 1 — READY_FOR_TESTS, head `d57383b2b` (2026-09-07)
-
-- PCH cause: NOT a retained-vs-direct divergence. The Top15 artifact from the same wave-38 run lists PCH 01-05.DOC under `## Inconclusive` ("the reader returned incomplete content") — the direct suite reads the same bytes just as incompletely and SKIPS them (`Top15InstructionCorpusTests.cs:641`). Chain: `DocMsg.cs:81-88` sets `IsIncomplete` for a Partial legacy .doc → `AnalyzeRetainedInstruction.cs:363-373` guarded Status only → `:417` calls Extract outside the try/catch → `PchInstructionExtractionPolicy.cs:312-317` throws. Owner: production, C01's own file.
-- BIGGER FINDING, needs an owner decision: **31 of 81 originals cannot reach extraction at HEAD** — 25 legacy `.DOC` (PCH, RJS, ALS, BC, MP Word, all 5/5) + 6 low-text PDFs (MP PDF/Weird). **5 of 15 profiles have zero deliverable samples.** The plan's "all 15 profiles reach extraction" is unachievable until the reader/OCR gap is closed; that reader is not C-owned. Honest ceiling today: 10/15 profiles, ~50/81 originals.
-- Fix (F-001): `IsIncomplete` → `SourceUnavailable` before selection, reason built from the reader's own issues, nothing persisted. No policy guard touched. Core test `AnIncompletelyReadSourceIsUnavailableAndRecordsNothing`.
-- Robustness (F-002): typed catch (`ArgumentException or InvalidOperationException or IntakeArtifactIntegrityException`, no CA1031 blanket), matrix written in a `finally`, INCONCLUSIVE bucket mirroring Top15 (corroborated by the receipt's own OcrRequired / ScannedPdfPages / `insufficient-embedded-text`), per-profile coverage table, `analysed > 0` gate.
-- Minors: F-003 `TryAddScoped` so the combined host uses A's real `LocalLogicalDocumentVersionReader` and the C stand-in fills the port only in the standalone tree; F-004 report corrected (the drain DOES call `AttemptAutomaticAsync`; zero Cases holds because manual upload establishes no principal); F-005 QDOS comment restated with the channel limitation; F-006 principal disposition tightened to `Usable`; F-008/F-009/F-010 stated in comments (F-009 cites `AnalyzeRetainedInstructionTests.cs:148`). F-007 deliberately not taken.
-- Gates: Core.Tests build 0W/0E exit 0; Integration build 0W, 1E — only the A-owned `CS0246 EfCaseArtifactCustody`. First round-1 build found `CA1859` in the new code; fixed before commit.
-- Next run should PASS with ~50 Analysed / 31 Inconclusive / 0 Failed. Read the coverage table, not the exit code — green does not mean all 81.
+```text
+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
+```
