@@ -2,7 +2,7 @@
 id: DELIV-050
 type: ticket
 title: Record report-input permission migration in the release bootstrap census
-status: verifying
+status: done
 area: delivery-repository
 assignee: codex-v1-remediation-root
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-07T23:40:52.619Z'
   review: '2026-09-07T23:43:38.044Z'
   verifying: '2026-09-07T23:47:21.174Z'
+  done: '2026-09-07T23:52:13.608Z'
 taken_at: '2026-09-07T23:41:24.189Z'
 branch: DELIV-050-bootstrap-census
 worktree: .worktrees/deliv-050
@@ -31,12 +32,17 @@ links:
 refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 commits:
-  - 4b7a2af44342c8c4153bb7c7df87716edb103e49
+  - 32ce9544caa475e121ffb0f261ec045d9c04b46a
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/687'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 32ce9544caa475e121ffb0f261ec045d9c04b46a
+delivery_recorded_at: '2026-09-07T23:52:14.304Z'
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:50:20.956Z'
+updated: '2026-09-07T23:52:14.304Z'
 ---
 
 ## What
@@ -52,3 +58,5 @@ PLAT-065's Local deployment-plan check stopped at the migration census: 20260907
 The five bootstrap entries must exactly match the migration; the unmodified Local deployment-plan guard must pass on the corrected integrated source. No schema, permission, Azure resource or application behavior change.
 
 ## Outcome
+
+PR687 merged 2026-09-07T23:47:03Z at32ce9544caa475e121ffb0f261ec045d9c04b46a on dev. Independent PASS01aa988a9f72707d; root whole proof0b524f48fe267792 accepted (legacy report-mode warning acknowledged, not typed validation). Exact-merge Local deployment-plan check PASS. Only the missing migration annotation changed; all actual grants and schema remained untouched. No deployment. Original PLAT-065 failures preserved; no further work for this bounded correction.
