@@ -1078,7 +1078,6 @@ public static class OperatorLabels
     public static class EvaHandoffs
     {
         public const string PanelTitle = "EVA handoffs";
-        public const string PendingWork = "Pending work";
         public const string LatestActivity = "Latest activity";
         public const string Failures = "Failures";
         public const string Failure = "Failure";

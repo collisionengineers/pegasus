@@ -212,11 +212,6 @@ public static class ServiceHealthPolicy
         {
             return ServiceHealthState.ReviewRequired;
         }
-        if (activity.PendingWorkCount > 0)
-        {
-            return ServiceHealthState.Running;
-        }
-
         return activity.LatestSubmittedAtUtc is null
             ? ServiceHealthState.Configured
             : ServiceHealthState.Current;
