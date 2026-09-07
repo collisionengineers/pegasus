@@ -351,6 +351,13 @@ public sealed class QdosCustodialWebTests
                     Guid.NewGuid(),
                     false));
         }
+
+        public Task<FinalizeRequestUploadResult> FinalizeAsync(
+            string token,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FinalizeRequestUploadResult(
+                RequestUploadDecision.Unavailable,
+                false));
     }
 
     private sealed class RecordingDocumentHandlers : IDownloadCaseDocument, IExportCaseDocuments
