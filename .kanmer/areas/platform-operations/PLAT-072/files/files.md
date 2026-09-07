@@ -89,7 +89,7 @@ passes it. Root owns generated snapshot capture and compilation.
 | scripts/Test-MigrationGrants.ps1 | Existing table-grant coverage; drop-only migration does not need fabricated new permissions. |
 | tests/Pegasus.IntegrationTests/RepairSpecificationMigrationTests.cs | Seeds an explicitly historical schema; old columns remain in this historical fixture. |
 | tests/Pegasus.IntegrationTests/TypedCaseDataMigrationTests.cs | Same historical-schema exception, not a current runtime caller. |
-| src/Pegasus.Core/Workflow/CaseReadiness.cs | Existing real completeness owner; not replaced by a review flag or handoff rewrite. |
+| src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs | Existing real completeness owner; not replaced by a review flag or handoff rewrite. |
 | src/Pegasus.Core/Reports/CaseReportDeliveryPreparation.cs | Report approval/readiness is distinct and unchanged. |
 
 ## Ripple effects
