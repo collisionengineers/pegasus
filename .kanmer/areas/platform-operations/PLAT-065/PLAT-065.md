@@ -2,17 +2,20 @@
 id: PLAT-065
 type: ticket
 title: Provision and activate Azure Document Intelligence PDF OCR
-status: backlog
+status: preparing
 area: platform-operations
 order: 860
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-07T23:01:32.665Z'
 labels:
   - requires-live-approval
   - azure
   - ocr
 groups:
   - EPIC-011
+  - EPIC-014
 links:
   - TICK-041
   - TICK-085
@@ -24,7 +27,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-03T15:15:28.643Z'
+updated: '2026-09-07T23:01:32.665Z'
 ---
 
 ## What
