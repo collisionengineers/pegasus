@@ -329,3 +329,44 @@ antiforgery only. Chaser needs its own handler + its own retained-scoped operati
 Test plan (12 cases) targets a new partial QdosTriageIntegrationTests test file (mirroring
 TriageEvidenceImagesWebTests.cs pattern), reusing StaffCorrespondenceWebTests.cs's RecordingStaffMailSend
 double; TriageQueuesWebTests.cs only covers the /Triage list page, not Details, so not extended.
+
+## C08 R5 — narrow correspondence error-handling correction (READY_FOR_TESTS)
+
+Branch `c08-shell`, worktree `pegasus-worktrees/v1-intake-c08`. Start HEAD `aa5e669d7`, new HEAD
+`4f0c04113` (1 commit).
+
+Addressed Stream A's PR 673 comments 5563408956 / 5563452545 / 5563525850 on
+`src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` `SendCorrespondenceAsync`:
+
+- The `catch (InvalidOperationException)` (was ~line 905) no longer unconditionally labels every
+  failure as an existing correspondence operation. It now re-queries
+  `staffMailSend.GetLatestForOriginalAsync(actor, detail.Summary.Id, cancellationToken)` (existing
+  query already used by `LoadRetainedOperationAsync` — no new store method) and only translates to
+  the existing "operation in progress" message when an active (non-Sent/Failed/Cancelled) operation
+  is actually confirmed. Otherwise it does a bare `throw;`, preserving the original exception, so
+  `UnavailableStaffMailSend` (offline) and composition-invariant failures surface unmasked as any
+  other uncaught exception on this page already does (Program.cs's `UseExceptionHandler` only runs
+  outside Development).
+- Checked the other two `InvalidOperationException` sites in the file (~370 query-response job
+  handler, ~1388 Case-association lease helper) — neither is the same masking pattern on the same
+  send/reply/forward handler path, so both were left untouched, as noted in the packet.
+- `tests/Pegasus.IntegrationTests/StaffCorrespondenceWebTests.cs`:
+  - `UnknownRetainedReplyReplaysAndReconcilesWithoutResending`'s "fresh" key changed from the
+    syntactically invalid `fresh:{guid}` to a valid `retained:{messageId:N}:{guid}`, with an added
+    assertion that the resulting page shows the conflict message — now proves active-Unknown
+    rejection of a genuine fresh key, not just key-format validation.
+  - Added `ANoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict`: extends
+    `RecordingStaffMailSend` with a minimal `ThrowOnSend` property (throws before recording any
+    command) and asserts the handler lets the `InvalidOperationException` propagate unchanged
+    (`Assert.ThrowsAsync`) rather than redirecting/labelling it a send conflict.
+  - Both tests are **unexecuted** — Integration project's compile is held for an A-owned reason;
+    controller instructions were build-only, no `dotnet test`.
+
+Build gate: `dotnet build ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release --no-restore`
+→ Build succeeded, 0 Warnings, 0 Errors, exit 0.
+
+No push, no PR (controller override: build-only round). Full report:
+`C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c08-r5-report.md`
+
+Combined-tree test filter for the runner:
+`dotnet test ./Pegasus.slnx --configuration Release --filter "FullyQualifiedName~Pegasus.IntegrationTests.StaffCorrespondenceWebTests"`
