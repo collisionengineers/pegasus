@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
@@ -29,12 +30,13 @@ namespace Pegasus.Web.Presentation;
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
 /// shared per-request <c>ViewData</c>.
 /// </remarks>
-public sealed class RailCountsPageFilter(
+public sealed partial class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
     IListTriage listTriage,
     IUnidentifiedStore unidentifiedStore,
     IGetAttentionRows getAttentionRows,
-    TimeProvider timeProvider) : IAsyncPageFilter
+    TimeProvider timeProvider,
+    ILogger<RailCountsPageFilter> logger) : IAsyncPageFilter
 {
     private readonly IDashboardQueries dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
@@ -69,13 +71,7 @@ public sealed class RailCountsPageFilter(
             // own top ten (Pages/Index.cshtml.cs) — calling the narrow query
             // again here would be a second read of the same rows.
             var isWorkCentre = pageModel is Pegasus.Web.Pages.IndexModel;
-            var attentionRowsTask = isWorkCentre
-                ? null
-                : getAttentionRows.ExecuteAsync(actor, cancellationToken);
-
-            await (attentionRowsTask is null
-                ? Task.WhenAll(stagesTask, triageTask, unidentifiedTask)
-                : Task.WhenAll(stagesTask, triageTask, unidentifiedTask, attentionRowsTask));
+            await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
 
             var stages = stagesTask.Result;
             pageModel.ViewData["RailCounts"] = new Dictionary<string, int>
@@ -90,12 +86,26 @@ public sealed class RailCountsPageFilter(
             };
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
 
-            if (attentionRowsTask is not null)
+            if (!isWorkCentre)
             {
-                pageModel.ViewData["AttentionRows"] = attentionRowsTask.Result;
+                try
+                {
+                    pageModel.ViewData["AttentionRows"] =
+                        await getAttentionRows.ExecuteAsync(actor, cancellationToken);
+                }
+                catch (Exception exception) when (exception is not
+                    (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+                {
+                    LogAttentionRowsUnavailable(logger, exception);
+                    pageModel.ViewData["AttentionRowsUnavailable"] = true;
+                }
             }
         }
 
         await next();
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
+    private static partial void LogAttentionRowsUnavailable(
+        ILogger logger, Exception exception);
 }

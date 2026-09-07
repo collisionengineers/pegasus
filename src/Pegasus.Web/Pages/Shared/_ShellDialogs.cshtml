@@ -91,7 +91,11 @@
                Centre's own stable urgency order. Zero rows omits the list
                content entirely — a fabricated "No notifications" item would
                be exactly the stale placeholder FRD-12 forbids. *@
-            @if (attentionRows is { Count: > 0 })
+            @if (ViewData["AttentionRowsUnavailable"] is true)
+            {
+                <p role="status">Notifications unavailable.</p>
+            }
+            else if (attentionRows is { Count: > 0 })
             {
                 <div class="pane-body pane-scroll" data-row-list>
                     @foreach (var row in attentionRows)
