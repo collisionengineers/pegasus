@@ -896,6 +896,7 @@ public sealed class AnalyzeRetainedInstructionTests
                 request.DocumentVersionId,
                 request.IntakeAssetId,
                 request.SourceSha256,
+                request.SourceContentLength,
                 request.QualifiedPages,
                 request.OperationKey,
                 IntakeOcrState.Pending,
