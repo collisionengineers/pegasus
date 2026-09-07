@@ -974,21 +974,8 @@ internal static class GenuineQdosCorpus
     }
 
     private static string CorpusRoot => Path.Combine(
-        FindRepositoryRoot(),
-        "corpus",
-        "emailevals",
+        QdosCorpus.Root,
         "qdos-email-corpus");
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-    }
 }
 
 internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
@@ -997,7 +984,7 @@ internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
     {
         if (!GenuineQdosCorpus.IsPresent)
         {
-            Skip = "The ignored local corpus/emailevals/qdos-email-corpus is absent; genuine-input evidence was not run.";
+            Skip = "The ignored local qdos-email-corpus is absent under the configured corpus root; genuine-input evidence was not run.";
             return;
         }
 
