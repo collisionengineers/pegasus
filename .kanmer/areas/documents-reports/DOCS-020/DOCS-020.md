@@ -2,7 +2,7 @@
 id: DOCS-020
 type: ticket
 title: Keep report snapshots consistent and invalidate changed report inputs
-status: verifying
+status: implementing
 area: documents-reports
 assignee: pack_reconcile
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-07T20:21:48.709Z'
   review: '2026-09-07T21:40:35.885Z'
   verifying: '2026-09-07T21:51:25.688Z'
+  implementing: '2026-09-07T22:43:54.189Z'
 taken_at: '2026-09-07T20:28:04.764Z'
 branch: DOCS-020-report-consistency
 worktree: .worktrees/docs-020
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/682'
 archived: false
 created: '2026-09-07T19:58:09.568Z'
-updated: '2026-09-07T22:37:10.160Z'
+updated: '2026-09-07T22:43:54.189Z'
 ---
 
 ## What

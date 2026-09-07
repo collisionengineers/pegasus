@@ -47,3 +47,7 @@ runtime-role and UI snapshot validation.
 Intake routing/handover, principal identity changes, CaseContracts, new release
 mechanisms, unrelated report feature scope, live mail/cloud writes, test
 infrastructure and blanket generation-to-current-Case-version refusal.
+
+## Exact-merge verification correction — 7 September 2026
+
+Add `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs` to this scope: the exact pending-migration list must include `20260907210000_ReportInputInvalidationPermissions`. Preserve the historical migration target and every identity/table assertion. No application/schema change. Reuse the recorded DOCS-020 branch/worktree, fast-forward to current dev, apply the two-line expectation correction and submit a new follow-up PR because PR682 is already merged. Root runs only the previously failing named migration test after incremental compilation. Independent review of the new exact head precedes merge; final exact-merge proof preserves attempt1 FAIL and its 52 unaffected passes.

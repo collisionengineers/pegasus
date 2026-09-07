@@ -26,9 +26,13 @@ links:
   - INTK-055
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - abf3657691a230bdc20e81d4744e6634a6d73f85
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/684'
 archived: false
 created: '2026-09-07T20:01:20.291Z'
-updated: '2026-09-07T22:42:26.578Z'
+updated: '2026-09-07T22:44:00.759Z'
 ---
 
 ## What

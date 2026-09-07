@@ -101,3 +101,7 @@ infrastructure to overcome a test/setup failure.
 Leave the taken DOCS-020 worktree with reviewable code/tests and a precise
 validation handoff to root before PR/Review. Do not self-review, merge, deploy
 or start another ticket.
+
+## Exact-merge verification correction — 7 September 2026
+
+Add `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs` to this scope: the exact pending-migration list must include `20260907210000_ReportInputInvalidationPermissions`. Preserve the historical migration target and every identity/table assertion. No application/schema change. Reuse the recorded DOCS-020 branch/worktree, fast-forward to current dev, apply the two-line expectation correction and submit a new follow-up PR because PR682 is already merged. Root runs only the previously failing named migration test after incremental compilation. Independent review of the new exact head precedes merge; final exact-merge proof preserves attempt1 FAIL and its 52 unaffected passes.
