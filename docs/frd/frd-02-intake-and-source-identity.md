@@ -84,6 +84,14 @@ submission. Idempotent retries reconcile to the same result. The current
 manual-upload bound remains 10 MiB per file; future bounds require the research
 and operator decision tracked by `INTK-052`.
 
+Public POST admission checks the route-bound token before reading the form.
+Unavailable links refuse the body without buffering it. File and total-body
+transport bounds apply before antiforgery and multipart model binding; normal
+multipart overhead is allowed within a finite bound. Enforcement counts actual
+bytes, including requests with absent or understated Content-Length, and an
+oversized refused body never reaches custody. Form or query values cannot
+substitute a different token for the one in the route.
+
 File type/count/size limits, authentication of the staff creator, token expiry
 and revocation, idempotent retry, abuse handling, durable custody, cross-request
 isolation, and non-disclosing error behavior are acceptance gates.

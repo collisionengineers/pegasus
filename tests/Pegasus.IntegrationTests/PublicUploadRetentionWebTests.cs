@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Pages.Uploads;
 
 namespace Pegasus.IntegrationTests;
 
@@ -74,6 +76,163 @@ public sealed partial class PublicUploadRetentionWebTests
 
     private const string ConflictMessage =
         "This upload operation was already used for different content.";
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("expired")]
+    [InlineData("revoked")]
+    public async Task PublicTransportRefusesUnavailableTokensWithoutReadingBody(string state)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var link = await SeedLinkAsync(
+            factory.Services,
+            "PUBEARLY",
+            expiresAtUtc: state == "expired" ? Now.AddMinutes(-1) : null,
+            revokedAtUtc: state == "revoked" ? Now.AddMinutes(-1) : null);
+        var token = state == "unknown" ? RequestUploadToken.Create().Secret.Token : link.Token;
+        await using var body = new ObservedRequestBody(Evidence);
+
+        var response = await factory.Server.SendAsync(context =>
+        {
+            context.Request.Scheme = "https";
+            context.Request.Host = new("localhost");
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = $"/Uploads/{token}";
+            context.Request.QueryString = new("?handler=Upload");
+            context.Request.ContentType = "multipart/form-data; boundary=unread";
+            context.Request.ContentLength = null;
+            context.Request.Body = body;
+        });
+
+        Assert.Equal(StatusCodes.Status404NotFound, response.Response.StatusCode);
+        Assert.Equal(0, body.BytesRead);
+        Assert.Empty(factory.Services.GetRequiredService<RecordingCaseArtifactCustody>().Calls);
+        await using var database = await CreateContextAsync(factory.Services);
+        Assert.False(await database.Set<PublicUploadOccurrenceEntity>().AnyAsync());
+    }
+
+    [Fact]
+    public async Task PublicTransportRefusesDeclaredExcessWithoutReadingBody()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var link = await SeedLinkAsync(factory.Services, "PUBDECLARED");
+        var limit = factory.Services.GetRequiredService<RequestUploadLimits>().MaximumFileBytes
+            + RequestUploadTransportFilter.MaximumMultipartOverheadBytes;
+        await using var body = new ObservedRequestBody(Evidence);
+
+        var response = await factory.Server.SendAsync(context =>
+        {
+            context.Request.Scheme = "https";
+            context.Request.Host = new("localhost");
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = $"/Uploads/{link.Token}";
+            context.Request.QueryString = new("?handler=Upload");
+            context.Request.ContentType = "multipart/form-data; boundary=unread";
+            context.Request.ContentLength = limit + 1;
+            context.Request.Body = body;
+        });
+
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, response.Response.StatusCode);
+        Assert.Equal(0, body.BytesRead);
+        Assert.Empty(factory.Services.GetRequiredService<RecordingCaseArtifactCustody>().Calls);
+        await using var database = await CreateContextAsync(factory.Services);
+        Assert.False(await database.Set<PublicUploadOccurrenceEntity>().AnyAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublicTransportBoundsActualMultipartBytesRegardlessOfDeclaredLength(bool understateLength)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var link = await SeedLinkAsync(factory.Services, "PUBSTREAM");
+        var fileLimit = factory.Services.GetRequiredService<RequestUploadLimits>().MaximumFileBytes;
+        var bodyLimit = fileLimit + RequestUploadTransportFilter.MaximumMultipartOverheadBytes;
+        // Each section fits. Only a whole-body bound catches this request.
+        using var form = new MultipartFormDataContent
+        {
+            { new ByteArrayContent(new byte[checked((int)fileLimit)]), "Upload", "first.bin" },
+            { new ByteArrayContent(new byte[checked((int)fileLimit)]), "OtherFile", "second.bin" }
+        };
+        var bytes = await form.ReadAsByteArrayAsync();
+        await using var body = new ObservedRequestBody(bytes);
+
+        var response = await factory.Server.SendAsync(context =>
+        {
+            context.Request.Scheme = "https";
+            context.Request.Host = new("localhost");
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = $"/Uploads/{link.Token}";
+            context.Request.QueryString = new("?handler=Upload");
+            context.Request.ContentType = form.Headers.ContentType!.ToString();
+            context.Request.ContentLength = understateLength ? 1 : null;
+            context.Request.Body = body;
+        });
+
+        Assert.Equal(StatusCodes.Status400BadRequest, response.Response.StatusCode);
+        Assert.InRange(body.BytesRead, 1, bodyLimit + 4096);
+        Assert.True(body.BytesRead < bytes.LongLength);
+        Assert.Empty(factory.Services.GetRequiredService<RecordingCaseArtifactCustody>().Calls);
+        await using var database = await CreateContextAsync(factory.Services);
+        Assert.False(await database.Set<PublicUploadOccurrenceEntity>().AnyAsync());
+    }
+
+    [Fact]
+    public async Task PublicTransportAllowsMaximumConfiguredFileAndNormalMultipartOverhead()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var link = await SeedLinkAsync(factory.Services, "PUBMAXFILE");
+        var fileLimit = factory.Services.GetRequiredService<RequestUploadLimits>().MaximumFileBytes;
+        var result = await PostEvidenceAsync(factory, link.Token, content: new byte[checked((int)fileLimit)]);
+
+        Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
+        Assert.Equal(fileLimit, Assert.Single(custody.Calls).ObservedContentLength);
+    }
+
+    [Fact]
+    public async Task PublicTransportKeepsTheRouteTokenWhenFormAndQueryNameAnotherLink()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = CaseArtifactCustodyDisposition.Confirmed;
+        var owner = await SeedLinkAsync(factory.Services, "PUBROUTE");
+        var other = await SeedLinkAsync(factory.Services, "PUBFORM");
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var page = await client.GetAsync($"/Uploads/{owner.Token}");
+        var html = await page.Content.ReadAsStringAsync();
+        using var file = new ByteArrayContent(Evidence);
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(FieldValue(html, "__RequestVerificationToken")), "__RequestVerificationToken" },
+            { new StringContent(FieldValue(html, "OperationKey")), "OperationKey" },
+            { new StringContent(other.Token), "Token" },
+            { file, "Upload", "evidence.txt" }
+        };
+        using var response = await client.PostAsync(
+            $"/Uploads/{owner.Token}?handler=Upload&Token={other.Token}", form);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(owner.LinkId.ToString("D"), Assert.Single(custody.Calls).ActorSubjectId);
+        await using var database = await CreateContextAsync(factory.Services);
+        Assert.Equal((1, Evidence.LongLength), await ReadLinkTotalsAsync(database, owner.LinkId));
+        Assert.Equal((0, 0L), await ReadLinkTotalsAsync(database, other.LinkId));
+    }
+
+    private sealed class ObservedRequestBody(byte[] bytes) : MemoryStream(bytes)
+    {
+        // Network request bodies are not seekable. FormFeature must install its
+        // own bounded buffer, rather than treating this test array as buffered.
+        public override bool CanSeek => false;
+        public long BytesRead => Position;
+    }
 
     [Fact]
     public async Task RequestCreationPersistsAndReplaysOmittedOptionalMetadata()
