@@ -904,6 +904,25 @@ public sealed class MessageModel(
         }
         catch (InvalidOperationException)
         {
+            // An InvalidOperationException here does not by itself mean the
+            // durable send boundary refused a distinct active claim — it is
+            // also how an unavailable mail transport or a composition
+            // invariant failure surfaces. Only translate to the existing
+            // correspondence conflict message when a currently active
+            // operation actually exists for this original message;
+            // otherwise let the real failure propagate unmasked.
+            var currentOperation = await staffMailSend.GetLatestForOriginalAsync(
+                actor,
+                detail.Summary.Id,
+                cancellationToken);
+            var hasActiveOperation = currentOperation is not null
+                && currentOperation.State is not StaffMailState.Sent
+                    and not StaffMailState.Failed
+                    and not StaffMailState.Cancelled;
+            if (!hasActiveOperation)
+            {
+                throw;
+            }
             ModelState.AddModelError(
                 string.Empty,
                 "The existing correspondence operation must finish or be resolved before another action.");
