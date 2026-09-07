@@ -31,7 +31,7 @@
         ($"edits[{index}].expectedPreparationVersion", item.PreparationVersion.ToString(CultureInfo.InvariantCulture))
     ];
 
-    static (string Name, string Value)[] EditFields(
+    static IEnumerable<(string Name, string Value)> EditFields(
         int index,
         CaseAssetPreparation item,
         CaseAssetRotation rotation,
@@ -52,7 +52,15 @@
             fields.Add(($"edits[{index}].order", supportingOrder.ToString(CultureInfo.InvariantCulture)));
         }
 
-        return [.. fields];
+        return fields;
+    }
+
+    void Hidden(IEnumerable<(string Name, string Value)> fields)
+    {
+        foreach (var field in fields)
+        {
+            <input type="hidden" name="@field.Name" value="@field.Value" />
+        }
     }
 }
 <div class="report-images" data-report-images="@view.Section">
@@ -81,10 +89,7 @@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
                       asp-route-id="@view.CaseId" asp-route-section="@view.Section" class="stack"
                       data-preparation-command="save">
-                    @foreach (var field in CaseFields().Concat(IdentityFields(0, item)))
-                    {
-                        <input type="hidden" name="@field.Name" value="@field.Value" />
-                    }
+                    @{ Hidden(CaseFields().Concat(IdentityFields(0, item))); }
                     <input type="hidden" name="edits[0].rotation" value="@((int)item.Rotation)" />
                     <div class="form-grid">
                         <div class="field">
@@ -132,19 +137,17 @@
                 <div class="button-row">
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
                           asp-route-id="@view.CaseId" asp-route-section="@view.Section">
-                        @foreach (var field in CaseFields().Concat(
-                            EditFields(0, item, (CaseAssetRotation)(((int)item.Rotation + 270) % 360), item.Order)))
-                        {
-                            <input type="hidden" name="@field.Name" value="@field.Value" />
+                        @{
+                            Hidden(CaseFields().Concat(
+                                EditFields(0, item, (CaseAssetRotation)(((int)item.Rotation + 270) % 360), item.Order)));
                         }
                         <button type="submit" class="btn">@ReportImageLabels.RotateLeft</button>
                     </form>
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
                           asp-route-id="@view.CaseId" asp-route-section="@view.Section">
-                        @foreach (var field in CaseFields().Concat(
-                            EditFields(0, item, (CaseAssetRotation)(((int)item.Rotation + 90) % 360), item.Order)))
-                        {
-                            <input type="hidden" name="@field.Name" value="@field.Value" />
+                        @{
+                            Hidden(CaseFields().Concat(
+                                EditFields(0, item, (CaseAssetRotation)(((int)item.Rotation + 90) % 360), item.Order)));
                         }
                         <button type="submit" class="btn">@ReportImageLabels.RotateRight</button>
                     </form>
@@ -155,11 +158,10 @@
                         var above = view.Supporting[place - 1];
                         <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
                               asp-route-id="@view.CaseId" asp-route-section="@view.Section">
-                            @foreach (var field in CaseFields()
-                                .Concat(EditFields(0, item, item.Rotation, above.Order))
-                                .Concat(EditFields(1, above, above.Rotation, item.Order)))
-                            {
-                                <input type="hidden" name="@field.Name" value="@field.Value" />
+                            @{
+                                Hidden(CaseFields()
+                                    .Concat(EditFields(0, item, item.Rotation, above.Order))
+                                    .Concat(EditFields(1, above, above.Rotation, item.Order)));
                             }
                             <button type="submit" class="btn">@ReportImageLabels.MoveUp</button>
                         </form>
@@ -169,21 +171,17 @@
                         var below = view.Supporting[place + 1];
                         <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
                               asp-route-id="@view.CaseId" asp-route-section="@view.Section">
-                            @foreach (var field in CaseFields()
-                                .Concat(EditFields(0, item, item.Rotation, below.Order))
-                                .Concat(EditFields(1, below, below.Rotation, item.Order)))
-                            {
-                                <input type="hidden" name="@field.Name" value="@field.Value" />
+                            @{
+                                Hidden(CaseFields()
+                                    .Concat(EditFields(0, item, item.Rotation, below.Order))
+                                    .Concat(EditFields(1, below, below.Rotation, item.Order)));
                             }
                             <button type="submit" class="btn">@ReportImageLabels.MoveDown</button>
                         </form>
                     }
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="ResetAssetPreparation"
                           asp-route-id="@view.CaseId" asp-route-section="@view.Section">
-                        @foreach (var field in CaseFields())
-                        {
-                            <input type="hidden" name="@field.Name" value="@field.Value" />
-                        }
+                        @{ Hidden(CaseFields()); }
                         <input type="hidden" name="occurrenceIds" value="@item.OccurrenceId" />
                         <button type="submit" class="btn">@ReportImageLabels.Reset</button>
                     </form>

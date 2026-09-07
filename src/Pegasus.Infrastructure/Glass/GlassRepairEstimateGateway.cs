@@ -303,19 +303,11 @@ public sealed class GlassRepairEstimateGateway(
                 await lookup.SignInAsync(heldCredential.Username, heldCredential.Password, cancellationToken);
                 await lookup.SelectOnlyAsync(lookupVehicle, cancellationToken);
             }
-            catch (GlassMvaStageException failure)
-            {
-                return await SettleAsync(session, failure, provider, material.CallbackDigest, results, cancellationToken);
-            }
-            catch (Exception transport) when (IsTransportFailure(transport, cancellationToken))
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
             {
                 return await SettleAsync(
-                    session,
-                    new GlassMvaStageException(GlassFailure.TransportUnknown, outcomeUnknown: true),
-                    provider,
-                    material.CallbackDigest,
-                    results,
-                    cancellationToken);
+                    session, AsFailure(failure), provider, material.CallbackDigest, results, cancellationToken);
             }
 
             return await ExportAsync(
@@ -363,19 +355,11 @@ public sealed class GlassRepairEstimateGateway(
                 results,
                 cancellationToken);
         }
-        catch (GlassMvaStageException failure)
-        {
-            return await SettleAsync(session, failure, provider, material.CallbackDigest, results, cancellationToken);
-        }
-        catch (Exception transport) when (IsTransportFailure(transport, cancellationToken))
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.TransportUnknown, outcomeUnknown: true),
-                provider,
-                material.CallbackDigest,
-                results,
-                cancellationToken);
+                session, AsFailure(failure), provider, material.CallbackDigest, results, cancellationToken);
         }
     }
 
@@ -475,19 +459,11 @@ public sealed class GlassRepairEstimateGateway(
             await client.RelayCallbackAsync(
                 new Uri(originalCallback, UriKind.Absolute), ereId, callback.RawQuery, cancellationToken);
         }
-        catch (GlassMvaStageException failure)
-        {
-            return await SettleAsync(session, failure, provider, material.CallbackDigest, results, cancellationToken);
-        }
-        catch (Exception transport) when (IsTransportFailure(transport, cancellationToken))
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.TransportUnknown, outcomeUnknown: true),
-                provider,
-                material.CallbackDigest,
-                results,
-                cancellationToken);
+                session, AsFailure(failure), provider, material.CallbackDigest, results, cancellationToken);
         }
 
         return await ExportAsync(
@@ -544,19 +520,11 @@ public sealed class GlassRepairEstimateGateway(
             var link = await client.WaitForExportAsync(cancellationToken);
             exported = await client.DownloadExportAsync(link, cancellationToken);
         }
-        catch (GlassMvaStageException failure)
-        {
-            return await SettleAsync(session, failure, provider, callbackDigest, results, cancellationToken);
-        }
-        catch (Exception transport) when (IsTransportFailure(transport, cancellationToken))
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
             return await SettleAsync(
-                session,
-                new GlassMvaStageException(GlassFailure.TransportUnknown, outcomeUnknown: true),
-                provider,
-                callbackDigest,
-                results,
-                cancellationToken);
+                session, AsFailure(failure), provider, callbackDigest, results, cancellationToken);
         }
 
         GlassEstimateExport export;
@@ -820,7 +788,7 @@ public sealed class GlassRepairEstimateGateway(
         if (material is null
             || string.IsNullOrWhiteSpace(callback.Correlation)
             || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(Sha256Hex(callback.Correlation)),
+                SHA256.HashData(Encoding.UTF8.GetBytes(callback.Correlation)),
                 Convert.FromHexString(material.CallbackDigest)))
         {
             throw Conflict(
@@ -908,20 +876,10 @@ public sealed class GlassRepairEstimateGateway(
     }
 
     /// <summary>The Pegasus callback a launch already minted, read back from its estimator URL.</summary>
-    private static Uri PegasusCallbackOf(string estimatorUrl)
-    {
-        var query = new Uri(estimatorUrl, UriKind.Absolute).Query.TrimStart('?');
-        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var separator = part.IndexOf('=', StringComparison.Ordinal);
-            if (separator > 0 && Uri.UnescapeDataString(part[..separator]) == "caller")
-            {
-                return new Uri(Uri.UnescapeDataString(part[(separator + 1)..]), UriKind.Absolute);
-            }
-        }
-
-        throw new InvalidOperationException("The retained Glass's launch URL names no callback.");
-    }
+    private static Uri PegasusCallbackOf(string estimatorUrl) =>
+        Query(new Uri(estimatorUrl, UriKind.Absolute).Query, "caller") is { } caller
+            ? new Uri(caller, UriKind.Absolute)
+            : throw new InvalidOperationException("The retained Glass's launch URL names no callback.");
 
     /// <summary>
     /// A single parameter of the provider's raw callback query. The query is
@@ -952,6 +910,14 @@ public sealed class GlassRepairEstimateGateway(
     private static bool IsTransportFailure(Exception exception, CancellationToken cancellationToken) =>
         !cancellationToken.IsCancellationRequested
         && exception is HttpRequestException or TaskCanceledException or TimeoutException;
+
+    /// <summary>
+    /// A stage's own refusal as it was thrown; a transport failure after the
+    /// provider may have acted becomes the outcome-unknown transport code.
+    /// </summary>
+    private static GlassMvaStageException AsFailure(Exception exception) =>
+        exception as GlassMvaStageException
+            ?? new(GlassFailure.TransportUnknown, outcomeUnknown: true);
 
     private static GlassRepairEstimateSessionConflictException Conflict(
         GlassRepairEstimateSessionConflict conflict, Guid sessionId, string message) =>
