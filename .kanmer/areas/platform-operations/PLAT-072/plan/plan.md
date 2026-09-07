@@ -7,13 +7,14 @@ instruction/image staff-review checkbox, request value or stored column.
 
 ## Starting state
 
-Research base dev522e67f270ab4d6086d9fba04095988db3598888.
+Original research base dev522e67f270ab4d6086d9fba04095988db3598888;
+execution refresh: devbaafa29e0f7002b8235aa43bf333f5d9bb172828.
 Evidence: research@730c6cb64d8766b6; files@21479727f857fc53.
 EPIC014/current user supersedes old group build/merge restrictions. Research
 found the prior configuration removal already complete; only residual state
-and consumers need this change. No external sources declared. Root requires
-Preparing until retained overlapping claims/ENG041 fixture are cleared;
-no branch, packet, claim or application edit before that clearance.
+and consumers need this change. No external sources declared. Root has cleared execution after PLAT028/DOCS020 closeout and ENG041 merge.
+CASE049 remains Preparing until this source merges. The migration tail includes
+20260907210000_ReportInputInvalidationPermissions; the planned new ID follows it.
 
 ## Governing docs
 
@@ -191,7 +192,6 @@ No silent test weakening, historical-fixture deletion or feature expansion.
 
 ## Stop condition
 
-For this preparation: stop in Preparing with open orchestration hold; no app
-edits. After explicit root clearance and execution, stop with source-frozen
+The preparation hold is resolved by root's explicit clearance. Stop with source-frozen
 diff and focused checks handed to root. No builds/tests/captures, PR, merge,
 deployment, Done or cleanup without the next authorized phase.
