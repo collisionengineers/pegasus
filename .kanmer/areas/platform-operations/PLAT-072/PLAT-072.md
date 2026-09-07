@@ -4,12 +4,25 @@ type: ticket
 title: >-
   Remove the intake staff-confirmation checkboxes and the CaseCompleteness
   *ConfirmedByStaff properties (D44 residual)
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: principal_delivery_audit
 profile: fix
 stageEntered:
   preparing: '2026-09-07T22:02:01.834Z'
+taken_at: '2026-09-07T23:30:33.773Z'
+branch: PLAT-072-remove-staff-confirmation
+worktree: .worktrees/plat-072
+claim_expires_at: '2026-09-08T00:00:33.773Z'
+claim_controller: codex-v1-remediation-root
+lease_id: 9f035aab-2144-4995-800a-8cf6494c077c
+lease_revision: 1
+lease_controller_run: 20260907T200500Z-v1-remediation
+lease_worker_run: principal-delivery-plat072
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-072'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-07T23:30:33.773Z'
 labels:
   - case-workspace-v2
   - d44
@@ -24,7 +37,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-03T16:29:07.376Z'
-updated: '2026-09-07T22:02:01.834Z'
+updated: '2026-09-07T23:30:33.773Z'
 ---
 
 ## What
