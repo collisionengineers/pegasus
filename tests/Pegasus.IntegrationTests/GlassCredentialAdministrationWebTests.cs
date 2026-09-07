@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Authentication;
@@ -86,6 +87,10 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Contains("autocomplete=\"new-password\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"__RequestVerificationToken\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(FixturePassword, html, StringComparison.Ordinal);
+        // No inert required control: the administration port takes neither a
+        // reason nor an operation key, so neither is asked for.
+        Assert.DoesNotContain("name=\"Reason\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("OperationKey", html, StringComparison.Ordinal);
         // No hint sentence, no how-it-works copy, no empty-state panel.
         Assert.DoesNotContain("<p>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("field-hint", html, StringComparison.Ordinal);
@@ -125,11 +130,9 @@ public sealed partial class GlassCredentialAdministrationWebTests
             $"{PageFor(StaffId)}?handler=Save",
             Form(
                 html,
-                ("OperationKey", InputValue(save, "OperationKey")),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("username", FixtureUsername),
-                ("password", FixturePassword),
-                ("Reason", "The Engineer's Glass account was reissued."))))
+                ("password", FixturePassword))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
             Assert.Equal(PageFor(StaffId), response.Headers.Location?.OriginalString);
@@ -166,9 +169,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
             $"{PageFor(StaffId)}?handler=Clear",
             Form(
                 html,
-                ("OperationKey", InputValue(clear, "OperationKey")),
-                ("ExpectedVersion", InputValue(clear, "ExpectedVersion")),
-                ("Reason", "The Engineer left the estate."))))
+                ("ExpectedVersion", InputValue(clear, "ExpectedVersion")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
@@ -181,12 +182,11 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     /// <summary>
-    /// A refused save says so, re-mints its operation key so a corrected retry
-    /// cannot replay the key the server already saw, writes nothing — and does
-    /// not put the submitted secret back on the page.
+    /// A save the page itself refuses says so, keeps the account name the
+    /// operator typed, writes nothing — and leaves the secret field empty.
     /// </summary>
     [Fact]
-    public async Task ARefusedSaveReportsReMintsTheOperationKeyAndKeepsTheSecretOffThePage()
+    public async Task ARefusedSaveReportsKeepsTheAccountNameAndWritesNothing()
     {
         var store = new RecordingCredentialAdministration
         {
@@ -196,38 +196,39 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
         var save = FormOf(html, "Save");
-        var operationKey = InputValue(save, "OperationKey");
 
         using var response = await client.PostAsync(
             $"{PageFor(StaffId)}?handler=Save",
             Form(
                 html,
-                ("OperationKey", operationKey),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("username", FixtureUsername),
-                ("password", FixturePassword),
-                ("Reason", "   ")));
+                ("password", "   ")));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Enter a reason.", body, StringComparison.Ordinal);
+        Assert.Contains("Enter a password.", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{FixtureUsername}\"", body, StringComparison.Ordinal);
-        Assert.NotEqual(operationKey, InputValue(FormOf(body, "Save"), "OperationKey"));
-        Assert.DoesNotContain(FixturePassword, body, StringComparison.Ordinal);
+        // The password field is redisplayed with no value at all, so nothing
+        // the post carried can come back through it.
+        Assert.DoesNotContain("value=", PasswordField(body), StringComparison.Ordinal);
         Assert.Empty(store.Replaced);
     }
 
     /// <summary>
-    /// The store's own refusal — a version the credential has moved past —
-    /// reaches the operator as a refusal, not as a silent success.
+    /// The store's own refusal — a version the credential has moved past,
+    /// which the store raises as EF Core's concurrency exception — reaches the
+    /// operator as a refusal, not as a silent success, and the page it lands
+    /// on is a fresh read of what the store holds now.
     /// </summary>
     [Fact]
-    public async Task AStoreRefusalIsReportedAndWritesNothing()
+    public async Task AStaleVersionIsReportedReloadedAndWritesNothing()
     {
         var store = new RecordingCredentialAdministration
         {
             Status = Configured(version: 5, generation: 1),
-            Refusal = new InvalidOperationException("expected version conflict")
+            Refusal = new DbUpdateConcurrencyException(
+                "The credential is at another version than the one this write expected.")
         };
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
@@ -238,11 +239,9 @@ public sealed partial class GlassCredentialAdministrationWebTests
             $"{PageFor(StaffId)}?handler=Save",
             Form(
                 html,
-                ("OperationKey", InputValue(save, "OperationKey")),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("username", FixtureUsername),
-                ("password", FixturePassword),
-                ("Reason", "Retried after the conflict.")));
+                ("password", FixturePassword)));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -251,6 +250,44 @@ public sealed partial class GlassCredentialAdministrationWebTests
             body,
             StringComparison.Ordinal);
         Assert.DoesNotContain(FixturePassword, body, StringComparison.Ordinal);
+        Assert.Empty(store.Replaced);
+        // The refusal reloads: the status was read again, and the version the
+        // refused page offers is the one the store holds now.
+        Assert.Equal(2, store.Reads);
+        Assert.Equal("5", InputValue(FormOf(body, "Save"), "ExpectedVersion"));
+    }
+
+    /// <summary>
+    /// Only the store's named refusals become an operator message. A failure
+    /// the page cannot interpret propagates and surfaces as a server error,
+    /// because reporting it as a refusal would invite a retry of something
+    /// that did not refuse.
+    /// </summary>
+    [Fact]
+    public async Task AnUnrelatedFailureIsNotSwallowed()
+    {
+        var store = new RecordingCredentialAdministration
+        {
+            Status = Configured(version: 5, generation: 1),
+            Refusal = new InvalidOperationException("the credential store is unreachable")
+        };
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory, store);
+        var html = await GetHtmlAsync(client, PageFor(StaffId));
+        var save = FormOf(html, "Save");
+
+        // The host's error handling turns an unhandled exception into a server
+        // error response rather than a refusal notice or a redirect: the page
+        // neither caught it nor reported it as something to retry.
+        using var response = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Save",
+            Form(
+                html,
+                ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
+                ("username", FixtureUsername),
+                ("password", FixturePassword)));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Empty(store.Replaced);
     }
 
@@ -324,6 +361,9 @@ public sealed partial class GlassCredentialAdministrationWebTests
         /// <summary>The exception the next write throws, when the case sets one.</summary>
         public Exception? Refusal { get; set; }
 
+        /// <summary>How many times the page has read the stored status.</summary>
+        public int Reads { get; private set; }
+
         public Task<PerUserExternalCredentialStatus> GetAsync(
             ActionActor actor,
             Guid pegasusUserId,
@@ -331,6 +371,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(actor);
+            Reads++;
             return Task.FromResult(Status with
             {
                 PegasusUserId = pegasusUserId,
@@ -469,6 +510,17 @@ public sealed partial class GlassCredentialAdministrationWebTests
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         Assert.True(match.Success, $"The panel '{headingId}' must render a state chip.");
         return WebUtility.HtmlDecode(match.Groups["value"].Value).Trim();
+    }
+
+    /// <summary>The rendered secret field, so its attributes can be read.</summary>
+    private static string PasswordField(string html)
+    {
+        var tag = Regex.Match(
+            html,
+            "<input[^>]*name=\"password\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, "The save form must render the password field.");
+        return tag.Value;
     }
 
     private static string InputValue(string html, string name)

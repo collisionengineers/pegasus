@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Mcp;
@@ -20,11 +21,12 @@ namespace Pegasus.Web.Pages.Administration.Glass;
 /// submitted password is dropped from <see cref="Microsoft.AspNetCore.Mvc.RazorPages.PageModel.ModelState"/>
 /// as soon as it has been read for the same reason.
 ///
-/// <c>Reason</c> and <c>OperationKey</c> gate the post here — a save or clear
-/// without either is refused and the key is re-minted — but
-/// <see cref="IPerUserExternalCredentialAdministration"/> carries neither
-/// parameter, so only the expected version reaches the store. The two values
-/// are the ones to forward the moment that contract takes them.
+/// The post carries only what
+/// <see cref="IPerUserExternalCredentialAdministration"/> takes — the expected
+/// version, the account name and the secret — plus the antiforgery token the
+/// form tag helper writes. A reason or an operation key would be an inert
+/// required control: the contract carries neither, and the store already
+/// records the actor, the moment and the credential generation itself.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
@@ -46,18 +48,6 @@ public sealed class IndexModel(
     /// <summary>The external account name, kept over a failed post.</summary>
     public string Username { get; private set; } = string.Empty;
 
-    /// <summary>The reason typed into the save form, kept over a failed post.</summary>
-    public string SaveReason { get; private set; } = string.Empty;
-
-    /// <summary>The reason typed into the clear form, kept over a failed post.</summary>
-    public string ClearReason { get; private set; } = string.Empty;
-
-    [BindProperty]
-    public string Reason { get; set; } = string.Empty;
-
-    [BindProperty]
-    public string OperationKey { get; set; } = NewOperationKey();
-
     [BindProperty]
     public long ExpectedVersion { get; set; }
 
@@ -78,7 +68,6 @@ public sealed class IndexModel(
         CancellationToken cancellationToken)
     {
         Username = username?.Trim() ?? string.Empty;
-        SaveReason = Reason;
         // The submitted secret is read once, here, and removed before any
         // redisplay can reach the model state it would otherwise sit in.
         ModelState.Remove("password");
@@ -86,7 +75,7 @@ public sealed class IndexModel(
             staffId,
             async (actor, token) =>
             {
-                if (!Validate() | !ValidateCredential(username, password))
+                if (!ValidateCredential(username, password))
                 {
                     return null;
                 }
@@ -107,28 +96,23 @@ public sealed class IndexModel(
 
     public Task<IActionResult> OnPostClearAsync(
         Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        ClearReason = Reason;
-        return RunAsync(
+        CancellationToken cancellationToken) =>
+        RunAsync(
             staffId,
             async (actor, token) =>
             {
-                if (!Validate())
-                {
-                    return null;
-                }
-
                 await credentials.ClearAsync(actor, staffId, Provider, ExpectedVersion, token);
                 return CaseWorkspaceLabels.GlassCredential.Cleared;
             },
             cancellationToken);
-    }
 
     /// <summary>
     /// The one place an operation is authorised, run, turned into an operator
-    /// message and followed by a reload. A refused post re-mints the operation
-    /// key, so a corrected retry cannot replay the key the server already saw.
+    /// message and followed by a reload. Only the store's two named refusals
+    /// are turned into a message: a stale expected version, which the store
+    /// raises as EF Core's concurrency exception, and material it will not
+    /// accept. Anything else propagates, because a page that swallowed it
+    /// would report a failure as a refusal the operator could retry.
     /// </summary>
     private async Task<IActionResult> RunAsync(
         Guid staffId,
@@ -159,37 +143,14 @@ public sealed class IndexModel(
                 string.Empty,
                 CaseWorkspaceLabels.GlassCredential.NotAccepted);
         }
-        catch (InvalidOperationException)
+        catch (DbUpdateConcurrencyException)
         {
             ModelState.AddModelError(
                 string.Empty,
                 CaseWorkspaceLabels.GlassCredential.StaleVersion);
         }
 
-        OperationKey = NewOperationKey();
-        ModelState.Remove(nameof(OperationKey));
         return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
-    }
-
-    private bool Validate()
-    {
-        var valid = true;
-        if (string.IsNullOrWhiteSpace(OperationKey) || !IsOperationKeyValid(OperationKey))
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                CaseWorkspaceLabels.GlassCredential.Expired);
-            valid = false;
-        }
-        if (string.IsNullOrWhiteSpace(Reason))
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                CaseWorkspaceLabels.GlassCredential.ReasonRequired);
-            valid = false;
-        }
-
-        return valid;
     }
 
     private bool ValidateCredential(string? username, string? password)

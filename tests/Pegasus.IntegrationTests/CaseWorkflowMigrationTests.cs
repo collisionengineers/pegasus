@@ -128,7 +128,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260906054658_V1PlatformFoundation",
                 "20260906170000_FilterActiveCaseReportGenerationSnapshot",
                 "20260906212604_RetainedMailboxReplyTargets",
-                "20260906220638_RemovePaintLabourRate"
+                "20260906220638_RemovePaintLabourRate",
+                "20260907093000_PublicUploadOccurrenceReplacementLineage"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
