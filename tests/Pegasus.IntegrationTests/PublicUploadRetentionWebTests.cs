@@ -2412,7 +2412,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 value => !rows.Any(other => other.ReplacesOccurrenceId == value.Id));
             Assert.Equal(replacementId, current.Id);
             Assert.Equal(
-                (2, Evidence.LongLength + replacement.LongLength),
+                (1, Evidence.LongLength + replacement.LongLength),
                 await ReadLinkTotalsAsync(context, link.LinkId));
         }
 
