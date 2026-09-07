@@ -346,6 +346,10 @@
                     {
                         <partial name="Cases/Shared/_CaseDamage" model="Model" />
                     }
+                    else if (entry.Key == "valuation")
+                    {
+                        <partial name="Cases/Shared/_CaseValuation" model="Model" />
+                    }
                     else if (entry.Key == "estimate")
                     {
                         <partial name="Cases/Shared/_CaseEstimate" model="Model" />
@@ -651,4 +655,11 @@
             </div>
         </section>
     </div>
+}
+
+@* B08: the Case record's own progressive enhancements. site.js is the shell's
+   and stays untouched; everything here is a convenience on top of markup that
+   already works, and works with the keyboard, without it. *@
+@section Scripts {
+    <script src="~/js/case-workspace.js" asp-append-version="true"></script>
 }

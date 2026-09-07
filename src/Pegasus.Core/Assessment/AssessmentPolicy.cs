@@ -22,7 +22,7 @@ public static class AssessmentPolicy
 {
     public const string PolicyKey = "case-assessment-edit";
     public const int PolicyVersion = 1;
-    public const int MaximumFieldsPerSave = 80;
+    public const int MaximumFieldsPerSave = 120;
     public const int MaximumEstimateLines = 200;
 
     public static SaveAssessmentRequest ValidateAndNormalize(SaveAssessmentRequest request)
@@ -57,25 +57,8 @@ public static class AssessmentPolicy
         var touchesFinding = false;
         foreach (var (path, rawValue) in request.Fields)
         {
-            if (AssessmentVocabulary.DerivedPaths.Contains(path))
-            {
-                throw new InvalidOperationException($"The field '{path}' is derived from damage.impacts and cannot be written directly.");
-            }
-            if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
-            {
-                throw new InvalidOperationException(
-                    $"The field '{path}' is owned by the accepted case record; "
-                    + "save it through the case-detail edit path instead.");
-            }
-            if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition))
-            {
-                throw new ArgumentException(
-                    $"The field path '{path}' is not part of the assessment vocabulary.",
-                    nameof(request));
-            }
-
-            touchesFinding |= definition.IsFinding;
-            normalizedFields[path] = NormalizeValue(definition, rawValue);
+            normalizedFields[path] = NormalizeWritableField(path, rawValue);
+            touchesFinding |= AssessmentVocabulary.Definitions[path].IsFinding;
         }
 
         if (touchesFinding && request.Actor.Kind == ActorKind.Staff)
@@ -106,6 +89,44 @@ public static class AssessmentPolicy
                 "A professional finding can be recorded by staff only when the staff member "
                 + "is an authenticated Engineer.");
         }
+    }
+
+    /// <summary>
+    /// The one gate every generic field save passes: the path must be part of
+    /// the vocabulary, must not be derived from the damage impacts, must not
+    /// be owned by the accepted case record, and must not be a finding a named
+    /// command adopts (AUTO-015). The value is then canonicalized against its
+    /// own definition. Both the assessment save and the Case workspace save
+    /// call it, so an unwritable path fails the same way on either route.
+    /// </summary>
+    public static string? NormalizeWritableField(string path, string? rawValue)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (AssessmentVocabulary.DerivedPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is derived from damage.impacts and cannot be written directly.");
+        }
+        if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is owned by the accepted case record; "
+                + "save it through the case-detail edit path instead.");
+        }
+        if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is adopted only by the valuation Apply command; "
+                + "a field save can neither record nor clear it.");
+        }
+        if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition))
+        {
+            throw new ArgumentException(
+                $"The field path '{path}' is not part of the assessment vocabulary.",
+                nameof(path));
+        }
+
+        return NormalizeValue(definition, rawValue);
     }
 
     /// <summary>
@@ -280,12 +301,11 @@ public static class AssessmentPolicy
         RequireField(AssessmentVocabulary.Outcome, "Assessment outcome", "Findings");
         RequireField(AssessmentVocabulary.LegalStatus, "Roadworthiness", "Findings");
         RequireField(AssessmentVocabulary.HistoryCheck, "Vehicle history check", "Report content");
-        RequireField(AssessmentVocabulary.EngineerName, "Engineer name", "Report content");
-        RequireField(
-            AssessmentVocabulary.EngineerQualifications,
-            "Engineer qualifications",
-            "Report content");
-        RequireField(AssessmentVocabulary.EngineerSignature, "Signature", "Report content");
+        // ENG-038: the Engineer name, qualifications and signature readiness
+        // items are retired (D18). The signing Engineer is the selected
+        // sign-off account, whose printed name, qualifications and signature
+        // come from that account, so typed copies of them were three ways to
+        // record the same three facts.
         RequireField(AssessmentVocabulary.AgreedFee, "Agreed fee", "Report content");
 
         if (includeReviewEntryRequirements)
@@ -475,27 +495,39 @@ public static class AssessmentPolicy
         }
     }
 
+    /// <summary>
+    /// The canonical wire shape of the damage impacts. A caller holding typed
+    /// impacts (the Case workspace save) writes them through here so the
+    /// stored JSON has exactly one owner.
+    /// </summary>
+    public static string SerializeImpacts(IReadOnlyList<AssessmentImpact> impacts)
+    {
+        ArgumentNullException.ThrowIfNull(impacts);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            foreach (var impact in impacts)
+            {
+                ArgumentNullException.ThrowIfNull(impact);
+                writer.WriteStartObject();
+                writer.WriteString("zone", impact.Zone);
+                writer.WriteString("severity", impact.Severity);
+                writer.WriteString("note", impact.Note);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
     private static string NormalizeImpacts(string value)
     {
         try
         {
             using var document = JsonDocument.Parse(value);
-            var impacts = ReadImpacts(document.RootElement);
-            using var stream = new MemoryStream();
-            using (var writer = new Utf8JsonWriter(stream))
-            {
-                writer.WriteStartArray();
-                foreach (var impact in impacts)
-                {
-                    writer.WriteStartObject();
-                    writer.WriteString("zone", impact.Zone);
-                    writer.WriteString("severity", impact.Severity);
-                    writer.WriteString("note", impact.Note);
-                    writer.WriteEndObject();
-                }
-                writer.WriteEndArray();
-            }
-            var normalized = Encoding.UTF8.GetString(stream.ToArray());
+            var normalized = SerializeImpacts(ReadImpacts(document.RootElement));
             if (normalized.Length > AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageImpacts].MaximumLength)
             {
                 throw new ArgumentOutOfRangeException(nameof(value), "The canonical damage impacts cannot exceed 4000 characters.");
@@ -569,20 +601,10 @@ public static class AssessmentPolicy
                     "Every estimate line requires a recognized line type.",
                     nameof(lines));
             }
-            if (line.WorkUnits is { } workUnits
-                && (workUnits < 0 || decimal.Round(workUnits, 1) != workUnits))
-            {
-                throw new ArgumentException(
-                    "Estimate work units must be non-negative in steps of 0.1.",
-                    nameof(lines));
-            }
-            if (line.PaintWorkUnits is { } paintWorkUnits
-                && (paintWorkUnits < 0 || decimal.Round(paintWorkUnits, 1) != paintWorkUnits))
-            {
-                throw new ArgumentException(
-                    "Estimate paint work units must be non-negative in steps of 0.1.",
-                    nameof(lines));
-            }
+            // Hours and row materials are estimate money: EstimatePolicy owns
+            // that rule so a provider's own time precision is kept, not
+            // rounded to the editor's step (B04).
+            EstimatePolicy.ValidateLineAmounts(line);
             if (line.Quantity is { } quantity && quantity < 1)
             {
                 throw new ArgumentException(

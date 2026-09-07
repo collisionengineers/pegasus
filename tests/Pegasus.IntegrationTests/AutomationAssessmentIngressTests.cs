@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -850,7 +851,6 @@ public sealed class AutomationAssessmentIngressTests
                     aiJobId = jobId,
                     name = "Claude draft",
                     labourRate = 40,
-                    paintLabourRate = 30,
                     paintMaterials = 25,
                     vatPercent = 20,
                     lines
@@ -870,10 +870,34 @@ public sealed class AutomationAssessmentIngressTests
                 line => Assert.False(line.GetProperty("isConfirmed").GetBoolean()));
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
-            Assert.Equal(100m, totals.GetProperty("labour").GetDecimal());
-            Assert.Equal(70m, totals.GetProperty("paint").GetDecimal());
-            Assert.Equal(78.08m, totals.GetProperty("vat").GetDecimal());
-            Assert.Equal(468.48m, totals.GetProperty("total").GetDecimal());
+            Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());
+            Assert.Equal(60m, totals.GetProperty("paintLabour").GetDecimal());
+            Assert.Equal(25m, totals.GetProperty("materials").GetDecimal());
+            Assert.Equal(0m, totals.GetProperty("specialist").GetDecimal());
+            Assert.Equal(405.40m, totals.GetProperty("net").GetDecimal());
+            Assert.Equal(20m, totals.GetProperty("vatPercent").GetDecimal());
+            Assert.Equal(0m, totals.GetProperty("vat").GetDecimal());
+            Assert.Equal(405.40m, totals.GetProperty("gross").GetDecimal());
+            Assert.False(totals.TryGetProperty("labour", out _));
+            Assert.False(totals.TryGetProperty("paint", out _));
+            Assert.False(totals.TryGetProperty("other", out _));
+            Assert.False(totals.TryGetProperty("subtotal", out _));
+            Assert.False(totals.TryGetProperty("total", out _));
+            Assert.Equal(40m, estimate.GetProperty("labourRate").GetDecimal());
+            Assert.False(estimate.TryGetProperty("paintLabourRate", out _));
+        }
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>();
+            var saved = await store.GetVersionAsync(caseId, estimateId, CancellationToken.None);
+            Assert.NotNull(saved);
+            Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
+            Assert.True(saved.Details.VatPolicy.BlocksAcceptance);
+            var refusal = Assert.Throws<InvalidOperationException>(() =>
+                EstimatePolicy.ValidateSetCurrent(
+                    saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])));
+            Assert.Contains("VAT status", refusal.Message, StringComparison.Ordinal);
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -903,13 +927,17 @@ public sealed class AutomationAssessmentIngressTests
         using (var response = await PostMcpAsync(
             client,
             token,
-            ToolCallPayload(13, "pegasus_estimate_list", new { caseId })))
+            ToolCallPayload(13, "pegasus_estimate_list", new { caseId, limit = 1 })))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(1, structured.GetProperty("limit").GetInt32());
+            Assert.True(!structured.TryGetProperty("nextCursor", out var nextCursor)
+                || nextCursor.ValueKind == JsonValueKind.Null);
             var listed = Assert.Single(structured.GetProperty("estimates").EnumerateArray());
             Assert.Equal(estimateId, listed.GetProperty("estimateId").GetGuid());
-            Assert.Equal(3, listed.GetProperty("lines").GetArrayLength());
+            Assert.False(listed.TryGetProperty("lines", out _));
+            Assert.False(listed.TryGetProperty("totals", out _));
         }
     }
 }

@@ -193,6 +193,12 @@ public sealed class CaseDataCompletenessPersistenceTests
         var replayedSave = await harness.SaveCase.ExecuteAsync(save, CancellationToken.None);
 
         Assert.Equal(2, saved.Version);
+        // The legacy SaveCase demotes the case as a side effect of editing any
+        // fact. The Case workspace save does not: it re-evaluates readiness
+        // from the row it just wrote
+        // (CaseWorkspacePersistenceTests.ASaveDoesNotDemoteCompletenessAsASideEffect).
+        // This assertion is retained deliberately, because SaveCase's own
+        // behaviour is unchanged by CASE-047.
         Assert.Equal(CaseLifecycleState.NotReady, saved.State);
         Assert.False(saved.Completeness.Values.InstructionComplete);
         Assert.False(saved.Completeness.Values.InstructionConfirmedByStaff);
@@ -308,7 +314,12 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(0, await harness.HistoryCountAsync());
     }
 
-    private sealed class CaseDataHarness : IAsyncDisposable
+    /// <summary>
+    /// Internal, not private, so the Case workspace persistence tests build
+    /// their fixture from this one accepted-case recipe instead of a second
+    /// copy of it.
+    /// </summary>
+    internal sealed class CaseDataHarness : IAsyncDisposable
     {
         private static readonly DateTimeOffset StartUtc =
             new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -328,8 +339,13 @@ public sealed class CaseDataCompletenessPersistenceTests
             EfCaseDataStore dataStore,
             ConfirmCompleteness confirmCompleteness,
             SaveCase saveCase,
-            AcquireCaseEditLease acquireLease)
+            AcquireCaseEditLease acquireLease,
+            EfCaseWorkflowStore workflowStore,
+            EfCaseWorkspaceStore workspaceStore)
         {
+            Factory = factory;
+            WorkflowStore = workflowStore;
+            WorkspaceStore = workspaceStore;
             this.database = database;
             this.factory = factory;
             TimeProvider = timeProvider;
@@ -344,6 +360,9 @@ public sealed class CaseDataCompletenessPersistenceTests
             this.acquireLease = acquireLease;
         }
 
+        public IDbContextFactory<PegasusDbContext> Factory { get; }
+        public EfCaseWorkflowStore WorkflowStore { get; }
+        public EfCaseWorkspaceStore WorkspaceStore { get; }
         public MutableTimeProvider TimeProvider { get; }
         public Guid ReceiptId { get; }
         public Guid CaseId { get; }
@@ -435,7 +454,9 @@ public sealed class CaseDataCompletenessPersistenceTests
                     dataStore,
                     new ConfirmCompleteness(dataStore, configuration),
                     new SaveCase(dataStore),
-                    new AcquireCaseEditLease(workflowStore));
+                    new AcquireCaseEditLease(workflowStore),
+                    workflowStore,
+                    new EfCaseWorkspaceStore(factory, timeProvider, configuration));
             }
             catch
             {
@@ -496,7 +517,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         }
     }
 
-    private sealed class FixedConfiguration : ICaseWorkflowConfiguration
+    internal sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {
         private static readonly CaseWorkflowConfiguration Configuration = new(
             "case-workflow",

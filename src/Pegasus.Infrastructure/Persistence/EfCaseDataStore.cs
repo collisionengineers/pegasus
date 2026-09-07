@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -63,7 +64,7 @@ public sealed class EfCaseDataStore(
             request,
             request.Completeness,
             evaluation);
-        var replay = await FindReplayAsync(
+        var replay = await CaseOperationReplay.FindAsync(
             context,
             request.CaseId,
             request.OperationKey,
@@ -100,10 +101,10 @@ public sealed class EfCaseDataStore(
             snapshot.Case.InstructionConfirmedByStaff,
             snapshot.Case.ImagesConfirmedByStaff);
         var beforeJson = JsonSerializer.Serialize(before, JsonOptions);
+        // PLAT-072: only the two factual controls are written. The
+        // staff-confirmation columns are inert and keep whatever they hold.
         snapshot.Case.InstructionComplete = request.Completeness.InstructionComplete;
         snapshot.Case.ImagesComplete = request.Completeness.ImagesComplete;
-        snapshot.Case.InstructionConfirmedByStaff = request.Completeness.InstructionConfirmedByStaff;
-        snapshot.Case.ImagesConfirmedByStaff = request.Completeness.ImagesConfirmedByStaff;
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
@@ -117,18 +118,20 @@ public sealed class EfCaseDataStore(
         else
         {
             workflow.State = nameof(CaseLifecycleState.NotReady);
-            ScheduleDueWork(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now);
+            CaseDueWorkScheduler.Schedule(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now);
         }
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
         ClearLease(workflow);
-        AddHistory(
+        CaseMutationHistory.Add(
             context,
             workflow,
-            request,
-            requestHash,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
             "case_completeness_confirmed",
+            requestHash,
             beforeVersion,
             workflow.Version,
             beforeJson,
@@ -166,7 +169,7 @@ public sealed class EfCaseDataStore(
             IsolationLevel.Serializable,
             cancellationToken);
         var requestHash = RequestHash("save_case", request, data, policy: null);
-        var replay = await FindReplayAsync(
+        var replay = await CaseOperationReplay.FindAsync(
             context,
             request.CaseId,
             request.OperationKey,
@@ -196,7 +199,7 @@ public sealed class EfCaseDataStore(
                 "Case data can be saved only before Engineer assignment on a Not ready or Review case.");
         }
 
-        var before = EditableData(snapshot);
+        var before = CaseDataFieldWriter.ReadEditable(snapshot);
         var completenessBefore = new CaseCompleteness(
             snapshot.Case.InstructionComplete,
             snapshot.Case.ImagesComplete,
@@ -208,7 +211,7 @@ public sealed class EfCaseDataStore(
         }
 
         var now = UtcNow();
-        ApplyEditableData(context, snapshot, data, request.Actor, now);
+        CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
         CaseMatchIndexProjector.Apply(
             context,
             await context.CaseMatchIndex.SingleOrDefaultAsync(
@@ -224,7 +227,7 @@ public sealed class EfCaseDataStore(
         snapshot.Case.InstructionConfirmedByStaff = false;
         snapshot.CompletenessPolicySatisfied = false;
         workflow.State = nameof(CaseLifecycleState.NotReady);
-        ScheduleDueWork(context, workflow, data.InspectionDeadline, now);
+        CaseDueWorkScheduler.Schedule(context, workflow, data.InspectionDeadline, now);
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
@@ -234,12 +237,14 @@ public sealed class EfCaseDataStore(
             snapshot.Case.InstructionConfirmedByStaff,
             snapshot.Case.ImagesConfirmedByStaff);
         ClearLease(workflow);
-        AddHistory(
+        CaseMutationHistory.Add(
             context,
             workflow,
-            request,
-            requestHash,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
             "case_data_saved",
+            requestHash,
             beforeVersion,
             workflow.Version,
             JsonSerializer.Serialize(
@@ -265,30 +270,6 @@ public sealed class EfCaseDataStore(
         }
 
         return Map(snapshot, workflow);
-    }
-
-    private static async Task<bool> FindReplayAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        string operationKey,
-        string requestHash,
-        CancellationToken cancellationToken)
-    {
-        var replay = await context.CaseWorkflowEvents.AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.CaseId == caseId && item.OperationKey == operationKey,
-                cancellationToken);
-        if (replay is null)
-        {
-            return false;
-        }
-
-        if (!FixedTimeEquals(replay.RequestHash, requestHash))
-        {
-            throw new CaseOperationConflictException(caseId, operationKey);
-        }
-
-        return true;
     }
 
     private static async Task<(CaseDataSnapshotEntity Snapshot, CaseWorkflowEntity Workflow)>
@@ -336,143 +317,6 @@ public sealed class EfCaseDataStore(
         return tracking ? query : query.AsNoTracking();
     }
 
-    private static void ApplyEditableData(
-        PegasusDbContext context,
-        CaseDataSnapshotEntity snapshot,
-        CaseEditableData data,
-        ActionActor actor,
-        DateTimeOffset now)
-    {
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimantName, CaseDataCodes.Text, data.ClaimantName, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimantContactNumber, CaseDataCodes.Text, data.ClaimantContactNumber, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimantAddress, CaseDataCodes.Text, data.ClaimantAddress, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ClaimNumber, CaseDataCodes.Text, data.ClaimNumber, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, data.VehicleRegistration, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleMake, CaseDataCodes.Text, data.VehicleMake, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleModel, CaseDataCodes.Text, data.VehicleModel, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, Integer(data.VehicleMileage), actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, data.VehicleMileageUnit, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.AccidentCircumstances, CaseDataCodes.Text, data.AccidentCircumstances, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, Date(data.IncidentDate), actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ContactName, CaseDataCodes.Text, data.ContactName, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ContactEmailAddress, CaseDataCodes.Text, data.ContactEmailAddress, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.ContactPhoneNumber, CaseDataCodes.Text, data.ContactPhoneNumber, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.InstructionDate, CaseDataCodes.Date, Date(data.InstructionDate), actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.VatStatus, CaseDataCodes.Text, data.VatStatus, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionDate, CaseDataCodes.Date, Date(data.InspectionDate), actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionDeadline, CaseDataCodes.Date, Date(data.InspectionDeadline), actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, data.InspectionAddress, actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode, InspectionMode(data.InspectionMode), actor, now);
-        SetConfirmed(context, snapshot, CaseDataFieldNames.StorageLocation, CaseDataCodes.Text, data.StorageLocation, actor, now);
-    }
-
-    private static void SetConfirmed(
-        PegasusDbContext context,
-        CaseDataSnapshotEntity snapshot,
-        string fieldName,
-        string valueType,
-        string? value,
-        ActionActor actor,
-        DateTimeOffset now)
-    {
-        var existing = snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
-        if (value is null)
-        {
-            if (existing is not null)
-            {
-                context.CaseDataFields.Remove(existing);
-                snapshot.Fields.Remove(existing);
-            }
-            return;
-        }
-
-        var underlying = snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == fieldName
-                && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
-                && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
-        if (existing is null)
-        {
-            existing = new()
-            {
-                CaseId = snapshot.CaseId,
-                Snapshot = snapshot,
-                FieldName = fieldName,
-                ValueKind = CaseDataCodes.Confirmed,
-                ValueType = valueType,
-                Value = value,
-                SourceKind = CaseDataCodes.StaffCorrection,
-                SourceIdentity = actor.SubjectId,
-                SourceLabel = "staff case-data confirmation",
-                PolicyKey = CaseDataPolicy.EditPolicyKey,
-                PolicyVersion = CaseDataPolicy.EditPolicyVersion,
-                ConfirmedByActor = actor.SubjectId,
-                ConfirmedAtUtc = now
-            };
-            snapshot.Fields.Add(existing);
-        }
-        else
-        {
-            existing.ValueType = valueType;
-            existing.Value = value;
-            existing.ConfirmedByActor = actor.SubjectId;
-            existing.ConfirmedAtUtc = now;
-        }
-
-        existing.SourceKind = underlying?.SourceKind ?? CaseDataCodes.StaffCorrection;
-        existing.SourceIdentity = underlying?.SourceIdentity ?? actor.SubjectId;
-        existing.SourceLabel = underlying?.SourceLabel ?? "staff case-data correction";
-        existing.PolicyKey = underlying?.PolicyKey ?? CaseDataPolicy.EditPolicyKey;
-        existing.PolicyVersion = underlying?.PolicyVersion ?? CaseDataPolicy.EditPolicyVersion;
-    }
-
-    private static CaseEditableData EditableData(CaseDataSnapshotEntity snapshot) => new(
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantName),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimNumber),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleRegistration),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMake),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleModel),
-        ConfirmedLong(snapshot, CaseDataFieldNames.VehicleMileage),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
-        ConfirmedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
-        ConfirmedDate(snapshot, CaseDataFieldNames.IncidentDate),
-        ConfirmedText(snapshot, CaseDataFieldNames.ContactName),
-        ConfirmedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InstructionDate),
-        ConfirmedText(snapshot, CaseDataFieldNames.VatStatus),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDate),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionAddress),
-        ConfirmedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantContactNumber),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.StorageLocation));
-
-    private static string? ConfirmedText(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name)?.Value;
-
-    private static long? ConfirmedLong(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name) is { } field
-            ? long.Parse(field.Value, NumberStyles.None, CultureInfo.InvariantCulture)
-            : null;
-
-    private static DateOnly? ConfirmedDate(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name) is { } field
-            ? DateOnly.ParseExact(field.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture)
-            : null;
-
-    private static CaseInspectionMode? ConfirmedInspectionMode(
-        CaseDataSnapshotEntity snapshot,
-        string name) =>
-        Confirmed(snapshot, name) is { } field
-            ? ParseInspectionMode(field.Value)
-            : null;
-
-    private static CaseDataFieldEntity? Confirmed(CaseDataSnapshotEntity snapshot, string name) =>
-        snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
-
     private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
         CaseMutationGuard.RequireVersion(workflow, expectedVersion);
 
@@ -486,102 +330,6 @@ public sealed class EfCaseDataStore(
     private static void ClearLease(CaseWorkflowEntity workflow) =>
         CaseMutationGuard.ClearLease(workflow);
 
-
-    private static void ScheduleDueWork(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        DateOnly? dueBy,
-        DateTimeOffset now)
-    {
-        if (workflow.DueWork is not { } due)
-        {
-            due = new()
-            {
-                CaseId = workflow.CaseId,
-                Workflow = workflow,
-                MissingMaterialReason = "Case completeness is not confirmed",
-                DueBy = dueBy,
-                State = nameof(CaseDueWorkState.Scheduled),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now),
-                Version = 0
-            };
-            workflow.DueWork = due;
-            context.CaseDueWork.Add(due);
-            return;
-        }
-
-        due.MissingMaterialReason = "Case completeness is not confirmed";
-        due.DueBy = dueBy;
-        due.State = nameof(CaseDueWorkState.Scheduled);
-        due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now);
-        due.HeldAtUtc = null;
-        due.RemainingChaseIntervalTicks = null;
-        due.Version++;
-    }
-
-    private static void AddHistory(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        CaseMutationRequest request,
-        string requestHash,
-        string eventType,
-        long beforeVersion,
-        long afterVersion,
-        string beforeJson,
-        string afterJson,
-        string policyVersion,
-        DateTimeOffset occurredAtUtc)
-    {
-        var rolesJson = JsonSerializer.Serialize(
-            request.Actor.Roles.OrderBy(role => role),
-            JsonOptions);
-        context.CaseWorkflowEvents.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Workflow = workflow,
-            EventType = eventType,
-            OperationKey = request.OperationKey,
-            RequestHash = requestHash,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = rolesJson,
-            Reason = request.Reason,
-            OccurredAtUtc = occurredAtUtc,
-            BeforeVersion = beforeVersion,
-            AfterVersion = afterVersion
-        });
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = "case",
-            AggregateId = workflow.CaseId.ToString("D"),
-            EventKind = eventType,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = rolesJson,
-            OccurredAtUtc = occurredAtUtc,
-            Outcome = "Succeeded",
-            CorrelationId = request.OperationKey,
-            Reason = request.Reason,
-            BeforeJson = beforeJson,
-            AfterJson = afterJson,
-            PolicyVersion = policyVersion
-        });
-        context.CaseHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Case = workflow.Case,
-            EventType = eventType,
-            Actor = request.Actor.SubjectId,
-            Reason = request.Reason,
-            OccurredAtUtc = occurredAtUtc,
-            OperationKey = request.OperationKey,
-            BeforeVersion = beforeVersion,
-            AfterVersion = afterVersion
-        });
-    }
 
     internal static CaseDataProjection Map(
         CaseDataSnapshotEntity snapshot,
@@ -644,7 +392,51 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.InspectionAddress),
             InspectionModeField(snapshot, CaseDataFieldNames.InspectionMode),
             TextField(snapshot, CaseDataFieldNames.StorageLocation),
-            new(null, null, null)));
+            TextField(snapshot, CaseDataFieldNames.RepairerAddress)),
+        Workspace(snapshot));
+
+    /// <summary>
+    /// The v1 workspace facts. Each is entered by staff through the one Case
+    /// save, so the current value is the whole story and the projection carries
+    /// the value itself rather than a fact/suggestion/confirmed triple.
+    /// </summary>
+    private static CaseWorkspaceData Workspace(CaseDataSnapshotEntity snapshot)
+    {
+        var data = CaseDataFieldWriter.ReadEditable(snapshot);
+        return new(
+            new(
+                data.ClaimSourceId,
+                data.ClaimSourceVersion,
+                data.ClaimSourceName,
+                data.ClaimSourceContactName,
+                data.ClaimSourceContactTelephone,
+                data.ClaimSourceContactEmailAddress,
+                data.ClaimSourceCaseNote),
+            new(
+                data.StorageBusinessId,
+                data.StorageBusinessVersion,
+                data.StorageBusinessName,
+                data.StorageBusinessContactName,
+                data.StorageBusinessContactTelephone,
+                data.StorageBusinessContactEmailAddress),
+            data.InspectionAddressTreatment,
+            new(
+                data.InspectionLocationChoice,
+                data.InspectionLocationSource,
+                data.InspectionLocationSourceId,
+                data.InspectionLocationSourceVersion,
+                data.InspectionLocationSourceLabel),
+            data.InspectionVehiclePresent,
+            data.InspectionCondition,
+            data.InspectionContactName,
+            data.InspectionContactTelephone,
+            data.InspectionContactEmailAddress,
+            data.InspectionNotes,
+            data.VehicleMileageDisplayUnit is { } displayUnit
+                && CaseOdometer.TryParseUnit(displayUnit, out var unit)
+                    ? unit
+                    : null);
+    }
 
     private static CaseField<string> TextField(
         CaseDataSnapshotEntity snapshot,
@@ -666,7 +458,7 @@ public sealed class EfCaseDataStore(
 
     private static CaseField<CaseInspectionMode> InspectionModeField(
         CaseDataSnapshotEntity snapshot,
-        string fieldName) => Field(snapshot, fieldName, ParseInspectionMode);
+        string fieldName) => Field(snapshot, fieldName, CaseDataFieldWriter.ParseInspectionMode);
 
     private static CaseField<T> Field<T>(
         CaseDataSnapshotEntity snapshot,
@@ -732,24 +524,7 @@ public sealed class EfCaseDataStore(
             Payload = payload,
             Policy = policy
         }, JsonOptions);
-        return Hash(material);
-    }
-
-    private static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
-
-    private static bool FixedTimeEquals(string left, string right)
-    {
-        if (left.Length != 64 || right.Length != 64
-            || left.Any(character => !char.IsAsciiHexDigit(character))
-            || right.Any(character => !char.IsAsciiHexDigit(character)))
-        {
-            return false;
-        }
-
-        return CryptographicOperations.FixedTimeEquals(
-            Convert.FromHexString(left),
-            Convert.FromHexString(right));
+        return CaseOperationReplay.Hash(material);
     }
 
     private static void ValidateEvaluation(CaseCompletenessEvaluation evaluation)
@@ -761,28 +536,6 @@ public sealed class EfCaseDataStore(
                 "The completeness-policy identity is invalid.");
         }
     }
-
-    private static string? Integer(long? value) =>
-        value?.ToString(CultureInfo.InvariantCulture);
-
-    private static string? Date(DateOnly? value) =>
-        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-
-    private static string? InspectionMode(CaseInspectionMode? value) => value switch
-    {
-        null => null,
-        CaseInspectionMode.PhysicalAddress => "physical_address",
-        CaseInspectionMode.ImageBasedAssessment => "image_based_assessment",
-        _ => throw new InvalidDataException("The inspection mode is invalid.")
-    };
-
-    private static CaseInspectionMode ParseInspectionMode(string value) => value switch
-    {
-        "physical_address" => CaseInspectionMode.PhysicalAddress,
-        "image_based_assessment" => CaseInspectionMode.ImageBasedAssessment,
-        _ => throw new InvalidDataException(
-            $"Unknown persisted inspection mode '{value}'.")
-    };
 
     private static CaseLifecycleState ParseLifecycleState(string value) =>
         Enum.TryParse<CaseLifecycleState>(value, out var state)
@@ -811,4 +564,324 @@ public sealed class EfCaseDataStore(
         _ => throw new InvalidDataException(
             $"Unknown persisted case-data source kind '{value}'.")
     };
+}
+
+/// <summary>
+/// The one reader and writer of the confirmed case-data field rows behind
+/// <see cref="CaseEditableData"/>. Both the case-detail save and the Case
+/// workspace save go through it, so a fact has one persisted name, one value
+/// type and one provenance rule whichever command wrote it.
+/// </summary>
+internal static class CaseDataFieldWriter
+{
+    public static void ApplyEditableData(
+        PegasusDbContext context,
+        CaseDataSnapshotEntity snapshot,
+        CaseEditableData data,
+        ActionActor actor,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        void Text(string name, string? value) =>
+            SetConfirmed(context, snapshot, name, CaseDataCodes.Text, value, actor, now);
+        void Whole(string name, long? value) =>
+            SetConfirmed(context, snapshot, name, CaseDataCodes.Integer, Integer(value), actor, now);
+        void Day(string name, DateOnly? value) =>
+            SetConfirmed(context, snapshot, name, CaseDataCodes.Date, Date(value), actor, now);
+
+        Text(CaseDataFieldNames.ClaimantName, data.ClaimantName);
+        Text(CaseDataFieldNames.ClaimantContactNumber, data.ClaimantContactNumber);
+        Text(CaseDataFieldNames.ClaimantAddress, data.ClaimantAddress);
+        Text(CaseDataFieldNames.ClaimNumber, data.ClaimNumber);
+        Text(CaseDataFieldNames.VehicleRegistration, data.VehicleRegistration);
+        Text(CaseDataFieldNames.VehicleMake, data.VehicleMake);
+        Text(CaseDataFieldNames.VehicleModel, data.VehicleModel);
+        Whole(CaseDataFieldNames.VehicleMileage, data.VehicleMileage);
+        Text(CaseDataFieldNames.VehicleMileageUnit, data.VehicleMileageUnit);
+        Text(CaseDataFieldNames.AccidentCircumstances, data.AccidentCircumstances);
+        Day(CaseDataFieldNames.IncidentDate, data.IncidentDate);
+        Text(CaseDataFieldNames.ContactName, data.ContactName);
+        Text(CaseDataFieldNames.ContactEmailAddress, data.ContactEmailAddress);
+        Text(CaseDataFieldNames.ContactPhoneNumber, data.ContactPhoneNumber);
+        Day(CaseDataFieldNames.InstructionDate, data.InstructionDate);
+        Text(CaseDataFieldNames.VatStatus, data.VatStatus);
+        Day(CaseDataFieldNames.InspectionDate, data.InspectionDate);
+        Day(CaseDataFieldNames.InspectionDeadline, data.InspectionDeadline);
+        Text(CaseDataFieldNames.InspectionAddress, data.InspectionAddress);
+        SetConfirmed(
+            context,
+            snapshot,
+            CaseDataFieldNames.InspectionMode,
+            CaseDataCodes.InspectionMode,
+            InspectionMode(data.InspectionMode),
+            actor,
+            now);
+        Text(CaseDataFieldNames.StorageLocation, data.StorageLocation);
+        Text(CaseDataFieldNames.RepairerAddress, data.RepairerAddress);
+        Text(CaseDataFieldNames.ClaimSourceId, Identifier(data.ClaimSourceId));
+        Whole(CaseDataFieldNames.ClaimSourceVersion, data.ClaimSourceVersion);
+        Text(CaseDataFieldNames.ClaimSourceName, data.ClaimSourceName);
+        Text(CaseDataFieldNames.ClaimSourceContactName, data.ClaimSourceContactName);
+        Text(CaseDataFieldNames.ClaimSourceContactTelephone, data.ClaimSourceContactTelephone);
+        Text(CaseDataFieldNames.ClaimSourceContactEmailAddress, data.ClaimSourceContactEmailAddress);
+        Text(CaseDataFieldNames.ClaimSourceCaseNote, data.ClaimSourceCaseNote);
+        Text(CaseDataFieldNames.StorageBusinessId, Identifier(data.StorageBusinessId));
+        Whole(CaseDataFieldNames.StorageBusinessVersion, data.StorageBusinessVersion);
+        Text(CaseDataFieldNames.StorageBusinessName, data.StorageBusinessName);
+        Text(CaseDataFieldNames.StorageBusinessContactName, data.StorageBusinessContactName);
+        Text(CaseDataFieldNames.StorageBusinessContactTelephone, data.StorageBusinessContactTelephone);
+        Text(
+            CaseDataFieldNames.StorageBusinessContactEmailAddress,
+            data.StorageBusinessContactEmailAddress);
+        Text(CaseDataFieldNames.VehicleMileageDisplayUnit, data.VehicleMileageDisplayUnit);
+        Text(CaseDataFieldNames.InspectionAddressTreatment, Named(data.InspectionAddressTreatment));
+        Text(CaseDataFieldNames.InspectionLocationChoice, Named(data.InspectionLocationChoice));
+        Text(CaseDataFieldNames.InspectionLocationSourceKind, Named(data.InspectionLocationSource));
+        Text(CaseDataFieldNames.InspectionLocationSourceId, Identifier(data.InspectionLocationSourceId));
+        Whole(CaseDataFieldNames.InspectionLocationSourceVersion, data.InspectionLocationSourceVersion);
+        Text(CaseDataFieldNames.InspectionLocationSourceLabel, data.InspectionLocationSourceLabel);
+        Text(CaseDataFieldNames.InspectionVehiclePresent, Flag(data.InspectionVehiclePresent));
+        Text(CaseDataFieldNames.InspectionCondition, data.InspectionCondition);
+        Text(CaseDataFieldNames.InspectionContactName, data.InspectionContactName);
+        Text(CaseDataFieldNames.InspectionContactTelephone, data.InspectionContactTelephone);
+        Text(CaseDataFieldNames.InspectionContactEmailAddress, data.InspectionContactEmailAddress);
+        Text(CaseDataFieldNames.InspectionNotes, data.InspectionNotes);
+    }
+
+    public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantName),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimNumber),
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleRegistration),
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMake),
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleModel),
+        ConfirmedLong(snapshot, CaseDataFieldNames.VehicleMileage),
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
+        ConfirmedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
+        ConfirmedDate(snapshot, CaseDataFieldNames.IncidentDate),
+        ConfirmedText(snapshot, CaseDataFieldNames.ContactName),
+        ConfirmedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
+        ConfirmedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
+        ConfirmedDate(snapshot, CaseDataFieldNames.InstructionDate),
+        ConfirmedText(snapshot, CaseDataFieldNames.VatStatus),
+        ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDate),
+        ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionAddress),
+        ConfirmedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantContactNumber),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantAddress),
+        ConfirmedText(snapshot, CaseDataFieldNames.StorageLocation),
+        ConfirmedText(snapshot, CaseDataFieldNames.RepairerAddress),
+        ConfirmedGuid(snapshot, CaseDataFieldNames.ClaimSourceId),
+        ConfirmedLong(snapshot, CaseDataFieldNames.ClaimSourceVersion),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceName),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactName),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactTelephone),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactEmailAddress),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceCaseNote),
+        ConfirmedGuid(snapshot, CaseDataFieldNames.StorageBusinessId),
+        ConfirmedLong(snapshot, CaseDataFieldNames.StorageBusinessVersion),
+        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessName),
+        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessContactName),
+        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessContactTelephone),
+        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessContactEmailAddress),
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMileageDisplayUnit),
+        ConfirmedEnum<CaseReportAddressTreatment>(snapshot, CaseDataFieldNames.InspectionAddressTreatment),
+        ConfirmedEnum<InspectionAddressChoiceKind>(snapshot, CaseDataFieldNames.InspectionLocationChoice),
+        ConfirmedEnum<InspectionLocationSourceKind>(snapshot, CaseDataFieldNames.InspectionLocationSourceKind),
+        ConfirmedGuid(snapshot, CaseDataFieldNames.InspectionLocationSourceId),
+        ConfirmedLong(snapshot, CaseDataFieldNames.InspectionLocationSourceVersion),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionLocationSourceLabel),
+        ConfirmedFlag(snapshot, CaseDataFieldNames.InspectionVehiclePresent),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionCondition),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactName),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactTelephone),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactEmailAddress),
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionNotes));
+
+    private static void SetConfirmed(
+        PegasusDbContext context,
+        CaseDataSnapshotEntity snapshot,
+        string fieldName,
+        string valueType,
+        string? value,
+        ActionActor actor,
+        DateTimeOffset now)
+    {
+        var existing = snapshot.Fields.SingleOrDefault(
+            item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
+        if (value is null)
+        {
+            if (existing is not null)
+            {
+                context.CaseDataFields.Remove(existing);
+                snapshot.Fields.Remove(existing);
+            }
+            return;
+        }
+
+        var underlying = snapshot.Fields.SingleOrDefault(
+            item => item.FieldName == fieldName
+                && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
+                && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            existing = new()
+            {
+                CaseId = snapshot.CaseId,
+                Snapshot = snapshot,
+                FieldName = fieldName,
+                ValueKind = CaseDataCodes.Confirmed,
+                ValueType = valueType,
+                Value = value,
+                SourceKind = CaseDataCodes.StaffCorrection,
+                SourceIdentity = actor.SubjectId,
+                SourceLabel = "staff case-data confirmation",
+                PolicyKey = CaseDataPolicy.EditPolicyKey,
+                PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+                ConfirmedByActor = actor.SubjectId,
+                ConfirmedAtUtc = now
+            };
+            snapshot.Fields.Add(existing);
+        }
+        else
+        {
+            existing.ValueType = valueType;
+            existing.Value = value;
+            existing.ConfirmedByActor = actor.SubjectId;
+            existing.ConfirmedAtUtc = now;
+        }
+
+        existing.SourceKind = underlying?.SourceKind ?? CaseDataCodes.StaffCorrection;
+        existing.SourceIdentity = underlying?.SourceIdentity ?? actor.SubjectId;
+        existing.SourceLabel = underlying?.SourceLabel ?? "staff case-data correction";
+        existing.PolicyKey = underlying?.PolicyKey ?? CaseDataPolicy.EditPolicyKey;
+        existing.PolicyVersion = underlying?.PolicyVersion ?? CaseDataPolicy.EditPolicyVersion;
+    }
+
+    private static string? ConfirmedText(CaseDataSnapshotEntity snapshot, string name) =>
+        Confirmed(snapshot, name)?.Value;
+
+    private static long? ConfirmedLong(CaseDataSnapshotEntity snapshot, string name) =>
+        Confirmed(snapshot, name) is { } field
+            ? long.Parse(field.Value, NumberStyles.None, CultureInfo.InvariantCulture)
+            : null;
+
+    private static DateOnly? ConfirmedDate(CaseDataSnapshotEntity snapshot, string name) =>
+        Confirmed(snapshot, name) is { } field
+            ? DateOnly.ParseExact(field.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : null;
+
+    private static Guid? ConfirmedGuid(CaseDataSnapshotEntity snapshot, string name) =>
+        Confirmed(snapshot, name) is { } field
+            ? Guid.ParseExact(field.Value, "D")
+            : null;
+
+    private static bool? ConfirmedFlag(CaseDataSnapshotEntity snapshot, string name) =>
+        Confirmed(snapshot, name) is { } field
+            ? field.Value switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => throw new InvalidDataException(
+                    $"Unknown persisted case-data flag '{field.Value}' for '{name}'.")
+            }
+            : null;
+
+    private static T? ConfirmedEnum<T>(CaseDataSnapshotEntity snapshot, string name)
+        where T : struct, Enum =>
+        Confirmed(snapshot, name) is { } field
+            ? Enum.TryParse<T>(field.Value, ignoreCase: false, out var parsed) && Enum.IsDefined(parsed)
+                ? parsed
+                : throw new InvalidDataException(
+                    $"Unknown persisted case-data value '{field.Value}' for '{name}'.")
+            : null;
+
+    private static CaseInspectionMode? ConfirmedInspectionMode(
+        CaseDataSnapshotEntity snapshot,
+        string name) =>
+        Confirmed(snapshot, name) is { } field
+            ? ParseInspectionMode(field.Value)
+            : null;
+
+    private static CaseDataFieldEntity? Confirmed(CaseDataSnapshotEntity snapshot, string name) =>
+        snapshot.Fields.SingleOrDefault(
+            item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
+
+    private static string? Integer(long? value) =>
+        value?.ToString(CultureInfo.InvariantCulture);
+
+    private static string? Date(DateOnly? value) =>
+        value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static string? Identifier(Guid? value) => value?.ToString("D");
+
+    private static string? Flag(bool? value) => value switch
+    {
+        null => null,
+        true => "true",
+        false => "false"
+    };
+
+    private static string? Named<T>(T? value)
+        where T : struct, Enum => value?.ToString();
+
+    public static string? InspectionMode(CaseInspectionMode? value) => value switch
+    {
+        null => null,
+        CaseInspectionMode.PhysicalAddress => "physical_address",
+        CaseInspectionMode.ImageBasedAssessment => "image_based_assessment",
+        _ => throw new InvalidDataException("The inspection mode is invalid.")
+    };
+
+    public static CaseInspectionMode ParseInspectionMode(string value) => value switch
+    {
+        "physical_address" => CaseInspectionMode.PhysicalAddress,
+        "image_based_assessment" => CaseInspectionMode.ImageBasedAssessment,
+        _ => throw new InvalidDataException(
+            $"Unknown persisted inspection mode '{value}'.")
+    };
+}
+
+/// <summary>
+/// The one owner of the chase schedule a case save leaves behind. Both the
+/// case-detail save and the Case workspace save reschedule the same way, so an
+/// edited deadline cannot mean two different chase dates.
+/// </summary>
+internal static class CaseDueWorkScheduler
+{
+    private const string MissingMaterialReason = "Case completeness is not confirmed";
+
+    public static void Schedule(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        DateOnly? dueBy,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(workflow);
+        if (workflow.DueWork is not { } due)
+        {
+            due = new()
+            {
+                CaseId = workflow.CaseId,
+                Workflow = workflow,
+                MissingMaterialReason = MissingMaterialReason,
+                DueBy = dueBy,
+                State = nameof(CaseDueWorkState.Scheduled),
+                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now),
+                Version = 0
+            };
+            workflow.DueWork = due;
+            context.CaseDueWork.Add(due);
+            return;
+        }
+
+        due.MissingMaterialReason = MissingMaterialReason;
+        due.DueBy = dueBy;
+        due.State = nameof(CaseDueWorkState.Scheduled);
+        due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now);
+        due.HeldAtUtc = null;
+        due.RemainingChaseIntervalTicks = null;
+        due.Version++;
+    }
 }

@@ -94,7 +94,7 @@ public sealed class ServiceHealthPersistenceTests
     }
 
     [Fact]
-    public async Task EvaFailuresAndActivityReadTheAttempts()
+    public async Task EvaFailuresAndActivityReadTheRecordedAttempts()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);

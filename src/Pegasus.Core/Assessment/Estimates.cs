@@ -1,4 +1,6 @@
+using System.Globalization;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -6,19 +8,127 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Assessment;
 
 /// <summary>
+/// Which repairer VAT position the estimate stands on (B04). Unknown is a
+/// real state, not a missing value: it blocks Use as Current until the
+/// operator records an explicit status or explicitly selects the VAT
+/// categories. The claimant's VAT position never controls estimate VAT.
+/// </summary>
+public enum RepairerVatStatus
+{
+    Unknown,
+    Registered,
+    NotRegistered,
+}
+
+/// <summary>
+/// The cost categories the estimate's VAT percentage applies to. Labour
+/// covers both panel and paint labour; Materials covers row materials and
+/// the estimate's additional materials.
+/// </summary>
+[Flags]
+public enum EstimateVatCategories
+{
+    None = 0,
+    Labour = 1,
+    Parts = 2,
+    Materials = 4,
+    Specialist = 8,
+    All = Labour | Parts | Materials | Specialist,
+}
+
+/// <summary>
+/// Which categories the estimate's VAT percentage is charged on, and why.
+/// The percentage itself stays on <see cref="EstimateDetails.VatPercent"/>
+/// (D9) — this record never carries a second copy of it.
+/// <see cref="CategoriesOverridden"/> records that the operator chose the
+/// categories by hand instead of taking them from the repairer's status.
+/// </summary>
+public sealed record EstimateVatPolicy(
+    RepairerVatStatus RepairerStatus,
+    EstimateVatCategories Categories,
+    bool CategoriesOverridden)
+{
+    /// <summary>Registered charges all four; not registered charges parts and materials.</summary>
+    public static EstimateVatCategories DefaultFor(RepairerVatStatus status) => status switch
+    {
+        RepairerVatStatus.Registered => EstimateVatCategories.All,
+        RepairerVatStatus.NotRegistered => EstimateVatCategories.Parts | EstimateVatCategories.Materials,
+        RepairerVatStatus.Unknown => EstimateVatCategories.None,
+        _ => throw new ArgumentOutOfRangeException(nameof(status)),
+    };
+
+    public static EstimateVatPolicy For(RepairerVatStatus status) =>
+        new(status, DefaultFor(status), false);
+
+    /// <summary>
+    /// An unknown repairer VAT status blocks acceptance until the operator
+    /// records the status or overrides the categories by hand.
+    /// </summary>
+    public bool BlocksAcceptance =>
+        RepairerStatus == RepairerVatStatus.Unknown && !CategoriesOverridden;
+
+    public bool Charges(EstimateVatCategories category) => (Categories & category) == category;
+}
+
+/// <summary>
+/// The four estimate discounts as fractions in [0,1]: parts, materials,
+/// specialist (which also carries off-pattern amounts), and the overall
+/// discount applied after the other three.
+/// </summary>
+public sealed record EstimateDiscounts(
+    decimal Parts,
+    decimal Materials,
+    decimal Specialist,
+    decimal Overall)
+{
+    public static EstimateDiscounts None { get; } = new(0m, 0m, 0m, 0m);
+}
+
+/// <summary>
+/// The labour rate the estimate was priced at, and the rate card version it
+/// was taken from when one exists. One rate prices both panel and paint
+/// hours (B04); there is no second paint rate in the arithmetic.
+/// </summary>
+public sealed record EstimateRateSnapshot(
+    Guid? RateCardId,
+    long? RateCardVersion,
+    decimal HourlyRate);
+
+/// <summary>
 /// The editable header of one named estimate on a Case (EPIC-011 §1.9,
 /// FRD-11 § Estimate VAT on the rendered report). Money is in pounds to two
-/// places; rates are per hour; the VAT percentage is free per estimate (D9).
+/// places; the one labour rate is per hour; the VAT percentage is free per
+/// estimate (D9).
+/// <see cref="PaintMaterials"/> is the estimate's additional materials.
 /// </summary>
+/// <remarks>
+/// D9 reconciliation: the B04 plan writes VAT as 20 %, this repository keeps
+/// the free per-estimate percentage and computes VAT as
+/// <c>Taxable × VatPercent / 100</c>. The percentage never states a
+/// repairer's VAT position: an estimate that records no <see cref="Vat"/>
+/// policy stands on <see cref="RepairerVatStatus.Unknown"/> and charges VAT
+/// on nothing until an Engineer records the status or selects the
+/// categories, which is also what blocks it from being made Current.
+/// </remarks>
 public sealed record EstimateDetails(
     string Name,
     int? RepairDays,
     decimal? LabourRate,
-    decimal? PaintLabourRate,
     decimal? PaintMaterials,
     decimal? OtherCosts,
     decimal VatPercent,
-    string? Notes);
+    string? Notes,
+    EstimateDiscounts? Discounts = null,
+    EstimateVatPolicy? Vat = null,
+    EstimateRateSnapshot? Rate = null)
+{
+    /// <summary>The one rate that prices panel and paint hours alike.</summary>
+    public decimal HourlyRate => Rate?.HourlyRate ?? LabourRate ?? 0m;
+
+    public EstimateDiscounts AppliedDiscounts => Discounts ?? EstimateDiscounts.None;
+
+    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
+}
 
 /// <summary>
 /// The estimate editor's line operations. The persisted vocabulary stays
@@ -31,6 +141,8 @@ public enum EstimateOperation
     Repair,
     RemoveAndRefit,
     Paint,
+    Blend,
+    Specialist,
     Other,
 }
 
@@ -43,7 +155,9 @@ public static class EstimateOperations
         EstimateOperation.Repair => "repair",
         EstimateOperation.RemoveAndRefit => "rnr",
         EstimateOperation.Paint => "paint_repair",
-        EstimateOperation.Other => "specialist_fixed",
+        EstimateOperation.Blend => "paint_blend",
+        EstimateOperation.Specialist => "specialist_fixed",
+        EstimateOperation.Other => "check_labour",
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -52,8 +166,10 @@ public static class EstimateOperations
         "new_part" => EstimateOperation.Replace,
         "repair" => EstimateOperation.Repair,
         "rnr" => EstimateOperation.RemoveAndRefit,
-        "paint_new" or "paint_repair" or "paint_blend" or "paint_prep" => EstimateOperation.Paint,
-        "check_labour" or "specialist_fixed" or "specialist_wu" => EstimateOperation.Other,
+        "paint_new" or "paint_repair" or "paint_prep" => EstimateOperation.Paint,
+        "paint_blend" => EstimateOperation.Blend,
+        "specialist_fixed" or "specialist_wu" => EstimateOperation.Specialist,
+        "check_labour" => EstimateOperation.Other,
         _ => throw new InvalidOperationException($"Unknown estimate line type '{lineType}'."),
     };
 
@@ -65,6 +181,8 @@ public static class EstimateOperations
             case "Repair": operation = EstimateOperation.Repair; return true;
             case "R&I" or "RemoveAndRefit": operation = EstimateOperation.RemoveAndRefit; return true;
             case "Paint": operation = EstimateOperation.Paint; return true;
+            case "Blend": operation = EstimateOperation.Blend; return true;
+            case "Specialist": operation = EstimateOperation.Specialist; return true;
             case "Other": operation = EstimateOperation.Other; return true;
             default: operation = default; return false;
         }
@@ -72,37 +190,188 @@ public static class EstimateOperations
 }
 
 /// <summary>
-/// The single owner of estimate money (FRD-11 § Estimate VAT on the
-/// rendered report). Parts = Σ price × quantity; Labour = Σ labour hours ×
-/// labour rate; Paint = Σ paint hours × paint labour rate + paint
-/// materials; Other = other costs; Subtotal = the four; VAT = Subtotal ×
-/// VAT % rounded to pence; Total = Subtotal + VAT. Nothing else in the
-/// application adds up an estimate.
+/// One estimate line's values as they stood when the line was imported, so
+/// an amendment never erases what the source document said.
+/// </summary>
+public sealed record EstimateLineOrigin(
+    string Type,
+    string? Description,
+    string? PartNumber,
+    int? Quantity,
+    decimal? WorkUnits,
+    decimal? PaintWorkUnits,
+    decimal? Price,
+    decimal? Materials);
+
+/// <summary>
+/// A value the estimate carries that its own line type does not price —
+/// paint hours on a panel line, a unit amount on a labour line. The value is
+/// retained and reported, never dropped and never silently re-bucketed.
+/// </summary>
+public sealed record EstimateAnomaly(
+    int Position,
+    string Field,
+    decimal Value,
+    string Reason);
+
+/// <summary>
+/// The unrounded arithmetic of one estimate, in the plan's own terms:
+/// <c>Category = P(1-dP) + L + Q + M(1-dM) + (S+O)(1-dS)</c>,
+/// <c>Net = Category(1-dA)</c>, <c>Taxable</c> the selected discounted
+/// categories, <c>Vat = Taxable x VatPercent / 100</c>,
+/// <c>Gross = Net + Vat</c>. The five components are already discounted,
+/// overall discount included, so they sum to <see cref="Net"/> exactly.
+/// </summary>
+public sealed record EstimateRawTotals(
+    decimal Parts,
+    decimal PanelLabour,
+    decimal PaintLabour,
+    decimal Materials,
+    decimal Specialist,
+    decimal OffPattern,
+    decimal Category,
+    decimal Net,
+    decimal Taxable,
+    decimal Vat,
+    decimal Gross);
+
+/// <summary>
+/// The printed projection of <see cref="EstimateRawTotals"/>: each of the
+/// five components and the VAT rounded independently to two decimals away
+/// from zero, printed Net the sum of the printed components, printed Gross
+/// printed Net plus printed VAT. A residual penny is never moved into VAT or
+/// into a category to make the raw and printed figures agree.
+/// </summary>
+public sealed record EstimatePrintedTotals(
+    decimal Parts,
+    decimal PanelLabour,
+    decimal PaintLabour,
+    decimal Materials,
+    decimal Specialist,
+    decimal Net,
+    decimal Vat,
+    decimal Gross);
+
+/// <summary>
+/// The single owner of estimate money (FRD-11 § Estimate VAT on the rendered
+/// report, plan B04). Nothing else in the application adds up an estimate.
 /// </summary>
 public sealed record EstimateTotals(
-    decimal Parts,
-    decimal Labour,
-    decimal Paint,
-    decimal Other,
-    decimal Subtotal,
+    EstimateRawTotals Raw,
+    EstimatePrintedTotals Printed,
+    EstimateVatPolicy VatPolicy,
     decimal VatPercent,
-    decimal Vat,
-    decimal Total)
+    int CalculationPolicyVersion,
+    IReadOnlyList<EstimateAnomaly> OffPattern)
 {
     public static EstimateTotals Compute(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
         var details = estimate.Details;
-        var parts = estimate.Lines.Sum(line => (line.Price ?? 0m) * (line.Quantity ?? 1));
-        var labourHours = estimate.Lines.Sum(line => line.WorkUnits ?? 0m);
-        var paintHours = estimate.Lines.Sum(line => line.PaintWorkUnits ?? 0m);
-        var labour = labourHours * (details.LabourRate ?? 0m);
-        var paint = paintHours * (details.PaintLabourRate ?? 0m) + (details.PaintMaterials ?? 0m);
-        var other = details.OtherCosts ?? 0m;
-        var subtotal = parts + labour + paint + other;
-        var vat = decimal.Round(subtotal * details.VatPercent / 100m, 2, MidpointRounding.AwayFromZero);
-        return new(parts, labour, paint, other, subtotal, details.VatPercent, vat, subtotal + vat);
+        var discounts = details.AppliedDiscounts;
+        var rate = details.HourlyRate;
+        var anomalies = new List<EstimateAnomaly>();
+
+        decimal parts = 0m, panelHours = 0m, paintHours = 0m;
+        decimal materials = details.PaintMaterials ?? 0m;
+        decimal specialist = details.OtherCosts ?? 0m;
+        decimal offPattern = 0m;
+        foreach (var line in estimate.Lines)
+        {
+            var operation = EstimateOperations.FromLineType(line.Type);
+            var quantity = line.Quantity is { } supplied && supplied > 0 ? supplied : 1;
+            var amount = (line.Price ?? 0m) * quantity;
+            materials += line.Materials ?? 0m;
+
+            switch (operation)
+            {
+                case EstimateOperation.Replace:
+                    parts += amount;
+                    panelHours += line.WorkUnits ?? 0m;
+                    break;
+                case EstimateOperation.Specialist:
+                    // Specialist hours are displayed, never multiplied by the rate.
+                    specialist += amount;
+                    break;
+                case EstimateOperation.Paint or EstimateOperation.Blend:
+                    paintHours += line.PaintWorkUnits ?? 0m;
+                    panelHours += line.WorkUnits ?? 0m;
+                    offPattern += OffPatternAmount(line, amount, anomalies);
+                    break;
+                default:
+                    panelHours += line.WorkUnits ?? 0m;
+                    offPattern += OffPatternAmount(line, amount, anomalies);
+                    break;
+            }
+
+            if (operation is not (EstimateOperation.Paint or EstimateOperation.Blend)
+                && line.PaintWorkUnits is { } strayPaintHours && strayPaintHours != 0m)
+            {
+                anomalies.Add(new(
+                    line.Position, "paint hours", strayPaintHours,
+                    "Paint hours on a line that is not Paint or Blend are retained but not priced."));
+            }
+        }
+
+        var panelLabour = panelHours * rate;
+        var paintLabour = paintHours * rate;
+        var discountedParts = parts * (1m - discounts.Parts);
+        var discountedMaterials = materials * (1m - discounts.Materials);
+        var discountedSpecialist = (specialist + offPattern) * (1m - discounts.Specialist);
+        var category = discountedParts + panelLabour + paintLabour + discountedMaterials + discountedSpecialist;
+        var overall = 1m - discounts.Overall;
+
+        var rawParts = discountedParts * overall;
+        var rawPanelLabour = panelLabour * overall;
+        var rawPaintLabour = paintLabour * overall;
+        var rawMaterials = discountedMaterials * overall;
+        var rawSpecialist = discountedSpecialist * overall;
+        var net = category * overall;
+
+        var policy = details.VatPolicy;
+        var taxable =
+            (policy.Charges(EstimateVatCategories.Parts) ? rawParts : 0m)
+            + (policy.Charges(EstimateVatCategories.Labour) ? rawPanelLabour + rawPaintLabour : 0m)
+            + (policy.Charges(EstimateVatCategories.Materials) ? rawMaterials : 0m)
+            + (policy.Charges(EstimateVatCategories.Specialist) ? rawSpecialist : 0m);
+        var vat = taxable * details.VatPercent / 100m;
+
+        var raw = new EstimateRawTotals(
+            rawParts, rawPanelLabour, rawPaintLabour, rawMaterials, rawSpecialist,
+            offPattern, category, net, taxable, vat, net + vat);
+
+        var printedParts = Pence(rawParts);
+        var printedPanelLabour = Pence(rawPanelLabour);
+        var printedPaintLabour = Pence(rawPaintLabour);
+        var printedMaterials = Pence(rawMaterials);
+        var printedSpecialist = Pence(rawSpecialist);
+        var printedNet = printedParts + printedPanelLabour + printedPaintLabour
+            + printedMaterials + printedSpecialist;
+        var printedVat = Pence(vat);
+        var printed = new EstimatePrintedTotals(
+            printedParts, printedPanelLabour, printedPaintLabour, printedMaterials,
+            printedSpecialist, printedNet, printedVat, printedNet + printedVat);
+
+        return new(
+            raw, printed, policy, details.VatPercent,
+            RepairSpecificationPolicy.PolicyVersion, anomalies);
     }
+
+    private static decimal OffPatternAmount(
+        CaseEstimateLineRecord line, decimal amount, List<EstimateAnomaly> anomalies)
+    {
+        if (amount == 0m)
+        {
+            return 0m;
+        }
+        anomalies.Add(new(
+            line.Position, "unit amount", amount,
+            "A unit amount on a line that prices no part is retained in specialist treatment."));
+        return amount;
+    }
+
+    private static decimal Pence(decimal value) =>
+        decimal.Round(value, 2, MidpointRounding.AwayFromZero);
 }
 
 /// <summary>
@@ -119,6 +388,60 @@ public static class EstimatePolicy
     public const int MaximumNotesLength = 4000;
     public const decimal DefaultVatPercent = 20m;
     public const string CopySuffix = " copy";
+
+    /// <summary>
+    /// Amendment attribution for one saved estimate line. An editor replaces
+    /// the whole line collection on save, so a line that came back unchanged
+    /// keeps the attribution it already carried, while a line whose editable
+    /// values moved names the operator who moved them and when. The caller
+    /// supplies the actor and the server's time; this policy decides.
+    /// </summary>
+    public static (string? AmendedBy, DateTimeOffset? AmendedAtUtc) StampAmendment(
+        EstimateLineInput saved,
+        CaseEstimateLineRecord loaded,
+        string actor,
+        DateTimeOffset amendedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(loaded);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        return IsAmendmentUnchanged(saved, loaded)
+            ? (loaded.AmendedBy, loaded.AmendedAtUtc)
+            : (actor, amendedAtUtc);
+    }
+
+    /// <summary>
+    /// The eight values an operator can change on a line. The operation is
+    /// compared in the editor's vocabulary, because no editor offers a finer
+    /// choice than <see cref="EstimateOperation"/>: an imported
+    /// <c>paint_new</c> line the operator never touched comes back as
+    /// <c>paint_repair</c>, and that is not an amendment.
+    /// </summary>
+    public static bool IsAmendmentUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(loaded);
+        return EstimateOperations.FromLineType(saved.Type) == EstimateOperations.FromLineType(loaded.Type)
+            && string.Equals(saved.Description, loaded.Description, StringComparison.Ordinal)
+            && string.Equals(saved.PartNumber, loaded.PartNumber, StringComparison.Ordinal)
+            && saved.Quantity == loaded.Quantity
+            && saved.WorkUnits == loaded.WorkUnits
+            && saved.PaintWorkUnits == loaded.PaintWorkUnits
+            && saved.Materials == loaded.Materials
+            && saved.Price == loaded.Price;
+    }
+
+    /// <summary>
+    /// The precision an estimate line's hours are kept to. A provider states
+    /// time in its own unit — Glass's in sixtieths of an hour, Audatex to two
+    /// places — so B04 retains the figure the document printed instead of
+    /// rounding it to the editor's 0.1 step, and the persisted column is
+    /// <c>decimal(18,6)</c>.
+    /// </summary>
+    public const int WorkUnitDecimals = 6;
+
+    /// <summary>The bound on one line's hours; beyond it the figure is not time.</summary>
+    public const decimal MaximumLineWorkUnits = 1_000m;
 
     public static EstimateDetails ValidateDetails(EstimateDetails details)
     {
@@ -139,7 +462,6 @@ public static class EstimatePolicy
             throw new ArgumentException("Repair days cannot be negative.", nameof(details));
         }
         Money(details.LabourRate, "labour rate");
-        Money(details.PaintLabourRate, "paint labour rate");
         Money(details.PaintMaterials, "paint materials");
         Money(details.OtherCosts, "other costs");
         if (details.VatPercent is < 0 or > 100 || decimal.Round(details.VatPercent, 2) != details.VatPercent)
@@ -155,7 +477,65 @@ public static class EstimatePolicy
                 $"Estimate notes cannot exceed {MaximumNotesLength} characters.",
                 nameof(details));
         }
+        if (details.Discounts is { } discounts)
+        {
+            ValidateDiscounts(discounts);
+        }
+        if (details.Vat is { } vat)
+        {
+            ValidateVatPolicy(vat);
+        }
+        if (details.Rate is { } rate)
+        {
+            Money(rate.HourlyRate, "labour rate");
+        }
         return details with { Name = name, Notes = notes };
+    }
+
+    /// <summary>
+    /// Every discount is a fraction of one, in [0,1], to at most four
+    /// decimal places — the precision the estimate header stores.
+    /// </summary>
+    public static EstimateDiscounts ValidateDiscounts(EstimateDiscounts discounts)
+    {
+        ArgumentNullException.ThrowIfNull(discounts);
+        Fraction(discounts.Parts, "parts discount");
+        Fraction(discounts.Materials, "materials discount");
+        Fraction(discounts.Specialist, "specialist discount");
+        Fraction(discounts.Overall, "overall discount");
+        return discounts;
+    }
+
+    /// <summary>
+    /// Categories that were not overridden by hand must be the repairer
+    /// status's own defaults, so the recorded policy and the status can
+    /// never disagree about why VAT is charged.
+    /// </summary>
+    public static EstimateVatPolicy ValidateVatPolicy(EstimateVatPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        if ((policy.Categories & ~EstimateVatCategories.All) != 0)
+        {
+            throw new ArgumentException("Unknown estimate VAT categories.", nameof(policy));
+        }
+        if (!policy.CategoriesOverridden
+            && policy.Categories != EstimateVatPolicy.DefaultFor(policy.RepairerStatus))
+        {
+            throw new ArgumentException(
+                "VAT categories that differ from the repairer's status must be recorded as an override.",
+                nameof(policy));
+        }
+        return policy;
+    }
+
+    private static void Fraction(decimal value, string description)
+    {
+        if (value is < 0m or > 1m || decimal.Round(value, 4) != value)
+        {
+            throw new ArgumentException(
+                $"The {description} must be a fraction between 0 and 1 with at most four decimal places.",
+                nameof(value));
+        }
     }
 
     public static SaveEstimateRequest ValidateSave(SaveEstimateRequest request)
@@ -187,6 +567,33 @@ public static class EstimatePolicy
             Lines = AssessmentPolicy.NormalizeRepairSpecificationLines(request.Lines),
             Source = source,
         };
+    }
+
+    /// <summary>
+    /// One estimate line's money and time. The shared line normalizer calls
+    /// this for every path that writes an estimate line, so panel hours,
+    /// paint hours and row materials have exactly one rule between the
+    /// editor, the importers and the assessment draft.
+    /// </summary>
+    public static void ValidateLineAmounts(EstimateLineInput line)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        WorkUnits(line.WorkUnits, "work units");
+        WorkUnits(line.PaintWorkUnits, "paint work units");
+        Money(line.Materials, "line materials amount");
+    }
+
+    private static void WorkUnits(decimal? value, string description)
+    {
+        if (value is { } hours
+            && (hours < 0 || hours > MaximumLineWorkUnits
+                || decimal.Round(hours, WorkUnitDecimals) != hours))
+        {
+            throw new ArgumentException(
+                $"Estimate {description} must be between 0 and {MaximumLineWorkUnits} "
+                + $"with at most {WorkUnitDecimals} decimal places.",
+                nameof(value));
+        }
     }
 
     /// <summary>
@@ -264,18 +671,28 @@ public static class EstimatePolicy
     /// basis derived by <see cref="EstimateTotals"/>; an already accepted
     /// estimate is simply switched to.
     /// </summary>
-    public static RepairCalculationBasis BasisFor(RepairSpecificationVersion estimate)
+    public static RepairCalculationBasis BasisFor(RepairSpecificationVersion estimate) =>
+        BasisFor(EstimateTotals.Compute(estimate));
+
+    /// <summary>
+    /// The same basis from a calculation already made, so a caller that also
+    /// records the breakdown (the store, on acceptance) computes once.
+    /// </summary>
+    public static RepairCalculationBasis BasisFor(EstimateTotals totals)
     {
-        var totals = EstimateTotals.Compute(estimate);
+        ArgumentNullException.ThrowIfNull(totals);
+        var printed = totals.Printed;
         return new(
-            totals.Labour,
-            totals.Parts,
-            totals.Paint,
-            totals.Other,
-            totals.VatPercent > 0,
-            totals.Vat,
-            totals.Total,
-            $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}");
+            printed.PanelLabour,
+            printed.Parts,
+            printed.PaintLabour + printed.Materials,
+            printed.Specialist,
+            totals.VatPolicy.RepairerStatus == RepairerVatStatus.Registered,
+            printed.Vat,
+            printed.Gross,
+            $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
+            totals.VatPolicy,
+            printed);
     }
 
     public static void ValidateSetCurrent(RepairSpecificationVersion estimate, ActionActor actor)
@@ -285,6 +702,11 @@ public static class EstimatePolicy
         switch (estimate.State)
         {
             case RepairSpecificationState.Draft:
+                if (estimate.Details.VatPolicy.BlocksAcceptance)
+                {
+                    throw new InvalidOperationException(
+                        "Record the repairer's VAT status, or select the VAT categories, before using this estimate.");
+                }
                 RepairSpecificationPolicy.ValidateAcceptance(
                     estimate with { CalculationBasis = BasisFor(estimate) },
                     actor);
@@ -384,6 +806,38 @@ public interface IListCaseEstimates
     Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The bounded cursor-page projection of a <see
+/// cref="RepairSpecificationVersion"/> (CASE-047, Stream A review): the
+/// header fields a list surface needs, without embedding the
+/// specification's <see cref="RepairSpecificationVersion.Lines"/> — a case
+/// can carry many superseded versions and each an unbounded line list, so a
+/// keyset page never grows with a specification's line count. A caller
+/// wanting the lines reads the version directly
+/// (<see cref="IRepairSpecificationStore.GetVersionAsync"/>).
+/// </summary>
+public sealed record CaseEstimatePageItem(
+    Guid SpecificationId,
+    Guid CaseId,
+    int Version,
+    RepairSpecificationState State,
+    RepairSpecificationSource Source,
+    string Name,
+    bool IsCurrent,
+    RepairCalculationBasis? CalculationBasis);
+
+/// <summary>
+/// The keyset-paged sibling of <see cref="IListCaseEstimates"/> (CASE-047,
+/// requested by Stream A's MCP adapters): newest version first, then
+/// estimate id.
+/// </summary>
+public interface IListCaseEstimatesByCursor
+{
+    Task<CursorPage<CaseEstimatePageItem>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken);
+}
+
 public sealed class SaveEstimate(
     IRepairSpecificationStore store,
     IAiJobStore jobs,
@@ -480,5 +934,52 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
         return store.ListEstimatesAsync(caseId, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Applies the same actor boundary <see cref="Pegasus.Core.Cases.GetCase"/>
+/// applies before reading a case's estimates, newest version first then
+/// estimate id.
+/// </summary>
+public sealed class ListCaseEstimatesByCursor(IRepairSpecificationStore store, ICursorProtector protector)
+    : IListCaseEstimatesByCursor
+{
+    public async Task<CursorPage<CaseEstimatePageItem>> ExecuteAsync(
+        CaseListCursorQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var scope = CaseListCursorScope.For("ListCaseEstimates", query.Actor, query.CaseId);
+
+        int? afterVersion = null;
+        Guid? afterId = null;
+        if (query.Cursor is { Length: > 0 } cursor)
+        {
+            var position = protector.Unprotect(cursor, scope);
+            if (!int.TryParse(position.SortKey, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version))
+            {
+                throw new CursorRejectedException("The cursor is malformed.");
+            }
+            afterVersion = version;
+            afterId = position.Id;
+        }
+
+        var rows = await store.ListByCursorAsync(
+            query.CaseId, afterVersion, afterId, limit + 1, cancellationToken);
+
+        return CursorPageBuilder.Build(
+            rows,
+            limit,
+            protector,
+            scope,
+            estimate => estimate.Version.ToString(CultureInfo.InvariantCulture),
+            estimate => estimate.SpecificationId);
     }
 }

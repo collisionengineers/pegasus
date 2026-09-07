@@ -6,8 +6,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// EXT-04 persistence coverage for distinct manual submissions and their
-/// retained outcomes. Automatic submission remains once-only in its work-row
-/// policy; the database permits explicit operator re-sends.
+/// retained outcomes. The database permits explicit operator re-sends.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class EvaSubmissionPersistenceTests
@@ -132,25 +131,25 @@ public sealed class EvaSubmissionPersistenceTests
 
     /// <summary>
     /// A replay is answered from the attempt that ran under its own operation
-    /// key. A case can carry attempts from more than one — an automatic sweep
-    /// and a later manual send — and answering by recency would report an
-    /// outcome that never belonged to the key being replayed.
+    /// key. A case can carry distinct explicit manual attempts, and answering
+    /// by recency would report an outcome that never belonged to the key being
+    /// replayed.
     /// </summary>
     [Fact]
     public async Task AttemptsAreDistinguishedByTheirOperationKey()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
-        const string automatic = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        const string manual = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        const string firstOperation = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        const string secondOperation = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
         await using (var context = await database.CreateContextAsync())
         {
             var first = Submission(caseId, EvaSubmissionOutcome.Unknown);
-            first.OperationKey = automatic;
+            first.OperationKey = firstOperation;
             first.SubmittedAtUtc = FixedUtcNow;
             var second = Submission(caseId, EvaSubmissionOutcome.Rejected);
-            second.OperationKey = manual;
+            second.OperationKey = secondOperation;
             second.SubmittedAtUtc = FixedUtcNow.AddMinutes(5);
             context.EvaSubmissions.AddRange(first, second);
             await context.SaveChangesAsync();
@@ -160,10 +159,10 @@ public sealed class EvaSubmissionPersistenceTests
         {
             var replayed = await context.EvaSubmissions
                 .AsNoTracking()
-                .SingleAsync(item => item.CaseId == caseId && item.OperationKey == automatic);
+                .SingleAsync(item => item.CaseId == caseId && item.OperationKey == firstOperation);
 
             // The later manual attempt must not answer for the earlier
-            // automatic one, which is exactly what ordering by recency did.
+            // explicit one, which is exactly what ordering by recency did.
             Assert.Equal(nameof(EvaSubmissionOutcome.Unknown), replayed.Outcome);
         }
     }

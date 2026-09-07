@@ -1,0 +1,101 @@
+@page "/Administration/Glass/{staffId:guid}"
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Administration.Glass.IndexModel
+@{
+    ViewData["Title"] = CaseWorkspaceLabels.GlassCredential.Title;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "accounts";
+    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
+}
+
+<partial name="Shared/_PageHeader" />
+
+@* Defensive only: the handler returns 404 when the account is absent, so the
+   not-found surface is owned by the error page. *@
+@if (Model.Account is { } account && Model.Status is { } status)
+{
+    <div class="admin-layout">
+        <partial name="Shared/_AdminNav" />
+        <div class="stack">
+            <partial name="Shared/_ErrorSummary" />
+
+            <section class="panel" aria-labelledby="glass-credential-title">
+                <div class="panel-head">
+                    <h2 id="glass-credential-title">@CaseWorkspaceLabels.GlassCredential.Title</h2>
+                    <partial name="Shared/_StatusChip" model="@Model.StateName" />
+                </div>
+                <dl class="detail-list">
+                    <div>
+                        <dt>@CaseWorkspaceLabels.GlassCredential.Account</dt>
+                        <dd>@account.UserName</dd>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(status.Username))
+                    {
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Username</dt>
+                            <dd>@status.Username</dd>
+                        </div>
+                    }
+                    @if (status.Configured)
+                    {
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Generation</dt>
+                            <dd class="tabular">@status.CredentialGeneration</dd>
+                        </div>
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Version</dt>
+                            <dd class="tabular">@status.Version</dd>
+                        </div>
+                    }
+                    @if (status.UpdatedAtUtc is { } updatedAtUtc)
+                    {
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Updated</dt>
+                            <dd>
+                                <time datetime="@updatedAtUtc.ToString("O")">@updatedAtUtc.ToString("u")</time>
+                            </dd>
+                        </div>
+                    }
+                </dl>
+            </section>
+
+            <section class="panel" aria-labelledby="glass-credential-save-title">
+                <div class="panel-head">
+                    <h2 id="glass-credential-save-title">@CaseWorkspaceLabels.GlassCredential.Save</h2>
+                </div>
+                <form method="post" asp-page-handler="Save" class="field">
+                    @* Plain, not asp-for: a redisplay must carry the version the
+                       store holds now, never the stale one the refused post sent. *@
+                    <input type="hidden" name="ExpectedVersion" value="@status.Version" />
+                    <label class="req" for="glass-username">@CaseWorkspaceLabels.GlassCredential.Username</label>
+                    <input id="glass-username" name="username" required maxlength="256"
+                           autocomplete="off" value="@Model.Username" />
+                    <label class="req" for="glass-password">@CaseWorkspaceLabels.GlassCredential.Password</label>
+                    @* No tag helper and no value attribute: the submitted secret
+                       is never written back into this field. *@
+                    <input id="glass-password" name="password" type="password" required
+                           maxlength="256" autocomplete="new-password" />
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                        <span>@CaseWorkspaceLabels.GlassCredential.Save</span>
+                    </button>
+                </form>
+            </section>
+
+            @if (status.Configured)
+            {
+                <section class="panel" aria-labelledby="glass-credential-clear-title">
+                    <div class="panel-head">
+                        <h2 id="glass-credential-clear-title">@CaseWorkspaceLabels.GlassCredential.Clear</h2>
+                    </div>
+                    <form method="post" asp-page-handler="Clear" class="field">
+                        <input type="hidden" name="ExpectedVersion" value="@status.Version" />
+                        <button type="submit" class="btn btn--danger">
+                            <span>@CaseWorkspaceLabels.GlassCredential.Clear</span>
+                        </button>
+                    </form>
+                </section>
+            }
+        </div>
+    </div>
+}

@@ -124,7 +124,13 @@ public sealed class CaseWorkflowMigrationTests
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = 'EvaFirstHandoffProxies'"));
         Assert.Equal(
-            ["20260906054658_V1PlatformFoundation"],
+            [
+                "20260906054658_V1PlatformFoundation",
+                "20260906170000_FilterActiveCaseReportGenerationSnapshot",
+                "20260906212604_RetainedMailboxReplyTargets",
+                "20260906220638_RemovePaintLabourRate",
+                "20260907093000_PublicUploadOccurrenceReplacementLineage"
+            ],
             await context.Database.GetPendingMigrationsAsync());
     }
 

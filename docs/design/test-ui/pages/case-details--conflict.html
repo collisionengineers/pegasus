@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Case QDOS3100042 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -430,11 +431,9 @@
 </section>
 
                 </section>
-                <section class="case-section" id="section-valuation" data-section="valuation">
-                        <section class="panel">
-                            <div class="panel-head"><h2 id="section-valuation-title">Valuation</h2></div>
-                        </section>
-                </section>
+                    <section class="case-section section-placeholder" id="section-valuation"
+                             data-section="valuation" data-lazy="valuation"
+                             aria-label="Valuation"></section>
                 <section class="case-section" id="section-estimate" data-section="estimate">
 
 <div class="stack">
@@ -443,6 +442,7 @@
             <h2 id="section-estimate-title">Estimate</h2>
         </div>
     </section>
+
 
     <section class="panel">
         <div class="panel-head"><h2>Estimates</h2></div>
@@ -653,10 +653,6 @@ AI                        </strong>
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
@@ -717,6 +713,8 @@ AI                        </strong>
     <div class="toast-region" aria-live="polite" data-toast-region></div>
 
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
+
+    <script src="../../../../src/Pegasus.Web/wwwroot/js/case-workspace.js"></script>
 
 </body>
 </html>

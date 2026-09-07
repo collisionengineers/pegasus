@@ -123,41 +123,28 @@ public sealed class TransitionCase(
         };
     }
 
+    /// <summary>
+    /// CASE-046: the transition carries no readiness claim. The store re-reads
+    /// the case's persisted completeness facts inside its own transaction and
+    /// decides there, so this seam neither demands nor forwards evidence.
+    /// </summary>
     private Task<CaseWorkflowRecord> ReturnToReviewAsync(
         TransitionCaseRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (request.Readiness is null)
-        {
-            throw new ArgumentException(
-                "A transition to Review requires readiness evidence.",
-                nameof(request));
-        }
-
-        return _returnToReview.ExecuteAsync(
+        CancellationToken cancellationToken) =>
+        _returnToReview.ExecuteAsync(
             new(
                 request.CaseId,
                 request.ExpectedVersion,
                 request.Actor,
                 request.OperationKey,
                 request.Reason,
-                request.EditLeaseToken,
-                request.Readiness),
+                request.EditLeaseToken),
             cancellationToken);
-    }
 
     private Task<CaseWorkflowRecord> StartCaseWorkAsync(
         TransitionCaseRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (request.Readiness is not null)
-        {
-            throw new ArgumentException(
-                "Readiness evidence is accepted only for a transition to Review.",
-                nameof(request));
-        }
-
-        return _startCaseWork.ExecuteAsync(
+        CancellationToken cancellationToken) =>
+        _startCaseWork.ExecuteAsync(
             new ChangeCaseStateRequest(
                 request.CaseId,
                 request.ExpectedVersion,
@@ -166,7 +153,6 @@ public sealed class TransitionCase(
                 request.Reason,
                 request.EditLeaseToken),
             cancellationToken);
-    }
 }
 
 public sealed class ArchiveCase(

@@ -2,20 +2,25 @@ using Azure.Storage.Blobs;
 using Azure.Core;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Eva;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -88,6 +93,59 @@ public sealed class ProductionCompositionTests
         Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
     }
 
+    [Fact]
+    public void CasePageAndCanonicalImportResolveTheirEstimateParsersAndGlassSessions()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var parsers = provider.GetServices<IEstimateDocumentParser>().ToArray();
+
+        Assert.Equal(3, parsers.Length);
+        Assert.IsType<AudatexEstimatePdfParser>(provider.GetRequiredService<IEstimateDocumentParser>());
+        Assert.Same(provider.GetRequiredService<JsonEstimateParser>(), Assert.Single(parsers.OfType<JsonEstimateParser>()));
+        Assert.Single(parsers.OfType<GlassEstimateXmlParser>());
+        Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
+        Assert.IsType<EfGlassRepairEstimateSessionStore>(
+            scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>());
+    }
+
+    [Fact]
+    public void GlassGatewayUsesValidatedConfigurationScopedStoreAndInertNamedHandler()
+    {
+        using var provider = BuildGlassProduction(GlassConfiguration());
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.IsType<GlassRepairEstimateGateway>(
+            services.GetRequiredService<IGlassRepairEstimateGateway>());
+        var store = services.GetRequiredService<IGlassRepairEstimateSessionStore>();
+        Assert.Same(store, services.GetRequiredService<IGlassRepairEstimateSessionReader>());
+
+        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>()
+            .CreateHandler(GlassRepairEstimateOptions.HttpClientName);
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler!;
+        }
+        var primary = Assert.IsType<HttpClientHandler>(handler);
+        Assert.False(primary.AllowAutoRedirect);
+        Assert.False(primary.UseCookies);
+    }
+
+    [Fact]
+    public void GlassGatewayRefusesMissingRequiredConfigurationByKey()
+    {
+        var configuration = GlassConfiguration();
+        configuration.Remove("Glass:RepairProfileId");
+        using var provider = BuildGlassProduction(configuration);
+        using var scope = provider.CreateScope();
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateGateway>());
+
+        Assert.Contains("Glass:RepairProfileId", error.Message, StringComparison.Ordinal);
+    }
+
     private const string BoxConfigJson = """
     {
       "boxAppSettings": {
@@ -158,6 +216,21 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionProfileSharesOperationsSnapshotWithAttentionRows()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var snapshot = services.GetRequiredService<GetOperationsSnapshot>();
+
+        Assert.Same(snapshot, services.GetRequiredService<IGetOperationsSnapshot>());
+        Assert.Same(snapshot, services.GetRequiredService<IGetAttentionRows>());
+        Assert.Single(services.GetServices<IGetOperationsSnapshot>());
+        Assert.Single(services.GetServices<IGetAttentionRows>());
+    }
+
+    [Fact]
     public void ProductionProfileDrivesTriageFromTheAcceptedRouteClassification()
     {
         // Automatic Triage matching was pinned inactive while its predicates
@@ -172,6 +245,33 @@ public sealed class ProductionCompositionTests
         Assert.IsType<QdosMailClassificationPolicy>(classification);
         Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
         Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
+    }
+
+    [Fact]
+    public void ProductionProfileComposesAllInstructionProfilesAndTheIntakeProcessor()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+        var services = scope.ServiceProvider;
+
+        var policies = services.GetServices<IInstructionExtractionPolicy>().ToArray();
+        Assert.Equal(15, policies.Length);
+        Assert.Equal(
+            policies.Length,
+            policies.Select(policy => policy.PrincipalCode).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(policies, policy => Assert.IsAssignableFrom<IInstructionDocumentProfile>(policy));
+
+        var qdos = services.GetRequiredService<QdosInstructionExtractionPolicy>();
+        Assert.Same(qdos, Assert.Single(policies, policy => policy is QdosInstructionExtractionPolicy));
+
+        Assert.NotNull(services.GetRequiredService<ProcessIntake>());
+        Assert.NotNull(services.GetRequiredService<InstructionExtractionPolicySelector>());
+        var analysis = services.GetRequiredService<AnalyzeRetainedInstruction>();
+        Assert.Same(analysis, services.GetRequiredService<IAnalyzeRetainedInstruction>());
+        var analysisStore = services.GetRequiredService<EfRetainedInstructionAnalysisStore>();
+        Assert.Same(
+            analysisStore,
+            services.GetRequiredService<IThirdPartyReportCandidateQueries>());
     }
 
     [Fact]
@@ -211,6 +311,9 @@ public sealed class ProductionCompositionTests
 
         Assert.IsType<EfDocumentRequestStore>(
             scope.ServiceProvider.GetRequiredService<IUploadToRequest>());
+        Assert.IsType<EfPublicUploadRetentionStore>(
+            scope.ServiceProvider.GetRequiredService<IIncomingArtifactRetentionStore>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>());
         Assert.IsType<BoxDocumentContentStore>(
             scope.ServiceProvider.GetRequiredService<IDocumentContentStore>());
     }
@@ -320,6 +423,31 @@ public sealed class ProductionCompositionTests
                 static _ => BoxOptions()));
         return services.BuildServiceProvider();
     }
+
+    private static ServiceProvider BuildGlassProduction(Dictionary<string, string?> configuration)
+    {
+        var services = NewServices();
+        services.AddDataProtection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(configuration)
+            .Build());
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxOptions()));
+        return services.BuildServiceProvider();
+    }
+
+    private static Dictionary<string, string?> GlassConfiguration() => new(StringComparer.Ordinal)
+    {
+        ["Glass:MarketValueAssessorBaseUri"] = "https://mva.example.test/",
+        ["Glass:EstimatorBaseUri"] = "https://estimator.example.test/",
+        ["Glass:CallbackBaseUri"] = "https://pegasus.example.test/",
+        ["Glass:RepairProfileId"] = "17",
+    };
 
     private static ServiceCollection NewServices() => new();
 

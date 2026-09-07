@@ -1508,6 +1508,9 @@ public static class OperatorLabels
             public const string Recorded = "recorded";
             public const string DeleteEstimate = "Delete estimate";
             public const string Duplicate = "Duplicate";
+            public const string Compare = "Compare";
+            public const string CompareEstimates = "Compare estimates";
+            public const string State = "State";
             public const string UseEstimate = "Use estimate";
             public const string SaveEstimate = "Save estimate";
             public const string AddLine = "Add line";
@@ -1553,6 +1556,15 @@ public static class OperatorLabels
             public const string Repair = "Repair";
             public const string RemoveAndRefit = "R&I";
             public const string PaintOperation = "Paint";
+
+            public static string EstimateState(RepairSpecificationState state) => state switch
+            {
+                RepairSpecificationState.Draft => "Draft",
+                RepairSpecificationState.Accepted => "Accepted",
+                RepairSpecificationState.Superseded => "Superseded",
+                RepairSpecificationState.Discarded => "Discarded",
+                _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
+            };
 
             public const string Settlement = "Settlement";
             public const string Outcome = "Outcome";
