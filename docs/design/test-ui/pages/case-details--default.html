@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Case QDOS3100042 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -219,7 +220,7 @@
             <span>You are editing this case.</span>
         </div>
     <div class="record-bar">
-            <form method="post" id="case-finish-editing-form" data-edit-toggle-off action="case-details--default.html">
+            <form method="post" id="case-finish-editing-form" data-edit-toggle-off action="#">
                 <input type="hidden" name="id" value="test-ui-guid-1" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
@@ -228,7 +229,7 @@
                     <span>Finish editing</span>
                 </button>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-            <form method="post" data-edit-renew action="case-details--default.html">
+            <form method="post" data-edit-renew action="#">
                 <input type="hidden" name="id" value="test-ui-guid-1" />
                 <input type="hidden" name="expectedVersion" value="7" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
@@ -238,7 +239,7 @@
                     <span>Renew editing</span>
                 </button>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                <form method="post" data-edit-heartbeat data-heartbeat-seconds="60" hidden action="case-details--default.html">
+                <form method="post" data-edit-heartbeat data-heartbeat-seconds="60" hidden action="#">
         <input type="hidden" name="id" value="test-ui-guid-1" />
         <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
@@ -377,7 +378,7 @@
         <section class="panel" aria-labelledby="case-edit-title">
             <div class="panel-head"><h2 id="case-edit-title">Edit Case data</h2></div>
             <div class="panel-body stack">
-                <form method="post" id="case-edit-form" data-edit-save class="stack" action="case-details--default.html">
+                <form method="post" id="case-edit-form" data-edit-save class="stack" action="#">
                     <input type="hidden" name="id" value="test-ui-guid-1" />
                     <input type="hidden" name="expectedVersion" value="7" />
                     <input type="hidden" name="operationKey" value="{{operationkey}}" />
@@ -511,7 +512,7 @@
     </div>
         <div class="panel-body stack">
 
-                <form method="post" class="stack" action="case-details--default.html">
+                <form method="post" class="stack" action="#">
                     <input type="hidden" name="id" value="test-ui-guid-1" />
                     <input type="hidden" name="expectedVersion" value="7" />
                     <input type="hidden" name="operationKey" value="{{operationkey}}" />
@@ -657,7 +658,7 @@
 </section>
 
     <dialog id="add-valuation" class="dialog">
-        <form method="post" class="stack" action="case-details--default.html">
+        <form method="post" class="stack" action="#">
             <div class="dialog-head"><h2>Add valuation</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
             <input type="hidden" name="id" value="test-ui-guid-1" />
             <input type="hidden" name="expectedVersion" value="7" />
@@ -685,6 +686,7 @@
             <h2 id="section-estimate-title">Estimate</h2>
         </div>
     </section>
+
 
     <section class="panel">
         <div class="panel-head"><h2>Estimates</h2></div>
@@ -762,16 +764,23 @@
     <section class="panel" aria-labelledby="case-upload-requests-title">
         <div class="panel-head">
             <h2 id="case-upload-requests-title">Public upload requests</h2>
-                <form method="post" action="#">
-                    <input type="hidden" name="id" value="test-ui-guid-1" />
-                    <input type="hidden" name="expectedVersion" value="7" />
-                    <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                    <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                        <span>Create upload request</span>
-                    </button>
-                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <button type="button" class="btn btn--primary" data-dialog-open="create-upload-request">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                    <span>Create upload request</span>
+                </button>
+                <dialog id="create-upload-request" class="dialog">
+                    <form method="post" class="stack" action="#">
+                        <div class="dialog-head"><h2>Create upload request</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
+                        <input type="hidden" name="id" value="test-ui-guid-1" />
+                        <input type="hidden" name="expectedVersion" value="7" />
+                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                        <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                        <div class="field"><label class="req" for="upload-request-recipient">Recipient</label><input id="upload-request-recipient" name="recipient" required maxlength="500" /></div>
+                        <div class="field"><label for="upload-request-reason">Reason</label><textarea id="upload-request-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
+                        <dl class="definition"><dt>Lifetime</dt><dd>0.04 days</dd><dt>Files</dt><dd>5</dd><dt>File size</dt><dd>1.0 MB</dd></dl>
+                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create</button></div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                </dialog>
         </div>
     </section>
 
@@ -1097,10 +1106,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
@@ -1161,6 +1166,8 @@
     <div class="toast-region" aria-live="polite" data-toast-region></div>
 
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
+
+    <script src="../../../../src/Pegasus.Web/wwwroot/js/case-workspace.js"></script>
 
 </body>
 </html>
