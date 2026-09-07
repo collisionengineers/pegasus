@@ -12,5 +12,5 @@ handoff; independent review and exact-merge proof remain owed.
 ## Closeout
 
 - [x] Final whole PASS proof read; exact merged PR/head and delivery trace recorded.
-- [ ] Preserve hash-verified TRXs and remove only validated clean owned Git workspaces/branches.
-- [ ] Release the ticket claim after cleanup.
+- [x] Preserve hash-verified TRXs and remove only validated clean owned Git workspaces/branches.
+- [x] Release the ticket claim after cleanup.
