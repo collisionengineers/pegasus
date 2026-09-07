@@ -4,4 +4,7 @@
 - [x] Focused actual-stream/early-rejection/success/isolation tests added.
 - [x] FRD and static checks recorded; source frozen for root verification.
 
-These check authored changes, not runtime PASS. Root build/tests and independent review are still owed.
+Root locked restore, Release build (0 warnings/errors, 53.21s) and exact
+12 focused integration tests PASS (77s, no skips) are recorded in the report.
+No duplicate worker tests. Source frozen for the authorized scoped PR/Review
+handoff; independent review and exact-merge proof remain owed.
