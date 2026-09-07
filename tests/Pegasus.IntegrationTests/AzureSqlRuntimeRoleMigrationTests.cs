@@ -999,7 +999,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 REPLICATE(N'A', 64), N'manual_upload', N'ocr-permission:{receiptId:N}',
                 '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00',
                 N'runtime-role-test', N'1', 0, N'retained',
-                N'runtime role permission fixture', N'[]', N'{{}}', N'[]');
+                N'runtime role permission fixture', N'[]', N'{"{}"}', N'[]');
             INSERT INTO [dbo].[IntakeAssets] (
                 [Id], [IntakeReceiptId], [SourceLabel], [FileName], [MediaType],
                 [Kind], [Disposition], [ContentLength], [ContentHash], [StorageKey])
