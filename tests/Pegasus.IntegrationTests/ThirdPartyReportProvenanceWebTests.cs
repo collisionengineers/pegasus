@@ -168,6 +168,25 @@ public sealed class ThirdPartyReportProvenanceWebTests
         // receipt carries no accepted case.
         Assert.Null(receipt.AcceptedCaseId);
         Assert.Null(receipt.CurrentCaseId);
+
+        var reports = await services.GetRequiredService<IThirdPartyReportCandidateQueries>()
+            .GetAsync(
+                StaffActor(),
+                receiptId,
+                documentVersionId: null,
+                intakeAssetId: IntakeFileIdentity.SourceAsset(receipt)!.Id,
+                CancellationToken.None);
+        var report = Assert.Single(reports);
+        Assert.Equal(receiptId, report.Identity.Issuer!.Source.ReceiptId);
+        Assert.Equal(hash, report.Sha256);
+        Assert.Equal(IntakeFileIdentity.SourceAsset(receipt)!.Id, report.IntakeAssetId);
+        Assert.Null(report.DocumentId);
+        Assert.Null(report.DocumentVersionId);
+        Assert.Equal("Montgomery Assessors", report.Identity.Issuer.Value);
+        var assessed = Assert.Single(
+            report.Estimates,
+            estimate => estimate.Role == ThirdPartyEstimateRole.Assessed);
+        Assert.Equal("1582.20", assessed.LabourAmount!.Source.NormalizedValue);
     }
 
     [ReferencePackFact]
@@ -530,6 +549,8 @@ public sealed class ThirdPartyReportProvenanceWebTests
             services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
                 provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
             services.AddScoped<ISourceCandidateQueries>(provider =>
+                provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
+            services.AddScoped<IThirdPartyReportCandidateQueries>(provider =>
                 provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
             services.AddScoped<IGetLatestRetainedInstructionAnalysis,
                 GetLatestRetainedInstructionAnalysis>();
