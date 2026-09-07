@@ -32,6 +32,33 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("/Administration/Organizations", landingHtml, StringComparison.Ordinal);
         Assert.Contains("/Administration/Principals", landingHtml, StringComparison.Ordinal);
 
+        var claimSourcesHtml = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            "/Administration/ClaimSources");
+        Assert.Contains("Create claim source", claimSourcesHtml, StringComparison.Ordinal);
+        Assert.Contains("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
+        var claimSourceForm = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(
+                claimSourcesHtml,
+                "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(claimSourcesHtml, "OperationKey"),
+            ["Name"] = "Web Caller Claim Source",
+            ["Notes"] = "Renamed",
+            ["Reason"] = "Web caller claim source proof"
+        };
+        using var claimSourcePost = await client.PostAsync(
+            "/Administration/ClaimSources?handler=Create",
+            new FormUrlEncodedContent(claimSourceForm));
+        Assert.Equal(HttpStatusCode.Redirect, claimSourcePost.StatusCode);
+        var claimSourceId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM ClaimSources WHERE Name = 'Web Caller Claim Source';");
+        var claimSourceEditHtml = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            $"/Administration/ClaimSources/Edit/{claimSourceId:D}");
+        Assert.Contains("Edit Web Caller Claim Source</h1>", claimSourceEditHtml, StringComparison.Ordinal);
+        Assert.Contains("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
+
         using var organizationGet = await client.GetAsync("/Administration/Organizations");
         var organizationHtml = await organizationGet.Content.ReadAsStringAsync();
         organizationGet.EnsureSuccessStatusCode();
