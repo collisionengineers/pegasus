@@ -17,6 +17,107 @@ public sealed class IntakeOcrTests
     private const string ResponseHash = "bb112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
     [Fact]
+    public async Task ACaseDocumentCompletesWithoutInstructionAnalysisAndReplaysWithoutResubmission()
+    {
+        var harness = new Harness(documentSource: true);
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5]);
+
+        await harness.ExecuteAsync();
+        await harness.ExecuteAsync();
+
+        var operation = harness.Store.Single();
+        Assert.Equal(IntakeOcrState.Completed, operation.State);
+        Assert.True(operation.AnalysisCompleted);
+        Assert.Equal(ResponseHash, operation.ResponseSha256);
+        Assert.Equal(1, harness.Provider.Analyses);
+        Assert.Empty(harness.Analysis.Requests);
+        var read = Assert.Single(harness.Documents.Requests);
+        Assert.Equal(harness.CaseDocument.DocumentId, read.DocumentId);
+        Assert.Equal(harness.CaseDocument.VersionId, read.VersionId);
+        Assert.Equal(harness.CaseDocument.CaseId, read.CaseId);
+        Assert.Null(read.IntakeAssetId);
+        Assert.Null(read.IntakeReceiptId);
+        var query = Assert.Single(harness.CaseDocuments.Queries);
+        Assert.Equal(harness.CaseDocument.OccurrenceId, query.OccurrenceId);
+    }
+
+    [Fact]
+    public async Task RetainedCaseOutputSettlesAfterRestartWithoutAnOcrOrInstructionCall()
+    {
+        var harness = new Harness(documentSource: true);
+        var pending = harness.Store.Single();
+        harness.Store.Seed(pending with
+        {
+            State = IntakeOcrState.Completed,
+            Result = Harness.Completed([2, 5]),
+            AnalysisCompleted = false
+        });
+
+        await harness.ExecuteAsync();
+
+        Assert.True(harness.Store.Single().AnalysisCompleted);
+        Assert.Equal(0, harness.Provider.Analyses);
+        Assert.Equal(0, harness.Provider.Reconciliations);
+        Assert.Empty(harness.Documents.Requests);
+        Assert.Empty(harness.Analysis.Requests);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("hash")]
+    [InlineData("length")]
+    public async Task ACaseSourceOutsideItsRecordedContextIsRefusedBeforeOcr(string change)
+    {
+        var harness = new Harness(documentSource: true);
+        harness.CaseDocuments.Result = change switch
+        {
+            "missing" => null,
+            "hash" => harness.CaseDocument with { Sha256 = ResponseHash },
+            _ => harness.CaseDocument with { ContentLength = SourceBytes.Length + 1 }
+        };
+
+        await harness.ExecuteAsync();
+
+        Assert.Equal(IntakeOcrState.Failed, harness.Store.Single().State);
+        Assert.StartsWith("ocr_source_unavailable", harness.Store.Single().LastError, StringComparison.Ordinal);
+        Assert.Equal(0, harness.Provider.Analyses);
+        Assert.Empty(harness.Documents.Requests);
+        Assert.Empty(harness.Analysis.Requests);
+    }
+
+    [Fact]
+    public async Task DocumentOperationIdentityBindsCaseOccurrenceVersionHashAndNormalizedPages()
+    {
+        var harness = new Harness();
+        var source = harness.CaseDocument;
+        var first = await IntakeOcrOperations.BeginDocumentAsync(harness.Store, source, [5, 2, 5], default);
+        var replay = await IntakeOcrOperations.BeginDocumentAsync(harness.Store, source, [2, 5], default);
+        var other = await IntakeOcrOperations.BeginDocumentAsync(harness.Store,
+            source with { OccurrenceId = Guid.NewGuid() }, [2, 5], default);
+
+        Assert.Equal(first.Id, replay.Id);
+        Assert.NotEqual(first.Id, other.Id);
+        Assert.Equal([2, 5], first.QualifiedPages);
+        Assert.Null(first.IntakeReceiptId);
+        Assert.Equal(source.CaseId, first.CaseId);
+        Assert.Equal(source.OccurrenceId, first.OccurrenceId);
+        Assert.Equal(source.VersionId, first.DocumentVersionId);
+        Assert.Equal(source.ContentLength, first.SourceContentLength);
+    }
+
+    [Fact]
+    public void AnOcrRequestMustIdentifyExactlyOneCompleteSourceContext()
+    {
+        var source = new IntakeOcrRequest(null, Guid.NewGuid(), null, SourceHash, 8, [1], "document",
+            Guid.NewGuid(), Guid.NewGuid());
+        IntakeOcrRequest.Validate(source);
+        Assert.Throws<ArgumentException>(() => IntakeOcrRequest.Validate(source with { OccurrenceId = null }));
+        Assert.Throws<ArgumentException>(() => IntakeOcrRequest.Validate(source with { CaseId = Guid.Empty }));
+        Assert.Throws<ArgumentException>(() => IntakeOcrRequest.Validate(source with { IntakeReceiptId = Guid.NewGuid() }));
+        Assert.Throws<ArgumentException>(() => IntakeOcrRequest.Validate(source with { IntakeAssetId = Guid.NewGuid() }));
+    }
+
+    [Fact]
     public async Task AnUnstartedOperationIsSubmittedCompletedAndReanalysedExactlyOnce()
     {
         var harness = new Harness();
@@ -395,30 +496,36 @@ public sealed class IntakeOcrTests
             IntakeOcrState state = IntakeOcrState.Pending,
             string? providerOperationId = null,
             int attemptCount = 0,
-            string? sourceSha256 = null)
+            string? sourceSha256 = null,
+            bool documentSource = false)
         {
             SourceAssetId = Guid.NewGuid();
             Receipt = BuildReceipt(SourceAssetId);
+            CaseDocuments.Result = documentSource ? CaseDocument : null;
             WorkItemId = Guid.NewGuid();
             Store.Seed(new(
                 WorkItemId,
-                Receipt.Id,
-                null,
-                SourceAssetId,
+                documentSource ? null : Receipt.Id,
+                documentSource ? CaseDocument.VersionId : null,
+                documentSource ? null : SourceAssetId,
                 sourceSha256 ?? SourceHash,
+                SourceBytes.Length,
                 [2, 5],
                 "ocr-1",
                 state,
                 1,
                 providerOperationId,
                 AttemptCount: attemptCount,
-                AnalysisCompleted: state == IntakeOcrState.Completed));
+                AnalysisCompleted: state == IntakeOcrState.Completed,
+                CaseId: documentSource ? CaseDocument.CaseId : null,
+                OccurrenceId: documentSource ? CaseDocument.OccurrenceId : null));
             Command = new ProcessIntakeOcr(
                 Store,
                 Provider,
                 Documents,
                 Analysis,
                 new FakeReceipts(Receipt),
+                CaseDocuments,
                 new FixedTime(Now));
         }
 
@@ -435,6 +542,12 @@ public sealed class IntakeOcrTests
         public FakeDocuments Documents { get; } = new();
 
         public FakeAnalysis Analysis { get; } = new();
+
+        public CaseDocumentMetadata CaseDocument { get; } = new(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            "estimate.pdf", "application/pdf", SourceBytes.Length, SourceHash);
+
+        public FakeCaseDocuments CaseDocuments { get; } = new();
 
         public ProcessIntakeOcr Command { get; }
 
@@ -537,10 +650,13 @@ public sealed class IntakeOcrTests
                     request.DocumentVersionId,
                     request.IntakeAssetId,
                     request.SourceSha256,
+                    request.SourceContentLength,
                     [.. request.QualifiedPages.Order()],
                     request.OperationKey,
                     IntakeOcrState.Pending,
-                    1),
+                    1,
+                    CaseId: request.CaseId,
+                    OccurrenceId: request.OccurrenceId),
                 operation => operation));
         }
 
@@ -694,6 +810,8 @@ public sealed class IntakeOcrTests
     {
         public int Opens { get; private set; }
 
+        public List<ReadLogicalDocumentVersionRequest> Requests { get; } = [];
+
         public bool FailToOpen { get; set; }
 
         public Task<LogicalDocumentContent> OpenAsync(
@@ -701,6 +819,7 @@ public sealed class IntakeOcrTests
             CancellationToken cancellationToken)
         {
             Opens++;
+            Requests.Add(request);
             if (FailToOpen)
             {
                 throw new IOException("The retained asset is not available.");
@@ -721,6 +840,20 @@ public sealed class IntakeOcrTests
                 SourceBytes.Length,
                 "instruction.pdf",
                 "application/pdf"));
+        }
+    }
+
+    private sealed class FakeCaseDocuments : IGetCaseDocumentMetadata
+    {
+        public CaseDocumentMetadata? Result { get; set; }
+        public List<GetCaseDocumentMetadataQuery> Queries { get; } = [];
+
+        public Task<CaseDocumentMetadata?> ExecuteAsync(GetCaseDocumentMetadataQuery query, CancellationToken cancellationToken)
+        {
+            Queries.Add(query);
+            return Task.FromResult(Result is { } source && source.CaseId == query.CaseId
+                && source.OccurrenceId == query.OccurrenceId && source.VersionId == query.VersionId
+                ? source : null);
         }
     }
 

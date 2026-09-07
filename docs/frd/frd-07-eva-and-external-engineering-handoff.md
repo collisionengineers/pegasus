@@ -144,6 +144,26 @@ the instruction arrives.
 
 ### External boundary
 
+#### Retained PDF estimates
+
+The canonical estimate-import command accepts the supplied Glass's calculation
+and Audatex full-report PDFs through their deterministic provider mappings.
+It retains the original document and source hash before importing a Draft;
+the same Case and source hash replay the same import. Printed totals, rates,
+line structure and provider identity must agree. PDF net labour is not reduced
+again by an XML-specific overlap rule.
+
+Embedded text is the first source. A positively established unusable font map
+or a qualified scan-like page may use the existing page-restricted OCR path
+under [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) and
+[FRD-05](frd-05-documents-extraction-and-custody.md#qualified-ocr). Mere parser
+failure is not qualification. A pending or uncertain OCR operation is not an
+imported estimate. Retained output may be consumed later by the same command
+under the current Case version and edit lease; no background OCR completion
+can overwrite the Engineer's current work or select a Current estimate.
+
+#### Integration routes
+
 Three routes are planned:
 
 1. the current manual package import into EVA;

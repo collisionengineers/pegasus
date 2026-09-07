@@ -69,10 +69,15 @@ public sealed class EfIntakeOcrOperationStore(
             .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
         if (existing is not null)
         {
+            var source = Envelope(existing.QualifiedPagesJson);
             if (existing.Id != operationId
                 || !string.Equals(existing.SourceSha256.TrimEnd(), request.SourceSha256, StringComparison.OrdinalIgnoreCase)
                 || existing.DocumentVersionId != request.DocumentVersionId
                 || existing.IntakeAssetId != request.IntakeAssetId
+                || source.IntakeReceiptId != request.IntakeReceiptId
+                || source.CaseId != request.CaseId
+                || source.OccurrenceId != request.OccurrenceId
+                || source.SourceContentLength != request.SourceContentLength
                 || !Pages(existing.QualifiedPagesJson).SequenceEqual(pages))
             {
                 throw new IntakeOcrOperationConflictException();
@@ -97,7 +102,8 @@ public sealed class EfIntakeOcrOperationStore(
             IntakeAssetId = request.IntakeAssetId,
             SourceSha256 = request.SourceSha256,
             QualifiedPagesJson = JsonSerializer.Serialize(
-                new OperationEnvelope(2, request.IntakeReceiptId, pages, 0, null, null),
+                new OperationEnvelope(3, request.IntakeReceiptId, pages, 0, null, null,
+                    request.SourceContentLength, request.CaseId, request.OccurrenceId),
                 SerializerOptions),
             OperationKey = key,
             State = nameof(IntakeOcrState.Pending),
@@ -130,7 +136,7 @@ public sealed class EfIntakeOcrOperationStore(
         {
             var envelope = Envelope(entity.QualifiedPagesJson);
             entity.QualifiedPagesJson = JsonSerializer.Serialize(
-                envelope with { Version = 2, SubmitAttemptedAtUtc = attemptedAtUtc },
+                envelope with { SubmitAttemptedAtUtc = attemptedAtUtc },
                 SerializerOptions);
             entity.State = nameof(IntakeOcrState.Processing);
             entity.RetryAtUtc = null;
@@ -155,7 +161,7 @@ public sealed class EfIntakeOcrOperationStore(
                 entity.ProviderOperationId = providerOperationId.Trim();
                 var envelope = Envelope(entity.QualifiedPagesJson);
                 entity.QualifiedPagesJson = JsonSerializer.Serialize(
-                    envelope with { Version = 2, SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
+                    envelope with { SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
                 entity.State = nameof(IntakeOcrState.Processing);
                 entity.RetryAtUtc = null;
                 workItem.State = ExternalWorkStatePersistence.Processing;
@@ -273,7 +279,6 @@ public sealed class EfIntakeOcrOperationStore(
                 entity.QualifiedPagesJson = JsonSerializer.Serialize(
                     envelope with
                     {
-                        Version = 2,
                         AttemptCount = envelope.AttemptCount + 1,
                         SubmitAttemptedAtUtc = state == IntakeOcrState.RetryScheduled
                             ? null
@@ -358,6 +363,7 @@ public sealed class EfIntakeOcrOperationStore(
             entity.DocumentVersionId,
             entity.IntakeAssetId,
             entity.SourceSha256.TrimEnd(),
+            envelope.SourceContentLength,
             envelope.Pages,
             entity.OperationKey,
             Enum.Parse<IntakeOcrState>(entity.State),
@@ -371,7 +377,9 @@ public sealed class EfIntakeOcrOperationStore(
             envelope.SubmitAttemptedAtUtc,
             envelope.SubmittedAtUtc,
             typedResult,
-            result?.AnalysisCompleted ?? false);
+            result?.AnalysisCompleted ?? false,
+            envelope.CaseId,
+            envelope.OccurrenceId);
     }
 
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
@@ -387,11 +395,14 @@ public sealed class EfIntakeOcrOperationStore(
     /// </param>
     private sealed record OperationEnvelope(
         int Version,
-        Guid IntakeReceiptId,
+        Guid? IntakeReceiptId,
         int[] Pages,
         int AttemptCount,
         DateTimeOffset? SubmitAttemptedAtUtc,
-        DateTimeOffset? SubmittedAtUtc);
+        DateTimeOffset? SubmittedAtUtc,
+        long SourceContentLength,
+        Guid? CaseId,
+        Guid? OccurrenceId);
 
     private sealed record ResultEnvelope(
         int Version,
