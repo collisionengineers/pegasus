@@ -68,6 +68,9 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<caption class=\"sr-only\">Mail categories</caption>", page, StringComparison.Ordinal);
         Assert.Contains("?handler=Update", page, StringComparison.Ordinal);
         Assert.Contains("?handler=SaveCategory", page, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://github.com/collisionengineers/pegasus/blob/dev/docs/runbook.md#approved-mailbox-estate\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"StaffSend\"", page, StringComparison.Ordinal);
+        Assert.Contains("Verified encoded-message size limit (bytes)", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,6 +137,125 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             $"<td>{NewAddress}</td>",
             await GetPageAsync(client),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadAccessIsCheckedBeforeApprovalAndFailureDoesNotEnableTheMailbox()
+    {
+        var resolver = new AccessResolver(new("resolved-mailbox-id", "resolved-inbox-id", "resolved-sent-id"), canRead: false);
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var page = await GetPageAsync(client);
+
+        var response = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = NewMailboxId(page),
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Verify the mailbox before enabling it",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, resolver.AccessChecks);
+        Assert.Contains("could not verify read access", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain($"<td>{NewAddress}</td>", await GetPageAsync(client), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StaffSendCannotBeEnabledWithoutAVerifiedEncodedMessageLimit()
+    {
+        var resolver = new AccessResolver(new("resolved-mailbox-id", "resolved-inbox-id", "resolved-sent-id"), canRead: true);
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var page = await GetPageAsync(client);
+
+        var response = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = NewMailboxId(page),
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "StaffSend",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Enable staff send",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, resolver.AccessChecks);
+        Assert.Contains("verified encoded-message size limit", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DisabledMailboxCanChangeCoordinatesThenReenableWithANewGeneration()
+    {
+        var replacementAddress = "replacement@collisionengineers.co.uk";
+        var resolver = new SequencedResolver(
+            new("first-mailbox-id", "first-inbox-id", "first-sent-id"),
+            new("replacement-mailbox-id", "replacement-inbox-id", "replacement-sent-id"),
+            new("replacement-mailbox-id", "replacement-inbox-id", "replacement-sent-id"));
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetPageAsync(client);
+        var mailboxId = NewMailboxId(page);
+        var created = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["MailboxForm.Reason"] = "Record an inactive mailbox before activation",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+        Assert.Equal(HttpStatusCode.Found, created.StatusCode);
+
+        var disabled = await GetPageAsync(client);
+        var replaced = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "1",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = replacementAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["MailboxForm.Reason"] = "Correct the inactive mailbox coordinates",
+            ["__RequestVerificationToken"] = AntiforgeryToken(disabled)
+        });
+        Assert.Equal(HttpStatusCode.Found, replaced.StatusCode);
+
+        var replacement = await GetPageAsync(client);
+        var reenabled = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "2",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = replacementAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.Reason"] = "Enable the verified replacement mailbox",
+            ["__RequestVerificationToken"] = AntiforgeryToken(replacement)
+        });
+        Assert.Equal(HttpStatusCode.Found, reenabled.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var stored = await context.ApprovedMailboxes.SingleAsync(item =>
+            item.Id == Guid.Parse(mailboxId));
+        Assert.Equal(replacementAddress, stored.Address);
+        Assert.Equal("replacement-mailbox-id", stored.MailboxIdentity);
+        Assert.Equal(1, stored.MailboxGeneration);
+        Assert.Equal(ApprovedMailboxState.Approved.ToString(), stored.State);
     }
 
     [Fact]
@@ -231,6 +353,26 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             {
                 var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
                 mailbox.ActivatedAtUtc = activatedAtUtc;
+                var poll = await context.ApprovedInboxPollStates
+                    .SingleOrDefaultAsync(item => item.ApprovedMailboxId == mailboxId);
+                if (poll is null)
+                {
+                    poll = new()
+                    {
+                        ApprovedMailboxId = mailboxId,
+                        MailboxAddress = mailbox.Address,
+                        ScopeFingerprint = new string('0', 64),
+                        ActivatedAtUtc = activatedAtUtc,
+                        StartBoundaryUtc = activatedAtUtc,
+                        DueAtUtc = activatedAtUtc
+                    };
+                    context.ApprovedInboxPollStates.Add(poll);
+                }
+                poll.StartBoundaryUtc = activatedAtUtc;
+                poll.Generation = 1;
+                poll.LastCompletedAtUtc = new DateTimeOffset(
+                    2031, 5, 6, 10, 20, 0, TimeSpan.Zero);
+                poll.LastFailureCode = "graph_unavailable";
                 await context.SaveChangesAsync();
             }
 
@@ -242,7 +384,9 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
                     expiresAtUtc,
                     ApprovedMailboxSubscriptionLifecycleState.Missed,
                     activatedAtUtc.AddHours(6),
-                    "graph_subscription_renew_failed"),
+                    "graph_subscription_renew_failed",
+                    1),
+                null,
                 CancellationToken.None);
         }
 
@@ -256,6 +400,20 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("subscription-id", page, StringComparison.Ordinal);
         Assert.DoesNotContain("mailFolders", page, StringComparison.Ordinal);
+        Assert.Contains("<dt>Start boundary</dt><dd>27 Aug 2026 11:20</dd>", page, StringComparison.Ordinal);
+        Assert.Contains("<dt>Generation</dt><dd>1</dd>", page, StringComparison.Ordinal);
+        Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", page, StringComparison.Ordinal);
+        Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", page, StringComparison.Ordinal);
+        var health = await client.GetStringAsync("/Administration/Health");
+        Assert.Contains("Last successful poll:", health, StringComparison.Ordinal);
+        Assert.Contains("<td>graph_unavailable</td>", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th>Latest evidence</th>", health, StringComparison.Ordinal);
+        Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", page, StringComparison.Ordinal);
+        Assert.Contains("<dt>Subscription expiry</dt><dd>02 Sep 2026 10:05</dd>", page, StringComparison.Ordinal);
+        Assert.Contains(
+            "<dt>Capabilities</dt><dd>New instructions and Triage mail (Inbox)</dd>",
+            page,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -280,6 +438,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.VerifiedEncodedMessageSizeLimit"] = "10485760",
             ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
@@ -310,6 +469,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         AssertFolderBinding(reloaded, "Instructions", "Not configured");
         AssertFolderBinding(reloaded, "Billing", "Configured");
         Assert.DoesNotContain("billing-id", reloaded, StringComparison.Ordinal);
+        Assert.Contains("value=\"10485760\"", reloaded, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -358,15 +518,19 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     }
 
     private sealed class StubResolver(ApprovedMailboxIdentityResolution? resolution)
-        : IResolveApprovedMailboxIdentity
+        : IResolveApprovedMailboxIdentity, ICheckApprovedMailboxAccess
     {
         public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
             string address,
             CancellationToken cancellationToken) => Task.FromResult(resolution);
+
+        public Task<bool> CanReadInboxAsync(
+            ApprovedMailboxIdentityResolution mailbox,
+            CancellationToken cancellationToken) => Task.FromResult(true);
     }
 
     private sealed class SequencedResolver(params ApprovedMailboxIdentityResolution[] resolutions)
-        : IResolveApprovedMailboxIdentity
+        : IResolveApprovedMailboxIdentity, ICheckApprovedMailboxAccess
     {
         private int _index;
 
@@ -375,6 +539,29 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             CancellationToken cancellationToken) =>
             Task.FromResult<ApprovedMailboxIdentityResolution?>(
                 resolutions[Math.Min(_index++, resolutions.Length - 1)]);
+
+        public Task<bool> CanReadInboxAsync(
+            ApprovedMailboxIdentityResolution mailbox,
+            CancellationToken cancellationToken) => Task.FromResult(true);
+    }
+
+    private sealed class AccessResolver(
+        ApprovedMailboxIdentityResolution resolution,
+        bool canRead) : IResolveApprovedMailboxIdentity, ICheckApprovedMailboxAccess
+    {
+        public int AccessChecks { get; private set; }
+
+        public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
+            string address,
+            CancellationToken cancellationToken) => Task.FromResult<ApprovedMailboxIdentityResolution?>(resolution);
+
+        public Task<bool> CanReadInboxAsync(
+            ApprovedMailboxIdentityResolution mailbox,
+            CancellationToken cancellationToken)
+        {
+            AccessChecks++;
+            return Task.FromResult(canRead);
+        }
     }
 
     private static ApprovedMailboxIdentityResolution Resolution(

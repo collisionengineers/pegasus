@@ -112,6 +112,7 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Box:BaseUri")]
     [InlineData("Box:UploadUri")]
     [InlineData("Box:RootFolderId")]
+    [InlineData("Box:HoldingFolderId")]
     [InlineData("Box:ConfigJson")]
     [InlineData("Box:ClientSecret")]
     [InlineData("Eva:BaseUri")]
@@ -141,6 +142,7 @@ public sealed class LocalIntakeAccessTests
             ["Box:BaseUri"] = "https://api.box.com/2.0/",
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",
+            ["Box:HoldingFolderId"] = "test-holding-folder",
             ["Box:ConfigJson"] = "{}",
             ["Box:ClientSecret"] = "client-secret",
             ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",

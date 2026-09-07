@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,12 +23,21 @@ public sealed partial class TestUiSnapshotTests
             ["sign-in--signed-out"] = new("You are signed out"),
             ["administration-accounts--empty"] = new("No staff accounts are available."),
             ["administration-configuration--default"] = new("Workflow configuration"),
-            // The Disable branch is the one that renders the consequence
-            // notice; every other operation falls to the review state.
-            ["administration-account-confirm--disable"] =
-                new("Disabling revokes existing browser sessions"),
+            ["administration-claim-sources--empty"] = new(
+                "Create claim source", "Current claim sources"),
+            ["administration-claim-source-edit--default"] = new(
+                "Edit Web Caller Claim Source</h1>", "Renamed"),
+            ["administration-account-confirm--disable"] = new("Disable account"),
+            ["administration-account-confirm--enable"] = new("Enable account"),
+            ["administration-account-confirm--delete"] = new("Delete account"),
+            ["administration-account-confirm--force-logout"] = new("Force logout"),
+            ["administration-account-confirm--reset-password"] = new("Reset password"),
+            ["administration-account-confirm--clear-lease"] = new("Clear case edit hold"),
             ["administration-principal-eva-submission--default"] = new(
                 "EVA API submission for WEBP", "We could not complete that request"),
+            // The seeded list before any administrator change: the create
+            // form is present and no test-created preset has been added.
+            ["administration-valuation-presets--default"] = new("Create preset", "Roof rack"),
             ["case-details--default"] = new(
                 "You are editing this case.",
                 AlsoRequired: "case-overview-panel",
@@ -43,7 +53,8 @@ public sealed partial class TestUiSnapshotTests
                 "<p>No mail has been received.</p>", "status--red\">Unavailable<"),
             ["inbox--unavailable"] = new(">Unavailable<"),
             ["inbox--default"] = new("<h1>Inbox</h1>"),
-            ["operations--partial-data"] = new(">Service health</strong>"),
+            ["mail-compose--default"] = new("<h1>Compose</h1>", "validation-summary-errors"),
+            ["operations--partial-data"] = new(">Partial data</strong>"),
             ["operations--empty"] = new(">No retryable external work<"),
             ["queues--empty"] = new("class=\"muted\">0 items</span>"),
             ["upload--validation"] = new("validation-summary-errors"),
@@ -102,6 +113,22 @@ public sealed partial class TestUiSnapshotTests
         await VerifyOfflineBrowserRenderAsync(catalogueRoot, generated);
     }
 
+    [Fact]
+    public void SnapshotRoutesHonorSupportedParameterConstraints()
+    {
+        var id = Guid.NewGuid();
+
+        Assert.False(RouteMatches("/Inbox/{id:guid}", "/Inbox/Compose"));
+        Assert.True(RouteMatches("/Inbox/{id:guid}", $"/Inbox/{id:D}"));
+        Assert.True(RouteMatches("/Inbox/{id:guid}", $"/Inbox/{id:N}"));
+        Assert.True(RouteMatches("/status/{code:int}", "/status/-1"));
+        Assert.False(RouteMatches("/status/{code:int}", "/status/2147483648"));
+        Assert.True(RouteMatches("/Uploads/{token}", "/Uploads/opaque-token"));
+        var exception = Assert.Throws<InvalidDataException>(
+            () => RouteMatches("/Inbox/{id:unknown}", $"/Inbox/{id:D}"));
+        Assert.Contains("unknown", exception.Message, StringComparison.Ordinal);
+    }
+
     private static async Task VerifyOfflineBrowserRenderAsync(string catalogueRoot, IReadOnlyDictionary<string, string> generated)
     {
         using var playwright = await Playwright.CreateAsync();
@@ -130,9 +157,8 @@ public sealed partial class TestUiSnapshotTests
         var missing = new List<string>();
         foreach (var entry in manifest.Where(item => item.Classification == "visual"))
         {
-            var routePattern = RoutePattern(entry.Route);
             var routeCandidates = candidates
-                .Where(candidate => routePattern.IsMatch(candidate.Path))
+                .Where(candidate => RouteMatches(entry.Route, candidate.Path))
                 .ToArray();
             foreach (var state in entry.States)
             {
@@ -229,7 +255,7 @@ public sealed partial class TestUiSnapshotTests
             var path = url.Split('?', '#')[0];
             var target = manifest
                 .Where(entry => entry.Classification == "visual")
-                .FirstOrDefault(entry => RoutePattern(entry.Route).IsMatch(path))?
+                .FirstOrDefault(entry => RouteMatches(entry.Route, path))?
                 .States.FirstOrDefault(state => state.State == "default")?.File;
             if (target is null)
             {
@@ -379,15 +405,53 @@ public sealed partial class TestUiSnapshotTests
         return assets;
     }
 
-    private static Regex RoutePattern(string route)
+    private static bool RouteMatches(string route, string path)
     {
-        var pattern = string.Join(
-            "/",
-            route.Split('/').Select(segment =>
-                segment.StartsWith('{') && segment.EndsWith('}')
-                    ? "[^/]+"
-                    : Regex.Escape(segment)));
-        return new Regex("^" + pattern + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        var routeSegments = route.Split('/');
+        var pathSegments = path.Split('/');
+        if (routeSegments.Length != pathSegments.Length)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < routeSegments.Length; index++)
+        {
+            var routeSegment = routeSegments[index];
+            var pathSegment = pathSegments[index];
+            if (!routeSegment.StartsWith('{') || !routeSegment.EndsWith('}'))
+            {
+                if (!routeSegment.Equals(pathSegment, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                continue;
+            }
+
+            if (pathSegment.Length == 0)
+            {
+                return false;
+            }
+
+            var parameter = routeSegment[1..^1];
+            var separator = parameter.IndexOf(':');
+            if (separator < 0)
+            {
+                continue;
+            }
+
+            var constraint = parameter[(separator + 1)..];
+            var matches = constraint.Equals("guid", StringComparison.OrdinalIgnoreCase)
+                ? Guid.TryParse(pathSegment, out _)
+                : constraint.Equals("int", StringComparison.OrdinalIgnoreCase)
+                    ? int.TryParse(pathSegment, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
+                    : throw new InvalidDataException($"Unsupported Test UI route constraint '{constraint}'.");
+            if (!matches)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string FindRepoRoot()

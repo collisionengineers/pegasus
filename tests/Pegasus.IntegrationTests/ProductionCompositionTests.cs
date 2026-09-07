@@ -6,12 +6,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Eva;
 using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
@@ -23,6 +27,67 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class ProductionCompositionTests
 {
+    [Fact]
+    public async Task DevelopmentOfflineComposesFailClosedStaffMailWithoutMailTransport()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var reportSender = services.GetRequiredService<IStaffReportSend>();
+        var mailSender = services.GetRequiredService<IStaffMailSend>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var generationId = Guid.NewGuid();
+        var attachments = Array.Empty<StaffMailAttachment>();
+        var command = new StaffReportSendCommand(
+            new StaffMailSendCommand(
+                actor, Guid.NewGuid(), 1, StaffMailPurpose.CaseReport, generationId, 1,
+                StaffMailComposeMode.New, null, [new("operator@example.test", null)], [],
+                "Case report", "Body", attachments, "offline-report-send"),
+            new ReportSendReadinessRequest(
+                actor, Guid.NewGuid(), 1, generationId, 1, Guid.NewGuid(), 1, attachments));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => reportSender.SendAsync(command, CancellationToken.None));
+
+        Assert.Equal(
+            "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
+            error.Message);
+        var mailError = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => mailSender.SendAsync(command.Mail, CancellationToken.None));
+        Assert.Equal(error.Message, mailError.Message);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => mailSender.GetAsync(actor, Guid.NewGuid(), new CancellationToken(canceled: true)));
+        Assert.Null(services.GetService<IStaffMailTransport>());
+        Assert.Null(services.GetService<GraphMailClient>());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExternalHttpClientsKeepIndependentTimeoutsAndHeaders(bool boxFirst)
+    {
+        var services = NewServices();
+        if (boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
+        services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        services.AddEvaApiSubmission(_ => throw new InvalidOperationException("No provider configuration is read by this client test."));
+        if (!boxFirst) services.AddProductionBoxCustody(_ => BoxOptions());
+        using var provider = services.BuildServiceProvider();
+        var factory = provider.GetRequiredService<IHttpClientFactory>();
+        using var box = factory.CreateClient(nameof(BoxContentClient));
+        using var graph = factory.CreateClient(nameof(GraphMailClient));
+        using var eva = factory.CreateClient(nameof(EvaApiTransport));
+
+        Assert.Equal(BoxJwtAuthorizationHeaderProvider.RequestTimeout, box.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+        box.DefaultRequestHeaders.Add("X-Composition-Only", "box");
+        box.Timeout = TimeSpan.FromSeconds(1);
+        Assert.False(graph.DefaultRequestHeaders.Contains("X-Composition-Only"));
+        Assert.False(eva.DefaultRequestHeaders.Contains("X-Composition-Only"));
+        Assert.Equal(TimeSpan.FromSeconds(100), graph.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(100), eva.Timeout);
+    }
+
     private const string BoxConfigJson = """
     {
       "boxAppSettings": {
@@ -232,7 +297,8 @@ public sealed class ProductionCompositionTests
                     "https://upload.box.com/api/2.0/",
                     "405543781910",
                     "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
-                    "client-secret")));
+                    "client-secret",
+                    "test-holding-folder")));
         using var provider = services.BuildServiceProvider();
 
         Assert.IsType<AzureBlobIntakeArtifactStore>(
@@ -265,7 +331,8 @@ public sealed class ProductionCompositionTests
         "https://upload.box.com/api/2.0/",
         "405543781910",
         BoxConfigJson,
-        "client-secret");
+        "client-secret",
+        "test-holding-folder");
 
     private sealed class CompositionCredential : TokenCredential
     {

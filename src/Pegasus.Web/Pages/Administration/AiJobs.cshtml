@@ -1,0 +1,39 @@
+@page
+@using Pegasus.Core.AiWork
+@model Pegasus.Web.Pages.Administration.AiJobsModel
+@{ ViewData["Title"] = "AI jobs"; ViewData["Eyebrow"] = "Administration"; }
+<partial name="Shared/_PageHeader" />
+<div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
+@if (Model.StatusMessage is { } message) { <div class="notice" role="status">@message</div> }
+<section class="panel"><div class="panel-head"><h2>AI jobs</h2><span class="muted">@Model.Result.Counts.Active active · @Model.Result.Counts.Failed failed · @(Model.Result.TransportComposed ? (Model.Result.SendToAiSwitchEnabled ? "Active" : "Stopped") : "Unavailable")</span></div>
+<div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Job</th><th>Subject</th><th>Created</th><th>State</th><th>Action</th></tr></thead><tbody>
+@foreach (var job in Model.Result.Jobs)
+{
+    <tr>
+        <td>@job.Kind</td>
+        <td>@job.SubjectReference</td>
+        <td>@job.CreatedAtUtc</td>
+        <td>@job.State</td>
+        <td>
+            @if (!AiJobStates.IsTerminal(job.State))
+            {
+                <details>
+                    <summary class="btn btn--small btn--danger">Stop</summary>
+                    <form method="post" asp-page-handler="Stop" class="row-confirm">
+                        <input type="hidden" name="jobId" value="@job.JobId" />
+                        <input type="hidden" name="expectedVersion" value="@job.Version" />
+                        <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                        <label>Reason <input name="reason" maxlength="500" required /></label>
+                        <button class="btn btn--small" type="submit">Stop</button>
+                    </form>
+                </details>
+            }
+            else
+            {
+                <span>—</span>
+            }
+        </td>
+    </tr>
+}
+</tbody></table></div>@if (Model.Result.HasMore) { <a asp-page="/Administration/AiJobs" asp-route-page="@(Model.CurrentPage + 1)">Next</a> }</div></section>
+</div></div>

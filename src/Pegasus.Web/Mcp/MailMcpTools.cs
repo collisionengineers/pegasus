@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Pegasus.Core;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Intake;
@@ -35,10 +36,7 @@ internal sealed record MailToolSummary(
 
 internal sealed record MailToolPage(
     IReadOnlyList<MailToolSummary> Items,
-    int Page,
-    int PageSize,
-    int TotalCount,
-    int TotalPages,
+    string? Continuation,
     bool HasUnretainedHistory,
     IReadOnlyList<MailToolMailbox> Mailboxes,
     MailToolFreshness Freshness);
@@ -122,7 +120,8 @@ internal sealed class MailMcpTools(
     GetRetainedMailFreshness getFreshness,
     CorrectRetainedMailClassification correctClassification,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor)
+    AutomationMcpAuditor auditor,
+    ICursorProtector cursors)
 {
     [McpServerTool(
         Name = "pegasus_mail_list",
@@ -136,7 +135,8 @@ internal sealed class MailMcpTools(
     public async Task<MailToolPage> ListAsync(
         [Description("Optional exact mailbox identity from the mailboxes list. Omit for every mailbox.")] string? mailbox = null,
         [Description("Optional folder scope: inbox, sent, or deleted. Defaults to inbox.")] string? folder = null,
-        [Description("Optional page number, starting at 1.")] int? pageNumber = null,
+        [Description("Opaque continuation returned by the preceding call.")] string? continuation = null,
+        [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
@@ -159,22 +159,31 @@ internal sealed class MailMcpTools(
                         ? mailboxId
                         : null,
                     folderScope);
-                var page = await listRetainedMail.ExecuteAsync(
-                    context.Actor,
-                    scope,
-                    Math.Clamp(pageNumber ?? 1, 1, 10_000),
-                    IndexModel.PageSize,
-                    cancellationToken);
+                var limit = CursorPaging.NormalizeLimit(pageSize == 0 ? null : pageSize);
+                var cursorScope = CursorPaging.CreateScope(
+                    "pegasus_mail_list", context.Actor, scope.MailboxId?.ToString("D"),
+                    scope.Folder.ToString(), "received-id-desc");
+                DateTimeOffset? beforeReceived = null;
+                Guid? beforeId = null;
+                if (!string.IsNullOrWhiteSpace(continuation))
+                {
+                    var position = cursors.Unprotect(continuation, cursorScope);
+                    beforeReceived = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+                    beforeId = position.Id;
+                }
+                var page = await listRetainedMail.ExecuteCursorAsync(
+                    context.Actor, scope, beforeReceived, beforeId, limit, cancellationToken);
+                var next = page.HasMore && page.Items.Count > 0
+                    ? cursors.Protect(cursorScope,
+                        CursorPaging.EncodeUtcTimestamp(page.Items[^1].ReceivedAtUtc), page.Items[^1].Id)
+                    : null;
                 var mailboxes = await listRetainedMail.ListMailboxesAsync(
                     context.Actor,
                     cancellationToken);
                 var freshness = await getFreshness.ExecuteAsync(context.Actor, cancellationToken);
                 return new MailToolPage(
                     page.Items.Select(Map).ToArray(),
-                    page.Page,
-                    page.PageSize,
-                    page.TotalCount,
-                    page.TotalPages,
+                    next,
                     page.HasUnretainedHistory,
                     mailboxes.Select(item => new MailToolMailbox(
                         item.MailboxId.ToString("D"),

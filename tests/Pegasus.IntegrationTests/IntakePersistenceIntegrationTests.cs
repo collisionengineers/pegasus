@@ -121,7 +121,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260903233954_MarketResearchAiJob",
                 "20260904210022_EngineerNotes",
                 "20260904233144_CaseInspectionAddressChoices",
-                "20260905010654_CaseSignOffEngineer"
+                "20260905010654_CaseSignOffEngineer",
+                "20260906054658_V1PlatformFoundation"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -300,24 +301,19 @@ public sealed class IntakePersistenceIntegrationTests
     }
 
     /// <remarks>
-    /// The dashboard tile that reads this count shipped permanently zero: it
-    /// compared the persisted decision against the enum's name
-    /// (<c>NeedsSorting</c>) while the column holds the snake_case code
-    /// (<c>needs_sorting</c>), so nothing ever matched. No test held the
-    /// query against a real database, and every local database was empty, so
-    /// zero looked like the right answer everywhere it was checked. Only the
-    /// deployed instance — with one Needs sorting receipt in it — could tell
-    /// the difference.
+    /// Intake queue counts use the persisted decision code. Needs-sorting
+    /// receipts contribute to <see cref="IntakeQueueCounts.NeedsSorting"/>;
+    /// blocked-intake receipts remain a separate decision and do not.
     /// </remarks>
     [Fact]
-    public async Task DashboardNeedsSortingCountSeesAStoredNeedsSortingReceipt()
+    public async Task IntakeQueueCountsUsePersistedDecisionCodes()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await database.StoreAsync(CreateDraft(1, IntakeDecision.NeedsSorting));
         await database.StoreAsync(CreateDraft(2, IntakeDecision.NeedsSorting));
         await database.StoreAsync(CreateDraft(3, IntakeDecision.BlockedIntake));
 
-        var counts = await database.GetMailActivityCountsAsync(FixedTime.AddDays(-1));
+        var counts = await database.GetCountsAsync();
 
         Assert.Equal(2, counts.NeedsSorting);
     }
@@ -716,13 +712,6 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await using var scope = services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .GetCountsAsync(CancellationToken.None);
-    }
-
-    public async Task<MailActivityCounts> GetMailActivityCountsAsync(DateTimeOffset dayStartUtc)
-    {
-        await using var scope = services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IDashboardQueries>()
-            .GetMailActivityCountsAsync(dayStartUtc, CancellationToken.None);
     }
 
     public Task<int> CountAsync(string tableName)

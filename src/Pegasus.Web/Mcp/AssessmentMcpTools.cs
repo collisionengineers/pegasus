@@ -88,6 +88,13 @@ internal sealed record EstimateSaveToolResult(
     string OperationKey,
     string CorrelationId);
 
+internal sealed record EstimateImportToolResult(
+    Guid CaseId,
+    Guid EstimateId,
+    string Name,
+    string OperationKey,
+    string CorrelationId);
+
 internal sealed record EstimateListToolResult(
     Guid CaseId,
     IReadOnlyList<EstimateToolItem> Estimates,
@@ -158,8 +165,61 @@ internal sealed class AssessmentMcpTools(
     IListCaseEstimates listEstimates,
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor)
+    AutomationMcpAuditor auditor,
+    IImportRawEstimate? importRawEstimate = null)
 {
+    [McpServerTool(
+        Name = "pegasus_estimate_import",
+        Title = "Import retained estimate",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply.")]
+    public async Task<EstimateImportToolResult> ImportEstimateAsync(
+        Guid caseId,
+        long expectedVersion,
+        string editLeaseToken,
+        string operationKey,
+        string name,
+        Guid occurrenceId,
+        Guid documentVersionId,
+        string sha256,
+        string sourceRoute,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_estimate_import",
+            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                AutomationMcpErrors.RequireId(caseId, "case identifier");
+                AutomationMcpErrors.RequireId(occurrenceId, "document occurrence identifier");
+                AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
+                if (!Enum.TryParse<RepairSpecificationSourceRoute>(sourceRoute, true, out var route)
+                    || !Enum.IsDefined(route)
+                    || !RepairSpecificationPolicy.IsDocumentRoute(route))
+                {
+                    throw new McpException("The estimate source route is not importable.");
+                }
+                var importer = importRawEstimate
+                    ?? throw new McpException("Estimate import is unavailable in this runtime.");
+                var estimateId = await importer.ExecuteAsync(
+                    new(context.Actor, caseId, expectedVersion, editLeaseToken,
+                        occurrenceId, documentVersionId, sha256, route, key, name),
+                    cancellationToken);
+                return new EstimateImportToolResult(
+                    caseId, estimateId, name.Trim(), key,
+                    AutomationMcpAuditor.CorrelationId(context, key));
+            }),
+            cancellationToken);
+    }
+
     [McpServerTool(
         Name = "pegasus_estimate_save",
         Title = "Save AI-draft estimate",
@@ -327,7 +387,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Directly records assessment values on a case under the same edit lease and expected version as a staff save. Scalar values are keyed by the closed field-path vocabulary from the assessment screen (for example 'vehicle.condition' or 'assessment.outcome'); null clears a value; unknown paths fail closed, and case-owned paths (registration, make, model, odometer, incident/instruction dates, inspection) must be saved with pegasus_case_update_details instead. Passing estimateLines replaces the whole ordered estimate-line collection. Values written by the automation are stored unconfirmed and are reviewed by the engineer the case is assigned to; finding confirmation stays a staff Engineer act. The optional workRequestId correlates the write with a Send to AI hand-off.")]
+    [Description("Records ordinary non-finding assessment draft fields under the case edit lease and expected version. Finding, valuation, estimate, signatory and case-owned fields are refused and must use their named commands. Values written by automation remain unconfirmed. The optional workRequestId correlates the write with a Send to AI hand-off.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -335,7 +395,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Scalar assessment values keyed by field path; a null value clears the field.")] Dictionary<string, string?>? fields = null,
-        [Description("Full replacement for the ordered estimate-line collection; omit to leave lines untouched, pass an empty array to clear them.")] IReadOnlyList<EstimateLineToolInput>? estimateLines = null,
+        [Description("Unsupported on this generic command; use a named estimate command.")] IReadOnlyList<EstimateLineToolInput>? estimateLines = null,
         [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
@@ -355,6 +415,30 @@ internal sealed class AssessmentMcpTools(
                 if (string.IsNullOrWhiteSpace(editLeaseToken))
                 {
                     throw new McpException("An active edit lease token is required.");
+                }
+                if (estimateLines is not null)
+                {
+                    throw new McpException(
+                        "Estimate lines must be changed through a named estimate command.");
+                }
+                foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
+                {
+                    if (AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
+                        && definition.IsFinding)
+                    {
+                        throw new McpException(
+                            $"The field '{path}' is owned by a named professional command.");
+                    }
+                    if (IsEstimateOwnedField(path))
+                    {
+                        throw new McpException(
+                            $"The field '{path}' is owned by a named estimate command.");
+                    }
+                    if (IsSignatoryField(path))
+                    {
+                        throw new McpException(
+                            $"The field '{path}' is owned by a named signatory command.");
+                    }
                 }
 
                 var projection = await saveAssessment.ExecuteAsync(
@@ -381,6 +465,20 @@ internal sealed class AssessmentMcpTools(
             }),
             cancellationToken);
     }
+
+    private static bool IsSignatoryField(string path) => path is
+        AssessmentVocabulary.EngineerName
+        or AssessmentVocabulary.EngineerQualifications
+        or AssessmentVocabulary.EngineerSignature;
+
+    private static bool IsEstimateOwnedField(string path) => path is
+        AssessmentVocabulary.RateCard
+        or AssessmentVocabulary.RateClass
+        or AssessmentVocabulary.RateManufacturerApproved
+        or AssessmentVocabulary.RateRegionalUplift
+        or AssessmentVocabulary.CostRecoveryCharge
+        or AssessmentVocabulary.CostStorageCharge
+        or AssessmentVocabulary.CostRepairerVatRegistered;
 
     [McpServerTool(
         Name = "pegasus_case_update_details",

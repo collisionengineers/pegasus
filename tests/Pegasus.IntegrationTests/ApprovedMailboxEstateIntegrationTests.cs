@@ -160,8 +160,135 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         Assert.Empty(pollable);
     }
 
+    [Fact]
+    public async Task OldGenerationMaintenanceSuccessCannotOverwriteTheCurrentSubscription()
+    {
+        await using var database = await CreateSubscriptionRaceDatabaseAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>();
+
+        await Assert.ThrowsAsync<ApprovedMailboxSubscriptionMaintenanceLostException>(() =>
+            store.SaveAsync(
+                Subscription("old-subscription", 1, "stale-success"),
+                "old-subscription",
+                CancellationToken.None));
+
+        Assert.Equal("current-subscription", await CurrentSubscriptionIdAsync(database));
+        Assert.Equal(2L, await CurrentSubscriptionGenerationAsync(database));
+        Assert.Equal("current-state", await CurrentSubscriptionFailureAsync(database));
+    }
+
+    [Fact]
+    public async Task OldGenerationMaintenanceFailureCannotStampTheCurrentSubscription()
+    {
+        await using var database = await CreateSubscriptionRaceDatabaseAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>();
+
+        await Assert.ThrowsAsync<ApprovedMailboxSubscriptionMaintenanceLostException>(() =>
+            store.RecordMaintenanceFailureAsync(
+                TestMailboxId.From("instructions"),
+                1,
+                "old-subscription",
+                "stale-failure",
+                new DateTimeOffset(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
+                CancellationToken.None));
+
+        Assert.Equal("current-subscription", await CurrentSubscriptionIdAsync(database));
+        Assert.Equal(2L, await CurrentSubscriptionGenerationAsync(database));
+        Assert.Equal("current-state", await CurrentSubscriptionFailureAsync(database));
+    }
+
+    [Fact]
+    public async Task SameGenerationRecreationReplacesTheExpectedPriorSubscription()
+    {
+        await using var database = await CreateInitialSubscriptionDatabaseAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>();
+
+        await store.SaveAsync(
+            Subscription("replacement-subscription", 1, null),
+            "old-subscription",
+            CancellationToken.None);
+
+        Assert.Equal("replacement-subscription", await CurrentSubscriptionIdAsync(database));
+        Assert.Equal(1L, await CurrentSubscriptionGenerationAsync(database));
+    }
+
+    [Fact]
+    public async Task ConcurrentSameGenerationReplacementCannotBeOverwritten()
+    {
+        await using var database = await CreateInitialSubscriptionDatabaseAsync();
+        await database.ExecuteAsync(
+            "UPDATE ApprovedMailboxSubscriptions SET SubscriptionId = 'concurrent-subscription';");
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>();
+
+        await Assert.ThrowsAsync<ApprovedMailboxSubscriptionMaintenanceLostException>(() =>
+            store.SaveAsync(
+                Subscription("stale-result-subscription", 1, null),
+                "old-subscription",
+                CancellationToken.None));
+
+        Assert.Equal("concurrent-subscription", await CurrentSubscriptionIdAsync(database));
+    }
+
     private static readonly ActionActor WorkerActor =
         ActionActor.SystemWorker("approved-inbox-poller");
+
+    private static ApprovedMailboxSubscription Subscription(
+        string subscriptionId,
+        long generation,
+        string? failureCode) => new(
+            TestMailboxId.From("instructions"),
+            subscriptionId,
+            "users/instructions/mailFolders/inbox/messages",
+            new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero),
+            ApprovedMailboxSubscriptionLifecycleState.Active,
+            new DateTimeOffset(2026, 9, 6, 11, 0, 0, TimeSpan.Zero),
+            failureCode,
+            generation);
+
+    private static async Task<LocalDbTestDatabase> CreateSubscriptionRaceDatabaseAsync()
+    {
+        var database = await CreateInitialSubscriptionDatabaseAsync();
+        var mailboxId = TestMailboxId.From("instructions");
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes SET MailboxGeneration = 2 WHERE Id = '{mailboxId:D}';
+            UPDATE ApprovedMailboxSubscriptions
+            SET SubscriptionId = 'current-subscription', Generation = 2,
+                LastMaintenanceFailureCode = 'current-state'
+            WHERE ApprovedMailboxId = '{mailboxId:D}';
+            """);
+        return database;
+    }
+
+    private static async Task<LocalDbTestDatabase> CreateInitialSubscriptionDatabaseAsync()
+    {
+        var database = await LocalDbTestDatabase.CreateAsync();
+        var mailboxId = TestMailboxId.From("instructions");
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET MailboxIdentity = 'instructions', InboxFolderIdentity = 'inbox',
+                ActivatedAtUtc = '2000-01-01T00:00:00+00:00', MailboxGeneration = 1
+            WHERE Id = '{mailboxId:D}';
+            """);
+        await using var scope = database.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>()
+            .SaveAsync(Subscription("old-subscription", 1, null), null, CancellationToken.None);
+        return database;
+    }
+
+    private static Task<string> CurrentSubscriptionIdAsync(LocalDbTestDatabase database) =>
+        database.ScalarAsync<string>("SELECT SubscriptionId FROM ApprovedMailboxSubscriptions");
+
+    private static Task<long> CurrentSubscriptionGenerationAsync(LocalDbTestDatabase database) =>
+        database.ScalarAsync<long>("SELECT Generation FROM ApprovedMailboxSubscriptions");
+
+    private static Task<string> CurrentSubscriptionFailureAsync(LocalDbTestDatabase database) =>
+        database.ScalarAsync<string>("SELECT LastMaintenanceFailureCode FROM ApprovedMailboxSubscriptions");
 
     private static Task<string> SecondCursorAsync(LocalDbTestDatabase database) =>
         database.ScalarAsync<string>(
@@ -199,11 +326,12 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         $"""
         INSERT INTO ApprovedMailboxes
             (Id, Address, AllowInboundIntake, AllowSentEvidence, State,
-             MailboxIdentity, InboxFolderIdentity, SentFolderIdentity, ActivatedAtUtc, Version)
+             MailboxIdentity, InboxFolderIdentity, SentFolderIdentity, ActivatedAtUtc,
+             MailboxGeneration, Version)
         VALUES
             ('{SecondMailboxRowId:D}', '{SecondAddress}', 1, 0, '{state}',
              {Literal(mailboxIdentity)}, {Literal(inboxFolderIdentity)}, NULL,
-             '2000-01-01T00:00:00+00:00', 1);
+             '2000-01-01T00:00:00+00:00', 1, 1);
         """;
 
     private static string Literal(string? value) =>

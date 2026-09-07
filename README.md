@@ -73,9 +73,10 @@ are in [operations](docs/operations.md). Current work is tracked on the Kanmer b
 [architecture](docs/current-architecture.md), and the
 [engineering workflow](docs/engineering.md).
 
-`workspaces/` contains independently maintained and buildable source imports.
-They are not Pegasus callers, runtime acceptance, projects in `Pegasus.slnx`,
-or deployment units. See [workspace authority and provenance](workspaces/README.md).
+`workspaces/` preserves provenance for retired source imports. Their accepted
+renderer and document-reader slices now live in the application; the old
+imports are not active projects or deployment units. See
+[workspace authority and provenance](workspaces/README.md).
 
 Local genuine inputs remain ignored and immutable under `corpus/`. Generated
 evaluation and build evidence belongs under ignored `artifacts/`.

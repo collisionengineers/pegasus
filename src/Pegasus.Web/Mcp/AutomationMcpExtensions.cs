@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
+using Azure.Core;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using ModelContextProtocol.AspNetCore.Authentication;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
@@ -17,7 +20,8 @@ public static class AutomationMcpExtensions
     public static IServiceCollection AddPegasusAutomationMcp(
         this IServiceCollection services,
         AutomationMcpOptions options,
-        string productVersion)
+        string productVersion,
+        TokenCredential? credential)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
@@ -27,11 +31,6 @@ public static class AutomationMcpExtensions
         services.AddMemoryCache();
         services.AddHttpContextAccessor();
         services.AddScoped<AutomationClientRegistry>();
-        services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
-        // The snapshot needs the ingress adapter above, so it is composed here
-        // rather than in Infrastructure, where the Worker would carry a
-        // registration it cannot resolve.
-        services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
 
@@ -58,10 +57,27 @@ public static class AutomationMcpExtensions
                 server.SetRefreshTokenLifetime(AutomationMcp.RefreshTokenLifetime);
                 // A hard cap: a connector re-consents at least fortnightly.
                 server.DisableSlidingRefreshTokenExpiration();
-                // This deployment has one always-on replica, so local keys are
-                // sufficient for its short-lived client-credentials tokens.
-                server.AddEphemeralEncryptionKey();
-                server.AddEphemeralSigningKey();
+                if (options.UseDevelopmentKeys)
+                {
+                    server.AddEncryptionCertificate(CreateIsolatedCertificate("Pegasus MCP development encryption"));
+                    server.AddSigningCertificate(CreateIsolatedCertificate("Pegasus MCP development signing"));
+                }
+                else
+                {
+                    var certificates = KeyVaultOAuthCertificateLoader.Load(
+                        credential ?? throw new InvalidOperationException(
+                            "A managed-identity credential is required for Automation OAuth certificates."),
+                        options.SigningCertificateSecretUris,
+                        options.EncryptionCertificateSecretUris);
+                    foreach (var certificate in certificates.Encryption)
+                    {
+                        server.AddEncryptionCertificate(certificate);
+                    }
+                    foreach (var certificate in certificates.Signing)
+                    {
+                        server.AddSigningCertificate(certificate);
+                    }
+                }
                 // TLS terminates at the Container Apps ingress
                 // (allowInsecure: false); the app listens on plain HTTP behind
                 // it, as does the in-process integration test server.
@@ -106,6 +122,16 @@ public static class AutomationMcpExtensions
                         AutomationMcp.Audience,
                         StringComparer.Ordinal)
                     && AutomationMcp.Scopes.Any(context.User.HasScope));
+            })
+            .AddPolicy(AutomationMcp.DocumentsEndpointPolicy, policy =>
+            {
+                policy.AddAuthenticationSchemes(AutomationMcp.AuthenticationScheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(context =>
+                    context.User.GetAudiences().Contains(
+                        AutomationMcp.Audience,
+                        StringComparer.Ordinal)
+                    && context.User.HasScope(AutomationMcp.DocumentsScope));
             });
 
         services.AddMcpServer(server => server.ServerInfo = new()
@@ -125,6 +151,21 @@ public static class AutomationMcpExtensions
         return services;
     }
 
+    private static X509Certificate2 CreateIsolatedCertificate(string subject)
+    {
+        using var key = RSA.Create(3072);
+        var request = new CertificateRequest(
+            $"CN={subject}", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
+        using var generated = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(20));
+        return X509CertificateLoader.LoadPkcs12(
+            generated.Export(X509ContentType.Pkcs12),
+            null,
+            X509KeyStorageFlags.EphemeralKeySet);
+    }
+
     /// <summary>
     /// Maps the bearer-only automation surface: the token endpoint (client
     /// credentials, authorization code, refresh) and the streamable-HTTP MCP
@@ -142,6 +183,16 @@ public static class AutomationMcpExtensions
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapMcp(AutomationMcp.McpEndpointPath)
             .RequireAuthorization(AutomationMcp.EndpointPolicy)
+            .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
+        app.MapGet(
+                "/automation/documents/{occurrenceId:guid}/versions/{versionId:guid}",
+                AutomationDocumentStreaming.GetAsync)
+            .RequireAuthorization(AutomationMcp.DocumentsEndpointPolicy)
+            .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
+        app.MapGet(
+                "/automation/document-exports",
+                AutomationDocumentStreaming.GetExportAsync)
+            .RequireAuthorization(AutomationMcp.DocumentsEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
     }
 }

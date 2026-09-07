@@ -2,7 +2,10 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using OpenIddict.Abstractions;
+using OpenIddict.EntityFrameworkCore.Models;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -14,7 +17,10 @@ public sealed class EfStaffAccountAdministration(
     : ICreateStaffAccountStore,
       IDisableStaffAccountStore,
       IAssignStaffRolesStore,
-      IReviewStaffAccessStore,
+      IEnableStaffAccountStore,
+      IForceStaffLogoutStore,
+      IResetStaffPasswordStore,
+      IDeleteStaffAccountStore,
       IUpdateStaffAccountSignOffStore
 {
     public async Task<CreateStaffAccountResult> CreateAsync(
@@ -45,12 +51,9 @@ public sealed class EfStaffAccountAdministration(
             }
 
             var replayRoles = await GetRolesAsync(replayUser);
-            var replayReviewAtUtc = await GetLastReviewAtUtcAsync(
-                replayUser.Id,
-                cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new(
-                EfStaffAccountQueries.Summary(replayUser, replayRoles, replayReviewAtUtc),
+                EfStaffAccountQueries.Summary(replayUser, replayRoles),
                 WasReplay: true);
         }
 
@@ -80,6 +83,20 @@ public sealed class EfStaffAccountAdministration(
         DisableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            return await DisableCoreAsync(request, cancellationToken);
+        }
+        catch (Exception exception) when (IsConcurrencyConflict(exception))
+        {
+            throw OperationConflict();
+        }
+    }
+
+    private async Task<DisableStaffAccountResult> DisableCoreAsync(
+        DisableStaffAccountRequest request,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
@@ -100,8 +117,7 @@ public sealed class EfStaffAccountAdministration(
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
-                    replayRoles,
-                    await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
+                    replayRoles),
                 replayCounts.Authorizations,
                 replayCounts.Tokens,
                 WasReplay: true);
@@ -124,6 +140,10 @@ public sealed class EfStaffAccountAdministration(
         {
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
         }
+        revoked = await RevokeAuthorizationsAndTokensAsync(
+            user.Id,
+            scrubTokenMaterial: false,
+            cancellationToken);
 
         var now = timeProvider.GetUtcNow();
         AddHistory(
@@ -146,14 +166,27 @@ public sealed class EfStaffAccountAdministration(
         return new(
             EfStaffAccountQueries.Summary(
                 user,
-                roles,
-                await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
+                roles),
             revoked.Authorizations,
             revoked.Tokens,
             WasReplay: false);
     }
 
     public async Task<AssignStaffRolesResult> AssignAsync(
+        AssignStaffRolesRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await AssignCoreAsync(request, cancellationToken);
+        }
+        catch (Exception exception) when (IsConcurrencyConflict(exception))
+        {
+            throw OperationConflict();
+        }
+    }
+
+    private async Task<AssignStaffRolesResult> AssignCoreAsync(
         AssignStaffRolesRequest request,
         CancellationToken cancellationToken)
     {
@@ -178,8 +211,7 @@ public sealed class EfStaffAccountAdministration(
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
-                    await GetRolesAsync(replayUser),
-                    await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
+                    await GetRolesAsync(replayUser)),
                 replayCounts.Authorizations,
                 replayCounts.Tokens,
                 WasReplay: true);
@@ -208,6 +240,10 @@ public sealed class EfStaffAccountAdministration(
                 user,
                 requestedRoles.Select(RoleName)));
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+            revoked = await RevokeAuthorizationsAndTokensAsync(
+                user.Id,
+                scrubTokenMaterial: false,
+                cancellationToken);
         }
 
         var now = timeProvider.GetUtcNow();
@@ -235,15 +271,14 @@ public sealed class EfStaffAccountAdministration(
         return new(
             EfStaffAccountQueries.Summary(
                 user,
-                requestedRoles,
-                await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
+                requestedRoles),
             revoked.Authorizations,
             revoked.Tokens,
             WasReplay: false);
     }
 
-    public async Task<ReviewStaffAccessResult> ReviewAsync(
-        ReviewStaffAccessRequest request,
+    public async Task<EnableStaffAccountResult> EnableAsync(
+        EnableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -253,31 +288,231 @@ public sealed class EfStaffAccountAdministration(
         if (replay is not null)
         {
             if (replay.AggregateId != request.StaffId.ToString("D")
-                || replay.EventKind != "access_reviewed"
+                || replay.EventKind != "staff_account_enabled"
                 || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal))
             {
                 throw OperationConflict();
             }
 
             await transaction.CommitAsync(cancellationToken);
-            return new(request.StaffId, replay.OccurredAtUtc, WasReplay: true);
+            var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
+            return new(
+                EfStaffAccountQueries.Summary(replayUser, await GetRolesAsync(replayUser)),
+                WasReplay: true);
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
         var roles = await GetRolesAsync(user);
+        if (roles.Length == 0)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.InvalidAccount);
+        }
+
+        var before = Snapshot(user, roles);
+        user.IsEnabled = true;
+        if (before != Snapshot(user, roles))
+        {
+            ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+            _ = await RevokeAuthorizationsAndTokensAsync(
+                user.Id,
+                scrubTokenMaterial: false,
+                cancellationToken);
+        }
+
         var now = timeProvider.GetUtcNow();
         AddHistory(
             request.Actor,
             user.Id,
-            "access_reviewed",
+            "staff_account_enabled",
             request.OperationKey,
-            beforeJson: null,
+            before,
             Snapshot(user, roles),
             now,
             request.Reason);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new(user.Id, now, WasReplay: false);
+        return new(EfStaffAccountQueries.Summary(user, roles), WasReplay: false);
+    }
+
+    public async Task<ForceStaffLogoutResult> ForceLogoutAsync(
+        ForceStaffLogoutRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
+        if (replay is not null)
+        {
+            EnsureReplay(replay, request.StaffId, "staff_logout_forced", request.Reason);
+            var counts = ParseRevocationCounts(replay.AfterJson);
+            await transaction.CommitAsync(cancellationToken);
+            return new(request.StaffId, counts.Authorizations, counts.Tokens, WasReplay: true);
+        }
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
+        var roles = await GetRolesAsync(user);
+        var before = Snapshot(user, roles);
+        ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+        var revoked = await RevokeAuthorizationsAndTokensAsync(
+            user.Id,
+            scrubTokenMaterial: false,
+            cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "staff_logout_forced",
+            request.OperationKey,
+            before,
+            Snapshot(user, roles, revoked.Authorizations, revoked.Tokens),
+            now,
+            request.Reason);
+        AddSecurityEvent(
+            SecurityEventType.SecurityStampChanged,
+            user.Id.ToString("D"),
+            request.OperationKey,
+            "staff_logout_forced",
+            now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(user.Id, revoked.Authorizations, revoked.Tokens, WasReplay: false);
+    }
+
+    public async Task<ResetStaffPasswordResult> ResetPasswordAsync(
+        ResetStaffPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        if (await FindOperationAsync(request.OperationKey, cancellationToken) is not null)
+        {
+            // The generated value is deliberately never persisted, so it cannot be
+            // revealed again by replaying an administrator request.
+            throw OperationConflict();
+        }
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
+        if (!user.IsEnabled)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.DisabledAccount);
+        }
+
+        var temporaryPassword = GenerateTemporaryPassword();
+        var roles = await GetRolesAsync(user);
+        var before = Snapshot(user, roles);
+        user.PasswordHash = userManager.PasswordHasher.HashPassword(user, temporaryPassword);
+        user.MustChangePassword = true;
+        ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+        var revoked = await RevokeAuthorizationsAndTokensAsync(
+            user.Id,
+            scrubTokenMaterial: false,
+            cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "staff_password_reset",
+            request.OperationKey,
+            before,
+            Snapshot(user, roles, revoked.Authorizations, revoked.Tokens),
+            now,
+            request.Reason);
+        AddSecurityEvent(
+            SecurityEventType.PasswordChanged,
+            user.Id.ToString("D"),
+            request.OperationKey,
+            "staff_password_reset",
+            now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            user.Id,
+            temporaryPassword,
+            revoked.Authorizations,
+            revoked.Tokens,
+            wasReplay: false);
+    }
+
+    public async Task<DeleteStaffAccountResult> DeleteAsync(
+        DeleteStaffAccountRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
+        if (replay is not null)
+        {
+            EnsureReplay(replay, request.StaffId, "staff_account_deleted", request.Reason);
+            var counts = ParseRevocationCounts(replay.AfterJson);
+            await transaction.CommitAsync(cancellationToken);
+            return new(
+                request.StaffId,
+                counts.Authorizations,
+                counts.Tokens,
+                CredentialsCleared: true,
+                WasReplay: true);
+        }
+
+        var user = await FindUserAsync(request.StaffId, cancellationToken);
+        var roles = await GetRolesAsync(user);
+        if (user.IsEnabled
+            && roles.Contains(StaffRole.Administrator)
+            && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.LastAdministrator);
+        }
+
+        var before = Snapshot(user, roles);
+        if (roles.Length > 0)
+        {
+            ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, roles.Select(RoleName)));
+        }
+
+        user.IsEnabled = false;
+        user.MustChangePassword = true;
+        user.PasswordHash = null;
+        user.IsSignOffEngineer = false;
+        user.SignOffPrintedName = null;
+        user.SignOffQualifications = null;
+        user.SignOffSignature = null;
+        user.SignOffSignatureDigest = null;
+        user.IsDefaultSignOffEngineer = false;
+        ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+        var revoked = await RevokeAuthorizationsAndTokensAsync(
+            user.Id,
+            scrubTokenMaterial: true,
+            cancellationToken);
+        ClearExternalCredentialsAndSessions(user.Id);
+        var now = timeProvider.GetUtcNow();
+        AddHistory(
+            request.Actor,
+            user.Id,
+            "staff_account_deleted",
+            request.OperationKey,
+            before,
+            Snapshot(user, [], revoked.Authorizations, revoked.Tokens),
+            now,
+            request.Reason);
+        AddSecurityEvent(
+            SecurityEventType.SecurityStampChanged,
+            user.Id.ToString("D"),
+            request.OperationKey,
+            "staff_account_deleted",
+            now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            user.Id,
+            revoked.Authorizations,
+            revoked.Tokens,
+            CredentialsCleared: true,
+            WasReplay: false);
     }
 
     public async Task<UpdateStaffAccountSignOffResult> UpdateAsync(
@@ -304,8 +539,7 @@ public sealed class EfStaffAccountAdministration(
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
-                    replayRoles,
-                    await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
+                    replayRoles),
                 WasReplay: true);
         }
 
@@ -369,8 +603,7 @@ public sealed class EfStaffAccountAdministration(
         return new(
             EfStaffAccountQueries.Summary(
                 user,
-                roles,
-                await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
+                roles),
             WasReplay: false);
     }
 
@@ -420,7 +653,7 @@ public sealed class EfStaffAccountAdministration(
             Snapshot(user, roles),
             timeProvider.GetUtcNow(),
             reason);
-        return EfStaffAccountQueries.Summary(user, roles.OrderBy(role => role).ToArray(), lastAccessReviewAtUtc: null);
+        return EfStaffAccountQueries.Summary(user, roles.OrderBy(role => role).ToArray());
     }
 
     private Task<ActionHistoryEntity?> FindOperationAsync(
@@ -452,21 +685,94 @@ public sealed class EfStaffAccountAdministration(
             .CountAsync(cancellationToken);
     }
 
+    private async Task<(long Authorizations, long Tokens)> RevokeAuthorizationsAndTokensAsync(
+        Guid staffId,
+        bool scrubTokenMaterial,
+        CancellationToken cancellationToken)
+    {
+        var subject = staffId.ToString("D");
+        var authorizations = await context.Set<OpenIddictEntityFrameworkCoreAuthorization>()
+            .Where(item => item.Subject == subject
+                && item.Status != OpenIddictConstants.Statuses.Revoked)
+            .ToListAsync(cancellationToken);
+        var tokens = await context.Set<OpenIddictEntityFrameworkCoreToken>()
+            .Where(item => item.Subject == subject
+                && item.Status != OpenIddictConstants.Statuses.Revoked)
+            .ToListAsync(cancellationToken);
+        foreach (var authorization in authorizations)
+        {
+            authorization.Status = OpenIddictConstants.Statuses.Revoked;
+            authorization.ConcurrencyToken = Guid.NewGuid().ToString("N");
+            if (scrubTokenMaterial)
+            {
+                authorization.Properties = null;
+                authorization.Scopes = null;
+            }
+        }
+
+        foreach (var token in tokens)
+        {
+            token.Status = OpenIddictConstants.Statuses.Revoked;
+            token.ConcurrencyToken = Guid.NewGuid().ToString("N");
+            if (scrubTokenMaterial)
+            {
+                token.Payload = null;
+                token.Properties = null;
+                token.ReferenceId = null;
+            }
+        }
+
+        return (authorizations.Count, tokens.Count);
+    }
+
+    private void ClearExternalCredentialsAndSessions(Guid staffId)
+    {
+        foreach (var credential in context.Set<UserExternalCredentialEntity>()
+                     .Where(item => item.UserId == staffId))
+        {
+            credential.Enabled = false;
+            credential.ProtectedCredential = string.Empty;
+            credential.CredentialGeneration++;
+            credential.Version++;
+            credential.ConcurrencyToken = Guid.NewGuid();
+        }
+
+        foreach (var session in context.Set<GlassRepairEstimateSessionEntity>()
+                     .Where(item => item.UserId == staffId))
+        {
+            session.State = Pegasus.Core.Assessment.GlassRepairEstimateSessionState.Cancelled;
+            session.ActiveAccountKey = null;
+            session.ProtectedSession = string.Empty;
+            session.Version++;
+            session.ConcurrencyToken = Guid.NewGuid();
+            session.UpdatedAtUtc = timeProvider.GetUtcNow();
+        }
+    }
+
+    private static void EnsureReplay(
+        ActionHistoryEntity replay,
+        Guid staffId,
+        string eventKind,
+        string reason)
+    {
+        if (replay.AggregateId != staffId.ToString("D")
+            || replay.EventKind != eventKind
+            || !string.Equals(replay.Reason, reason, StringComparison.Ordinal))
+        {
+            throw OperationConflict();
+        }
+    }
+
+    private static string GenerateTemporaryPassword() =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
+            .Replace('+', 'A')
+            .Replace('/', 'b');
+
     private async Task<StaffRole[]> GetRolesAsync(PegasusIdentityUser user)
     {
         var roleNames = await userManager.GetRolesAsync(user);
         return roleNames.Select(EfStaffAccountQueries.ParseRole).OrderBy(role => role).ToArray();
     }
-
-    private Task<DateTimeOffset?> GetLastReviewAtUtcAsync(
-        Guid staffId,
-        CancellationToken cancellationToken) =>
-        context.ActionHistory
-            .Where(item => item.AggregateType == "staff_account"
-                && item.AggregateId == staffId.ToString("D")
-                && item.EventKind == "access_reviewed")
-            .Select(item => (DateTimeOffset?)item.OccurredAtUtc)
-            .MaxAsync(cancellationToken);
 
     private void AddHistory(
         ActionActor actor,
@@ -646,6 +952,20 @@ public sealed class EfStaffAccountAdministration(
 
     private static StaffAccountAdministrationException OperationConflict() =>
         new(StaffAccountAdministrationError.OperationConflict);
+
+    private static bool IsConcurrencyConflict(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DbUpdateConcurrencyException
+                || current is SqlException { Number: 1205 or 2601 or 2627 })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string RoleName(StaffRole role) => role switch
     {

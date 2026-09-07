@@ -1,4 +1,4 @@
-# Design authority
+﻿# Design authority
 
 This file is the durable authority for Pegasus visual design, Web interaction
 contracts, approved assets, component and pattern boundaries, and
@@ -20,6 +20,14 @@ that a surface exists, is deployed, or is accepted; the evidence discipline
 below governs every such claim.
 
 ## Evidence discipline
+
+The accepted v3 interface and the 6 September 2026 operator answers are the
+current target. Older prototype/layout descriptions are comparison evidence
+where they conflict. Use one scrolling Case record with section jumps and
+Core-owned editing authority; complete engineering and reports within Pegasus.
+The supplied v3 verification JSON is missing, so no claim is made that its
+65 checks or 240 vectors were executed. Current routed-page snapshots and
+browser acceptance require their own recorded runs.
 
 Repository FRDs and this design guide own UI requirements. The adjacent
 work-pack is supporting comparison evidence, not a canonical execution source
@@ -698,7 +706,7 @@ this section owns only how those decisions appear in the UI.
 Every protected route and action must handle unauthenticated,
 disabled-session, stale-role, denied, loading, and successful outcomes. Hiding
 a route or control never replaces server authorisation. Administration has no
-generic rules editor, credential/cloud/release operation, bulk predecessor
+generic rules editor, cloud/release operation, bulk predecessor
 import, or bulk Case-edit tool. No surface permits permanent deletion or
 direct external/customer Case editing.
 
@@ -718,10 +726,12 @@ in the approved design:
 | Cazana | Valuation source | ENG-008 / ENG-009 |
 
 **Narrowed 2026-09-01 (D21).** An excluded capability is absent, never drawn as
-a disabled control. The direct Glass's and Audatex service-launch controls are
-removed on that rule (ENG-030); Glass's and Audatex file import stays in scope
-through the whole-page drop, and the manual Glass's, Cazana and Engineer
-valuation records stay active.
+a disabled control. The direct Glass's valuation-service and Audatex
+service-launch controls are removed on that rule (ENG-030). This does not
+remove the Estimate section's selected configured-Engineer Glass's
+repair-estimate launch (D03). Glass's and Audatex file import stays in scope
+through the whole-page drop, and manual valuation records include Glass's,
+Brego, Super CAP and Engineer's Value; Cazana remains the disabled seam.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its
@@ -974,8 +984,8 @@ API, API disabled unless the Principal enables it); **Report sent** (primary,
 With Engineer — confirms detected Sent evidence, D10) / **Return to
 Engineer** (Complete); right: Close Case (danger, not Complete). There is no
 Download EVA package action (D36) and no Open Assessment action (D30).
-Sticky edit bar while editing; one edit mode over one lease covers every
-section.
+Sticky edit bar while editing; one **Edit Case** / **Save** / **Discard** flow
+over one lease covers every section, including Files preparation edits.
 
 Sections in order (D30): **Overview, Engineer notes, Inspection, Vehicle,
 Damage, Valuation, Estimate, Settlement, Report, Files, Notes**. Every
@@ -1006,25 +1016,21 @@ Report are read-only once Complete.
   type (D39; D45); `tyre-card` per corner (tyre, seat belt), spare tyre,
   centre belt; Unrelated damage with Deduction; Paint or material transfer;
   Impact location and Impact severity as `derived` values (D39).
-- **Valuation:** `valuation-card` per entry (Source, Date, Time, Mileage,
-  Guide month — CASE-029, Retail value, Trade value, Edit) and Add
-  valuation; Source offers Glass's
-  (valuation), Cazana (disabled seam, ENG-008 / ENG-009), Engineer's Value,
-  AI market research (D40); Request AI market research creates a
-  `MarketResearch` job (D35).
-- **Estimate:** the former Assessment estimate pane (§ Assessment below).
+- **Valuation:** source cards, presets, Preview and explicit Apply. Sources
+  include Glass's, Brego and Super CAP manual entries, Cazana as a disabled
+  seam, Engineer's Value, and AI market research for automation only.
+- **Estimate:** shall carry named tabs, discounts, VAT categories, a rate
+  snapshot and a Glass's launch button for a configured signed-in Engineer,
+  plus whole-page raw import.
 - **Settlement:** `outcome-option` (Total loss / Repairable / Cash in lieu /
   Contract repair), Category, Salvage value, Excess, Betterment, Claimant
   VAT registered, Reserve, Equity (`derived`), Repair duration, Delays,
   Report delay, Storage per day, Recovery, Hire start, Hire daily cost,
   Diminution, Salvage logistics; ratio lines are permitted, not required
   (D41).
-- **Report:** `report-image` preparation with `cropper` (Close-up first,
-  Overview second, supporting images in order — D19, ENG-031); Sign-off
-  Engineer (flagged accounts only, D31); Agreed fee and Description lines
-  with the fee note preview (D42); readiness list of named outstanding items;
-  Generate report draft / Preview report draft. The report prints the marked
-  damage diagram (D39).
+- **Report:** content switches, report-date override, fee-note preview, image
+  preparation (Close-up, Overview, Supporting, Not used), and delivery
+  preparation; it also prints the marked damage diagram (D39).
 - **Files:** Documents (Add evidence → `/Upload`; rows name, type ·
   size · source, custody chip, Preview, Save as | Open Operations), Vehicle
   images gallery (viewer dialog: Rotate view, Save as), Correspondence
@@ -1048,23 +1054,23 @@ sections of the Case record, always viewable and read-only once Complete.
 The Estimate section carries what follows. Section head: New estimate
 (dark), **Send to Claude** (primary); Generate report draft / Preview report
 draft sit on the Report section. There
-is no Import estimate control and no Glass's or Audatex launch control (D16,
-D21): one raw estimate artifact dropped anywhere on the Case record imports
-immediately, with no confirmation and no visible picker, the parser is
-auto-detected and fails closed on ambiguity, Drafts are named by provider plus
-sequence, and the same Case with the same hash replays.
+shall have a whole-page raw estimate import and a Glass's launch button for a
+configured signed-in Engineer. The parser is auto-detected and fails closed on
+ambiguity; Drafts are named by provider plus sequence, and the same Case with
+the same hash replays.
 `assessment-v3`: "Estimates" pane — estimate tabs (tablist) and editor
 (Delete estimate danger, Duplicate, Use estimate / Current chip, Save
 estimate dark; fields
-Estimate name, Source, Repair days, Labour-rate card, Paint labour, Paint
-materials, Other costs, VAT %; lines table Operation (Replace / Repair / R&I /
+Estimate name, Source, Repair days, Labour-rate card, VAT categories, VAT %;
+lines table Operation (Replace / Repair / R&I /
 Paint / Other), Description, Part number, Qty, Labour h, Paint h, Part £,
 remove; notes; totals Parts / Labour / Paint / Other / Subtotal / VAT /
 Total). The Labour-rate card select offers the enabled global versioned cards
-and prices non-paint labour only; Paint labour, Paint materials and Other
-costs are explicit amounts (D17). VAT % is free per estimate, applies to the
-whole subtotal, and the Current estimate's VAT % overrides the report's
-built-in rule (D9). No comparison or savings figure appears in the totals or
+and prices panel and paint hours. Parts, Materials and Specialist explicit
+amounts use their selected VAT categories; Other costs have no VAT category.
+VAT % is per estimate (default 20) and applies only to the selected discounted
+taxable categories. No comparison
+or savings figure appears in the totals or
 on the report (D17). Dialogs: Send to Claude (direction textarea, Target
 Estimate % slider of Engineer's Value — optional, 0–80 %, no default, and the
 derived Target amount shown beside it as proposal guidance only (D24) — Case
@@ -1100,12 +1106,15 @@ arrive through the Automation Actor under the `automation.jobs` scope (D6).
 ### Administration `/Administration/{area}`
 
 `admin-layout`: panel nav — **Staff accounts & roles, Principals, Workflow
-configuration, Mail settings, Automation & AI, Service health, Action Logs,
-Reports** | content panel (heading, area label, meta).
+configuration, Mail settings, Valuation presets, Automation & AI, Service
+health, Action Logs, Reports** | content panel (heading, area label, meta).
+Administration shall provide Valuation presets and the per-engineer Glass's
+page at `/Administration/Glass/{staffId:guid}`.
 
 - **Accounts:** table Name, Username, Role (inline select), State, Save
   (disabled until changed; reason prompt), Account (Disable danger / Review /
   Reset password → Temporary password, Confirm temporary password, Reason;
+  each Engineer row shall link to that engineer's Glass's page.
   forced change at next sign-in, never emailed — D28); Create staff account.
 - **Principals:** table Name, Principal Code, Roles, State, Settings; Create
   Principal (creates the backing Organisation inline, D2); Settings dialog —
@@ -1117,8 +1126,8 @@ Reports** | content panel (heading, area label, meta).
   (required / not-required item rules with exact blockers, never a percentage
   — D23), no staff review panel (D44), Due work (Chase interval: whole
   calendar days, 1–365, default 7, Europe/London — D23), Labour-rate cards
-  (Name, Non-paint hourly rate, State; Create card, Disable card — D17); Save
-  configuration.
+  (Name, panel-and-paint hourly rate, State; Create card, Disable card — D17);
+  Save configuration.
 - **Mail settings:** Approved mailboxes table (Mailbox, Scope, Last update,
   State, Review folders / Refresh) and Mail categories table (Add category).
 - **Automation & AI:** Automation panel (status, Registered clients, Active
@@ -1148,7 +1157,7 @@ stubbed, documented as delivered, or kept behind a flag:
 
 - the `/VehicleImages` list page (`ImageIntake/Index`) — the detail page
   stays as the image record (D1);
-- Organisations, Access review and Roles as separate Administration areas —
+- Organisations, Staff accounts and Roles as separate Administration areas —
   folded into Staff accounts & roles and Principals (D2);
 - the Administration index card page (`Administration/Index`);
 - the Automation Activity page — replaced by Action Logs;
@@ -1164,8 +1173,10 @@ stubbed, documented as delivered, or kept behind a flag:
   record and the Send to EVA re-send (D29, D30, D36; CASE-038, CASE-040);
 - the Operations Service health table — Service health is
   Administration-only (D37, PLAT-069);
-- the direct Glass's and Audatex service-launch controls — still shipped as
-  disabled buttons, removal owed by ENG-030; file import stays in scope (D21);
+- **Superseded by D21:** direct Glass's valuation-service and Audatex
+  service-launch controls are absent; the selected configured-Engineer
+  Glass's repair-estimate launch remains on the Estimate section, and file
+  import stays in scope;
 - a standalone Images list, runtime-managed email or document templates, and
   any autonomous-send control — never built (D21); staff-initiated outbound
   delivery stays in scope under ADR-0036;
@@ -1224,9 +1235,10 @@ There is no control, route or placeholder for:
 - AI/vision assistance for vehicle images or damage evidence;
 - spreadsheet preparation of future inspection-address/repairer reference
   data;
-- direct Glass's or Audatex service launch, a standalone Images list,
-  runtime-managed templates or autonomous outbound sending — each absent, not
-  disabled (D21);
+- direct Glass's valuation-service or Audatex service launch, a standalone
+  Images list, runtime-managed templates or autonomous outbound sending —
+  each absent, not disabled (D21); the selected configured-Engineer Glass's
+  repair-estimate launch remains in the Estimate section (D03);
 - AutoTrader scraping or any AutoTrader integration inside Pegasus — the
   `MarketResearch` job is researched by the operator's external connector
   and comes back as Case evidence and a valuation entry (D35);
@@ -1244,9 +1256,11 @@ There is no control, route or placeholder for:
 - Diminution or Commercial case workflows;
 - automated WhatsApp ingestion;
 - replacing EVA assignment or engineering workflow;
-- direct Experian, Glass's, Audatex, Cazana, finance or invoicing
-  integrations — Experian and Cazana keep their named disabled seams, while the
-  Glass's and Audatex service-launch controls are absent (D21);
+- direct Experian, Glass's valuation-service, Audatex, Cazana, finance or
+  invoicing integrations — Experian and Cazana keep their named disabled seams,
+  while the Glass's valuation-service and Audatex service-launch controls are
+  absent (D21); the selected configured-Engineer Glass's repair-estimate
+  launch remains in scope (D03);
 - guided mobile image capture or third-party guided-capture integration;
 - a custom application domain;
 - management information beyond the Engineer Report.
@@ -1437,7 +1451,7 @@ review, retryable external work, upload links and EVA handoffs; Service
 health is Administration-only and Operations links to it (D37).
 
 **Administration** is Administrator-only and implements the linked role
-matrix through its eight areas. No generic rules editor, credential/cloud
+matrix through its eight areas. No generic rules editor or cloud
 operation, bulk import or bulk Case edit.
 
 ### State matrix
@@ -1506,7 +1520,7 @@ this section holds the cross-cutting rules every page is held to.
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it (D31); sticky on the single-scroll Case record (D29). There is no separate Assessment ribbon (D30). |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
-| Estimates | Free VAT % per estimate; the Current estimate's VAT % overrides the report rule (D9); totals computed once in Core. |
+| Estimates | Each estimate has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT blocks Use as Current until an explicit status or categories are recorded; totals compute once in Core. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |

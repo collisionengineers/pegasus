@@ -13,7 +13,8 @@ namespace Pegasus.Infrastructure.Email;
 /// IntakeWebApplicationFactory's optional-override convention) rather than this fake
 /// simulating failure.
 /// </summary>
-public sealed class LocalApprovedMailboxIdentityResolver : IResolveApprovedMailboxIdentity
+public sealed class LocalApprovedMailboxIdentityResolver : IResolveApprovedMailboxIdentity,
+    ICheckApprovedMailboxAccess
 {
     public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
         string address,
@@ -31,4 +32,8 @@ public sealed class LocalApprovedMailboxIdentityResolver : IResolveApprovedMailb
                     $"local-{folder.Key}-{stem}"))
                 .ToArray()));
     }
+
+    public Task<bool> CanReadInboxAsync(
+        ApprovedMailboxIdentityResolution mailbox,
+        CancellationToken cancellationToken) => Task.FromResult(true);
 }

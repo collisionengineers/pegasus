@@ -64,6 +64,7 @@ internal static class AutomationTokenEndpoint
         }
 
         IEnumerable<string> scopes;
+        string grantId;
         if (connectorGrant)
         {
             // The scopes were fixed at consent; the code/refresh-token
@@ -78,14 +79,22 @@ internal static class AutomationTokenEndpoint
             }
 
             scopes = principal.GetScopes();
+            grantId = principal.GetClaim(AutomationMcp.GrantIdentityClaim) ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(grantId))
+            {
+                return Forbid(
+                    Errors.InvalidGrant,
+                    "The connector authorization identity is missing.");
+            }
         }
         else
         {
             scopes = request.GetScopes();
+            grantId = clientId;
         }
 
         return Results.SignIn(
-            AutomationPrincipal.Create(clientId, scopes),
+            AutomationPrincipal.Create(clientId, grantId, scopes),
             properties: null,
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
@@ -109,13 +118,17 @@ internal static class AutomationTokenEndpoint
 /// </summary>
 internal static class AutomationPrincipal
 {
-    public static ClaimsPrincipal Create(string clientId, IEnumerable<string> scopes)
+    public static ClaimsPrincipal Create(
+        string clientId,
+        string grantId,
+        IEnumerable<string> scopes)
     {
         var identity = new ClaimsIdentity(
             TokenValidationParameters.DefaultAuthenticationType,
             Claims.Name,
             Claims.Role);
         identity.SetClaim(Claims.Subject, clientId);
+        identity.SetClaim(AutomationMcp.GrantIdentityClaim, grantId);
         identity.SetScopes(scopes);
         identity.SetResources(AutomationMcp.Audience);
         identity.SetDestinations(_ => [Destinations.AccessToken]);

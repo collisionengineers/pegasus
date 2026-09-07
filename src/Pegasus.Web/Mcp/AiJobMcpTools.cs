@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Pegasus.Core;
 using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -30,6 +31,7 @@ internal sealed record AiJobToolItem(
 
 internal sealed record AiJobToolList(
     IReadOnlyList<AiJobToolItem> Jobs,
+    string? Continuation,
     string CorrelationId);
 
 internal sealed record MarketResearchCompletionToolResult(
@@ -53,7 +55,8 @@ internal sealed class AiJobMcpTools(
     IWorkAiJob work,
     ICompleteMarketResearchAiJob completeMarketResearch,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor)
+    AutomationMcpAuditor auditor,
+    ICursorProtector cursors)
 {
     [McpServerTool(
         Name = "pegasus_ai_job_list",
@@ -66,6 +69,8 @@ internal sealed class AiJobMcpTools(
     [Description("Lists every queued AI job and the jobs this client currently holds, oldest first. A Taken job whose lease has lapsed is listed as Queued.")]
     public async Task<AiJobToolList> ListAsync(
         [Description("Optional exact kind: Estimate, UnidentifiedResolution, QueryResponse, UnidentifiedQueuePass or MarketResearch.")] string? kind = null,
+        [Description("Opaque continuation returned by the preceding call.")] string? continuation = null,
+        [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
@@ -77,15 +82,27 @@ internal sealed class AiJobMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AiJobKind? filter = string.IsNullOrWhiteSpace(kind) ? null : ParseKind(kind);
-                var jobs = await queries.ListOpenAsync(cancellationToken);
-                var visible = jobs
-                    .Where(job => job.State == AiJobState.Queued
-                        || (job.State is AiJobState.Taken or AiJobState.DraftReady
-                            && string.Equals(job.TakenBy, context.ClientId, StringComparison.Ordinal)))
-                    .Where(job => filter is null || job.Kind == filter)
-                    .Select(Map)
-                    .ToArray();
-                return new AiJobToolList(visible, context.TraceIdentifier);
+                var limit = CursorPaging.NormalizeLimit(pageSize == 0 ? null : pageSize);
+                var normalizedFilter = filter?.ToString() ?? string.Empty;
+                var cursorScope = CursorPaging.CreateScope(
+                    "pegasus_ai_job_list", context.Actor, normalizedFilter, "created-id-asc");
+                DateTimeOffset? afterCreated = null;
+                Guid? afterId = null;
+                if (!string.IsNullOrWhiteSpace(continuation))
+                {
+                    var position = cursors.Unprotect(continuation, cursorScope);
+                    afterCreated = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+                    afterId = position.Id;
+                }
+                var page = await queries.ListOpenPageAsync(
+                    filter, context.GrantId, afterCreated, afterId, limit, cancellationToken);
+                var next = page.HasMore && page.Jobs.Count > 0
+                    ? cursors.Protect(
+                        cursorScope,
+                        CursorPaging.EncodeUtcTimestamp(page.Jobs[^1].CreatedAtUtc),
+                        page.Jobs[^1].JobId)
+                    : null;
+                return new AiJobToolList(page.Jobs.Select(Map).ToArray(), next, context.TraceIdentifier);
             }),
             cancellationToken);
     }

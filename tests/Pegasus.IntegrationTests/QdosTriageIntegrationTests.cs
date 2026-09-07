@@ -469,7 +469,14 @@ public sealed partial class QdosTriageIntegrationTests
             item => Assert.Equal("triage_state_open", item.EventType));
         Assert.All(
             triage.History.Skip(1),
-            item => Assert.Equal(actor, item.Actor));
+            item =>
+            {
+                Assert.Equal(actor, item.Actor);
+                Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.Staff), item.ActorKind);
+            });
+        Assert.Equal(
+            nameof(Pegasus.Core.Identity.ActorKind.SystemWorker),
+            triage.History[0].ActorKind);
 
         using var finalResponse = await client.GetAsync($"/Triage/{triageId:D}");
         var finalHtml = await finalResponse.Content.ReadAsStringAsync();

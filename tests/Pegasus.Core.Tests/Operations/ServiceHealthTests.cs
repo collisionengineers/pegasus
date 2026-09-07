@@ -157,6 +157,29 @@ public sealed class ServiceHealthTests
     }
 
     [Fact]
+    public async Task MailboxFailureRetainsItsCodeAndTheSeparatePriorSuccessTime()
+    {
+        var lastSuccess = FixedUtcNow.AddHours(-1);
+        var sources = new Sources
+        {
+            MailboxPolls = [new(Guid.NewGuid(), Mailbox, FixedUtcNow, lastSuccess, "graph_unavailable")],
+            SentPolls = [new(Mailbox, FixedUtcNow, lastSuccess, "graph_throttled")]
+        };
+
+        var snapshot = await Build(sources).ExecuteAsync(StaffActor(), CancellationToken.None);
+        var rows = snapshot.Rows.Where(row => row.Area == ServiceHealthArea.Mail).ToArray();
+
+        Assert.Equal(2, rows.Length);
+        Assert.All(rows, row =>
+        {
+            Assert.Equal(ServiceHealthState.Failed, row.State);
+            Assert.Equal(lastSuccess, row.LatestEvidenceAtUtc);
+        });
+        Assert.Equal("graph_unavailable", rows[0].FailureCode);
+        Assert.Equal("graph_throttled", rows[1].FailureCode);
+    }
+
+    [Fact]
     public async Task SnapshotComposesOneRowPerSourceAndNamesEachEvidenceTime()
     {
         var mailboxId = Guid.NewGuid();
@@ -421,6 +444,9 @@ public sealed class ServiceHealthTests
             CancellationToken cancellationToken = default) => Task.FromResult(EvaActivity);
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by the snapshot.");
+
+        public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");
 
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(

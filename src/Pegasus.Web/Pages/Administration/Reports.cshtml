@@ -1,0 +1,31 @@
+@page
+@model Pegasus.Web.Pages.Administration.ReportsModel
+@{ ViewData["Title"] = "Reports"; ViewData["Eyebrow"] = "Administration"; }
+<partial name="Shared/_PageHeader" />
+<div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
+<section class="panel">
+    <div class="panel-head"><h2>Principal report activity</h2></div>
+    <div class="panel-body">
+        <form method="get" class="form-row">
+            <label>From London <input asp-for="From" name="from" type="datetime-local" /></label>
+            <label>To London <input asp-for="To" name="to" type="datetime-local" /></label>
+            <button type="submit">Apply</button>
+            <a asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
+            <a asp-page="/Administration/Reports" asp-page-handler="EngineerCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download engineer CSV</a>
+        </form>
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Principal</th><th>Generation events</th><th>Generated artifacts</th><th>Pending or failed</th><th>Sent</th><th>Ready transitions</th><th>Missing origin / generated artifacts</th><th>Missing origin / Ready</th><th>Missing origin / Sent</th><th>Missing sender / Sent</th><th>Received to generation</th><th>Received to generated artifact</th><th>Received to ready</th><th>Received to Sent</th><th>Current Triage</th><th>Oldest current Triage created</th><th>Current held cases</th><th>Oldest held</th><th>Held without recorded hold event</th><th>Report types</th></tr></thead>
+                <tbody>
+                @foreach (var row in Model.Result.Rows)
+                {
+                    <tr><td>@row.PrincipalCode</td><td>@row.GenerationEvents</td><td>@row.GeneratedArtifacts</td><td>@row.ArtifactTypes.Sum(x => x.PendingOrFailed)</td><td>@row.Sent</td><td>@row.Ready</td><td>@row.MissingOriginForGeneratedTurnaround / @row.GeneratedArtifacts</td><td>@row.MissingOriginForReadyTurnaround / @row.Ready</td><td>@row.MissingOriginForSentTurnaround / @row.Sent</td><td>@row.MissingSentActor / @row.Sent</td><td>@row.AverageReceivedToGeneration</td><td>@row.AverageReceivedToGeneratedArtifact</td><td>@row.AverageReceivedToReady</td><td>@row.AverageReceivedToSent</td><td>@row.CurrentTriage</td><td>@Pegasus.Web.Presentation.OperatorLabels.OfficeTime(row.OldestCurrentTriageCreatedAtUtc, "None")</td><td>@row.CurrentHeldCases</td><td>@Pegasus.Web.Presentation.OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "No recorded hold event")</td><td>@row.HeldWithoutRecordedHoldEvent</td><td>@string.Join("; ", row.ArtifactTypes.Select(x => $"{x.Kind}: {x.Generated}/{x.PendingOrFailed}"))</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+<section class="panel"><div class="panel-head"><h2>Engineer activity</h2></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Engineer (recorded send actor)</th><th>Queries received (assigned Engineer)</th><th>Reports sent</th></tr></thead><tbody>@foreach (var row in Model.EngineerResult.Rows) { <tr><td>@row.DisplayName</td><td>@row.QueriesReceived</td><td>@row.ReportsSent</td></tr> }</tbody></table></div></div></section>
+</div></div>

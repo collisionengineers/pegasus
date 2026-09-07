@@ -5,8 +5,7 @@ public sealed record StaffAccountSummary(
     string UserName,
     bool IsEnabled,
     bool MustChangePassword,
-    IReadOnlyList<StaffRole> Roles,
-    DateTimeOffset? LastAccessReviewAtUtc)
+    IReadOnlyList<StaffRole> Roles)
 {
     public StaffAccountSignOffState SignOff { get; init; } =
         StaffAccountSignOffState.NotConfigured;
@@ -49,21 +48,19 @@ public sealed record GetStaffAccountRequest(
 
 public sealed record GetStaffAccountResult(StaffAccountSummary Account);
 
-public sealed record StaffAccessReviewProjection(
-    Guid StaffId,
-    string UserName,
-    bool IsEnabled,
-    IReadOnlyList<StaffRole> CurrentRoles,
-    DateTimeOffset? LastReviewedAtUtc,
-    bool ReviewIsOutstanding);
+public sealed record StaffHeldCaseEditLease(
+    Guid CaseId,
+    string CaseReference,
+    long LeaseGeneration,
+    DateTimeOffset ExpiresAtUtc);
 
-public sealed record GetAccessReviewRequest(
+public sealed record GetStaffHeldCaseEditLeasesRequest(
     ActionActor Actor,
-    int MaximumResults = 100);
+    Guid StaffId);
 
-public sealed record GetAccessReviewResult(
-    IReadOnlyList<StaffAccessReviewProjection> Accounts,
-    bool HasMoreAccounts);
+public sealed record GetStaffHeldCaseEditLeasesResult(
+    Guid StaffId,
+    IReadOnlyList<StaffHeldCaseEditLease> Leases);
 
 public sealed record StaffRoleAssignmentProjection(
     Guid StaffId,
@@ -115,15 +112,60 @@ public sealed record AssignStaffRolesResult(
     long RevokedTokens,
     bool WasReplay);
 
-public sealed record ReviewStaffAccessRequest(
+public sealed record EnableStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
     string Reason,
     string OperationKey);
 
-public sealed record ReviewStaffAccessResult(
+public sealed record EnableStaffAccountResult(
+    StaffAccountSummary Account,
+    bool WasReplay);
+
+public sealed record ForceStaffLogoutRequest(
+    ActionActor Actor,
     Guid StaffId,
-    DateTimeOffset ReviewedAtUtc,
+    string Reason,
+    string OperationKey);
+
+public sealed record ForceStaffLogoutResult(
+    Guid StaffId,
+    long RevokedAuthorizations,
+    long RevokedTokens,
+    bool WasReplay);
+
+public sealed record ResetStaffPasswordRequest(
+    ActionActor Actor,
+    Guid StaffId,
+    string Reason,
+    string OperationKey);
+
+public sealed class ResetStaffPasswordResult(
+    Guid staffId,
+    string temporaryPassword,
+    long revokedAuthorizations,
+    long revokedTokens,
+    bool wasReplay)
+{
+    public Guid StaffId { get; } = staffId;
+    public string TemporaryPassword { get; } = temporaryPassword;
+    public long RevokedAuthorizations { get; } = revokedAuthorizations;
+    public long RevokedTokens { get; } = revokedTokens;
+    public bool WasReplay { get; } = wasReplay;
+    public override string ToString() => nameof(ResetStaffPasswordResult);
+}
+
+public sealed record DeleteStaffAccountRequest(
+    ActionActor Actor,
+    Guid StaffId,
+    string Reason,
+    string OperationKey);
+
+public sealed record DeleteStaffAccountResult(
+    Guid StaffId,
+    long RevokedAuthorizations,
+    long RevokedTokens,
+    bool CredentialsCleared,
     bool WasReplay);
 
 public sealed record UpdateStaffAccountSignOffRequest(
@@ -185,10 +227,38 @@ public interface IAssignStaffRolesStore
         CancellationToken cancellationToken);
 }
 
-public interface IReviewStaffAccessStore
+public interface IEnableStaffAccountStore
 {
-    Task<ReviewStaffAccessResult> ReviewAsync(
-        ReviewStaffAccessRequest request,
+    Task<EnableStaffAccountResult> EnableAsync(
+        EnableStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IStaffHeldCaseEditLeaseQueries
+{
+    Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
+        Guid staffId,
+        CancellationToken cancellationToken);
+}
+
+public interface IForceStaffLogoutStore
+{
+    Task<ForceStaffLogoutResult> ForceLogoutAsync(
+        ForceStaffLogoutRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IResetStaffPasswordStore
+{
+    Task<ResetStaffPasswordResult> ResetPasswordAsync(
+        ResetStaffPasswordRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IDeleteStaffAccountStore
+{
+    Task<DeleteStaffAccountResult> DeleteAsync(
+        DeleteStaffAccountRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -210,13 +280,6 @@ public interface IGetStaffAccount
 {
     Task<GetStaffAccountResult?> ExecuteAsync(
         GetStaffAccountRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IGetAccessReview
-{
-    Task<GetAccessReviewResult> ExecuteAsync(
-        GetAccessReviewRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -248,10 +311,38 @@ public interface IAssignStaffRoles
         CancellationToken cancellationToken);
 }
 
-public interface IReviewStaffAccess
+public interface IEnableStaffAccount
 {
-    Task<ReviewStaffAccessResult> ExecuteAsync(
-        ReviewStaffAccessRequest request,
+    Task<EnableStaffAccountResult> ExecuteAsync(
+        EnableStaffAccountRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IGetStaffHeldCaseEditLeases
+{
+    Task<GetStaffHeldCaseEditLeasesResult> ExecuteAsync(
+        GetStaffHeldCaseEditLeasesRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IForceStaffLogout
+{
+    Task<ForceStaffLogoutResult> ExecuteAsync(
+        ForceStaffLogoutRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IResetStaffPassword
+{
+    Task<ResetStaffPasswordResult> ExecuteAsync(
+        ResetStaffPasswordRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IDeleteStaffAccount
+{
+    Task<DeleteStaffAccountResult> ExecuteAsync(
+        DeleteStaffAccountRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -342,38 +433,6 @@ public sealed class GetStaffAccount(IStaffAccountQueries queries)
     }
 }
 
-public sealed class GetAccessReview(IStaffAccountQueries queries)
-    : IGetAccessReview
-{
-    private readonly IStaffAccountQueries _queries =
-        queries ?? throw new ArgumentNullException(nameof(queries));
-
-    public async Task<GetAccessReviewResult> ExecuteAsync(
-        GetAccessReviewRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.ReviewStaffAccess);
-        ListStaffAccounts.ValidateMaximumResults(
-            request.MaximumResults,
-            nameof(request.MaximumResults));
-
-        var slice = await _queries.ListAsync(0, request.MaximumResults, cancellationToken);
-        return new(
-            slice.Accounts
-                .Select(account => new StaffAccessReviewProjection(
-                    account.Id,
-                    account.UserName,
-                    account.IsEnabled,
-                    account.Roles,
-                    account.LastAccessReviewAtUtc,
-                    account.IsEnabled && account.LastAccessReviewAtUtc is null))
-                .ToArray(),
-            slice.HasMoreAccounts);
-    }
-}
-
 public sealed class GetRoleAssignments(IStaffAccountQueries queries)
     : IGetRoleAssignments
 {
@@ -446,18 +505,71 @@ public sealed class AssignStaffRoles(IAssignStaffRolesStore store)
             cancellationToken);
 }
 
-public sealed class ReviewStaffAccess(IReviewStaffAccessStore store)
-    : IReviewStaffAccess
+public sealed class EnableStaffAccount(IEnableStaffAccountStore store)
+    : IEnableStaffAccount
 {
-    private readonly IReviewStaffAccessStore _store =
+    private readonly IEnableStaffAccountStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
-    public Task<ReviewStaffAccessResult> ExecuteAsync(
-        ReviewStaffAccessRequest request,
+    public Task<EnableStaffAccountResult> ExecuteAsync(
+        EnableStaffAccountRequest request,
         CancellationToken cancellationToken) =>
-        _store.ReviewAsync(
+        _store.EnableAsync(
             StaffAccountAdministrationPolicy.Normalize(request),
             cancellationToken);
+}
+
+public sealed class GetStaffHeldCaseEditLeases(IStaffHeldCaseEditLeaseQueries queries)
+    : IGetStaffHeldCaseEditLeases
+{
+    private readonly IStaffHeldCaseEditLeaseQueries _queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    public async Task<GetStaffHeldCaseEditLeasesResult> ExecuteAsync(
+        GetStaffHeldCaseEditLeasesRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
+        StaffAccountAdministrationPolicy.RequireStaffId(request.StaffId);
+        return new(
+            request.StaffId,
+            await _queries.ListHeldCaseEditLeasesAsync(request.StaffId, cancellationToken));
+    }
+}
+
+public sealed class ForceStaffLogout(IForceStaffLogoutStore store) : IForceStaffLogout
+{
+    private readonly IForceStaffLogoutStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<ForceStaffLogoutResult> ExecuteAsync(
+        ForceStaffLogoutRequest request,
+        CancellationToken cancellationToken) =>
+        _store.ForceLogoutAsync(StaffAccountAdministrationPolicy.Normalize(request), cancellationToken);
+}
+
+public sealed class ResetStaffPassword(IResetStaffPasswordStore store) : IResetStaffPassword
+{
+    private readonly IResetStaffPasswordStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<ResetStaffPasswordResult> ExecuteAsync(
+        ResetStaffPasswordRequest request,
+        CancellationToken cancellationToken) =>
+        _store.ResetPasswordAsync(StaffAccountAdministrationPolicy.Normalize(request), cancellationToken);
+}
+
+public sealed class DeleteStaffAccount(IDeleteStaffAccountStore store) : IDeleteStaffAccount
+{
+    private readonly IDeleteStaffAccountStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<DeleteStaffAccountResult> ExecuteAsync(
+        DeleteStaffAccountRequest request,
+        CancellationToken cancellationToken) =>
+        _store.DeleteAsync(StaffAccountAdministrationPolicy.Normalize(request), cancellationToken);
 }
 
 public sealed class UpdateStaffAccountSignOff(IUpdateStaffAccountSignOffStore store)
@@ -595,12 +707,11 @@ public static class StaffAccountAdministrationPolicy
         };
     }
 
-    public static ReviewStaffAccessRequest Normalize(ReviewStaffAccessRequest request)
+    public static EnableStaffAccountRequest Normalize(EnableStaffAccountRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireAdministrator(request.Actor, StaffAccessRight.ReviewStaffAccess);
+        RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
-        RequireDifferentStaffAccount(request.Actor, request.StaffId);
         return request with
         {
             Reason = NormalizeRequiredText(
@@ -613,6 +724,45 @@ public static class StaffAccountAdministrationPolicy
                 nameof(request.OperationKey))
         };
     }
+
+    public static ForceStaffLogoutRequest Normalize(ForceStaffLogoutRequest request) =>
+        NormalizeAdministrativeAction(
+            request,
+            request.Actor,
+            request.StaffId,
+            request.Reason,
+            request.OperationKey,
+            (reason, operationKey) => request with
+        {
+            Reason = reason,
+            OperationKey = operationKey
+        });
+
+    public static ResetStaffPasswordRequest Normalize(ResetStaffPasswordRequest request) =>
+        NormalizeAdministrativeAction(
+            request,
+            request.Actor,
+            request.StaffId,
+            request.Reason,
+            request.OperationKey,
+            (reason, operationKey) => request with
+        {
+            Reason = reason,
+            OperationKey = operationKey
+        });
+
+    public static DeleteStaffAccountRequest Normalize(DeleteStaffAccountRequest request) =>
+        NormalizeAdministrativeAction(
+            request,
+            request.Actor,
+            request.StaffId,
+            request.Reason,
+            request.OperationKey,
+            (reason, operationKey) => request with
+        {
+            Reason = reason,
+            OperationKey = operationKey
+        });
 
     public static UpdateStaffAccountSignOffRequest Normalize(
         UpdateStaffAccountSignOffRequest request)
@@ -690,6 +840,24 @@ public static class StaffAccountAdministrationPolicy
         }
     }
 
+    private static T NormalizeAdministrativeAction<T>(
+        T request,
+        ActionActor actor,
+        Guid staffId,
+        string reason,
+        string operationKey,
+        Func<string, string, T> normalized)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireAdministrator(actor, StaffAccessRight.ManageStaffAccounts);
+        RequireStaffId(staffId);
+        RequireDifferentStaffAccount(actor, staffId);
+        return normalized(
+            NormalizeRequiredText(reason, MaximumReasonLength, nameof(reason)),
+            NormalizeRequiredText(operationKey, MaximumOperationKeyLength, nameof(operationKey)));
+    }
+
     internal static string NormalizeRequiredText(
         string value,
         int maximumLength,
@@ -744,6 +912,7 @@ public enum StaffAccountAdministrationError
     DuplicateUserName,
     InvalidAccount,
     StaffAccountNotFound,
+    DisabledAccount,
     LastAdministrator,
     SelfAction,
     OperationConflict,

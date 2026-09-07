@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ProviderApi;
 using Pegasus.Infrastructure.Transport;
+using Pegasus.Infrastructure.Custody;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -55,26 +56,42 @@ public sealed class UnifiedWorkFunction(
                 message,
                 out var approvedMailboxId,
                 out var subscriptionId,
-                out var wakeKind))
+                out var generation,
+                out var wakeKind,
+                out var immutableMessageId))
         {
             var subscription = await mailboxSubscriptions.GetActiveAsync(
                 subscriptionId.ToString("D"),
                 timeProvider.GetUtcNow(),
                 cancellationToken)
                 ?? throw new InvalidDataException("The mailbox wake subscription is no longer active.");
-            if (subscription.ApprovedMailboxId != approvedMailboxId)
+            if (subscription.ApprovedMailboxId != approvedMailboxId
+                || subscription.Generation != generation)
             {
                 throw new InvalidDataException("The mailbox wake does not match its subscription.");
             }
-            await pollApprovedInbox.ExecuteMailboxAsync(
-                approvedMailboxId,
-                50,
-                MailboxWakeActor,
-                cancellationToken);
+            if (wakeKind == MailboxWakeKind.Created && immutableMessageId is not null)
+            {
+                await pollApprovedInbox.ExecuteNotificationAsync(
+                    approvedMailboxId,
+                    generation,
+                    immutableMessageId,
+                    MailboxWakeActor,
+                    cancellationToken);
+            }
+            else
+            {
+                await pollApprovedInbox.ExecuteMailboxAsync(
+                    approvedMailboxId,
+                    50,
+                    MailboxWakeActor,
+                    cancellationToken);
+            }
             if (wakeKind != MailboxWakeKind.Created)
             {
                 await mailboxSubscriptions.SaveAsync(
                     subscription with { LifecycleState = LifecycleState(wakeKind) },
+                    subscription.SubscriptionId,
                     cancellationToken);
             }
             return;
@@ -115,21 +132,33 @@ public sealed class UnifiedWorkPoisonFunction(
     TimeProvider timeProvider)
 {
     [Function(nameof(UnifiedWorkPoisonFunction))]
-    public Task RunAsync(
+    public async Task RunAsync(
         [QueueTrigger("intake-work-poison", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
         if (UnifiedWorkQueueMessage.TryParseMailbox(
                 message,
                 out var approvedMailboxId,
+                out var subscriptionId,
+                out var generation,
                 out _,
                 out _))
         {
-            return mailboxSubscriptions.RecordMaintenanceFailureAsync(
-                approvedMailboxId,
-                "notification_poison",
-                timeProvider.GetUtcNow(),
-                cancellationToken);
+            try
+            {
+                await mailboxSubscriptions.RecordMaintenanceFailureAsync(
+                    approvedMailboxId,
+                    generation,
+                    subscriptionId.ToString("D"),
+                    "notification_poison",
+                    timeProvider.GetUtcNow(),
+                    cancellationToken);
+            }
+            catch (ApprovedMailboxSubscriptionMaintenanceLostException)
+            {
+                // The poison wake belongs to an older mailbox generation.
+            }
+            return;
         }
 
         if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
@@ -138,7 +167,7 @@ public sealed class UnifiedWorkPoisonFunction(
                 "The unified poison message does not contain one typed canonical durable identifier.");
         }
 
-        return reconcilePoisonedQueueWork.ExecuteAsync(
+        await reconcilePoisonedQueueWork.ExecuteAsync(
             kind == UnifiedWorkQueueKind.Intake
                 ? PoisonedQueueWorkKind.Intake
                 : PoisonedQueueWorkKind.External,
@@ -149,6 +178,8 @@ public sealed class UnifiedWorkPoisonFunction(
 
 public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
+    IDocumentContentCacheCleanup documentContentCacheCleanup,
+    ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
@@ -170,6 +201,25 @@ public sealed partial class StagedArtifactReconciliationFunction(
             result.Orphans,
             result.Unmatched,
             result.Failures);
+
+        var cache = await documentContentCacheCleanup.ExecuteAsync(50, cancellationToken);
+        if (cache.Failures > 0)
+        {
+            LogDocumentContentCacheCleanupFailure(
+                logger,
+                cache.Failures,
+                cache.Candidates);
+        }
+        var pendingArtifacts = await reconcilePendingArtifactCustody.ExecuteAsync(
+            50,
+            cancellationToken);
+        if (pendingArtifacts.Failures > 0)
+        {
+            LogPendingArtifactCustodyFailure(
+                logger,
+                pendingArtifacts.Failures,
+                pendingArtifacts.Candidates);
+        }
 
         // INTK-011: recovers a grouped-image straggler that never got a
         // registered Image intake or an Unidentified reference — re-drives
@@ -258,6 +308,22 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int orphans,
         int unmatched,
         int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Document content cache cleanup failed for {FailureCount} of {CandidateCount} candidates.")]
+    private static partial void LogDocumentContentCacheCleanupFailure(
+        ILogger logger,
+        int failureCount,
+        int candidateCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Pending artifact custody recovery failed for {FailureCount} of {CandidateCount} candidates.")]
+    private static partial void LogPendingArtifactCustodyFailure(
+        ILogger logger,
+        int failureCount,
+        int candidateCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,

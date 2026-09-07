@@ -25,13 +25,18 @@ internal static class AdministrationPolicyModelConfiguration
 
         builder.Entity<ApprovedMailboxEntity>(entity =>
         {
-            entity.ToTable("ApprovedMailboxes");
+            entity.ToTable("ApprovedMailboxes", table =>
+            {
+                table.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
+                table.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
+            });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Address).HasMaxLength(320).IsRequired();
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.MailboxIdentity).HasMaxLength(100);
             entity.Property(item => item.InboxFolderIdentity).HasMaxLength(200);
             entity.Property(item => item.SentFolderIdentity).HasMaxLength(200);
+            entity.Property(item => item.SendLimitVerifiedBy).HasMaxLength(200);
             entity.HasIndex(item => item.Address).IsUnique();
             // A supplied Graph identity is exclusive to one approved mailbox.
             entity.HasIndex(item => item.MailboxIdentity)
@@ -45,6 +50,7 @@ internal static class AdministrationPolicyModelConfiguration
                 AllowInboundIntake = true,
                 AllowSentEvidence = false,
                 State = ApprovedMailboxState.Approved.ToString(),
+                MailboxGeneration = 1,
                 Version = 1
             });
         });
@@ -69,6 +75,7 @@ internal static class AdministrationPolicyModelConfiguration
             entity.Property(item => item.Resource).HasMaxLength(500).IsRequired();
             entity.Property(item => item.LifecycleState).HasMaxLength(40).IsRequired();
             entity.Property(item => item.LastMaintenanceFailureCode).HasMaxLength(100);
+            entity.Property(item => item.Generation).HasDefaultValue(0L);
             entity.HasIndex(item => item.SubscriptionId).IsUnique();
             entity.HasIndex(item => item.ExpiresAtUtc);
             entity.HasOne(item => item.ApprovedMailbox)

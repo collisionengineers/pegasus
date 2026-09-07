@@ -1,4 +1,4 @@
-﻿# Operations
+# Operations
 
 This file is the current-state record for production, releases, evidence
 profiles, monitoring, and recovery. Executable setup, development, database,
@@ -7,6 +7,34 @@ the [runbook](runbook.md). The evidence-tier ladder and repository verification
 rules are owned by [engineering](engineering.md#required-evidence-tiers).
 
 ## Evidence and authority
+
+### Read-only production observation — 6 September 2026
+
+On 6 September 2026, Azure CLI on the Windows development host read the existing
+`rg-pegasus-prod` Container App. The sole active revision was
+`pegasus-prod-web-252ow37gij--0f0e90ae44ff`, Healthy, with 100% traffic.
+Its image digest was
+`sha256:b791d9587224d30d68fd6abcbd1e1d5f389f2baefc3702d9ec2d2f37398eef15`,
+matching release 38 below. `Features__AutomationMcp` and
+`Features__ProviderApi` were both `true`; no explicit `Features__SendToAi`
+environment value was present. This read checked revision, image and those
+settings only. It did not recheck SQL, provider credentials, external-client
+round trips, document rendering or operator acceptance.
+
+The v1 branches are development work and have not changed that deployment.
+Their persistent OAuth keys, staff-send transport, cache, new queries and
+administration pages require the separate reviewed release and activation
+process. No cloud, mailbox, Box, Glass's or EVA writes were made by this task.
+
+A Windows-only diagnostic on 6 September built a local Linux/amd64 OCI Web
+archive from the A development tree at `8e6f3b21d`. Static inspection applied
+all 14 layers and 56 whiteouts and confirmed the final image includes
+`Pegasus.Web.dll`, Playwright 1.61.0, its Linux Node driver, Chromium revision
+1228, fonts and native libraries. The 1,426,020,864-byte archive SHA-256 is
+`c83e1bcb60d5b8a4b227b3b2f412493015b3b5d58504b9133114ef888fcd3614`;
+its local audit is `artifacts/v1-web-diagnostic-artifact-audit.json`. This
+proves packaged file presence only. No Linux browser execution, clean release
+artifact, registry publication or deployment was performed by that diagnostic.
 
 Use these evidence states literally and independently:
 
@@ -81,7 +109,7 @@ activation; installing a tool never establishes a caller.
 | --- | --- |
 | `Baseline` | Windows or Linux, PowerShell 7, Git/GitHub CLI, pinned .NET 10 SDK, Azure CLI with Bicep, Azure Developer CLI, Node/npm, Python, Infisical CLI, and Box CLI for build, test, Bicep validation, and approved administration. Cloud/vendor tools remain optional in the current offline baseline. |
 | `SqlServer` | The platform's supported SQL Server (LocalDB on Windows, a container on Linux) and `sqlcmd` for migrations, constraints, transactions, allocation concurrency, outbox atomicity, and local backup/restore. |
-| `StorageWorker` | Repository-pinned npm Azurite and Functions Core Tools v4 for real Blob/Queue SDK, trigger, retry, poison, and restart paths. Activate only with the first real storage adapter and Worker trigger. |
+| `StorageWorker` | Repository-pinned npm Azurite and Functions Core Tools v4 exercise the existing Blob/Queue adapters and Worker triggers, including retry, poison and restart paths. Local profile proof is distinct from deployed trigger execution. |
 | `Browser` | The `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core. It drives the rendered DevelopmentOffline Operations, intake, Triage, administration, password-change, and case-document routes through a loopback Kestrel host. Its semantic, keyboard, focus, responsive, 200%-equivalent, forced-colour, reduced-motion and axe assertions are the selected release accessibility evidence. They do not prove screen-reader interoperability, complete WCAG conformance, subjective usability, or operator acceptance. External approvals, deployment, and operator/management acceptance remain separate gates. |
 | `Graph` | Microsoft Dev Proxy and mocked Kiota request adapters for paging, throttling, 401/403, 429, 5xx, timeout, authentication, and retry. |
 | `Observability` | OpenTelemetry in-memory exporter and an optional native Collector for correlation, attributes, health signals, OTLP, and redaction. |
@@ -134,6 +162,12 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 
 Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL Entra, throttling, backup, restore, RPO, or RTO. Azurite does not prove Azure Files, ADLS, Entra/RBAC, managed identity, durability, replication, quotas, networking, scale, or production timing.
 
+A read-only Azure census on 7 September 2026 returned no
+`Microsoft.CognitiveServices/accounts` resources in the current subscription.
+The v1 OCR work did not create a resource, grant access, configure an endpoint
+or deploy the optional Worker adapter. Provider activation and live OCR
+evidence remain absent from this implementation record.
+
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
 
 ### Automation MCP is implemented and enabled in production
@@ -166,7 +200,7 @@ tokens within seconds). A staff browser identity is not a substitute for
 that actor and is never accepted on `/mcp`.
 
 Every automation action is recorded exactly as a human action is (ADR-0031):
-the 33 tools wrap the same Core commands, edit lease, operation-key
+the registered tools wrap the same Core commands, edit lease, operation-key
 replay, and version guards as the staff app, assessment values written by
 the automation carry the unconfirmed mark until staff review at manual
 engineer assignment, and the migration
@@ -1585,7 +1619,7 @@ Deferred capabilities must attach to an existing Core port and a real compositio
 | Graph webhooks | Signature, replay, expiry, duplicate-notification contracts | Approved public callback and subscription | Endpoint or subscription |
 | PDF-engine replacement | Frozen cohort/holdout and contract-parity suite | Licence, security, maintenance review, single-path cutover | Parallel permanent engines |
 
-Scan-like PDF OCR and the provider API are deferred caller gates whose exact targets are owned by the [capability inventory](capabilities.md); neither blocks `0.1.0-alpha.1`.
+Scan-like PDF OCR remains an unactivated caller gate; its optional Worker adapter does not establish a queued producer or live provider evidence. Provider API caller and deployment evidence are recorded separately in the [capability inventory](capabilities.md) and this document's release history.
 
 SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows, and predecessor application/data migration remain exclusions until separately authorised.
 

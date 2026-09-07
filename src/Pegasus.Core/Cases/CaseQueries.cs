@@ -101,7 +101,8 @@ public sealed record CaseEditLeaseSnapshot(
     string Holder,
     ActorKind? HolderKind,
     DateTimeOffset ExpiresAtUtc,
-    string OperationKey);
+    string OperationKey,
+    long Generation = 0);
 
 public sealed record CaseRequestUploadSummary(
     Guid Id,

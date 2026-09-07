@@ -58,6 +58,21 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Verify(content.Span, normalizedHash, content.Length);
         var caseFolder = address.CaseRootRemoteId!;
         var fileName = FlatFileName(address);
+        if (address.BoxFileId is { Length: > 0 }
+            || address.BoxVersionId is { Length: > 0 })
+        {
+            RequirePersistedBoxIdentity(address);
+            await using var persisted = await OpenOwnedExactVersionAsync(
+                address.BoxFileId!, address.BoxVersionId!, caseFolder, content.Length, cancellationToken);
+            Verify(
+                await ReadExactlyAsync(persisted, content.Length, cancellationToken),
+                normalizedHash,
+                content.Length);
+            return new(
+                DocumentContentWriteDisposition.Replay,
+                address.BoxFileId!,
+                address.BoxVersionId);
+        }
         var existing = await client.FindChildAsync(caseFolder, fileName, "file", cancellationToken);
         if (existing is not null)
         {
@@ -68,9 +83,18 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             // DOCS-010 proved must come from the file object itself.
             await VerifyFileMetadataAsync(
                 existing, caseFolder, address.MediaType, content.Length, cancellationToken);
-            var retained = await client.DownloadFencedAsync(existing, caseFolder, cancellationToken);
-            Verify(retained, normalizedHash, content.Length);
-            return new(DocumentContentWriteDisposition.Replay, existing.Id);
+            await using var retained = await client.OpenVersionReadAsync(
+                existing.Id,
+                existing.VersionId ?? throw new InvalidDataException(
+                    "Box omitted the existing file version identity."),
+                content.Length,
+                cancellationToken);
+            Verify(await ReadExactlyAsync(retained, content.Length, cancellationToken), normalizedHash, content.Length);
+            return new(
+                DocumentContentWriteDisposition.Replay,
+                existing.Id,
+                existing.VersionId
+                    ?? throw new InvalidDataException("Box omitted the existing file version identity."));
         }
 
         var created = await client.UploadAsync(
@@ -79,13 +103,20 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             content,
             address.MediaType,
             cancellationToken);
+        var createdVersionId = created.VersionId
+            ?? throw new InvalidDataException("Box omitted the created file version identity.");
         createdFiles[address.VersionId] = new(
             created.Id,
             address.CaseId,
             address.CaseReference,
             normalizedHash,
-            content.Length);
-        return new(DocumentContentWriteDisposition.Created, created.Id);
+            content.Length,
+            createdVersionId,
+            caseFolder);
+        return new(
+            DocumentContentWriteDisposition.Created,
+            created.Id,
+            createdVersionId);
     }
 
     public async Task<Stream> OpenReadVersionAsync(
@@ -95,16 +126,15 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         CancellationToken cancellationToken)
     {
         Validate(address);
+        RequirePersistedBoxIdentity(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
-        var caseFolder = address.CaseRootRemoteId!;
-        var file = await client.FindChildAsync(
-            caseFolder,
-            FlatFileName(address),
-            "file",
-            cancellationToken)
-            ?? throw new FileNotFoundException("The document content is unavailable.");
-        RefuseUnexpectedLength(file, expectedLength);
-        var content = await client.DownloadFencedAsync(file, caseFolder, cancellationToken);
+        await using var exact = await OpenOwnedExactVersionAsync(
+            address.BoxFileId!,
+            address.BoxVersionId!,
+            address.CaseRootRemoteId!,
+            expectedLength,
+            cancellationToken);
+        var content = await ReadExactlyAsync(exact, expectedLength, cancellationToken);
         Verify(content, normalizedHash, expectedLength);
         return new MemoryStream(content, writable: false);
     }
@@ -149,8 +179,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             hashes[index] = NormalizeSha256(reads[index].ExpectedSha256);
         }
 
-        var caseFolder = first.CaseRootRemoteId!;
-        var children = await client.ListChildrenAsync(caseFolder, cancellationToken);
         var contents = new ReadOnlyMemory<byte>[reads.Count];
         await Parallel.ForEachAsync(
             Enumerable.Range(0, reads.Count),
@@ -162,10 +190,14 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             async (index, token) =>
             {
                 var read = reads[index];
-                var file = BoxContentClient.SelectChild(children, FlatFileName(read.Address), "file")
-                    ?? throw new FileNotFoundException("The document content is unavailable.");
-                RefuseUnexpectedLength(file, read.ExpectedLength);
-                var content = await client.DownloadFencedAsync(file, caseFolder, token);
+                RequirePersistedBoxIdentity(read.Address);
+                await using var exact = await OpenOwnedExactVersionAsync(
+                    read.Address.BoxFileId!,
+                    read.Address.BoxVersionId!,
+                    read.Address.CaseRootRemoteId!,
+                    read.ExpectedLength,
+                    token);
+                var content = await ReadExactlyAsync(exact, read.ExpectedLength, token);
                 Verify(content, hashes[index], read.ExpectedLength);
                 contents[index] = content;
             });
@@ -208,8 +240,17 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             throw new InvalidDataException(
                 "The uncommitted managed-content rollback does not match its Case identity.");
         }
-        var bytes = await client.DownloadAsync(created.FileId, cancellationToken);
+        await using var exact = await OpenExactVersionAsync(
+            created.FileId, created.BoxVersionId, created.Length, cancellationToken);
+        var bytes = await ReadExactlyAsync(exact, created.Length, cancellationToken);
         Verify(bytes, created.Sha256, created.Length);
+        var current = await client.GetFileAsync(created.FileId, cancellationToken);
+        if (!string.Equals(current.ParentId, created.CaseRootRemoteId, StringComparison.Ordinal)
+            || !string.Equals(current.VersionId, created.BoxVersionId, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The managed Box file advanced after creation and cannot be rolled back safely.");
+        }
         await client.DeleteFileAsync(created.FileId, cancellationToken);
     }
 
@@ -284,6 +325,83 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         _ = CustodyNames.SafeName(address.FileName);
     }
 
+    private static void RequirePersistedBoxIdentity(ManagedDocumentContentAddress address)
+    {
+        if (string.IsNullOrWhiteSpace(address.BoxFileId)
+            || string.IsNullOrWhiteSpace(address.BoxVersionId))
+        {
+            throw new InvalidDataException(
+                "Managed Box reads require the persisted exact file and version identities.");
+        }
+    }
+
+    private static async Task<byte[]> ReadExactlyAsync(
+        Stream content, long expectedLength, CancellationToken cancellationToken)
+    {
+        if (expectedLength > int.MaxValue) throw new InvalidDataException("Document is too large.");
+        var bytes = new byte[(int)expectedLength];
+        try
+        {
+            await content.ReadExactlyAsync(bytes, cancellationToken);
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new InvalidDataException("Document custody length verification failed.", exception);
+        }
+        if (await content.ReadAsync(new byte[1], cancellationToken) != 0)
+            throw new InvalidDataException("Document custody length verification failed.");
+        return bytes;
+    }
+
+    private async Task<Stream> OpenExactVersionAsync(
+        string fileId,
+        string versionId,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await client.OpenVersionReadAsync(
+                fileId, versionId, expectedLength, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException("The exact managed Box version is unavailable.", exception);
+        }
+    }
+
+    private async Task<BoxContentClient.BoxItem> GetFileForManagedReadAsync(
+        string fileId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await client.GetFileAsync(fileId, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException("The managed Box file is unavailable.", exception);
+        }
+    }
+
+    private async Task<Stream> OpenOwnedExactVersionAsync(
+        string fileId,
+        string versionId,
+        string caseRootRemoteId,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await client.OpenOwnedVersionReadAsync(
+                fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException("The exact managed Box version is unavailable.", exception);
+        }
+    }
+
     /// <summary>
     /// PLAT-041 review: refuse a length mismatch before any bytes move. Dropping
     /// the per-read metadata GET also dropped the only pre-download size guard,
@@ -346,5 +464,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Guid CaseId,
         string CaseReference,
         string Sha256,
-        long Length);
+        long Length,
+        string BoxVersionId,
+        string CaseRootRemoteId);
 }

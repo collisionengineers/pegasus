@@ -1,5 +1,10 @@
 ## Fix: root the zcode Kanmer MCP at the board worktree
 
+Historical session evidence. This plan is retired from active execution; do
+not recreate its worktrees, rerun its merges or treat it as release authority.
+The owning v1 stream plans and current Kanmer tickets govern current work.
+Configuration evidence does not establish a fresh process restart.
+
 **Problem.** `.zcode/config.json` launches the Kanmer MCP with `cwd` set to the
 source checkout (`C:\Users\Alex\Documents\GitHub\pegasus`). The launcher sets
 `KANMER_PROVIDER_CWD=!CD!` from that cwd, so ADR-0012 discovery binds to the

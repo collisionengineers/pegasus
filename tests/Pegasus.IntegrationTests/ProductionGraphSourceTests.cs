@@ -1,8 +1,10 @@
 using System.Net;
 using System.Text;
 using Azure.Core;
+using MimeKit;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Intake;
@@ -11,6 +13,515 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class ProductionGraphSourceTests
 {
+    [Fact]
+    public async Task StaffMailCreatesDraftWithImmutablePreferenceAndOperationMarker()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var handler = new DelegateHandler(request =>
+        {
+            observed = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Response(HttpStatusCode.Created, "{\"id\":\"immutable-draft\"}");
+        });
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+        var operationId = Guid.NewGuid();
+        var mailboxId = Guid.NewGuid();
+
+        var result = await sender.CreateDraftAsync(
+            new(mailboxId, "mailbox-id", 4, 10_000_000),
+            Operation(operationId) with { PayloadHash = "PAYLOAD-HASH" },
+            StaffCommand(operationId) with
+            {
+                ApprovedMailboxId = mailboxId,
+                ExpectedMailboxGeneration = 4
+            },
+            CancellationToken.None);
+
+        Assert.Equal("immutable-draft", result.ImmutableDraftId);
+        Assert.Equal(HttpMethod.Post, observed!.Method);
+        Assert.Equal("/v1.0/users/mailbox-id/messages", observed.RequestUri!.AbsolutePath);
+        Assert.Equal("IdType=\"ImmutableId\"", observed.Headers.GetValues("Prefer").Single());
+        await using var mimeBytes = new MemoryStream(Convert.FromBase64String(body!));
+        var message = await MimeMessage.LoadAsync(mimeBytes);
+        Assert.Equal(operationId.ToString("D"), message.Headers["X-Pegasus-Operation-Id"]);
+        Assert.Equal(mailboxId.ToString("D"), message.Headers["X-Pegasus-Mailbox-Id"]);
+        Assert.Equal("4", message.Headers["X-Pegasus-Mailbox-Generation"]);
+        Assert.Equal("PAYLOAD-HASH", message.Headers["X-Pegasus-Payload-Sha256"]);
+        Assert.Equal("Subject", message.Subject);
+        Assert.NotNull(message.TextBody);
+        Assert.Equal("Body", message.TextBody.TrimEnd('\r', '\n'));
+        Assert.Equal("recipient@example.invalid", Assert.Single(message.To.Mailboxes).Address);
+    }
+
+    [Fact]
+    public async Task KnownGraphDraftRejectionIsTypedAndNeverSends()
+    {
+        var requests = 0;
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ =>
+                {
+                    requests++;
+                    return Response(HttpStatusCode.BadRequest, "{}");
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        await Assert.ThrowsAsync<StaffMailTransportRejectedException>(() =>
+            sender.CreateDraftAsync(
+                new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+                Operation(Guid.NewGuid()) with { PayloadHash = "PAYLOAD-HASH" },
+                StaffCommand(Guid.NewGuid()),
+                CancellationToken.None));
+
+        Assert.Equal(1, requests);
+    }
+
+    [Fact]
+    public async Task StaffMailSendRequiresAndAcceptsExact202Response()
+    {
+        HttpRequestMessage? observed = null;
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(request =>
+                {
+                    observed = request;
+                    return Response(HttpStatusCode.Accepted, string.Empty);
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        var result = await sender.SendDraftAsync(
+            new(Guid.NewGuid(), "mailbox-id", 2, 10_000_000),
+            "immutable-draft", CancellationToken.None);
+
+        Assert.Equal(HttpMethod.Post, observed!.Method);
+        Assert.Equal(
+            "/v1.0/users/mailbox-id/messages/immutable-draft/send",
+            observed.RequestUri!.AbsolutePath);
+        Assert.Equal(TimeSpan.Zero, result.SubmittedAtUtc.Offset);
+    }
+
+    [Fact]
+    public async Task AttachmentRetryCompletesVerifiedExistingContentWithoutPostingDuplicate()
+    {
+        var bytes = new byte[] { 4, 3, 2, 1 };
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "report.pdf", "application/pdf");
+        var writes = 0;
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.Method != HttpMethod.Get) writes++;
+            return Response(HttpStatusCode.OK, System.Text.Json.JsonSerializer.Serialize(new
+            {
+                value = new[] { new { name = "report.pdf", size = 4, contentType = "application/pdf",
+                    contentBytes = Convert.ToBase64String(bytes) } }
+            }));
+        });
+        var progress = new UploadProgressFake
+        {
+            Current = new(null, DateTimeOffset.MaxValue, 0)
+        };
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        Assert.Equal(0, writes);
+        Assert.True(progress.Completed);
+    }
+
+    [Fact]
+    public async Task ChunkRetryReadsProviderRangeBeforeWritingAgain()
+    {
+        var length = 3 * 1024 * 1024 + 1;
+        var bytes = new byte[length];
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "large.pdf", "application/pdf");
+        var putStart = -1L;
+        var graph = new DelegateHandler(_ => Response(HttpStatusCode.OK, "{\"value\":[]}"));
+        var upload = new DelegateHandler(request =>
+        {
+            if (request.Method == HttpMethod.Get)
+                return Response(HttpStatusCode.OK, "{\"nextExpectedRanges\":[\"327680-\"]}");
+            putStart = request.Content!.Headers.ContentRange!.From!.Value;
+            return Response(HttpStatusCode.Created, "{}");
+        });
+        var progress = new UploadProgressFake
+        {
+            Current = new(new Uri("https://graph.microsoft.com/upload/session"),
+                DateTimeOffset.UtcNow.AddMinutes(10), 655360)
+        };
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(graph)),
+            new HttpClient(upload), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        Assert.Equal(327680, putStart);
+        Assert.True(progress.Completed);
+    }
+
+    [Fact]
+    public async Task ExactMimeSizeValidationRejectsBeforeAnyGraphWrite()
+    {
+        var graphWrites = 0;
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ => { graphWrites++; return Response(HttpStatusCode.OK, "{}"); }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+        var command = StaffCommand(Guid.NewGuid()) with { Body = new string('\u20ac', 100) };
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            sender.ValidateEncodedSizeAsync(new(Guid.NewGuid(), "mailbox-id", 1, 32),
+                Operation(Guid.NewGuid()), command, [], CancellationToken.None));
+
+        Assert.Equal(0, graphWrites);
+    }
+
+    [Fact]
+    public async Task ExactMimeSizeValidationCountsFrozenCorrelationHeadersBeforeGraphWrite()
+    {
+        string? createdPayload = null;
+        var options = Options();
+        var mailboxId = Guid.NewGuid();
+        var operationId = Guid.NewGuid();
+        var command = StaffCommand(operationId) with
+        {
+            ApprovedMailboxId = mailboxId,
+            ExpectedMailboxGeneration = 7
+        };
+        var operation = Operation(operationId) with
+        {
+            ApprovedMailboxId = mailboxId,
+            MailboxGeneration = 7
+        };
+        var measuringSender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(request =>
+                {
+                    createdPayload = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                    return Response(HttpStatusCode.Created, "{\"id\":\"draft\"}");
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+        await measuringSender.CreateDraftAsync(
+            new(mailboxId, "mailbox-id", 7, int.MaxValue), operation,
+            command, CancellationToken.None);
+        var exactMimeLength = Convert.FromBase64String(createdPayload!).LongLength;
+
+        var validationGraphWrites = 0;
+        var validatingSender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ =>
+                {
+                    validationGraphWrites++;
+                    return Response(HttpStatusCode.OK, "{}");
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => validatingSender.ValidateEncodedSizeAsync(
+            new(mailboxId, "mailbox-id", 7, exactMimeLength - 1),
+            operation, command, [], CancellationToken.None));
+        Assert.Equal(0, validationGraphWrites);
+    }
+
+    [Fact]
+    public async Task AttachmentMimeSizeBoundaryIsExactAndAlwaysResetsContentStream()
+    {
+        var graphWrites = 0;
+        var options = Options();
+        var mailboxId = Guid.NewGuid();
+        var operationId = Guid.NewGuid();
+        var command = StaffCommand(operationId) with
+        {
+            ApprovedMailboxId = mailboxId,
+            ExpectedMailboxGeneration = 9
+        };
+        var operation = Operation(operationId) with
+        {
+            ApprovedMailboxId = mailboxId,
+            MailboxGeneration = 9
+        };
+        var bytes = Enumerable.Range(0, 4096).Select(value => (byte)(value % 251)).ToArray();
+        var attachment = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.LongLength, "evidence.bin", "application/octet-stream");
+        await using var content = new MemoryStream(bytes, writable: false);
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ =>
+                {
+                    graphWrites++;
+                    return Response(HttpStatusCode.OK, "{}");
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        long lower = 0;
+        long upper = 64 * 1024;
+        while (lower < upper)
+        {
+            var candidate = lower + ((upper - lower) / 2);
+            content.Position = 137;
+            try
+            {
+                await sender.ValidateEncodedSizeAsync(
+                    new(mailboxId, "mailbox-id", 9, candidate), operation, command,
+                    [new(attachment, content)], CancellationToken.None);
+                upper = candidate;
+            }
+            catch (InvalidDataException)
+            {
+                lower = candidate + 1;
+            }
+            Assert.Equal(0, content.Position);
+        }
+        var exactSize = lower;
+
+        content.Position = 211;
+        await sender.ValidateEncodedSizeAsync(
+            new(mailboxId, "mailbox-id", 9, exactSize), operation, command,
+            [new(attachment, content)], CancellationToken.None);
+        Assert.Equal(0, content.Position);
+
+        content.Position = 307;
+        await Assert.ThrowsAsync<InvalidDataException>(() => sender.ValidateEncodedSizeAsync(
+            new(mailboxId, "mailbox-id", 9, exactSize - 1), operation, command,
+            [new(attachment, content)], CancellationToken.None));
+        Assert.Equal(0, content.Position);
+        Assert.Equal(0, graphWrites);
+    }
+
+    [Fact]
+    public async Task DraftReconciliationRejectsOversizedGraphJson()
+    {
+        var options = Options();
+        var oversized = new string('x', 2 * 1024 * 1024 + 1);
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ =>
+                    Response(HttpStatusCode.OK, oversized)))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sender.FindDraftAsync(
+            new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Operation(Guid.NewGuid()), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DraftReconciliationUsesDraftWindowAndRetainsCursorAtFiveHundredCandidates()
+    {
+        var requests = 0;
+        var operationId = Guid.NewGuid();
+        var options = Options();
+        var handler = new DelegateHandler(request =>
+        {
+            requests++;
+            if (requests == 1)
+            {
+                Assert.Contains("$top=50", Uri.UnescapeDataString(request.RequestUri!.Query),
+                    StringComparison.Ordinal);
+                Assert.Contains("createdDateTime ge 2026-09-06T09:55:00.0000000+00:00",
+                    Uri.UnescapeDataString(request.RequestUri.Query), StringComparison.Ordinal);
+                Assert.Contains("createdDateTime le 2026-09-06T11:00:00.0000000+00:00",
+                    Uri.UnescapeDataString(request.RequestUri.Query), StringComparison.Ordinal);
+            }
+            Assert.Contains("/mailFolders/drafts/messages", request.RequestUri!.AbsolutePath,
+                StringComparison.Ordinal);
+            var values = Enumerable.Range(0, requests == 11 ? 1 : 50)
+                .Select(index => requests is 1 or 11 && index == 0
+                    ? System.Text.Json.JsonSerializer.Deserialize<object>(
+                        DraftJson("replayed-draft", operationId, "PAYLOAD-HASH"))!
+                    : (object)new
+                {
+                    id = $"other-{requests}-{index}",
+                    internetMessageHeaders = Array.Empty<object>()
+                }).ToArray();
+            var valueJson = System.Text.Json.JsonSerializer.Serialize(values);
+            var next = requests == 11 ? string.Empty
+                : $",\"@odata.nextLink\":\"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/drafts/messages?$skiptoken={requests}\"";
+            return Response(HttpStatusCode.OK, $"{{\"value\":{valueJson}{next}}}");
+        });
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        var operation = Operation(operationId);
+        var result = await sender.FindDraftAsync(
+            new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "mailbox-id", 1, 10_000_000),
+            operation, CancellationToken.None);
+
+        Assert.False(result.Complete);
+        Assert.Null(result.Draft);
+        Assert.NotNull(result.Continuation);
+        Assert.Equal(10, requests);
+
+        var resumed = await sender.FindDraftAsync(
+            new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "mailbox-id", 1, 10_000_000),
+            operation with { ReconciliationContinuation = result.Continuation }, CancellationToken.None);
+        Assert.True(resumed.Complete);
+        Assert.Equal("replayed-draft", Assert.IsType<StaffMailDraftResult>(resumed.Draft).ImmutableDraftId);
+        Assert.Null(resumed.Continuation);
+        Assert.Equal(11, requests);
+    }
+
+    [Fact]
+    public async Task DraftReconciliationRequiresAllFrozenMarkersAndRejectsMultipleMatches()
+    {
+        var operationId = Guid.NewGuid();
+        var call = 0;
+        var options = Options();
+        var handler = new DelegateHandler(_ =>
+        {
+            call++;
+            var values = call == 1
+                ? new[] { DraftJson("draft-one", operationId, "PAYLOAD-HASH") }
+                : new[]
+                {
+                    DraftJson("payload-mismatch", operationId, "OTHER-HASH"),
+                    DraftJson("draft-two", operationId, "PAYLOAD-HASH")
+                };
+            var next = call == 1
+                ? ",\"@odata.nextLink\":\"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/drafts/messages?$skiptoken=next\""
+                : string.Empty;
+            return Response(HttpStatusCode.OK, $"{{\"value\":[{string.Join(',', values)}]{next}}}");
+        });
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sender.FindDraftAsync(
+            new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "mailbox-id", 1, 10_000_000),
+            Operation(operationId), CancellationToken.None));
+        Assert.Equal(2, call);
+    }
+
+    [Fact]
+    public async Task DraftReconciliationRejectsProviderContinuationOutsideApprovedDraftsFolder()
+    {
+        var requests = 0;
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ =>
+                {
+                    requests++;
+                    return Response(HttpStatusCode.OK,
+                        "{\"value\":[],\"@odata.nextLink\":\"https://graph.microsoft.com/v1.0/users/other-mailbox/mailFolders/inbox/messages?$skiptoken=wrong\"}");
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sender.FindDraftAsync(
+            new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "mailbox-id", 1, 10_000_000),
+            Operation(Guid.NewGuid()), CancellationToken.None));
+
+        Assert.Equal(1, requests);
+    }
+
+    [Fact]
+    public async Task DraftReadyReconciliationReadsRecordedImmutableIdWithoutCreationWindowScan()
+    {
+        var operationId = Guid.NewGuid();
+        Uri? requested = null;
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(request =>
+                {
+                    requested = request.RequestUri;
+                    return Response(HttpStatusCode.OK,
+                        DraftJson("recorded-draft", operationId, "PAYLOAD-HASH", isDraft: true));
+                }))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        var result = await sender.FindDraftAsync(
+            new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "mailbox-id", 1, 10_000_000),
+            Operation(operationId) with
+            {
+                State = StaffMailState.DraftReady,
+                AttemptStage = StaffMailAttemptStage.Attach,
+                AttemptRequestedAtUtc = new DateTimeOffset(2026, 9, 7, 12, 0, 0, TimeSpan.Zero),
+                DraftImmutableId = "recorded-draft"
+            }, CancellationToken.None);
+
+        Assert.True(result.Complete);
+        Assert.Equal("recorded-draft", Assert.IsType<StaffMailDraftResult>(result.Draft).ImmutableDraftId);
+        Assert.Equal("/v1.0/users/mailbox-id/messages/recorded-draft", requested!.AbsolutePath);
+        Assert.DoesNotContain("createdDateTime", requested.Query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DraftReadyReconciliationRejectsRecordedIdWithDifferentFrozenMarkers()
+    {
+        var operationId = Guid.NewGuid();
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri,
+                new HttpClient(new DelegateHandler(_ => Response(HttpStatusCode.OK,
+                    DraftJson("recorded-draft", operationId, "DIFFERENT-HASH", isDraft: true))))),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())),
+            new UploadProgressFake());
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => sender.FindDraftAsync(
+            new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "mailbox-id", 1, 10_000_000),
+            Operation(operationId) with { DraftImmutableId = "recorded-draft" },
+            CancellationToken.None));
+    }
+
+    private static string DraftJson(
+        string id, Guid operationId, string payloadHash, bool? isDraft = null) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            id,
+            isDraft,
+            internetMessageHeaders = new[]
+            {
+                new { name = "x-pegasus-operation-id", value = operationId.ToString("D") },
+                new { name = "x-pegasus-mailbox-id", value = "11111111-1111-1111-1111-111111111111" },
+                new { name = "x-pegasus-mailbox-generation", value = "1" },
+                new { name = "x-pegasus-payload-sha256", value = payloadHash }
+            }
+        });
+
+    private static StaffMailSendCommand StaffCommand(Guid operationId) => new(
+        ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+        Guid.NewGuid(), 1, StaffMailPurpose.GeneralCorrespondence,
+        Guid.NewGuid(), 1, StaffMailComposeMode.New, null,
+        [new("recipient@example.invalid", null)], [], "Subject", "Body", [],
+        operationId.ToString("N"));
+
+    private static StaffMailOperation Operation(Guid operationId, string? continuation = null) => new(
+        operationId, StaffMailState.DraftCreating, StaffMailAttemptStage.CreateDraft, 1,
+        new DateTimeOffset(2026, 9, 6, 8, 0, 0, TimeSpan.Zero), null, null, null,
+        Guid.Parse("11111111-1111-1111-1111-111111111111"), 1, "PAYLOAD-HASH",
+        new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero), null,
+        StaffMailPurpose.GeneralCorrespondence,
+        Guid.Parse("22222222-2222-2222-2222-222222222222"), 1, null,
+        continuation);
     [Fact]
     public async Task ChangeSubscriptionCreatesExactInboxBasicNotification()
     {
@@ -59,12 +570,13 @@ public sealed class ProductionGraphSourceTests
             new DateTimeOffset(2031, 5, 7, 10, 30, 0, TimeSpan.Zero),
             ApprovedMailboxSubscriptionLifecycleState.Active,
             null,
-            null);
+            null,
+            1);
         var adapter = new GraphMailboxChangeSubscriptions(
             new FixedCredential(), Options(), new HttpClient(handler));
 
         await adapter.MaintainAsync(
-            new(mailboxId, "mailbox-id", "inbox-folder", subscription),
+            new(mailboxId, "mailbox-id", "inbox-folder", subscription, 1),
             new Uri("https://pegasus.example.test/hooks/microsoft-graph/mail"),
             "secret-state",
             new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
@@ -400,6 +912,57 @@ public sealed class ProductionGraphSourceTests
         Assert.All(requests, request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
     }
 
+    [Fact]
+    public async Task InboxSkipsMessagesBeforeTheActivationBoundaryAndAdvancesTheOpaqueCursor()
+    {
+        var requests = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request.RequestUri!.AbsolutePath);
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"historic","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T09:59:59Z"}],"@odata.nextLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$skiptoken=opaque"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+        var lease = Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease")
+            with { StartBoundaryUtc = new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero) };
+
+        var page = await source.ReadAsync(lease, 10, CancellationToken.None);
+
+        Assert.Empty(page.Messages);
+        Assert.DoesNotContain(requests, path => path.EndsWith("/$value", StringComparison.Ordinal));
+        var cursor = GraphCursor.Parse(page.NextCursor, new Uri("https://example.test"));
+        Assert.Contains("$skiptoken=opaque", cursor.PageUri.Query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NotifiedInboxMessageIsVerifiedInTheExactFolderBeforeMimeIsRead()
+    {
+        var requests = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request.RequestUri!.AbsolutePath);
+            return request.RequestUri.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.OK, "Message-Id: <one@example.test>\r\n\r\nBody", "message/rfc822")
+                : Response(HttpStatusCode.OK,
+                    """{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        var message = await source.ReadNotifiedAsync(
+            Lease(options.MailboxId, options.MailboxAddress, options.InboxFolderId, null, "lease"),
+            "immutable-1",
+            CancellationToken.None);
+
+        Assert.NotNull(message);
+        Assert.Equal(2, requests.Count);
+        Assert.EndsWith("/messages/immutable-1", requests[0], StringComparison.Ordinal);
+        Assert.EndsWith("/messages/immutable-1/$value", requests[1], StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Microsoft Graph guarantees only "at least the updated properties" on a sparse
     /// delta entry, so an already-known item can recur without receivedDateTime (e.g. a
@@ -679,15 +1242,76 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedSentSource(
-            options,
             new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
 
         var error = await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
-            new(options.MailboxId, options.MailboxAddress, options.SentFolderId, null, "lease"),
+            new(options.MailboxId, options.MailboxAddress, options.SentFolderId, null, "lease",
+                Guid.NewGuid(), 1, new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero)),
             10,
             CancellationToken.None));
 
         Assert.Equal(TimeSpan.FromSeconds(17), error.RetryAfter);
+    }
+
+    [Fact]
+    public async Task SentDeltaParsesOperationMarkerAndExactMimeAttachmentHash()
+    {
+        var operationId = Guid.NewGuid();
+        var approvedMailboxId = Guid.NewGuid();
+        var attachmentBytes = new byte[] { 1, 2, 3, 4 };
+        var mime = $"Message-Id: <sent@example.test>\r\nX-Pegasus-Operation-Id: {operationId:D}\r\nX-Pegasus-Mailbox-Id: {approvedMailboxId:D}\r\nX-Pegasus-Mailbox-Generation: 3\r\nX-Pegasus-Payload-Sha256: {new string('A', 64)}\r\nContent-Type: multipart/mixed; boundary=part\r\n\r\n--part\r\nContent-Type: text/plain\r\n\r\nBody\r\n--part\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=report.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n{Convert.ToBase64String(attachmentBytes)}\r\n--part--\r\n";
+        var handler = new DelegateHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.OK, mime, "message/rfc822")
+                : Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-sent","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"conversation","internetMessageId":"<sent@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}"""));
+        var options = Options();
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+        var lease = new ApprovedSentPollLease(
+            "mailbox-id", options.MailboxAddress, "sent-items", null, "lease",
+            approvedMailboxId, 3, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero));
+
+        var page = await source.ReadAsync(lease, 10, CancellationToken.None);
+
+        var provenance = Assert.Single(page.Items).Provenance!;
+        Assert.Equal(operationId, provenance.StaffMailOperationId);
+        Assert.Equal(approvedMailboxId, provenance.StaffMailMailboxId);
+        Assert.Equal(3, provenance.StaffMailMailboxGeneration);
+        Assert.Equal(new string('A', 64), provenance.StaffMailPayloadHash);
+        Assert.Equal(
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(attachmentBytes)),
+            Assert.Single(provenance.AttachmentSha256!));
+        Assert.Equal(new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero), provenance.SentAtUtc);
+    }
+
+    [Fact]
+    public async Task SentDeltaAdvancesPastHistoricItemsWithoutReadingOrRetainingMime()
+    {
+        var mimeReads = 0;
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimeReads++;
+                return Response(HttpStatusCode.OK, "Message-Id: <old@example.test>\r\n\r\nOld", "message/rfc822");
+            }
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"historic","parentFolderId":"sent-items","sentDateTime":"2026-09-06T08:59:59Z","conversationId":"old","internetMessageId":"<old@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}""");
+        });
+        var options = Options();
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        var page = await source.ReadAsync(
+            new("mailbox-id", options.MailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            10, CancellationToken.None);
+
+        Assert.Empty(page.Items);
+        Assert.False(page.HasMore);
+        Assert.Equal(0, mimeReads);
+        Assert.Contains("deltatoken", page.NextCursor, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -724,6 +1348,20 @@ public sealed class ProductionGraphSourceTests
 
     private static HttpResponseMessage Response(HttpStatusCode status, string body, string mediaType = "application/json") =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) };
+
+    private sealed class UploadProgressFake : IStaffMailUploadProgress
+    {
+        public StaffMailUploadSession? Current { get; set; }
+        public bool Completed { get; private set; }
+        public Task<StaffMailUploadSession?> GetAsync(Guid operationId, Guid attachmentVersionId,
+            CancellationToken cancellationToken) => Task.FromResult(Current);
+
+        public Task SaveAsync(Guid operationId, Guid attachmentVersionId,
+            StaffMailUploadSession session, CancellationToken cancellationToken) { Current = session; return Task.CompletedTask; }
+
+        public Task CompleteAsync(Guid operationId, Guid attachmentVersionId,
+            CancellationToken cancellationToken) { Completed = true; return Task.CompletedTask; }
+    }
 
     private sealed class FixedCredential : TokenCredential
     {

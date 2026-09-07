@@ -98,11 +98,18 @@ public sealed class EngineerActivityReportTests
         ]);
 
         Assert.Equal(
-            "Engineer,Queries received,Reports\r\n"
+            "Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor\r\n"
             + "engineer.one,5,3\r\n"
             + "\"Smith, \"\"J\"\"\",1,0\r\n",
             csv);
-        Assert.Equal("Engineer,Queries received,Reports\r\n", EngineerActivityReportCsv.ToCsv([]));
+        Assert.Equal("Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor\r\n", EngineerActivityReportCsv.ToCsv([]));
+    }
+
+    [Fact]
+    public void CsvMakesFormulaLookingNamesLiteral()
+    {
+        var csv = EngineerActivityReportCsv.ToCsv([new(Guid.NewGuid(), "=SUM(A1:A2)", 0, 0)]);
+        Assert.Contains("'=SUM(A1:A2),0,0\r\n", csv, StringComparison.Ordinal);
     }
 
     private static ActionActor Administrator() =>
@@ -133,7 +140,7 @@ public sealed class EngineerActivityReportTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             Task.FromResult(staffId == knownId
-                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.Engineer], null)
+                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.Engineer])
                 : null);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

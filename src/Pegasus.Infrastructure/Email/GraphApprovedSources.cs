@@ -9,6 +9,7 @@ using MimeKit;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Email;
@@ -80,7 +81,7 @@ internal sealed partial class GraphApprovedMailboxResolver(
     TokenCredential credential,
     Uri baseUri,
     HttpClient httpClient,
-    ILogger<GraphApprovedMailboxResolver> logger) : IResolveApprovedMailboxIdentity
+    ILogger<GraphApprovedMailboxResolver> logger) : IResolveApprovedMailboxIdentity, ICheckApprovedMailboxAccess
 {
     private static readonly TokenRequestContext TokenContext =
         new(["https://graph.microsoft.com/.default"]);
@@ -126,6 +127,7 @@ internal sealed partial class GraphApprovedMailboxResolver(
 
     private async Task<string?> GetIdAsync(Uri uri, CancellationToken cancellationToken)
     {
+        ValidateGraphOrigin(uri);
         var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
@@ -224,14 +226,61 @@ internal sealed partial class GraphApprovedMailboxResolver(
         var approvedRoot = new Uri(
             baseUri,
             $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders").AbsolutePath;
-        if (uri.Scheme != Uri.UriSchemeHttps
-            || !uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+        if (!HasConfiguredOrigin(uri)
             || !uri.AbsolutePath.StartsWith(approvedRoot, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException(
                 "Microsoft Graph returned a folder page outside the exact approved mailbox.");
         }
     }
+
+    public async Task<bool> CanReadInboxAsync(
+        ApprovedMailboxIdentityResolution mailbox,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mailbox);
+        try
+        {
+            var uri = new Uri(
+                baseUri,
+                $"users/{Uri.EscapeDataString(mailbox.MailboxIdentity)}/mailFolders/" +
+                $"{Uri.EscapeDataString(mailbox.InboxFolderIdentity)}/messages?$select=id&$top=1");
+            ValidateGraphOrigin(uri);
+            var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
+            request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            return document.RootElement.TryGetProperty("value", out var value)
+                && value.ValueKind == JsonValueKind.Array;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogResolutionFailed(logger, exception);
+            return false;
+        }
+    }
+
+    private void ValidateGraphOrigin(Uri uri)
+    {
+        if (!HasConfiguredOrigin(uri))
+        {
+            throw new UnauthorizedAccessException(
+                "The Microsoft Graph request escaped the configured origin.");
+        }
+    }
+
+    private bool HasConfiguredOrigin(Uri uri) =>
+        uri.IsAbsoluteUri
+        && uri.Scheme.Equals(baseUri.Scheme, StringComparison.OrdinalIgnoreCase)
+        && uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+        && uri.Port == baseUri.Port;
 
     private static bool IsExactFolderIdentity(string? value) =>
         !string.IsNullOrWhiteSpace(value)
@@ -293,7 +342,7 @@ internal sealed class GraphMailClient(
         {
             throw new InvalidDataException("Microsoft Graph returned no next or delta cursor.");
         }
-        return new(values, next ?? delta!);
+        return new(values, next ?? delta!, next is not null);
     }
 
     public async Task<byte[]> ReadMimeAsync(
@@ -452,8 +501,7 @@ internal sealed class GraphMailClient(
         var expected = InitialFolderMessagesUri(mailboxId, folderId, 1)
             .GetComponents(UriComponents.Path, UriFormat.Unescaped);
         var actual = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
-        if (uri.Scheme != Uri.UriSchemeHttps
-            || !uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+        if (!HasConfiguredOrigin(uri)
             || !actual.Equals(expected, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException(
@@ -461,10 +509,36 @@ internal sealed class GraphMailClient(
         }
     }
 
+    internal Uri CreateStaffUri(string mailboxId, string path) => new(
+        baseUri,
+        $"users/{Uri.EscapeDataString(mailboxId)}/{path}");
+
+    internal async Task<HttpResponseMessage> SendStaffAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(request, cancellationToken);
+        if ((int)response.StatusCode is >= 400 and < 500
+            && response.StatusCode is not HttpStatusCode.RequestTimeout
+            and not HttpStatusCode.TooManyRequests)
+        {
+            response.Dispose();
+            throw new StaffMailTransportRejectedException(
+                $"graph_rejected_{(int)response.StatusCode}");
+        }
+        await ThrowForFailureAsync(response, cancellationToken);
+        return response;
+    }
+
     private async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
+        if (request.RequestUri is null || !HasConfiguredOrigin(request.RequestUri))
+        {
+            throw new UnauthorizedAccessException(
+                "The Microsoft Graph request escaped the configured origin.");
+        }
         var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -480,7 +554,10 @@ internal sealed class GraphMailClient(
         }
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
-            var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(30);
+            var retryAfter = response.Headers.RetryAfter?.Delta
+                ?? (response.Headers.RetryAfter?.Date is { } retryAt
+                    ? retryAt - DateTimeOffset.UtcNow
+                    : TimeSpan.FromSeconds(30));
             throw new ApprovedSentSourceThrottledException(retryAfter > TimeSpan.Zero
                 ? retryAfter
                 : TimeSpan.FromSeconds(30));
@@ -515,7 +592,10 @@ internal sealed class GraphMailClient(
         {
             return null;
         }
-        var uri = new Uri(value.GetString()!, UriKind.Absolute);
+        if (!Uri.TryCreate(value.GetString(), UriKind.Absolute, out var uri))
+        {
+            throw new InvalidDataException("Microsoft Graph returned a malformed continuation link.");
+        }
         ValidateDeltaUri(uri, mailboxIdentity, approvedFolderId);
         return uri;
     }
@@ -541,14 +621,49 @@ internal sealed class GraphMailClient(
                 $"users('{mailboxId}')/mailFolders('{folderId}')/messages/delta")
         }.Select(value => value.GetComponents(UriComponents.Path, UriFormat.Unescaped));
         var actualPath = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
-        if (uri.Scheme != Uri.UriSchemeHttps
-            || !uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+        if (!HasConfiguredOrigin(uri)
             || !approvedPaths.Contains(actualPath, StringComparer.Ordinal))
         {
             throw new UnauthorizedAccessException(
                 "The Microsoft Graph cursor escaped the exact approved mailbox folder.");
         }
     }
+
+    public async Task<GraphDeltaItem?> ReadMessageAsync(
+        string mailboxId,
+        string approvedFolderId,
+        string immutableMessageId,
+        CancellationToken cancellationToken)
+    {
+        var uri = new Uri(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/messages/{Uri.EscapeDataString(immutableMessageId)}" +
+            "?$select=id,parentFolderId,receivedDateTime,conversationId,internetMessageId,isRead");
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var response = await SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        await ThrowForFailureAsync(response, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var item = ParseItem(document.RootElement);
+        if (!string.Equals(item.Id, immutableMessageId, StringComparison.Ordinal)
+            || !string.Equals(item.ParentFolderId, approvedFolderId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "The notified message is outside the exact approved Inbox folder.");
+        }
+        return item;
+    }
+
+    private bool HasConfiguredOrigin(Uri uri) =>
+        uri.IsAbsoluteUri
+        && uri.Scheme.Equals(baseUri.Scheme, StringComparison.OrdinalIgnoreCase)
+        && uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+        && uri.Port == baseUri.Port;
 
     private static GraphDeltaItem ParseItem(JsonElement value)
     {
@@ -648,6 +763,10 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
                 }
                 continue;
             }
+            if (item.ReceivedAtUtc < lease.StartBoundaryUtc)
+            {
+                continue;
+            }
             var mime = await client.ReadMimeAsync(mailboxId, item.Id, cancellationToken);
             var next = GraphCursor.Serialize(
                 processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
@@ -675,6 +794,41 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             messages[^1] = messages[^1] with { NextCursor = pageCursor };
         }
         return new(messages, pageCursor);
+    }
+
+    public async Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+        ApprovedInboxPollLease lease,
+        string immutableMessageId,
+        CancellationToken cancellationToken)
+    {
+        ValidateLease(lease);
+        ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
+        var item = await client.ReadMessageAsync(
+            lease.GraphMailboxId,
+            lease.InboxFolderIdentity,
+            immutableMessageId,
+            cancellationToken);
+        if (item?.ReceivedAtUtc is null)
+        {
+            return null;
+        }
+        var mime = await client.ReadMimeAsync(lease.GraphMailboxId, immutableMessageId, cancellationToken);
+        return new(
+            immutableMessageId,
+            $"{SanitizeFileName(immutableMessageId)}.eml",
+            mime,
+            item.ReceivedAtUtc.Value,
+            GraphCursor.Serialize(client.InitialDeltaUri(
+                lease.GraphMailboxId,
+                lease.InboxFolderIdentity,
+                1), 0))
+        {
+            RetainedMetadata = await ReadRetainedMetadataAsync(
+                mime,
+                item,
+                lease.InboxFolderIdentity,
+                cancellationToken)
+        };
     }
 
     /// <summary>
@@ -707,6 +861,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
                 display.SenderDisplayName,
                 display.ToAddresses ?? [],
                 display.CcAddresses ?? [],
+                display.ReplyToAddresses,
                 string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
                 string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
                 display.Attachments ?? [],
@@ -729,6 +884,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
                 SenderDisplayName: null,
                 ToAddresses: [],
                 CcAddresses: [],
+                ReplyToAddresses: [],
                 Subject: null,
                 BodyPlainText: null,
                 Attachments: [],
@@ -930,9 +1086,7 @@ internal sealed class GraphDeletedMailSearchSource(
         read.TransportEvidence.FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value;
 }
 
-internal sealed class GraphApprovedSentSource(
-    GraphApprovedMailboxOptions options,
-    GraphMailClient client) : IApprovedSentSource
+internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprovedSentSource
 {
     public async Task<ApprovedSentPage> ReadAsync(
         ApprovedSentPollLease lease,
@@ -970,9 +1124,19 @@ internal sealed class GraphApprovedSentSource(
             var next = GraphCursor.Serialize(
                 processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
                 processed >= page.Items.Count ? 0 : processed);
-            items.Add(item.Removed
-                ? DeletedItem(item, next)
-                : await DiscoveredItemAsync(item, next, cancellationToken));
+            if (!item.Removed && item.SentAtUtc is { } sentAtUtc
+                && sentAtUtc < lease.StartBoundaryUtc)
+            {
+                continue;
+            }
+            if (item.Removed)
+            {
+                items.Add(DeletedItem(lease.MailboxId, item, next));
+            }
+            else if (await DiscoveredItemAsync(lease, item, next, cancellationToken) is { } discovered)
+            {
+                items.Add(discovered);
+            }
         }
         var consumed = cursor.SkipCount + available.Length;
         var pageCursor = GraphCursor.Serialize(
@@ -982,15 +1146,20 @@ internal sealed class GraphApprovedSentSource(
         {
             items[^1] = items[^1] with { NextCursor = pageCursor };
         }
-        return new(items, pageCursor, page.Items.Count > consumed);
+        return new(
+            items,
+            pageCursor,
+            items.Count > 0 && (page.Items.Count > consumed || page.HasNextPage));
     }
 
-    private async Task<ApprovedSentItem> DiscoveredItemAsync(
+    private async Task<ApprovedSentItem?> DiscoveredItemAsync(
+        ApprovedSentPollLease lease,
         GraphDeltaItem item,
         string nextCursor,
         CancellationToken cancellationToken)
     {
-        var mime = await client.ReadMimeAsync(options.MailboxId, item.Id, cancellationToken);
+        var mime = await client.ReadFolderMimeAsync(
+            lease.MailboxId, lease.SentFolderIdentity, item.Id, cancellationToken);
         var sourceHash = Convert.ToHexString(SHA256.HashData(mime));
         try
         {
@@ -1003,7 +1172,11 @@ internal sealed class GraphApprovedSentSource(
                 || string.IsNullOrWhiteSpace(conversationId)
                 || sentAtUtc.Offset != TimeSpan.Zero)
             {
-                return Malformed(item, sourceHash, "graph_sent_provenance_incomplete", nextCursor);
+                return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_provenance_incomplete", nextCursor);
+            }
+            if (sentAtUtc < lease.StartBoundaryUtc)
+            {
+                return null;
             }
             var inReplyTo = message.References
                 .Append(message.InReplyTo)
@@ -1019,15 +1192,56 @@ internal sealed class GraphApprovedSentSource(
                 .Where(value => value != Guid.Empty)
                 .Distinct()
                 .ToArray();
+            var operationMarkers = HeaderValues(message, StaffMailCorrelationHeaders.OperationId);
+            if (operationMarkers.Length > 1
+                || operationMarkers.Length == 1 && !Guid.TryParse(operationMarkers[0], out _))
+            {
+                return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_operation_marker_invalid", nextCursor);
+            }
+            var operationId = operationMarkers.Length == 0 ? (Guid?)null : Guid.Parse(operationMarkers[0]);
+            Guid? markerMailboxId = null;
+            long? markerGeneration = null;
+            string? markerPayloadHash = null;
+            if (operationId is not null)
+            {
+                var mailboxMarkers = HeaderValues(message, StaffMailCorrelationHeaders.MailboxId);
+                var generationMarkers = HeaderValues(message, StaffMailCorrelationHeaders.MailboxGeneration);
+                var payloadMarkers = HeaderValues(message, StaffMailCorrelationHeaders.PayloadSha256);
+                if (mailboxMarkers.Length != 1 || !Guid.TryParse(mailboxMarkers[0], out var parsedMailboxId)
+                    || generationMarkers.Length != 1 || !long.TryParse(generationMarkers[0],
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out var parsedGeneration)
+                    || parsedGeneration <= 0
+                    || payloadMarkers.Length != 1 || payloadMarkers[0].Length != 64
+                    || !payloadMarkers[0].All(Uri.IsHexDigit))
+                {
+                    return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash,
+                        "graph_sent_frozen_marker_invalid", nextCursor);
+                }
+                markerMailboxId = parsedMailboxId;
+                markerGeneration = parsedGeneration;
+                markerPayloadHash = payloadMarkers[0].ToUpperInvariant();
+            }
+            var attachmentHashes = new List<string>();
+            foreach (var attachment in message.Attachments)
+            {
+                if (attachment is not MimePart part || part.Content is null)
+                {
+                    return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_attachment_invalid", nextCursor);
+                }
+                using var bytes = new MemoryStream();
+                part.Content.DecodeTo(bytes, cancellationToken);
+                attachmentHashes.Add(Convert.ToHexString(SHA256.HashData(bytes.ToArray())));
+            }
             return new(
-                Occurrence(item.Id),
+                Occurrence(lease.MailboxId, item.Id),
                 sourceHash,
-                options.SentFolderId,
+                lease.SentFolderIdentity,
                 ApprovedSentItemObservationKind.Discovered,
                 new(
-                    options.MailboxId,
-                    options.MailboxAddress,
-                    options.SentFolderId,
+                    lease.MailboxId,
+                    lease.MailboxAddress,
+                    lease.SentFolderIdentity,
                     item.Id,
                     messageId,
                     conversationId,
@@ -1035,21 +1249,33 @@ internal sealed class GraphApprovedSentSource(
                     inReplyTo,
                     caseIds,
                     sentAtUtc,
-                    sourceHash),
+                    sourceHash,
+                    operationId,
+                    attachmentHashes,
+                    markerMailboxId,
+                    markerGeneration,
+                    markerPayloadHash),
                 null,
                 nextCursor);
         }
         catch (FormatException)
         {
-            return Malformed(item, sourceHash, "graph_sent_mime_invalid", nextCursor);
+            return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_mime_invalid", nextCursor);
         }
     }
 
-    private ApprovedSentItem DeletedItem(GraphDeltaItem item, string nextCursor)
+    private static string[] HeaderValues(MimeMessage message, string name) =>
+        message.Headers
+            .Where(header => header.Field.Equals(name, StringComparison.OrdinalIgnoreCase))
+            .Select(header => header.Value.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    private static ApprovedSentItem DeletedItem(string mailboxId, GraphDeltaItem item, string nextCursor)
     {
-        var sourceHash = Hash($"deleted\n{options.MailboxId}\n{item.Id}");
+        var sourceHash = Hash($"deleted\n{mailboxId}\n{item.Id}");
         return new(
-            Occurrence(item.Id),
+            Hash($"deleted-occurrence\n{mailboxId}\n{item.Id}"),
             sourceHash,
             null,
             ApprovedSentItemObservationKind.Deleted,
@@ -1058,35 +1284,40 @@ internal sealed class GraphApprovedSentSource(
             nextCursor);
     }
 
-    private ApprovedSentItem Malformed(
+    private static ApprovedSentItem Malformed(
+        string mailboxId,
+        string sentFolderIdentity,
         GraphDeltaItem item,
         string sourceHash,
         string reason,
         string nextCursor) => new(
-            Occurrence(item.Id),
+            Hash($"malformed-occurrence\n{mailboxId}\n{item.Id}"),
             sourceHash,
-            options.SentFolderId,
+            sentFolderIdentity,
             ApprovedSentItemObservationKind.Discovered,
             null,
             reason,
             nextCursor);
 
-    private void ValidateLease(ApprovedSentPollLease lease)
+    private static void ValidateLease(ApprovedSentPollLease lease)
     {
-        if (!lease.MailboxId.Equals(options.MailboxId, StringComparison.Ordinal)
-            || !lease.MailboxAddress.Equals(options.MailboxAddress, StringComparison.OrdinalIgnoreCase)
-            || !lease.SentFolderIdentity.Equals(options.SentFolderId, StringComparison.Ordinal))
+        if (lease.ApprovedMailboxId == Guid.Empty || lease.Generation <= 0
+            || lease.StartBoundaryUtc == default || lease.StartBoundaryUtc.Offset != TimeSpan.Zero
+            || string.IsNullOrWhiteSpace(lease.MailboxId)
+            || string.IsNullOrWhiteSpace(lease.MailboxAddress)
+            || string.IsNullOrWhiteSpace(lease.SentFolderIdentity))
         {
             throw new UnauthorizedAccessException("The Sent lease is outside the approved Graph mailbox and folder.");
         }
     }
 
-    private string Occurrence(string id) => Hash($"{options.MailboxId}\n{id}");
+    private static string Occurrence(string mailboxId, string id) => Hash($"{mailboxId}\n{id}");
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }
 
-internal sealed record GraphDeltaPage(IReadOnlyList<GraphDeltaItem> Items, Uri NextUri);
+internal sealed record GraphDeltaPage(
+    IReadOnlyList<GraphDeltaItem> Items, Uri NextUri, bool HasNextPage);
 internal sealed record GraphFolderPage(IReadOnlyList<GraphDeltaItem> Items, Uri? NextUri);
 
 internal sealed class GraphRetainedMailFolderMover(GraphMailClient client) : IRetainedMailFolderMover

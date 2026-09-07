@@ -187,7 +187,8 @@ public static class WorkerDependencyInjection
             configuration["Box:UploadUri"],
             configuration["Box:RootFolderId"],
             configuration["Box:ConfigJson"],
-            configuration["Box:ClientSecret"]);
+            configuration["Box:ClientSecret"],
+            configuration["Box:HoldingFolderId"]);
 
     private static void ConfigureDatabase(
         IConfiguration configuration,

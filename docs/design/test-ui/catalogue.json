@@ -57,17 +57,10 @@
     "reason": "Redirects to Sign in after ending the authenticated session."
   },
   {
-    "source": "src/Pegasus.Web/Pages/Administration/Access/Index.cshtml",
-    "route": "/Administration/Access",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-access--default.html",
-        "branch": "Populated access-review table.",
-        "scenario": "administration-access--default"
-      }
-    ]
+    "source": "src/Pegasus.Web/Pages/Integrations/Glass/Callback.cshtml",
+    "route": "/Integrations/Glass/Callback/{correlation}",
+    "classification": "redirect",
+    "reason": "Handles the authenticated owner's provider return and redirects to the Case Estimate section; refusals render no page."
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Accounts/Confirm.cshtml",
@@ -77,27 +70,38 @@
       {
         "state": "disable",
         "file": "pages/administration-account-confirm--disable.html",
-        "branch": "Disable operation: the consequence notice above the reason form.",
+        "branch": "The explicit disable account action confirmation.",
         "scenario": "administration-account-confirm--disable"
       },
       {
-        "state": "review",
-        "file": "pages/administration-account-confirm--review.html",
-        "branch": "Any other operation: the reason form without the disable notice.",
-        "scenario": "administration-account-confirm--review"
-      }
-    ]
-  },
-  {
-    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Edit.cshtml",
-    "route": "/Administration/Accounts/Edit/{id:guid}",
-    "classification": "visual",
-    "states": [
+        "state": "enable",
+        "file": "pages/administration-account-confirm--enable.html",
+        "branch": "The explicit enable account action confirmation.",
+        "scenario": "administration-account-confirm--enable"
+      },
       {
-        "state": "default",
-        "file": "pages/administration-account-edit--default.html",
-        "branch": "Loaded enabled account edit form.",
-        "scenario": "administration-account-edit--default"
+        "state": "delete",
+        "file": "pages/administration-account-confirm--delete.html",
+        "branch": "The explicit delete account action confirmation.",
+        "scenario": "administration-account-confirm--delete"
+      },
+      {
+        "state": "force-logout",
+        "file": "pages/administration-account-confirm--force-logout.html",
+        "branch": "The explicit force-logout account action confirmation.",
+        "scenario": "administration-account-confirm--force-logout"
+      },
+      {
+        "state": "reset-password",
+        "file": "pages/administration-account-confirm--reset-password.html",
+        "branch": "The explicit reset-password account action confirmation.",
+        "scenario": "administration-account-confirm--reset-password"
+      },
+      {
+        "state": "clear-lease",
+        "file": "pages/administration-account-confirm--clear-lease.html",
+        "branch": "The explicit clear held case edit confirmation.",
+        "scenario": "administration-account-confirm--clear-lease"
       }
     ]
   },
@@ -160,6 +164,45 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Administration/ClaimSources/Index.cshtml",
+    "route": "/Administration/ClaimSources",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "empty",
+        "file": "pages/administration-claim-sources--empty.html",
+        "branch": "No claim sources and the create form is available.",
+        "scenario": "administration-claim-sources--empty"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/ClaimSources/Edit.cshtml",
+    "route": "/Administration/ClaimSources/Edit/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-claim-source-edit--default.html",
+        "branch": "Loaded active claim source before its first edit.",
+        "scenario": "administration-claim-source-edit--default"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Glass/Index.cshtml",
+    "route": "/Administration/Glass/{staffId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-glass--default.html",
+        "branch": "Configured, enabled credential summary for the seeded Engineer.",
+        "scenario": "administration-glass--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Index.cshtml",
     "route": "/Administration",
     "classification": "visual",
@@ -173,12 +216,6 @@
     ]
   },
   {
-    "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
-    "route": "/Administration/MailCategories",
-    "classification": "redirect",
-    "reason": "Redirects permanently to the consolidated Mail settings area."
-  },
-  {
     "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
     "route": "/Administration/Mailboxes",
     "classification": "visual",
@@ -190,6 +227,12 @@
         "scenario": "administration-mailboxes--default"
       }
     ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
+    "route": "/Administration/MailCategories",
+    "classification": "redirect",
+    "reason": "Redirects permanently to the consolidated Mail settings area."
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Organizations/Edit.cshtml",
@@ -279,6 +322,19 @@
         "file": "pages/administration-roles--default.html",
         "branch": "Populated account role-assignment table and form.",
         "scenario": "administration-roles--default"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/ValuationPresets/Index.cshtml",
+    "route": "/Administration/ValuationPresets",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-valuation-presets--default.html",
+        "branch": "Seeded valuation presets with amount, enabled state, version and administrator edit/create controls.",
+        "scenario": "administration-valuation-presets--default"
       }
     ]
   },
@@ -509,6 +565,19 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Mail/Compose.cshtml",
+    "route": "/Inbox/Compose",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/mail-compose--default.html",
+        "branch": "Initial new-message form before validation or submission.",
+        "scenario": "mail-compose--default"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Mail/Message.cshtml",
     "route": "/Inbox/{id:guid}",
     "classification": "visual",
@@ -667,6 +736,25 @@
     ]
   },
   {
+    "source": "src/Pegasus.Web/Pages/Uploads/Request.cshtml",
+    "route": "/Uploads/{token}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-request--default.html",
+        "branch": "Valid external upload policy and initial form.",
+        "scenario": "upload-request--default"
+      },
+      {
+        "state": "validation",
+        "file": "pages/upload-request--validation.html",
+        "branch": "ModelState is invalid under a valid upload policy.",
+        "scenario": "upload-request--validation"
+      }
+    ]
+  },
+  {
     "source": "src/Pegasus.Web/Pages/UploadStatus.cshtml",
     "route": "/Upload/Status/{id:guid}",
     "classification": "visual",
@@ -692,21 +780,54 @@
     ]
   },
   {
-    "source": "src/Pegasus.Web/Pages/Uploads/Request.cshtml",
-    "route": "/Uploads/{token}",
+    "source": "src/Pegasus.Web/Pages/Administration/Health.cshtml",
+    "route": "/Administration/Health",
     "classification": "visual",
     "states": [
       {
         "state": "default",
-        "file": "pages/upload-request--default.html",
-        "branch": "Valid external upload policy and initial form.",
-        "scenario": "upload-request--default"
-      },
+        "file": "pages/administration-health--default.html",
+        "branch": "Authorized administration query view.",
+        "scenario": "administration-health--default"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/ActionLogs.cshtml",
+    "route": "/Administration/ActionLogs",
+    "classification": "visual",
+    "states": [
       {
-        "state": "validation",
-        "file": "pages/upload-request--validation.html",
-        "branch": "ModelState is invalid under a valid upload policy.",
-        "scenario": "upload-request--validation"
+        "state": "default",
+        "file": "pages/administration-action-logs--default.html",
+        "branch": "Authorized administration query view.",
+        "scenario": "administration-action-logs--default"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/AiJobs.cshtml",
+    "route": "/Administration/AiJobs",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-ai-jobs--default.html",
+        "branch": "Authorized administration query view.",
+        "scenario": "administration-ai-jobs--default"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Reports.cshtml",
+    "route": "/Administration/Reports",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-reports--default.html",
+        "branch": "Authorized administration query view.",
+        "scenario": "administration-reports--default"
       }
     ]
   }

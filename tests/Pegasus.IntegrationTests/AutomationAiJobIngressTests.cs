@@ -17,6 +17,55 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomationAiJobIngressTests
 {
+    [Fact]
+    public async Task JobCursorPagesConcatenateWithoutDuplicatesAndBindTheFilter()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, JobsScope);
+        for (var index = 0; index < 3; index++)
+        {
+            using var create = await PostMcpAsync(client, token, ToolCallPayload(
+                70 + index, "pegasus_ai_job_create", new
+                {
+                    kind = "UnidentifiedQueuePass",
+                    instruction = $"Cursor page pass {index}",
+                    operationKey = $"mcp:cursor-job-{index}"
+                }));
+            _ = await ReadStructuredContentAsync(create);
+        }
+
+        string continuation;
+        Guid[] firstIds;
+        using (var first = await PostMcpAsync(client, token, ToolCallPayload(
+            74, "pegasus_ai_job_list", new { kind = "UnidentifiedQueuePass", pageSize = 2 })))
+        {
+            var result = await ReadStructuredContentAsync(first);
+            firstIds = result.GetProperty("jobs").EnumerateArray()
+                .Select(item => item.GetProperty("jobId").GetGuid()).ToArray();
+            Assert.Equal(2, firstIds.Length);
+            continuation = result.GetProperty("continuation").GetString()!;
+        }
+        using (var second = await PostMcpAsync(client, token, ToolCallPayload(
+            75, "pegasus_ai_job_list", new { kind = "UnidentifiedQueuePass", pageSize = 2, continuation })))
+        {
+            var result = await ReadStructuredContentAsync(second);
+            var secondIds = result.GetProperty("jobs").EnumerateArray()
+                .Select(item => item.GetProperty("jobId").GetGuid()).ToArray();
+            Assert.Single(secondIds);
+            Assert.Empty(firstIds.Intersect(secondIds));
+        }
+        using (var foreignFilter = await PostMcpAsync(client, token, ToolCallPayload(
+            76, "pegasus_ai_job_list", new { kind = "Estimate", continuation })))
+        {
+            using var result = await ReadJsonRpcAsync(foreignFilter);
+            Assert.True(result.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("The cursor is invalid or no longer applies to this query.",
+                result.RootElement.ToString(), StringComparison.Ordinal);
+        }
+    }
+
     private const string JobsScope = "automation.jobs";
     private static readonly ActionActor Staff =
         ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);

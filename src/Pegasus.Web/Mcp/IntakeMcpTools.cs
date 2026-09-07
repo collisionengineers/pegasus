@@ -48,7 +48,7 @@ internal sealed class IntakeMcpTools(
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    private const int MaximumPageSize = 50;
+    private const int MaximumPageSize = 100;
     private const int MaximumExternalReceiptTokenLength = 200;
 
     [McpServerTool(
@@ -59,11 +59,11 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, needs_sorting, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Page size is capped at 50.")]
+    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Page size is capped at 100.")]
     public async Task<IntakeQueueToolResult> ListAsync(
         [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
         [Description("1-based page number.")] int page = 1,
-        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize = 0,
+        [Description("Page size between 1 and 100; 0 selects the default of 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -80,7 +80,7 @@ internal sealed class IntakeMcpTools(
                     decisionFilter = decision.Trim() switch
                     {
                         "case_created" => IntakeDecision.CaseCreated,
-                        "needs_sorting" => IntakeDecision.NeedsSorting,
+                        "unidentified" => IntakeDecision.NeedsSorting,
                         "blocked_intake" => IntakeDecision.BlockedIntake,
                         "unsupported" => IntakeDecision.Unsupported,
                         "ocr_required" => IntakeDecision.OcrRequired,
@@ -90,7 +90,7 @@ internal sealed class IntakeMcpTools(
                 }
 
                 var effectivePage = page == 0 ? 1 : page;
-                var effectivePageSize = pageSize == 0 ? 25 : pageSize;
+                var effectivePageSize = pageSize == 0 ? 50 : pageSize;
                 if (effectivePageSize is < 1 or > MaximumPageSize)
                 {
                     throw new McpException(
@@ -188,7 +188,7 @@ internal sealed class IntakeMcpTools(
     private static string DecisionCode(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated => "case_created",
-        IntakeDecision.NeedsSorting => "needs_sorting",
+        IntakeDecision.NeedsSorting => "unidentified",
         IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",

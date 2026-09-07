@@ -48,7 +48,7 @@
         </a>
         <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
             <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg><span>Unidentified</span></span>
-            <span class="metric-value">@Model.MailActivity.Unidentified</span>
+            <span class="metric-value">@Model.UnidentifiedCount</span>
         </a>
         <a class="metric" data-value="blocked" asp-page="/Cases/Index" asp-route-tab="unidentified">
             <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>Blocked</span></span>

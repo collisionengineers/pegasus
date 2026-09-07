@@ -47,6 +47,8 @@ const string DevelopmentOfflineProfile = "DevelopmentOffline";
 const string DevelopmentOfflineAuthenticationScheme = "DevelopmentOffline";
 const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
+const string GlassCallbackRateLimitPolicy = "GlassCallback";
+const int GlassCallbackRequestsPerClientPerMinute = 30;
 const string InitializeDevelopmentArgument = "--initialize-development";
 const string BootstrapProductionAdministratorArgument = "--bootstrap-production-administrator";
 const string BuildDiagnosticsArgument = "--diagnostics-version";
@@ -111,6 +113,7 @@ var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
 QueueClient? intakeWorkQueue = null;
+TokenCredential? automationMcpCredential = null;
 var allowLocalQueueCreation = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
     && !builder.Environment.IsDevelopment())
@@ -150,6 +153,7 @@ if (productionProfile)
         "Box:BaseUri",
         "Box:UploadUri",
         "Box:RootFolderId",
+        "Box:HoldingFolderId",
         "Box:ConfigJson",
         "Box:ClientSecret",
         // EXT-04. Listed here so a deployment missing EVA's credentials fails
@@ -190,6 +194,7 @@ if (productionProfile)
         ExcludeInteractiveBrowserCredential = true,
         ExcludeBrokerCredential = true
     });
+    automationMcpCredential = credential;
     builder.Services.AddDataProtection()
         .SetApplicationName("Pegasus")
         .PersistKeysToAzureBlobStorage(
@@ -239,6 +244,7 @@ else
     intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
     allowLocalQueueCreation = true;
 }
+builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
 Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
@@ -314,6 +320,10 @@ builder.Services.AddRazorPages()
             "/Uploads/Request",
             model => model.EndpointMetadata.Add(
                 new EnableRateLimitingAttribute(PublicUploadLink.RateLimitPolicy)));
+        options.Conventions.AddPageApplicationModelConvention(
+            "/Integrations/Glass/Callback",
+            model => model.EndpointMetadata.Add(
+                new EnableRateLimitingAttribute(GlassCallbackRateLimitPolicy)));
         // CASE-038: the Case record's section fragment answers on its own
         // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
         // a fragment response is never mistaken for the page itself. The
@@ -362,6 +372,8 @@ builder.Services.AddRateLimiter(options =>
                 ? "automation_rate_limited"
                 : rejectedPath.StartsWithSegments(ProviderApi.BasePath)
                     ? "provider_api_rate_limited"
+                    : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
+                        ? "glass_callback_rate_limited"
                     : rejectedPath.StartsWithSegments("/Uploads")
                         ? "upload_link_rate_limited"
                         : "authentication_rate_limited";
@@ -411,6 +423,17 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = PublicUploadLink.RequestsPerClientPerMinute,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.AddPolicy(
+        GlassCallbackRateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = GlassCallbackRequestsPerClientPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -671,7 +694,8 @@ documentStorage: !productionProfile
             builder.Configuration["Box:UploadUri"],
             builder.Configuration["Box:RootFolderId"],
             builder.Configuration["Box:ConfigJson"],
-            builder.Configuration["Box:ClientSecret"]))));
+            builder.Configuration["Box:ClientSecret"],
+            builder.Configuration["Box:HoldingFolderId"]))));
 // EXT-04: the manual Send to EVA route. Production only — the offline
 // profile reaches no vendor — and the options are read lazily for the same
 // PLAT-013 reason as Box's.
@@ -684,8 +708,14 @@ if (productionProfile)
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
+    builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
+    builder.Services.AddScoped<Pegasus.Core.Operations.IStaffReportSend, UnavailableStaffReportSend>();
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
-    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity, LocalApprovedMailboxIdentityResolver>();
+    builder.Services.AddSingleton<LocalApprovedMailboxIdentityResolver>();
+    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>
+        provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
+    builder.Services.AddSingleton<ICheckApprovedMailboxAccess>(provider =>
+        provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
 }
 else
 {
@@ -750,9 +780,15 @@ builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
 // view in every profile; the ingress itself stays behind the composition gate.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
 builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
+// Administration health remains available when the Automation ingress is disabled.
+builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
+builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
 if (automationMcpOptions is not null)
 {
-    builder.Services.AddPegasusAutomationMcp(automationMcpOptions, productVersion);
+    builder.Services.AddPegasusAutomationMcp(
+        automationMcpOptions,
+        productVersion,
+        automationMcpCredential);
 }
 if (providerApiEnabled)
 {

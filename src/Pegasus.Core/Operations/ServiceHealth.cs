@@ -66,7 +66,8 @@ public sealed record ServiceHealthRow(
     ServiceHealthState State,
     DateTimeOffset? LatestEvidenceAtUtc,
     ServiceHealthDependency Dependency,
-    ServiceHealthRetryTarget? RetryTarget = null);
+    ServiceHealthRetryTarget? RetryTarget = null,
+    string? FailureCode = null);
 
 /// <summary>
 /// <see cref="ExternalWorkLimitReached"/> is the Operations projection's own
@@ -356,7 +357,8 @@ public sealed class GetServiceHealth(
                 poll.MailboxAddress,
                 ServiceHealthPolicy.PollState(poll.LastCompletedAtUtc, poll.LastFailureCode, nowUtc),
                 poll.LastCompletedAtUtc,
-                ServiceHealthDependency.MicrosoftGraph));
+                ServiceHealthDependency.MicrosoftGraph,
+                FailureCode: poll.LastFailureCode));
         }
 
         foreach (var poll in await healthQueries.ListSentEvidencePollStatusAsync(cancellationToken))
@@ -366,7 +368,8 @@ public sealed class GetServiceHealth(
                 $"{ServiceHealthPolicy.SentEvidenceService} · {poll.MailboxAddress}",
                 ServiceHealthPolicy.PollState(poll.LastCompletedAtUtc, poll.LastFailureCode, nowUtc),
                 poll.LastCompletedAtUtc,
-                ServiceHealthDependency.MicrosoftGraph));
+                ServiceHealthDependency.MicrosoftGraph,
+                FailureCode: poll.LastFailureCode));
         }
 
         var dispatch = await healthQueries.GetIntakeDispatchHealthAsync(cancellationToken);

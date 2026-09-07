@@ -11,8 +11,8 @@ Authority order is defined once in the
 
 - Task branches are cut from `dev` and merge into `dev` through a PR. `main`
   is the active deployment and the sole revision eligible for an authorised
-  release. `dev` and `main` are never rebased, reset, or force-pushed. Claim
-  lines riding into `main`'s `NOW.md` at release are accepted cosmetics.
+  release. `dev` and `main` are never rebased, reset, or force-pushed. Claims
+  and execution evidence live in the owning Kanmer ticket.
 - Promote `dev` to `main` only as an exact-SHA fast-forward: fetch both remote
   refs, confirm `git merge-base --is-ancestor origin/main origin/dev`, record
   the reviewed `origin/dev` SHA, then atomically push that SHA to both
@@ -81,7 +81,7 @@ For each delivered capability, identify the authoritative rule, Core policy owne
 
 1. **Static/build/architecture** — compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, inspect dependencies, and prevent tracked corpus or secret material. This proves consistency only.
 2. **Core/domain** — positive, contradictory, ambiguous, and failure cases for intake, references, matching, lifecycle, roles, completeness, and case invariants.
-3. **Parser/adapter contracts** — EML/PDF/DOCX and later approved DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures.
+3. **Parser/adapter contracts** — EML/PDF/DOCX/DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures. Format recognition, deployed parser capability, OCR activation and genuine-sample acceptance remain separate claims.
 4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
 5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
 6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
@@ -255,3 +255,35 @@ demonstrated:
 | One bad Box folder reference produced 1,896 exceptions in a day | Classify failures at the client boundary; park poison work visibly |
 | ~30 consecutive governance PRs while the intake engine stayed untrusted | Process is not a product; delete controls whose triggers never occur |
 | 17-ticket misclassification wave found via operator screenshots, not CI | Weekly human review of real operator-visible output |
+
+## v1 shared development contracts
+
+PLAT-075 owns the common Foundation commit consumed unchanged by CASE-047 and
+INTK-060. This is an incomplete development checkpoint, not runtime or release
+evidence. The owner-ticket plan records the exact Foundation SHA and subsequent
+shared corrections. The C# definitions are the signature authority:
+
+| Consumer | Contract owner and signature |
+| --- | --- |
+| Accounts and Case editing | `IClearCaseEditLease.ExecuteAsync(ClearCaseEditLeaseRequest, CancellationToken)` validates an Administrator, selected Case, expected staff holder and independent lease generation; returns the retained clearance result on exact replay. |
+| B Glass's repair estimates | `IPerUserExternalCredentialReader.GetEnabledAsync(ActionActor, ExternalCredentialProvider, CancellationToken)` returns server-only enabled credential material for that actor; administrative status never includes its password. |
+| B generated and imported artifacts; C retained sources | `ICaseArtifactCustody.RetainAsync(CaseArtifactCustodyRequest, CancellationToken)` accepts one Case or receipt destination and returns confirmed logical identity or an explicit pending/failed/unknown result. |
+| B/C logical reads and A downloads | `IReadLogicalDocumentVersion.OpenAsync(ReadLogicalDocumentVersionRequest, CancellationToken)` selects exactly one complete document/version pair or retained intake asset; Case and receipt contexts are checked against persisted associations. Storage addresses never come from callers. |
+| C correspondence | `IStaffMailSend.SendAsync(StaffMailSendCommand, CancellationToken)` owns the single mail operation and its server-computed payload hash. |
+| B report delivery | `IStaffReportSend.SendAsync(StaffReportSendCommand, CancellationToken)` uses the same mail operation; B's `IReportSendReadiness.RequireReadyAsync` rechecks persisted versions and exact artifacts at the side effect. |
+| B source adoption | `ISourceCandidateQueries` and `IThirdPartyReportCandidateQueries` return C-owned source observations. Typed report leaves retain raw value, unit, currency, document/version/hash and locator; B alone accepts CE findings. |
+| B location selection | `IInspectionLocationChoices.SearchAsync` returns a bounded choice with postcode, source kind, source record and version. A location never implies CE attendance. |
+| B raw estimate import via Web/MCP | `IImportRawEstimate.ExecuteAsync` accepts logical source identity, SHA-256, typed actor, expected Case version, lease and operation key. |
+
+The mail state vocabulary is `StaffMailState`; attempt stages use
+`StaffMailAttemptStage`. Submitted means provider acceptance. Only matching
+observed Sent evidence establishes Sent. Recovery projections contain safe
+state, attempt time, mailbox generation, payload hash and expiry; upload URLs,
+credential material and provider-session secrets stay inside the adapter.
+
+Foundation itself registered the administrative lease implementation. The
+Stream A source now adds the account/credential, mailbox, staff-mail,
+logical-content/cache and administration query implementations. B/C domain
+implementations and their A-authored composition patches arrive together on
+the owning branches. The combined checkout must prove those callers;
+contracts and registrations alone do not establish a working user journey.

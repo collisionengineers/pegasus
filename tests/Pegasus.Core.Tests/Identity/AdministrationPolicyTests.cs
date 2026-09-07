@@ -146,6 +146,32 @@ public sealed class AdministrationPolicyTests
     }
 
     [Fact]
+    public async Task StaffSendCannotBeEnabledWithoutAdministratorVerifiedSizeCeiling()
+    {
+        var store = new MailboxStore();
+        var command = new UpdateApprovedMailbox(store);
+        var request = new UpdateApprovedMailboxRequest(
+            Guid.NewGuid(),
+            "mail@collisionengineers.co.uk",
+            [ApprovedMailboxRouteScope.StaffSend],
+            ApprovedMailboxState.Approved,
+            0,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+            "Enable staff send",
+            "mailbox-send",
+            "mailbox-id");
+
+        var missing = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(() =>
+            command.ExecuteAsync(request, default));
+        Assert.Equal(ApprovedMailboxUpdateError.MissingVerifiedSendLimit, missing.Error);
+        Assert.Null(store.UpdateRequest);
+
+        await command.ExecuteAsync(
+            request with { VerifiedEncodedMessageSizeLimit = 25_000_000 }, default);
+        Assert.Equal(25_000_000, store.UpdateRequest!.VerifiedEncodedMessageSizeLimit);
+    }
+
+    [Fact]
     public async Task ApprovedMailboxRejectsDuplicateOrInexactFolderBindingsBeforeStore()
     {
         var store = new MailboxStore();

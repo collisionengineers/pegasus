@@ -98,7 +98,7 @@ internal sealed class CaseMcpTools(
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    private const int MaximumSearchPageSize = 50;
+    private const int MaximumSearchPageSize = 100;
     private const int MaximumDocumentEntries = 200;
     private const int MaximumHistoryEntries = 20;
 
@@ -110,7 +110,7 @@ internal sealed class CaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Searches cases by free text, reference, registration, claimant, claim number, principal, and lifecycle state. Results are paginated; page size is capped at 50 to respect client result-size limits.")]
+    [Description("Searches cases by free text, reference, registration, claimant, claim number, principal, and lifecycle state. Results are paginated; page size defaults to 50 and is capped at 100.")]
     public async Task<CaseSearchToolResult> SearchAsync(
         [Description("Free-text query over reference, registration, claimant, and claim number.")] string? query = null,
         [Description("Exact or partial case reference filter.")] string? caseReference = null,
@@ -120,7 +120,7 @@ internal sealed class CaseMcpTools(
         [Description("Principal code filter.")] string? principal = null,
         [Description("Lifecycle state filter using the CaseLifecycleState name.")] string? state = null,
         [Description("1-based page number.")] int page = 1,
-        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize = 0,
+        [Description("Page size between 1 and 100; 0 selects the default of 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -144,7 +144,7 @@ internal sealed class CaseMcpTools(
                 }
 
                 var effectivePage = page == 0 ? 1 : page;
-                var effectivePageSize = pageSize == 0 ? 25 : pageSize;
+                var effectivePageSize = pageSize == 0 ? 50 : pageSize;
                 if (effectivePageSize is < 1 or > MaximumSearchPageSize)
                 {
                     throw new McpException(
