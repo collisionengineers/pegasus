@@ -179,8 +179,10 @@ public sealed partial class QdosTriageIntegrationTests
         const string normalizedVrm = "CD34EFG";
 
         var extractionPolicy = new ConditionalTriageMatchPolicy(readResult =>
-            readResult.Content.Any(fragment =>
-                fragment.Text.Contains("TRIAGE-REQUEST", StringComparison.OrdinalIgnoreCase)));
+            string.Equals(
+                readResult.InstructionDraft?.ClaimNumber,
+                "TRIAGE-REQUEST",
+                StringComparison.OrdinalIgnoreCase));
 
         using var factory = new IntakeWebApplicationFactory(
             "Development",
