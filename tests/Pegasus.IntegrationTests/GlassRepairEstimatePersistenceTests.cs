@@ -872,7 +872,12 @@ public sealed class GlassRepairEstimatePersistenceTests
     private sealed record LaunchOutcome(
         GlassRepairEstimateSessionMaterial? Created, Exception? Error);
 
-    private sealed class Harness : IAsyncDisposable
+    /// <summary>
+    /// Internal, not private, so the Glass's gateway suite can drive the real
+    /// store on the same seeded Case and user instead of keeping a second copy
+    /// of this seeding.
+    /// </summary>
+    internal sealed class Harness : IAsyncDisposable
     {
         private Harness(
             LocalDbTestDatabase database,
@@ -897,7 +902,7 @@ public sealed class GlassRepairEstimatePersistenceTests
 
         private LocalDbTestDatabase Database { get; }
 
-        private PooledDbContextFactory<PegasusDbContext> Factory { get; }
+        public PooledDbContextFactory<PegasusDbContext> Factory { get; }
 
         public CaseDataCompletenessPersistenceTests.MutableTimeProvider TimeProvider { get; }
 
