@@ -1648,6 +1648,66 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context2, link.LinkId));
     }
 
+    /// <summary>
+    /// A replacement addressed at an arrival custody has not answered for is
+    /// refused. The slot is in this session, so the refusal is never
+    /// Unavailable; and it is a refusal rather than a race, because writing a
+    /// replacement against a hand-over still in flight would decide by timing
+    /// which file the sender ends up having sent.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseArtifactCustodyDisposition.Pending, "pending")]
+    [InlineData(CaseArtifactCustodyDisposition.Unknown, "unknown")]
+    public async Task AReplacementAddressedAtAnUnansweredArrivalIsRefused(
+        CaseArtifactCustodyDisposition disposition,
+        string expectedState)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithRetention(baseFactory);
+        var custody = factory.Services.GetRequiredService<RecordingCaseArtifactCustody>();
+        custody.Disposition = disposition;
+        var link = await SeedLinkAsync(factory.Services, "PUBINFLIGHT");
+
+        await PostEvidenceAsync(factory, link.Token);
+        Guid occurrenceId;
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(expectedState, occurrence.CustodyState);
+            occurrenceId = occurrence.Id;
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var refused = await scope.ServiceProvider.GetRequiredService<IUploadToRequest>()
+            .ExecuteAsync(
+                new(
+                    link.Token,
+                    new(
+                        "replacement.txt",
+                        "text/plain",
+                        OtherEvidence,
+                        $"replace:{Guid.NewGuid():N}"),
+                    0,
+                    occurrenceId),
+                CancellationToken.None);
+
+        Assert.Equal(RequestUploadDecision.OperationConflict, refused.Decision);
+        Assert.Null(refused.ReceiptId);
+
+        await using var context2 = await CreateContextAsync(factory.Services);
+        // Nothing was written: no second occurrence, and the arrival still in
+        // flight is exactly as custody left it.
+        var untouched = await context2.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .SingleAsync();
+        Assert.Equal(occurrenceId, untouched.Id);
+        Assert.Equal(expectedState, untouched.CustodyState);
+        Assert.Equal(Sha256Hex(Evidence), untouched.Sha256);
+        Assert.Equal("evidence.txt", untouched.ProposedName);
+    }
+
     [Fact]
     public async Task PublicPageAddsReplacesFinalizesAndRefusesLaterBytes()
     {
@@ -1688,12 +1748,36 @@ public sealed partial class PublicUploadRetentionWebTests
 
         await using (var context = await CreateContextAsync(factory.Services))
         {
-            var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
+            // The occurrence the replacement addressed is untouched. It is the
+            // server-issued identity of one arrival and custody answered about
+            // it, so nothing moves it backwards and nothing erases the
+            // document it points at.
+            var replacedOccurrence = await context.Set<PublicUploadOccurrenceEntity>()
                 .AsNoTracking()
                 .SingleAsync(value => value.Id == occurrenceId);
-            Assert.Equal("replacement.txt", occurrence.ProposedName);
-            Assert.Equal(Sha256Hex(replacement), occurrence.Sha256);
-            Assert.Equal((1, replacement.LongLength), await ReadLinkTotalsAsync(context, link.LinkId));
+            Assert.Equal("evidence.txt", replacedOccurrence.ProposedName);
+            Assert.Equal(Sha256Hex(Evidence), replacedOccurrence.Sha256);
+            Assert.Equal("confirmed", replacedOccurrence.CustodyState);
+            Assert.NotNull(replacedOccurrence.DocumentId);
+            Assert.NotNull(replacedOccurrence.DocumentVersionId);
+
+            // The replacement is its own occurrence, under its own identity,
+            // holding its own bytes.
+            var replacementOccurrence = await context.Set<PublicUploadOccurrenceEntity>()
+                .AsNoTracking()
+                .SingleAsync(value => value.Id != occurrenceId);
+            Assert.Equal("replacement.txt", replacementOccurrence.ProposedName);
+            Assert.Equal(Sha256Hex(replacement), replacementOccurrence.Sha256);
+            Assert.Equal("confirmed", replacementOccurrence.CustodyState);
+            Assert.NotNull(replacementOccurrence.DocumentVersionId);
+            Assert.NotEqual(
+                replacedOccurrence.DocumentVersionId,
+                replacementOccurrence.DocumentVersionId);
+
+            // Custody holds both, so the link's limits go on bounding both.
+            Assert.Equal(
+                (2, Evidence.LongLength + replacement.LongLength),
+                await ReadLinkTotalsAsync(context, link.LinkId));
             Assert.Equal(fixedExpiry, (await context.Set<PublicUploadSessionEntity>()
                 .AsNoTracking()
                 .SingleAsync(value => value.RequestUploadLinkId == link.LinkId)).ExpiresAtUtc);
