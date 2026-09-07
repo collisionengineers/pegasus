@@ -242,7 +242,7 @@
       {
         "state": "default",
         "file": "pages/administration-organization-edit--default.html",
-        "branch": "Loaded Work Provider organization with one active principal.",
+        "branch": "Loaded newly created Work Provider organization before its first principal.",
         "scenario": "administration-organization-edit--default"
       }
     ]
@@ -255,7 +255,7 @@
       {
         "state": "default",
         "file": "pages/administration-organizations--default.html",
-        "branch": "No organizations plus create form.",
+        "branch": "Seeded v1 organizations plus the create form.",
         "scenario": "administration-organizations--default"
       }
     ]
@@ -294,7 +294,7 @@
       {
         "state": "default",
         "file": "pages/administration-principals--default.html",
-        "branch": "No organizations branch.",
+        "branch": "Seeded v1 principals grouped by organization.",
         "scenario": "administration-principals--default"
       }
     ]
