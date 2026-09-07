@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -75,6 +76,27 @@ public sealed class EfIntakeOcrOperationStore(
                 throw new IntakeOcrOperationConflictException();
             }
 
+            var existingWork = await context.Set<ExternalWorkItemEntity>()
+                .SingleOrDefaultAsync(item => item.Id == existing.Id, cancellationToken);
+            if (existingWork is null)
+            {
+                context.Set<ExternalWorkItemEntity>().Add(new ExternalWorkItemEntity
+                {
+                    Id = existing.Id,
+                    Kind = ExternalWorkKinds.IntakeOcr,
+                    OperationKey = key,
+                    State = existing.State == nameof(IntakeOcrState.Completed)
+                        ? ExternalWorkStatePersistence.Completed
+                        : existing.State == nameof(IntakeOcrState.Failed) || existing.State == nameof(IntakeOcrState.Unknown)
+                            ? ExternalWorkStatePersistence.Failed
+                            : ExternalWorkStatePersistence.Pending,
+                    AttemptCount = Envelope(existing.QualifiedPagesJson).AttemptCount,
+                    DueAtUtc = existing.RetryAtUtc ?? DateTimeOffset.UtcNow,
+                    CompletedAtUtc = existing.State == nameof(IntakeOcrState.Completed) ? DateTimeOffset.UtcNow : null
+                });
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
             return Map(existing);
         }
@@ -93,6 +115,18 @@ public sealed class EfIntakeOcrOperationStore(
             Version = 1
         };
         context.Set<IntakeOcrOperationEntity>().Add(entity);
+
+        var workItem = new ExternalWorkItemEntity
+        {
+            Id = operationId,
+            Kind = ExternalWorkKinds.IntakeOcr,
+            OperationKey = key,
+            State = ExternalWorkStatePersistence.Pending,
+            AttemptCount = 0,
+            DueAtUtc = DateTimeOffset.UtcNow
+        };
+        context.Set<ExternalWorkItemEntity>().Add(workItem);
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -103,7 +137,7 @@ public sealed class EfIntakeOcrOperationStore(
         long expectedVersion,
         DateTimeOffset attemptedAtUtc,
         CancellationToken cancellationToken) =>
-        UpdateAsync(operationId, expectedVersion, entity =>
+        UpdateAsync(operationId, expectedVersion, (entity, workItem) =>
         {
             var envelope = Envelope(entity.QualifiedPagesJson);
             entity.QualifiedPagesJson = JsonSerializer.Serialize(
@@ -111,6 +145,12 @@ public sealed class EfIntakeOcrOperationStore(
                 SerializerOptions);
             entity.State = nameof(IntakeOcrState.Processing);
             entity.RetryAtUtc = null;
+            if (workItem is not null)
+            {
+                workItem.State = ExternalWorkStatePersistence.Processing;
+                workItem.LeaseToken = null;
+                workItem.LeaseExpiresAtUtc = null;
+            }
         }, cancellationToken);
 
     public Task<IntakeOcrOperation> RecordSubmittedAsync(
@@ -124,7 +164,7 @@ public sealed class EfIntakeOcrOperationStore(
         return UpdateAsync(
             operationId,
             expectedVersion,
-            entity =>
+            (entity, workItem) =>
             {
                 entity.ProviderOperationId = providerOperationId.Trim();
                 var envelope = Envelope(entity.QualifiedPagesJson);
@@ -132,6 +172,13 @@ public sealed class EfIntakeOcrOperationStore(
                     envelope with { Version = 2, SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
                 entity.State = nameof(IntakeOcrState.Processing);
                 entity.RetryAtUtc = null;
+                if (workItem is not null)
+                {
+                    workItem.State = ExternalWorkStatePersistence.Processing;
+                    workItem.ExternalReceipt = providerOperationId.Trim();
+                    workItem.LeaseToken = null;
+                    workItem.LeaseExpiresAtUtc = null;
+                }
             },
             cancellationToken);
     }
@@ -159,7 +206,7 @@ public sealed class EfIntakeOcrOperationStore(
         return UpdateAsync(
             operationId,
             expectedVersion,
-            entity =>
+            (entity, workItem) =>
             {
                 entity.State = nameof(IntakeOcrState.Completed);
                 entity.ProviderOperationId = result.ProviderOperationId ?? entity.ProviderOperationId;
@@ -174,6 +221,19 @@ public sealed class EfIntakeOcrOperationStore(
                     SerializerOptions);
                 entity.LastError = null;
                 entity.RetryAtUtc = null;
+                if (workItem is not null)
+                {
+                    workItem.State = ExternalWorkStatePersistence.Completed;
+                    workItem.CompletedAtUtc ??= DateTimeOffset.UtcNow;
+                    workItem.LeaseToken = null;
+                    workItem.LeaseExpiresAtUtc = null;
+                    workItem.FailureCode = null;
+                    workItem.FailureReason = null;
+                    if (!string.IsNullOrWhiteSpace(result.ProviderOperationId))
+                    {
+                        workItem.ExternalReceipt = result.ProviderOperationId;
+                    }
+                }
             },
             cancellationToken);
     }
@@ -197,7 +257,7 @@ public sealed class EfIntakeOcrOperationStore(
         return UpdateAsync(
             operationId,
             expectedVersion,
-            entity =>
+            (entity, workItem) =>
             {
                 entity.State = state.ToString();
                 entity.LastError = $"{failure.Code}: {failure.Reason}";
@@ -217,6 +277,26 @@ public sealed class EfIntakeOcrOperationStore(
                             : envelope.SubmitAttemptedAtUtc
                     },
                     SerializerOptions);
+
+                if (workItem is not null)
+                {
+                    workItem.AttemptCount = envelope.AttemptCount + 1;
+                    workItem.LeaseToken = null;
+                    workItem.LeaseExpiresAtUtc = null;
+                    workItem.FailureCode = failure.Code;
+                    workItem.FailureReason = failure.Reason;
+
+                    if (state == IntakeOcrState.RetryScheduled)
+                    {
+                        workItem.State = ExternalWorkStatePersistence.Pending;
+                        workItem.DueAtUtc = retryAtUtc ?? DateTimeOffset.UtcNow;
+                    }
+                    else
+                    {
+                        workItem.State = ExternalWorkStatePersistence.Failed;
+                        workItem.DueAtUtc = retryAtUtc ?? DateTimeOffset.UtcNow;
+                    }
+                }
             },
             cancellationToken);
     }
@@ -224,7 +304,7 @@ public sealed class EfIntakeOcrOperationStore(
     private async Task<IntakeOcrOperation> UpdateAsync(
         Guid operationId,
         long expectedVersion,
-        Action<IntakeOcrOperationEntity> apply,
+        Action<IntakeOcrOperationEntity, ExternalWorkItemEntity?> apply,
         CancellationToken cancellationToken)
     {
         if (operationId == Guid.Empty)
@@ -243,7 +323,10 @@ public sealed class EfIntakeOcrOperationStore(
             throw new IntakeOcrOperationConflictException();
         }
 
-        apply(entity);
+        var workItem = await context.Set<ExternalWorkItemEntity>()
+            .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken);
+
+        apply(entity, workItem);
         entity.Version++;
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
