@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Manage organization roles · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -180,7 +181,7 @@
         <section aria-labelledby="organization-roles-heading">
             <h2 id="organization-roles-heading" class="section-label">Organization roles</h2>
             <div class="panel form-panel form-panel--wide">
-                <form method="post" action="administration-organization-edit--default.html">
+                <form method="post" action="#">
 
                     <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
                     <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
@@ -275,10 +276,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

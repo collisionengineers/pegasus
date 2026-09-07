@@ -174,7 +174,7 @@
         </div>
     </div>
     <div class="panel form-panel form-panel--wide">
-        <form method="post" action="administration-claim-source-edit--default.html">
+        <form method="post" action="#">
 
             <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
             <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
@@ -185,20 +185,20 @@
             </div>
             <div>
                 <label for="ContactName">Contact name (optional)</label>
-                <input autocomplete="off" type="text" data-val="true" data-val-length="The field ContactName must be a string with a maximum length of 200." data-val-length-max="200" id="ContactName" maxlength="200" name="ContactName" value="Pat Example" />
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field ContactName must be a string with a maximum length of 200." data-val-length-max="200" id="ContactName" maxlength="200" name="ContactName" value="" />
             </div>
             <div>
                 <label for="Telephone">Telephone (optional)</label>
-                <input autocomplete="off" type="text" data-val="true" data-val-length="The field Telephone must be a string with a maximum length of 50." data-val-length-max="50" id="Telephone" maxlength="50" name="Telephone" value="01234 000111" />
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field Telephone must be a string with a maximum length of 50." data-val-length-max="50" id="Telephone" maxlength="50" name="Telephone" value="" />
             </div>
             <div>
                 <label for="Email">Email (optional)</label>
-                <input autocomplete="off" type="text" data-val="true" data-val-length="The field Email must be a string with a maximum length of 320." data-val-length-max="320" id="Email" maxlength="320" name="Email" value="pat@claimsource.example" />
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field Email must be a string with a maximum length of 320." data-val-length-max="320" id="Email" maxlength="320" name="Email" value="" />
             </div>
             <div>
                 <label for="Notes">Notes (optional)</label>
                 <textarea rows="3" data-val="true" data-val-length="The field Notes must be a string with a maximum length of 2000." data-val-length-max="2000" id="Notes" maxlength="2000" name="Notes">
-Created by the web caller proof</textarea>
+</textarea>
             </div>
             <div>
                 <label class="choice"><input type="checkbox" checked="checked" data-val="true" data-val-required="The Active field is required." id="Active" name="Active" value="true" /> <span>Active</span></label>

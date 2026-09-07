@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>U1 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -229,7 +230,7 @@
     </ul>
 
                 <div class="button-row">
-                        <a class="btn" href="received-details--default.html">
+                        <a class="btn" href="#">
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                             <span>View retained source</span>
                         </a>
@@ -267,7 +268,7 @@
                     <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                 </button>
             </div>
-            <form method="post" action="unidentified-details--default.html">
+            <form method="post" action="#">
                 <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
                 <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
                 <div class="dialog-body stack">
@@ -422,10 +423,16 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
+                <div class="pane-body pane-scroll" data-row-list>
+                        <a class="work-item" href="#">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">Mail · U1</span>
+                                    <h3>vehicle.png</h3>
+                                </span>
+                            </span>
+                        </a>
+                </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
