@@ -7,44 +7,6 @@ using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-/// <summary>Which invariant a Glass's session write ran into.</summary>
-public enum GlassRepairEstimateSessionConflict
-{
-    /// <summary>
-    /// The external Glass's account already holds a live session. The
-    /// provider allows one, so the database allows one.
-    /// </summary>
-    ActiveAccount,
-
-    /// <summary>The session moved on since the caller read it.</summary>
-    Version,
-
-    /// <summary>
-    /// The write carries a different callback fingerprint from the one this
-    /// session recorded, so it is not this session's callback.
-    /// </summary>
-    Callback,
-
-    /// <summary>
-    /// The operation key is already held by a different Case or user, so this
-    /// is a key collision rather than a replay of the same launch.
-    /// </summary>
-    OperationKey,
-}
-
-/// <summary>
-/// A Glass's session write refused because it would break an invariant the
-/// store keeps. It changes nothing: the recorded session stands.
-/// </summary>
-public sealed class GlassRepairEstimateSessionConflictException(
-    GlassRepairEstimateSessionConflict conflict, Guid sessionId, string message)
-    : InvalidOperationException(message)
-{
-    public GlassRepairEstimateSessionConflict Conflict { get; } = conflict;
-
-    public Guid SessionId { get; } = sessionId;
-}
-
 /// <summary>
 /// Persists Glass's repair-estimate sessions over the Foundation
 /// <c>GlassRepairEstimateSessions</c> table.
@@ -56,32 +18,67 @@ public sealed class GlassRepairEstimateSessionConflictException(
 /// it — across every Pegasus user and every credential generation, because the
 /// constraint belongs to the provider's account and not to who typed it in.
 /// The account is reduced to <see cref="NormalizeAccountKey"/>'s one-way key
-/// and written to <c>ActiveAccountKey</c> only while the session is
-/// <see cref="GlassRepairEstimateSessionState.Prepared"/>,
-/// <see cref="GlassRepairEstimateSessionState.Launching"/> or
-/// <see cref="GlassRepairEstimateSessionState.Active"/>, so the filtered
-/// unique index is the rule and this class is only its translator: the
-/// database refuses the second live session and that refusal surfaces as
+/// and written to <c>ActiveAccountKey</c> for exactly the states in
+/// <see cref="AccountOccupyingStates"/>, so the filtered unique index is the
+/// rule and this class is only its translator: the database refuses the second
+/// live session and that refusal surfaces as
 /// <see cref="GlassRepairEstimateSessionConflict.ActiveAccount"/> rather than
 /// being retried, swallowed or pre-empted by a read this store could lose a
 /// race to.
 /// </para>
 /// <para>
-/// <b>Replay and the callback.</b> <c>OperationKey</c> is unique, so relaunching
-/// the same operation returns the session that launch already created instead
-/// of creating a second one. <c>CallbackDigest</c> is the fingerprint of the
-/// callback this session will accept and it never changes: a write carrying a
-/// different one is refused whole. The digest is consumed once — the first
-/// write that takes the session out of the live set stamps
-/// <c>CallbackConsumedAtUtc</c> — so a caller can tell a callback that has
-/// already been acted on from one that has not, and read the recorded result
-/// instead of acting on it twice.
+/// <b>The account stays occupied until the provider's side is known to have
+/// ended.</b> <see cref="GlassRepairEstimateSessionState.Unknown"/> says the
+/// provider's outcome is uncertain, and an uncertain session may still be the
+/// one holding that account's calculation open, so it keeps the slot: a new
+/// launch for the account is refused rather than raced against the provider.
+/// The slot is released only by
+/// <see cref="GlassRepairEstimateSessionState.Completed"/>,
+/// <see cref="GlassRepairEstimateSessionState.Failed"/>,
+/// <see cref="GlassRepairEstimateSessionState.Expired"/> and
+/// <see cref="GlassRepairEstimateSessionState.Cancelled"/>.
+/// <see cref="GlassRepairEstimateSessionState.AwaitingImport"/> and
+/// <see cref="GlassRepairEstimateSessionState.Importing"/> keep it too: Pegasus
+/// importing a result says nothing about whether the operator's interactive
+/// provider session closed, and the shared contract carries no statement that
+/// it did. Releasing the account at import needs that statement added to the
+/// contract, not guessed at here.
 /// </para>
 /// <para>
-/// <b>Protected material.</b> <c>ProtectedSession</c> is stored exactly as the
-/// caller hands it over. Protecting and unprotecting it is the caller's, and
-/// this store never sees, derives or logs the clear text — nor the account
-/// password, which contributes nothing to the account key.
+/// <b>Replay.</b> <c>OperationKey</c> is unique, so relaunching the same
+/// operation returns the session that launch already created instead of
+/// creating a second one — the index decides that, and <see cref="CreateAsync"/>
+/// never reads the key ahead of the insert that would take it. But the recorded
+/// session comes back only when the replay names the same launch: the
+/// same Case, the same Pegasus user, the same credential generation and the
+/// same normalized account. Anything else under that key is a collision and is
+/// refused as <see cref="GlassRepairEstimateSessionConflict.OperationKey"/>,
+/// because handing the recorded session back would hand one launch's provider
+/// material to another. The protected provider state is never part of that
+/// comparison: it is opaque here, and a relaunch legitimately carries fresh
+/// cookies for the same launch.
+/// </para>
+/// <para>
+/// <b>The callback.</b> <c>CallbackDigest</c> is the fingerprint of the
+/// callback this session will accept and it never changes: a write carrying a
+/// different one is refused whole. The digest is consumed once — by the first
+/// write that ends the wait for the provider, which is the first write out of
+/// <see cref="AwaitingCallbackStates"/> — so a caller can tell a callback that
+/// has already been acted on from one that has not, and read the recorded
+/// result instead of acting on it twice. That write stamps
+/// <c>CallbackConsumedAtUtc</c> and no later write moves it.
+/// </para>
+/// <para>
+/// <b>The material is the row's whole mutable state.</b> <c>ProtectedSession</c>
+/// is stored exactly as the caller hands it over, and so is
+/// <c>ResultArtifactsJson</c>: both are opaque here — this store never sees,
+/// derives, parses or logs what is inside them, nor the account password, which
+/// contributes nothing to the account key. A save writes every mutable column
+/// from the material it is handed, so a null result, failure code or provider
+/// id <i>writes</i> null; null never means "leave what is already there". That
+/// is the rule the row's other mutable columns already followed, and it is safe
+/// because <see cref="GetAsync"/> returns the results alongside the session: a
+/// caller that reads, changes and saves keeps them without restating them.
 /// </para>
 /// <para>
 /// Every write is a short serializable transaction, the shape
@@ -100,12 +97,33 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// </summary>
     private const string AccountKeyDomain = "pegasus.glass-repair-estimate.account-key.v1:";
 
-    /// <summary>The states in which the session holds its account's one live slot.</summary>
-    private static readonly GlassRepairEstimateSessionState[] LiveStates =
+    /// <summary>
+    /// The states in which the session holds its account's one live slot,
+    /// because the provider's side of it may still be open. Every other state
+    /// releases the account.
+    /// </summary>
+    private static readonly GlassRepairEstimateSessionState[] AccountOccupyingStates =
     [
         GlassRepairEstimateSessionState.Prepared,
         GlassRepairEstimateSessionState.Launching,
         GlassRepairEstimateSessionState.Active,
+        GlassRepairEstimateSessionState.Unknown,
+        GlassRepairEstimateSessionState.AwaitingImport,
+        GlassRepairEstimateSessionState.Importing,
+    ];
+
+    /// <summary>
+    /// The states in which the session is still waiting on the provider, so its
+    /// callback has not been acted on yet. <see cref="GlassRepairEstimateSessionState.Unknown"/>
+    /// is one of them: an uncertain outcome is not an answer, and the callback
+    /// that resolves it has not arrived.
+    /// </summary>
+    private static readonly GlassRepairEstimateSessionState[] AwaitingCallbackStates =
+    [
+        GlassRepairEstimateSessionState.Prepared,
+        GlassRepairEstimateSessionState.Launching,
+        GlassRepairEstimateSessionState.Active,
+        GlassRepairEstimateSessionState.Unknown,
     ];
 
     /// <summary>
@@ -115,6 +133,12 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// password contributes nothing — the key identifies the account, it does
     /// not authenticate it.
     /// </summary>
+    /// <remarks>
+    /// This takes the external account as an operator types it. A session read
+    /// back carries the key and not the account — the digest is one-way — so a
+    /// replay is issued from the launch request that holds the account, never
+    /// from a session this store handed out.
+    /// </remarks>
     public static string NormalizeAccountKey(string externalAccount)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(externalAccount);
@@ -148,11 +172,14 @@ public sealed class EfGlassRepairEstimateSessionStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
-        if (await FindReplayAsync(context, operationKey, cancellationToken) is { } replay)
-        {
-            return RequireSameLaunch(replay, session, operationKey);
-        }
-
+        // The insert goes first and nothing reads the operation key ahead of
+        // it. A serializable read of a key that is not there takes RangeS-S
+        // over the gap it would occupy, and the insert behind it then asks to
+        // convert that same range to RangeI-N — so two launches deadlocked on
+        // one another over the empty IX_GlassRepairEstimateSessions_OperationKey,
+        // whichever accounts and keys they carried. The index was always the
+        // decider; asking it first costs a rolled-back insert on the replay
+        // path and takes no lock that has to be converted.
         var now = timeProvider.GetUtcNow();
         var entity = new GlassRepairEstimateSessionEntity
         {
@@ -161,7 +188,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             UserId = session.PegasusUserId,
             CredentialGeneration = session.CredentialGeneration,
             NormalizedAccountKey = accountKey,
-            ActiveAccountKey = IsLive(session.State) ? accountKey : null,
+            ActiveAccountKey = OccupiesAccount(session.State) ? accountKey : null,
             OperationKey = operationKey,
             State = session.State,
             CreatedAtUtc = session.CreatedAtUtc,
@@ -171,6 +198,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             EreId = session.ProviderEstimateId,
             CallbackDigest = callbackDigest,
             ProtectedSession = material.ProtectedProviderState,
+            ResultArtifactsJson = material.ResultArtifactsJson,
             LastError = session.FailureCode,
             Version = session.Version,
         };
@@ -190,7 +218,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             context.ChangeTracker.Clear();
             var replayed = await FindReplayAsync(context, operationKey, cancellationToken);
             return replayed is not null
-                ? RequireSameLaunch(replayed, session, operationKey)
+                ? RequireSameLaunch(replayed, session, accountKey, operationKey)
                 : throw new GlassRepairEstimateSessionConflictException(
                     GlassRepairEstimateSessionConflict.ActiveAccount,
                     session.Id,
@@ -236,21 +264,25 @@ public sealed class EfGlassRepairEstimateSessionStore(
         }
 
         var now = timeProvider.GetUtcNow();
-        var wasLive = IsLive(entity.State);
-        var live = IsLive(session.State);
+        var wasAwaitingCallback = IsAwaitingCallback(entity.State);
         entity.State = session.State;
-        entity.ActiveAccountKey = live ? entity.NormalizedAccountKey : null;
+        entity.ActiveAccountKey = OccupiesAccount(session.State) ? entity.NormalizedAccountKey : null;
         entity.ExpiresAtUtc = session.ExpiresAtUtc;
         entity.ProviderVehicleId = session.ProviderVehicleId;
         entity.EreId = session.ProviderEstimateId;
         entity.LastError = session.FailureCode;
         entity.ProtectedSession = material.ProtectedProviderState;
+        // The material is the row's whole mutable state, so a null result
+        // writes null. A caller that means to keep the results carries the
+        // ones GetAsync handed it.
+        entity.ResultArtifactsJson = material.ResultArtifactsJson;
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
-        // Consumed by the write that takes the session out of the live set,
-        // and only once: leaving the live set again never moves the moment
-        // the callback was acted on.
-        if (wasLive && !live && entity.CallbackConsumedAtUtc is null)
+        // Consumed by the write that ends the wait on the provider, and only
+        // once: waiting again would never move the moment the callback was
+        // acted on.
+        if (wasAwaitingCallback && !IsAwaitingCallback(session.State)
+            && entity.CallbackConsumedAtUtc is null)
         {
             entity.CallbackConsumedAtUtc = now;
         }
@@ -282,13 +314,24 @@ public sealed class EfGlassRepairEstimateSessionStore(
             .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
 
     /// <summary>
-    /// A replayed operation key must name the same launch. A different Case
-    /// or user under the same key is a collision, and returning the other
-    /// launch's session would hand one Case's provider material to another.
+    /// A replayed operation key must name the same launch: the same Case, the
+    /// same Pegasus user, the same credential generation and the same
+    /// normalized account. Anything else under that key is a collision, and
+    /// returning the recorded session would hand one launch's provider material
+    /// to another — a rotated credential or a different account is a different
+    /// launch even when the Case and user match. The protected provider state
+    /// is deliberately not compared: it is opaque here and a genuine replay
+    /// carries fresh cookies.
     /// </summary>
     private static GlassRepairEstimateSessionMaterial RequireSameLaunch(
-        GlassRepairEstimateSessionEntity replay, GlassRepairEstimateSession session, string operationKey) =>
-        replay.CaseId == session.CaseId && replay.UserId == session.PegasusUserId
+        GlassRepairEstimateSessionEntity replay,
+        GlassRepairEstimateSession session,
+        string accountKey,
+        string operationKey) =>
+        replay.CaseId == session.CaseId
+        && replay.UserId == session.PegasusUserId
+        && replay.CredentialGeneration == session.CredentialGeneration
+        && string.Equals(replay.NormalizedAccountKey, accountKey, StringComparison.Ordinal)
             ? ToMaterial(replay)
             : throw new GlassRepairEstimateSessionConflictException(
                 GlassRepairEstimateSessionConflict.OperationKey,
@@ -331,11 +374,17 @@ public sealed class EfGlassRepairEstimateSessionStore(
                 entity.ExpiresAtUtc,
                 entity.ProviderVehicleId,
                 entity.EreId,
-                entity.LastError),
+                entity.LastError,
+                entity.CallbackConsumedAtUtc),
             entity.ProtectedSession,
-            entity.CallbackDigest);
+            entity.CallbackDigest,
+            entity.ResultArtifactsJson);
 
-    private static bool IsLive(GlassRepairEstimateSessionState state) => Array.IndexOf(LiveStates, state) >= 0;
+    private static bool OccupiesAccount(GlassRepairEstimateSessionState state) =>
+        Array.IndexOf(AccountOccupyingStates, state) >= 0;
+
+    private static bool IsAwaitingCallback(GlassRepairEstimateSessionState state) =>
+        Array.IndexOf(AwaitingCallbackStates, state) >= 0;
 
     private static string Digest(string callbackDigest)
     {
