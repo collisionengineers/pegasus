@@ -64,7 +64,7 @@ public sealed class Top15InstructionCorpusTests
     /// A null means the labeller recorded the field as absent or ambiguous —
     /// nothing is asserted about it beyond the negatives below.
     /// </summary>
-    private sealed record ExpectedIdentity(
+    internal sealed record ExpectedIdentity(
         string? ClaimantName,
         string? ClaimNumber,
         string? VehicleRegistration,
@@ -76,9 +76,9 @@ public sealed class Top15InstructionCorpusTests
     /// it must never arrive as. <c>Field</c> null means it must not arrive as
     /// any of the identity fields.
     /// </summary>
-    private sealed record NeighbouringValue(string? Field, string Value, string Why);
+    internal sealed record NeighbouringValue(string? Field, string Value, string Why);
 
-    private sealed record SampleExpectation(
+    internal sealed record SampleExpectation(
         string Profile,
         string PackRelativePath,
         string Sha256,
@@ -136,7 +136,7 @@ public sealed class Top15InstructionCorpusTests
     /// ambiguous rather than reassigning it. The scrambled rows are the
     /// negatives.
     /// </summary>
-    private static readonly SampleExpectation[] Expectations =
+    internal static readonly SampleExpectation[] Expectations =
     [
         new(
             "QDOS",
@@ -1110,7 +1110,7 @@ public sealed class Top15InstructionCorpusTests
                 + (selection.HasAmbiguousVariant ? " (ambiguous)" : string.Empty);
 
     /// <summary>Table cells: the pipes and newlines a value may carry cannot break the row.</summary>
-    private static string Cell(string? value) => string.IsNullOrWhiteSpace(value)
+    internal static string Cell(string? value) => string.IsNullOrWhiteSpace(value)
         ? string.Empty
         : value.Replace("|", "\\|", StringComparison.Ordinal)
             .Replace("\r", " ", StringComparison.Ordinal)
@@ -1126,7 +1126,7 @@ public sealed class Top15InstructionCorpusTests
             "top15-instruction-corpus",
             new(IntakeSourceChannel.ManualUpload, $"corpus-{sha256[..12]}"));
 
-    private static string MediaType(string name) =>
+    internal static string MediaType(string name) =>
         Path.GetExtension(name).ToLowerInvariant() switch
         {
             ".pdf" => "application/pdf",
@@ -1138,9 +1138,9 @@ public sealed class Top15InstructionCorpusTests
                 $"The corpus carries an original this test has no media type for: '{other}'.")
         };
 
-    private const string PackRootVariable = PrincipalSourceManifestTests.PackRootVariable;
+    internal const string PackRootVariable = PrincipalSourceManifestTests.PackRootVariable;
 
-    private static string PackRoot() =>
+    internal static string PackRoot() =>
         PrincipalSourceManifestTests.ConfiguredPackRoot()
         ?? throw new InvalidOperationException(
             $"{PackRootVariable} is not set; this test should have been skipped.");
