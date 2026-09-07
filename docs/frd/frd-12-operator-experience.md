@@ -89,6 +89,9 @@ session start, idle lock, sign out).
 The utility bar carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), the **Add** action (Upload
 files, Create Case, Create upload request, Review Inbox) and notifications.
+A notification-query failure must not block the page unless it represents
+cancellation or failed authorization. The dialog shows `Notifications
+unavailable.` without placeholder or stale rows, and the failure is logged.
 **Create Case** takes the required identity and the attached or recorded
 instruction, records an attributable intake receipt, and then runs the normal
 principal and Case/PO allocation policy — never a second allocation path (D26,

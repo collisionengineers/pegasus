@@ -170,6 +170,9 @@ Allocated to [[ENG-031]]; not delivered.
 paint hours. Parts, materials and specialist costs remain explicit estimate
 amounts. The selected estimate's VAT categories and its own VAT percentage
 determine the taxable base.
+Accepted and Superseded estimate versions project their persisted raw and
+printed calculation record unchanged. Missing or incomplete recorded evidence
+fails closed; later input or policy changes never recalculate or round it again.
 Multiple global, versioned labour-rate cards exist as Administrator-managed
 configuration (id, name, panel-and-paint hourly rate, enabled state, actor,
 timestamps); staff select one card for every new or amended estimate version,
