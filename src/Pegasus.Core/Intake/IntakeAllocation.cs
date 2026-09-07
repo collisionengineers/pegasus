@@ -242,7 +242,8 @@ public sealed class AllocateIntake(
     {
         var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken)
             ?? throw new KeyNotFoundException("The intake receipt was not found.");
-        if (receipt.CurrentCaseId is not null || receipt.Decision != IntakeDecision.CaseCreated)
+        if (receipt.CurrentCaseId is not null || receipt.Decision != IntakeDecision.CaseCreated
+            || receipt.CaseMatchDecision?.Outcome == CaseMatchOutcome.UniqueMatch)
         {
             return null;
         }

@@ -290,6 +290,34 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task ConflictingImageMembersReturnOneGroupOriginAndTheConflictingReason()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+        var first = await harness.ApplyAsync(triggerOrdinal: 0);
+        var second = await harness.ApplyAsync(triggerOrdinal: 1);
+        var request = Assert.IsType<Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest>(first.UnidentifiedGroup);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedOrigin.SubmissionGroup(harness.GroupId), request.Origin);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
+        Assert.Equal("conflicting_vrms", request.SafeDetail);
+        var replay = Assert.IsType<Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest>(second.UnidentifiedGroup);
+        Assert.Equal(request.Origin, replay.Origin);
+        Assert.Equal(request.ReasonCode, replay.ReasonCode);
+        Assert.Equal(request.SafeDetail, replay.SafeDetail);
+        Assert.Equal(request.OperationKey, replay.OperationKey);
+        Assert.Equal(request.CreatedAtUtc, replay.CreatedAtUtc);
+        Assert.Equal(ActorKind.SystemWorker, request.Actor.Kind);
+        Assert.Equal(ImageIntakeAutomation.ActorId, request.Actor.SubjectId);
+        Assert.Empty(request.Actor.Roles);
+        Assert.Equal(request.Actor.Kind, replay.Actor.Kind);
+        Assert.Equal(request.Actor.SubjectId, replay.Actor.SubjectId);
+        Assert.True(request.Actor.Roles.SetEquals(replay.Actor.Roles));
+        Assert.False(first.GroupPending);
+        Assert.Empty(harness.Register.Requests);
+    }
+
+    [Fact]
     public async Task AmbiguousGroupEligibilityHandsOffDespiteAPerMemberExactMatch()
     {
         // Both members read the same registration, but the group holds two
@@ -793,6 +821,8 @@ public sealed class AutomaticImageIntakeTests
 
     private sealed class FakeGroupStore : IIntakeSubmissionGroupStore
     {
+        public Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(int maximumItems, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public IntakeSubmissionGroup? Group { get; set; }
 
         public Task<IntakeSubmissionGroup?> GetAsync(

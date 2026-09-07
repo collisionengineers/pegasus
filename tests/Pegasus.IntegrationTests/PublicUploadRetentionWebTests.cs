@@ -3388,9 +3388,9 @@ internal sealed class FaultInjectingRetentionStore(
         inner.FindAsync(operationKey, cancellationToken);
 
     public Task<bool> TryClaimHandOverAsync(
-        Guid occurrenceId,
+        string operationKey,
         CancellationToken cancellationToken) =>
-        inner.TryClaimHandOverAsync(occurrenceId, cancellationToken);
+        inner.TryClaimHandOverAsync(operationKey, cancellationToken);
 
     public Task RecordAsync(
         RetainedIncomingArtifact artifact,

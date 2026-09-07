@@ -1,3 +1,7 @@
+using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
+
 namespace Pegasus.Core.ImageIntake;
 
 /// <summary>
@@ -31,6 +35,21 @@ public sealed record ImageIntakeGroupRoutingResult(
 
 public static class ImageIntakeGroupRoutingPolicy
 {
+    internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(
+        IntakeSubmissionGroup group,
+        string reason) => new(
+            UnidentifiedOrigin.SubmissionGroup(group.Id),
+            reason switch
+            {
+                "conflicting_vrms" => UnidentifiedReasonCode.ConflictingIdentification,
+                "group_no_accepted_vrm" => UnidentifiedReasonCode.NoUsableIdentification,
+                _ => UnidentifiedReasonCode.TechnicalProcessingFailure
+            },
+            reason,
+            ActionActor.SystemWorker(ImageIntakeAutomation.ActorId),
+            $"unidentified:image-group:{group.Id:N}",
+            group.ReceivedAtUtc);
+
     public static ImageIntakeGroupRoutingResult Evaluate(
         IReadOnlyList<ImageIntakeGroupMemberRecognition> members,
         int expectedMemberCount,
