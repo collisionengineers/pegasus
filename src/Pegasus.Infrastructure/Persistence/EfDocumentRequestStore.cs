@@ -400,6 +400,12 @@ internal sealed class EfDocumentRequestStore(
         var finalized = PublicUploadSessionPolicy.Finalize(ToSession(session), now);
         session.FinalizedAtUtc = finalized.FinalizedAtUtc;
         session.Version = finalized.Version;
+
+        // The record a submission closes on must say what custody holds. A
+        // file custody took durably and then refused stopped being one of
+        // those without any arrival following to re-derive the totals, and the
+        // link is already locked here, so this is where that is put right.
+        await ApplyAcceptedTotalsAsync(context, link, session.Id, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(RequestUploadDecision.Accepted, false);
@@ -845,9 +851,19 @@ internal sealed class EfDocumentRequestStore(
     /// The totals are derived rather than incremented, because the committed
     /// occurrence — not the receipt — is what says a file was accepted, and it
     /// says it exactly once however many times the same operation key is sent.
-    /// An arrival still being offered carries
-    /// <see cref="EfPublicUploadRetentionStore.ArrivedCode"/> and is not one of
-    /// them, so nothing is counted before custody answers.
+    /// What they count is what custody holds or may still hold —
+    /// <see cref="EfPublicUploadRetentionStore.RetainedOrInFlightCodes"/> —
+    /// and the one thing they leave out is a refusal, because that is the one
+    /// answer that says custody kept nothing.
+    /// </para>
+    /// <para>
+    /// Derived means only as current as the last derivation, so this runs on
+    /// every accepted arrival and again at finalization, where the link is
+    /// already locked and the submission's record is being closed. That is
+    /// what makes a Pending custody later refused stop counting against the
+    /// link by the time the sender is finished: the retention port writes that
+    /// refusal and owns no link, so the rule stays here rather than gaining a
+    /// second home there.
     /// </para>
     /// <para>
     /// A replay changes nothing and therefore bumps nothing. When the totals do
@@ -866,8 +882,8 @@ internal sealed class EfDocumentRequestStore(
     {
         var totals = await context.Set<PublicUploadOccurrenceEntity>()
             .Where(value => value.SessionId == sessionId
-                && (value.CustodyState == EfPublicUploadRetentionStore.ConfirmedCode
-                    || value.CustodyState == EfPublicUploadRetentionStore.PendingCode))
+                && EfPublicUploadRetentionStore.RetainedOrInFlightCodes
+                    .Contains(value.CustodyState))
             .GroupBy(value => value.SessionId)
             .Select(group => new
             {
@@ -1353,6 +1369,25 @@ internal sealed class EfPublicUploadRetentionStore(
     /// instead of becoming a second one.
     /// </summary>
     internal static readonly string[] UnresolvedCodes = [ArrivedCode, UnknownCode, PendingCode];
+
+    /// <summary>
+    /// The states whose bytes count against a link's accepted totals:
+    /// everything custody holds or may still hold.
+    /// </summary>
+    /// <remarks>
+    /// Only <see cref="IncomingArtifactCustodyState.Failed"/> is left out, and
+    /// it is named as the exclusion rather than the rest being listed, so the
+    /// set cannot drift from the enum. A refusal is the one answer that says
+    /// custody kept nothing, and bytes nobody holds must not go on bounding
+    /// what a public link may send. Everything else counts, an arrival that
+    /// has not been offered yet included: it is committed and may land, and a
+    /// limit that ignored it would let a link exceed itself with everything in
+    /// flight.
+    /// </remarks>
+    internal static readonly string[] RetainedOrInFlightCodes =
+        [ArrivedCode, .. Enum.GetValues<IncomingArtifactCustodyState>()
+            .Where(state => state != IncomingArtifactCustodyState.Failed)
+            .Select(ToCode)];
 
     public async Task<RetainedIncomingArtifact?> FindAsync(
         string operationKey,
