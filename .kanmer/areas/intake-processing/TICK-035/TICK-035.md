@@ -1,53 +1,64 @@
 ---
 id: TICK-035
 type: ticket
-title: >-
-  INT-04 — Activate additional providers through the shared intake/case workflow
-  using separately accepted provider evidence and r…
-status: backlog
+title: Activate evidenced principal routes through automatic intake
+status: preparing
 area: intake-processing
 order: 910
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-09-07T21:12:54.514Z'
 labels:
   - capability
   - INT-04
-  - next
-  - requires-live-approval
+groups:
+  - EPIC-014
 links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-03T15:15:28.763Z'
+updated: '2026-09-07T21:12:54.514Z'
 ---
 
 ## What
 
-Plan and research **INT-04**: Activate additional providers through the shared intake/case workflow using separately accepted provider evidence and rules
+Activate the evidenced top-15 principal routes through the existing automatic
+intake workflow, including direct and proved staff-forwarded email. Reuse the
+single Core route/classification/matching boundary and existing fifteen
+instruction extraction profiles; do not introduce parallel QDOS and generic
+business-policy implementations.
 
 ## Why
 
-The capability inventory allocates this outcome to **Next / 0.2.0**. This capability is **not designated until post-alpha** (Next / 0.2.0). It is blocked from implementation until the activation evidence and decisions below are accepted.
+The operator's 7 September 2026 v1 remediation request and Astra Stream C03's
+TICK-035 residual supersede this ticket's historical post-alpha deferral.
+Fourteen additional extraction profiles are present but ordinary mail intake
+still binds routing and extraction to QDOS. Domain/reference candidates are
+evidence, not permission to invent mappings.
 
-## Approach
+## Acceptance
 
-- Establish the current Core policy owner, real caller, persistence/infrastructure boundary, and acceptance evidence before proposing implementation.
-- Recover and resolve the stated activation boundary without treating allocation, registration, or a build as deployment or acceptance.
-- For each additional provider or intermediary route, define and obtain operator acceptance of the exact sender/document identity evidence, category predicates and exclusions, automatic Case/Triage/Sent matching predicates, no-match/conflict/ambiguity outcomes, multi-rule precedence and any confidence behaviour.
-- Name the source-labelled genuine cohort and untouched holdout, acceptance and rollback thresholds, policy author/reviewer/activator roles, version/effective-time behaviour, and re-evaluation/notification rules before activation.
-- Preserve ADR-0008's route-owned policies and the shared Core classification result; do not introduce a universal rules engine or duplicate taxonomy.
+- Exact evidenced domain routes identify one active principal; unknown,
+  conflicting, shared or intermediary evidence remains explicit and fail-closed.
+- The selected existing extraction profile agrees with the accepted route and
+  drives the existing Case/Triage/Unidentified destination logic.
+- Direct, forwarded, ambiguous and replay cases use genuine existing fixtures
+  and prove the destination, principal and lifecycle state, not just selection.
+- Canonical FRD-02 and production callers agree. No second principal catalog,
+  rules engine, mailbox onboarding or separate pipeline is introduced.
 
-## Verification
+## Coordination
 
-- [ ] A task-level plan records each named route, its exact predicates/exclusions/failure outcomes, real caller, and required tests.
-- [ ] Operator-reviewed cohort and untouched-holdout evidence meets explicitly accepted thresholds.
-- [ ] Activation and rollback roles, exact mailbox/folder boundary, and required Graph scopes are accepted for the named route.
-- [ ] The real provider route is live-verified without weakening fail-closed ambiguity or creating a second business-policy owner.
+[[PLAT-028]] owns customer contracts, DI and Settings until its announced
+merge. Preparation may proceed; overlapping implementation waits for that base.
+[[INTK-061]] owns durable routing recovery; Triage automatic linking and
+Engineer handoff are separately assigned remediation. [[TICK-036]],
+[[TICK-037]] and [[TICK-038]] retain mailbox onboarding ownership.
 
-## Notes
+Only test email recipient is digital@collisionengineers.co.uk. No live mail,
+provider or cloud write is part of this preparation. Root is the sole heavy
+verification owner.
 
-- Source: `docs/capabilities.md` — INT-04.
-- Canonical owner: [Owning FRD](docs/frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)
-- Evidence and decision gate: `docs/open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display`.
-- Activation/boundary: adding reference evidence is not workflow activation. This ticket owns acceptance and activation of additional provider/intermediary policies; [[TICK-036]], [[TICK-037]], and [[TICK-038]] separately own automatic ingestion for the named shared mailboxes after this gate passes.
+## Outcome
