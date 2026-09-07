@@ -212,19 +212,24 @@ public sealed partial class RequestModel(
 
     public async Task<IActionResult> OnPostFinalizeAsync(CancellationToken cancellationToken)
     {
+        // Taken before the page is even read: Finish is anonymous and every
+        // step after this one is a database round trip, so a guard that ran
+        // after the first of them would not be guarding it. The same per-token
+        // window the upload handler keeps, rather than a second limiter with
+        // its own policy.
+        if (!attemptLimiter.TryAcquire(Token, out _))
+        {
+            Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            ModelState.AddModelError(
+                string.Empty,
+                OperatorLabels.Upload.RequestTooManyAttempts);
+            return Page();
+        }
+
         UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
         if (UploadPolicy is null)
         {
             return NotFound();
-        }
-
-        // Finish is anonymous, opens a transaction and runs four queries, so
-        // it is guarded by the same per-token window the upload handler
-        // already keeps rather than by a second limiter with its own policy.
-        if (!attemptLimiter.TryAcquire(Token, out _))
-        {
-            Response.StatusCode = StatusCodes.Status429TooManyRequests;
-            return FinalizeError(OperatorLabels.Upload.RequestTooManyAttempts);
         }
 
         var result = await uploadToRequest.FinalizeAsync(Token, cancellationToken);

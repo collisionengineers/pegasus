@@ -51,8 +51,12 @@ else if (Model.UploadPolicy is { } view)
                        counted; a replaced one is never shown as a current
                        file, whatever custody still holds for it. *@
                     <span class="badge">@OperatorLabels.Upload.RequestFileState(file.CustodyState, file.SupersededByOccurrenceId is not null)</span>
+                    @* A replacement stands in for this file rather than adding
+                       one, so it is offered even on a link that has taken every
+                       file it allows - which is where correcting the last file
+                       sent matters most. Only the byte bound stops it. *@
                     @if (view.SessionState == PublicUploadSessionState.Open
-                        && view.AcceptsMoreFiles
+                        && view.AcceptsReplacements
                         && file.SupersededByOccurrenceId is null
                         && file.CustodyState == IncomingArtifactCustodyState.Confirmed)
                     {
