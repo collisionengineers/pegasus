@@ -1384,6 +1384,15 @@ public sealed partial class PublicUploadRetentionWebTests
                 content: OtherEvidence,
                 fileName: "second.txt")).StatusCode);
 
+        await using (var context = await CreateContextAsync(factory.Services))
+        {
+            // A file custody has taken durably counts against the link before
+            // it is confirmed, because custody holds those bytes.
+            Assert.Equal(
+                (2, Evidence.LongLength + OtherEvidence.LongLength),
+                await ReadLinkTotalsAsync(context, link.LinkId));
+        }
+
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var blocked = await scope.ServiceProvider.GetRequiredService<IUploadToRequest>()
@@ -1439,7 +1448,9 @@ public sealed partial class PublicUploadRetentionWebTests
             .AsNoTracking()
             .SingleAsync(item => item.RequestUploadLinkId == link.LinkId);
         Assert.NotNull(session.FinalizedAtUtc);
-        // The refused file was never counted as one of the submitted files.
+        // Closing the submission re-derives the totals, so the file custody
+        // refused stops counting against the link: the sender finishes with
+        // exactly the bytes custody holds.
         Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context2, link.LinkId));
     }
 
