@@ -35,7 +35,7 @@ public sealed class AutomationAssessmentIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AutomationMcp.AssessmentScope);
         var caseId = Guid.NewGuid();
-        var documentId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         const string hash = "D4A5AA6B20AE98EE062CC5852A1B1A447B3DA98B0D468DD7E3360A5CC3D2A72C";
 
@@ -47,7 +47,7 @@ public sealed class AutomationAssessmentIngressTests
                 editLeaseToken = "lease-token",
                 operationKey = "mcp:estimate-import",
                 name = "Audatex 1",
-                documentId,
+                occurrenceId,
                 documentVersionId = versionId,
                 sha256 = hash,
                 sourceRoute = "AudatexPdf"
@@ -60,6 +60,7 @@ public sealed class AutomationAssessmentIngressTests
         var request = Assert.IsType<ImportRawEstimateRequest>(importer.Request);
         Assert.Equal(ActorKind.Automation, request.Actor.Kind);
         Assert.Equal(caseId, request.CaseId);
+        Assert.Equal(occurrenceId, request.OccurrenceId);
         Assert.Equal(versionId, request.DocumentVersionId);
         Assert.Equal(hash, request.Sha256);
         Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, request.Route);
@@ -71,7 +72,7 @@ public sealed class AutomationAssessmentIngressTests
                 {
                     caseId, expectedVersion = 7, editLeaseToken = "lease-token",
                     operationKey = "mcp:estimate-import-rejected", name = "Rejected",
-                    documentId, documentVersionId = versionId, sha256 = hash,
+                    occurrenceId, documentVersionId = versionId, sha256 = hash,
                     sourceRoute = rejectedRoute
                 }));
             using var refusal = await ReadJsonRpcAsync(refused);
