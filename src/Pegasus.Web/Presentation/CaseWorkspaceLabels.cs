@@ -289,7 +289,7 @@ public static class CaseWorkspaceLabels
     /// </summary>
     public static class GlassCredential
     {
-        public const string Title = "Glass repair estimate credential";
+        public const string Title = "Glass's repair estimate credential";
         public const string Account = "Account";
         public const string Username = "Username";
         public const string Password = "Password";

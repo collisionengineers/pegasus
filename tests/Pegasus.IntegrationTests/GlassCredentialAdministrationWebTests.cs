@@ -258,6 +258,80 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     /// <summary>
+    /// The page over the registered credential store, not a fake: replace
+    /// the credential, see the store's own version and username back, post
+    /// the version the page offered before the replace and be refused with a
+    /// reload, then clear. This runs only where the host composes Stream A's
+    /// store; on a branch that does not register the administration port the
+    /// host does not build.
+    /// </summary>
+    [Fact]
+    public async Task TheRegisteredStoreReplacesRefusesAStaleVersionAndClears()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+        var initial = await GetHtmlAsync(client, PageFor(StaffId));
+        var initialVersion = InputValue(FormOf(initial, "Save"), "ExpectedVersion");
+        Assert.Contains(">Not configured<", initial, StringComparison.Ordinal);
+
+        using (var replaced = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Save",
+            Form(
+                initial,
+                ("ExpectedVersion", initialVersion),
+                ("username", FixtureUsername),
+                ("password", FixturePassword))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, replaced.StatusCode);
+            Assert.Equal(PageFor(StaffId), replaced.Headers.Location?.OriginalString);
+        }
+
+        var configured = await GetHtmlAsync(client, PageFor(StaffId));
+        Assert.Equal(FixtureUsername, FactValue(configured, "Username"));
+        Assert.DoesNotContain(FixturePassword, configured, StringComparison.Ordinal);
+        var currentVersion = InputValue(FormOf(configured, "Save"), "ExpectedVersion");
+        Assert.NotEqual(initialVersion, currentVersion);
+
+        // The version the page offered before the replace is stale now: the
+        // registered store refuses it, and the page reloads with the version
+        // it holds rather than writing the second account name.
+        using (var stale = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Save",
+            Form(
+                configured,
+                ("ExpectedVersion", initialVersion),
+                ("username", FixtureUsername + "-replaced"),
+                ("password", FixturePassword))))
+        {
+            Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
+            var body = await stale.Content.ReadAsStringAsync();
+            Assert.Contains(
+                "The credential changed after this page was loaded.",
+                body,
+                StringComparison.Ordinal);
+            Assert.Equal(currentVersion, InputValue(FormOf(body, "Save"), "ExpectedVersion"));
+            Assert.DoesNotContain(FixturePassword, body, StringComparison.Ordinal);
+        }
+        var unchanged = await GetHtmlAsync(client, PageFor(StaffId));
+        Assert.Equal(FixtureUsername, FactValue(unchanged, "Username"));
+
+        using (var cleared = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Clear",
+            Form(unchanged, ("ExpectedVersion", currentVersion))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
+        }
+        var afterClear = await GetHtmlAsync(client, PageFor(StaffId));
+        Assert.Contains(">Not configured<", afterClear, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Clear", afterClear, StringComparison.Ordinal);
+        Assert.DoesNotContain(FixtureUsername, afterClear, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Only the store's named refusals become an operator message. A failure
     /// the page cannot interpret propagates and surfaces as a server error,
     /// because reporting it as a refusal would invite a retry of something
