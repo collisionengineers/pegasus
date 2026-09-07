@@ -414,7 +414,7 @@ public sealed class GlassEstimateXmlParserTests
     /// £80.00 is the £648.00 of labour it prints, its part prices are the
     /// £100.00 of parts and its paint prices the £310.00 of paint.
     /// </summary>
-    private static class GlassExport
+    internal static class GlassExport
     {
         /// <summary>The export's own XML declaration, exactly as written below.</summary>
         internal const string Declaration = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
@@ -430,11 +430,19 @@ public sealed class GlassEstimateXmlParserTests
 
         internal static string CalculationSheetBase64 { get; } = Convert.ToBase64String(CalculationSheetBytes);
 
+        /// <summary>The documented estate registration; no real plate is committed.</summary>
+        internal const string Registration = "AB12CDE";
+
+        /// <summary>The Glass's type number the fixture's vehicle is identified by.</summary>
+        internal const string TypeNumber = "123456789";
+
         internal static string BuildXml(
             string? positions = null,
             string timeUnit = "60",
             string? attachment = null,
             string mileage = "33000",
+            string registration = Registration,
+            string typeNumber = TypeNumber,
             string partsTotal = "100.00",
             string labourTotal = "648.00",
             string paintTotal = "310.00",
@@ -457,10 +465,10 @@ public sealed class GlassEstimateXmlParserTests
                 <Identification>
                   <MakeText>Test Make</MakeText>
                   <ModelText>Test Model</ModelText>
-                  <TypeNo>123456789</TypeNo>
+                  <TypeNo>{typeNumber}</TypeNo>
                   <MilUnit>1</MilUnit>
                   <Mileage>{mileage}</Mileage>
-                  <RegPlt>AB12CDE</RegPlt>
+                  <RegPlt>{registration}</RegPlt>
                 </Identification>
               </Vehicle>
               <Valuation Function="Calculation load and recalculate, user can modify">
