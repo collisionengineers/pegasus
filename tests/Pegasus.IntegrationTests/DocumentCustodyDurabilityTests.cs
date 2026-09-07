@@ -396,7 +396,7 @@ public sealed class DocumentCustodyDurabilityTests
                     .Select(value => new { value.AcceptedFileCount, value.AcceptedByteCount })
                     .SingleAsync();
                 Assert.Equal(1, reservedTotals.AcceptedFileCount);
-                Assert.Equal(command.File.Content.LongLength, reservedTotals.AcceptedByteCount);
+                Assert.Equal((long)command.File.Content.Length, reservedTotals.AcceptedByteCount);
                 Assert.Equal(
                     1,
                     await context.CaseWorkflows
