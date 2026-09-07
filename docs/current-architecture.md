@@ -106,12 +106,13 @@ revision, migration head, gate settings) is owned exclusively by
 [operations § Production environment](operations.md#production-environment)
 and is not restated here. Operator acceptance remains outstanding.
 
-The implemented release toolchain now admits new release artifacts only from
-an authorised Linux x64 terminal. One clean exact SHA produces Linux Web and
-Worker packages, a linux/amd64 OCI archive and a self-contained Linux
-`efbundle`; manifest schema 3 binds their hashes and platform identity. This is
-repository tooling state, not evidence that the change has been promoted or
-deployed.
+The implemented release toolchain admits authorised Windows x64 and Linux x64
+workstations. One clean exact SHA produces Linux Web and Worker packages, a
+linux/amd64 OCI archive and a self-contained migration bundle matching the
+workstation (`efbundle.exe` on Windows, `efbundle` on Linux). Manifest schema 3
+binds their hashes and platform identity; validation rejects a bundle for a
+different workstation. This is repository tooling state, not evidence that the
+change has been promoted or deployed.
 
 ## Components and dependency direction
 

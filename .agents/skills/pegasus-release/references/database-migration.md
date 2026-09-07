@@ -11,7 +11,15 @@ present in the deployed release.
      -ManifestSha256 $manifestSha256
    ```
 
-2. Run the approved manifest's `efbundle` from `src/Pegasus.Web` with the
+2. Resolve the executable from the validated manifest, not a hardcoded name:
+
+   ```powershell
+   $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+   $migrationBundlePath = Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $manifestPath)) $manifest.migrationBundleName
+   ```
+
+   Run `$migrationBundlePath` (`efbundle.exe` on Windows or `efbundle` on Linux)
+   from `src/Pegasus.Web` with the
    Production process
    environment required by `docs/runbook.md` under **Release artifacts and
    bootstrap**. Use `AZURE_TOKEN_CREDENTIALS=AzureCliCredential` and the

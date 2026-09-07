@@ -181,7 +181,8 @@ in the build lane and the catalogue check on every change set.
 - One platform per workstation — Windows+PowerShell 7 or Linux+PowerShell 7 —
   never mixed in a single run or evidence record
   ([runbook](docs/runbook.md#supported-platform)). Release operations use the
-  authorised Linux x64 terminal (ADR-0037).
+  authorised Windows x64 or Linux x64 terminal (ADR-0039); the migration
+  bundle matches that workstation, while deployed hosts stay Linux.
 - `corpus/` is local, ignored, and immutable — never upload, publish, commit,
   rename, or modify it.
 - A closed composition or feature gate is a disabled flag, not a partially
