@@ -188,7 +188,7 @@ public sealed class ServiceHealthTests
             Dispatch = new(1, 0, 0, FixedUtcNow.AddMinutes(-6)),
             Operations = [],
             LimitReached = true,
-            EvaActivity = new(0, FixedUtcNow.AddHours(-3)),
+            EvaActivity = new(FixedUtcNow.AddHours(-3)),
             AiCounts = new(0, 0),
             RecentJobs = [Job(jobTime, closedAtUtc: null)],
             SendToAiEnabled = true,
