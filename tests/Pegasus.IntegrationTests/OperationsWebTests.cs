@@ -323,9 +323,10 @@ public sealed partial class OperationsWebTests
 
         Assert.Contains("Send Unidentified to AI", html, StringComparison.Ordinal);
         Assert.Contains("name=\"unidentifiedReference\"", html, StringComparison.Ordinal);
-        // The global rail count is the only queue enumeration on GET; this
-        // page resolves one indexed reference only when the action is posted.
-        Assert.Equal(1, aiWork.QueueListCalls);
+        // GET reads the queue once for the global rail and once for the
+        // Operations projection. The action itself resolves one indexed
+        // reference; its POST incurs only the ordinary rail read.
+        Assert.Equal(2, aiWork.QueueListCalls);
 
         using var response = await client.PostAsync(
             "/Operations?handler=SendUnidentifiedToAi",
@@ -343,6 +344,7 @@ public sealed partial class OperationsWebTests
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
         Assert.False(string.IsNullOrWhiteSpace(command.Instruction));
         Assert.Equal(1, aiWork.ReferenceLookupCalls);
+        Assert.Equal(3, aiWork.QueueListCalls);
     }
 
     [Fact]
