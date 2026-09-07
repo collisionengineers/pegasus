@@ -15,28 +15,31 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>It is a GET, and only a GET.</b> Glass's returns the operator by
-/// navigating to the <c>caller</c> the launch handed it, and Pegasus relays that
-/// same message back to the provider's own callback with
-/// <see cref="HttpMethod.Get"/> — see <c>GlassMvaClient.RelayCallbackAsync</c>.
-/// Nothing in the provider's flow posts here, so no post handler is written for
-/// one that does not exist.
+/// <b>Both verbs, one act.</b> Glass's returns the operator by navigating to the
+/// <c>caller</c> the launch handed it, and its own callback is relayed with
+/// <see cref="HttpMethod.Get"/> (<c>GlassMvaClient.RelayCallbackAsync</c>); the
+/// provider may equally post that address. Either way the message is the query
+/// it arrived on, so both verbs read the same thing and do the same thing.
 /// </para>
 /// <para>
 /// <b>No staff token can be asked for.</b> The request is composed by the
 /// provider, so it carries no antiforgery token; it is refused instead on what
 /// it does carry — the one-use token in its own path, and the signed-in staff
-/// member who owns the session that token names. Nothing is read from the query
-/// to decide either: it is handed to the gateway exactly as it arrived, because
-/// it is the provider's message and re-encoding it would change what Glass's
-/// verifies.
+/// member who owns the session that token names. <b>Nothing is read out of the
+/// query to decide anything</b>: no identity, no role, no case. The query is
+/// handed to the gateway exactly as it arrived, because it is the provider's
+/// message and re-encoding it would change what Glass's verifies.
 /// </para>
 /// <para>
-/// <b>The token is spent only by the owner.</b> An unknown token is a 404 and a
-/// signed-in stranger is a 403, both before anything is written, so neither can
-/// consume a session they did not launch. The Engineer who did gets the same
-/// answer however many times the browser repeats the return: the gateway reads
-/// back what the first delivery produced rather than acting on it twice.
+/// <b>The token is spent only by the owner.</b> The callback's identity is the
+/// persisted one-use correlation and the fingerprint of the query delivered
+/// under it — no operation key stands in for either. Who may act on it is
+/// derived here, on the server, from the current signed-in staff member: an
+/// unknown token is a 404 and a signed-in stranger is a 403, both before
+/// anything is written, so neither can consume a session they did not launch.
+/// The Engineer who did gets the same answer however many times the browser
+/// repeats the return, because the gateway reads back what the first delivery
+/// produced rather than acting on it twice.
 /// </para>
 /// </remarks>
 [Authorize(
@@ -47,7 +50,13 @@ public sealed class CallbackModel(
     GlassRepairEstimateGateway glassEstimates,
     IGlassRepairEstimateSessionReader glassSessions) : StaffPageModel
 {
-    public async Task<IActionResult> OnGetAsync(
+    public Task<IActionResult> OnGetAsync(string correlation, CancellationToken cancellationToken) =>
+        DeliverAsync(correlation, cancellationToken);
+
+    public Task<IActionResult> OnPostAsync(string correlation, CancellationToken cancellationToken) =>
+        DeliverAsync(correlation, cancellationToken);
+
+    private async Task<IActionResult> DeliverAsync(
         string correlation,
         CancellationToken cancellationToken)
     {
@@ -70,16 +79,7 @@ public sealed class CallbackModel(
 
         try
         {
-            var completed = await glassEstimates.CompleteAsync(
-                new GlassRepairEstimateCallbackDelivery(
-                    new GlassRepairEstimateCallback(
-                        actor,
-                        session.Id,
-                        session.Version,
-                        correlation,
-                        $"{session.OperationKey}:callback"),
-                    Request.QueryString.Value ?? string.Empty),
-                cancellationToken);
+            var completed = await CompleteAsync(actor, session, correlation, cancellationToken);
             return DetailsModel.ReportSessionOutcome(
                 completed, TempData, () => Estimate(completed.CaseId));
         }
@@ -99,6 +99,34 @@ public sealed class CallbackModel(
             return Estimate(session.CaseId);
         }
     }
+
+    /// <summary>
+    /// The one place this page reaches past
+    /// <see cref="IGlassRepairEstimateGateway"/>: acting on a delivery needs the
+    /// provider's verbatim query, which the shared contract's callback record
+    /// has no field for, so the Infrastructure delivery carries it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="GlassRepairEstimateCallback.OperationKey"/> is left empty on
+    /// purpose. This delivery's identity is the correlation and the query
+    /// fingerprint the gateway takes of it; an operation key here would be a
+    /// second, weaker identity for the same act, and the gateway reads none.
+    /// </remarks>
+    private Task<GlassRepairEstimateSession> CompleteAsync(
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        string correlation,
+        CancellationToken cancellationToken) =>
+        glassEstimates.CompleteAsync(
+            new GlassRepairEstimateCallbackDelivery(
+                new GlassRepairEstimateCallback(
+                    actor,
+                    session.Id,
+                    session.Version,
+                    correlation,
+                    OperationKey: string.Empty),
+                Request.QueryString.Value ?? string.Empty),
+            cancellationToken);
 
     private RedirectToPageResult Estimate(Guid caseId) =>
         RedirectToPage("/Cases/Details", new { id = caseId, section = "estimate" });

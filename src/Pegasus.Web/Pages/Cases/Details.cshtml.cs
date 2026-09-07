@@ -2106,6 +2106,10 @@ public sealed partial class DetailsModel(
 
         try
         {
+            // One of this page's two reaches past IGlassRepairEstimateGateway:
+            // the shared contract's resume names only the session, and
+            // finishing a held result needs the Case authority this Engineer
+            // has just regained.
             var session = await glassEstimates.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(
                     actor,
@@ -2132,6 +2136,13 @@ public sealed partial class DetailsModel(
     /// estimator while the session is open, and back on the Estimate section
     /// with what the session came to when it is not.
     /// </summary>
+    /// <remarks>
+    /// The other of this page's two reaches past
+    /// <see cref="IGlassRepairEstimateGateway"/>, and the only place the
+    /// estimator address is asked for at all: the shared contract answers a
+    /// session, which records what a launch created but not the address it
+    /// produced.
+    /// </remarks>
     private async Task<IActionResult> OpenEstimatorAsync(
         Guid id,
         ActionActor actor,
