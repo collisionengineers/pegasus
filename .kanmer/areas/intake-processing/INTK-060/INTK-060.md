@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T15:20:09.582Z'
+claim_expires_at: '2026-09-07T15:44:06.569Z'
 claim_controller: codex-astra-a-c
 lease_id: 6af494d4-13a5-4866-a54a-03cf407d3ee1
-lease_revision: 127
+lease_revision: 130
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T13:20:09.582Z'
+lease_heartbeat_at: '2026-09-07T13:44:06.568Z'
 lease_reclaimed_from: antigravity-stream-c
 labels:
   - pegasus-v1
@@ -32,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/673'
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T13:20:09.582Z'
+updated: '2026-09-07T13:44:06.568Z'
 ---
 
 ## What
