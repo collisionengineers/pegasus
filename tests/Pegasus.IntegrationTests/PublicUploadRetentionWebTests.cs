@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +12,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -70,6 +73,135 @@ public sealed partial class PublicUploadRetentionWebTests
 
     private const string ConflictMessage =
         "This upload operation was already used for different content.";
+
+    [Fact]
+    public async Task RequestCreationPersistsAndReplaysOmittedOptionalMetadata()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedLinkAsync(factory.Services, "REQNULL");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(seeded.CaseId, CancellationToken.None));
+        var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(
+                    seeded.CaseId,
+                    workflow.Version,
+                    actor,
+                    $"request-null-metadata-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+        var operationKey = $"request-null-metadata:{Guid.NewGuid():N}";
+        var command = new CreateRequestUploadLinkCommand(
+            seeded.CaseId,
+            actor,
+            operationKey,
+            lease.Version,
+            lease.Token);
+        var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
+
+        var created = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.Null(created.Link.Recipient);
+        Assert.Null(created.Link.Reason);
+        var replay = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.True(replay.IsReplay);
+        Assert.Equal(created.Link, replay.Link);
+
+        await using var context = await CreateContextAsync(scope.ServiceProvider);
+        var stored = await context.Set<RequestUploadLinkEntity>()
+            .SingleAsync(item => item.Id == created.Link.Id);
+        Assert.Null(stored.Recipient);
+        Assert.Null(stored.Reason);
+        var history = await context.ActionHistory.SingleAsync(item =>
+            item.AggregateType == "request_upload_link"
+            && item.CorrelationId == operationKey);
+        var snapshot = JsonNode.Parse(history.AfterJson!)!.AsObject();
+        Assert.True(snapshot.ContainsKey("recipient"));
+        Assert.True(snapshot.ContainsKey("reason"));
+        Assert.Null(snapshot["recipient"]);
+        Assert.Null(snapshot["reason"]);
+    }
+
+    [Fact]
+    public async Task RequestCreationNormalizesPersistsAndReplaysRecipientAndReasonExactly()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var seeded = await SeedLinkAsync(factory.Services, "REQMETA");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(seeded.CaseId, CancellationToken.None));
+        var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(
+                    seeded.CaseId,
+                    workflow.Version,
+                    actor,
+                    $"request-metadata-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+        var operationKey = $"request-metadata:{Guid.NewGuid():N}";
+        var command = new CreateRequestUploadLinkCommand(
+            seeded.CaseId,
+            actor,
+            operationKey,
+            lease.Version,
+            lease.Token,
+            "  recipient@example.com  ",
+            "  Requested photographs  ");
+        var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            create.ExecuteAsync(command with { Recipient = " " }, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            create.ExecuteAsync(command with { Reason = " " }, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            create.ExecuteAsync(command with { Recipient = new string('r', 501) }, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            create.ExecuteAsync(command with { Reason = new string('r', 1001) }, CancellationToken.None));
+
+        var created = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.Equal("recipient@example.com", created.Link.Recipient);
+        Assert.Equal("Requested photographs", created.Link.Reason);
+        var replay = await create.ExecuteAsync(command, CancellationToken.None);
+        Assert.True(replay.IsReplay);
+        Assert.Equal(created.Link, replay.Link);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            create.ExecuteAsync(
+                command with { Recipient = "other@example.com" },
+                CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            create.ExecuteAsync(command with { Reason = "Other reason" }, CancellationToken.None));
+
+        await using var context = await CreateContextAsync(scope.ServiceProvider);
+        var stored = await context.Set<RequestUploadLinkEntity>()
+            .SingleAsync(item => item.Id == created.Link.Id);
+        Assert.Equal(created.Link.Recipient, stored.Recipient);
+        Assert.Equal(created.Link.Reason, stored.Reason);
+        var history = await context.ActionHistory.SingleAsync(item =>
+            item.AggregateType == "request_upload_link"
+            && item.CorrelationId == operationKey);
+        var snapshot = JsonNode.Parse(history.AfterJson!)!.AsObject();
+        Assert.Equal(created.Link.Recipient, snapshot["recipient"]!.GetValue<string>());
+        Assert.Equal(created.Link.Reason, snapshot["reason"]!.GetValue<string>());
+
+        stored.Recipient = " malformed@example.com ";
+        snapshot["recipient"] = stored.Recipient;
+        history.AfterJson = snapshot.ToJsonString();
+        await context.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            create.ExecuteAsync(command, CancellationToken.None));
+
+        stored.Recipient = created.Link.Recipient;
+        stored.Reason = " malformed reason ";
+        snapshot["recipient"] = stored.Recipient;
+        snapshot["reason"] = stored.Reason;
+        history.AfterJson = snapshot.ToJsonString();
+        await context.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            create.ExecuteAsync(command, CancellationToken.None));
+    }
 
     [Fact]
     public async Task AConfirmedHandOverOpensTheFixedWindowAndRecordsTheBoxIdentities()
@@ -1089,6 +1221,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 CreatedAtUtc = Now,
                 ExpiresAtUtc = Now.AddHours(1),
                 LimitsVersion = LimitsVersion,
+                Recipient = "recipient@example.com",
                 Version = 1,
                 CreateOperationKey = $"request-create:{foreignLinkId:N}"
             });
@@ -1098,10 +1231,16 @@ public sealed partial class PublicUploadRetentionWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         var foreignActor = ActionActor.RequestLink(foreignLinkId);
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
+        await Assert.ThrowsAsync<FileNotFoundException>(() => status.GetAsync(
             foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
+        Assert.Null(await status.FindByOperationKeyAsync(
             foreignActor, owner.CaseId, scopedOperationKey, CancellationToken.None));
+
+        var wrongCaseId = Guid.NewGuid();
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
+            foreignActor, wrongCaseId, documentId, versionId, CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
+            foreignActor, wrongCaseId, scopedOperationKey, CancellationToken.None));
 
         var ownResult = await status.GetAsync(
             ActionActor.RequestLink(owner.LinkId),
@@ -1113,17 +1252,27 @@ public sealed partial class PublicUploadRetentionWebTests
     }
 
     /// <summary>
-    /// Without the retention command there is no custody to reach, so the
-    /// submission path refuses before it writes anything at all. It must never
-    /// fall back to recording an arrival it cannot retain.
+    /// Without accepted upload limits the public surface is deliberately
+    /// absent and refuses before reading or recording an arrival.
     /// </summary>
     [Fact]
-    public async Task WithoutTheRetentionCommandTheSubmissionRefusesAndWritesNothing()
+    public async Task WithoutAcceptedLimitsTheSubmissionRefusesAndWritesNothing()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.UseSetting("DocumentRequests:AcceptedLimitsVersion", string.Empty));
         var link = await SeedLinkAsync(factory.Services);
 
-        var result = await PostEvidenceAsync(factory, link.Token);
+        using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var file = new ByteArrayContent(Evidence);
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(link.Token), "Token" },
+            { new StringContent($"unconfigured-limits:{Guid.NewGuid():N}"), "OperationKey" },
+            { file, "Upload", "evidence.txt" }
+        };
+        using var result = await client.PostAsync($"/Uploads/{link.Token}", form);
 
         Assert.Equal(HttpStatusCode.NotFound, result.StatusCode);
         await using var context = await CreateContextAsync(factory.Services);
@@ -1324,6 +1473,7 @@ public sealed partial class PublicUploadRetentionWebTests
             ExpiresAtUtc = expiresAtUtc ?? Now.AddHours(1),
             RevokedAtUtc = revokedAtUtc,
             LimitsVersion = LimitsVersion,
+            Recipient = "recipient@example.com",
             Version = 1,
             CreateOperationKey = $"request-create:{linkId:N}"
         });
@@ -1785,7 +1935,7 @@ internal sealed class RecordingCaseArtifactCustody(
                     && item.CreatedBy == createdBy, cancellationToken);
             if (!ownsVersion)
             {
-                throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+                throw new FileNotFoundException("The document version was not found.");
             }
         }
         return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
@@ -1832,17 +1982,6 @@ internal sealed class RecordingCaseArtifactCustody(
             intents = intents.Where(item => item.CreatedBy == createdBy);
         }
         var intent = await intents.SingleOrDefaultAsync(cancellationToken);
-        if (intent is null && linkId is not null)
-        {
-            var foreignIntentExists = await context.Set<DocumentOccurrenceEntity>()
-                .AsNoTracking()
-                .AnyAsync(item => item.CaseId == caseId && item.OperationKey == operationKey,
-                    cancellationToken);
-            if (foreignIntentExists)
-            {
-                throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
-            }
-        }
         return intent is null
             ? null
             : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken);
