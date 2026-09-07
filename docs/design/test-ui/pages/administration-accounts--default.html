@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Staff accounts &amp; roles · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -94,7 +95,7 @@
                 <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="1 outstanding">1</span>
+                        <span class="nav-count" aria-label="0 outstanding">0</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -115,8 +116,8 @@
                 <div class="rail-health-line"><span class="health-dot"></span><span>Current · {{office-clock}}</span></div>
             </div>
                 <div class="rail-user" role="group" aria-label="User">
-                    <span class="avatar" aria-hidden="true">IU</span>
-                    <div><strong>integration-user</strong><small>Administrator</small></div>
+                    <span class="avatar" aria-hidden="true">DO</span>
+                    <div><strong>development-offline-administrator</strong><small>Administrator</small></div>
                     <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
                         <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
                     </button>
@@ -183,24 +184,39 @@
         <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
         <span>Mail settings</span>
     </a>
+    <a href="administration-action-logs--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+        <span>Action logs</span>
+    </a>
+    <a href="administration-ai-jobs--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+        <span>AI jobs</span>
+    </a>
+    <a href="administration-reports--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+        <span>Reports</span>
+    </a>
+    <a href="administration-health--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+        <span>Service health</span>
+    </a>
+    <a href="administration-valuation-presets--default.html">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Valuation presets</span>
+    </a>
+    <a href="#">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Claim sources</span>
+    </a>
 </nav>
 
     <div class="stack">
-            <div class="validation-summary" role="alert" aria-live="assertive" tabindex="-1">
-        <h2 class="validation-summary__heading">
-            <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle"/></svg>
-            <span>Please correct the following errors:</span>
-        </h2>
-        <ul class="validation-summary__list">
-                <li>The case edit hold changed. Reload the account before trying again.</li>
-        </ul>
-    </div>
 
 
         <section class="panel" aria-labelledby="staff-accounts-title">
             <div class="panel-head">
                 <h2 id="staff-accounts-title">Accounts</h2>
-                <span class="muted">2 accounts</span>
+                <span class="muted">1 accounts</span>
             </div>
                 <div class="table-wrap no-border">
                     <table>
@@ -262,56 +278,6 @@
                                 <td>
                                 </td>
                             </tr>
-                            <tr>
-                                <td>held-lease-test-ui-guid-3</td>
-                                <td>
-                                    <fieldset class="role-choices role-choices--stacked">
-                                        <legend>Roles for held-lease-test-ui-guid-3</legend>
-                                            <label class="choice">
-                                                <input id="roles-test-ui-guid-2-select-Administrator" type="checkbox" name="selectedRoles" value="Administrator"
-                                                       form="roles-test-ui-guid-2" />
-                                                <span>Administrator</span>
-                                            </label>
-                                            <label class="choice">
-                                                <input id="roles-test-ui-guid-2-select-Engineer" type="checkbox" name="selectedRoles" value="Engineer"
-                                                       form="roles-test-ui-guid-2" />
-                                                <span>Engineer</span>
-                                            </label>
-                                            <label class="choice">
-                                                <input id="roles-test-ui-guid-2-select-User" type="checkbox" name="selectedRoles" value="User"
-                                                       form="roles-test-ui-guid-2" checked="checked" />
-                                                <span>User</span>
-                                            </label>
-                                    </fieldset>
-                                </td>
-                                <td>
-                                    <span class="status status--navy">Enabled</span>
-
-                                        <span class="status status--amber">Password change required</span>
-
-                                </td>
-                                <td>&#x2014;</td>
-                                <td>
-                                    <form id="roles-test-ui-guid-2" method="post" class="field" action="administration-accounts--default.html">
-                                        <input type="hidden" name="staffId" value="test-ui-guid-2" />
-                                        <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                                        <label class="req" for="roles-test-ui-guid-2-reason">Reason</label>
-                                        <input id="roles-test-ui-guid-2-reason" name="reason"
-                                               value=""
-                                               required maxlength="1000" />
-                                        <button type="submit" class="btn">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                            <span>Save</span>
-                                        </button>
-                                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-                                </td>
-                                <td>
-                                            <a class="btn btn--danger" href="#">Disable</a>
-                                            <a class="btn" href="#">Force logout</a>
-                                            <a class="btn" href="#">Reset password</a>
-                                        <a class="btn btn--danger" href="#">Delete</a>
-                                </td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -368,7 +334,7 @@
         </div>
         <div class="dialog-body">
             <div class="definition-list">
-                <dl class="definition"><dt>Name</dt><dd>integration-user</dd></dl>
+                <dl class="definition"><dt>Name</dt><dd>development-offline-administrator</dd></dl>
                 <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
                 <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
             </div>
@@ -425,10 +391,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

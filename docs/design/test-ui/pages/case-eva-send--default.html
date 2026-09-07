@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EVA handoff · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -163,7 +164,7 @@
         <h1>EVA handoff</h1>
     </div>
     <div class="page-actions">
-        <a class="btn" href="case-details--default.html">
+        <a class="btn" href="#">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to QDOS3100042</span>
         </a>
@@ -195,7 +196,7 @@
             <span>Download ZIP</span>
         </button>
     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        <form method="post" action="case-eva-send--default.html">
+        <form method="post" action="#">
             <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <button type="submit" class="btn btn--primary">
                     <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
@@ -280,10 +281,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
