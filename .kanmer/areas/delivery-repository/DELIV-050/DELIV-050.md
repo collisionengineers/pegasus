@@ -13,14 +13,14 @@ stageEntered:
 taken_at: '2026-09-07T23:41:24.189Z'
 branch: DELIV-050-bootstrap-census
 worktree: .worktrees/deliv-050
-claim_expires_at: '2026-09-08T00:11:24.190Z'
+claim_expires_at: '2026-09-08T00:20:20.956Z'
 claim_controller: codex-v1-remediation-root
 lease_id: 82c1a50c-868f-4287-90cb-1fba8b1ca3f0
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260907T234022Z-bootstrap-census
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-050'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T23:41:24.189Z'
+lease_phase: verifying
+lease_heartbeat_at: '2026-09-07T23:50:20.956Z'
 labels: []
 groups:
   - EPIC-014
@@ -36,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/687'
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:47:21.174Z'
+updated: '2026-09-07T23:50:20.956Z'
 ---
 
 ## What
