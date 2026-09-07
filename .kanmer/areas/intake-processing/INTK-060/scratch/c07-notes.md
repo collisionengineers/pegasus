@@ -882,3 +882,11 @@ migration test file", so it is reported, not edited. Certain wave failure otherw
 Gates at HEAD 4476ed138: Web exit 0, 0W/0E; IntegrationTests exit 1 with only the A-owned CS0246
 EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs(462,35), 0W. Report (## Round 2 appended):
 C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07c-r1-report.md
+
+### C07 item 5 — channel limits (residual INTK-052), commit `4ae44e232` on `c07-precase`
+
+- `IntakeEnvelopeLimits` stays the one owner: per-file 104857600 (100 MiB); multipart body pinned at 209780736 (200 MiB + 64 KiB), no longer derived from 20 x per-file; batch file count still 20; Provider API envelope still 31457280. New `MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength` bounds one Provider API file, used in `ProviderSubmissionPolicy.RequireEnvelope` so that channel never inherits the manual cap.
+- Compile gates: Web 0W/0E; Core.Tests 0W/0E; IntegrationTests 0 warnings, sole error the A-owned `CS0246 'EfCaseArtifactCustody'` at `DocumentCustodyDurabilityTests.cs(462,35)`.
+- For A: `Program.cs:639` follows the constant automatically (now 200 MiB + 64 KiB, no edit needed); Kestrel `MaxRequestBodySize` is configured nowhere, so its 30 MB default would still refuse a 100 MiB upload in production (F host/ingress); `StatusCode.cshtml.cs:60` and `IntakeMcpTools.cs:123` still say "10 MB" in operator/tool text.
+- Deviation: extended `tests/Pegasus.IntegrationTests/IntakeWebNegativeTests.cs` (not in my file list) — it hard-coded `TenMiB` and "Files must be 10.0 MB or smaller."; both boundary tests now read the constant. `tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs:250,264` left alone: still passes, but now allocates ~500 MiB of arrays and its comment is stale.
+- Report: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07-limits-report.md`. READY_FOR_TESTS; no push, no PR.
