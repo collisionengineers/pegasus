@@ -828,8 +828,18 @@ public sealed class ProcessQueuedIntake(
         foreach (var candidates in receipt.ScannedPdfPages
                      .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
         {
+            // The reader labels a top-level PDF by its upload name; retention
+            // labels that same asset "uploaded source". Attachments already
+            // carry the reader's qualified label.
+            var isUploadedPdf = string.Equals(
+                candidates.Key,
+                $"uploaded {Path.GetFileName(receipt.SourceFileName)}",
+                StringComparison.Ordinal);
             var asset = receipt.AssetRecords.SingleOrDefault(item =>
-                string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
+                isUploadedPdf
+                    ? item.Kind == IntakeAssetKind.Source
+                        && item.Disposition == IntakeAssetDisposition.Source
+                    : string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
             if (asset is null)
             {
                 throw new InvalidDataException(
