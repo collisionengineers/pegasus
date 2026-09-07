@@ -23,6 +23,7 @@ using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Vision;
@@ -354,9 +355,11 @@ public static class DependencyInjection
         services.AddSingleton<JsonEstimateParser>();
         services.AddSingleton<IEstimateDocumentParser>(provider =>
             provider.GetRequiredService<JsonEstimateParser>());
+        services.AddSingleton<IEstimateDocumentParser, GlassEstimateXmlParser>();
         // Details still requests the PDF parser singly and JSON by its concrete
-        // type; canonical import consumes both through the collection.
+        // type; canonical import consumes all parsers through the collection.
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        services.AddScoped<IGlassRepairEstimateSessionStore, EfGlassRepairEstimateSessionStore>();
         services.AddScoped<IImportRawEstimate, ImportRawEstimate>();
         services.AddScoped<ISaveEstimate, SaveEstimate>();
         services.AddScoped<IDuplicateEstimate, DuplicateEstimate>();
