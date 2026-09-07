@@ -2042,7 +2042,7 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        [FromServices] GlassRepairEstimateGateway glassEstimates,
+        [FromServices] IGlassRepairEstimateGateway glassEstimates,
         CancellationToken cancellationToken)
     {
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2101,7 +2101,7 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         Guid sessionId,
         long expectedSessionVersion,
-        [FromServices] GlassRepairEstimateGateway glassEstimates,
+        [FromServices] IGlassRepairEstimateGateway glassEstimates,
         CancellationToken cancellationToken)
     {
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2123,10 +2123,8 @@ public sealed partial class DetailsModel(
 
         try
         {
-            // One of this page's two reaches past IGlassRepairEstimateGateway:
-            // the shared contract's resume names only the session, and
-            // finishing a held result needs the Case authority this Engineer
-            // has just regained.
+            // Finishing a held result needs the Case authority this Engineer
+            // has just regained; a live session needs only itself.
             var session = await glassEstimates.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(
                     actor,
@@ -2154,17 +2152,15 @@ public sealed partial class DetailsModel(
     /// with what the session came to when it is not.
     /// </summary>
     /// <remarks>
-    /// The other of this page's two reaches past
-    /// <see cref="IGlassRepairEstimateGateway"/>, and the only place the
-    /// estimator address is asked for at all: the shared contract answers a
-    /// session, which records what a launch created but not the address it
-    /// produced.
+    /// The only place the estimator address is asked for at all: a session
+    /// records what a launch created but not the address it produced, which
+    /// carries the one-use callback token.
     /// </remarks>
     private async Task<IActionResult> OpenEstimatorAsync(
         Guid id,
         ActionActor actor,
         GlassRepairEstimateSession session,
-        GlassRepairEstimateGateway glassEstimates,
+        IGlassRepairEstimateGateway glassEstimates,
         string refusal,
         CancellationToken cancellationToken)
     {

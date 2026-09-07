@@ -674,7 +674,8 @@ public sealed class GlassRepairEstimateGatewayTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => harness.Gateway.ResumeAsync(
-                harness.Engineer, session.Id, waiting.Version, CancellationToken.None));
+                new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, waiting.Version),
+                CancellationToken.None));
     }
 
     [Fact]
@@ -729,7 +730,8 @@ public sealed class GlassRepairEstimateGatewayTests
             harness.Engineer, session.Id, CancellationToken.None);
 
         var resumed = await harness.Gateway.ResumeAsync(
-            harness.Engineer, session.Id, session.Version, CancellationToken.None);
+            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version),
+            CancellationToken.None);
 
         Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
         var reopened = await harness.Gateway.GetEstimatorUrlAsync(
@@ -754,7 +756,8 @@ public sealed class GlassRepairEstimateGatewayTests
                 harness.OtherEngineer, session.Id, CancellationToken.None));
         await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
             () => harness.Gateway.ResumeAsync(
-                harness.OtherEngineer, session.Id, session.Version, CancellationToken.None));
+                new GlassRepairEstimateResumeRequest(harness.OtherEngineer, session.Id, session.Version),
+                CancellationToken.None));
     }
 
     // --------------------------------------------------------------- secrets
@@ -1258,13 +1261,11 @@ public sealed class GlassRepairEstimateGatewayTests
             string? correlation = null,
             string? rawQuery = null) =>
             Gateway.CompleteAsync(
-                new GlassRepairEstimateCallbackDelivery(
-                    new GlassRepairEstimateCallback(
-                        actor ?? Engineer,
-                        session.Id,
-                        expectedVersion ?? session.Version,
-                        correlation ?? correlations[session.Id],
-                        $"{session.OperationKey}:callback"),
+                new GlassRepairEstimateCallback(
+                    actor ?? Engineer,
+                    session.Id,
+                    expectedVersion ?? session.Version,
+                    correlation ?? correlations[session.Id],
                     rawQuery ?? SavedQuery),
                 CancellationToken.None);
     }
