@@ -499,3 +499,5 @@ Replacement controller integrated independently reviewed C07b custody/public-upl
 - 2026-09-07T00:50:22.138Z lease-phase running-command → implementing (lease 40f03659-6845-4f20-b1cc-cfd09686ec00 rev 66; expires 2026-09-07T01:20:22.121Z)
 
 - 2026-09-07T01:02:51.552Z claim-transfer codex-stream-c-replacement → claude-fable-c2 (live; operator: replacement Stream C controller takes over from paused codex-stream-c-replacement per handoff-stream-c.md (2026-09-07); same worktree/branch, no reset; lease 40f03659-6845-4f20-b1cc-cfd09686ec00 → b03b3df8-dca2-44ae-b628-515528bdf02f rev 67; branch task/pegasus-v1-intake; worktree ../pegasus-worktrees/v1-intake; expires 2026-09-07T01:32:51.545Z; evidence: workspace clean (matches-claim), pr absent, commits 0, proof absent)
+
+- 2026-09-07T01:04:24.992Z lease-phase implementing → running-command (lease b03b3df8-dca2-44ae-b628-515528bdf02f rev 68; expires 2026-09-07T03:04:24.985Z)
