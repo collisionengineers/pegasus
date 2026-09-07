@@ -104,9 +104,13 @@ internal sealed class EfCaseArtifactCustody(
             from document in db.Set<CaseDocumentEntity>().AsNoTracking()
             join item in db.Set<DocumentVersionEntity>().AsNoTracking()
                 on document.Id equals item.DocumentId
+            join occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                on item.Id equals occurrence.VersionId
             where document.CaseId == caseId
                 && document.Id == documentId
                 && item.Id == versionId
+                && occurrence.CaseId == caseId
+                && occurrence.DocumentId == documentId
                 && !item.IsLogicallyRemoved
                 && (requestLinkCreator == null
                     || item.CreatedBy == requestLinkCreator
@@ -115,12 +119,9 @@ internal sealed class EfCaseArtifactCustody(
                         && link.CaseId == caseId
                         && link.Status == RequestUploadStatus.Active
                         && link.RevokedAtUtc == null
-                        && link.ExpiresAtUtc > nowUtc)
-                    && db.Set<DocumentOccurrenceEntity>().Any(occurrence =>
-                        occurrence.CaseId == caseId
-                        && occurrence.DocumentId == documentId
-                        && occurrence.VersionId == versionId))
-            select item).SingleOrDefaultAsync(cancellationToken);
+                        && link.ExpiresAtUtc > nowUtc))
+            select new { Version = item, OccurrenceId = occurrence.Id })
+            .SingleOrDefaultAsync(cancellationToken);
         if (version is null)
         {
             if (requestLinkId is { } missingRequestLinkId)
@@ -132,7 +133,7 @@ internal sealed class EfCaseArtifactCustody(
             }
             throw new FileNotFoundException("The authorized Case artifact version is unavailable.");
         }
-        return Status(version);
+        return Status(version.Version, version.OccurrenceId);
     }
 
     public async Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
@@ -170,10 +171,11 @@ internal sealed class EfCaseArtifactCustody(
                         && link.Status == RequestUploadStatus.Active
                         && link.RevokedAtUtc == null
                         && link.ExpiresAtUtc > nowUtc))
-            select item).SingleOrDefaultAsync(cancellationToken);
+            select new { Version = item, OccurrenceId = occurrence.Id })
+            .SingleOrDefaultAsync(cancellationToken);
         if (version is not null)
         {
-            return Status(version);
+            return Status(version.Version, version.OccurrenceId);
         }
         if (requestLinkId is { } missingRequestLinkId)
         {
@@ -198,12 +200,12 @@ internal sealed class EfCaseArtifactCustody(
         return requestLinkId;
     }
 
-    private static CaseArtifactCustodyResult Status(DocumentVersionEntity version) =>
+    private static CaseArtifactCustodyResult Status(DocumentVersionEntity version, Guid occurrenceId) =>
         version.CustodyStatus switch
         {
-            DocumentCustodyStatus.Confirmed => Confirmed(version),
-            DocumentCustodyStatus.Pending => Pending(version, "case_custody_pending"),
-            DocumentCustodyStatus.Failed => Failed(version, "case_custody_failed"),
+            DocumentCustodyStatus.Confirmed => Confirmed(version, occurrenceId),
+            DocumentCustodyStatus.Pending => Pending(version, occurrenceId, "case_custody_pending"),
+            DocumentCustodyStatus.Failed => Failed(version, occurrenceId, "case_custody_failed"),
             _ => throw new InvalidDataException("The artifact custody status is invalid.")
         };
 
@@ -244,14 +246,14 @@ internal sealed class EfCaseArtifactCustody(
                 RequireConfirmed(existing.Version, documentContentStore is BoxDocumentContentStore);
                 if (requestLinkTransaction is not null)
                     await requestLinkTransaction.CommitAsync(cancellationToken);
-                return Confirmed(existing.Version);
+                return Confirmed(existing.Version, existing.Occurrence.Id);
             }
             if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
                 or DocumentCustodyStatus.Failed)
             {
                 if (requestLinkTransaction is not null)
                     await requestLinkTransaction.CommitAsync(cancellationToken);
-                return Status(existing.Version);
+                return Status(existing.Version, existing.Occurrence.Id);
             }
         }
 
@@ -316,7 +318,7 @@ internal sealed class EfCaseArtifactCustody(
             await requestLinkTransaction.CommitAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(caseEntity.CustodyRootRemoteId))
         {
-            return Pending(version, "case_custody_pending");
+            return Pending(version, occurrence.Id, "case_custody_pending");
         }
 
         var address = new ManagedDocumentContentAddress(
@@ -357,13 +359,13 @@ internal sealed class EfCaseArtifactCustody(
                 cancellationToken);
         if (changed == 0)
         {
-            return Pending(version, "case_custody_pending");
+            return Pending(version, occurrence.Id, "case_custody_pending");
         }
         version.BoxFileId = write.RemoteId;
         version.BoxVersionId = write.BoxVersionId;
         version.CustodyStatus = DocumentCustodyStatus.Confirmed;
         version.PendingContentStorageKey = null;
-        return Confirmed(version);
+        return Confirmed(version, occurrence.Id);
     }
 
     private async Task<CaseArtifactCustodyResult> RetainHoldingAsync(
@@ -398,7 +400,7 @@ internal sealed class EfCaseArtifactCustody(
             await db.SaveChangesAsync(cancellationToken);
             return new(
                 CaseArtifactCustodyDisposition.Confirmed,
-                null, null, null, null,
+                null, null, null, null, null,
                 asset.ContentHash,
                 asset.ContentLength,
                 asset.MediaType,
@@ -415,7 +417,7 @@ internal sealed class EfCaseArtifactCustody(
         {
             return new(
                 CaseArtifactCustodyDisposition.Confirmed,
-                null, null,
+                null, null, null,
                 asset.BoxFileId,
                 asset.BoxVersionId,
                 asset.ContentHash,
@@ -444,7 +446,7 @@ internal sealed class EfCaseArtifactCustody(
         await db.SaveChangesAsync(cancellationToken);
         return new(
             CaseArtifactCustodyDisposition.Confirmed,
-            null, null,
+            null, null, null,
             file.Id,
             file.VersionId,
             NormalizeHash(request.Sha256),
@@ -454,10 +456,11 @@ internal sealed class EfCaseArtifactCustody(
             null);
     }
 
-    private static CaseArtifactCustodyResult Confirmed(DocumentVersionEntity version) => new(
+    private static CaseArtifactCustodyResult Confirmed(DocumentVersionEntity version, Guid occurrenceId) => new(
         CaseArtifactCustodyDisposition.Confirmed,
         version.DocumentId,
         version.Id,
+        occurrenceId,
         version.BoxFileId,
         version.BoxVersionId,
         version.Sha256,
@@ -478,15 +481,15 @@ internal sealed class EfCaseArtifactCustody(
         }
     }
 
-    private static CaseArtifactCustodyResult Pending(DocumentVersionEntity version, string code) => new(
+    private static CaseArtifactCustodyResult Pending(DocumentVersionEntity version, Guid occurrenceId, string code) => new(
         CaseArtifactCustodyDisposition.Pending,
-        version.DocumentId, version.Id, version.BoxFileId, version.BoxVersionId,
+        version.DocumentId, version.Id, occurrenceId, version.BoxFileId, version.BoxVersionId,
         version.Sha256, version.ContentLength, version.MediaType, code,
         version.PendingContentStorageKey!);
 
-    private static CaseArtifactCustodyResult Failed(DocumentVersionEntity version, string code) => new(
+    private static CaseArtifactCustodyResult Failed(DocumentVersionEntity version, Guid occurrenceId, string code) => new(
         CaseArtifactCustodyDisposition.Failed,
-        version.DocumentId, version.Id, version.BoxFileId, version.BoxVersionId,
+        version.DocumentId, version.Id, occurrenceId, version.BoxFileId, version.BoxVersionId,
         version.Sha256, version.ContentLength, version.MediaType, code,
         version.PendingContentStorageKey);
 
