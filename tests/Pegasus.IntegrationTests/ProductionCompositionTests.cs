@@ -9,6 +9,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
@@ -229,6 +230,10 @@ public sealed class ProductionCompositionTests
         Assert.NotNull(services.GetRequiredService<InstructionExtractionPolicySelector>());
         var analysis = services.GetRequiredService<AnalyzeRetainedInstruction>();
         Assert.Same(analysis, services.GetRequiredService<IAnalyzeRetainedInstruction>());
+        var analysisStore = services.GetRequiredService<EfRetainedInstructionAnalysisStore>();
+        Assert.Same(
+            analysisStore,
+            services.GetRequiredService<IThirdPartyReportCandidateQueries>());
     }
 
     [Fact]
