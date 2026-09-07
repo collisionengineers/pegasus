@@ -478,12 +478,12 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Contains(RetainedMessage, second.CompletionBody, StringComparison.Ordinal);
 
         // Asked, not repeated: the bytes were offered once, one intent was
-        // ever initiated, and the answer came from the precise read because
-        // the arrival named a document to ask about.
+        // ever initiated, and the answer came from the exact operation key
+        // shared by the arrival and custody intent.
         Assert.Single(custody.Calls);
         Assert.Equal(1, custody.ProviderInitiations);
-        Assert.Equal(1, custody.StatusCalls);
-        Assert.Equal(0, custody.LookupCalls);
+        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(1, custody.LookupCalls);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
@@ -547,7 +547,8 @@ public sealed partial class PublicUploadRetentionWebTests
 
         Assert.Equal(IncomingArtifactCustodyState.Confirmed, reconciled.State);
         var call = Assert.Single(custody.Calls);
-        Assert.Equal(1, custody.StatusCalls);
+        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(1, custody.LookupCalls);
 
         await using var context = await CreateContextAsync(factory.Services);
         var occurrence = await context.Set<PublicUploadOccurrenceEntity>()
@@ -596,7 +597,8 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Equal(IncomingArtifactCustodyState.Failed, reconciled.State);
         Assert.Null(reconciled.BoxFileId);
         Assert.Single(custody.Calls);
-        Assert.Equal(1, custody.StatusCalls);
+        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(1, custody.LookupCalls);
 
         await using var context = await CreateContextAsync(factory.Services);
         var session = await context.Set<PublicUploadSessionEntity>()
@@ -1096,7 +1098,8 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.Contains(StoringMessage, again.CompletionBody, StringComparison.Ordinal);
         Assert.Equal(1, custody.HandOverAttempts);
         Assert.Equal(1, custody.ProviderInitiations);
-        Assert.Equal(1, custody.StatusCalls);
+        Assert.Equal(0, custody.StatusCalls);
+        Assert.Equal(1, custody.LookupCalls);
 
         // A different file under that same key. It is not a replacement and
         // not a conflict: it is a submission of its own.
@@ -1194,7 +1197,7 @@ public sealed partial class PublicUploadRetentionWebTests
             // Claimed, and nothing more: custody's answer never reached it.
             Assert.Equal("unknown", arrival.CustodyState);
             Assert.Null(arrival.DocumentVersionId);
-            Assert.Equal((0, 0L), await ReadLinkTotalsAsync(context, link.LinkId));
+            Assert.Equal((1, (long)Evidence.Length), await ReadLinkTotalsAsync(context, link.LinkId));
         }
 
         // The page is still asking for the same operation key, so the sender's
@@ -2207,9 +2210,14 @@ public sealed partial class PublicUploadRetentionWebTests
             factory.Services,
             "PUBSTALE",
             limitsVersion: "integration-fixture-v0");
+        var activeLink = await SeedLinkAsync(factory.Services, "PUBSTALECSRF");
         var invalid = Pegasus.Web.Presentation.OperatorLabels.Upload.RequestLinkInvalid;
 
         using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var activePage = await client.GetAsync($"/Uploads/{activeLink.Token}");
+        var requestVerificationToken = FieldValue(
+            await activePage.Content.ReadAsStringAsync(),
+            "__RequestVerificationToken");
         using var page = await client.GetAsync($"/Uploads/{link.Token}");
 
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
@@ -2228,6 +2236,7 @@ public sealed partial class PublicUploadRetentionWebTests
         file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
         using var form = new MultipartFormDataContent
         {
+            { new StringContent(requestVerificationToken), "__RequestVerificationToken" },
             { new StringContent(link.Token), "Token" },
             { new StringContent($"{Guid.NewGuid():N}"), "OperationKey" },
             { file, "Upload", "evidence.txt" }
@@ -2244,6 +2253,7 @@ public sealed partial class PublicUploadRetentionWebTests
             $"/Uploads/{link.Token}?handler=Finalize",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
+                ["__RequestVerificationToken"] = requestVerificationToken,
                 ["Token"] = link.Token
             }));
 
