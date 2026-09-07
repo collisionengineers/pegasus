@@ -57,3 +57,16 @@ none of those files.
 ## Replacement-controller completion — C02 correction round 1
 
 Preserved the exhausted worker's dirty IntakeOcr.cs change and completed its coherent provider/store/test contract at commit e203c8100 on c02-provenance. First build failed with six CS0535 interface errors because the worker stopped mid-refactor; retained as failure evidence. After completing Azure accepted-operation callback, request-envelope submission timestamps, durable store transitions, and test doubles, dotnet build ./Pegasus.slnx --configuration Release --no-restore exited 0 with 0 warnings and 0 errors. Implementation role ran no tests. Exact head e203c8100 is READY_FOR_TESTS; independent C02 wave and exact-head re-review remain required before integration.
+
+## C02 doc-Partial research (researcher, read-only pass)
+
+Full report: `scratchpad/takeover/c02-doc-partial-research.md` (this session's temp dir; not in repo).
+
+- `WordBinaryExtractor` decodes all 8 FIB stories fully (text incl. table cells, tab/para-projected); `Outcome=Partial` iff ANY issue accumulated — text is usually present even when Partial.
+- 25/25 `.DOC` originals have `fib.IsComplex=false` (fComplex bit unset) AND ≥1 nonzero non-CLX `FibRgFcLcb97` range (style sheet/fonts/doc-props) → `doc-complex-flag-unset` + `doc-fib-ranges-unprocessed` fire on ALL 25 regardless of tables. These look like near-universal false positives on any real Word-97+ doc, not genuine content loss — a semantics decision, not a parse gap.
+- Genuine content gaps beyond that floor: 20/25 have a nonzero Header story; 10/25 (ALS+BC) have real tables (`` CellOrRowMark, no cell/row structure emitted); 11/25 have an OLE embedded-object marker (by design, ADR-0025 passive); PCH 01 has field codes; MP Word 03 has a Textbox story.
+- OAK's 5 "complete" `.DOC` originals are actually **RTF text saved as .DOC** (`{\rtf1...` signature) — routed to the separate `PassiveRtfText` branch, never entering `WordBinaryExtractor`/FIB/CLX at all. Not evidence the binary-Word branch handles real complexity.
+- C03 policy unit tests (Pch/Rjs/Als/Bc/Mp) feed pre-extracted text, not real bytes: PCH tests use hand-transcribed C# literals; ALS/BC "Category=Corpus" tests read `astra_output/extractions/text/*.txt` (a third-party tool's ground truth, incl. table content), gated on `PEGASUS_REFERENCE_PACK_ROOT`. None exercise `WordBinaryExtractor`. Only `Top15InstructionCorpusTests.cs` runs genuine bytes end-to-end — it's the one that produced the 31 Inconclusive rows.
+- Smallest reader extension: table/cell locators for the 10 ALS/BC files (no new package; extend `WordBinaryExtractor`/`WordBinaryModels`, mirror `AddRtfTableCells`'s `ForCell` pattern) — moderate size, ~150-250 LOC, but by itself does NOT reach `Complete` for any file since complex-flag/fib-ranges still fire; that gate needs a product decision first.
+- 6 low-text MP PDFs (MP PDF 01-04, MP Weird 01-02) confirmed scan-only, zero embedded text, genuinely OCR-only per plan C02 item 2 — truthful Inconclusive, no in-repo fix.
+- No A-stream dependency identified for the table-locator extension itself; the complex-flag/fib-ranges semantics question is a standalone open question, not blocked on another owner's work.
