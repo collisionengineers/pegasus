@@ -10,7 +10,7 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class QdosTriageIntegrationTests
 {
     private const string GenuineFormalInstructionHash =
-        "B91F5BBC622041B088D6F55E7A949CAEC945F476BDB18C489D0756D797552FB0";
+        "21ad661ea450a7d05a082da8742f5ea0d6bb6917db5b5b290ab2dabe78c04ede";
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
@@ -174,18 +174,29 @@ public sealed partial class QdosTriageIntegrationTests
             });
     }
 
-    [GenuineQdosCorpusFact(GenuineFormalInstructionHash)]
+    [Fact]
     [Trait("Category", "Corpus")]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task IncomingFormalInstructionSharingVrmAndPrincipalWithOpenTriageDoesNotAutoLinkOrCloseTriage()
     {
-        var formalInstruction = GenuineQdosCorpus.Read(GenuineFormalInstructionHash);
+        var sourcePath = Path.Combine(
+            Top15InstructionCorpusTests.PackRoot(),
+            "principal-docs",
+            "original-mapper-instruction-corpus",
+            "QDOS 01.pdf");
+        var sourceBytes = await File.ReadAllBytesAsync(sourcePath);
+        Assert.Equal(
+            GenuineFormalInstructionHash,
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(sourceBytes)));
+        var formalInstruction = new GenuineCorpusSample(
+            GenuineFormalInstructionHash,
+            "QDOS 01.pdf",
+            "application/pdf",
+            sourceBytes);
+        var extractionCount = 0;
 
-        var extractionPolicy = new ConditionalTriageMatchPolicy(extracted =>
-            string.Equals(
-                extracted.InstructionDraft?.ClaimNumber,
-                "TRIAGE-REQUEST",
-                StringComparison.OrdinalIgnoreCase));
+        var extractionPolicy = new ConditionalTriageMatchPolicy(_ =>
+            Interlocked.Increment(ref extractionCount) == 1);
 
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -193,36 +204,20 @@ public sealed partial class QdosTriageIntegrationTests
             extractionPolicy: extractionPolicy);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        string normalizedVrm;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var read = await scope.ServiceProvider.GetRequiredService<IIntakeSourceReader>().ReadAsync(
-                new(
-                    formalInstruction.UploadName,
-                    formalInstruction.MediaType,
-                    formalInstruction.Bytes,
-                    DateTimeOffset.UtcNow,
-                    "genuine-qdos-fixture",
-                    new(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N"))),
-                CancellationToken.None);
-            normalizedVrm = Assert.IsType<string>(
-                new QdosCaseMatchPolicy().ExtractMatchKeys(read).NormalizedVrm);
-        }
-
-        var triageEmail = IntakeTestEvidence.CreateEmail(
-            "triage-request.eml",
-            "QDOS instruction\r\n"
-            + "Claimant Name: Triage Claimant\r\n"
-            + "Claim Number: TRIAGE-REQUEST\r\n"
-            + "Our Client's Vehicle: MERCEDES-BENZ E250 CDI AMG LINE AUTO\r\n"
-            + $"Registration: {normalizedVrm}");
         var triageUpload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,
-            triageEmail.FileName,
-            triageEmail.MediaType,
-            triageEmail.Content);
+            formalInstruction);
         var triageReceiptId = IntakeWebDriver.ReceiptId(triageUpload);
+
+        string normalizedVrm;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(triageReceiptId, CancellationToken.None));
+            normalizedVrm = Assert.IsType<string>(receipt.InstructionDraft?.VehicleRegistration);
+        }
 
         var initialTriage = await GetOnlyTriageAsync(factory.Services);
         var triageId = initialTriage.Record.Id;
