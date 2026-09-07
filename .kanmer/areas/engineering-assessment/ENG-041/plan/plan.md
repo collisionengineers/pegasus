@@ -8,8 +8,8 @@ submitted intent without duplicating provider work or reverting later edits.
 ## Starting state
 
 Base origin/dev 1d972f05c0f10c2ecf804f271a4fd3155242f1ef.
-Evidence: research/research.md@ee71a48bec3203bf,
-files/files.md@d538881bb9ea8c67. Material holes are resolved in research.
+Evidence: `research/research.md`@`ee71a48bec3203bf`,
+`files/files.md`@`9eb56be81f06f9a0`. Material holes are resolved in research.
 Prepared/Launching can strand the account; lost provider IDs cannot be queried.
 Estimate replay currently enriches/hash-checks mutable state and forgets K2's
 result after K3.
@@ -42,22 +42,26 @@ current state without reapplying the operation.
 
 ## Expected files
 
-- `src/Pegasus.Core/Assessment/GlassRepairEstimates.cs`
-- `src/Pegasus.Core/Assessment/Estimates.cs`
-- `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs`
-- `src/Pegasus.Infrastructure/Glass/GlassMvaClient.cs`
-- `src/Pegasus.Infrastructure/Persistence/EfGlassRepairEstimateSessionStore.cs`
-- `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs`
-- `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs`
-- `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml`
-- `src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs`
-- `docs/frd/frd-06-vehicle-and-engineering-evidence.md`
-- `tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs`
-- `tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs`
-- `tests/Pegasus.IntegrationTests/GlassRepairEstimatePersistenceTests.cs`
-- `tests/Pegasus.IntegrationTests/GlassRepairEstimateCallbackWebTests.cs`
-- `tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs`
-- `tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs`
+| Action | Repo-root-relative path | Responsibility |
+| --- | --- | --- |
+| Modify | `src/Pegasus.Core/Assessment/GlassRepairEstimates.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Core/Assessment/Estimates.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Infrastructure/Glass/GlassMvaClient.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfGlassRepairEstimateSessionStore.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimatePersistenceTests.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateCallbackWebTests.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs` | Bounded recovery, replay, caller or regression evidence |
+| Modify | `tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs` | Bounded recovery, replay, caller or regression evidence |
+| Generate (root verifier) | `docs/design/test-ui/pages/case-details--*.html` | Captured changed Case estimate UI |
+| Generate (root verifier) | `docs/design/test-ui/index.html` | Existing snapshot catalogue |
 
 ## Do not modify
 

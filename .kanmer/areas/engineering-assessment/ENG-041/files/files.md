@@ -18,3 +18,6 @@
 - `tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs`
 
 Gateway production caller: Cases/Details LaunchGlass, ResumeGlass and new explicit Close session POST; anonymous callback unchanged. Estimate production caller: Cases/Details SaveEstimate to SaveEstimate to EfRepairSpecificationStore. Existing registrations remain. Generated case-details snapshots are root-verifier-owned and will be added to scope before capture if needed. No package or schema changes.
+
+Root-verifier generated artifacts: `docs/design/test-ui/pages/case-details--*.html`
+and `docs/design/test-ui/index.html` for the changed routed Case estimate UI.
