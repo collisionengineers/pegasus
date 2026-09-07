@@ -514,7 +514,7 @@ public sealed class RetainedInstructionAnalysisTests
 
         Assert.Empty(failures);
         Assert.Empty(inconclusive);
-        Assert.Equal(Top15InstructionCorpusTests.Expectations.Count, analysed);
+        Assert.Equal(Top15InstructionCorpusTests.Expectations.Length, analysed);
         Assert.Equal(15, profilesRepresented.Count);
     }
 

@@ -403,8 +403,10 @@ public sealed partial class QdosTriageIntegrationTests
                     Id = mailboxId,
                     Address = mailboxAddress,
                     State = "Approved",
-                    RouteScopesJson = "[\"SentEvidence\",\"StaffSend\"]",
-                    Generation = 1,
+                    AllowStaffSend = true,
+                    AllowSentEvidence = true,
+                    AllowInboundIntake = true,
+                    MailboxGeneration = 1,
                     Version = 1,
                     ActivatedAtUtc = ChaserNowUtc
                 });
@@ -444,7 +446,7 @@ public sealed partial class QdosTriageIntegrationTests
                 Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting),
                 DecisionReason = "Triage instruction received.",
                 EvidenceJson = EfIntakeReceiptStore.SerializeEvidence([
-                    new(IntakeEvidenceSource.ExtractionPolicy, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.AcceptedTriageMatch, "triage_signal", "Accepted triage match", "qdos_triage", 1)
+                    new(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.AcceptedTriageMatch, "triage_signal", "Accepted triage match", "qdos_triage", 1)
                 ]),
                 FieldsJson = EfIntakeReceiptStore.SerializeFields([]),
                 OcrCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope<IReadOnlyList<ScannedPdfOcrCandidate>>([])
@@ -491,7 +493,7 @@ public sealed partial class QdosTriageIntegrationTests
                 new(receiptId, new(IntakeSourceChannel.Mailbox, externalToken), new string('A', 64), Guid.NewGuid()),
                 "AB12CDE",
                 new IntakeEvidence(
-                    IntakeEvidenceSource.ExtractionPolicy,
+                    IntakeEvidenceSource.SystemDefault,
                     IntakeEvidenceStrength.Strong,
                     IntakeEvidenceFinding.AcceptedTriageMatch,
                     "triage_signal",
@@ -538,7 +540,7 @@ public sealed partial class QdosTriageIntegrationTests
                 Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting),
                 DecisionReason = "Manual upload.",
                 EvidenceJson = EfIntakeReceiptStore.SerializeEvidence([
-                    new(IntakeEvidenceSource.ExtractionPolicy, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.AcceptedTriageMatch, "triage_signal", "Accepted triage match", "qdos_triage", 1)
+                    new(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.AcceptedTriageMatch, "triage_signal", "Accepted triage match", "qdos_triage", 1)
                 ]),
                 FieldsJson = EfIntakeReceiptStore.SerializeFields([]),
                 OcrCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope<IReadOnlyList<ScannedPdfOcrCandidate>>([])
@@ -552,7 +554,7 @@ public sealed partial class QdosTriageIntegrationTests
                 new(receiptId, new(IntakeSourceChannel.ManualUpload, externalToken), new string('C', 64), Guid.NewGuid()),
                 "XY99ZZZ",
                 new IntakeEvidence(
-                    IntakeEvidenceSource.ExtractionPolicy,
+                    IntakeEvidenceSource.SystemDefault,
                     IntakeEvidenceStrength.Strong,
                     IntakeEvidenceFinding.AcceptedTriageMatch,
                     "triage_signal",
