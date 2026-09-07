@@ -208,7 +208,7 @@ public sealed class QdosIntakeWebTests
 
     [GenuineQdosCorpusFact(ForwardedEmailHash)]
     [Trait("Category", "Corpus")]
-    public async Task StaffForwardedEmailUsesEstablishedSenderAndRendersPersistedDraft()
+    public async Task StaffForwardedEmailUsesEstablishedSenderAndPersistsDraft()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -224,7 +224,7 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        Assert.NotNull(receipt.InstructionDraft);
+        var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Equal(ForwardedEmailHash, receipt.SourceHash);
         Assert.Contains(receipt.Evidence, item =>
             item.Source == IntakeEvidenceSource.Sender
@@ -232,15 +232,18 @@ public sealed class QdosIntakeWebTests
             && item.Finding == IntakeEvidenceFinding.SupportsPrincipal
             && item.Signal == "established-principal");
         var instructionDate = Assert.Single(receipt.Fields, field => field.Name == "Instruction date");
-        Assert.True(instructionDate.IsDefaulted);
-        Assert.Equal("2031-05-06", instructionDate.SuggestedValue);
-        Assert.Contains("Instruction draft", html, StringComparison.Ordinal);
-        Assert.Contains("Typed review draft", html, StringComparison.Ordinal);
+        Assert.False(instructionDate.IsDefaulted);
+        Assert.Equal("2026-07-10", instructionDate.SuggestedValue);
+        Assert.Equal(new DateOnly(2026, 7, 10), draft.InstructionDate);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.CurrentCaseReference);
+        Assert.Contains("<h1>Case not created</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("No case reference was allocated", html, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
     [Trait("Category", "Corpus")]
-    public async Task LowTextPdfWithoutDominantRasterRoutesToTriageWithoutOcrOrReference()
+    public async Task LowTextPdfWithoutDominantRasterStaysUnidentifiedWithoutOcrOrCaseReference()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -253,17 +256,18 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
         using var review = await client.GetAsync(upload.Location);
         var reviewHtml = await review.Content.ReadAsStringAsync();
-        using var queue = await client.GetAsync("/Received");
-        var queueHtml = await queue.Content.ReadAsStringAsync();
-
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(LowTextNonScanPdfHash, receipt.SourceHash);
         Assert.Null(receipt.FailureCode);
+        Assert.Null(receipt.MailClassificationDecision);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.CurrentCaseReference);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
-        Assert.True(receipt.MailClassificationDecision?.IsTriageRequest);
-        Assert.Contains("Triage", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("<h1>Unidentified</h1>", reviewHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"triage-title\"", reviewHtml, StringComparison.Ordinal);
         Assert.Contains("not an image-led scanned page", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Triage", queueHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
