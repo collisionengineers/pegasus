@@ -9,11 +9,13 @@ honest live canary evidence.
 ## Starting state
 
 Evidence: research/research.md@2965aedeaa0ce107;
-files/files.md@ee0cc1313c72b9a7. Source TICK-041 commit 890f656be contains
-accepted ADR-0040 and the implemented source-context contract; not activated.
+files/files.md@ee0cc1313c72b9a7. TICK-041 is merged into origin/dev at
+d367219669ad26d5f2b727bd10b582330febc906, including accepted ADR-0040
+and the implemented source-context contract; not activated.
 No live Cognitive Services account or Worker endpoint exists. Preserve
-EPIC-011 and EPIC-014 membership. The current assignment authorizes research/
-planning only: do not take or create a worktree until root dispatches execution.
+EPIC-011 and EPIC-014 membership. Root now authorizes bounded implementation
+on the six expected paths in a fresh ticket worktree after the packet/claim.
+No build/test runs until root schedules; no cloud writes or deployment.
 
 ## Governing docs
 
@@ -32,8 +34,10 @@ and actual environment evidence.
 
 In platform.bicep add Microsoft.CognitiveServices/accounts, kind FormRecognizer,
 S0/Standard, uksouth, name/customSubDomainName
-pegasus-prod-ocr-252ow37gij via existing prefix/suffix. Use advertised current
-ARM GA 2026-07-01; this is not the pinned data API. Set disableLocalAuth=true,
+pegasus-prod-ocr-252ow37gij via existing prefix/suffix. Use documented ARM GA
+2026-05-01, per root's explicit bounded decision: July adds no required feature
+and does not justify tool/API upgrades. This is not the pinned data API.
+Set disableLocalAuth=true,
 publicNetworkAccess=Enabled and existing estate tags. No managed identity on
 the account: Worker posts retained bytes, so service-side storage access is
 unnecessary.
@@ -144,7 +148,8 @@ Exact release rollback preserves the approved prior artifact/activation state.
 
 ## Stop condition
 
-Current assignment ends with reviewable research/files/plan/checklist, untaken
-in Preparing. Execution handoff needs root's fresh dispatch. Author's later
-implementation ends at PR/Review; root owns release and live acceptance.
+Current assignment ends with the six-file implementation frozen for root's
+coordinated focused checks; after matching PASS evidence publish PR/Review for
+independent review. Do not self-review, merge, deploy or perform cloud writes.
+Root owns exact-target release and live acceptance.
 Do not claim this ticket complete from IaC or local tests alone.
