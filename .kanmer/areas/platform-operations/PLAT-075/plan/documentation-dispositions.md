@@ -1,14 +1,15 @@
 # V1 documentation correction dispositions
 
-Checkpoint 2026-09-07; canonical A documentation at
-`8fcd23c31764458f4255c8b3652ed46b558bf21a`. This refresh records the
-source-level disposition of the complete 29-row supplied register. The A
-canonical corrections are committed; they do not by themselves prove the
-final B/C combined callers, external acceptance, deployment, or operator
-acceptance. Those acceptance claims remain pending where named below. Final
-reviewed combined identities, link/placement checks, and verification evidence
-must replace this checkpoint before PLAT-075 closeout. Board autosync is healthy;
-the board remains the authoritative workflow record.
+Checkpoint 2026-09-07; common A/B/C source and canonical documentation at
+`886f94df90fdbfce870f22d71065d12a5fb0fc60`. The local and remote Platform,
+Casework and Intake stream refs all resolve to that identity. This refresh
+records the source-level disposition of the complete 29-row supplied register.
+The canonical corrections are committed; they do not by themselves prove
+external acceptance, deployment, operator acceptance, or final validation.
+Those claims remain pending where named below. Exact-head CI, remaining corpus
+dispositions, integration proof and the formal review attestation are still
+required before PLAT-075 closeout. The board remains the authoritative workflow
+record.
 
 | ID | Canonical files | Disposition |
 | --- | --- | --- |
@@ -18,17 +19,17 @@ the board remains the authoritative workflow record.
 | A04 | workspaces/README.md | Landed at `817a961c1`: workspace imports are retired, while their historical evidence remains identified. |
 | A05 | docs/engineering.md | Landed at `817a961c1`: DOC/MSG capability and claim procedure are corrected, and the named `NOW.md` operating-index exception replaces the absent-file claim. |
 | A06 | .stitch/DESIGN.md | Landed at `817a961c1`: the historical guide is explicitly subordinate to the current design authority and supplied v3 decisions. |
-| B01 | docs/current-architecture.md | Source corrections through `8fcd23c31` separate release-38 deployment from the v1 source assembly and describe DOC/MSG, 44 MCP tools including estimate import, custody, authorized mail attachments, Reply-To, Glass's and per-mailbox Inbox/Sent leases. Independent A/B/C source reviews pass; final combined runtime and external acceptance remain separate pending evidence. |
+| B01 | docs/current-architecture.md | Source corrections through `886f94df9` separate release-38 deployment from the v1 source assembly and describe DOC/MSG, 44 MCP tools including estimate import, custody, authorized mail attachments, Reply-To, Glass's and per-mailbox Inbox/Sent leases. Earlier A/B/C source audits and later bounded deltas found no unresolved documentation blocker; exact-head CI and the formal final review attestation remain pending. |
 | B02 | docs/operations.md | Landed at `817a961c1`: deployed inventory is bound to the read-only 2026-09-06 Web revision/digest and feature evidence, with no v1 deployment claimed. A later deployment still requires a same-release refresh. |
 | B03 | docs/runbook.md | Landed at `817a961c1`: runtime Chromium/fonts, mailbox onboarding, durable OAuth certificates, and operator scope are recorded separately from acceptance. Live mailbox/certificate operations remain operator-owned evidence. |
-| B04 | docs/capabilities.md | Source corrections through `8fcd23c31` retain the sole 244-capability registry and remove fixed-signatory, single-mailbox Sent, and undelivered-password-reset claims. Manual-only EVA is explicit. Schedule allocation does not prove deployment or external acceptance. |
+| B04 | docs/capabilities.md | Source corrections through `886f94df9` retain the sole 244-capability registry and remove fixed-signatory, single-mailbox Sent, and undelivered-password-reset claims. Manual-only EVA is explicit. Schedule allocation does not prove deployment or external acceptance. |
 | B05 | docs/open-decisions.md | Source corrections landed at `817a961c1`: API, DVLA/DVSA, AI lifecycle, Glass repair-estimate scope, the deployed 0.5 GB/day cap, EVA Unknown handling, and current upload-session decisions are aligned. Exact B/C combined callers, live credentials, workload measurement, and external acceptance remain pending where the register says so. |
 | C01 | docs/operator-notes.md | Landed at `817a961c1`: the explicitly authorized 6 September v1 decisions, including Triage and D29/D30 direction, are recorded while earlier operator statements remain historical evidence. Protected operator meaning was not otherwise changed; final combined implementation proof remains pending. |
 | C02 | docs/frd/frd-03-triage.md | Canonical correction landed at `817a961c1`: global T reference and missing-registration `Unidentified` routing are stated without collapsing Audit, Triage, or Blocked intake. C implementation exists on its owner branch; reviewed combined proof remains pending. |
 | C03 | docs/frd/frd-06-vehicle-and-engineering-evidence.md | Landed at `817a961c1`: DVLA/DVSA selection/composition, missing fields, and the distinction between source, caller, credential, and live proof are explicit. Live provider acceptance remains pending. |
 | C04 | docs/frd/frd-07-eva-and-external-engineering-handoff.md | `71923b255` and `ffa20fbf0` align the approved manual-only EVA target and ADR-0038: successful first handoff advances the recorded state, staff resend is explicit, and Unknown is never automatically retried. Automatic-submission settings and claims are superseded. Local caller verification and live EVA acceptance remain distinct. |
 | C05 | docs/frd/frd-09-provider-and-intermediary-routes.md | Landed at `817a961c1`: the accepted Provider API contract and actual QDOS route v4/classification v5 source versions are recorded. Named client credentials, rollout, and live caller acceptance remain pending. |
-| C06 | docs/frd/frd-12-operator-experience.md | Source corrections through `e19f9c87a` and `8fcd23c31` state current Case sections, lease behavior, upload sessions/finalisation, grouped uploads, labels, Administration, authorized attachment selection, and notification-query failure isolation. Related FRD-11 now states unchanged persisted Accepted/Superseded raw and printed totals. Final combined UI/caller verification remains pending. |
+| C06 | docs/frd/frd-12-operator-experience.md | Source corrections through `886f94df9` state current Case sections, lease behavior, upload sessions/finalisation, grouped uploads, labels, Administration, authorized attachment selection, and notification-query failure isolation. Related FRD-11 states unchanged persisted Accepted/Superseded raw and printed totals. The 69-state Test UI catalogue is regenerated with authorized and current named states; exact-head CI remains pending. |
 | C07 | docs/principal-rules-and-mappings/qdos.md; docs/frd/frd-01-case-identity-and-lifecycle.md | Landed at `817a961c1`: missing standalone Audit evidence withholds only the later Audit reference and does not block an otherwise eligible normal Case/PO allocation. Combined custody/allocation proof remains an implementation gate, not a prose gap. |
 | D01 | docs/adr/README.md | The stable index and supersession chains are retained, including the subsequent ADR-0037 Linux release-terminal decision and ADR-0038 manual-only EVA decision. Historical decisions are not presented as current behavior. Final link/placement checks remain required. |
 | D02 | docs/adr/0002-dotnet-modular-monolith-on-azure.md | Landed at `817a961c1`: historical hosting currency and supersession links are explicit without rewriting the decision record. |

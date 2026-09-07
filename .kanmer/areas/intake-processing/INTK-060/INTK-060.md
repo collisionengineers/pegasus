@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T14:12:06.318Z'
+claim_expires_at: '2026-09-07T14:21:17.019Z'
 claim_controller: codex-astra-a-c
 lease_id: 6af494d4-13a5-4866-a54a-03cf407d3ee1
-lease_revision: 122
+lease_revision: 123
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T12:12:06.318Z'
+lease_heartbeat_at: '2026-09-07T12:21:17.019Z'
 lease_reclaimed_from: antigravity-stream-c
 labels:
   - pegasus-v1
@@ -28,10 +28,11 @@ refs:
 commits:
   - 49f05128abf840195cd587f8a14c1d1bb39493fd
 prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/674'
   - 'https://github.com/collisionengineers/pegasus/pull/673'
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T12:12:06.318Z'
+updated: '2026-09-07T12:31:27.415Z'
 ---
 
 ## What
@@ -44,6 +45,8 @@ Implement the assigned v1 stream under the explicit three-owner/three-PR excepti
 
 ## Acceptance
 
-Complete the stream plan and mapped residual acceptance; exact-head independent review, standalone and combined validation. One replacement PR for this stream targets dev and remains open/unmerged. No deployment, reset, live provider writes, mail sends or Outlook mutation. Preserve original branches, commits and dirty work.
+Complete the stream plan and mapped residual acceptance; exact-head independent review, standalone and combined validation. The operator authorized consolidation of all three streams through PR #674 into dev, followed by an open, unmerged dev-to-main PR with auto-merge disabled. No deployment, reset, live provider writes, mail sends or Outlook mutation. Preserve original branches, commits and dirty work.
 
 ## Outcome
+
+PR #673 was closed as superseded, not merged, on 7 September 2026 after all three stream heads were verified identical at a3769c1ac3f98cc5300da8bdb4504d7c3995aa35. PR #674 is the sole integration PR. Original branches and histories are preserved. Integration, final review and proof remain outstanding.

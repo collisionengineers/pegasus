@@ -1,8 +1,9 @@
 # Connector tool dispositions and test map
 
-Read-only source checkpoint: Stream A `a243fd2090d2f3806e289b55f862016231bec42f`
-and local combined host `e28522281847b3a83a1607166e965205b30f9b34`.
-This replaces the earlier G9 source checkpoint; final acceptance remains pending.
+Read-only source checkpoint: common A/B/C head
+`886f94df90fdbfce870f22d71065d12a5fb0fc60`. The local and remote Platform,
+Casework and Intake stream refs all resolve to that identity. This replaces the
+earlier split-head source checkpoint; final validation remains pending.
 
 The combined host registers all 44 tools below. Every tool resolves its caller
 through `AutomationActorResolver.RequireAsync` with the stated OAuth scope. The
@@ -11,16 +12,19 @@ idempotency actor; it is not replaced by the consenting human. There is still
 no autonomous mail-send MCP tool.
 
 The named test files below are source locations found by exact tool-name or
-tool-discovery reference. Their presence is not execution evidence. The
-PLAT-075 execution scratch records all 20 selected MCP tests passing at local
-combined checkpoint `0ce9510cc` after the single-rate correction. That proof
-predates both source heads above and is not final-host proof. The earlier Triage parity failure remains historical evidence. A fresh
+tool-discovery reference. Their presence is not execution evidence. Source
+inspection at `886f94df9` finds exactly the 44 unique registrations listed
+below. The PLAT-075 execution scratch records all 20 selected MCP tests passing
+at local combined checkpoint `0ce9510cc` after the single-rate correction.
+That proof predates the current head and is not exact-head proof. The earlier
+Triage parity failure remains historical evidence. A later
 `AutomationIntakeParityIngressTests` run at combined
 `e28522281847b3a83a1607166e965205b30f9b34` subsequently passed all three tests
 with zero failures/skips (1m09), after a zero-warning/error build (1m36.89).
-TRX: `v1-current-intake-parity.trx`. This disposes that focused current-head
-failure; it does not replace final whole-host verification. Exact final combined-head
-build, test, activation and deployment evidence remain pending.
+TRX: `v1-current-intake-parity.trx`. This disposes that focused failure without
+erasing it; it does not replace exact-head whole-host verification. CI at
+`886f94df9` currently has four failures and one skip under diagnosis. Exact-head
+validation, activation and deployment evidence remain pending.
 
 | Tool | Required scope | Current source disposition | Test-source references |
 | --- | --- | --- | --- |
@@ -50,16 +54,16 @@ build, test, activation and deployment evidence remain pending.
 | `pegasus_mail_list` | `automation.mail` | Registered; protected grant/mailbox/filter/order cursor, default 50/max 100; final-host proof pending. | `AutomationMailIngressTests.cs`; `AutomationMcpIngressTests.cs` |
 | `pegasus_mail_get` | `automation.mail` | Registered retained-mail projection under the automation actor and mailbox grant; final-host proof pending. | `AutomationMailIngressTests.cs`; `AutomationMcpIngressTests.cs` |
 | `pegasus_mail_correct_classification` | `automation.mail` | Registered typed correction caller using current classification vocabulary; C04 behavior and final-host proof pending. | `AutomationMailIngressTests.cs`; `AutomationMcpIngressTests.cs` |
-| `pegasus_triage_list` | `automation.intake` | Registered with C typed actor and bounded page port; stale down-conversion/global-sequence pending note is obsolete in source, but no later exact parity PASS is recorded. | `AutomationIntakeParityIngressTests.cs`; `AutomationMcpIngressTests.cs` |
-| `pegasus_triage_get` | `automation.intake` | Registered typed Triage detail caller; final-host and later parity proof pending. | `AutomationMcpIngressTests.cs` |
-| `pegasus_triage_source_download` | `automation.intake` | Registered metadata-first retained-source caller; final-host and later parity proof pending. | `AutomationIntakeParityIngressTests.cs`; `AutomationMcpIngressTests.cs` |
+| `pegasus_triage_list` | `automation.intake` | Registered with C typed actor and bounded page port; stale down-conversion/global-sequence pending note is obsolete in source. The later three-test parity run passed at `e28522281`; exact-head proof remains pending. | `AutomationIntakeParityIngressTests.cs`; `AutomationMcpIngressTests.cs` |
+| `pegasus_triage_get` | `automation.intake` | Registered typed Triage detail caller; the later three-test parity run passed at `e28522281`; exact-head proof remains pending. | `AutomationMcpIngressTests.cs` |
+| `pegasus_triage_source_download` | `automation.intake` | Registered metadata-first retained-source caller; the later three-test parity run passed at `e28522281`; exact-head proof remains pending. | `AutomationIntakeParityIngressTests.cs`; `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_await_information` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_record_finding` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_supersede_finding` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_response_link` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_response_unlink` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_complete` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
-| `pegasus_triage_cancel` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host and later parity proof pending. | `AutomationIntakeParityIngressTests.cs`; `AutomationMcpIngressTests.cs` |
+| `pegasus_triage_cancel` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core. The later three-test parity run passed at `e28522281`; exact-head proof remains pending. | `AutomationIntakeParityIngressTests.cs`; `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_reopen` | `automation.intake` | Registered shared typed mutation; actor, expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_case_link` | `automation.intake` | Registered typed actor-aware case-link mutation; expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
 | `pegasus_triage_case_unlink` | `automation.intake` | Registered typed actor-aware case-unlink mutation; expected version and operation key pass to Core; final-host proof pending. | `AutomationMcpIngressTests.cs` |
@@ -71,11 +75,15 @@ build, test, activation and deployment evidence remain pending.
 
 ## Evidence boundary
 
-- Source registration and scope were inspected at the two heads named above.
+- Source registration and scope were inspected at `886f94df9`; the register has
+  44 unique tool names.
 - Test-source references establish coverage locations only.
 - The recorded 20-test MCP PASS belongs to combined `0ce9510cc`, not the
-  current combined head.
-- The recorded Triage parity failure is not erased by later source changes;
-  the execution scratch contains no matching later PASS for that test class.
+  current head.
+- The recorded Triage parity failure remains historical evidence. The later
+  three-test PASS belongs to `e28522281`, not the current head.
+- CI at `886f94df9` is not green: 605 tests passed, four failed and one skipped;
+  the terminal-case exact-replay fixture authorization failure is under
+  diagnosis.
 - No live provider call, enabled final-host activation, deployment, or current
   exact-head full rail is claimed here.
