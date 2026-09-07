@@ -162,7 +162,7 @@ jobs:
     needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       # One shard's failure must not hide another shard's coverage report.
       fail-fast: false

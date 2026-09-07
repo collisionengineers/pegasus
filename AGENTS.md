@@ -107,6 +107,8 @@ and the two complementary integration-test filters are in
 Core CI uses `-- xUnit.MaxParallelThreads=1` so concurrent test collections do
 not compete against the intake parsers' short regex time budgets. Keep those
 production budgets and every test assertion intact.
+SQL shard jobs allow 30 minutes including their build, with the existing
+test-concurrency cap and complete-shard coverage checks retained.
 
 Reference-data generator checks run with
 `python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'`.
