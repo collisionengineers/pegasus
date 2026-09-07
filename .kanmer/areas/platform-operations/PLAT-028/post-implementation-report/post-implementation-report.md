@@ -5,7 +5,9 @@
 Implemented one customer-facing Principals workflow in .worktrees/plat-028 on
 PLAT-028-principal-customer, based on origin/dev
 3da60bd0c270111d5168dc17246dc831882108ea. Source is frozen after root's focused verification and scoped snapshot capture.
-Root authorised the PR/Review handoff after INTK-061 merged. This is
+Root authorised the PR/Review handoff after INTK-061 merged. Commit
+539aa4684d6dba1964c8fa594d2d2a0e3e3489b6 is pushed and PR #680 targets dev:
+https://github.com/collisionengineers/pegasus/pull/680. This is
 pre-merge implementation evidence, not post-merge proof. No build, test,
 capture, live write or deployment was run by this worker.
 
