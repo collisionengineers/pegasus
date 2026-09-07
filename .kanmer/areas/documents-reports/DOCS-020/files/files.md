@@ -17,7 +17,7 @@
 - `tests/Pegasus.IntegrationTests/DocumentCustodyDurabilityTests.cs`
 - `tests/Pegasus.IntegrationTests/StaffAccountAdministrationPersistenceTests.cs`
 - `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs`
-- `tests/Pegasus.IntegrationTests/CaseArtifactCustodyTests.cs`
+- `tests/Pegasus.IntegrationTests/CaseArtifactCustodyRecoveryTests.cs`
 - `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md`
 Existing report/custody/admin stores are the mutation boundary; tests extend
 their existing harnesses. The permission-only migration does not alter the EF
