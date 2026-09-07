@@ -821,3 +821,364 @@ concurrency results surfaced, and errors failing closed rather than suppressed.
 No merge action follows: under the controller override this slice has no per-slice PR, so
 there is nothing to merge and no gated boundary for me to move. This attestation is the
 deliverable.
+
+---
+kind: source-review-attestation
+verdict: NEEDS CHANGES
+scope: source-only (no dotnet test, no push, no PR, no ticket move)
+ticket: INTK-060
+slice: C07 item 5 - channel limits (residual INTK-052)
+head_sha: 4ae44e232daa799b343b824484010be8d48c5d64
+base_sha: 68488bfa3e896e72bb49bd8f434352d85a1d7152
+branch: c07-precase
+worktree: C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c07
+worktree_clean: true (git status --porcelain empty at review)
+authority:
+  - pegasus_pack/astra_output/v1_implementation_plans/streams/C-intake.md:1043-1051 (C07 change item 5)
+  - pegasus_pack/astra_output/v1_implementation_plans/streams/C-intake.md:1082-1083 (tests paragraph)
+  - PR 673 comment 5563992668 (A's confirmation of the derived-2-GiB gap)
+  - AGENTS.md rules 7, 8, 19
+independent: true (reviewer is not the implementer of 4ae44e232)
+blockers: 0
+majors: 4
+minors: 6
+observations: 2
+full_attestation: C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c07-limits-review.md
+---
+
+# C07 item 5 - source review of `68488bfa3..4ae44e232`
+
+**NEEDS CHANGES (source-only).** No test run, no build run, nothing pushed, nothing
+merged. The verdict says nothing about whether the wave passes; it says the source is
+not yet ready for the combined tree without the corrections below. All four plan
+values are correct; every finding is in the test/doc surface the change dragged out
+of date.
+
+## 1. Verification against the dispatch checklist
+
+### (1) The four values, and the multipart budget is pinned - PASS
+
+| Fact | Location | Value | Plan |
+| --- | --- | --- | --- |
+| Manual per-file | `src/Pegasus.Core/Intake/IntakeContracts.cs:23` | `100 * 1024 * 1024` = 104,857,600 | matches |
+| Multipart body budget | `IntakeContracts.cs:102` | `(200L * 1024 * 1024) + MultipartOverhead` = 209,780,736 | matches |
+| Staff batch file count | `IntakeContracts.cs:57` | `20` | retained |
+| Provider API decoded envelope | `IntakeContracts.cs:69` | `30 * 1024 * 1024` = 31,457,280 | unchanged |
+
+`MultipartOverhead` is `64 * 1024` at `IntakeContracts.cs:108`; 209,715,200 + 65,536 =
+209,780,736. Line 102 contains **no reference to `MaximumBatchFileCount` and none to
+`MaximumContentLength`** - a literal pinned expression. The derived form is gone from
+`src/` entirely. A's PR 673 concern is answered.
+`IntakeEnvelopeLimitsTests.cs:55-58` asserts all four exact values; `:68-74` asserts
+`MaximumBatchContentLength < MaximumBatchFileCount * MaximumContentLength`, the
+inequality that fails the moment anyone re-derives it.
+
+### (2) Provider API per-file bound - PASS
+
+- `IntakeContracts.cs:82`: `MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength`
+  - defined *as* the envelope, not a second copy of 30 MiB (rule 8 satisfied).
+- `src/Pegasus.Core/ProviderApi/ProviderSubmission.cs:292` now reads
+  `MaximumProviderApiFileLength` at the `RequireEnvelope` per-file check.
+- Unchanged as required: `MaximumProviderApiEnvelopeLength` (`:69`),
+  `MaximumProviderApiRequestLength` (`:88`); consumers `ProviderSubmission.cs:294,338`
+  and `ProviderApiEndpoints.cs:81,100,220` untouched.
+
+See M3: the change at `:292` is real but no test would fail if it were reverted.
+
+### (3) `DurableIntake` switch, one owner, no duplicate constant - PASS
+
+`src/Pegasus.Core/Intake/DurableIntake.cs:325-334`, one switch:
+ManualUpload -> `MaximumContentLength` (`:326`), Mailbox -> `MaximumMailboxContentLength`
+(`:327`), Automation -> `MaximumContentLength` (`:328`), ProviderApi ->
+`MaximumProviderApiRequestLength` (`:329`); default arm still throws. Change is
+comment-only.
+
+Sweep across `src/` and `tests/` (build output excluded):
+- `MaximumContentLength`: one owner (`IntakeContracts.cs:23`), five consumers
+  (`DurableIntake.cs:326,328`, `Mcp/IntakeMcpTools.cs:153`, `Pages/Upload.cshtml.cs:33,40,90`).
+  No second declaration.
+- `TenMiB`: **no source hit** anywhere (only stale `bin`/`obj` assemblies). Fully retired.
+- `10 * 1024 * 1024`: five `src/` hits, none a channel limit -
+  `WordBinaryExtractionLimits.cs:9`, `MimeKitPdfPigOpenXmlIntakeSourceReader.cs:38`,
+  `Mcp/AutomationMcpErrors.cs:19` and `Mcp/IntakeSourceMcpContent.cs:21` (both
+  `maxInlineBytes` ceilings for reading content *out*), `Pages/Cases/Details.cshtml.cs:214`
+  (B-owned estimate bound).
+- `10.0 MB`/`10 MB`: the two the author listed, plus `Cases/Details.cshtml.cs:1489`
+  (B-owned) and prose at `OperatorLabels.cs:803`.
+
+### (4) The two deviations
+
+**Deviation 1 (`IntakeWebNegativeTests.cs`) - assertion-preserving and honest. ACCEPT.**
+`:125` swaps `TenMiB` for `PerFileLimit = IntakeEnvelopeLimits.MaximumContentLength`.
+The pair keeps its shape: `:226` posts `new byte[PerFileLimit]`, still asserts `Found`
+and persisted `SourceLength` (`:236`); `:252` posts `+1`, still asserts `OK`, the
+refusal sentence and `AssertNoBusinessPersistenceAsync`. Renames literal. Refusal now
+derived at `:257` with a literal `"100.0 MB"` drift guard at `:260`. Verified
+`OperatorLabels.FileSize` (`OperatorLabels.cs:807-812`) renders 104,857,600 as
+`"100.0 MB"`, and the production sentence comes from the same helper at
+`Pages/Upload.cshtml.cs:95`. Necessary, correctly disclosed.
+
+**Deviation 2 - honest, but leaves a dead assertion. See m1.**
+The 10 MiB figure is correctly labelled *historical* (`IntakeEnvelopeLimitsTests.cs:19-25`);
+nothing in the codebase now claims 10 MiB is live, so it does not keep a stale fact
+alive in the sense asked. The defect is different: line 42 compares two compile-time
+constants (`17_496_501 > 10L * 1024 * 1024`), constant-folded and unfalsifiable. A live
+assertion became a tautology. The load-bearing half survives at `:46-49`, and the
+"bounds must not converge" intent is live at `:30-35`.
+
+### (5) Boundary tests - PASS
+
+Manual: `IntakeWebNegativeTests.cs:215` (limit) / `:240` (limit+1) through the real
+`/Upload` POST. Provider API: `QdosBoundaryContractTests.cs:176` / `:181` through the
+existing `ProviderSubmissionPolicy.RequireEnvelope`. Integration 413:
+`ProviderApiSubmissionTests.cs:432`. Nothing weakened - the reworked `overEnvelope`
+case (`QdosBoundaryContractTests.cs:148-160`) is *stronger* than the 20 x cap it
+replaced: `Assert.All` at `:152-157` proves every file is inside the per-file bound
+before the sum is asserted over the envelope.
+
+### (6) Doc comments - PASS, except m2
+
+`grep "2 GiB"/"2GiB"/"2 GB"` across `src/` returns **nothing**. The container sentence
+is gone from `IntakeContracts.cs:60-68`; the replacement at `:91-101` says "far past
+what the Web instance can hold" with no figure. Every changed constant names
+"C07 item 5 (residual INTK-052)".
+
+### (7) Out of scope - PASS
+
+7 files, +165/-47, all Core intake/provider policy plus the three test files asserting
+those limits. The only file outside the named list is `IntakeWebNegativeTests.cs`,
+declared as deviation 1.
+
+### (8) The host items listed for A / F - each confirmed
+
+| Item | Confirmed | Attribution |
+| --- | --- | --- |
+| Kestrel `MaxRequestBodySize` unset | **YES.** Zero hits for `MaxRequestBodySize`/`maxAllowedContentLength`/`client_max_body_size` across the whole worktree; none in `infra/`, none in `appsettings*.json`. Kestrel's 30,000,000-byte default now sits *below* the 100 MiB Core cap. | F, correct per C07 item 5. See M2. |
+| `Pages/StatusCode.cshtml.cs:60` | **YES.** "Files must be 10 MB or smaller." on the 413/400 arm; now false; no test asserts it. | **Disputed - see m4.** |
+| `Mcp/IntakeMcpTools.cs:123` | **YES.** `[Description]` says "limited to 10 MB before decoding" while `:153` passes `MaximumContentLength` to `DecodeContent`. | A, correct. See also m6. |
+| `tests/.../ProviderApi/ProviderSubmissionTests.cs:250,264` | **YES.** `:250` = 100 MiB+1; `:264` = 4 x 100 MiB; comment at `:257-258` now false. ~500 MiB. | **Should not have been deferred - M1.** |
+| `Program.cs:639` | **YES.** `MultipartBodyLengthLimit = MaximumBatchContentLength`; follows the constant. | none needed |
+| `MultiFormatGenuineCorpusWebTests.cs:171` | **YES**, and its sibling at `:292` was missed - m5. | C |
+| The `docs/` list | Spot-checked, consistent; held by the doc owner. | doc owner |
+
+## 2. Findings
+
+### M1 (MAJOR) - `ProviderSubmissionTests.cs` keeps a now-false comment alive, and the author's own filter runs it
+
+`tests/Pegasus.Core.Tests/ProviderApi/ProviderSubmissionTests.cs:255-270`: the comment
+"Four files each inside the per-file bound still exceed the envelope" and the variable
+`eachUnderTheFileBound` now describe files of 100 MiB - **3.3x the Provider API
+per-file bound**. The block no longer proves anything the assertion twelve lines above
+already proved: it is a second copy of the per-file refusal dressed as an envelope
+test. This is the same defect the author correctly fixed in `QdosBoundaryContractTests.cs`
+and correctly refused to leave in `IntakeWebNegativeTests.cs`; deferring it is
+inconsistent with both. The file is in `Pegasus.Core.Tests`, already edited twice, and
+`ProviderSubmissionTests` is inside the Core filter the report hands the runner, so the
+wave pays ~500 MiB for a block that proves nothing. Rules 19 and 8.
+
+**Exact correction** (mirroring `QdosBoundaryContractTests.cs`):
+- `:250` `new byte[IntakeEnvelopeLimits.MaximumContentLength + 1]`
+  -> `new byte[IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1]`
+- `:264` `new byte[IntakeEnvelopeLimits.MaximumContentLength]`
+  -> `new byte[8 * 1024 * 1024]` (4 x 8 MiB = 32 MiB, past the 30 MiB envelope while
+  each file stays inside the 30 MiB per-file bound)
+- leave the comment text; after the two edits it is accurate again.
+Allocation drops ~500 MiB -> ~62 MiB and the block recovers its meaning.
+
+### M2 (MAJOR) - the 100 MiB cap is unreachable in production, and the new integration test cannot see that
+
+No `MaxRequestBodySize` anywhere, so Kestrel's 30,000,000-byte default refuses a 100 MiB
+upload before Core policy runs. The author flagged this honestly and assigned it to F,
+which matches C07 item 5 - that part is right. What is not stated is the effect on the
+evidence: `IntakeWebNegativeTests` runs on `WebApplicationFactory<Program>`
+(`tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs:29`), i.e. `TestServer`, which
+does not apply Kestrel's body limit. `ExactPerFileLimitUploadPassesTransportValidation`
+(`:215`) will go green while the production transport rejects the identical request -
+the one thing its name asserts is the one thing it does not establish.
+
+**Exact correction:** rename to `ExactPerFileLimitUploadPassesFormAndCorePolicy` and add
+one sentence to the comment at `:230-233`: "TestServer applies FormOptions but not
+Kestrel's MaxRequestBodySize; the host limit F still has to raise is out of this test's
+reach." Carry the Kestrel gap to the controller as an open item against F, not a report
+bullet. A green wave is not evidence that 100 MiB uploads work.
+
+### M3 (MAJOR) - the one production line changed is not pinned by any test
+
+Because `MaximumProviderApiFileLength == MaximumProviderApiEnvelopeLength`, any single
+file over the per-file bound is also over the envelope sum, and every test exercising
+the new check uses a single file (`QdosBoundaryContractTests.cs:181`,
+`ProviderApiSubmissionTests.cs:432`; `QdosBoundaryContractTests.cs:134` and
+`IntakeEnvelopeLimitsTests.cs:80-89` assert constants, never the call site). Reverting
+`ProviderSubmission.cs:292` to `MaximumContentLength` would fail **nothing** - the sum
+check at `:293-294` catches all three cases identically. The change is correct and worth
+keeping as the guard against future inheritance, but it is undemonstrated, and
+`TheProviderApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore` claims more than it
+proves.
+
+**Exact correction:** independent isolation is impossible while the constants are equal,
+so say so. Add to the XML doc at `QdosBoundaryContractTests.cs:167-172`: "While the
+per-file bound equals the envelope, a single oversized file trips both checks; this test
+pins the boundary, and `AProviderApiFileIsNeverAllowedPastTheEnvelopeThatCarriesIt` pins
+the constant the policy must read." Do **not** manufacture a multi-file case to fake
+isolation - it cannot exist while the constants are equal.
+
+### M4 (MAJOR) - two Test UI snapshots are stale and will fail the verify gate
+
+`Pages/Upload.cshtml` renders its label from
+`OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength)`
+(`Upload.cshtml.cs:33`), so the page now says "100.0 MB". The committed snapshots still
+say 10.0 MB:
+- `docs/design/test-ui/pages/upload--default.html:175`
+- `docs/design/test-ui/pages/upload--validation.html:176`
+  (`<p>EML, MSG, PDF, DOC, DOCX, JPG or PNG &#xB7; up to 10.0 MB each &#xB7; 20 files</p>`)
+
+`pwsh -File ./scripts/Update-TestUiSnapshots.ps1 -Verify` is a stated gate
+(`streams/C-intake.md:1204`) and will fail on both. The report's `docs/` list names nine
+other documents for the doc owner but not these two - and these are not doc-owner prose,
+they are generated artefacts of a C-owned page this change altered.
+
+**Exact correction:** regenerate in this slice (`Update-TestUiSnapshots.ps1`, then
+`-Verify`) and commit the two files; or, if the wave regenerates centrally, schedule it
+as a required wave step. It cannot be left as-is: the gate fails. (Scripts exist at
+`scripts/Update-TestUiSnapshots.ps1`, `scripts/Test-UiCatalogue.ps1`; not run here -
+source-only review.)
+
+### m1 (MINOR) - dead assertion at `IntakeEnvelopeLimitsTests.cs:41-45`
+
+Two `private const long` values compared; constant-folded, unfalsifiable. The live
+assertion is `:46-49`; the convergence intent is live at `:30-35`.
+**Correction:** delete `OneFileBoundAtTheRefusal` (`:19-25`) and the assertion
+(`:41-45`); move the fact into the XML doc on `RefusedQdosForwardLength` (`:12-17`):
+"...refused as `message_too_large` against the 10 MiB one-file bound then in force,
+quarantined, and never read." Record preserved, dead assertion gone, no private constant
+impersonating a live bound.
+
+### m2 (MINOR) - `MaximumContentLength` claims a public-request-link path it does not bound
+
+`IntakeContracts.cs:12-13` now says "staff form **or a public request link**". No public
+path reads this constant: the public link is bounded by `RequestUploadPolicy.MaximumFileBytes`
+(`Pages/Uploads/Request.cshtml.cs:127`, `Core/Documents/RequestUploadPolicy.cs:801`),
+bound from configuration at `Program.cs:276`. C07 item 6 is what builds that session.
+**Correction:** revert `:12-13` to "One file uploaded through the staff form, which
+arrives inside one bounded multipart HTTP request." and, in `<remarks>`, replace
+"per-request `DocumentRequests` settings may tighten it and may never raise it" with
+"The public request link is bounded separately by `RequestUploadPolicy.MaximumFileBytes`;
+that configured value may tighten this cap and may never raise it (C07 item 5)."
+
+### m3 (MINOR) - "may tighten, never raise" is stated but not enforced
+
+`Program.cs:272-280` binds `DocumentRequests:MaximumFileBytes` straight through with no
+comparison to `MaximumContentLength`, and no test covers it. (`DocumentRequests` is
+absent from both `appsettings*.json`, so nothing is violated today.)
+**Correction:** after reading `MaximumFileBytes` in the accepted-limits factory, add
+`if (maximumFileBytes > IntakeEnvelopeLimits.MaximumContentLength) throw new
+InvalidOperationException("DocumentRequests:MaximumFileBytes may tighten the Core
+per-file cap and may never raise it.");`. If `Program.cs` is judged outside this slice,
+that is defensible - but then m2's correction must land, so the constant does not claim
+an invariant nothing holds.
+
+### m4 (MINOR) - `StatusCode.cshtml.cs:60` attributed to A on no stated basis; rule 8 gives the real fix
+
+Confirmed false as of this commit. But the C08 route matrix (`streams/C-intake.md:1134`)
+puts `/status/{code:int}` in "Existing shared error/status pages remain reachable through
+the C-owned common layouts/assets; C adds no behavior or explanatory workflow" - it is in
+no A-owned row. Correcting a figure this commit made wrong is not "adding explanatory
+workflow"; assigning it to A moves a defect this change created onto an owner the plan
+does not name. Separately it is a second copy of a limit string a helper already owns
+(rule 8).
+**Correction:** at `:60` use
+`$"Files must be {OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength)} or smaller. Choose a smaller file and try again."`
+plus the two usings; it then tracks the constant forever. If the controller prefers to
+route it elsewhere, route it to the controller as unassigned, not to A.
+
+### m5 (MINOR) - the corpus skip message the author missed
+
+`MultiFormatGenuineCorpusWebTests.cs:292` builds
+`"The ignored local genuine corpus has no {extension} source at or below the 10 MB Web limit."`
+- an operator-visible string now wrong by 10x. The report lists `:171` but not `:292`.
+**Correction:** either point `:171` at `IntakeEnvelopeLimits.MaximumContentLength` and
+derive `:292` from it, or keep `:171` as a deliberate corpus filter and reword `:292` to
+"at or below the 10 MB corpus sample ceiling", which is what it actually means.
+
+### m6 (MINOR) - the Automation channel was raised 10x without being named
+
+`DurableIntake.cs:328` maps `Automation` to `MaximumContentLength`, so MCP
+`pegasus_intake_submit` now accepts a ~133 MiB base64 string decoded to 100 MiB in memory
+(`IntakeMcpTools.cs:153`), up from 10 MiB. The report names the stale `[Description]` at
+`:123` but never says the *enforced* automation limit moved - the part with a memory cost.
+C07 item 5 speaks only of the manual/public cap; Automation rode along because it shares
+the constant. Disclosure, not a defect: the mapping is pre-existing and the value is what
+the plan sets. But the new comment at `DurableIntake.cs:322` says "one constant per
+channel", which is not true of these two.
+**Correction:** state to the controller that Automation shares the manual cap and was
+raised with it; soften `:322` to "One switch; the manual and automation channels
+deliberately share one constant, the other two have their own." No behaviour change.
+
+### O1 (OBSERVATION) - the literal `"100.0 MB"` at `IntakeWebNegativeTests.cs:260`
+
+A hard-coded literal in the same test whose hard-coded literal was removed. Deliberate
+and defensible - paired with the derived assertion at `:257` it catches a constant that
+drifts while the label still formats. Keep it; noted so the apparent inconsistency is
+not read later as an oversight.
+
+### O2 (OBSERVATION) - runtime cost is real and understated
+
+`ExactPerFileLimitUploadPassesTransportValidation` allocates 100 MiB, posts it as
+multipart through `TestServer` (buffering past `MemoryBufferThreshold` to disk), stores
+it, SHA-256s it, and hands 100 MiB of zeroes named `boundary.pdf` to the PdfPig/MimeKit
+reader; `PerFileLimitPlusOneReturnsValidationAndDoesNotPersist` repeats at +1. Peak
+working set will be several hundred MiB across the pair, and with M1 unfixed
+`ProviderSubmissionTests` adds ~500 MiB on top.
+
+## 3. Test filters required in the combined run
+
+**Core** - `tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj` (author's filter, correct
+as written; `ProviderSubmissionTests` must stay in it - it is the file M1 corrects and
+must be seen to pass after the correction):
+
+```
+--filter "FullyQualifiedName~Pegasus.Core.Tests.Intake.IntakeEnvelopeLimitsTests|FullyQualifiedName~Pegasus.Core.Tests.Qdos.QdosBoundaryContractTests|FullyQualifiedName~Pegasus.Core.Tests.ProviderApi.ProviderSubmissionTests"
+```
+
+**Integration** - `tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj`
+(blocked until the A-owned `CS0246 'EfCaseArtifactCustody'` at
+`DocumentCustodyDurabilityTests.cs(462,35)` clears; that error is A's, not this slice's -
+I did not re-run the build, so the author's exit code 1 stands as reported and is
+INCONCLUSIVE from this review's position):
+
+```
+--filter "FullyQualifiedName~Pegasus.IntegrationTests.IntakeWebNegativeTests|FullyQualifiedName~Pegasus.IntegrationTests.ProviderApiSubmissionTests"
+```
+
+Widened from the author's three named methods to both whole classes: the renames touch
+class-level shared state (`PerFileLimit` at `:125`) and `ProviderApiSubmissionTests` has
+other envelope-adjacent cases that must be seen not to regress. If wave time forbids the
+wider filter, the author's three-method filter is the minimum.
+
+**Additionally required, missing from the author's report:** the Test UI snapshot
+regeneration in M4 -
+`pwsh -File ./scripts/Update-TestUiSnapshots.ps1` then `-Verify`.
+
+## 4. What is right, stated plainly
+
+- Every value the plan pins is exactly the value in the code. No arithmetic, no drift.
+- The 2 GiB derived budget is gone from constant and prose, and an inequality test fails
+  if anyone re-derives it. A's PR 673 concern is answered.
+- The Provider API keeps its own per-file bound, defined *as* the envelope rather than
+  copied from it, so the manual channel can move again without dragging it along.
+- `IntakeEnvelopeLimits` is the single owner: one switch in `DurableIntake`, no second
+  declaration of any channel limit in `src/` or `tests/`, `TenMiB` fully retired.
+- The `overEnvelope` rework (`QdosBoundaryContractTests.cs:148-160`) is a genuine
+  strengthening, not a substitution.
+- Both deviations are disclosed, and deviation 1 is exactly the right call.
+
+## 5. Disposition
+
+**NEEDS CHANGES (source-only).** M4 fails a stated repository gate. M1 leaves a false
+comment and a meaningless ~500 MiB assertion in a file the change made wrong. M2 and M3
+are honesty corrections on claims the tests do not support. The six minors should land
+while the files are open. None of it touches the four values, which are correct.
+
+No file was edited, no command was run against the build or test runner, nothing was
+pushed, no PR exists, no ticket was moved. The only write is this `append_scratch` on
+INTK-060 slug `review-c07`.
