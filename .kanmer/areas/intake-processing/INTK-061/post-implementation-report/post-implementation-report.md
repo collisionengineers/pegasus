@@ -140,3 +140,13 @@ independent-review preparation; do not merge this ticket's own PR.
    missing table cases were added to the existing test-count helper for the new
    IntakeEvaluations/ImageIntakes assertions. Source is frozen pending root's
    targeted rebuild/retest; no tests were run by this worker.
+
+5. Root's frozen SQL run exited 1 after 2m47s: 46 passed, two failed of 48.
+   Both failures were the anticipated test-count helper ArgumentOutOfRange(table)
+   in `UnreadableImageGroupHasOneUnidentifiedOutcomeAndLeavesTheSweep` and
+   `DestinationFailureStaysDurableAndRetriesTheSameEvaluation`. The original
+   assertions remain, now backed by the two exact table counters recorded above.
+   Restricted Worker actual custody execution, OCR recovery and the real SQL
+   grouped-image reconciliation cases otherwise passed. Root is rebuilding the
+   frozen corrections and will rerun the one Core group case, three affected
+   association integration cases, and the two affected counter cases only.
