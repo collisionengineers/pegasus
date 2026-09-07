@@ -13,18 +13,7 @@ stageEntered:
   implementing: '2026-09-07T21:30:12.602Z'
   verifying: '2026-09-07T21:50:51.106Z'
   done: '2026-09-07T22:15:12.755Z'
-taken_at: '2026-09-07T20:10:46.013Z'
-branch: PLAT-028-principal-customer
-worktree: .worktrees/plat-028
-claim_expires_at: '2026-09-07T22:23:39.854Z'
-claim_controller: principal_delivery_audit
 review_round: 1
-lease_id: 898e963f-db89-4b9c-830b-c8faf286e861
-lease_revision: 10
-lease_controller_run: 20260907T200500Z-v1-remediation
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-028'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-07T21:53:39.854Z'
 labels:
   - ui
   - administration
@@ -57,7 +46,7 @@ delivery_sha: 987988e0b984ad63c1de4be3ad189f3afeb2928c
 delivery_recorded_at: '2026-09-07T22:15:40.073Z'
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T22:15:40.073Z'
+updated: '2026-09-07T22:18:03.532Z'
 ---
 
 ## What
