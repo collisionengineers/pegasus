@@ -4,7 +4,8 @@
 
 Worktree .worktrees/eng-041; branch ENG-041-glass-recovery; exact base
 1d972f05c0f10c2ecf804f271a4fd3155242f1ef (origin/dev at execution packet).
-Implementation verified by root and authorized for PR/Review handoff.
+Original candidate was verified by root and submitted for independent review.
+Round 1 below records the two findings and the uncommitted correction candidate.
 16 source/document/test files plus fresh routed snapshots/catalogue where changed;
 no package, schema, migration, deployment or live provider call.
 
@@ -148,4 +149,49 @@ PR https://github.com/collisionengineers/pegasus/pull/683 targets dev.
 Head 1ac8bc428e0432b510b745342fdadd849d726878; commit uses root-authorized
 [skip ci]. Eighteen files changed, 750 insertions and 140 deletions; refreshed
 index/unavailable snapshot normalized to unchanged Git content, while default
-and conflict snapshots changed. Worktree is clean. Review attestation pending.
+and conflict snapshots changed. That original worktree was clean. Independent review subsequently required the
+round-1 corrections below.
+
+## Remediation round 1
+
+Review cc5b9a51b2e4e5d3, against pushed head
+1ac8bc428e0432b510b745342fdadd849d726878, returned F-001/F-002 needs-changes.
+Both findings are accepted for correction; the independent record and earlier
+verification attempts remain unchanged. Root assigned the bounded batch on
+same PR683/branch/worktree; plan amended to 5a0b40d8006016eb before edits.
+The correction is currently uncommitted and frozen for root verification.
+
+F-001: GlassRepairEstimateGateway.ResumeAsync now refuses missing supplied Case
+version/lease before continuing Prepared or known-vehicle work. It invokes the
+existing IGlassRepairEstimateCaseAuthority with the current actor and submitted
+version/token, then retains regained authority in protected provider state for
+import. Known-estimate reopening and callback/export reconciliation are unchanged.
+No separate Web policy or new authority abstraction was added.
+
+F-002: GlassMvaClient passes its existing outcomeUnknown value through the
+bounded ReadAsync path into GlassMvaStageException. Oversized create/start
+responses remain uncertain; read-only/download failures retain their existing
+definite refusal. All response size bounds remain unchanged.
+
+Only those two production files and GlassRepairEstimateGatewayTests.cs changed:
+174 insertions/10 deletions across three files. Two existing interrupted-launch
+success tests now supply their Case version/token. The five new runtime cases
+are two SQL Prepared/known-vehicle scenarios with the actual
+EfGlassRepairEstimateCaseAuthority/CaseMutationGuard, two SQL oversized-response
+create/start scenarios, and one in-memory read-only overflow scenario. They
+prove missing authority fields, stale version, wrong token, foreign holder and
+expired lease make no additional provider request or session write; valid
+regained authority resumes once and reaches import unchanged. Oversized writes
+remain Unknown with the SQL active-account key occupied after reconstructed
+scope and local expiry, with no repeated create/start or second session.
+
+Author git diff --check PASS, exit 0 (CRLF warnings only). No compiler, runtime
+test, CI, provider/cloud call, commit or push ran in this round. No Razor file
+changed, so this correction does not request repeated page captures. Root owns
+incremental build and the focused filter below, then independent delta review.
+
+FullyQualifiedName~GlassRepairEstimateGatewayTests.ResumedFreshWritesRequireCurrentPersistedCaseAuthorityAndRetainItForImport|FullyQualifiedName~GlassRepairEstimateGatewayTests.OversizedWriteResponsesRemainUnknownAndReservedAfterRestartAndExpiry|FullyQualifiedName~GlassRepairEstimateGatewayTests.AnOversizedReadOnlyResponseRemainsADefinitePreWriteRefusal|FullyQualifiedName~GlassRepairEstimateGatewayTests.CancellationIsDurableAndOnlyKnownStagesResume|FullyQualifiedName~GlassRepairEstimateGatewayTests.ARecordedVehicleResumesAfterHostLossWithoutCreatingAnotherVehicle|FullyQualifiedName~GlassRepairEstimateGatewayTests.AnOversizeExportIsRefusedRatherThanBuffered
+
+Stop before commit/push or returning Review until root supplies exact runtime
+evidence. Later commit must update this existing PR, not create another one;
+record its new SHA here. No self-review, merge or deployment.

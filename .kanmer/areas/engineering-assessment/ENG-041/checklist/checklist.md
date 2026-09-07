@@ -12,6 +12,8 @@ Independent review returned needs-changes; merge remains unperformed.
 
 ## Remediation round 1
 
-- [ ] F-001 — Guard resumed fresh provider writes through existing Case authority and retain regained import authority; add bounded regressions.
-- [ ] F-002 — Preserve uncertain-write semantics through bounded response reads; add create/start overflow regressions.
-- [ ] Freeze the correction for root verification, retaining all earlier evidence and independent review dispositions.
+- [x] F-001 — Guard resumed fresh provider writes through existing Case authority and retain regained import authority; add bounded regressions.
+- [x] F-002 — Preserve uncertain-write semantics through bounded response reads; add create/start overflow regressions.
+- [x] Freeze the correction for root verification, retaining all earlier evidence and independent review dispositions.
+
+Round-1 source and regression candidates are authored, not runtime-verified.
