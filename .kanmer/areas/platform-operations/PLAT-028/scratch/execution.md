@@ -23,3 +23,5 @@ Root supplied focused passing checks and scoped snapshots, then authorised commi
 - 2026-09-07T21:30:12.636Z stage review → implementing by codex-mcp-client; reason: needs-changes on 539aa4684d6dba1964c8fa594d2d2a0e3e3489b6: F-001, reconcile the two known browser callers of the removed Organizations workflow and correct report; same PR/worktree retained.; review_round 1
 
 - 2026-09-07T21:37:16.233Z lease-phase review → implementing (lease 898e963f-db89-4b9c-830b-c8faf286e861 rev 9; expires 2026-09-07T22:07:16.224Z)
+
+Remediation round1 F-001 source frozen: only Browser/AccessibilityTests.cs and Browser/QdosAllocationRecoveryBrowserTests.cs changed (5 additions,14 removals); same PR680, worktree and branch. All recovery/assertion behavior retained; current flat customer create replaces old parent setup. Corrected report's false zero-caller claim while retaining historical review/proof evidence. Root-only targeted browser filter is in report; no builds/tests/captures/commit/push yet. Await root feedback before same-PR delta handoff.

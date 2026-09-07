@@ -51,6 +51,8 @@ capture, live write or deployment was run by this worker.
 | tests/Pegasus.IntegrationTests/OrganizationDirectoryWebTests.cs | Focused caller/contract assertions and snapshot matcher updated for one Principal workflow. |
 | tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs | Focused caller/contract assertions and snapshot matcher updated for one Principal workflow. |
 | tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs | Focused caller/contract assertions and snapshot matcher updated for one Principal workflow. |
+| tests/Pegasus.IntegrationTests/Browser/AccessibilityTests.cs | F-001: remove retired Organizations route, keep Principal accessibility cases. |
+| tests/Pegasus.IntegrationTests/Browser/QdosAllocationRecoveryBrowserTests.cs | F-001: use current Name/Code customer creation in existing recovery scenario. |
 | tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs | Focused caller/contract assertions and snapshot matcher updated for one Principal workflow. |
 | src/Pegasus.Web/Pages/Administration/Principals/Settings.cshtml | Single-customer create/list/settings/replacement Razor workflow using existing Core commands. |
 | src/Pegasus.Web/Pages/Administration/Principals/Settings.cshtml.cs | Single-customer create/list/settings/replacement Razor workflow using existing Core commands. |
@@ -143,8 +145,11 @@ POST bodies never enter the capture helper.
 Scope:
 administration,administration-principals,administration-principal-create,administration-principal-settings,administration-principal-replace
 
-Static retired route and obsolete API searches found no source/test/catalogue
-references. These searches are not runtime or visual proof. Root's browser
+The initial zero remaining source/test retired-route claim was incorrect:
+independent review found two missed browser consumers (F-001). The scoped
+pre-review filters did not cover them. Their correction and targeted evidence
+are recorded below; intentional tests asserting retired-route 404 remain.
+Static searches are not runtime or visual proof. Root's browser
 file-URL inspection was blocked by browser policy; visual review remains
 outstanding. No failure was suppressed or test weakened to obtain a pass.
 
@@ -162,3 +167,29 @@ Open the authorised PR to dev, record its exact commit and PR, move only
 Implementing to Review after live gates, and retain the taken record and
 worktree for independent review. Do not self-review, self-merge, deploy or
 create a live test customer.
+
+## Remediation round 1 — F-001
+
+Independent review0f92badd048442ee at539aa4684d6dba1964c8fa594d2d2a0e3e3489b6
+returned needs-changes for two missed browser callers. Root authorised their
+bounded correction in the same PR680/worktree. Review and prior evidence are
+preserved; this worker does not change the review verdict.
+
+Only two source files changed: AccessibilityTests removes the retired
+Organizations HTTP-200 row while keeping Principals and Create. The allocation
+recovery test uses /Administration/Principals/Create, Name and Principal code
+instead of creating an owning organization. All roleless denial, required
+reason, keyboard retry, safe display, immutable Case and exact replay
+assertions remain unchanged. No product/UI/snapshot changes.
+
+Delta is currently uncommitted and frozen for root. Standalone diff check
+exit0; targeted route search leaves only intentional absence/404 assertions
+in OrganizationAdministrationWebTests, not a positive browser caller.
+No build/browser test or capture was run by this worker.
+
+Root-only Integration targeted browser filter (expected three cases):
+(FullyQualifiedName~AccessibilityTests.RealAuthenticatedRouteHasNoAxeViolationsAndNoInlineStyleAttribute&DisplayName~Administration/Principals)|FullyQualifiedName~QdosAllocationRecoveryBrowserTests.FailedAllocationShowsSafeRecoveryWithoutRawIdentifiers
+
+After root supplies evidence, commit/push only this delta onto the existing
+PR680, update exact head, move Implementing to Review after gates and return
+to the independent reviewer for F-001 delta review. Never open a second PR.
