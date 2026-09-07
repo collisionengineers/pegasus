@@ -113,6 +113,56 @@ public sealed class OcrIntakeRecoveryTests
     }
 
     [Fact]
+    public async Task ABeginRepeatedWhenPairedWorkItemIsMissingThrowsInvalidOperationException()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        await using (var context = await harness.ContextFactory.CreateDbContextAsync())
+        {
+            var workItem = await context.Set<ExternalWorkItemEntity>()
+                .SingleAsync(w => w.Id == harness.WorkItemId);
+            context.Set<ExternalWorkItemEntity>().Remove(workItem);
+            await context.SaveChangesAsync();
+        }
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Store.BeginAsync(
+                harness.WorkItemId,
+                harness.Request,
+                CancellationToken.None));
+
+        Assert.Contains("paired external work item row does not exist", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AnUpdateWhenPairedWorkItemIsMissingThrowsInvalidOperationExceptionAndMutatesNothing()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.ReadAsync();
+
+        await using (var context = await harness.ContextFactory.CreateDbContextAsync())
+        {
+            var workItem = await context.Set<ExternalWorkItemEntity>()
+                .SingleAsync(w => w.Id == harness.WorkItemId);
+            context.Set<ExternalWorkItemEntity>().Remove(workItem);
+            await context.SaveChangesAsync();
+        }
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Store.RecordSubmitAttemptAsync(
+                harness.WorkItemId,
+                initial.Version,
+                DateTimeOffset.UtcNow,
+                CancellationToken.None));
+
+        Assert.Contains("paired external work item row does not exist", exception.Message, StringComparison.OrdinalIgnoreCase);
+
+        var unchanged = await harness.ReadAsync();
+        Assert.Equal(initial.Version, unchanged.Version);
+        Assert.Equal(initial.State, unchanged.State);
+    }
+
+    [Fact]
     public async Task AHostThatDiedAfterSubmittingLeavesAnOperationThatIsLookedUpAndNotResent()
     {
         await using var harness = await Harness.CreateAsync();

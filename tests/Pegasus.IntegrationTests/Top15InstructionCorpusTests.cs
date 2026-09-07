@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Intake;
@@ -613,6 +613,8 @@ public sealed class Top15InstructionCorpusTests
         var inconclusive = new List<string>();
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
+
+        Assert.Equal(81, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {
