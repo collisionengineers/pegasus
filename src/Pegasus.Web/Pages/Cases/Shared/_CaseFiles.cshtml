@@ -1,6 +1,5 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
-@using System.Globalization
-@using Pegasus.Core.Documents
+@using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
 @using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
 @{
@@ -74,200 +73,18 @@
 
     @* B06: how each image occurrence is prepared for the report — role,
        order, rotation and crop — below the gallery the images themselves are
-       shown in. The Report section renders the same loaded set, so the two
-       sections can never state different preparation for one image. Every
-       control is its own form carrying one complete edit, so no field name is
-       ever posted twice and nothing depends on which submit button a browser
-       reports; the whole surface works with script off. *@
+       shown in. The Report section renders the same cards from the same
+       partial and the same loaded set, so the two sections can never state
+       different preparation, or offer different controls, for one image. *@
     @if (Model.AssetPreparations.Count > 0)
     {
-        var workflow = details.Workflow;
-        var leaseToken = Model.LeaseToken;
-        var mayPrepare = !string.IsNullOrWhiteSpace(leaseToken)
-            && workflow.Archive is null
-            && !Model.AssessmentIsReadOnly;
-        var fileNames = CaseFiles.Live(details.Documents)
-            .ToDictionary(file => file.Occurrence.Id, file => file.Version.FileName);
-        var supporting = Model.AssetPreparations
-            .Where(candidate => candidate.Role == CaseAssetReportRole.Supporting)
-            .OrderBy(candidate => candidate.Order ?? int.MaxValue)
-            .ToArray();
-
-        // A fresh operation key per form: each posted command is its own
-        // idempotent operation, exactly as every other section command is.
-        (string Name, string Value)[] CaseFields() =>
-        [
-            ("id", summary.CaseId.ToString("D")),
-            ("expectedVersion", workflow.Version.ToString(CultureInfo.InvariantCulture)),
-            ("operationKey", Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()),
-            ("editLeaseToken", leaseToken!)
-        ];
-
-        static (string Name, string Value)[] IdentityFields(int index, CaseAssetPreparation item) =>
-        [
-            ($"edits[{index}].occurrenceId", item.OccurrenceId.ToString("D")),
-            ($"edits[{index}].expectedPreparationVersion", item.PreparationVersion.ToString(CultureInfo.InvariantCulture))
-        ];
-
-        static (string Name, string Value)[] EditFields(
-            int index,
-            CaseAssetPreparation item,
-            CaseAssetRotation rotation,
-            int? order)
-        {
-            List<(string Name, string Value)> fields =
-            [
-                .. IdentityFields(index, item),
-                ($"edits[{index}].role", item.Role.ToString()),
-                ($"edits[{index}].rotation", ((int)rotation).ToString(CultureInfo.InvariantCulture)),
-                ($"edits[{index}].cropLeft", item.Crop.Left.ToString(CultureInfo.InvariantCulture)),
-                ($"edits[{index}].cropTop", item.Crop.Top.ToString(CultureInfo.InvariantCulture)),
-                ($"edits[{index}].cropWidth", item.Crop.Width.ToString(CultureInfo.InvariantCulture)),
-                ($"edits[{index}].cropHeight", item.Crop.Height.ToString(CultureInfo.InvariantCulture))
-            ];
-            if (order is { } supportingOrder)
-            {
-                fields.Add(($"edits[{index}].order", supportingOrder.ToString(CultureInfo.InvariantCulture)));
-            }
-
-            return [.. fields];
-        }
         <section class="panel" aria-labelledby="report-images-title">
             <div class="panel-head">
                 <h2 id="report-images-title">@ReportImageLabels.SectionTitle</h2>
             </div>
-            <div class="panel-body report-images">
-                @foreach (var item in Model.AssetPreparations)
-                {
-                    var slug = item.OccurrenceId.ToString("N");
-                    var place = item.Role == CaseAssetReportRole.Supporting
-                        ? Array.IndexOf(supporting, item)
-                        : -1;
-                    <article class="report-image" data-report-image="@item.OccurrenceId">
-                        <h3>@(fileNames.GetValueOrDefault(item.OccurrenceId) ?? OperatorLabels.CaseWorkspace.AbsentValue)</h3>
-                        <dl class="detail-list">
-                            <div><dt>@ReportImageLabels.Role</dt><dd>@ReportImageLabels.RoleLabel(item.Role)</dd></div>
-                            @if (item.Role == CaseAssetReportRole.Supporting)
-                            {
-                                <div><dt>@ReportImageLabels.Order</dt><dd>@(item.Order?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-                            }
-                            <div><dt>@ReportImageLabels.Rotation</dt><dd>@ReportImageLabels.RotationLabel(item.Rotation)</dd></div>
-                            <div><dt>@ReportImageLabels.Crop</dt><dd>@ReportImageLabels.CropLabel(item.Crop)</dd></div>
-                        </dl>
-                        @if (mayPrepare)
-                        {
-                            <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
-                                  asp-route-id="@summary.CaseId" asp-route-section="files" class="stack">
-                                @foreach (var field in CaseFields().Concat(IdentityFields(0, item)))
-                                {
-                                    <input type="hidden" name="@field.Name" value="@field.Value" />
-                                }
-                                <input type="hidden" name="edits[0].rotation" value="@((int)item.Rotation)" />
-                                <div class="form-grid">
-                                    <div class="field">
-                                        <label for="report-image-role-@slug">@ReportImageLabels.Role</label>
-                                        <select id="report-image-role-@slug" name="edits[0].role">
-                                            @foreach (var role in Enum.GetValues<CaseAssetReportRole>())
-                                            {
-                                                <option value="@role" selected="@(role == item.Role)">@ReportImageLabels.RoleLabel(role)</option>
-                                            }
-                                        </select>
-                                    </div>
-                                    @if (item.Role == CaseAssetReportRole.Supporting)
-                                    {
-                                        <div class="field">
-                                            <label for="report-image-order-@slug">@ReportImageLabels.Order</label>
-                                            <input id="report-image-order-@slug" name="edits[0].order" type="number" min="1" step="1"
-                                                   value="@(item.Order?.ToString(CultureInfo.InvariantCulture))" />
-                                        </div>
-                                    }
-                                    <div class="field">
-                                        <label for="report-image-crop-left-@slug">@ReportImageLabels.CropLeft</label>
-                                        <input id="report-image-crop-left-@slug" name="edits[0].cropLeft" type="number" min="0" max="1" step="0.01"
-                                               value="@item.Crop.Left.ToString(CultureInfo.InvariantCulture)" />
-                                    </div>
-                                    <div class="field">
-                                        <label for="report-image-crop-top-@slug">@ReportImageLabels.CropTop</label>
-                                        <input id="report-image-crop-top-@slug" name="edits[0].cropTop" type="number" min="0" max="1" step="0.01"
-                                               value="@item.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
-                                    </div>
-                                    <div class="field">
-                                        <label for="report-image-crop-width-@slug">@ReportImageLabels.CropWidth</label>
-                                        <input id="report-image-crop-width-@slug" name="edits[0].cropWidth" type="number" min="0" max="1" step="0.01"
-                                               value="@item.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
-                                    </div>
-                                    <div class="field">
-                                        <label for="report-image-crop-height-@slug">@ReportImageLabels.CropHeight</label>
-                                        <input id="report-image-crop-height-@slug" name="edits[0].cropHeight" type="number" min="0" max="1" step="0.01"
-                                               value="@item.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
-                                    </div>
-                                </div>
-                                <div class="button-row">
-                                    <button type="submit" class="btn btn--primary">@ReportImageLabels.Save</button>
-                                </div>
-                            </form>
-                            <div class="button-row">
-                                <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
-                                      asp-route-id="@summary.CaseId" asp-route-section="files">
-                                    @foreach (var field in CaseFields().Concat(
-                                        EditFields(0, item, (CaseAssetRotation)(((int)item.Rotation + 270) % 360), item.Order)))
-                                    {
-                                        <input type="hidden" name="@field.Name" value="@field.Value" />
-                                    }
-                                    <button type="submit" class="btn">@ReportImageLabels.RotateLeft</button>
-                                </form>
-                                <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
-                                      asp-route-id="@summary.CaseId" asp-route-section="files">
-                                    @foreach (var field in CaseFields().Concat(
-                                        EditFields(0, item, (CaseAssetRotation)(((int)item.Rotation + 90) % 360), item.Order)))
-                                    {
-                                        <input type="hidden" name="@field.Name" value="@field.Value" />
-                                    }
-                                    <button type="submit" class="btn">@ReportImageLabels.RotateRight</button>
-                                </form>
-                                @* Reordering exchanges the two neighbours' orders in one command,
-                                   so the sequence the operator sees is never decided by a tie-break. *@
-                                @if (place > 0)
-                                {
-                                    var above = supporting[place - 1];
-                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
-                                          asp-route-id="@summary.CaseId" asp-route-section="files">
-                                        @foreach (var field in CaseFields()
-                                            .Concat(EditFields(0, item, item.Rotation, above.Order))
-                                            .Concat(EditFields(1, above, above.Rotation, item.Order)))
-                                        {
-                                            <input type="hidden" name="@field.Name" value="@field.Value" />
-                                        }
-                                        <button type="submit" class="btn">@ReportImageLabels.MoveUp</button>
-                                    </form>
-                                }
-                                @if (place >= 0 && place < supporting.Length - 1)
-                                {
-                                    var below = supporting[place + 1];
-                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveAssetPreparation"
-                                          asp-route-id="@summary.CaseId" asp-route-section="files">
-                                        @foreach (var field in CaseFields()
-                                            .Concat(EditFields(0, item, item.Rotation, below.Order))
-                                            .Concat(EditFields(1, below, below.Rotation, item.Order)))
-                                        {
-                                            <input type="hidden" name="@field.Name" value="@field.Value" />
-                                        }
-                                        <button type="submit" class="btn">@ReportImageLabels.MoveDown</button>
-                                    </form>
-                                }
-                                <form method="post" asp-page="/Cases/Details" asp-page-handler="ResetAssetPreparation"
-                                      asp-route-id="@summary.CaseId" asp-route-section="files">
-                                    @foreach (var field in CaseFields())
-                                    {
-                                        <input type="hidden" name="@field.Name" value="@field.Value" />
-                                    }
-                                    <input type="hidden" name="occurrenceIds" value="@item.OccurrenceId" />
-                                    <button type="submit" class="btn">@ReportImageLabels.Reset</button>
-                                </form>
-                            </div>
-                        }
-                    </article>
-                }
+            <div class="panel-body">
+                <partial name="Cases/Shared/_CaseReportImagePreparation"
+                         model="ReportImagePreparationView.Files(Model)" />
             </div>
         </section>
     }

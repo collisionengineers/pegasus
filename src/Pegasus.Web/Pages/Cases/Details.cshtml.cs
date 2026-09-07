@@ -1455,7 +1455,8 @@ public sealed partial class DetailsModel(
         RedirectToPage("/Cases/Details", new { id, section = "valuation" });
 
     /// <summary>
-    /// B06: one image's report preparation, posted from the Files section.
+    /// B06: one image's report preparation, posted from the Files or the
+    /// Report section — both render the same cards from one partial.
     /// A card's own controls post a single edit; Move up and Move down post
     /// the moved image and its neighbour with their orders exchanged, so the
     /// resulting sequence is the operator's and never a tie-break's.
@@ -1505,12 +1506,12 @@ public sealed partial class DetailsModel(
             HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["CaseError"] = MutationRefusalMessage(
                 exception, ReportImageLabels.SaveRefused);
-            return RedirectToFiles(id);
+            return RedirectToPreparation(id);
         }
 
         ClearLeaseState();
         TempData["CaseStatus"] = ReportImageLabels.WasSaved;
-        return RedirectToFiles(id);
+        return RedirectToPreparation(id);
     }
 
     /// <summary>
@@ -1559,12 +1560,12 @@ public sealed partial class DetailsModel(
             HandleLeaseFailure(id, editLeaseToken, exception);
             TempData["CaseError"] = MutationRefusalMessage(
                 exception, ReportImageLabels.ResetRefused);
-            return RedirectToFiles(id);
+            return RedirectToPreparation(id);
         }
 
         ClearLeaseState();
         TempData["CaseStatus"] = ReportImageLabels.WasReset;
-        return RedirectToFiles(id);
+        return RedirectToPreparation(id);
     }
 
     /// <summary>
@@ -1614,11 +1615,27 @@ public sealed partial class DetailsModel(
             editLeaseToken,
             access => access.CanOpen,
             "Only an Engineer can prepare report images.",
-            () => RedirectToFiles(id),
+            () => RedirectToPreparation(id),
             cancellationToken);
 
-    private RedirectToPageResult RedirectToFiles(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, section = "files" });
+    /// <summary>
+    /// B08: back to the section the preparation was acted on. The same cards
+    /// and the same controls are offered in Files and in Report, and each
+    /// section's forms carry their own <c>section</c>, so the editor reads the
+    /// outcome where they acted rather than being moved to the other section.
+    /// Any other value lands on Files, which is where the cards were first
+    /// offered.
+    /// </summary>
+    private RedirectToPageResult RedirectToPreparation(Guid id) =>
+        RedirectToPage(
+            "/Cases/Details",
+            new
+            {
+                id,
+                section = string.Equals(Section, "report", StringComparison.Ordinal)
+                    ? "report"
+                    : "files"
+            });
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(
         Guid id,
