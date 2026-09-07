@@ -41,9 +41,13 @@ links:
 refs:
   - docs/frd/frd-04-parties-accounts-and-access.md
   - docs/frd/frd-09-provider-and-intermediary-routes.md
+commits:
+  - 539aa4684d6dba1964c8fa594d2d2a0e3e3489b6
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/680'
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T21:13:25.351Z'
+updated: '2026-09-07T21:18:48.349Z'
 ---
 
 ## What
@@ -70,3 +74,7 @@ The existing Organizations/Principals surface needs a deliberate redesign. Provi
 - [ ] Non-administrators and provider clients cannot access the Administration surface.
 
 ## Outcome
+
+## Current operator correction and handoff — 7 September 2026
+
+The explicit one-customer requirement in [[EPIC-014]] supersedes the historical owner-organisation premise above. Implementation 539aa4684d6dba1964c8fa594d2d2a0e3e3489b6 replaces that hierarchy with the flat Principal workflow, preserves the real repairer/location directory, and folds [[PLAT-050]] existing settings acceptance. PR #680 targets dev. Root supplied the focused passing checks recorded in post-implementation-report; independent visual/exact-head review and post-merge proof remain outstanding.
