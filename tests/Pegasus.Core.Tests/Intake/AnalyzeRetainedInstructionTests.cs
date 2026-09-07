@@ -3,6 +3,7 @@ using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -73,6 +74,7 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(1, observed.PolicyVersion);
         Assert.Equal("QDOS", observed.PrincipalCode);
         Assert.Equal(1, harness.SourceReader.Reads);
+        Assert.Empty(harness.VehicleLookup.Requests);
     }
 
     [Fact]
@@ -326,6 +328,9 @@ public sealed class AnalyzeRetainedInstructionTests
                 [
                     new("Claimant name", "Jane Smith",
                         [new("Jane Smith", IntakeEvidenceSource.DocumentContent, fragment.SourceLabel, fragment.Locator)],
+                        IsDefaulted: false, HasConflict: false),
+                    new("Vehicle registration", "O100IOO",
+                        [new("O100IOO", IntakeEvidenceSource.DocumentContent, fragment.SourceLabel, fragment.Locator)],
                         IsDefaulted: false, HasConflict: false)
                 ]
             });
@@ -345,8 +350,23 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(SourceHash, claimant.Locator!.Sha256);
         Assert.Equal($"{IntakeOcrProviderIdentity.Provider}/{IntakeOcrProviderIdentity.ModelId}", claimant.ReaderKey);
         Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, claimant.ReaderVersion);
+        Assert.Equal(5, harness.VehicleLookup.Requests.Count);
+        var attempts = first.Analysis.Candidates
+            .Where(candidate => candidate.Field == AnalyzeRetainedInstruction.VehicleLookupAttemptField)
+            .OrderBy(candidate => candidate.Occurrence)
+            .ToArray();
+        Assert.Equal([0, 1, 2, 3, 4], attempts.Select(candidate => candidate.Occurrence));
+        Assert.All(attempts, candidate => Assert.Equal(SourceCandidateDisposition.Ambiguous, candidate.Disposition));
+        Assert.All(attempts, candidate => Assert.Contains(SourceHash, candidate.SourceLabel, StringComparison.Ordinal));
+        Assert.All(attempts, candidate => Assert.Contains(ResponseHash, candidate.SourceLabel, StringComparison.Ordinal));
+        var alternative = Assert.Single(first.Analysis.Candidates,
+            candidate => candidate.Field == AnalyzeRetainedInstruction.VehicleLookupAlternativeField);
+        Assert.Equal("O100IOO", alternative.RawValue);
+        Assert.Equal("OI00IOO", alternative.NormalizedValue);
+        Assert.Equal(SourceCandidateDisposition.Ambiguous, alternative.Disposition);
         Assert.Equal(1, harness.Documents.Opens);
         Assert.Single(harness.Store.Records);
+        Assert.Equal(5, harness.VehicleLookup.Requests.Count);
     }
 
     [Fact]
@@ -411,6 +431,42 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Empty(harness.Store.Records);
         Assert.Equal(0, harness.Documents.Opens);
         Assert.Equal(0, harness.SourceReader.Reads);
+    }
+
+    [Fact]
+    public async Task ConflictingOrOrdinaryEmbeddedRegistrationReadingsNeverInvokeAlternatives()
+    {
+        static InstructionExtractionPolicySelectorTests.StubProfilePolicy Profile(bool conflicting) =>
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
+            {
+                Fields =
+                [
+                    new("Vehicle registration", null,
+                        conflicting
+                            ?
+                            [
+                                new("O100IOO", IntakeEvidenceSource.DocumentContent, "OCR page 2"),
+                                new("AB12CDE", IntakeEvidenceSource.DocumentContent, "OCR page 2")
+                            ]
+                            : [new("O100IOO", IntakeEvidenceSource.DocumentContent, "embedded document")],
+                        IsDefaulted: false,
+                        HasConflict: conflicting)
+                ]
+            };
+
+        var ocr = new Harness(Profile(conflicting: true));
+        await ocr.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            ocr.Receipt.Id,
+            ocr.Receipt.Version,
+            "conflicting-ocr",
+            ocr.SourceAssetId,
+            OcrEvidence(SourceHash)));
+        Assert.Empty(ocr.VehicleLookup.Requests);
+
+        var embedded = new Harness(Profile(conflicting: false));
+        await embedded.ExecuteAsync(operationKey: "embedded-registration");
+        Assert.Empty(embedded.VehicleLookup.Requests);
     }
 
     private static CompletedOcrEvidence OcrEvidence(string sourceHash) => new(
@@ -510,6 +566,7 @@ public sealed class AnalyzeRetainedInstructionTests
                 Documents,
                 SourceReader,
                 new InstructionExtractionPolicySelector(policies),
+                new VehicleRegistrationCandidateLookup(VehicleLookup),
                 Store,
                 new FixedTimeProvider(Now));
         }
@@ -527,6 +584,8 @@ public sealed class AnalyzeRetainedInstructionTests
         public FakeAnalysisStore Store { get; } = new();
 
         public FakeSourceReader SourceReader { get; }
+
+        public FakeVehicleLookup VehicleLookup { get; } = new();
 
         public AnalyzeRetainedInstruction Command { get; }
 
@@ -656,6 +715,31 @@ public sealed class AnalyzeRetainedInstructionTests
                 RequiresOcr: false,
                 ReaderKey: "fake_reader",
                 ReaderVersion: "9"));
+        }
+    }
+
+    public sealed class FakeVehicleLookup : IVehicleLookupAdapter
+    {
+        public List<string> Requests { get; } = [];
+
+        public Task<VehicleLookupResult> LookupAsync(
+            VehicleLookupRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request.Registration);
+            var current = request.Registration == "OI00IOO";
+            return Task.FromResult(new VehicleLookupResult(
+                request.Registration,
+                current ? VehicleLookupOutcome.Current : VehicleLookupOutcome.NotFound,
+                "vehicle-provider",
+                "v1",
+                $"response-{request.Registration}",
+                Now,
+                current ? Now : null,
+                current ? Now : null,
+                current ? new VehicleDetails("Make", "Model", 2026, 1000, "Petrol") : null,
+                [],
+                null));
         }
     }
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Intake;
 
@@ -195,6 +196,7 @@ public sealed class AnalyzeRetainedInstruction(
     IReadLogicalDocumentVersion documentReader,
     IIntakeSourceReader sourceReader,
     InstructionExtractionPolicySelector selector,
+    VehicleRegistrationCandidateLookup vehicleRegistrationCandidateLookup,
     IRetainedInstructionAnalysisStore store,
     TimeProvider timeProvider) : IAnalyzeRetainedInstruction
 {
@@ -211,6 +213,9 @@ public sealed class AnalyzeRetainedInstruction(
     public const string SuggestedPrincipalField = "Suggested principal code";
 
     public const string PrincipalPartyRole = "principal";
+
+    public const string VehicleLookupAttemptField = "Vehicle registration lookup attempt";
+    public const string VehicleLookupAlternativeField = "Vehicle registration proved alternative";
 
     /// <summary>
     /// The field name the matched accepted template variant is recorded under,
@@ -416,7 +421,28 @@ public sealed class AnalyzeRetainedInstruction(
             readResult.ReaderVersion,
             selection.MatchedVariantKeys,
             policy as IInstructionFieldRoles,
-            request.OcrEvidence is not null);
+            request.OcrEvidence is not null).ToList();
+        if (request.OcrEvidence is { } lookupOcr)
+        {
+            var registrations = extraction.Fields.Where(field =>
+                string.Equals(field.Name, "Vehicle registration", StringComparison.Ordinal)
+                && !field.HasConflict
+                && field.Candidates.Count == 1).ToArray();
+            if (registrations.Length == 1)
+            {
+                var registration = registrations[0];
+                var raw = registration.Candidates[0];
+                var sourceReference = $"ocr:{lookupOcr.SourceSha256}:response:{lookupOcr.Result.ResponseSha256}:page:{raw.Locator?.Page}";
+                var lookup = await vehicleRegistrationCandidateLookup.LookupAsync(
+                    new(raw.SourceValue, MachineReadRegistrationSource.DocumentOcr, sourceReference),
+                    cancellationToken);
+                candidates.AddRange(BuildVehicleLookupCandidates(
+                    lookup,
+                    profile,
+                    readResult.ReaderKey,
+                    readResult.ReaderVersion));
+            }
+        }
 
         var (analysis, isReplay) = await store.RecordAsync(
             new(
@@ -576,6 +602,66 @@ public sealed class AnalyzeRetainedInstruction(
         }
 
         return candidates.ToArray();
+    }
+
+    private static IEnumerable<RetainedInstructionCandidate> BuildVehicleLookupCandidates(
+        VehicleRegistrationCandidateLookupResult lookup,
+        IInstructionDocumentProfile profile,
+        string readerKey,
+        string readerVersion)
+    {
+        var policyVersion = profile.DocumentProfileVersion.ToString(CultureInfo.InvariantCulture);
+        foreach (var attempt in lookup.Attempts.OrderBy(attempt => attempt.Order))
+        {
+            yield return new(
+                Guid.NewGuid(),
+                profile.Signature.DocumentRole,
+                VehicleLookupAttemptField,
+                "claimant",
+                null,
+                attempt.Registration,
+                attempt.Result.Outcome.ToString(),
+                null,
+                null,
+                JsonSerializer.Serialize(new
+                {
+                    lookup.Reading.RawValue,
+                    lookup.Reading.SourceReference,
+                    attempt.Order,
+                    Result = attempt.Result
+                }, LocatorJsonOptions),
+                null,
+                attempt.Order,
+                readerKey,
+                readerVersion,
+                profile.DocumentProfileKey,
+                policyVersion,
+                SourceCandidateDisposition.Ambiguous);
+        }
+
+        if (lookup.AcceptedRegistration is { } accepted
+            && (lookup.Candidates.Count == 0
+                || !string.Equals(accepted, lookup.Candidates[0], StringComparison.Ordinal)))
+        {
+            yield return new(
+                Guid.NewGuid(),
+                profile.Signature.DocumentRole,
+                VehicleLookupAlternativeField,
+                "claimant",
+                null,
+                lookup.Reading.RawValue,
+                accepted,
+                null,
+                null,
+                lookup.Reading.SourceReference,
+                null,
+                0,
+                readerKey,
+                readerVersion,
+                profile.DocumentProfileKey,
+                policyVersion,
+                SourceCandidateDisposition.Ambiguous);
+        }
     }
 
     /// <summary>
