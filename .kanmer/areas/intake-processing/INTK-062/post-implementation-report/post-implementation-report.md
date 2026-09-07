@@ -107,3 +107,12 @@ exit0. Root explicitly authorized [skip ci] for this scoped PR; required checks
 must still be respected and final integrated release CI is separately owed.
 Stop after push and Implementing→Review; independent review next, no author
 self-review, merge, cleanup or deployment.
+
+
+## Pushed candidate
+
+PR https://github.com/collisionengineers/pegasus/pull/684 targets dev; exact head
+abf3657691a230bdc20e81d4744e6634a6d73f85. Four scoped files, 237 insertions
+and 7 deletions. Staged diff check and commit/push exited0; worktree clean.
+No source change followed root's runtime verification. Ready for independent
+SHA-bound review; claim/worktree retained, no author review or merge.
