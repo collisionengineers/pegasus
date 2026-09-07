@@ -372,3 +372,136 @@ the C09 file-list reconciliation.
 `5-architecture` PASS (100/100). The single failure is C08-R-1. `pass`
 requires every lane green, so the verdict cannot be `pass` on this head even
 before the findings.
+
+# C08 R5 source review — InvalidOperation send-conflict narrowing
+
+- verdict: **NEEDS CHANGES**
+- scope: source-only. The Integration project was not compiled or executed (its compile is held by an A-owned dependency), so every runtime claim below is reasoned from source and from in-repo precedent, not from a test run.
+- bound commit: `4f0c0411392d39b75746b12fd99c3c4b008deb8f`
+- parent: `aa5e669d76ad2f7cc24783f8076644c439509feb`
+- branch: `c08-shell`
+- worktree: `C:/Users/PGUSER/Documents/github/pegasus-worktrees/v1-intake-c08`
+- reviewer: independent of the implementer (source review only; no edits, no git writes, no push)
+- skill_sha256: `.agents/skills/kanmer-review/SKILL.md` = `ADDF26C9981CEFA755A9DB3A1EE06383432230708641B076EE336D64A1096741`
+- finding under review: PR 673 comment 5563408956 (with 5563525850 on the Unknown key)
+- counts: 1 blocker, 1 major, 3 minor, 1 nit, 1 informational
+- full attestation: `C:\Users\PGUSER\AppData\Local\Temp\claude\C--Users-PGUSER-documents-github-pegasus\5adc2fb3-f15d-4145-84ed-948eb9fde4e4\scratchpad\takeover\c08-r5-review.md`
+
+## Check results
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Catch confirms an active operation via `GetLatestForOriginalAsync`, rethrows with bare `throw;`; "active" vocabulary is not C-defined | PASS |
+| 2 | Second query inside the catch introduces its own failure mode | PASS with note (F4) |
+| 3 | Unknown-replay test uses a syntactically valid key of the real shape and proves rejection of a valid fresh key while Unknown is active | PASS |
+| 4 | New regression asserts the actual surfaced behaviour | **FAIL** (F1, F2, F3) |
+| 5 | `RecordingStaffMailSend.ThrowOnSend` minimal, recording semantics unchanged for the other tests | PASS |
+| 6 | No assertion weakened, nothing out of scope (rule 1), no catch-all (rule 12) | PASS |
+
+## Check 1 — the catch (PASS)
+
+`src/Pegasus.Web/Pages/Mail/Message.cshtml.cs:905-930`. The catch re-queries `staffMailSend.GetLatestForOriginalAsync(actor, detail.Summary.Id, cancellationToken)` (`:914-917`) — the port method already on `IStaffMailSend` (`src/Pegasus.Core/Operations/StaffMailSend.cs:38`) and already used by `LoadRetainedOperationAsync` — no new store method, no new exception type. The non-active branch is a bare `throw;` (`:924`), so the original exception object and stack trace are preserved; it is not `throw exception;`.
+
+"Active" at `:918-921` means `currentOperation is not null` and its state is not `Sent`, not `Failed`, not `Cancelled` — i.e. `Prepared | DraftCreating | DraftReady | Sending | Submitted | Unknown` over the nine-value enum at `src/Pegasus.Core/Operations/StaffMailSend.cs:8`. This is **not a C-defined send-state list**:
+
+- it is character-for-character the predicate already in this file at `Message.cshtml.cs:1094-1097` (`CorrespondenceSendBlocked` in `LoadRetainedOperationAsync`), which is what the page's own send-blocked projection uses;
+- it is exactly equivalent, over that enum, to the positive whitelist the S12-shaped test fake uses at `tests/Pegasus.IntegrationTests/StaffCorrespondenceWebTests.cs:1374-1376` (`Prepared or DraftCreating or DraftReady or Sending or Submitted or Unknown`);
+- the negative form is the safer of the two under a future enum addition: a new non-terminal state defaults to "active" (conflict message) rather than to "no operation" (rethrow).
+
+## Findings
+
+### F1 — BLOCKER — the new regression's central assertion cannot hold
+
+`tests/Pegasus.IntegrationTests/StaffCorrespondenceWebTests.cs:563-568` asserts the unhandled `InvalidOperationException` propagates out of `client.PostAsync` to the caller. It does not. `src/Pegasus.Web/Program.cs:107` builds the app with `WebApplication.CreateBuilder`, and `WebApplication` automatically inserts `DeveloperExceptionPageMiddleware` at the head of the pipeline whenever `IsDevelopment()`. `IntakeWebApplicationFactory` runs these tests under `"Development"` (`tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs:46-64,102`), so an unhandled exception is caught there and rendered as an HTTP 500 page; it never reaches the `HttpClient` caller. The comment's premise (only `UseExceptionHandler` matters, `Program.cs:888-890`) is true and irrelevant — a second, framework-supplied handler is present precisely in Development.
+
+In-repo proof that this suite observes a 500 rather than a thrown exception for an unhandled `InvalidOperationException`:
+
+- `tests/Pegasus.IntegrationTests/GraphMailWebhookTests.cs:142-158` (`ValidNotificationQueueFailureReturnsRetryableServerError`) drives `ThrowingEnqueuer` (`GraphMailWebhookTests.cs:218-223`, `throw new InvalidOperationException("Queue unavailable.")`) through `app.MapPost("/hooks/microsoft-graph/mail", GraphMailWebhook.HandleAsync)` (`src/Pegasus.Web/Program.cs:1117`), whose handler has no catch for it (`src/Pegasus.Web/GraphMailWebhook.cs`), and asserts `Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode)` — same factory, same environment.
+- `tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs:518-522` reads and prints the body of a 500 response for the same reason.
+
+As written, `Assert.ThrowsAsync<InvalidOperationException>` fails with "No exception was thrown", so the regression that is supposed to close comment 5563408956 does not run green and proves nothing.
+
+Exact correction — replace `StaffCorrespondenceWebTests.cs:555-569` with:
+
+```csharp
+        // In Development WebApplication installs the developer exception page, so an
+        // unhandled handler exception surfaces to the caller as a 500 carrying the
+        // original failure — the existing, unmodified error handling for this page.
+        // What must NOT happen is the correspondence-conflict relabelling.
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        var body = await post.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.InternalServerError, post.StatusCode);
+        Assert.DoesNotContain(
+            "existing correspondence operation", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
+            body,
+            StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+```
+
+(If binding to the developer exception page's body is judged too environment-coupled, the minimum that still closes the finding is `Assert.NotEqual(HttpStatusCode.Redirect, post.StatusCode)` plus the `DoesNotContain("existing correspondence operation", …)` assertion. The `Assert.Contains` on the original message is what proves the exception surfaced *unmasked*, so keep it if possible.)
+
+### F2 — MAJOR — the only surviving assertion is tautological
+
+`StaffCorrespondenceWebTests.cs:569`, `Assert.Equal(0, send.SendCalls)`, asserts that the fake did not record a command. `SendCalls` reads `commands.Count` (`:1252-1255`) and `ThrowOnSend` throws before `commands.Add(command)` (`:1281-1284` vs `:1310`), so this is guaranteed by the fixture regardless of what the handler does. Nothing in the test currently observes handler behaviour. The correction in F1 supplies the two assertions that do (no conflict text, no redirect); keep `SendCalls` only as a secondary guard.
+
+### F3 — MINOR — the test comment asserts an incorrect premise
+
+`StaffCorrespondenceWebTests.cs:555-562` states "No exception-handling middleware sits in front of this page in the Development profile these web tests run under". That is false (see F1) and the same claim is repeated in the author's report and in the code comment's reasoning. Correct it with F1 so the next reader is not misled about the page's error surface.
+
+### F4 — MINOR (advisory, no change required for this commit) — the re-query has its own failure mode
+
+The re-query at `Message.cshtml.cs:914-917` runs *inside* the catch block of the same `try`, so any exception it raises:
+
+1. completely replaces the original send failure — it is not chained as an inner exception, and the original is lost; and
+2. cannot be seen by the sibling `catch (StaffAuthorizationException) => Forbid()` (`:896-899`) or `catch (ArgumentException)` (`:900-904`) clauses of that same `try`, because those clauses do not apply to exceptions thrown from within a catch block of their own try.
+
+So a future real `IStaffMailSend` whose `GetLatestForOriginalAsync` throws `StaffAuthorizationException` would turn what should be a 403 into an unhandled 500, and would erase the send failure that actually occurred.
+
+This is not reachable today: the only registered implementation, `UnavailableStaffMailSend` (`src/Pegasus.Web/Program.cs:688`), returns `Task.FromResult<StaffMailOperation?>(null)` after an argument-null and cancellation check (`src/Pegasus.Infrastructure/Email/UnavailableStaffMailSend.cs:30-37`), and the test fake's `GetLatestForOriginalAsync` never throws (`StaffCorrespondenceWebTests.cs:1336-1349`). Cancellation surfacing as `OperationCanceledException` is correct behaviour. Accepted as-is; the correction, if A's S12 store can throw, is to narrow the re-query and re-raise the original with `ExceptionDispatchInfo.Capture(exception).Throw()` rather than a catch-all (rule 12). Record this as a hand-off note to A's S12 implementation rather than changing it here.
+
+### F5 — MINOR — the active-state predicate is now duplicated in one file
+
+`Message.cshtml.cs:918-921` repeats, verbatim, the predicate at `:1094-1097`. Two copies of one terminal-state set in the same page model will drift when the enum gains a state. Extract one accessor and call it from both, e.g.:
+
+```csharp
+    private static bool IsActiveOperation(StaffMailOperation? operation) =>
+        operation is not null
+        && operation.State is not StaffMailState.Sent
+            and not StaffMailState.Failed
+            and not StaffMailState.Cancelled;
+```
+
+then `var hasActiveOperation = IsActiveOperation(currentOperation);` at `:918` and `CorrespondenceSendBlocked = IsActiveOperation(CorrespondenceOperation);` at `:1094`. No behaviour change. Non-blocking; do it with the F1 fix if the file is open.
+
+### F6 — NIT — test method name
+
+`StaffCorrespondenceWebTests.cs:523`, `ANoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict` — the leading `A` reads as a typo rather than a name. Rename to `NoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict` and update the run filter accordingly.
+
+### F7 — INFORMATIONAL — the conflict branch is currently unreachable in the shipped profile
+
+With `UnavailableStaffMailSend` as the only registered `IStaffMailSend` (`Program.cs:688`), `GetLatestForOriginalAsync` always returns `null`, so the catch always rethrows and the "existing correspondence operation" message is reachable only through the test fake until A lands the real S12 store. That is the intended consequence of the fix — an offline transport must not be labelled a send conflict — and is not a defect. Noted so the message is not mistaken for dead code and deleted.
+
+## Checks 3, 5 and 6 in detail (all PASS)
+
+**Check 3.** `StaffCorrespondenceWebTests.cs:489-492` now posts `retained:{seeded.MessageId:N}:{Guid.NewGuid():N}`, which satisfies `IsRetainedOperationKey` (`Message.cshtml.cs:1104-1110`: prefix `retained:{retainedMessageId:N}:` plus a `Guid.TryParseExact(..., "N")` tail) — so the post now clears the format check at `:843-848`, reaches `SendAsync`, is refused by the fake because the recorded Unknown operation is active (`StaffCorrespondenceWebTests.cs:1301-1308`, whose `IsActive` at `:1374-1376` includes `Unknown`), and the new catch confirms that active operation and renders the conflict message through `asp-validation-summary="ModelOnly"` (`src/Pegasus.Web/Pages/Mail/Message.cshtml:203`). Nothing else in the post would short-circuit ModelState first (case version, subject, body and reply recipients are all satisfied by the shared `form`). The added `Assert.Contains("existing correspondence operation", freshHtml, …)` at `:499` therefore does prove active-Unknown rejection of a *valid* fresh key, which is what comment 5563525850 asked for.
+
+**Check 5.** `ThrowOnSend` (`:1269-1277`, `:1281-1284`) is a nullable property that defaults to `null`, checked once at the top of `SendAsync` before the `CoordinateNextTwoSends` rendezvous and before the `lock`. No existing field, dictionary, counter or code path is altered, so the other 36 tests in the class are untouched by it.
+
+**Check 6.** No assertion was removed or weakened anywhere in the diff — the Unknown test gained one assertion and kept every existing one, including `Assert.Equal(HttpStatusCode.OK, fresh.StatusCode)`, `Assert.Equal(1, send.SendCalls)` and the reconcile assertions. Only the two files the finding names are touched (rule 1). The production change adds no catch-all: it stays inside the existing `catch (InvalidOperationException)` and adds no new `catch` (rule 12).
+
+## Tests the combined run must execute
+
+Because nothing here was executed, the combined tree must run at minimum:
+
+- `Pegasus.IntegrationTests.StaffCorrespondenceWebTests.UnknownRetainedReplyReplaysAndReconcilesWithoutResending`
+- `Pegasus.IntegrationTests.StaffCorrespondenceWebTests.NoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict` (currently `ANoActiveOperation…`, see F6)
+- the whole class, to prove `ThrowOnSend` changed nothing for the other 36 tests: `dotnet test ./Pegasus.slnx --configuration Release --filter "FullyQualifiedName~Pegasus.IntegrationTests.StaffCorrespondenceWebTests"`
+- `Pegasus.IntegrationTests.GraphMailWebhookTests.ValidNotificationQueueFailureReturnsRetryableServerError` — the control that fixes what an unhandled exception actually looks like in this suite; if F1's corrected assertion and this test disagree, F1's premise is wrong.
+
+## Disposition
+
+`NEEDS CHANGES`. The production change (`Message.cshtml.cs:905-930`) closes comment 5563408956 correctly and is accepted as written, subject to the non-blocking F5 cleanup and the F4 hand-off note. The blocker is entirely in the new regression: as written it asserts a propagation that this suite does not produce, so the commit would land with a red test and without the proof the finding demanded. Apply F1 (and F2, F3, F6 with it), then re-review.
