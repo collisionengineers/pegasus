@@ -255,7 +255,6 @@ public static class ServiceHealthPolicy
                 or ExternalWorkKinds.CreateAuditReferenceCustody
                 or ExternalWorkKinds.CreateImageCaseCustody
                 or ExternalWorkKinds.MergeImageCaseCustody => ServiceHealthDependency.Box,
-            ExternalWorkKinds.SubmitCaseToEva => ServiceHealthDependency.EvaApi,
             _ => ServiceHealthDependency.Worker
         };
 
