@@ -15,7 +15,7 @@ public sealed partial class AssessmentReportDraftWebTests
         string handler,
         CaseReportArtifactKind expectedKind)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
         var recorder = new RecordingGenerateReport();
@@ -51,7 +51,7 @@ public sealed partial class AssessmentReportDraftWebTests
     [Fact]
     public async Task PrepareDeliveryCarriesGenerationAndServerAuthorityWithoutSending()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var generationId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
@@ -96,7 +96,7 @@ public sealed partial class AssessmentReportDraftWebTests
     public async Task SendPreparedReportDerivesStableOperationKeyAndDoesNotClaimSent(
         StaffMailState returnedState)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var preparationId = Guid.NewGuid();
         var send = new RecordingSendPreparedReport(returnedState);
@@ -138,12 +138,16 @@ public sealed partial class AssessmentReportDraftWebTests
             StringComparison.Ordinal);
     }
 
-    private static HttpClient Client(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
+    private static HttpClient Client(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost"),
         });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        return client;
+    }
 
     private sealed class RecordingGenerateReport : IGenerateCaseReport
     {
