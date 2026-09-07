@@ -2451,20 +2451,28 @@ public sealed partial class PublicUploadRetentionWebTests
         SeededLink link,
         string senderOperationKey)
     {
+        var operationKey = $"request:{link.LinkId:N}:{senderOperationKey}";
+        await using var context = await CreateContextAsync(factory.Services);
+        var arrival = await context.Set<PublicUploadOccurrenceEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.OperationKey == operationKey);
+        Assert.Equal(Evidence.Length, arrival.Size);
+        Assert.Equal(Sha256Hex(Evidence), arrival.Sha256);
+
         await using var scope = factory.Services.CreateAsyncScope();
         await using var content = new MemoryStream(Evidence, writable: false);
         return await scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>()
             .ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
                 new(
-                    Guid.NewGuid(),
+                    arrival.Id,
                     link.CaseId,
                     null,
-                    $"request:{link.LinkId:N}:{senderOperationKey}",
-                    "evidence.txt",
-                    "text/plain",
-                    Evidence.Length,
-                    Sha256Hex(Evidence)),
+                    operationKey,
+                    arrival.ProposedName,
+                    arrival.MediaType,
+                    arrival.Size,
+                    arrival.Sha256),
                 content,
                 CancellationToken.None);
     }
