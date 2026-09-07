@@ -300,7 +300,7 @@ public sealed class RetainedInstructionAnalysisTests
     /// </summary>
     [ReferencePackFact]
     [Trait("Category", "Corpus")]
-    public async Task EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating()
+    public async Task GenuineOriginalRetainedAnalysisDiagnosticInventory()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var host = WithAnalysis(factory);
@@ -432,6 +432,90 @@ public sealed class RetainedInstructionAnalysisTests
         }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// Mandatory acceptance gate across all eighty-one originals in the fifteen
+    /// Top15 profiles: every genuine original reaches retained analysis,
+    /// returns Analyzed, identifies the expected principal candidate, creates
+    /// zero Cases or intake links, and produces zero inconclusive or failed
+    /// outcomes.
+    /// </summary>
+    [ReferencePackFact]
+    [Trait("Category", "Corpus")]
+    public async Task EveryGenuineOriginalReachesRetainedAnalysisWithoutAllocating()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var host = WithAnalysis(factory);
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        var root = Top15InstructionCorpusTests.PackRoot();
+        var failures = new List<string>();
+        var inconclusive = new List<string>();
+        var analysed = 0;
+        var profilesRepresented = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var expectation in Top15InstructionCorpusTests.Expectations)
+        {
+            var name = Path.GetFileName(expectation.PackRelativePath);
+            var absolute = Path.Combine(
+                root,
+                expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(absolute))
+            {
+                failures.Add($"{name}: the pack does not carry this original.");
+                continue;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(absolute);
+            var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            if (!string.Equals(sha256, expectation.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                failures.Add(
+                    $"{name}: hashes to {sha256}, and the pack records {expectation.Sha256}.");
+                continue;
+            }
+
+            CorpusSample sample;
+            try
+            {
+                sample = await AnalyseRetainedOriginalAsync(
+                    factory, host, client, expectation, bytes, sha256);
+            }
+            catch (Exception exception) when (exception is ArgumentException
+                or InvalidOperationException
+                or IntakeArtifactIntegrityException)
+            {
+                sample = CorpusSample.Threw(name, expectation.Profile, exception);
+            }
+
+            failures.AddRange(sample.Failures);
+            inconclusive.AddRange(sample.Inconclusive);
+            if (sample.Inconclusive.Count == 0 && sample.Failures.Count == 0)
+            {
+                analysed++;
+                profilesRepresented.Add(expectation.Profile);
+            }
+        }
+
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            Assert.Equal(0, await context.Cases.CountAsync());
+            Assert.Equal(0, await context.CaseIntakeLinks.CountAsync());
+            Assert.Equal(0, await context.IntakeManualAssociations.CountAsync());
+        }
+
+        Assert.Empty(failures);
+        Assert.Empty(inconclusive);
+        Assert.Equal(Top15InstructionCorpusTests.Expectations.Count, analysed);
+        Assert.Equal(15, profilesRepresented.Count);
     }
 
     /// <summary>
