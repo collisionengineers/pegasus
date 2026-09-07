@@ -956,6 +956,30 @@ public sealed class GlassRepairEstimateGatewayTests
             start + Offset + Stopwatch.GetElapsedTime(origin);
     }
 
+    /// <summary>
+    /// An open calculation past its lifetime is not re-opened: the resume
+    /// settles it Expired and the estimator address is no longer given out,
+    /// the same rule the provider's late return meets.
+    /// </summary>
+    [Fact]
+    public async Task ResumingAnExpiredSessionSettlesItInsteadOfReopeningTheProvider()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        var launches = harness.Mva.Count("POST /ere/start-ere");
+        harness.Clock.Offset = TimeSpan.FromHours(24);
+
+        Assert.Null(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, session.Id, CancellationToken.None));
+        var expired = await harness.Gateway.ResumeAsync(
+            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version),
+            CancellationToken.None);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Expired, expired.State);
+        Assert.Equal(GlassFailure.CallbackExpired, expired.FailureCode);
+        Assert.Equal(launches, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Null(harness.Store.Material(session.Id).Session.CallbackConsumedAtUtc);
+    }
+
     // -------------------------------------------------------- callback claim
 
     /// <summary>

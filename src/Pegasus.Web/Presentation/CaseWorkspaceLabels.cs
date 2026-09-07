@@ -299,8 +299,7 @@ public static class CaseWorkspaceLabels
         /// <summary>The outcomes a launch, a return or a resume reports.</summary>
         public const string Imported = "The Glass's estimate was recorded as a draft.";
 
-        public const string AwaitingImport =
-            "The Glass's estimate is held and waits for the case's edit authority.";
+        public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";
 
         public const string NotImported = "The Glass's estimate was not recorded.";
 

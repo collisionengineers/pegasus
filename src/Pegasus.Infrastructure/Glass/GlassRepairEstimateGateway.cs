@@ -227,6 +227,7 @@ public sealed class GlassRepairEstimateGateway(
         RequireOwner(actor, material.Session);
         var provider = Unprotect(material.ProtectedProviderState);
         return material.Session.State == GlassRepairEstimateSessionState.Active
+            && material.Session.ExpiresAtUtc > timeProvider.GetUtcNow()
             && provider.EstimatorUrl is { } url
                 ? new Uri(url, UriKind.Absolute)
                 : null;
@@ -319,6 +320,14 @@ public sealed class GlassRepairEstimateGateway(
         {
             throw new InvalidOperationException(
                 $"A Glass's session in {session.State} cannot be resumed.");
+        }
+        if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
+        {
+            // The provider's side of an open calculation has lapsed; it is
+            // settled here rather than re-opened for work the callback would
+            // refuse. A claimed result above is read, not re-opened, so it is
+            // not subject to this.
+            return await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken);
         }
 
         var credential = await RequireCredentialAsync(request.Actor, cancellationToken);
