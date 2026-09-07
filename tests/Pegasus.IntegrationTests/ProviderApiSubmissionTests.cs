@@ -420,7 +420,7 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
-    public async Task EnvelopeOverTheUploadLimitIs413AndAnotherPrincipalNeverSeesTheSubmission()
+    public async Task EnvelopeOverTheProviderFileBoundIs413AndAnotherPrincipalNeverSeesTheSubmission()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var api = WithProviderApi(factory);
@@ -429,7 +429,7 @@ public sealed class ProviderApiSubmissionTests
 
         using (var oversize = await SubmitAsync(
                    client, secret, "order-4",
-                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumContentLength + 1])]))
+                   [("big.pdf", "application/pdf", new byte[IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1])]))
         {
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversize.StatusCode);
         }
