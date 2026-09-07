@@ -72,7 +72,8 @@ public sealed partial class TestUiSnapshotTests
             ["queues--empty"] = new("class=\"muted\">0 items</span>"),
             ["upload--validation"] = new("validation-summary-errors"),
             ["upload-group-status--processing"] = new("data-auto-refresh=\"2000\""),
-            ["upload-group-status--needs-decision"] = new("needs a staff decision"),
+            ["upload-group-status--needs-decision"] = new(
+                "needs a staff decision", "data-auto-refresh=\"2000\""),
             ["upload-group-status--default"] = new("Open case"),
             ["upload-request--validation"] = new("Choose a document to upload."),
             ["upload-status--processing"] = new("data-auto-refresh=\"2000\""),
