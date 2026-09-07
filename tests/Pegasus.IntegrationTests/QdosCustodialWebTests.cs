@@ -98,6 +98,11 @@ public sealed class QdosCustodialWebTests
         });
         var route = $"/Uploads/{Uri.EscapeDataString(handler.Token)}";
 
+        // The page's forms name their handler, and the page has no unnamed
+        // one to fall back to, so the suite posts where the sender's browser
+        // posts.
+        var uploadRoute = $"{route}?handler=Upload";
+
         using var formResponse = await client.GetAsync(route);
         formResponse.EnsureSuccessStatusCode();
         var formHtml = await formResponse.Content.ReadAsStringAsync();
@@ -106,7 +111,7 @@ public sealed class QdosCustodialWebTests
             invalidForm.Add(new StringContent(AntiforgeryValue(formHtml)), "__RequestVerificationToken");
             invalidForm.Add(new StringContent(InputValue(formHtml, "Token")), "Token");
             invalidForm.Add(new StringContent(InputValue(formHtml, "OperationKey")), "OperationKey");
-            using var invalid = await client.PostAsync(route, invalidForm);
+            using var invalid = await client.PostAsync(uploadRoute, invalidForm);
             Assert.Equal(HttpStatusCode.OK, invalid.StatusCode);
             Assert.Contains("Choose a document to upload.", await invalid.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         }
@@ -118,7 +123,7 @@ public sealed class QdosCustodialWebTests
         file.Headers.ContentType = MediaTypeHeaderValue.Parse("text/plain");
         form.Add(file, "Upload", "public-proof.txt");
 
-        using var post = await client.PostAsync(route, form);
+        using var post = await client.PostAsync(uploadRoute, form);
 
         Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
         Assert.Equal(route, post.Headers.Location?.OriginalString);
