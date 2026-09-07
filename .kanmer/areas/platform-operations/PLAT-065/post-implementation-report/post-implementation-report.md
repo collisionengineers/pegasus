@@ -69,7 +69,12 @@ cloud write. This author performed none.
    `Deferred Azure services are prohibited from the alpha deployment.` Build/
    tests did not start. The guard correction above is frozen for focused root
    rerun; no author build/test.
-4. Live provisioning, Worker canary/replay, readable-PDF no-OCR route and actual
+4. Root second Local deployment-plan attempt: FAIL, exit 1,
+   `Database bootstrap must account for grant-carrying migration 20260907210000_ReportInputInvalidationPermissions.cs.`
+   The corrected Document Intelligence guard no longer blocks. Build/tests
+   again did not start. Root owns this separately tracked DOCS-020-derived
+   bootstrap census correction; do not change bootstrap under PLAT-065.
+5. Live provisioning, Worker canary/replay, readable-PDF no-OCR route and actual
    Web identity denial: NOT RUN. No provider request or endpoint activation.
 
 The failed Local attempt remains recorded. A later pass does not erase it.
