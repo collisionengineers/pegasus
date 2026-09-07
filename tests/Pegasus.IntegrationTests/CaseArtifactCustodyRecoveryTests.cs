@@ -119,13 +119,14 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 () => custody.RetainAsync(request, CancellationToken.None));
             Guid pendingDocumentId;
             Guid pendingVersionId;
+            Guid pendingOccurrenceId;
             await using (var db = await database.CreateContextAsync())
             {
                 var pending = await db.Set<DocumentVersionEntity>().SingleAsync();
                 pendingDocumentId = pending.DocumentId;
                 pendingVersionId = pending.Id;
                 Assert.Equal(DocumentCustodyStatus.Pending, pending.CustodyStatus);
-                Assert.Single(await db.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+                pendingOccurrenceId = (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id;
             }
 
             // The provider result was lost, but the accepted Pending intent is
@@ -136,6 +137,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             Assert.Equal(CaseArtifactCustodyDisposition.Pending, recoveredPending!.Disposition);
             Assert.Equal(pendingVersionId, recoveredPending.VersionId);
             Assert.Equal(pendingDocumentId, recoveredPending.DocumentId);
+            Assert.Equal(pendingOccurrenceId, recoveredPending.OccurrenceId);
             Assert.Equal(hash, recoveredPending.Sha256, ignoreCase: true);
             Assert.Equal(content.LongLength, recoveredPending.ContentLength);
 
@@ -157,7 +159,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 confirmed.IsLogicallyRemoved = true;
                 await db.SaveChangesAsync();
                 await Assert.ThrowsAsync<FileNotFoundException>(() => custody.GetAsync(
-                    actor, caseId, confirmed.DocumentId, confirmed.Id, default));
+                    actor, caseId, confirmed.DocumentId, confirmed.Id, pendingOccurrenceId, default));
             }
             await Assert.ThrowsAsync<FileNotFoundException>(() => custody.RetainAsync(
                 request with { Content = new MemoryStream(content, writable: false) }, default));
@@ -215,16 +217,20 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, confirmed.Disposition);
         Assert.Equal(replay.DocumentId, confirmed.DocumentId);
         Assert.Equal(replay.VersionId, confirmed.VersionId);
+        Assert.NotNull(replay.OccurrenceId);
+        Assert.Equal(replay.OccurrenceId, confirmed.OccurrenceId);
         Assert.Equal(1, provider.WriteCount);
     }
 
     [Fact]
-    public async Task StatusPreservesFailedCustodyDisposition()
+    public async Task StatusPreservesDispositionAndSelectsExactOccurrenceWhenVersionIsShared()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
         var documentId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
+        var firstOccurrenceId = Guid.NewGuid();
+        var secondOccurrenceId = Guid.NewGuid();
         await using (var db = await database.CreateContextAsync())
         {
             db.Add(new CaseDocumentEntity
@@ -248,6 +254,31 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 CreatedBy = "test",
                 IsCurrent = true
             });
+            db.AddRange(new DocumentOccurrenceEntity
+            {
+                Id = firstOccurrenceId,
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                Ordinal = 1,
+                SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = "failed-custody",
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+                OperationKey = "failed-custody"
+            }, new DocumentOccurrenceEntity
+            {
+                Id = secondOccurrenceId,
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                Ordinal = 2,
+                SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = "failed-custody-repeated",
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+                OperationKey = "failed-custody-repeated"
+            });
             await db.SaveChangesAsync();
         }
         await using var scope = database.CreateAsyncScope();
@@ -263,10 +294,27 @@ public sealed class CaseArtifactCustodyRecoveryTests
             caseId,
             documentId,
             versionId,
+            firstOccurrenceId,
             default);
 
         Assert.Equal(CaseArtifactCustodyDisposition.Failed, result.Disposition);
+        Assert.Equal(firstOccurrenceId, result.OccurrenceId);
         Assert.Equal("case_custody_failed", result.FailureCode);
+        var repeated = await custody.GetAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            caseId,
+            documentId,
+            versionId,
+            secondOccurrenceId,
+            default);
+        Assert.Equal(secondOccurrenceId, repeated.OccurrenceId);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => custody.GetAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            caseId,
+            documentId,
+            versionId,
+            Guid.NewGuid(),
+            default));
     }
 
     [Fact]
@@ -405,13 +453,17 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, retained.Disposition);
         Assert.Equal(1, contentStore.WriteCount);
         var status = await custody.GetAsync(
-            requestActor, caseId, retained.DocumentId!.Value, retained.VersionId!.Value, default);
+            requestActor, caseId, retained.DocumentId!.Value, retained.VersionId!.Value,
+            retained.OccurrenceId!.Value, default);
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, status.Disposition);
         var recovered = await custody.FindByOperationKeyAsync(
             requestActor, caseId, request.OperationKey, default);
         Assert.NotNull(recovered);
         Assert.Equal(retained.DocumentId, recovered!.DocumentId);
         Assert.Equal(retained.VersionId, recovered.VersionId);
+        Assert.NotNull(retained.OccurrenceId);
+        Assert.Equal(retained.OccurrenceId, status.OccurrenceId);
+        Assert.Equal(retained.OccurrenceId, recovered.OccurrenceId);
         Assert.Equal(retained.Disposition, recovered.Disposition);
         Assert.Equal(retained.Sha256, recovered.Sha256);
         Assert.Equal(retained.ContentLength, recovered.ContentLength);
@@ -423,10 +475,10 @@ public sealed class CaseArtifactCustodyRecoveryTests
             ActionActor.Provider(Guid.NewGuid()), caseId, request.OperationKey, default));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.GetAsync(
             requestActor, otherCaseId,
-            retained.DocumentId.Value, retained.VersionId.Value, default));
+            retained.DocumentId.Value, retained.VersionId.Value, retained.OccurrenceId.Value, default));
         await Assert.ThrowsAsync<FileNotFoundException>(() => custody.GetAsync(
             ActionActor.RequestLink(otherRequestId), caseId,
-            retained.DocumentId.Value, retained.VersionId.Value, default));
+            retained.DocumentId.Value, retained.VersionId.Value, retained.OccurrenceId.Value, default));
 
         await using (var db = await database.CreateContextAsync())
         {
@@ -438,7 +490,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.RetainAsync(
             ArtifactRequest(requestActor, caseId, bytes), default));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.GetAsync(
-            requestActor, caseId, retained.DocumentId.Value, retained.VersionId.Value, default));
+            requestActor, caseId, retained.DocumentId.Value, retained.VersionId.Value,
+            retained.OccurrenceId.Value, default));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => custody.FindByOperationKeyAsync(
             requestActor, caseId, request.OperationKey, default));
         Assert.Equal(1, contentStore.WriteCount);
