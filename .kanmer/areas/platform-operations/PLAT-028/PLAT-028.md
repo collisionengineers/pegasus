@@ -46,11 +46,12 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 commits:
   - 539aa4684d6dba1964c8fa594d2d2a0e3e3489b6
+  - d2bf633ec8ddc5b08b4052554d1d4e79f3930682
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/680'
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T21:37:16.223Z'
+updated: '2026-09-07T21:46:19.733Z'
 ---
 
 ## What

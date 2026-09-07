@@ -182,7 +182,8 @@ instead of creating an owning organization. All roleless denial, required
 reason, keyboard retry, safe display, immutable Case and exact replay
 assertions remain unchanged. No product/UI/snapshot changes.
 
-Delta is currently uncommitted and frozen for root. Standalone diff check
+Delta is committed and pushed to the existing PR680 as
+ d2bf633ec8ddc5b08b4052554d1d4e79f3930682 [skip ci]. Standalone diff check
 exit0; targeted route search leaves only intentional absence/404 assertions
 in OrganizationAdministrationWebTests, not a positive browser caller.
 No build/browser test or capture was run by this worker.
@@ -193,3 +194,14 @@ Root-only Integration targeted browser filter (expected three cases):
 After root supplies evidence, commit/push only this delta onto the existing
 PR680, update exact head, move Implementing to Review after gates and return
 to the independent reviewer for F-001 delta review. Never open a second PR.
+
+## Root remediation verification — 7 September 2026
+
+Root supplied PASS: incremental Release build, exit 0, zero warnings/errors,
+64.96 seconds. The exact targeted browser filter above passed all 3 cases,
+exit 0, 54 seconds: Principals and Create accessibility/inline-style checks
+and the QDOS allocation recovery scenario. This supplements, not replaces,
+the earlier report and independent F-001 finding. No author build/test or
+capture occurred. The two-file delta is ready for independent delta review
+on the same PR; root owns merge. No source or snapshot change beyond these
+two browser callers.
