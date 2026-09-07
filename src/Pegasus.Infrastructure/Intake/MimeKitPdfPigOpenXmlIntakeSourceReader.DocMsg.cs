@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake.DocumentExtraction;
@@ -64,14 +65,35 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
                     result);
         }
 
-        var text = string.Join(
-            Environment.NewLine,
-            parsed.Stories
-                .Select(story => story.Text)
-                .Where(storyText => !string.IsNullOrWhiteSpace(storyText)));
-        if (!string.IsNullOrWhiteSpace(text))
+        foreach (WordStory story in parsed.Stories)
         {
-            result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
+            var storyText = story.Text;
+            if (string.IsNullOrWhiteSpace(storyText))
+            {
+                continue;
+            }
+
+            if (story.Kind == WordStoryKind.Main)
+            {
+                result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, storyText));
+                AddWordBinaryTableCells(story.TableCells, sourceLabel, result);
+                continue;
+            }
+
+            // A header, footer, footnote, text box or annotation IS decoded, and
+            // it is a different thing from the body. Merged into it, a running
+            // letterhead address reads as the body's address - which is how a
+            // supplier comes to be recorded as the instructing party - so each
+            // secondary story is its own fragment, named for the story it is.
+            var role = SecondaryStoryRole(story.Kind);
+            result.Content.Add(new(
+                IntakeEvidenceSource.DocumentContent,
+                $"{sourceLabel}, {role}",
+                storyText,
+                new(
+                    IntakeLocatorKind.Region,
+                    Region: role,
+                    DocumentRole: $"word-{story.Kind.ToString().ToLowerInvariant()}-story")));
         }
 
         result.Issues.Add(new(
@@ -88,6 +110,40 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         }
 
         return ReadOutcome.Readable;
+    }
+
+    private static string SecondaryStoryRole(WordStoryKind kind) => kind switch
+    {
+        WordStoryKind.Footnote => "footnote text",
+        WordStoryKind.Header => "header and footer text",
+        WordStoryKind.Macro => "macro story text",
+        WordStoryKind.Annotation => "annotation text",
+        WordStoryKind.Endnote => "endnote text",
+        WordStoryKind.Textbox => "text box text",
+        WordStoryKind.HeaderTextbox => "header text box text",
+        _ => "secondary story text",
+    };
+
+    /// <summary>
+    /// The cells of a legacy Word table, beside the flattened text rather than
+    /// instead of it - the same addition the RTF branch makes. A paired
+    /// label/value layout only keeps its party if the value stays attached to
+    /// the column it was printed in; flattened neighbouring text cannot say
+    /// which column a value came from.
+    /// </summary>
+    private static void AddWordBinaryTableCells(
+        ImmutableArray<WordTableCell> cells,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        foreach (WordTableCell cell in cells)
+        {
+            result.Content.Add(new(
+                IntakeEvidenceSource.DocumentContent,
+                $"{sourceLabel}, table {cell.Table} row {cell.Row} column {cell.Column}",
+                cell.Text,
+                IntakeSourceLocator.ForCell(cell.Table, cell.Row, cell.Column)));
+        }
     }
 
     private static ReadOutcome ReadRtfDoc(
