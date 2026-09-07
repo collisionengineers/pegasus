@@ -391,7 +391,8 @@ public sealed class CaseReportDeliveryPreparationTests
 
     private static StaffMailOperation Operation(StaffMailState state) => new(
         Guid.NewGuid(), state, null, 1, PreparedAtUtc, null, null, null,
-        Guid.NewGuid(), 1, new string('d', 64), null, null);
+        Guid.NewGuid(), 1, new string('d', 64), null, null,
+        StaffMailPurpose.CaseReport, PreparationId, 1, null);
 
     private static ApprovedMailbox Mailbox(
         IReadOnlyList<ApprovedMailboxRouteScope>? scopes = null,
@@ -523,13 +524,21 @@ public sealed class CaseReportDeliveryPreparationTests
 
         public StaffMailOperation Result { get; init; } = new(
             Guid.NewGuid(), StaffMailState.Unknown, null, 1, PreparedAtUtc, null, null, null,
-            Guid.NewGuid(), 1, new string('d', 64), null, null);
+            Guid.NewGuid(), 1, new string('d', 64), null, null,
+            StaffMailPurpose.CaseReport, PreparationId, 1, null);
 
         public Task<StaffMailOperation> SendAsync(
             StaffReportSendCommand command, CancellationToken cancellationToken)
         {
             Commands.Add(command);
-            return Task.FromResult(Result);
+            // The operation carries the context of the command that made it (G25).
+            return Task.FromResult(Result with
+            {
+                Purpose = command.Mail.Purpose,
+                ContextId = command.Mail.ContextId,
+                ExpectedContextVersion = command.Mail.ExpectedContextVersion,
+                OriginalRetainedMessageId = command.Mail.OriginalMessage?.RetainedMessageId,
+            });
         }
     }
 }
