@@ -2,11 +2,11 @@
 
 ## State
 
-Implementation drafted on `INTK-061-intake-recovery`, worktree
+Implementation verified by root on `INTK-061-intake-recovery`, worktree
 `.worktrees/intk-061`, based on origin/dev
-`3da60bd0c270111d5168dc17246dc831882108ea`. Source is frozen for the root
-verification owner. No application build, test, snapshot, provider call, cloud
-write, commit, PR, Review move, or delivery claim has been made by this worker.
+`3da60bd0c270111d5168dc17246dc831882108ea`. Source passed root's focused verification. This worker ran no application
+build, test, snapshot, provider call, or cloud write. Root authorized the
+commit/PR and independent-review handoff after receiving the results below.
 
 ## Changes and reuse
 
@@ -86,9 +86,8 @@ Existing fixture bytes and provider-boundary fakes are reused. No corpus changes
 
 `git diff --check` completed with exit code 0 on this worktree. Runtime
 verification is **NOT RUN** by this worker, per EPIC-014's one heavy verification
-owner. Root has the exact focused Core/Integration filters and will supply
-compiler/test evidence before source is committed or a PR/Review handoff occurs.
-No PASS or Done claim follows from the static check.
+owner. Root supplied the focused compiler/test evidence below and authorized commit
+and PR handoff. This is pre-merge evidence, not the merged proof or a Done claim.
 
 ## Scope and simplification
 
@@ -155,3 +154,77 @@ independent-review preparation; do not merge this ticket's own PR.
    and errors, in 30.72 seconds. Root is running only the previously failing
    Core group case and affected SQL cases against that build; their results
    remain pending.
+
+7. Targeted reruns passed against the corrected frozen build: the one Core
+   conflicting-group case passed (1/1, exit 0, 55 ms), and all five Integration
+   cases passed (5/5, exit 0, 51 seconds): the two prior counter-helper failures
+   and all three unique-match/live-mail/completed-mail association paths.
+   Final `git diff --check` again returned exit 0. Earlier failed attempts are
+   retained above, not erased by these results.
+
+## Changed-file census
+
+Paths below are repository-relative; grouped tests update existing contracts
+unless a regression is identified above.
+
+- `docs/frd/frd-02-intake-and-source-identity.md` — durable destination and
+  grouped outcome requirements.
+- `docs/frd/frd-05-documents-extraction-and-custody.md` — custody identity and
+  retained OCR analysis requirements.
+- `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` — return group outcome.
+- `src/Pegasus.Core/ImageIntake/ImageIntakeGroupRouting.cs` — canonical group
+  registration builder.
+- `src/Pegasus.Core/Intake/DurableIntake.cs` — evaluation/completion split,
+  required routing retry and association refresh.
+- `src/Pegasus.Core/Intake/GroupedIntake.cs` — eligible group query port.
+- `src/Pegasus.Core/Intake/IntakeAllocation.cs` — unique-match allocation guard.
+- `src/Pegasus.Core/Intake/IntakeOcr.cs` — retained-output analysis retry.
+- `src/Pegasus.Core/Intake/ReconcileGroupedImageIntake.cs` — eligible old sweep.
+- `src/Pegasus.Core/Intake/RetainIncomingArtifact.cs` — operation-qualified claim.
+- `src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs` — actual
+  source table routing.
+- `src/Pegasus.Infrastructure/Persistence/EfIntakeOcrOperationStore.cs` — paired
+  work remains pending until analysis completes.
+- `src/Pegasus.Infrastructure/Persistence/EfIntakeSubmissionGroupStore.cs` —
+  bounded oldest eligible SQL query.
+- `src/Pegasus.Infrastructure/Persistence/EfIntakeWorkStore.cs` — durable pending
+  evaluation and final completion.
+- `tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs` — canonical
+  group outcome regression and query fake.
+- `tests/Pegasus.Core.Tests/Intake/AnalyzeRetainedInstructionTests.cs` — OCR fake.
+- `tests/Pegasus.Core.Tests/Intake/GroupedIntakeTests.cs` — group query fake.
+- `tests/Pegasus.Core.Tests/Intake/ImmediateIntakeDispatchTests.cs` — work fake.
+- `tests/Pegasus.Core.Tests/Intake/IntakeOcrTests.cs` — output replay regressions.
+- `tests/Pegasus.Core.Tests/Intake/MailboxImageIntakeSubmissionTests.cs` — group
+  query fake.
+- `tests/Pegasus.Core.Tests/Intake/PollApprovedInboxTests.cs` — work fake only;
+  root's MAIL-036 independently owns mailbox behavior.
+- `tests/Pegasus.Core.Tests/Intake/ProcessIntakeTests.cs` — custody fake.
+- `tests/Pegasus.Core.Tests/Intake/RetainIncomingArtifactTests.cs` — identity
+  assertions and custody fake.
+- `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs` — actual
+  restricted Worker custody regression.
+- `tests/Pegasus.IntegrationTests/GroupedImageIntakeConcurrencyTests.cs` — one
+  group outcome and oldest candidate regressions.
+- `tests/Pegasus.IntegrationTests/IncomingArtifactCustodyTests.cs` — identity
+  claim callers.
+- `tests/Pegasus.IntegrationTests/OcrIntakeRecoveryTests.cs` — paired pending-work
+  output replay regression.
+- `tests/Pegasus.IntegrationTests/PublicUploadRetentionWebTests.cs` — identity
+  claim callers.
+- `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs` — durable retry
+  and concurrent-association regressions, existing count helper and work fake.
+- `tests/Pegasus.IntegrationTests/StagedArtifactReconciliationFunctionIntegrationTests.cs`
+  — work/group fakes.
+- `tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs` — evaluation/completion
+  seed setup.
+
+## Independent review and merged verification
+
+Review the production caller boundaries, especially retained evaluation replay,
+AlreadyAssociated refresh, restricted Worker routing and OCR paired-work state.
+Use the plan's focused Core and SQL class filters against the merged dev SHA;
+include AutomaticImageIntakeTests in Core. Root owns the final converged
+solution rail. No deployment, provider activation or full v1 delivery is claimed
+by this isolated ticket. Remaining domain routing, Triage linking and deployment
+work belongs to the separate original-owner tickets.
