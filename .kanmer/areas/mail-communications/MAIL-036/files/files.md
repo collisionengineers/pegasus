@@ -37,3 +37,11 @@ lowering that boundary. Future re-enablement's newer activation still wins.
 
 No actual wipe, Azure mutation, mailbox/Box write, new migration or policy
 port. Existing data/identity/sequence preservation set stays unchanged.
+
+## Notification clarification
+
+Existing `MailboxIntake.cs` ExecuteNotificationAsync scans up to 50 unrelated
+messages after each direct fetch. The operator rejects this duplication;
+existing recovery timer/lifecycle paths remain. Extend that existing port with
+notification lease completion, update its sole fake in PollApprovedInboxTests,
+and prove no scan and unchanged recovery cursor. No second policy owner.

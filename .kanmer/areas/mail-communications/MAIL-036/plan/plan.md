@@ -43,6 +43,9 @@ execution; this task does not stop it or wipe anything.
 | Modify/Add | `AGENTS.md` | Reset boundary and focused caller evidence; see files document. |
 | Modify/Add | `.agents/skills/pegasus-wipe-intake-data/SKILL.md` | Reset boundary and focused caller evidence; see files document. |
 
+| Modify | `src/Pegasus.Core/Intake/MailboxIntake.cs` | Exact notification completion. |
+| Modify | `tests/Pegasus.Core.Tests/Intake/PollApprovedInboxTests.cs` | No-scan notification regression. |
+
 ## Do not modify
 
 - `src/Pegasus.Core/Intake/DurableIntake.cs`
@@ -90,3 +93,20 @@ target authorization and maintenance window.
 Push a bounded PR after focused checks and post-implementation report, then
 independent review. No self-review or author merge. Root continues the
 authorized v1 controller after the phase handoff.
+
+## Operator clarification — 7 September, notification flow
+
+The operator explicitly questioned the redundant per-notification delta scan.
+Remove that scan from ExecuteNotificationAsync: complete/release its existing
+lease without advancing the recovery cursor or claiming a completed mailbox
+scan. Existing timer and lifecycle recovery own catch-up. Add the necessary
+completion operation to the existing IApprovedInboxPollStore port and its only
+fake, plus focused exact-notification/no-scan/cursor-retention tests. This is
+part of the same mailbox replay root cause, not a new intake subsystem.
+
+Additional expected files:
+
+| Action | Repo-root-relative path | Responsibility |
+| --- | --- | --- |
+| Modify | `src/Pegasus.Core/Intake/MailboxIntake.cs` | Exact notification completion without recovery scan. |
+| Modify | `tests/Pegasus.Core.Tests/Intake/PollApprovedInboxTests.cs` | Same existing fake and focused no-scan regression. |
