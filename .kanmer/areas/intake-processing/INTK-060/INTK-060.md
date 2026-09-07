@@ -4,24 +4,22 @@ type: ticket
 title: 'Pegasus v1 intake, principals and operator shell'
 status: implementing
 area: intake-processing
-assignee: claude-fable-c2
+assignee: antigravity
 profile: feature
 stageEntered:
   preparing: '2026-09-06T05:34:15.786Z'
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T04:24:32.940Z'
-claim_controller: claude-fable-c2
-lease_id: b03b3df8-dca2-44ae-b628-515528bdf02f
-lease_revision: 71
-lease_controller_run: claude-fable-c2-20260907
-lease_worker_run: claude-fable-c2-20260907
+claim_expires_at: '2026-09-07T03:39:08.204Z'
+claim_controller: antigravity-stream-c
+lease_id: 9ae60d65-c40a-473e-a5ec-041f1ac5b5a5
+lease_revision: 72
+lease_controller_run: antigravity-stream-c-20260907
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
-lease_provider: claude-code
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T02:24:32.940Z'
-lease_reclaimed_from: codex-stream-c-replacement
+lease_heartbeat_at: '2026-09-07T03:09:08.204Z'
+lease_reclaimed_from: claude-fable-c2
 labels:
   - pegasus-v1
   - stream-c
@@ -30,7 +28,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T02:24:32.940Z'
+updated: '2026-09-07T03:09:08.204Z'
 ---
 
 ## What
