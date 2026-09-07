@@ -1415,11 +1415,13 @@ public sealed partial class PublicUploadRetentionWebTests
                 link.CaseId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             status.GetAsync(
                 ActionActor.RequestLink(revoked.LinkId),
                 revoked.CaseId,
+                Guid.NewGuid(),
                 Guid.NewGuid(),
                 Guid.NewGuid(),
                 CancellationToken.None));
@@ -1478,6 +1480,7 @@ public sealed partial class PublicUploadRetentionWebTests
 
         Guid documentId;
         Guid versionId;
+        Guid occurrenceId;
         var foreignLinkId = Guid.NewGuid();
         await using (var context = await CreateContextAsync(factory.Services))
         {
@@ -1486,6 +1489,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 .SingleAsync(item => item.OperationKey == scopedOperationKey);
             documentId = occurrence.DocumentId;
             versionId = occurrence.VersionId;
+            occurrenceId = occurrence.Id;
             context.Set<RequestUploadLinkEntity>().Add(new()
             {
                 Id = foreignLinkId,
@@ -1506,13 +1510,13 @@ public sealed partial class PublicUploadRetentionWebTests
         var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         var foreignActor = ActionActor.RequestLink(foreignLinkId);
         await Assert.ThrowsAsync<FileNotFoundException>(() => status.GetAsync(
-            foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
+            foreignActor, owner.CaseId, documentId, versionId, occurrenceId, CancellationToken.None));
         Assert.Null(await status.FindByOperationKeyAsync(
             foreignActor, owner.CaseId, scopedOperationKey, CancellationToken.None));
 
         var wrongCaseId = Guid.NewGuid();
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
-            foreignActor, wrongCaseId, documentId, versionId, CancellationToken.None));
+            foreignActor, wrongCaseId, documentId, versionId, occurrenceId, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
             foreignActor, wrongCaseId, scopedOperationKey, CancellationToken.None));
 
@@ -1521,6 +1525,7 @@ public sealed partial class PublicUploadRetentionWebTests
             owner.CaseId,
             documentId,
             versionId,
+            occurrenceId,
             CancellationToken.None);
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, ownResult.Disposition);
     }
@@ -2995,6 +3000,7 @@ internal sealed class RecordingCaseArtifactCustody(
         var accepted = confirmed || Disposition == CaseArtifactCustodyDisposition.Pending;
         Guid? documentId = null;
         Guid? versionId = null;
+        Guid? occurrenceId = null;
         string? boxFileId = null;
         string? boxVersionId = null;
         if (accepted)
@@ -3035,9 +3041,11 @@ internal sealed class RecordingCaseArtifactCustody(
             });
             if (CreatesDocumentOccurrence)
             {
+                var occId = Guid.NewGuid();
+                occurrenceId = occId;
                 context.Add(new DocumentOccurrenceEntity
                 {
-                    Id = Guid.NewGuid(),
+                    Id = occId,
                     CaseId = caseId,
                     DocumentId = documentId.Value,
                     VersionId = versionId.Value,
@@ -3058,6 +3066,7 @@ internal sealed class RecordingCaseArtifactCustody(
             Disposition,
             documentId,
             versionId,
+            occurrenceId,
             boxFileId,
             boxVersionId,
             request.Sha256,
@@ -3078,6 +3087,7 @@ internal sealed class RecordingCaseArtifactCustody(
         Guid caseId,
         Guid documentId,
         Guid versionId,
+        Guid occurrenceId,
         CancellationToken cancellationToken)
     {
         // Counted before the rule is applied, so a test can prove the read was
@@ -3104,7 +3114,7 @@ internal sealed class RecordingCaseArtifactCustody(
                 throw new FileNotFoundException("The document version was not found.");
             }
         }
-        return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken);
+        return await ReadCommittedIntentAsync(documentId, versionId, cancellationToken, occurrenceId);
     }
 
     /// <summary>
@@ -3141,7 +3151,7 @@ internal sealed class RecordingCaseArtifactCustody(
             join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                 on occurrence.VersionId equals version.Id
             where occurrence.CaseId == caseId && occurrence.OperationKey == operationKey
-            select new { occurrence.DocumentId, occurrence.VersionId, version.CreatedBy };
+            select new { occurrence.Id, occurrence.DocumentId, occurrence.VersionId, version.CreatedBy };
         if (linkId is { } requestLinkId)
         {
             var createdBy = $"RequestLink:{requestLinkId:D}";
@@ -3150,7 +3160,7 @@ internal sealed class RecordingCaseArtifactCustody(
         var intent = await intents.SingleOrDefaultAsync(cancellationToken);
         return intent is null
             ? null
-            : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken);
+            : await ReadCommittedIntentAsync(intent.DocumentId, intent.VersionId, cancellationToken, intent.Id);
     }
 
     /// <summary>
@@ -3161,7 +3171,8 @@ internal sealed class RecordingCaseArtifactCustody(
     private async Task<CaseArtifactCustodyResult> ReadCommittedIntentAsync(
         Guid documentId,
         Guid versionId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? occurrenceId = null)
     {
         var disposition = StatusDisposition ?? Disposition;
         var confirmed = disposition == CaseArtifactCustodyDisposition.Confirmed;
@@ -3183,10 +3194,18 @@ internal sealed class RecordingCaseArtifactCustody(
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        occurrenceId ??= await context.Set<DocumentOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(o => o.DocumentId == documentId && o.VersionId == versionId)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
         return new(
             disposition,
             documentId,
             versionId,
+            occurrenceId,
             boxFileId,
             boxVersionId,
             version.Sha256,
@@ -3260,7 +3279,7 @@ internal sealed class RecordingCaseArtifactCustody(
             .SingleOrDefault(item => item.Id == linkId)
             ?? throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
         if (link.CaseId != caseId
-            || link.Status is not (RequestUploadStatus.Active or RequestUploadStatus.Exhausted)
+            || link.Status != RequestUploadStatus.Active
             || link.RevokedAtUtc is not null
             || link.ExpiresAtUtc <= nowUtc)
         {

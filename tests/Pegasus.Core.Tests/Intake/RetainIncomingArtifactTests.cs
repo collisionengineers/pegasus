@@ -162,7 +162,7 @@ public sealed class RetainIncomingArtifactTests
     {
         var custody = new RecordingCustody(new(
             CaseArtifactCustodyDisposition.Unknown,
-            null, null, null, null, null, null, null, "timeout", null));
+            null, null, null, null, null, null, null, null, "timeout", null));
         var store = new RecordingStore();
         var status = new RecordingCustodyStatus(Confirmed());
         var command = new RetainIncomingArtifact(custody, store, status);
@@ -634,6 +634,7 @@ public sealed class RetainIncomingArtifactTests
         CaseArtifactCustodyDisposition.Confirmed,
         DocumentId,
         VersionId,
+        Guid.NewGuid(),
         "box-file",
         "box-version",
         "aaaa",
@@ -704,6 +705,7 @@ public sealed class RetainIncomingArtifactTests
             Guid caseId,
             Guid documentId,
             Guid versionId,
+            Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             Calls++;
@@ -745,6 +747,7 @@ public sealed class RetainIncomingArtifactTests
             Guid caseId,
             Guid documentId,
             Guid versionId,
+            Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             Calls++;

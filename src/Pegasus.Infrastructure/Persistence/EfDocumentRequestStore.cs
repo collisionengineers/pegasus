@@ -619,7 +619,7 @@ internal sealed class EfDocumentRequestStore(
             };
             context.Add(occurrence);
             await context.SaveChangesAsync(cancellationToken);
-            await ApplyAcceptedTotalsAsync(context, link, session.Id, cancellationToken);
+            await ApplyAcceptedTotalsAsync(context, link, session.Id, cancellationToken, allowExhaustion: false);
         }
         else if (!string.Equals(
             occurrence.Sha256,
@@ -764,7 +764,7 @@ internal sealed class EfDocumentRequestStore(
             };
             context.Add(arrival);
             await context.SaveChangesAsync(cancellationToken);
-            await ApplyAcceptedTotalsAsync(context, link, sessionId, cancellationToken);
+            await ApplyAcceptedTotalsAsync(context, link, sessionId, cancellationToken, allowExhaustion: false);
         }
         else if (!string.Equals(
             arrival.Sha256,
@@ -1000,7 +1000,8 @@ internal sealed class EfDocumentRequestStore(
         PegasusDbContext context,
         RequestUploadLinkEntity link,
         Guid sessionId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowExhaustion = true)
     {
         var counted = (await SessionOccurrencesOf(context, sessionId)
             .ToArrayAsync(cancellationToken))
@@ -1013,13 +1014,16 @@ internal sealed class EfDocumentRequestStore(
             || byteCount != link.AcceptedByteCount;
         link.AcceptedFileCount = fileCount;
         link.AcceptedByteCount = byteCount;
-        if (fileCount >= uploadLimits.MaximumFileCount
-            || byteCount >= uploadLimits.MaximumRequestBytes)
+        if (allowExhaustion
+            && (fileCount >= uploadLimits.MaximumFileCount
+                || byteCount >= uploadLimits.MaximumRequestBytes))
         {
             changed = changed || link.Status != RequestUploadStatus.Exhausted;
             link.Status = RequestUploadStatus.Exhausted;
         }
-        else if (link.Status == RequestUploadStatus.Exhausted)
+        else if (link.Status == RequestUploadStatus.Exhausted
+            && (fileCount < uploadLimits.MaximumFileCount
+                && byteCount < uploadLimits.MaximumRequestBytes))
         {
             changed = true;
             link.Status = RequestUploadStatus.Active;

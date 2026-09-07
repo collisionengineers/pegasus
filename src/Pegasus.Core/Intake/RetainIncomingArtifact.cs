@@ -510,11 +510,13 @@ public sealed class RetainIncomingArtifact(
         {
             status = existing.DocumentId is { } documentId
                 && existing.DocumentVersionId is { } versionId
+                && existing.OccurrenceId != Guid.Empty
                     ? await custodyStatus.GetAsync(
                         actor,
                         caseId,
                         documentId,
                         versionId,
+                        existing.OccurrenceId,
                         cancellationToken)
                     : await custodyStatus.FindByOperationKeyAsync(
                         actor,
