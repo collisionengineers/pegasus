@@ -3,7 +3,15 @@
 
 ## Parties, principals, organisations, accounts, and access
 
-Pegasus distinguishes principals, reusable organisations, staff accounts, roles, and case-party roles. A repairer, broker, agent, client, legal representative, provider, vehicle keeper, or other contact may occupy different roles on different cases. Reusable repairer-directory identity is separate from the inspection address and role snapshot retained by each historical case; raw provider/contact workbooks are evidence, not import authority.
+A Principal is one customer: the company that instructs and pays Collision
+Engineers. It is not owned by a parent organisation, and there is no
+organisation-to-many-principals hierarchy. Pegasus separately records reusable
+directory organisations, staff accounts, roles, and case-party roles.
+A repairer, broker, agent, client, legal representative, provider, vehicle
+keeper, or other contact may occupy different roles on different cases.
+Reusable repairer-directory identity is separate from the inspection address
+and role snapshot retained by each historical case; raw provider/contact
+workbooks are evidence, not import authority.
 
 A Repairer directory records its name, full address, and contacts. A Repairer
 may relate to multiple Principals, and a Principal may relate to multiple
@@ -26,27 +34,33 @@ Authorization is enforced in Core use cases and at every caller boundary. It fai
 
 ### Principals administration
 
-One **Principals** administration area lists every principal code with its
-organisation name, roles, state, and a Settings action. The organisation
-remains the reusable directory identity and the owner of case-party roles; an
-intermediary-only organisation appears as a row with no principal code.
-**Create Principal** creates the backing organisation inline (name and roles)
-and allocates the code in one action; successor cutover follows the
+One **Principals** administration area lists customer name, principal code,
+state, and a Settings action. There is no owner grouping, organisation
+selection, or intermediary-only row. **Create Principal** takes one name and
+code and creates that customer atomically. The existing backing directory row
+is an internal representation of the same customer, not a second business
+identity. Duplicate names and codes fail without leaving an orphan directory
+row. A code replacement stays with the same customer and follows the
 [principal-code replacement rule](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity).
 Visuals and controls are owned by the
 [design README](../design/README.md#operator-experience-requirements).
 
-The Principal settings dialog carries:
+The Principal Settings page carries:
 
-- the route e-mail addresses, read-only — they are owned by the provider
-  route policy in [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
+- the accepted route e-mail domains, read-only when activated — they are read
+  from the provider route policy in
+  [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
+- the existing default inspection location: Image Based Assessment or a
+  physical address, with a reason for changes;
 - the manual EVA API submission setting owned by
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
   and [ADR-0038](../adr/0038-manual-only-eva-api-submission.md);
   ZIP export needs no setting;
 - the Provider API credential (API-04): issue, reset, revoke, pause, and
   resume, each with a reason. The secret is shown once at issue or reset and
-  never again; only its hash is retained. The credential is delivered with the
+  never again, including after an exact request replay. Its response is
+  non-cacheable and the secret is never put in TempData, URLs or history;
+  only its hash is retained. The credential is delivered with the
   submission endpoint it authenticates
   ([FRD-09 API-01](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary))
   and confers no staff access. A reset of a paused credential returns it to

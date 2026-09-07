@@ -10,48 +10,20 @@ public sealed class OrganizationAdministrationTests
         ActionActor.Staff(Guid.Parse("63f98d69-5368-48b8-b25d-a61ec91f6905"), [StaffRole.Administrator]);
 
     [Fact]
-    public async Task CreateOrganizationNormalizesInputBeforeCallingPersistencePort()
-    {
-        var store = new RecordingStore();
-        var command = new CreateOrganization(store);
-
-        await command.ExecuteAsync(
-            new(
-                "  QDOS Services  ",
-                [
-                    OrganizationRole.InstructionIntermediary,
-                    OrganizationRole.WorkProvider,
-                    OrganizationRole.WorkProvider
-                ],
-                Administrator,
-                "  create-qdos  "),
-            default);
-
-        var request = Assert.Single(store.OrganizationCreates);
-        Assert.Equal("QDOS Services", request.Name);
-        Assert.Equal(
-            [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-            request.Roles);
-        Assert.Equal("create-qdos", request.OperationKey);
-    }
-
-    [Fact]
     public async Task PrincipalCommandsNormalizeCodesAndRequiredChangeReasons()
     {
         var store = new RecordingStore();
         var create = new CreatePrincipal(store);
         var replace = new ReplacePrincipal(store);
-        var organizationId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
 
         await create.ExecuteAsync(
-            new(organizationId, " qdos2 ", Administrator, " create-principal "),
+            new("  QDOS Services  ", " qdos2 ", Administrator, " create-principal "),
             default);
         await replace.ExecuteAsync(
             new(
                 principalId,
                 4,
-                organizationId,
                 " qdos3 ",
                 Administrator,
                 " replace-principal ",
@@ -59,24 +31,10 @@ public sealed class OrganizationAdministrationTests
             default);
 
         Assert.Equal("QDOS2", Assert.Single(store.PrincipalCreates).Code);
+        Assert.Equal("QDOS Services", Assert.Single(store.PrincipalCreates).Name);
         var replacement = Assert.Single(store.PrincipalReplacements);
         Assert.Equal("QDOS3", replacement.SuccessorCode);
         Assert.Equal("successor required", replacement.Reason);
-    }
-
-    [Fact]
-    public async Task EmptyRolesFailBeforePersistence()
-    {
-        var store = new RecordingStore();
-        var create = new CreateOrganization(store);
-
-        var exception = await Assert.ThrowsAsync<OrganizationAdministrationException>(
-            () => create.ExecuteAsync(
-                new("No roles", [], Administrator, "empty-roles"),
-                default));
-
-        Assert.Equal(OrganizationAdministrationError.EmptyOrganizationRoles, exception.Error);
-        Assert.Empty(store.OrganizationCreates);
     }
 
     [Fact]
@@ -88,31 +46,47 @@ public sealed class OrganizationAdministrationTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new CreatePrincipal(store).ExecuteAsync(
-                new(Guid.NewGuid(), "DENIED", actor, "denied-create"),
+                new("QDOS Services", "DENIED", actor, "denied-create"),
                 default));
+
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new ListOrganizations(queries).ExecuteAsync(new(actor), default));
+            new ListPrincipals(queries).ExecuteAsync(actor, 1, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new GetPrincipal(queries).ExecuteAsync(actor, Guid.NewGuid(), default));
 
         Assert.Empty(store.PrincipalCreates);
         Assert.Equal(0, queries.ListCalls);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("QDOS\u0001")]
+    public async Task InvalidCustomerNameFailsBeforePersistence(string name)
+    {
+        var store = new RecordingStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new CreatePrincipal(store).ExecuteAsync(
+                new(name, "QDOS2", Administrator, "invalid-name"), default));
+        Assert.Empty(store.PrincipalCreates);
+    }
+
     [Fact]
-    public async Task ListOrganizationsAuthorizesAndBoundsTheProjectionPort()
+    public async Task PrincipalListBoundsTheFlatProjection()
     {
         var queries = new RecordingQueries();
-        var query = new ListOrganizations(queries);
+        var query = new ListPrincipals(queries);
 
-        var page = await query.ExecuteAsync(new(Administrator, 3, 10), default);
+        var page = await query.ExecuteAsync(Administrator, 3, default);
 
-        Assert.Equal(20, queries.Offset);
-        Assert.Equal(10, queries.Limit);
-        Assert.True(page.HasPreviousPage);
-        Assert.True(page.HasMoreOrganizations);
+        Assert.Equal(50, queries.Offset);
+        Assert.Equal(26, queries.Limit);
+        Assert.Equal(3, page.PageNumber);
+        Assert.False(page.HasMore);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            query.ExecuteAsync(
-                new(Administrator, 1, ListOrganizations.MaximumPageSize + 1),
-                default));
+            query.ExecuteAsync(Administrator, 0, default));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            query.ExecuteAsync(Administrator, int.MaxValue, default));
     }
 
     [Fact]
@@ -123,7 +97,6 @@ public sealed class OrganizationAdministrationTests
         var request = new ReplacePrincipalRequest(
             Guid.NewGuid(),
             -1,
-            Guid.NewGuid(),
             "NEXT",
             Administrator,
             "replace",
@@ -298,53 +271,6 @@ public sealed class OrganizationAdministrationTests
     }
 
     [Fact]
-    public void RoleUpdatePolicyOwnsVersionAndActivePrincipalGuard()
-    {
-        var current = new Organization(
-            Guid.NewGuid(),
-            "Provider",
-            [OrganizationRole.WorkProvider],
-            7);
-
-        var guard = Assert.Throws<OrganizationAdministrationException>(() =>
-            OrganizationAdministrationPolicy.PlanRoleUpdate(
-                current,
-                7,
-                [OrganizationRole.InstructionIntermediary],
-                hasActivePrincipals: true));
-        Assert.Equal(
-            OrganizationAdministrationError.ActivePrincipalsRequireWorkProvider,
-            guard.Error);
-
-        var updated = OrganizationAdministrationPolicy.PlanRoleUpdate(
-            current,
-            7,
-            [
-                OrganizationRole.WorkProvider,
-                OrganizationRole.InstructionIntermediary
-            ],
-            hasActivePrincipals: true);
-        Assert.Equal(8, updated.Version);
-        Assert.Equal(
-            [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-            updated.Roles);
-        var unchanged = OrganizationAdministrationPolicy.PlanRoleUpdate(
-            updated,
-            8,
-            updated.Roles,
-            hasActivePrincipals: true);
-        Assert.Equal(8, unchanged.Version);
-
-        var stale = Assert.Throws<OrganizationAdministrationException>(() =>
-            OrganizationAdministrationPolicy.PlanRoleUpdate(
-                current,
-                6,
-                [OrganizationRole.WorkProvider],
-                hasActivePrincipals: false));
-        Assert.Equal(OrganizationAdministrationError.StaleVersion, stale.Error);
-    }
-
-    [Fact]
     public void ReplacementPolicyLinksSuccessorWithoutMutatingOriginalIdentity()
     {
         var predecessor = new Principal(
@@ -356,17 +282,11 @@ public sealed class OrganizationAdministrationTests
             null,
             true,
             3);
-        var successorOrganization = new Organization(
-            Guid.NewGuid(),
-            "Successor provider",
-            [OrganizationRole.WorkProvider],
-            2);
         var successorId = Guid.NewGuid();
 
         var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
             predecessor,
             3,
-            successorOrganization,
             successorId,
             " next ",
             codeAlreadyExists: false);
@@ -378,7 +298,7 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(successorId, replacement.Predecessor.SuccessorId);
         Assert.Equal(4, replacement.Predecessor.Version);
         Assert.Equal("NEXT", replacement.Successor.Code);
-        Assert.Equal(successorOrganization.Id, replacement.Successor.OrganizationId);
+        Assert.Equal(predecessor.OrganizationId, replacement.Successor.OrganizationId);
         Assert.Equal(predecessor.SequenceLineageId, replacement.Successor.SequenceLineageId);
         Assert.Equal(predecessor.Id, replacement.Successor.PredecessorId);
         Assert.True(replacement.Successor.IsActive);
@@ -464,35 +384,9 @@ public sealed class OrganizationAdministrationTests
 
     private sealed class RecordingStore : IOrganizationAdministrationStore
     {
-        public List<CreateOrganizationRequest> OrganizationCreates { get; } = [];
-        public List<UpdateOrganizationRolesRequest> OrganizationUpdates { get; } = [];
         public List<CreatePrincipalRequest> PrincipalCreates { get; } = [];
         public List<ReplacePrincipalRequest> PrincipalReplacements { get; } = [];
         public List<UpdatePrincipalEvaSubmissionRequest> EvaSubmissionUpdates { get; } = [];
-
-        public Task<Organization> CreateOrganizationAsync(
-            CreateOrganizationRequest request,
-            CancellationToken cancellationToken)
-        {
-            OrganizationCreates.Add(request);
-            return Task.FromResult(new Organization(
-                Guid.NewGuid(),
-                request.Name,
-                request.Roles,
-                0));
-        }
-
-        public Task<Organization> UpdateOrganizationRolesAsync(
-            UpdateOrganizationRolesRequest request,
-            CancellationToken cancellationToken)
-        {
-            OrganizationUpdates.Add(request);
-            return Task.FromResult(new Organization(
-                request.OrganizationId,
-                "Organization",
-                request.Roles,
-                request.ExpectedVersion + 1));
-        }
 
         public Task<Principal> UpdatePrincipalEvaSubmissionAsync(
             UpdatePrincipalEvaSubmissionRequest request,
@@ -547,7 +441,7 @@ public sealed class OrganizationAdministrationTests
             PrincipalCreates.Add(request);
             return Task.FromResult(new Principal(
                 Guid.NewGuid(),
-                request.OrganizationId,
+                Guid.NewGuid(),
                 request.Code,
                 Guid.NewGuid(),
                 null,
@@ -563,7 +457,7 @@ public sealed class OrganizationAdministrationTests
             PrincipalReplacements.Add(request);
             return Task.FromResult(new Principal(
                 Guid.NewGuid(),
-                request.SuccessorOrganizationId,
+                Guid.NewGuid(),
                 request.SuccessorCode,
                 Guid.NewGuid(),
                 request.PrincipalId,
@@ -579,22 +473,18 @@ public sealed class OrganizationAdministrationTests
         public int Offset { get; private set; }
         public int Limit { get; private set; }
 
-        public Task<OrganizationQuerySlice> ListAsync(
-            int offset,
-            int limit,
-            CancellationToken cancellationToken)
+        public Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalsAsync(
+            int offset, int limit, CancellationToken cancellationToken)
         {
             ListCalls++;
             Offset = offset;
             Limit = limit;
-            return Task.FromResult(new OrganizationQuerySlice([], true));
+            return Task.FromResult<IReadOnlyList<PrincipalAdministrationDetails>>([]);
         }
 
-        public Task<OrganizationDetails?> GetAsync(
-            Guid organizationId,
-            int principalLimit,
-            Guid? requiredPrincipalId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<OrganizationDetails?>(null);
+        public Task<PrincipalAdministrationDetails?> GetPrincipalAsync(
+            Guid principalId, CancellationToken cancellationToken) =>
+            Task.FromResult<PrincipalAdministrationDetails?>(null);
+
     }
 }

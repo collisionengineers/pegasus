@@ -33,8 +33,8 @@ public sealed partial class TestUiSnapshotTests
             ["administration-account-confirm--force-logout"] = new("Force logout"),
             ["administration-account-confirm--reset-password"] = new("Reset password"),
             ["administration-account-confirm--clear-lease"] = new("Clear case edit hold"),
-            ["administration-principal-eva-submission--default"] = new(
-                "Settings for WEBP", "We could not complete that request",
+            ["administration-principal-settings--default"] = new(
+                "pegasustest</h1>", "We could not complete that request",
                 AlsoRequired: "Manual EVA API submission"),
             // The seeded list before any administrator change: the create
             // form is present and no test-created preset has been added.

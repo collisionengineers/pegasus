@@ -1186,6 +1186,18 @@ public static class OperatorLabels
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>
+    public static class PrincipalAdministration
+    {
+        public const string Name = "Name";
+        public const string Code = "Principal code";
+        public const string State = "State";
+        public const string Settings = "Settings";
+        public const string Create = "Create principal";
+        public const string Back = "Back to Principals";
+        public const string ReplaceCode = "Replace code";
+        public const string ProviderApi = "Provider API";
+    }
+
     public static class MailSettings
     {
         public const string Description = "Approved mailboxes and mail categories";

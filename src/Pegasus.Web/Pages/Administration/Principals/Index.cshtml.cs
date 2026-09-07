@@ -6,11 +6,10 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Administration.Principals;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class IndexModel(IListOrganizations listOrganizations)
+public sealed class IndexModel(IListPrincipals listPrincipals)
     : AdministrationPageModel
 {
-    public OrganizationListPage Organizations { get; private set; } =
-        new([], 1, 25, false, false);
+    public PrincipalListPage Customers { get; private set; } = new([], 1, false);
 
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
@@ -22,10 +21,8 @@ public sealed class IndexModel(IListOrganizations listOrganizations)
             return Forbid();
         }
 
-        PageNumber = Math.Max(1, PageNumber);
-        Organizations = await listOrganizations.ExecuteAsync(
-            new(actor, PageNumber, 25),
-            cancellationToken);
+        PageNumber = Math.Clamp(PageNumber, 1, int.MaxValue / ListPrincipals.PageSize);
+        Customers = await listPrincipals.ExecuteAsync(actor, PageNumber, cancellationToken);
         return Page();
     }
 }

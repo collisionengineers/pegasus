@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Manage organization roles · Pegasus</title>
+    <title>Principal settings · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
@@ -158,51 +158,101 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="administration-organizations--default.html">
+<a class="back-link" href="administration-principals--default.html">
     <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Organizations
+    Back to Principals
 </a>
 
     <div class="page-heading">
         <div>
-            <h1>Manage Web Caller Provider</h1>
+            <h1>pegasustest</h1>
+            <span class="tabular">WEBP</span>
         </div>
         <div class="page-heading-actions">
-            <span class="updated tabular">Version 0</span>
+            <span class="status status--navy">Active</span>
+
         </div>
     </div>
-        <div class="status-card" role="status">The organization was created.</div>
-    <div class="split-main">
-        <section aria-labelledby="organization-principals-heading">
-            <h2 id="organization-principals-heading" class="section-label">Principals</h2>
-                <div class="panel empty-state">This organization has no principals.</div>
-        </section>
-
-        <section aria-labelledby="organization-roles-heading">
-            <h2 id="organization-roles-heading" class="section-label">Organization roles</h2>
-            <div class="panel form-panel form-panel--wide">
-                <form method="post" action="#">
-
-                    <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
-                    <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-                    <fieldset class="role-choices role-choices--stacked">
-                        <legend class="vh">Organization roles</legend>
-                        <label class="choice"><input type="checkbox" checked="checked" data-val="true" data-val-required="The WorkProvider field is required." id="WorkProvider" name="WorkProvider" value="true" /> <span>Work Provider</span></label>
-                        <label class="choice"><input type="checkbox" data-val="true" data-val-required="The InstructionIntermediary field is required." id="InstructionIntermediary" name="InstructionIntermediary" value="true" /> <span>Instruction Intermediary</span></label>
-                    </fieldset>
-                    <div>
-                        <label for="Reason">Reason for change</label>
-                        <textarea rows="3" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 500." data-val-length-max="500" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" maxlength="500" name="Reason">
-</textarea>
-                        <span class="field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
-                    </div>
-                    <div class="button-row">
-                        <button type="submit" class="primary-action">Update roles</button>
-                    </div>
-                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="WorkProvider" type="hidden" value="false" /><input name="InstructionIntermediary" type="hidden" value="false" /></form>
+    <div class="status-card status-card--error validation-summary-errors" role="alert" data-valmsg-summary="true"><ul><li>The API key changed. Retry from the current settings.</li>
+</ul></div>
+    <div class="panel form-panel">
+        <h2>Manual EVA API submission</h2>
+        <form method="post" action="#">
+            <input type="hidden" id="eva-version" data-val="true" data-val-required="The ExpectedVersion field is required." name="ExpectedVersion" value="1" />
+            <input type="hidden" id="EvaOperationKey" name="EvaOperationKey" value="test-ui-guid-2" />
+            <div>
+                <label>
+                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The EvaManualSubmission field is required." id="EvaManualSubmission" name="EvaManualSubmission" value="true" />
+                    Manual API submission
+                </label>
             </div>
-        </section>
+            <div>
+                <label for="EvaReason">Reason</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field EvaReason must be a string with a maximum length of 500." data-val-length-max="500" id="EvaReason" maxlength="500" name="EvaReason" value="" />
+                <span class="field-validation-valid" data-valmsg-for="EvaReason" data-valmsg-replace="true"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save EVA setting</button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="EvaManualSubmission" type="hidden" value="false" /></form>
     </div>
+    <div class="panel form-panel">
+        <h2>Default inspection location</h2>
+        <form method="post" action="#">
+            <input type="hidden" id="location-version" data-val="true" data-val-required="The ExpectedVersion field is required." name="ExpectedVersion" value="1" />
+            <input type="hidden" id="LocationOperationKey" name="LocationOperationKey" value="test-ui-guid-3" />
+            <div>
+                <label>
+                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The LocationIsImageBasedAssessment field is required." id="LocationIsImageBasedAssessment" name="LocationIsImageBasedAssessment" value="true" />
+                    Default to Image Based Assessment
+                </label>
+            </div>
+            <div>
+                <label for="LocationLabel">Location label (optional)</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field LocationLabel must be a string with a maximum length of 200." data-val-length-max="200" id="LocationLabel" maxlength="200" name="LocationLabel" value="" />
+            </div>
+            <div>
+                <label for="LocationAddress">Address</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field LocationAddress must be a string with a maximum length of 500." data-val-length-max="500" id="LocationAddress" maxlength="500" name="LocationAddress" value="" />
+                <span class="field-validation-valid" data-valmsg-for="LocationAddress" data-valmsg-replace="true"></span>
+            </div>
+            <div>
+                <label for="LocationPostcode">Postcode (optional)</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field LocationPostcode must be a string with a maximum length of 20." data-val-length-max="20" id="LocationPostcode" maxlength="20" name="LocationPostcode" value="" />
+            </div>
+            <div>
+                <label for="LocationReason">Reason</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field LocationReason must be a string with a maximum length of 500." data-val-length-max="500" id="LocationReason" maxlength="500" name="LocationReason" value="" />
+                <span class="field-validation-valid" data-valmsg-for="LocationReason" data-valmsg-replace="true"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save default location</button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="LocationIsImageBasedAssessment" type="hidden" value="false" /></form>
+    </div>
+    <div class="panel form-panel">
+        <h2>Provider API</h2>
+        <dl class="detail-list">
+            <div><dt>Submission endpoint</dt><dd><code>/api/provider/v1/submissions</code></dd></div>
+            <div><dt>State</dt><dd>Active</dd></div>
+        </dl>
+        <form method="post" action="#">
+            <input type="hidden" data-val="true" data-val-required="The CredentialVersion field is required." id="CredentialVersion" name="CredentialVersion" value="3" />
+            <input type="hidden" id="CredentialOperationKey" name="CredentialOperationKey" value="test-ui-guid-4" />
+            <div>
+                <label for="CredentialReason">Reason</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field CredentialReason must be a string with a maximum length of 500." data-val-length-max="500" id="CredentialReason" maxlength="500" name="CredentialReason" value="Provider access administration" />
+                <span class="field-validation-valid" data-valmsg-for="CredentialReason" data-valmsg-replace="true"></span>
+            </div>
+                <p>Resetting or revoking the API key stops the current key from working.</p>
+            <div class="button-row">
+                <button type="submit" class="primary-action" formaction="#">Reset API key</button>
+                    <button type="submit" class="secondary-action" formaction="#">Pause</button>
+                    <button type="submit" class="secondary-action" formaction="#">Revoke</button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
+    <a class="secondary-action" href="#">Replace code</a>
 
                 </div>
             </main>

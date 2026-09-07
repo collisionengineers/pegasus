@@ -958,11 +958,8 @@ public sealed class ProviderApiSubmissionTests
     {
         await using var scope = api.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var organization = await services.GetRequiredService<ICreateOrganization>().ExecuteAsync(
-            new("Other Provider", [OrganizationRole.WorkProvider], Administrator, "provider-api:org:other"),
-            default);
         var principal = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new(organization.Id, "OTHER", Administrator, "provider-api:principal:other"),
+            new("Other Provider", "OTHER", Administrator, "provider-api:principal:other"),
             default);
         var issued = await services.GetRequiredService<IIssuePrincipalCredential>().ExecuteAsync(
             new(principal.Id, 0, Administrator, "provider-api:issue:other", "provider api test"),

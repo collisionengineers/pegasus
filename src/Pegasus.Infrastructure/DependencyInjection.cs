@@ -291,13 +291,11 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfProviderSubmissionStore>());
         services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
         services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
-        services.AddScoped<ICreateOrganization, CreateOrganization>();
-        services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
+        services.AddScoped<IListPrincipals, ListPrincipals>();
+        services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalEvaSubmission, UpdatePrincipalEvaSubmission>();
-        services.AddScoped<IListOrganizations, ListOrganizations>();
-        services.AddScoped<IGetOrganization, GetOrganization>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());

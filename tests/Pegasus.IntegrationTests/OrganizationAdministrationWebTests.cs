@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Cases;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
@@ -15,10 +16,6 @@ public sealed partial class OrganizationAdministrationWebTests
     [Fact]
     public async Task AdministratorRoutesAreDiscoverableAndPostThroughCoreEfCallers()
     {
-        // C06 review R-1: this test drives the shared EvaSubmission page (a
-        // page model is activated per request, not at host startup), so it
-        // needs the real C06 registrations to prove the page's actual
-        // behaviour.
         using var factory = new IntakeWebApplicationFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -29,7 +26,7 @@ public sealed partial class OrganizationAdministrationWebTests
         using var landingResponse = await client.GetAsync("/Administration");
         var landingHtml = await landingResponse.Content.ReadAsStringAsync();
         landingResponse.EnsureSuccessStatusCode();
-        Assert.Contains("/Administration/Organizations", landingHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Administration/Organizations", landingHtml, StringComparison.Ordinal);
         Assert.Contains("/Administration/Principals", landingHtml, StringComparison.Ordinal);
 
         var claimSourcesHtml = await IntakeWebDriver.GetHtmlAsync(
@@ -58,68 +55,19 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("Edit Web Caller Claim Source</h1>", claimSourceEditHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
 
-        using var organizationGet = await client.GetAsync("/Administration/Organizations");
-        var organizationHtml = await organizationGet.Content.ReadAsStringAsync();
-        organizationGet.EnsureSuccessStatusCode();
-        Assert.Contains("Create organization", organizationHtml, StringComparison.Ordinal);
-        var organizationForm = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = InputValue(
-                organizationHtml,
-                "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(organizationHtml, "OperationKey"),
-            ["OrganizationName"] = "Web Caller Provider",
-            ["WorkProvider"] = bool.TrueString,
-            ["InstructionIntermediary"] = bool.FalseString
-        };
-        using var organizationPost = await client.PostAsync(
-            "/Administration/Organizations?handler=Create",
-            new FormUrlEncodedContent(organizationForm));
-        Assert.Equal(HttpStatusCode.Redirect, organizationPost.StatusCode);
-        var organizationId = await factory.Database.ScalarAsync<Guid>(
-            "SELECT Id FROM Organizations WHERE Name = 'Web Caller Provider';");
-        var organizationEditPath = $"/Administration/Organizations/Edit/{organizationId:D}";
-        using var organizationEditGet = await client.GetAsync(organizationEditPath);
-        var organizationEditHtml = await organizationEditGet.Content.ReadAsStringAsync();
-        organizationEditGet.EnsureSuccessStatusCode();
-        // The lede is gone: a page's heading and its content are the
-        // explanation, and "Roles are independently selectable" described the
-        // checkboxes the operator was already looking at.
-        Assert.DoesNotContain("class=\"lede\"", organizationEditHtml, StringComparison.Ordinal);
-        Assert.Contains("Organization roles", organizationEditHtml, StringComparison.Ordinal);
-        var organizationEditForm = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = InputValue(
-                organizationEditHtml,
-                "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(organizationEditHtml, "OperationKey"),
-            ["ExpectedVersion"] = InputValue(organizationEditHtml, "ExpectedVersion"),
-            ["WorkProvider"] = bool.TrueString,
-            ["InstructionIntermediary"] = bool.TrueString,
-            ["Reason"] = "Web caller role update proof"
-        };
-        using var organizationEditPost = await client.PostAsync(
-            $"{organizationEditPath}?handler=Update",
-            new FormUrlEncodedContent(organizationEditForm));
-        Assert.Equal(HttpStatusCode.Redirect, organizationEditPost.StatusCode);
-        Assert.Equal(
-            1,
-            await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM OrganizationRoles WHERE OrganizationId = '{organizationId:D}' AND Role = 'instruction_intermediary';"));
-
-
-        using var principalGet = await client.GetAsync(
-            $"/Administration/Principals/Create?organizationId={organizationId:D}");
-        var principalHtml = await principalGet.Content.ReadAsStringAsync();
-        principalGet.EnsureSuccessStatusCode();
-        Assert.Contains("cannot be edited", principalHtml, StringComparison.Ordinal);
+        using var retiredOrganizations = await client.GetAsync("/Administration/Organizations");
+        Assert.Equal(HttpStatusCode.NotFound, retiredOrganizations.StatusCode);
+        var principalHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Principals/Create");
+        Assert.Contains("Name", principalHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OrganizationId", principalHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Select an organization", principalHtml, StringComparison.Ordinal);
         var principalForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
                 principalHtml,
                 "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(principalHtml, "OperationKey"),
-            ["OrganizationId"] = organizationId.ToString("D"),
+            ["Name"] = "pegasustest",
             ["Code"] = "WEBP"
         };
         using var principalPost = await client.PostAsync(
@@ -129,18 +77,18 @@ public sealed partial class OrganizationAdministrationWebTests
         var principalId = await factory.Database.ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'WEBP';");
 
-        using var principalIndex = await client.GetAsync("/Administration/Principals");
-        var principalIndexHtml = await principalIndex.Content.ReadAsStringAsync();
-        principalIndex.EnsureSuccessStatusCode();
+        var principalIndexHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Principals");
         Assert.Contains("WEBP", principalIndexHtml, StringComparison.Ordinal);
-        Assert.Contains("Replace", principalIndexHtml, StringComparison.Ordinal);
-        Assert.Contains("EVA API", principalIndexHtml, StringComparison.Ordinal);
+        Assert.Contains("pegasustest", principalIndexHtml, StringComparison.Ordinal);
+        Assert.Contains("Settings", principalIndexHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Work Provider", principalIndexHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Organization", principalIndexHtml, StringComparison.Ordinal);
 
         var evaSubmissionPath =
-            $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}";
+            $"/Administration/Principals/Settings/{principalId:D}";
         // GetHtmlAsync so a Test UI capture records this page (it asserts 200).
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
-        Assert.Contains("Settings for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
+        Assert.Contains("pegasustest</h1>", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
@@ -163,12 +111,27 @@ public sealed partial class OrganizationAdministrationWebTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT CASE WHEN EvaManualSubmission = 1 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
+        var locationHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
+        using var locationPost = await client.PostAsync(
+            $"{evaSubmissionPath}?handler=UpdateLocation",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(locationHtml, "__RequestVerificationToken"),
+                ["LocationOperationKey"] = InputValue(locationHtml, "LocationOperationKey"),
+                ["ExpectedVersion"] = InputValue(locationHtml, "ExpectedVersion"),
+                ["LocationIsImageBasedAssessment"] = bool.TrueString,
+                ["LocationReason"] = "Image Based Assessment default"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT CASE WHEN DefaultInspectionAddress IS NULL THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+
+        await AssertCredentialControlsAsync(factory, client, principalId, evaSubmissionPath);
+
         var replacePath =
-            $"/Administration/Principals/Replace/{organizationId:D}/{principalId:D}";
-        using var replaceGet = await client.GetAsync(replacePath);
-        var replaceHtml = await replaceGet.Content.ReadAsStringAsync();
-        replaceGet.EnsureSuccessStatusCode();
-        Assert.Contains("cases, references, and reference ownership will not be edited", replaceHtml, StringComparison.Ordinal);
+            $"/Administration/Principals/Replace/{principalId:D}";
+        var replaceHtml = await IntakeWebDriver.GetHtmlAsync(client, replacePath);
+        Assert.Contains("existing cases and references stay unchanged", replaceHtml, StringComparison.Ordinal);
         var replacementOperationKey = InputValue(replaceHtml, "OperationKey");
         var replaceForm = new Dictionary<string, string>
         {
@@ -177,7 +140,6 @@ public sealed partial class OrganizationAdministrationWebTests
                 "__RequestVerificationToken"),
             ["OperationKey"] = replacementOperationKey,
             ["ExpectedVersion"] = InputValue(replaceHtml, "ExpectedVersion"),
-            ["SuccessorOrganizationId"] = organizationId.ToString("D"),
             ["SuccessorCode"] = "WEBN",
             ["Reason"] = "Web caller replacement proof"
         };
@@ -195,13 +157,17 @@ public sealed partial class OrganizationAdministrationWebTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals WHERE Code = 'WEBN' AND PredecessorId = '{principalId:D}' AND IsActive = 1;"));
         Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM Principals p JOIN Principals previous ON previous.Id = p.PredecessorId WHERE p.Code = 'WEBN' AND p.OrganizationId = previous.OrganizationId;"));
+        Assert.Equal(
             2,
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{replacementOperationKey}' AND ActorSubjectId = '{DevelopmentOfflineIdentity.AdministratorId:D}' AND Reason = 'Web caller replacement proof';"));
     }
 
     [Fact]
-    public async Task DirectOrganizationAndPrincipalRoutesDenyNonAdministratorSession()
+    public async Task PrincipalRoutesDenyNonAdministratorSession()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: false);
         _ = factory.Services;
@@ -221,12 +187,10 @@ public sealed partial class OrganizationAdministrationWebTests
         var id = Guid.Parse("1eeea2b1-3e1d-4a0a-8205-0c25396206e8");
         string[] routes =
         [
-            "/Administration/Organizations",
-            $"/Administration/Organizations/Edit/{id:D}",
             "/Administration/Principals",
             "/Administration/Principals/Create",
-            $"/Administration/Principals/Replace/{id:D}/{id:D}",
-            $"/Administration/Principals/EvaSubmission/{id:D}/{id:D}"
+            $"/Administration/Principals/Replace/{id:D}",
+            $"/Administration/Principals/Settings/{id:D}"
         ];
         foreach (var route in routes)
         {
@@ -234,6 +198,82 @@ public sealed partial class OrganizationAdministrationWebTests
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
     }
+
+    private static async Task AssertCredentialControlsAsync(
+        IntakeWebApplicationFactory factory, HttpClient client, Guid principalId, string settingsPath)
+    {
+        // Never send the secret-bearing POST response to the Test UI capture helper.
+        var settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        var issueForm = CredentialForm(settings);
+        using var issued = await client.PostAsync(
+            $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
+        issued.EnsureSuccessStatusCode();
+        Assert.True(issued.Headers.CacheControl?.NoStore);
+        var issuedHtml = await issued.Content.ReadAsStringAsync();
+        var secretMatch = Regex.Match(issuedHtml, "id=\"issued-api-key\" value=\"([^\"]+)\"");
+        Assert.True(secretMatch.Success);
+        var secret = WebUtility.HtmlDecode(secretMatch.Groups[1].Value);
+        var keyId = Pegasus.Web.ProviderApi.ProviderApi.TryReadKeyId("Bearer " + secret)!;
+        Assert.False(string.IsNullOrWhiteSpace(secret));
+
+        using var replay = await client.PostAsync(
+            $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
+        replay.EnsureSuccessStatusCode();
+        Assert.DoesNotContain(secret, await replay.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        Assert.DoesNotContain(secret, settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("issued-api-key", settings, StringComparison.Ordinal);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var authenticate = scope.ServiceProvider.GetRequiredService<IAuthenticatePrincipalCredential>();
+        Assert.NotNull(await authenticate.ExecuteAsync(keyId, secret, default));
+
+        foreach (var handler in new[] { "PauseCredential", "ResumeCredential" })
+        {
+            using var response = await client.PostAsync(
+                $"{settingsPath}?handler={handler}", new FormUrlEncodedContent(CredentialForm(settings)));
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            var authentication = await authenticate.ExecuteAsync(keyId, secret, default);
+            Assert.NotNull(authentication);
+            Assert.Equal(handler == "ResumeCredential", authentication.MaySubmit);
+            settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        }
+
+        var stale = CredentialForm(settings);
+        stale["CredentialVersion"] = "0";
+        using var staleResponse = await client.PostAsync(
+            $"{settingsPath}?handler=RevokeCredential", new FormUrlEncodedContent(stale));
+        Assert.Equal(HttpStatusCode.OK, staleResponse.StatusCode);
+        Assert.Contains("The API key changed.", await staleResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.NotNull(await authenticate.ExecuteAsync(keyId, secret, default));
+
+        using var reset = await client.PostAsync(
+            $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+        reset.EnsureSuccessStatusCode();
+        var resetHtml = await reset.Content.ReadAsStringAsync();
+        var resetMatch = Regex.Match(resetHtml, "id=\"issued-api-key\" value=\"([^\"]+)\"");
+        Assert.True(resetMatch.Success);
+        var resetSecret = WebUtility.HtmlDecode(resetMatch.Groups[1].Value);
+        var resetKeyId = Pegasus.Web.ProviderApi.ProviderApi.TryReadKeyId("Bearer " + resetSecret)!;
+        Assert.Null(await authenticate.ExecuteAsync(keyId, secret, default));
+        Assert.NotNull(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
+
+        settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        using var revoked = await client.PostAsync(
+            $"{settingsPath}?handler=RevokeCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+        Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode);
+        Assert.Null(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
+        Assert.Equal(5, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
+    }
+
+    private static Dictionary<string, string> CredentialForm(string html) => new()
+    {
+        ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+        ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
+        ["CredentialVersion"] = InputValue(html, "CredentialVersion"),
+        ["CredentialReason"] = "Provider access administration"
+    };
 
     private static string InputValue(string html, string name)
     {

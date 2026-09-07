@@ -1,0 +1,148 @@
+@page "{principalId:guid}"
+@model Pegasus.Web.Pages.Administration.Principals.SettingsModel
+@{
+    ViewData["Title"] = "Principal settings";
+}
+
+<a class="back-link" asp-page="Index">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Principals
+</a>
+
+@if (Model.Customer is not null && Model.Principal is not null)
+{
+    <div class="page-heading">
+        <div>
+            <h1>@Model.Customer.Name</h1>
+            <span class="tabular">@Model.Principal.Code</span>
+        </div>
+        <div class="page-heading-actions">
+            <partial name="Shared/_StatusChip" model="@(Model.Principal.IsActive ? "Active" : "Disabled")" />
+        </div>
+    </div>
+
+    <div asp-validation-summary="All" class="status-card status-card--error" role="alert"></div>
+
+    @if (TempData["AdministrationStatus"] is string status)
+    {
+        <div class="status-card status-card--success" role="status">@status</div>
+    }
+
+    @if (Model.AcceptedDomains.Count > 0)
+    {
+        <dl class="detail-list">
+            <div><dt>Accepted e-mail domains</dt><dd>@string.Join(", ", Model.AcceptedDomains)</dd></div>
+        </dl>
+    }
+
+    @if (Model.Principal.IsActive)
+    {
+    <div class="panel form-panel">
+        <h2>Manual EVA API submission</h2>
+        @* Automatic EVA submission is retired (EXT-18 item 7): manual
+           remains the only optional, explicit staff action this page offers. *@
+        <form method="post" asp-page-handler="UpdateEva"
+              asp-route-principalId="@Model.Principal.Id">
+            <input type="hidden" asp-for="ExpectedVersion" id="eva-version" />
+            <input type="hidden" asp-for="EvaOperationKey" />
+            <div>
+                <label>
+                    <input asp-for="EvaManualSubmission" type="checkbox" />
+                    Manual API submission
+                </label>
+            </div>
+            <div>
+                <label asp-for="EvaReason">Reason</label>
+                <input asp-for="EvaReason" autocomplete="off" />
+                <span asp-validation-for="EvaReason"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save EVA setting</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="panel form-panel">
+        <h2>Default inspection location</h2>
+        @* EXT-18 item 6: Image Based Assessment, or one sourced/manual
+           physical address. A change away from a sourced value requires a
+           reason; this never implies physical CE attendance or changes B's
+           separate CE assessment method. *@
+        <form method="post" asp-page-handler="UpdateLocation"
+              asp-route-principalId="@Model.Principal.Id">
+            <input type="hidden" asp-for="ExpectedVersion" id="location-version" />
+            <input type="hidden" asp-for="LocationOperationKey" />
+            <div>
+                <label>
+                    <input asp-for="LocationIsImageBasedAssessment" type="checkbox" />
+                    Default to Image Based Assessment
+                </label>
+            </div>
+            <div>
+                <label asp-for="LocationLabel">Location label (optional)</label>
+                <input asp-for="LocationLabel" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="LocationAddress">Address</label>
+                <input asp-for="LocationAddress" autocomplete="off" />
+                <span asp-validation-for="LocationAddress"></span>
+            </div>
+            <div>
+                <label asp-for="LocationPostcode">Postcode (optional)</label>
+                <input asp-for="LocationPostcode" autocomplete="off" />
+            </div>
+            <div>
+                <label asp-for="LocationReason">Reason</label>
+                <input asp-for="LocationReason" autocomplete="off" />
+                <span asp-validation-for="LocationReason"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save default location</button>
+            </div>
+        </form>
+    </div>
+    <div class="panel form-panel">
+        <h2>@OperatorLabels.PrincipalAdministration.ProviderApi</h2>
+        <dl class="detail-list">
+            <div><dt>Submission endpoint</dt><dd><code>@Pegasus.Web.ProviderApi.ProviderApi.SubmissionsPath</code></dd></div>
+            <div><dt>@OperatorLabels.PrincipalAdministration.State</dt><dd>@(Model.Credential?.State.ToString() ?? "Not issued")</dd></div>
+        </dl>
+        @if (Model.IssuedSecret is not null)
+        {
+            <div>
+                <label for="issued-api-key">API key (shown once)</label>
+                <input id="issued-api-key" value="@Model.IssuedSecret" readonly autocomplete="off" />
+            </div>
+        }
+        <form method="post" asp-route-principalId="@Model.Principal.Id">
+            <input asp-for="CredentialVersion" type="hidden" />
+            <input asp-for="CredentialOperationKey" type="hidden" />
+            <div>
+                <label asp-for="CredentialReason">Reason</label>
+                <input asp-for="CredentialReason" autocomplete="off" />
+                <span asp-validation-for="CredentialReason"></span>
+            </div>
+            @if (Model.Credential is not null && Model.Credential.State != Pegasus.Core.Cases.PrincipalCredentialState.Revoked)
+            {
+                <p>Resetting or revoking the API key stops the current key from working.</p>
+            }
+            <div class="button-row">
+                <button type="submit" asp-page-handler="IssueCredential" class="primary-action">@(Model.Credential is null ? "Generate API key" : "Reset API key")</button>
+                @if (Model.Credential?.State == Pegasus.Core.Cases.PrincipalCredentialState.Active)
+                {
+                    <button type="submit" asp-page-handler="PauseCredential" class="secondary-action">Pause</button>
+                }
+                @if (Model.Credential?.State == Pegasus.Core.Cases.PrincipalCredentialState.Paused)
+                {
+                    <button type="submit" asp-page-handler="ResumeCredential" class="secondary-action">Resume</button>
+                }
+                @if (Model.Credential is not null && Model.Credential.State != Pegasus.Core.Cases.PrincipalCredentialState.Revoked)
+                {
+                    <button type="submit" asp-page-handler="RevokeCredential" class="secondary-action">Revoke</button>
+                }
+            </div>
+        </form>
+    </div>
+    <a class="secondary-action" asp-page="Replace" asp-route-principalId="@Model.Principal.Id">@OperatorLabels.PrincipalAdministration.ReplaceCode</a>
+    }
+}

@@ -27,12 +27,9 @@ public sealed class PrincipalCredentialPersistenceTests
         var authenticate = services.GetRequiredService<IAuthenticatePrincipalCredential>();
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
 
-        var organization = await services.GetRequiredService<ICreateOrganization>().ExecuteAsync(
-            new("Alpha Provider", [OrganizationRole.WorkProvider], Administrator, "credential:org:alpha"),
-            default);
         var principalId = (await SeededPrincipals.QdosAsync(services)).Id;
         var other = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new(organization.Id, "OTHER", Administrator, "credential:principal:other"),
+            new("Alpha Provider", "OTHER", Administrator, "credential:principal:other"),
             default);
 
         Assert.Null(await get.ExecuteAsync(Administrator, principalId, default));
