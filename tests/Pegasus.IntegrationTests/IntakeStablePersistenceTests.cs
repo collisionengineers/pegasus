@@ -1,6 +1,9 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using Pegasus.Core;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -134,5 +137,134 @@ public sealed class IntakeStablePersistenceTests
         using var document = JsonDocument.Parse(json);
         Assert.Equal(1, document.RootElement.GetProperty("version").GetInt32());
         Assert.True(document.RootElement.TryGetProperty("data", out _));
+    }
+
+    /// <summary>
+    /// Keyset continuation over the received-items list, against real SQL.
+    ///
+    /// The property that matters is that the pages PARTITION the list: every
+    /// receipt appears exactly once across them, in the same order the offset
+    /// list uses, whatever the page size. An offset page cannot promise that
+    /// while receipts keep arriving, which is the whole reason for the cursor.
+    /// </summary>
+    [Fact]
+    public async Task TheReceivedListPagesDeterministicallyByCursor()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var expected = new List<Guid>();
+        for (var index = 0; index < 5; index++)
+        {
+            var upload = await IntakeWebDriver.UploadAndProcessAsync(
+                factory,
+                client,
+                $"keyset-{index}.xyz",
+                "application/x-unknown",
+                [0x01, 0x02, (byte)index]);
+            expected.Add(IntakeWebDriver.ReceiptId(upload));
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        var protector = new FakeCursorProtector();
+        var list = new ListIntakeByCursor(
+            services.GetRequiredService<IIntakeReceiptQueries>(),
+            protector);
+
+        // The order the offset list already promises, so the two views can
+        // never disagree about what "newest first" means.
+        var offset = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .ListAsync(null, 1, 50, CancellationToken.None);
+        var offsetOrder = offset.Items.Select(item => item.Id).ToArray();
+        Assert.Equal(5, offsetOrder.Length);
+
+        foreach (var pageSize in new[] { 1, 2, 5 })
+        {
+            var seen = new List<Guid>();
+            string? cursor = null;
+            var pages = 0;
+            do
+            {
+                var page = await list.ExecuteAsync(new(actor, null, cursor, pageSize));
+                Assert.True(page.Items.Count <= pageSize);
+                seen.AddRange(page.Items.Select(item => item.Id));
+                cursor = page.NextCursor;
+                pages++;
+                Assert.True(pages <= 10, "The continuation did not terminate.");
+            }
+            while (cursor is not null);
+
+            Assert.Equal(offsetOrder, seen);
+            Assert.Equal(seen.Count, seen.Distinct().Count());
+        }
+    }
+
+    /// <summary>
+    /// A cursor is bound to the query, the actor and the filters it was minted
+    /// under. Replaying one against a different filter is refused rather than
+    /// resuming into a list it never described.
+    /// </summary>
+    [Fact]
+    public async Task ACursorMintedForAnotherScopeIsRejected()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        for (var index = 0; index < 3; index++)
+        {
+            await IntakeWebDriver.UploadAndProcessAsync(
+                factory,
+                client,
+                $"scope-{index}.xyz",
+                "application/x-unknown",
+                [0x09, (byte)index]);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        var list = new ListIntakeByCursor(
+            services.GetRequiredService<IIntakeReceiptQueries>(),
+            new FakeCursorProtector());
+
+        var unfiltered = await list.ExecuteAsync(new(actor, null, null, 1));
+        Assert.NotNull(unfiltered.NextCursor);
+
+        await Assert.ThrowsAsync<CursorRejectedException>(() =>
+            list.ExecuteAsync(new(actor, IntakeDecision.Unsupported, unfiltered.NextCursor, 1)));
+
+        var otherActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await Assert.ThrowsAsync<CursorRejectedException>(() =>
+            list.ExecuteAsync(new(otherActor, null, unfiltered.NextCursor, 1)));
+    }
+
+    /// <summary>
+    /// Stands in for the host's data-protection adapter: it binds the payload
+    /// to the scope exactly as that adapter does, so the scope rule is tested
+    /// here without dragging data-protection key management into a store test.
+    /// </summary>
+    internal sealed class FakeCursorProtector : ICursorProtector
+    {
+        public string Protect(string scope, string sortKey, Guid id) =>
+            $"{scope.GetHashCode(StringComparison.Ordinal)}|{sortKey}|{id:N}";
+
+        public (string SortKey, Guid Id) Unprotect(string cursor, string scope)
+        {
+            var parts = cursor.Split('|');
+            if (parts.Length != 3
+                || parts[0] != scope.GetHashCode(StringComparison.Ordinal)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture)
+                || !Guid.TryParseExact(parts[2], "N", out var id))
+            {
+                throw new CursorRejectedException();
+            }
+
+            return (parts[1], id);
+        }
     }
 }

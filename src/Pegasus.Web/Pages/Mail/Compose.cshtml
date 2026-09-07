@@ -1,0 +1,101 @@
+@page "/Inbox/Compose"
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Mail.ComposeModel
+@{
+    ViewData["Title"] = "Compose";
+}
+
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow">Inbox</p>
+        <h1>Compose</h1>
+    </div>
+    <div class="page-actions">
+        <a class="btn" asp-page="/Mail/Index">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Back to Inbox</span>
+        </a>
+    </div>
+</header>
+
+@if (TempData["SendNotice"] is string sendNotice)
+{
+    <div class="notice notice--success" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@sendNotice</span>
+    </div>
+}
+
+<partial name="Shared/_ErrorSummary" />
+
+@if (Model.Operation is { } operation)
+{
+    <section class="panel">
+        <div class="panel-head"><h2>Send status</h2></div>
+        <div class="panel-body fact-grid">
+            <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(operation.State)</dd></dl>
+            @if (operation.State == Pegasus.Core.Operations.StaffMailState.Unknown)
+            {
+                <form method="post" asp-page-handler="Reconcile">
+                    <input type="hidden" name="operationId" value="@operation.Id" />
+                    <input type="hidden" name="expectedOperationVersion" value="@operation.Version" />
+                    <button type="submit" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                        <span>@OperatorLabels.StaffMail.Reconcile</span>
+                    </button>
+                </form>
+            }
+        </div>
+    </section>
+}
+
+<form method="post" asp-page-handler="Send" class="panel">
+    <div class="panel-body">
+        <input type="hidden" asp-for="OperationKey" />
+        <input type="hidden" asp-for="ExpectedContextVersion" />
+        <div class="field">
+            <label asp-for="CaseId">Case</label>
+            @if (Model.Case is { } linkedCase)
+            {
+                <input type="hidden" asp-for="CaseId" />
+                <p>@linkedCase.Reference</p>
+            }
+            else
+            {
+                <input asp-for="CaseId" type="text" />
+            }
+        </div>
+        <div class="field">
+            <label asp-for="ApprovedMailboxId">From</label>
+            <select asp-for="ApprovedMailboxId">
+                <option value="">Choose a mailbox</option>
+                @foreach (var mailbox in Model.SendableMailboxes)
+                {
+                    <option value="@mailbox.Id">@mailbox.Address</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label asp-for="To">To</label>
+            <input asp-for="To" type="text" />
+        </div>
+        <div class="field">
+            <label asp-for="Cc">Cc</label>
+            <input asp-for="Cc" type="text" />
+        </div>
+        <div class="field">
+            <label asp-for="Subject">Subject</label>
+            <input asp-for="Subject" type="text" />
+        </div>
+        <div class="field">
+            <label asp-for="Body">Message</label>
+            <textarea asp-for="Body" rows="10"></textarea>
+        </div>
+        <div class="button-row">
+            <button type="submit" class="btn btn--primary">
+                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                <span>Send</span>
+            </button>
+        </div>
+    </div>
+</form>

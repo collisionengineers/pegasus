@@ -1011,6 +1011,7 @@
         }
 
         dialog.pegasusClose = close;
+        dialog.pegasusOpen = open;
 
         function onKeydown(event) {
             if (event.key === 'Escape') {
@@ -1391,11 +1392,24 @@
         window.location.assign(result === fallback ? searchUrl() : (result.getAttribute('data-route') || '/'));
     }
 
-    function open(seed) {
+    function open(seed, opener) {
         // Open through the shell's own dialog binding so focus, inert and
-        // Escape behave exactly as for every other dialog.
+        // Escape behave exactly as for every other dialog. The invoker the
+        // dialog records for focus-return is the element that actually asked
+        // for the palette (the search box on Enter, whatever had focus on
+        // Ctrl+K) -- not the generic workspace "open another record" trigger,
+        // which merely provides the dialog's open/close plumbing.
         var trigger = document.querySelector('[data-dialog-open="command-dialog"]');
-        if (trigger) {
+        var source = opener || document.activeElement || trigger;
+        if (!dialog.hidden) {
+            input.value = seed || '';
+            filter();
+            input.focus();
+            return;
+        }
+        if (dialog.pegasusOpen) {
+            dialog.pegasusOpen(source);
+        } else if (trigger) {
             trigger.click();
         }
         input.value = seed || '';
@@ -1430,7 +1444,7 @@
         globalInput.addEventListener('keydown', function (event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                open(globalInput.value);
+                open(globalInput.value, globalInput);
             }
         });
     }
@@ -1730,7 +1744,7 @@
         if (control && key === 'k') {
             event.preventDefault();
             if (window.pegasusOpenCommandPalette) {
-                window.pegasusOpenCommandPalette('');
+                window.pegasusOpenCommandPalette('', target);
             }
             return;
         }

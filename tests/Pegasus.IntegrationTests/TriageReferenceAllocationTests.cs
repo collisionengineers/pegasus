@@ -1,7 +1,9 @@
+using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -11,9 +13,12 @@ namespace Pegasus.IntegrationTests;
 /// <remarks>
 /// Every case here creates its Triage through the production
 /// <c>ICreateTriageFromIntake</c>/<c>ITriageStore</c> path over real SQL, with
-/// its receipt and evaluation prepared beforehand. The receipt and evaluation
-/// fixtures are this file's own — deliberately self-contained, so the proof
-/// does not widen another suite's private helpers.
+/// its receipt and evaluation prepared beforehand. The full web ingest is used
+/// once, to show the allocated reference reaching the operator's page; driving
+/// eight of those concurrently would contend on the intake work dispatch claim
+/// — a single-sweeper path by design — and prove nothing about this allocator.
+/// The receipt and evaluation fixtures are <c>TriageQueuesWebTests</c>' own,
+/// reused rather than copied.
 /// </remarks>
 [Trait("Category", "SqlServer")]
 public sealed class TriageReferenceAllocationTests
@@ -25,17 +30,21 @@ public sealed class TriageReferenceAllocationTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        var first = await OpenTriageAsync(services, "AB12CDE");
-        var second = await OpenTriageAsync(services, "XY12ZZZ");
+        var first = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-ALLOC-A");
+        var second = await OpenTriageAsync(services, "XY12ZZZ", "TRIAGE-ALLOC-B");
 
         Assert.Equal("T-00001", first.Reference);
         Assert.Equal("T-00002", second.Reference);
 
-        // The reference is durable and reaches the read side: `GetAsync` maps
-        // the persisted row, so this fails if the mapping drops it.
-        var reread = await services.GetRequiredService<ITriageQueries>()
-            .GetAsync(first.Id, CancellationToken.None);
-        Assert.Equal("T-00001", Assert.IsType<TriageDetail>(reread).Record.Reference);
+        var summaries = await ListTriageAsync(services);
+        var firstSummary = Assert.Single(summaries, item => item.Id == first.Id);
+        // The provider claim number is a fact about the sender and keeps its
+        // own member: it is no longer what the queue calls the reference.
+        Assert.Equal("T-00001", firstSummary.Reference);
+        Assert.Equal("TRIAGE-ALLOC-A", firstSummary.ClaimNumber);
+        Assert.Equal(
+            "T-00002",
+            Assert.Single(summaries, item => item.Id == second.Id).Reference);
     }
 
     [Fact]
@@ -46,7 +55,7 @@ public sealed class TriageReferenceAllocationTests
         var services = scope.ServiceProvider;
         var operationKey = $"triage-alloc-replay:{Guid.NewGuid():N}";
 
-        var prepared = await PrepareAsync(services, "AB12CDE");
+        var prepared = await PrepareAsync(services, "AB12CDE", "TRIAGE-ALLOC-REPLAY");
         var created = await CreateAsync(services, prepared, operationKey);
         var replayed = await CreateAsync(services, prepared, operationKey);
 
@@ -57,12 +66,12 @@ public sealed class TriageReferenceAllocationTests
 
         // The replay consumed nothing, so the next genuine creation takes the
         // very next number.
-        var next = await OpenTriageAsync(services, "XY12ZZZ");
+        var next = await OpenTriageAsync(services, "XY12ZZZ", "TRIAGE-ALLOC-NEXT");
         Assert.Equal("T-00002", next.Reference);
     }
 
     [Fact]
-    public async Task ConcurrentCreationsAllocateDistinctDurableReferences()
+    public async Task ConcurrentCreationsAllocateDistinctReferencesAndToleratesGaps()
     {
         const int concurrentCreations = 8;
         using var factory = new IntakeWebApplicationFactory();
@@ -75,7 +84,7 @@ public sealed class TriageReferenceAllocationTests
         var prepared = new List<PreparedTriage>();
         for (var index = 0; index < concurrentCreations; index++)
         {
-            prepared.Add(await PrepareAsync(services, $"AL{index:00}CAT"));
+            prepared.Add(await PrepareAsync(services, $"AL{index:00}CAT", $"TRIAGE-ALLOC-{index:00}"));
         }
 
         var created = await Task.WhenAll(prepared.Select(item => Task.Run(
@@ -98,8 +107,9 @@ public sealed class TriageReferenceAllocationTests
             sequences.Add(sequence);
         }
 
-        // This verifies uniqueness of committed references under contention.
-        // It does not assert whether uncommitted allocations leave gaps.
+        // Distinct is the invariant, and no reference is ever handed out
+        // twice. The numbers need not be contiguous: one taken by a creation
+        // that then rolled back is never reissued, so gaps are expected.
         Assert.Equal(concurrentCreations, sequences.Distinct().Count());
         Assert.Equal(
             concurrentCreations,
@@ -108,19 +118,68 @@ public sealed class TriageReferenceAllocationTests
         // Every allocation is also durable and unique on the read side.
         var listed = await ListTriageAsync(services);
         Assert.Equal(concurrentCreations, listed.Count);
+        Assert.Equal(
+            concurrentCreations,
+            listed.Select(item => item.Reference).Distinct(StringComparer.Ordinal).Count());
+
+        // Each creator's reference is the one persisted against its own
+        // Triage. Distinctness alone would still hold if two concurrent
+        // allocations were recorded against each other's rows, so the
+        // id-to-reference correspondence is asserted per creation.
         var queries = services.GetRequiredService<ITriageQueries>();
-        var persisted = new List<string>();
         foreach (var record in created)
         {
             var detail = await queries.GetAsync(record.Id, CancellationToken.None);
-            var reference = Assert.IsType<TriageDetail>(detail).Record.Reference;
-            Assert.Equal(record.Reference, reference);
-            persisted.Add(reference!);
+            Assert.Equal(
+                record.Reference,
+                Assert.IsType<TriageDetail>(detail).Record.Reference);
         }
+    }
 
-        Assert.Equal(
-            concurrentCreations,
-            persisted.Distinct(StringComparer.Ordinal).Count());
+    [Fact]
+    public async Task TheAllocatedReferenceReachesTheOperatorsPage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var triage = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-ALLOC-PAGE");
+
+        Assert.Equal("T-00001", triage.Reference);
+
+        using var response = await client.GetAsync($"/Triage/{triage.Id:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("T-00001", html, StringComparison.Ordinal);
+        Assert.Contains("Triage reference", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheReferenceSurvivesEveryLaterMutation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-ALLOC-IMMUTABLE");
+
+        var awaited = await services.GetRequiredService<IAwaitTriageInformation>().ExecuteAsync(
+            new TriageMutationRequest(
+                created.Id,
+                created.Version,
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    [StaffRole.Administrator]),
+                $"alloc-immutable-await:{Guid.NewGuid():N}",
+                "Further retained information is required"),
+            CancellationToken.None);
+
+        Assert.Equal("T-00001", created.Reference);
+        Assert.Equal(created.Reference, awaited.Reference);
+        var reread = Assert.IsType<TriageDetail>(
+            await services.GetRequiredService<ITriageQueries>()
+                .GetAsync(created.Id, CancellationToken.None));
+        Assert.Equal(created.Reference, reread.Record.Reference);
     }
 
     /// <summary>
@@ -138,7 +197,8 @@ public sealed class TriageReferenceAllocationTests
 
     private static async Task<PreparedTriage> PrepareAsync(
         IServiceProvider services,
-        string registration)
+        string registration,
+        string claimNumber)
     {
         var sourceIdentity = new IntakeSourceIdentity(
             IntakeSourceChannel.ManualUpload,
@@ -152,13 +212,27 @@ public sealed class TriageReferenceAllocationTests
             "Accepted Triage match for the reference-allocation test.",
             MatcherKey: "triage-allocation-test",
             MatcherVersion: 1);
-        var receiptId = await StoreMinimalReceiptAsync(
+        var receiptId = await TriageQueuesWebTests.StoreMinimalReceiptAsync(
             services,
-            $"triage-allocation-{registration.ToLowerInvariant()}.pdf",
+            $"triage-allocation-{claimNumber.ToLowerInvariant()}.pdf",
+            new InstructionDraft(
+                SuggestedPrincipalCode: "QDOS",
+                ClaimantName: null,
+                ClaimNumber: claimNumber,
+                VehicleRegistration: registration,
+                VehicleMake: null,
+                VehicleModel: null,
+                VehicleMileage: null,
+                AccidentCircumstances: null,
+                DateOfIncident: null,
+                InstructionDate: null,
+                InspectionAddress: null),
             [acceptedMatch],
             sourceIdentity,
             sourceHash);
-        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(services, receiptId);
+        var evaluationRevisionId = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(
+            services,
+            receiptId);
         return new(
             receiptId,
             evaluationRevisionId,
@@ -192,9 +266,10 @@ public sealed class TriageReferenceAllocationTests
 
     private static async Task<TriageRecord> OpenTriageAsync(
         IServiceProvider services,
-        string registration)
+        string registration,
+        string claimNumber)
     {
-        var prepared = await PrepareAsync(services, registration);
+        var prepared = await PrepareAsync(services, registration, claimNumber);
         return await CreateAsync(
             services,
             prepared,
@@ -204,77 +279,4 @@ public sealed class TriageReferenceAllocationTests
     private static async Task<IReadOnlyList<TriageSummary>> ListTriageAsync(IServiceProvider services) =>
         await services.GetRequiredService<ITriageQueries>()
             .ListAsync(null, CancellationToken.None);
-
-    /// <summary>
-    /// Stages and completes one durable intake work item so the receipt has a
-    /// real <c>IntakeEvaluations</c> row, the FK <see cref="TriageOrigin"/>
-    /// requires. Mirrors the queued-intake completion path
-    /// (<c>IIntakeWorkStore.ReceiveAsync</c>/<c>CompleteProcessingAsync</c>)
-    /// without going through the full mail-decision pipeline.
-    /// </summary>
-    private static async Task<Guid> StageAndCompleteEvaluationAsync(
-        IServiceProvider services,
-        Guid processedReceiptId)
-    {
-        var workStore = services.GetRequiredService<IIntakeWorkStore>();
-        var now = DateTimeOffset.UtcNow;
-        var staged = new IntakeStagedReceipt(
-            Guid.NewGuid(),
-            "triage-allocation-evaluation.pdf",
-            "application/pdf",
-            1024,
-            Guid.NewGuid().ToString("N"),
-            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")),
-            now,
-            "test-actor",
-            $"test-storage-key/{Guid.NewGuid():N}",
-            now);
-        await workStore.ReceiveAsync(staged, $"triage-allocation-receive:{Guid.NewGuid():N}", CancellationToken.None);
-        var dispatchClaim = await workStore.ClaimDispatchAsync(now, TimeSpan.FromMinutes(1), CancellationToken.None)
-            ?? throw new InvalidOperationException("Expected the staged evaluation work item to be claimable.");
-        await workStore.MarkDispatchedAsync(dispatchClaim.Id, dispatchClaim.LeaseToken!, now, CancellationToken.None);
-        var processingClaim = await workStore.ClaimProcessingAsync(staged.Id, now, TimeSpan.FromMinutes(1), CancellationToken.None)
-            ?? throw new InvalidOperationException("Expected the dispatched evaluation work item to be claimable for processing.");
-        var evaluation = await workStore.CompleteProcessingAsync(
-            processingClaim.WorkItem.Id,
-            processingClaim.WorkItem.LeaseToken!,
-            processedReceiptId,
-            now,
-            CancellationToken.None);
-        return evaluation.Id;
-    }
-
-    private static async Task<Guid> StoreMinimalReceiptAsync(
-        IServiceProvider services,
-        string sourceFileName,
-        IReadOnlyList<IntakeEvidence> evidence,
-        IntakeSourceIdentity sourceIdentity,
-        string sourceHash)
-    {
-        var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
-        var receipt = await receiptStore.StoreAsync(
-            new IntakeReceiptDraft(
-                sourceFileName,
-                "application/pdf",
-                1024,
-                sourceHash,
-                sourceIdentity,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                "test-actor",
-                IntakeDecision.NeedsSorting,
-                "test decision reason",
-                evidence,
-                [],
-                null,
-                [],
-                null,
-                null,
-                "test-reader",
-                "1",
-                null,
-                null),
-            CancellationToken.None);
-        return receipt.Id;
-    }
 }

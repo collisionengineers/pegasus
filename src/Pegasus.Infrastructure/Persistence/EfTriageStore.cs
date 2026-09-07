@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
@@ -21,6 +22,7 @@ public sealed class EfTriageStore(
     /// partitioned by principal, vehicle or year.
     /// </summary>
     private const int TriageSequenceRowId = 1;
+
 
     public async Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
@@ -120,11 +122,16 @@ public sealed class EfTriageStore(
         }
 
         var now = UtcNow();
+        var principalId = await ResolveEstablishedPrincipalAsync(
+            context,
+            request.Origin.ReceiptId,
+            cancellationToken);
         var entity = new TriageEntity
         {
             Id = Guid.NewGuid(),
             Sequence = allocatedSequence,
             Reference = TriageReferenceFormat.Format(allocatedSequence),
+            PrincipalId = principalId,
             OriginReceiptId = request.Origin.ReceiptId,
             SourceChannel = sourceChannel,
             ExternalReceiptToken = sourceToken,
@@ -190,6 +197,37 @@ public sealed class EfTriageStore(
                 item => item.Id == TriageSequenceRowId,
                 cancellationToken);
         return checked(++sequence.LastAllocatedSequence);
+    }
+
+    /// <summary>
+    /// The principal the receipt already established, taken from the
+    /// originating instruction draft's suggested principal code and accepted
+    /// only when it resolves to exactly one active principal. Anything else —
+    /// no draft, no code, an unknown code, a deactivated principal — leaves the
+    /// Triage without one, which the operator sees as `Not known`. Nothing is
+    /// inferred from the vehicle registration or from a later linked Case.
+    /// </summary>
+    private static async Task<Guid?> ResolveEstablishedPrincipalAsync(
+        PegasusDbContext context,
+        Guid originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var suggestedCode = await context.InstructionDrafts.AsNoTracking()
+            .Where(draft => draft.IntakeReceiptId == originReceiptId)
+            .Select(draft => draft.SuggestedPrincipalCode)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(suggestedCode))
+        {
+            return null;
+        }
+
+        var code = suggestedCode.Trim();
+        var candidates = await context.Principals.AsNoTracking()
+            .Where(principal => principal.Code == code && principal.IsActive)
+            .Select(principal => principal.Id)
+            .Take(2)
+            .ToArrayAsync(cancellationToken);
+        return candidates.Length == 1 ? candidates[0] : null;
     }
 
     public async Task<TriageRecord> AssignAsync(AssignTriageRequest request, CancellationToken cancellationToken)
@@ -287,6 +325,51 @@ public sealed class EfTriageStore(
             cancellationToken);
     }
 
+
+    public Task<TriageOperationReplay?> ProbeAddNoteReplayAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateNote(request);
+        return ProbeReplayAsync(
+            request.TriageId,
+            request.OperationKey,
+            TriageNotes.EventType,
+            NoteRequestHash(request),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Appends one operator note as an entry in the same history every state
+    /// change writes.
+    /// </summary>
+    /// <remarks>
+    /// The note changes no state, so the entry carries the current state,
+    /// assignee and case link forward unchanged; it still takes the next
+    /// version, because the history's before/after versions are what make a
+    /// retry recognisable and an entry's place in the sequence unambiguous.
+    /// The note text is the entry's reason: there is no second note store and
+    /// no editable note record.
+    /// </remarks>
+    public Task<TriageRecord> AddNoteAsync(
+        AddTriageNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateNote(request);
+        return MutateAsync(
+            request.TriageId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Note,
+            TriageNotes.EventType,
+            NoteRequestHash(request),
+            static _ => { },
+            cancellationToken);
+    }
+
+    private static string NoteRequestHash(AddTriageNoteRequest request) =>
+        Hash($"note|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Note.Trim()}");
 
     public async Task LinkResponseEvidenceAsync(
         TriageResponseEvidenceLinkRequest request,
@@ -532,10 +615,95 @@ public sealed class EfTriageStore(
         var rows = await TriageWithDraftQuery(
             context,
             stateCode is null ? null : item => item.State == stateCode).ToListAsync(cancellationToken);
+        // The same newest-first order the keyset page uses, so the two read
+        // paths cannot disagree about what "the next row" is.
         return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
-            .ThenBy(row => row.Item.Id)
+            .ThenByDescending(row => row.Item.Sequence)
             .Select(ToSummary)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The keyset page. Both the order and the continuation bound are expressed
+    /// in SQL over the <c>(State, CreatedAtUtc)</c> index rather than in memory,
+    /// so a later page never materialises the rows before it and a Triage
+    /// created between two requests never shifts a page boundary. One extra row
+    /// is read to learn whether a next page exists without a second count.
+    /// </summary>
+    /// <remarks>
+    /// The position the caller carries is the pair the order is defined by —
+    /// the instant and the Triage identity — but the tie-break is applied on
+    /// the row's allocation <c>Sequence</c>, which is unique, ordered and
+    /// unambiguous in SQL, where <c>uniqueidentifier</c> ordering is not the
+    /// ordering <see cref="Guid.CompareTo(Guid)"/> defines. Resolving the
+    /// cursor's identity to its sequence costs one primary-key read per
+    /// continuation page and rejects a cursor naming a Triage that is not
+    /// there.
+    /// </remarks>
+    public async Task<TriageListSlice> ListPageAsync(
+        TriageState? state,
+        TriageListPosition? after,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (state is not null && !Enum.IsDefined(state.Value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(state));
+        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+        if (after is { } position && position.Id == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A keyset position requires a Triage identity.",
+                nameof(after));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var stateCode = state is null ? null : ToCode(state.Value);
+        // The filter, the keyset bound, the order and the limit are all
+        // expressed on the Triage entity itself, before the instruction-draft
+        // join and the projection: EF cannot order by a member of a
+        // constructed row type, and the database must do the paging anyway.
+        var triage = context.Triage.AsNoTracking();
+        if (stateCode is not null)
+        {
+            triage = triage.Where(item => item.State == stateCode);
+        }
+        if (after is { } cursor)
+        {
+            var afterSequence = await context.Triage.AsNoTracking()
+                .Where(item => item.Id == cursor.Id)
+                .Select(item => (long?)item.Sequence)
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new CursorRejectedException(
+                    "The cursor names a Triage that is no longer listed.");
+            var afterCreatedAtUtc = cursor.CreatedAtUtc;
+            // Strictly after the position in the newest-first order: an older
+            // row, or the same instant with an earlier allocation.
+            triage = triage.Where(item =>
+                item.CreatedAtUtc < afterCreatedAtUtc
+                || (item.CreatedAtUtc == afterCreatedAtUtc && item.Sequence < afterSequence));
+        }
+
+        var bounded = triage
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Sequence)
+            .Take(limit + 1);
+        var rows = await ProjectWithDraft(context, bounded).ToListAsync(cancellationToken);
+        var hasMore = rows.Count > limit;
+        // The join above may not preserve the bounded query's order, so the
+        // page is put back in order here. It is at most `limit` rows and the
+        // database has already chosen which ones they are.
+        var page = rows
+            .OrderByDescending(row => row.Item.CreatedAtUtc)
+            .ThenByDescending(row => row.Item.Sequence)
+            .Take(limit)
+            .Select(ToSummary)
+            .ToArray();
+        var next = hasMore && page.Length > 0
+            ? new TriageListPosition(page[^1].CreatedAtUtc, page[^1].Id)
+            : null;
+        return new(page, next);
     }
 
     /// <summary>
@@ -558,12 +726,23 @@ public sealed class EfTriageStore(
             triage = triage.Where(triagePredicate);
         }
 
-        return from item in triage
-            join draft in context.InstructionDrafts.AsNoTracking()
-                on item.OriginReceiptId equals draft.IntakeReceiptId into drafts
-            from draft in drafts.DefaultIfEmpty()
-            select new TriageWithDraftRow(item, draft == null ? null : draft.ClaimNumber, draft == null ? null : draft.SuggestedPrincipalCode);
+        return ProjectWithDraft(context, triage);
     }
+
+    /// <summary>
+    /// The LEFT JOIN and projection alone, over whatever Triage query the
+    /// caller has already filtered, ordered and bounded. Split out so the
+    /// keyset page can do all of that on entity columns — EF cannot translate
+    /// an order by a member of the constructed row.
+    /// </summary>
+    private static IQueryable<TriageWithDraftRow> ProjectWithDraft(
+        PegasusDbContext context,
+        IQueryable<TriageEntity> triage) =>
+        from item in triage
+        join draft in context.InstructionDrafts.AsNoTracking()
+            on item.OriginReceiptId equals draft.IntakeReceiptId into drafts
+        from draft in drafts.DefaultIfEmpty()
+        select new TriageWithDraftRow(item, draft == null ? null : draft.ClaimNumber, draft == null ? null : draft.SuggestedPrincipalCode);
 
     private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
         row.Item.Id,
@@ -573,10 +752,12 @@ public sealed class EfTriageStore(
         row.Item.LinkedCaseId,
         row.Item.CreatedAtUtc,
         row.Item.Version,
-        row.Reference,
-        row.Provider);
+        row.Item.Reference,
+        row.Provider,
+        row.ClaimNumber,
+        row.Item.PrincipalId);
 
-    private sealed record TriageWithDraftRow(TriageEntity Item, string? Reference, string? Provider);
+    private sealed record TriageWithDraftRow(TriageEntity Item, string? ClaimNumber, string? Provider);
 
     public async Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -586,23 +767,37 @@ public sealed class EfTriageStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Triage.AsNoTracking()
+        // The principal code comes out of this one read as a LEFT JOIN through
+        // the foreign key rather than a follow-up lookup, so the detail read
+        // stays a single round trip whether or not a principal is recorded.
+        var row = await context.Triage.AsNoTracking()
             .Include(item => item.Findings)
             .Include(item => item.ResponseEvidenceLinks)
             .Include(item => item.History)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (entity is null)
+            .Where(item => item.Id == id)
+            .Select(item => new
+            {
+                Item = item,
+                PrincipalCode = context.Principals
+                    .Where(principal => principal.Id == item.PrincipalId)
+                    .Select(principal => principal.Code)
+                    .FirstOrDefault()
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (row is null)
         {
             return null;
         }
 
+        var entity = row.Item;
         return new(
             Map(entity),
             entity.CreatedAtUtc,
             entity.Findings.OrderBy(item => item.RecordedAtUtc).ThenBy(item => item.Id).Select(Map).ToArray(),
             entity.ResponseEvidenceLinks.OrderBy(item => item.LinkedAtUtc).ThenBy(item => item.SentEvidenceId).Select(Map).ToArray(),
             entity.History.OrderBy(item => item.AfterVersion).ThenBy(item => item.Id).Select(Map).ToArray(),
-            Array.Empty<TriageResponseEvidenceCandidate>());
+            Array.Empty<TriageResponseEvidenceCandidate>(),
+            row.PrincipalCode);
     }
 
     public async Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
@@ -1323,7 +1518,8 @@ public sealed class EfTriageStore(
         entity.AssigneeId,
         entity.LinkedCaseId,
         entity.Version,
-        entity.Reference);
+        entity.Reference,
+        entity.PrincipalId);
 
     private static TriageFinding Map(TriageFindingEntity entity) => new(
         entity.Id,

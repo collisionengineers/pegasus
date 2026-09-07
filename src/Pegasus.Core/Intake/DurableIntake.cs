@@ -317,7 +317,10 @@ public sealed class ReceiveIntake(
         }
 
         // A received message and an uploaded file do not share a size bound:
-        // the form takes one file, a mailbox message carries the whole job.
+        // the form takes one file, a mailbox message carries the whole job, and
+        // a Provider API submission is bounded by the request body that carries
+        // it inline. One switch, one constant per channel, all of them owned by
+        // IntakeEnvelopeLimits (C07 item 5, residual INTK-052).
         var maximumContentLength = source.SourceIdentity.Channel switch
         {
             IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
@@ -542,6 +545,7 @@ public sealed class ProcessQueuedIntake(
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
     IReadLogicalDocumentVersion retainedContentReader,
+    IIntakeOcrOperationStore ocrOperations,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
@@ -723,6 +727,7 @@ public sealed class ProcessQueuedIntake(
                     isFinalAttempt,
                     cancellationToken);
             }
+            await BeginOcrOperationsAsync(processed, cancellationToken);
             if (mailboxImageIntake is not null)
             {
                 mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
@@ -814,6 +819,30 @@ public sealed class ProcessQueuedIntake(
         return triage == TriageCreationOutcome.Failed
             ? QueuedIntakeProcessingOutcome.RetryScheduled
             : QueuedIntakeProcessingOutcome.Completed;
+    }
+
+    private async Task BeginOcrOperationsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        foreach (var candidates in receipt.ScannedPdfPages
+                     .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
+        {
+            var asset = receipt.AssetRecords.SingleOrDefault(item =>
+                string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
+            if (asset is null)
+            {
+                throw new InvalidDataException(
+                    "An OCR-qualified source does not identify its retained asset.");
+            }
+
+            await IntakeOcrOperations.BeginAsync(
+                ocrOperations,
+                receipt.Id,
+                asset,
+                candidates.Select(candidate => candidate.PageNumber).ToArray(),
+                cancellationToken);
+        }
     }
 
     private async Task<(ReadOnlyMemory<byte> Content, string StorageKey)> ReadRetainedSourceAsync(
@@ -985,7 +1014,7 @@ public sealed class ProcessQueuedIntake(
             // One owner for the supersession rule: the same component the
             // reconciliation sweep uses resolves the receipt's stale open
             // item to the destination that now exists.
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+            await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -1138,6 +1167,10 @@ public sealed class ProcessQueuedIntake(
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
         InvalidDataException => "invalid_intake_data",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
+        // API-01's existing-Case rejection is a property of the submitted
+        // facts, not a fault: a redelivery would reach the same conclusion, so
+        // it fails on the first attempt under its own code with no backoff.
+        ProviderExistingCaseMatchException => ProviderExistingCaseMatchException.FailureCode,
         _ => null
     };
 

@@ -26,8 +26,7 @@ public sealed record Principal(
     bool IsActive,
     long Version,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false,
-    bool EvaAutomaticSubmission = false);
+    bool EvaManualSubmission = false);
 
 public enum CaseType
 {
@@ -275,8 +274,7 @@ public sealed record CreatePrincipalRequest(
     ActionActor Actor,
     string OperationKey,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false,
-    bool EvaAutomaticSubmission = false);
+    bool EvaManualSubmission = false);
 
 /// <summary>
 /// EXT-04: change an existing principal's EVA submission settings.
@@ -292,8 +290,7 @@ public sealed record UpdatePrincipalEvaSubmissionRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    bool EvaManualSubmission,
-    bool EvaAutomaticSubmission);
+    bool EvaManualSubmission);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

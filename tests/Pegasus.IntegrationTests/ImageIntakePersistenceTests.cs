@@ -555,6 +555,113 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None));
     }
 
+    /// <summary>
+    /// The known principal end to end through the store: absent, set,
+    /// replaced, re-submitted, cleared — and never a lifecycle event, because
+    /// recording who the work is for is not a lifecycle transition and nothing
+    /// about it is inferred from a registration match or a linked Case.
+    /// </summary>
+    [Fact]
+    public async Task PrincipalAssignmentRoundTripsWithoutLifecycleHistoryOrInference()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceiptId = await UploadImageAsync(factory, client);
+        var actor = StaffActor();
+        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+        var beta = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "BETA");
+        var retired = await ImageIntakeTestData.SeedPrincipalAsync(
+            factory.Services,
+            "GAMMA",
+            isActive: false);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceiptId, "AB12CDE", "principal-register");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var detail = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.NotNull(detail);
+        var imageIntakeId = detail.Record.Id;
+        var historyCount = (await store.ListHistoryAsync(imageIntakeId, CancellationToken.None)).Count;
+
+        // Absent to begin with, and the options list offers only the active
+        // principals, ordered by code.
+        Assert.Null(detail.Record.PrincipalId);
+        Assert.Null(detail.PrincipalCode);
+        var options = await queries.ListActivePrincipalsAsync(CancellationToken.None);
+        Assert.Contains(options, principal => principal.Id == alpha);
+        Assert.Contains(options, principal => principal.Id == beta);
+        Assert.DoesNotContain(options, principal => principal.Id == retired);
+        Assert.Equal(
+            options.Select(principal => principal.Code).OrderBy(code => code, StringComparer.Ordinal),
+            options.Select(principal => principal.Code));
+
+        // Set.
+        var set = await store.SetPrincipalAsync(
+            new(imageIntakeId, alpha, actor, detail.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(alpha, set.PrincipalId);
+        Assert.Equal(detail.LifecycleVersion + 1, set.LifecycleVersion);
+        var afterSet = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetAsync(imageIntakeId, CancellationToken.None));
+        Assert.Equal("ALPHA", afterSet.PrincipalCode);
+        Assert.Equal(
+            "ALPHA",
+            Assert.Single(
+                await queries.SearchByRegistrationAsync("AB12CDE", CancellationToken.None))
+                .PrincipalCode);
+
+        // Re-submitting the same value is a no-op that leaves the version
+        // alone, so it can never invalidate an open form by itself.
+        var repeated = await store.SetPrincipalAsync(
+            new(imageIntakeId, alpha, actor, set.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(set.LifecycleVersion, repeated.LifecycleVersion);
+
+        // A stale expected version is refused and overwrites nothing.
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => store.SetPrincipalAsync(
+            new(imageIntakeId, beta, actor, detail.LifecycleVersion),
+            CancellationToken.None));
+        Assert.Equal(
+            alpha,
+            Assert.IsType<ImageIntakeDetail>(
+                await queries.GetAsync(imageIntakeId, CancellationToken.None)).Record.PrincipalId);
+
+        // A principal that is not active cannot be recorded.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetPrincipalAsync(
+            new(imageIntakeId, retired, actor, set.LifecycleVersion),
+            CancellationToken.None));
+
+        // Replace, then clear back to `Not known`.
+        var replaced = await store.SetPrincipalAsync(
+            new(imageIntakeId, beta, actor, set.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(beta, replaced.PrincipalId);
+        Assert.Equal(
+            "BETA",
+            Assert.IsType<ImageIntakeDetail>(
+                await queries.GetAsync(imageIntakeId, CancellationToken.None)).PrincipalCode);
+
+        var cleared = await store.SetPrincipalAsync(
+            new(imageIntakeId, null, actor, replaced.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Null(cleared.PrincipalId);
+        var afterClear = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetAsync(imageIntakeId, CancellationToken.None));
+        Assert.Null(afterClear.PrincipalCode);
+        Assert.Null(afterClear.Record.PrincipalId);
+
+        // Not one lifecycle event was written by any of it.
+        Assert.Equal(
+            historyCount,
+            (await store.ListHistoryAsync(imageIntakeId, CancellationToken.None)).Count);
+        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, afterClear.State);
+    }
+
     private static async Task<Guid> UploadImageAsync(
         IntakeWebApplicationFactory factory,
         HttpClient client)

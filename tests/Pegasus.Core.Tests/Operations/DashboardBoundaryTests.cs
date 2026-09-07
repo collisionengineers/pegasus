@@ -247,6 +247,27 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(GetOperationsSnapshot.MaximumNeedsAttention, snapshot.NeedsAttention.Count);
     }
 
+    [Theory]
+    [InlineData(GetOperationsSnapshot.MaximumAttentionRows)]
+    [InlineData(GetOperationsSnapshot.MaximumAttentionRows + 1)]
+    public async Task NotificationAttentionRowsStopAtTheShellLimit(int available)
+    {
+        var recorder = new RecordingDashboardQueries();
+        var rows = Enumerable.Range(1, available)
+            .Select(index => NewUnidentified(Guid.NewGuid(), $"U{2000 + index}"))
+            .ToArray();
+
+        var attention = await ExecuteAttentionRowsAsync(
+            recorder,
+            NowUtc,
+            unidentified: new StubUnidentifiedQueue { Rows = rows });
+
+        Assert.Equal(Math.Min(available, GetOperationsSnapshot.MaximumAttentionRows), attention.Count);
+        Assert.Equal(
+            rows.Take(GetOperationsSnapshot.MaximumAttentionRows).Select(row => row.Id),
+            attention.Select(row => row.Id));
+    }
+
     private static async Task<OperationsSnapshot> ExecuteAsync(
         RecordingDashboardQueries recorder,
         DateTimeOffset nowUtc,
@@ -256,8 +277,42 @@ public sealed class DashboardBoundaryTests
         StubDueWorkQueries? dueWork = null,
         StubRequestOperationStore? requestStore = null)
     {
+        var snapshot = BuildSnapshot(
+            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore);
+        return await snapshot.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+    }
+
+    /// <summary>
+    /// The notifications menu's own narrow query (<see cref="IGetAttentionRows"/>),
+    /// exercised directly rather than through the full snapshot — the two
+    /// share <c>FetchAttentionInputsAsync</c> but only this interface applies
+    /// <see cref="GetOperationsSnapshot.MaximumAttentionRows"/>.
+    /// </summary>
+    private static async Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAttentionRowsAsync(
+        RecordingDashboardQueries recorder,
+        DateTimeOffset nowUtc,
+        StubSearchCases? searchCases = null,
+        StubUnidentifiedQueue? unidentified = null,
+        StubListTriage? triage = null,
+        StubDueWorkQueries? dueWork = null,
+        StubRequestOperationStore? requestStore = null)
+    {
+        IGetAttentionRows attentionRows = BuildSnapshot(
+            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore);
+        return await attentionRows.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
+    }
+
+    private static GetOperationsSnapshot BuildSnapshot(
+        RecordingDashboardQueries recorder,
+        DateTimeOffset nowUtc,
+        StubSearchCases? searchCases,
+        StubUnidentifiedQueue? unidentified,
+        StubListTriage? triage,
+        StubDueWorkQueries? dueWork,
+        StubRequestOperationStore? requestStore)
+    {
         var timeProvider = new FixedTimeProvider(nowUtc);
-        var snapshot = new GetOperationsSnapshot(
+        return new GetOperationsSnapshot(
             new StubIntakeReceiptQueries(),
             triage ?? new StubListTriage(),
             dueWork ?? new StubDueWorkQueries(),
@@ -267,7 +322,6 @@ public sealed class DashboardBoundaryTests
             new GetRequestOperations(requestStore ?? new StubRequestOperationStore(), timeProvider),
             new NoStaffAccounts(),
             timeProvider);
-        return await snapshot.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
     }
 
     private static CaseDueWork NewDueWork(Guid caseId, string reference, DateTimeOffset? nextChaseAtUtc) => new(
