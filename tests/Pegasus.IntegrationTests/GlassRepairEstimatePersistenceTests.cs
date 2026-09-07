@@ -722,8 +722,8 @@ public sealed class GlassRepairEstimatePersistenceTests
         [
             GlassRepairEstimateSessionState.Launching,
             GlassRepairEstimateSessionState.Active,
-            GlassRepairEstimateSessionState.AwaitingImport,
             GlassRepairEstimateSessionState.Importing,
+            GlassRepairEstimateSessionState.AwaitingImport,
             GlassRepairEstimateSessionState.Completed,
         ];
         var expectedVersion = session.Session.Version;
@@ -743,10 +743,11 @@ public sealed class GlassRepairEstimatePersistenceTests
                 CancellationToken.None);
             expectedVersion++;
 
-            // The first stage that is no longer waiting on the provider stamps
-            // the callback, and every later stage carries that same moment.
-            consumedAt ??= stage is GlassRepairEstimateSessionState.AwaitingImport
-                or GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Completed
+            // Importing is the durable callback claim; every later stage keeps
+            // that same observation time.
+            consumedAt ??= stage is GlassRepairEstimateSessionState.Importing
+                or GlassRepairEstimateSessionState.AwaitingImport
+                or GlassRepairEstimateSessionState.Completed
                 ? harness.TimeProvider.GetUtcNow()
                 : null;
 
@@ -769,6 +770,28 @@ public sealed class GlassRepairEstimatePersistenceTests
         }
 
         Assert.NotNull(consumedAt);
+    }
+
+    [Theory]
+    [InlineData(GlassRepairEstimateSessionState.Expired)]
+    [InlineData(GlassRepairEstimateSessionState.Failed)]
+    public async Task ATerminalStateWithoutACallbackDoesNotClaimCallbackConsumption(
+        GlassRepairEstimateSessionState terminalState)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var session = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
+            CancellationToken.None);
+
+        await harness.Store.SaveAsync(
+            Transition(session, terminalState, failureCode: "glass.session.ended"),
+            session.Session.Version,
+            CancellationToken.None);
+
+        var persisted = await harness.Store.GetAsync(session.Session.Id, CancellationToken.None);
+        Assert.NotNull(persisted);
+        Assert.Equal(terminalState, persisted.Session.State);
+        Assert.Null(persisted.Session.CallbackConsumedAtUtc);
     }
 
     [Fact]

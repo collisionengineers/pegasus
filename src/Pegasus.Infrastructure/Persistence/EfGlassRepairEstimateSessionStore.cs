@@ -62,11 +62,10 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <para>
 /// <b>The callback.</b> <c>CallbackDigest</c> is the fingerprint of the
 /// callback this session will accept and it never changes: a write carrying a
-/// different one is refused whole. The digest is consumed once — by the first
-/// write that ends the wait for the provider, which is the first write out of
-/// <see cref="AwaitingCallbackStates"/> — so a caller can tell a callback that
-/// has already been acted on from one that has not, and read the recorded
-/// result instead of acting on it twice. That write stamps
+/// different one is refused whole. The digest is consumed once — by the write
+/// to <see cref="GlassRepairEstimateSessionState.Importing"/> that claims the
+/// callback — so a caller can tell a callback that has already been acted on
+/// from a terminal transition that received no callback. That write stamps
 /// <c>CallbackConsumedAtUtc</c> and no later write moves it.
 /// </para>
 /// <para>
@@ -113,14 +112,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// is one of them: an uncertain outcome is not an answer, and the callback
     /// that resolves it has not arrived.
     /// </summary>
-    private static readonly GlassRepairEstimateSessionState[] AwaitingCallbackStates =
-    [
-        GlassRepairEstimateSessionState.Prepared,
-        GlassRepairEstimateSessionState.Launching,
-        GlassRepairEstimateSessionState.Active,
-        GlassRepairEstimateSessionState.Unknown,
-    ];
-
     public async Task<GlassRepairEstimateSessionMaterial?> GetAsync(
         Guid sessionId, CancellationToken cancellationToken)
     {
@@ -283,7 +274,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
         }
 
         var now = timeProvider.GetUtcNow();
-        var wasAwaitingCallback = IsAwaitingCallback(entity.State);
         entity.State = session.State;
         entity.ActiveAccountKey = OccupiesAccount(session.State) ? entity.NormalizedAccountKey : null;
         entity.ExpiresAtUtc = session.ExpiresAtUtc;
@@ -297,10 +287,9 @@ public sealed class EfGlassRepairEstimateSessionStore(
         entity.ResultArtifactsJson = material.ResultArtifactsJson;
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
-        // Consumed by the write that ends the wait on the provider, and only
-        // once: waiting again would never move the moment the callback was
-        // acted on.
-        if (wasAwaitingCallback && !IsAwaitingCallback(session.State)
+        // CompleteAsync claims a callback by moving the session to Importing.
+        // Expiry or failure without a callback must not claim consumption.
+        if (session.State == GlassRepairEstimateSessionState.Importing
             && entity.CallbackConsumedAtUtc is null)
         {
             entity.CallbackConsumedAtUtc = now;
@@ -404,9 +393,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
 
     private static bool OccupiesAccount(GlassRepairEstimateSessionState state) =>
         Array.IndexOf(AccountOccupyingStates, state) >= 0;
-
-    private static bool IsAwaitingCallback(GlassRepairEstimateSessionState state) =>
-        Array.IndexOf(AwaitingCallbackStates, state) >= 0;
 
     private static string Digest(string callbackDigest)
     {

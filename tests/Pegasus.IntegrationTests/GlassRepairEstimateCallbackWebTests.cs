@@ -116,7 +116,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
         var form = await workspace.LaunchFormAsync();
-        var version = long.Parse(form["expectedVersion"], CultureInfo.InvariantCulture);
+        var version = await workspace.CaseVersionAsync();
         var lease = form["editLeaseToken"];
 
         var facts = await workspace.RequireCaseAuthorityAsync(version, lease);
@@ -140,10 +140,11 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await workspace.ClaimLeaseAsync();
         var form = await workspace.LaunchFormAsync();
         await workspace.RemoveCaseFieldAsync(missingField);
+        var version = await workspace.CaseVersionAsync();
 
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() =>
             workspace.RequireCaseAuthorityAsync(
-                long.Parse(form["expectedVersion"], CultureInfo.InvariantCulture),
+                version,
                 form["editLeaseToken"]));
     }
 
@@ -205,7 +206,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Empty(await workspace.EstimatesAsync());
         Assert.Empty(await workspace.RetainedMediaTypesAsync());
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
-        var html = await workspace.CaseHtmlAsync();
+        var html = WebUtility.HtmlDecode(await workspace.CaseHtmlAsync());
         Assert.Contains(
             Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.NotImported,
             html,
@@ -316,10 +317,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var session = Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(GlassRepairEstimateSessionState.Expired, session.State);
         Assert.Equal(GlassFailure.CallbackExpired, session.FailureCode);
-        Assert.Null(session.CallbackConsumedAtUtc);
+        Assert.NotNull(session.CallbackConsumedAtUtc);
         Assert.Empty(await workspace.EstimatesAsync());
         Assert.Empty(await workspace.RetainedMediaTypesAsync());
-        var html = await workspace.CaseHtmlAsync();
+        var html = WebUtility.HtmlDecode(await workspace.CaseHtmlAsync());
         Assert.Contains(
             Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.NotImported,
             html,
@@ -706,6 +707,18 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     expectedVersion,
                     leaseToken,
                     CancellationToken.None);
+        }
+
+        public async Task<long> CaseVersionAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            return await context.Set<CaseEntity>()
+                .Where(item => item.Id == CaseId)
+                .Select(item => item.Version)
+                .SingleAsync();
         }
 
         public async Task RemoveCaseFieldAsync(string fieldName)
