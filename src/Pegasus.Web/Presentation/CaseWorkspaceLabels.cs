@@ -280,4 +280,36 @@ public static class CaseWorkspaceLabels
         public const string SendUnknown = "The send result is not yet known.";
         public const string SendFailed = "The report send failed.";
     }
+
+    /// <summary>
+    /// The per-Engineer Glass repair-estimate credential page's words, same
+    /// ownership rule as the sections above: Case- and Glass-only labels live
+    /// here so no Stream B change touches the shared OperatorLabels file.
+    /// Nothing here names, echoes or describes a secret.
+    /// </summary>
+    public static class GlassCredential
+    {
+        public const string Title = "Glass repair estimate credential";
+        public const string Account = "Account";
+        public const string Username = "Username";
+        public const string Password = "Password";
+        public const string Reason = "Reason";
+        public const string Generation = "Generation";
+        public const string Version = "Version";
+        public const string Updated = "Updated";
+        public const string Save = "Save credential";
+        public const string Clear = "Clear credential";
+        public const string Enabled = "Enabled";
+        public const string DisabledState = "Disabled";
+        public const string NotConfigured = "Not configured";
+        public const string Saved = "The credential was saved.";
+        public const string Cleared = "The credential was cleared.";
+        public const string Expired = "The form has expired. Retry the operation.";
+        public const string ReasonRequired = "Enter a reason.";
+        public const string UsernameRequired = "Enter a username.";
+        public const string PasswordRequired = "Enter a password.";
+        public const string StaleVersion =
+            "The credential changed after this page was loaded. Review the current version and retry.";
+        public const string NotAccepted = "The change was not accepted.";
+    }
 }
