@@ -127,3 +127,28 @@ Initial author stop was code ready for root verification. Root supplied final
 focused PASS evidence on 2026-09-07 and explicitly authorized the next handoff:
 record all attempts, commit scoped changes with [skip ci], push a PR to dev and
 move to Review. Stop for independent review; do not self-review, merge or deploy.
+
+## Remediation round 1 — PR683 review findings
+
+Independent attestation scratch/review@cc5b9a51b2e4e5d3 names F-001 and F-002
+against 1ac8bc428e0432b510b745342fdadd849d726878. Both are accepted for fixing;
+retain the review/history unchanged. Root explicitly assigned this bounded batch.
+
+F-001: before Resume continues Prepared or a known vehicle with no estimate ID,
+require the supplied Case version/live edit lease through the existing
+IGlassRepairEstimateCaseAuthority port, under the current Engineer actor. Retain
+that regained version/token in protected provider state for subsequent import.
+Do not duplicate CaseMutationGuard in Web or alter known-ID-only reconciliation.
+F-002: preserve the existing outcomeUnknown classification through the bounded
+provider-response reader. An oversized response after create/start remains Unknown
+and account-occupying; keep response bounds and definite pre-write refusals.
+
+Touch only GlassRepairEstimateGateway.cs, GlassMvaClient.cs and focused existing
+GlassRepairEstimateGatewayTests.cs/GlassRepairEstimatePersistenceTests.cs as
+needed. No Razor changes or new snapshot capture unless an actual page changes.
+Tests cover Prepared/known-vehicle missing, stale, expired and foreign authority,
+valid recovery/import authority, and create/start response overflow with recreated
+gateway, expiry and no repeated external creation. Root remains sole verifier.
+
+Round-1 stop: leave the correction frozen for root compiler/runtime evidence,
+before commit/push or Review. Later push updates existing PR683, never a new PR.

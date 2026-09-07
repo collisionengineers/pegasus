@@ -8,4 +8,10 @@
 
 Author candidate and root focused runtime/snapshot verification are complete;
 all failed attempts and corrected passes are recorded in the report.
-Independent review and merge remain unperformed.
+Independent review returned needs-changes; merge remains unperformed.
+
+## Remediation round 1
+
+- [ ] F-001 — Guard resumed fresh provider writes through existing Case authority and retain regained import authority; add bounded regressions.
+- [ ] F-002 — Preserve uncertain-write semantics through bounded response reads; add create/start overflow regressions.
+- [ ] Freeze the correction for root verification, retaining all earlier evidence and independent review dispositions.
