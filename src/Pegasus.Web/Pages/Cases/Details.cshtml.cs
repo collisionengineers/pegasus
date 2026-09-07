@@ -472,8 +472,10 @@ public sealed partial class DetailsModel(
     /// </summary>
     public bool CanResumeGlass =>
         CanLaunchGlass
-        && GlassSession is { State: GlassRepairEstimateSessionState.Active
-            or GlassRepairEstimateSessionState.AwaitingImport };
+        && GlassSession is { } session
+        && (session.State == GlassRepairEstimateSessionState.AwaitingImport
+            || (session.State == GlassRepairEstimateSessionState.Active
+                && session.ExpiresAtUtc > clock.GetUtcNow()));
 
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
