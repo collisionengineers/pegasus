@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
@@ -106,6 +106,17 @@ public static class IntakeEnvelopeLimits
     /// independent of how many files are in the batch.
     /// </summary>
     public const long MultipartOverhead = 64 * 1024;
+
+    /// <summary>
+    /// The aggregate file byte budget for one whole public Upload submission,
+    /// excluding multipart boundaries and non-file form fields.
+    /// </summary>
+    /// <remarks>
+    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Public
+    /// aggregate byte limit excludes multipart overhead, which belongs only
+    /// to HTTP request framing.
+    /// </remarks>
+    public const long MaximumPublicAggregateContentLength = 200L * 1024 * 1024;
 }
 
 /// <summary>
