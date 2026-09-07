@@ -1,39 +1,43 @@
 # V1 documentation correction dispositions
 
-Checkpoint 2026-09-06 10:20 UTC; A worktree based on f07b8851d, changes not yet committed.
-This is the complete 29-row supplied register, not proof of completion. Pending
-B/C text remains owned by its named domain consultation; A edits canonical docs.
-Final link/placement checks, reviewed commit identities and combined evidence
-will replace this checkpoint. Board autosync is paused; this record is local.
+Checkpoint 2026-09-07; canonical A documentation at
+`a243fd2090d2f3806e289b55f862016231bec42f`. This refresh records the
+source-level disposition of the complete 29-row supplied register. The A
+canonical corrections are committed; they do not by themselves prove the
+final B/C combined callers, external acceptance, deployment, or operator
+acceptance. Those acceptance claims remain pending where named below. Final
+reviewed combined identities, link/placement checks, and verification evidence
+must replace this checkpoint before PLAT-075 closeout. Board autosync is healthy;
+the board remains the authoritative workflow record.
 
 | ID | Canonical files | Disposition |
 | --- | --- | --- |
-| A01 | AGENTS.md | Corrected ordinary workflow, managed block preserved, explicit v1 exception retained. Named integration target, exact proof, no author self-merge or age-based cleanup; Git fixture and CI conventions updated. |
-| A02 | CONTEXT.md | Corrected global T-00001 / Unidentified vocabulary. Final working-data and estimate-draft wording awaits B/C reviewed behavior. |
-| A03 | README.md | Corrected overview to retired source-import provenance. |
-| A04 | workspaces/README.md | Corrected workspace opening state to retired imports, retained historical evidence. |
-| A05 | docs/engineering.md | Corrected DOC/MSG capability and claim procedure; added explicitly named NOW.md operating-index exception rather than an absent-file claim. |
-| A06 | .stitch/DESIGN.md | Subordinated historical competing guide to current design authority and v3 supplied design. |
-| B01 | docs/current-architecture.md | Partial: source-versus-deployed snapshot corrected, composed API/MCP and DOC/MSG acknowledged, v1 development assembly identified. Final B/C workflow/44-tool composition awaits exact combined heads. |
-| B02 | docs/operations.md | Corrected deployed inventory using read-only 2026-09-06 09:24 UTC Web revision/digest and MCP/API flag evidence; no v1 deployment claimed. |
-| B03 | docs/runbook.md | Corrected runtime Chromium/fonts requirement separately from browser acceptance; mailbox onboarding and durable OAuth certificate configuration/operator scope recorded. |
-| B04 | docs/capabilities.md | Regenerated sole table totals: 244 unique capabilities, 153 Now / 27 Next / 35 Later / 29 Not planned. Removed fixed Andy-signatory claim in RPT-02. |
-| B05 | docs/open-decisions.md | Partial: API, DVLA, AI job lifecycle, Glass's and deployed 0.5 GB/day cap corrected. Final C upload session/limits behavior remains a domain handoff. |
-| C01 | docs/operator-notes.md | Partial: added explicitly authorized current v1 decisions while preserving historical business statements. Exact D29/D30 and C Triage assembly text remains a domain handoff; no unrelated meaning changed. |
-| C02 | docs/frd/frd-03-triage.md | Corrected global T reference and missing-registration Unidentified route without collapsing Audit/Triage/Blocked semantics; C implementation proof pending. |
-| C03 | docs/frd/frd-06-vehicle-and-engineering-evidence.md | Corrected DVLA/DVSA selected/composed status; distinguishes missing fields and exact caller/provider proof. |
-| C04 | docs/frd/frd-07-eva-and-external-engineering-handoff.md | Partial: optional EVA and deterministic explicit retry versus Unknown no-resend clarified. B07 exact first-handoff and manual resend wording pending. |
-| C05 | docs/frd/frd-09-provider-and-intermediary-routes.md | Corrected accepted Provider API behavior and actual QDOS route v4 / classification v5 source versions. |
-| C06 | docs/frd/frd-12-operator-experience.md | Pending C06/C08 exact reviewed page-state, lease, grouped-upload and label text. A owns final canonical edit, C owns domain implementation. |
-| C07 | docs/principal-rules-and-mappings/qdos.md; docs/frd/frd-01-case-identity-and-lifecycle.md | Corrected FRD and QDOS reference to current AGENTS invariant: missing standalone Audit evidence withholds only later Audit reference, not eligible normal Case/PO allocation. |
-| D01 | docs/adr/README.md | Regenerated 36-entry ADR index from current frontmatter including explicit supersession chains; IDs retained. |
-| D02 | docs/adr/0002-dotnet-modular-monolith-on-azure.md | Marked historical hosting decision currency/supersession links; retained append-only decision evidence. |
-| D03 | docs/adr/0004-provider-api-and-staff-mcp-authentication.md | Corrected authentication decision status and current successors; preserved ID/history. |
-| D04 | docs/adr/0007-direct-terminal-azure-deployment.md | Corrected Windows-only historical release decision currency against accepted Linux workstation decision; no Linux release executed on this Windows host. |
-| D05 | docs/adr/0011-restrict-mcp-to-automation-actor.md; docs/adr/0014-local-to-production-deployment.md; docs/adr/0015-host-web-on-container-apps-consumption.md | Corrected old actor/deployment/hosting decisions with their accepted successor relationships, without rewriting history as current behavior. |
-| E01 | .zcode/plans/plan-sess_18294ee2-592f-4647-910c-54c5a5e0a0ab.md | Marked historical development plan as non-runnable subordinate evidence. |
-| E02 | .zcode/plans/plan-sess_485ec446-cbcd-46a2-bb5a-511a9255e9c5.md | Marked historical development plan as non-runnable subordinate evidence. |
-| F01 | .agents/skills/kanmer-docs/SKILL.md; .grok/skills/kanmer-docs/SKILL.md; .opencode/skills/kanmer-docs/SKILL.md | Installed three consumer-neutral copies corrected (foreign paths/history/fixed npm gates removed). Upstream Kanmer distribution is outside these three Pegasus PRs; its publisher follow-up remains explicit, not silently claimed complete. |
-| F02 | .agents/skills/kanmer-docs/assets/doc-structure.md; .grok/skills/kanmer-docs/assets/doc-structure.md; .opencode/skills/kanmer-docs/assets/doc-structure.md | Three copied documentation templates aligned with configured integration proof and separate deployed evidence. |
-| F03 | .agents/skills/kanmer-execute/assets/proof-template.md; .agents/skills/kanmer-execute/assets/proof-test-template.md; .agents/skills/kanmer-execute/assets/proof-visual-template.md; .grok/skills/kanmer-execute/assets/proof-template.md; .grok/skills/kanmer-execute/assets/proof-test-template.md; .grok/skills/kanmer-execute/assets/proof-visual-template.md; .opencode/skills/kanmer-execute/assets/proof-template.md; .opencode/skills/kanmer-execute/assets/proof-test-template.md; .opencode/skills/kanmer-execute/assets/proof-visual-template.md | Nine proof assets aligned to one attempt-preserving result contract, exact merge identity and integration/deployment distinction. |
-| F04 | .agents/skills/kanmer-verify/SKILL.md; .grok/skills/kanmer-verify/SKILL.md; .opencode/skills/kanmer-verify/SKILL.md | Three verify skills corrected: only PASS moves to Done; operator waiver remains truthful non-PASS disposition and terminal retirement stays Verifying. No waiver or stage move authorized/performed. |
+| A01 | AGENTS.md | Landed at `817a961c1`: ordinary workflow, managed block, named integration target, exact proof, no author self-merge or age-based cleanup, and Git/CI conventions are aligned. The explicit v1 execution exception is retained. |
+| A02 | CONTEXT.md | Landed at `817a961c1`: global `T-00001`, pre-Case Triage, normal Case/PO linkage, and `Unidentified` vocabulary are corrected. Estimate and working-data acceptance belongs to the B/C combined implementation and is not claimed by this glossary edit. |
+| A03 | README.md | Landed at `817a961c1`: the overview describes retired source-import provenance rather than an active workspace architecture. |
+| A04 | workspaces/README.md | Landed at `817a961c1`: workspace imports are retired, while their historical evidence remains identified. |
+| A05 | docs/engineering.md | Landed at `817a961c1`: DOC/MSG capability and claim procedure are corrected, and the named `NOW.md` operating-index exception replaces the absent-file claim. |
+| A06 | .stitch/DESIGN.md | Landed at `817a961c1`: the historical guide is explicitly subordinate to the current design authority and supplied v3 decisions. |
+| B01 | docs/current-architecture.md | Source correction landed at `817a961c1` and was extended through `42165d213` and `a243fd209`: release-38 deployment is separated from the v1 source assembly; DOC/MSG, API/MCP, custody, mail, Reply-To, Glass and current tool inventory are described without deployment claims. Final B/C combined caller and external-acceptance proof remains pending. |
+| B02 | docs/operations.md | Landed at `817a961c1`: deployed inventory is bound to the read-only 2026-09-06 Web revision/digest and feature evidence, with no v1 deployment claimed. A later deployment still requires a same-release refresh. |
+| B03 | docs/runbook.md | Landed at `817a961c1`: runtime Chromium/fonts, mailbox onboarding, durable OAuth certificates, and operator scope are recorded separately from acceptance. Live mailbox/certificate operations remain operator-owned evidence. |
+| B04 | docs/capabilities.md | Landed at `817a961c1`: the sole table has 244 unique capabilities (153 Now, 27 Next, 35 Later, 29 Not planned), and the fixed Andy-signatory claim is removed. Final combined delivery does not follow from schedule allocation. |
+| B05 | docs/open-decisions.md | Source corrections landed at `817a961c1`: API, DVLA/DVSA, AI lifecycle, Glass repair-estimate scope, the deployed 0.5 GB/day cap, EVA Unknown handling, and current upload-session decisions are aligned. Exact B/C combined callers, live credentials, workload measurement, and external acceptance remain pending where the register says so. |
+| C01 | docs/operator-notes.md | Landed at `817a961c1`: the explicitly authorized 6 September v1 decisions, including Triage and D29/D30 direction, are recorded while earlier operator statements remain historical evidence. Protected operator meaning was not otherwise changed; final combined implementation proof remains pending. |
+| C02 | docs/frd/frd-03-triage.md | Canonical correction landed at `817a961c1`: global T reference and missing-registration `Unidentified` routing are stated without collapsing Audit, Triage, or Blocked intake. C implementation exists on its owner branch; reviewed combined proof remains pending. |
+| C03 | docs/frd/frd-06-vehicle-and-engineering-evidence.md | Landed at `817a961c1`: DVLA/DVSA selection/composition, missing fields, and the distinction between source, caller, credential, and live proof are explicit. Live provider acceptance remains pending. |
+| C04 | docs/frd/frd-07-eva-and-external-engineering-handoff.md | Landed at `817a961c1`: optional EVA, first-handoff/report-preparation behavior, explicit staff resend, and terminal `Unknown` with no automatic retry are aligned. Final B caller composition and external EVA acceptance remain pending. |
+| C05 | docs/frd/frd-09-provider-and-intermediary-routes.md | Landed at `817a961c1`: the accepted Provider API contract and actual QDOS route v4/classification v5 source versions are recorded. Named client credentials, rollout, and live caller acceptance remain pending. |
+| C06 | docs/frd/frd-12-operator-experience.md | Canonical page-state correction landed at `817a961c1`: one-page Case sections, shared lease behavior, upload session/finalisation, grouped upload decisions, current labels, estimate/VAT rules, and Administration surfaces are stated. C/B owner branches carry the implementation; final combined UI/caller verification remains pending. |
+| C07 | docs/principal-rules-and-mappings/qdos.md; docs/frd/frd-01-case-identity-and-lifecycle.md | Landed at `817a961c1`: missing standalone Audit evidence withholds only the later Audit reference and does not block an otherwise eligible normal Case/PO allocation. Combined custody/allocation proof remains an implementation gate, not a prose gap. |
+| D01 | docs/adr/README.md | Landed at `817a961c1`: the 36-entry index is regenerated from current frontmatter with explicit supersession chains and stable IDs. |
+| D02 | docs/adr/0002-dotnet-modular-monolith-on-azure.md | Landed at `817a961c1`: historical hosting currency and supersession links are explicit without rewriting the decision record. |
+| D03 | docs/adr/0004-provider-api-and-staff-mcp-authentication.md | Landed at `817a961c1`: authentication status and current successors are corrected while the stable ID/history remain. |
+| D04 | docs/adr/0007-direct-terminal-azure-deployment.md | Landed at `817a961c1`: the Windows-only historical release decision is related to the accepted Linux workstation decision; no Linux release is claimed. |
+| D05 | docs/adr/0011-restrict-mcp-to-automation-actor.md; docs/adr/0014-local-to-production-deployment.md; docs/adr/0015-host-web-on-container-apps-consumption.md | Landed at `817a961c1`: actor, deployment, and hosting decisions name their accepted successors without presenting historical choices as current behavior. |
+| E01 | .zcode/plans/plan-sess_18294ee2-592f-4647-910c-54c5a5e0a0ab.md | Landed at `817a961c1`: the historical development plan is marked subordinate and non-runnable. |
+| E02 | .zcode/plans/plan-sess_485ec446-cbcd-46a2-bb5a-511a9255e9c5.md | Landed at `817a961c1`: the historical development plan is marked subordinate and non-runnable. |
+| F01 | .agents/skills/kanmer-docs/SKILL.md; .grok/skills/kanmer-docs/SKILL.md; .opencode/skills/kanmer-docs/SKILL.md | Landed at `817a961c1`: all three installed Pegasus copies remove foreign paths/history and fixed npm gates. Upstream Kanmer publication remains a separate owner follow-up and is not claimed complete here. |
+| F02 | .agents/skills/kanmer-docs/assets/doc-structure.md; .grok/skills/kanmer-docs/assets/doc-structure.md; .opencode/skills/kanmer-docs/assets/doc-structure.md | Landed at `817a961c1`: all three installed templates distinguish configured integration proof from deployed evidence. |
+| F03 | .agents/skills/kanmer-execute/assets/proof-template.md; .agents/skills/kanmer-execute/assets/proof-test-template.md; .agents/skills/kanmer-execute/assets/proof-visual-template.md; .grok/skills/kanmer-execute/assets/proof-template.md; .grok/skills/kanmer-execute/assets/proof-test-template.md; .grok/skills/kanmer-execute/assets/proof-visual-template.md; .opencode/skills/kanmer-execute/assets/proof-template.md; .opencode/skills/kanmer-execute/assets/proof-test-template.md; .opencode/skills/kanmer-execute/assets/proof-visual-template.md | Landed at `817a961c1`: all nine proof assets use one attempt-preserving result contract, exact merge identity, and the integration/deployment distinction. |
+| F04 | .agents/skills/kanmer-verify/SKILL.md; .grok/skills/kanmer-verify/SKILL.md; .opencode/skills/kanmer-verify/SKILL.md | Landed at `817a961c1`: all three installed verify skills allow only PASS to move Done; waiver remains a truthful non-PASS disposition and terminal retirement remains Verifying. No waiver or stage move is implied. |
