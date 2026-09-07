@@ -147,7 +147,7 @@ images, or mandatory external checks retain that Case as `Not ready`; they do
 not form another pre-Case acceptance gate. An Audit's retained original report
 is identity-critical: without one separate report with one literal outcome,
 Pegasus cannot determine whether the reference is `a.` or `ap.` and enters
-`Needs sorting`. The manual case-create screen does not offer Audit; it is
+`Unidentified`. The manual case-create screen does not offer Audit; it is
 created only by this retained-email route. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
@@ -187,7 +187,7 @@ group, not a set of independent images: a damage close-up carrying no
 registration must not detach itself from an overview image submitted with it,
 and the group — never an individual image — is the unit
 that reaches an association, a pre-Case Image intake registration, or a
-`Needs sorting` outcome.
+`Unidentified` outcome.
 
 - **Mailbox attachment entry.** When a newly processed mailbox message would
   otherwise enter Unidentified, has not been routed as an instruction, Case or
@@ -245,7 +245,7 @@ that reaches an association, a pre-Case Image intake registration, or a
      pre-Case identity.
   4. Zero distinct accepted VRMs, or more than one (conflicting readable
      VRMs): no single usable identity exists. The intact group — every member
-     together, kept as one unit — remains `Needs sorting`; no VRM-based
+     together, kept as one unit — remains `Unidentified`; no VRM-based
      reference is fabricated for it, and no member is split off into an
      unrelated generic outcome.
 - **Fail-closed is a group property, not a per-member one.** Case 3 and case 4
