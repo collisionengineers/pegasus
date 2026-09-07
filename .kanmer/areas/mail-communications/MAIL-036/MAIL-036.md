@@ -2,10 +2,12 @@
 id: MAIL-036
 type: ticket
 title: Preserve the wipe-time email cutoff across Graph replay
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T20:18:52.479Z'
 labels: []
 groups:
   - EPIC-014
@@ -15,7 +17,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-09-07T20:01:20.357Z'
-updated: '2026-09-07T20:01:20.357Z'
+updated: '2026-09-07T20:18:52.479Z'
 ---
 
 ## What
