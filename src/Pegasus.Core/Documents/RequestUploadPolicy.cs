@@ -81,8 +81,20 @@ public sealed class RequestUploadLimits
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lifetime, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumFileCount);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumFileCount,
+            IntakeEnvelopeLimits.MaximumBatchFileCount,
+            nameof(maximumFileCount));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumFileBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumFileBytes,
+            IntakeEnvelopeLimits.MaximumContentLength,
+            nameof(maximumFileBytes));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumRequestBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumRequestBytes,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength,
+            nameof(maximumRequestBytes));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rateLimit);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(rateLimitWindow, TimeSpan.Zero);
         ArgumentNullException.ThrowIfNull(allowedMediaTypes);

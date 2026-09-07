@@ -1,3 +1,4 @@
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -56,6 +57,7 @@ public sealed class IntakeEnvelopeLimitsTests
         Assert.Equal(209_715_200L + 65_536L, IntakeEnvelopeLimits.MaximumBatchContentLength);
         Assert.Equal(20, IntakeEnvelopeLimits.MaximumBatchFileCount);
         Assert.Equal(31_457_280, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
+        Assert.Equal(209_715_200L, IntakeEnvelopeLimits.MaximumPublicAggregateContentLength);
     }
 
     [Fact]
@@ -72,6 +74,75 @@ public sealed class IntakeEnvelopeLimitsTests
             "The multipart body budget is a pinned figure, not the file count "
                 + "times the per-file cap: deriving it would grant one request "
                 + "far more body than the Web instance can hold.");
+    }
+
+    [Fact]
+    public void ThePublicAggregateBudgetExcludesMultipartOverhead()
+    {
+        Assert.Equal(209_715_200L, IntakeEnvelopeLimits.MaximumPublicAggregateContentLength);
+        Assert.Equal(
+            IntakeEnvelopeLimits.MaximumBatchContentLength - IntakeEnvelopeLimits.MultipartOverhead,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength);
+    }
+
+    [Fact]
+    public void RequestUploadLimitsEnforcesCoreLimitsAndRejectsOneOver()
+    {
+        var exact = new RequestUploadLimits(
+            "v1",
+            TimeSpan.FromDays(7),
+            IntakeEnvelopeLimits.MaximumBatchFileCount,
+            IntakeEnvelopeLimits.MaximumContentLength,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength,
+            ["image/jpeg"],
+            10,
+            TimeSpan.FromMinutes(1));
+        Assert.Equal(IntakeEnvelopeLimits.MaximumBatchFileCount, exact.MaximumFileCount);
+        Assert.Equal(IntakeEnvelopeLimits.MaximumContentLength, exact.MaximumFileBytes);
+        Assert.Equal(IntakeEnvelopeLimits.MaximumPublicAggregateContentLength, exact.MaximumRequestBytes);
+
+        var lower = new RequestUploadLimits(
+            "v1",
+            TimeSpan.FromDays(7),
+            10,
+            10L * 1024 * 1024,
+            20L * 1024 * 1024,
+            ["image/jpeg"],
+            10,
+            TimeSpan.FromMinutes(1));
+        Assert.Equal(10, lower.MaximumFileCount);
+        Assert.Equal(10L * 1024 * 1024, lower.MaximumFileBytes);
+        Assert.Equal(20L * 1024 * 1024, lower.MaximumRequestBytes);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RequestUploadLimits(
+            "v1",
+            TimeSpan.FromDays(7),
+            IntakeEnvelopeLimits.MaximumBatchFileCount + 1,
+            IntakeEnvelopeLimits.MaximumContentLength,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength,
+            ["image/jpeg"],
+            10,
+            TimeSpan.FromMinutes(1)));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RequestUploadLimits(
+            "v1",
+            TimeSpan.FromDays(7),
+            IntakeEnvelopeLimits.MaximumBatchFileCount,
+            IntakeEnvelopeLimits.MaximumContentLength + 1,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength,
+            ["image/jpeg"],
+            10,
+            TimeSpan.FromMinutes(1)));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RequestUploadLimits(
+            "v1",
+            TimeSpan.FromDays(7),
+            IntakeEnvelopeLimits.MaximumBatchFileCount,
+            IntakeEnvelopeLimits.MaximumContentLength,
+            IntakeEnvelopeLimits.MaximumPublicAggregateContentLength + 1,
+            ["image/jpeg"],
+            10,
+            TimeSpan.FromMinutes(1)));
     }
 
     [Fact]
