@@ -2,10 +2,12 @@
 id: DELIV-050
 type: ticket
 title: Record report-input permission migration in the release bootstrap census
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T23:40:52.619Z'
 labels: []
 groups:
   - EPIC-014
@@ -17,7 +19,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:40:22.715Z'
+updated: '2026-09-07T23:40:52.619Z'
 ---
 
 ## What
