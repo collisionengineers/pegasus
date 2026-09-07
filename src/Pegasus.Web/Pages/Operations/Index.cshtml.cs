@@ -100,7 +100,7 @@ public sealed class IndexModel(
     /// </summary>
     public IReadOnlyList<AiJobRecord> AiJobs { get; private set; } = [];
 
-    public EvaSubmissionActivity EvaActivity { get; private set; } = new(0, null);
+    public EvaSubmissionActivity EvaActivity { get; private set; } = new(null);
 
     public IReadOnlyList<EvaSubmissionFailure> EvaFailures { get; private set; } = [];
 

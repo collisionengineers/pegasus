@@ -15,8 +15,7 @@
     var serviceHealth = Model.ServiceHealth;
     var evaActivity = Model.EvaActivity;
     var evaFailures = Model.EvaFailures;
-    var hasEvaHandoffs = evaActivity.PendingWorkCount > 0
-        || evaActivity.LatestSubmittedAtUtc is not null
+    var hasEvaHandoffs = evaActivity.LatestSubmittedAtUtc is not null
         || evaFailures.Count > 0;
 }
 
@@ -165,10 +164,9 @@
             <div class="table-wrap no-border">
                 <table>
                     <caption class="sr-only">@OperatorLabels.EvaHandoffs.PanelTitle</caption>
-                    <thead><tr><th scope="col">@OperatorLabels.EvaHandoffs.PendingWork</th><th scope="col">@OperatorLabels.EvaHandoffs.LatestActivity</th><th scope="col">@OperatorLabels.EvaHandoffs.Failures</th></tr></thead>
+                    <thead><tr><th scope="col">@OperatorLabels.EvaHandoffs.LatestActivity</th><th scope="col">@OperatorLabels.EvaHandoffs.Failures</th></tr></thead>
                     <tbody>
                         <tr>
-                            <td class="tabular">@evaActivity.PendingWorkCount</td>
                             <td>
                                 @if (evaActivity.LatestSubmittedAtUtc is { } activity)
                                 {

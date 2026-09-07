@@ -1841,7 +1841,7 @@ public sealed partial class CaseDetailsWebTests
             Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
 
         Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
-            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(0, null));
+            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(null));
 
         Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
             string principalCode,

@@ -1161,7 +1161,7 @@ public sealed partial class OperationsWebTests
             CancellationToken cancellationToken = default)
         {
             ActivityCalls++;
-            return Task.FromResult(new EvaSubmissionActivity(2, FixedUtcNow));
+            return Task.FromResult(new EvaSubmissionActivity(FixedUtcNow));
         }
     }
 
