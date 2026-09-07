@@ -2,10 +2,12 @@
 id: INTK-063
 type: ticket
 title: Recover Image-initiated Case pairing using current accepted identity
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T23:51:17.244Z'
 labels:
   - image-intake
   - pairing
@@ -23,7 +25,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-07T23:50:36.423Z'
+updated: '2026-09-07T23:51:17.244Z'
 ---
 
 ## What

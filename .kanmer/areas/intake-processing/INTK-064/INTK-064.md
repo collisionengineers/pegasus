@@ -2,10 +2,12 @@
 id: INTK-064
 type: ticket
 title: Automatically associate Triage with its uniquely matched formal Case
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T23:51:19.646Z'
 labels:
   - triage
   - association
@@ -25,7 +27,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-07T23:50:36.541Z'
+updated: '2026-09-07T23:51:19.646Z'
 ---
 
 ## What
