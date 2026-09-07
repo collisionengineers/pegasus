@@ -2,25 +2,26 @@
 id: INTK-061
 type: ticket
 title: Restore durable intake custody and exactly one destination after failures
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-07T20:06:18.099Z'
+  review: '2026-09-07T21:04:33.926Z'
 taken_at: '2026-09-07T20:09:50.926Z'
 branch: INTK-061-intake-recovery
 worktree: .worktrees/intk-061
-claim_expires_at: '2026-09-07T21:28:46.197Z'
+claim_expires_at: '2026-09-07T21:34:34.075Z'
 claim_controller: /root
 lease_id: caff30a5-8e3d-4009-820d-f471bec4d716
-lease_revision: 9
+lease_revision: 10
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: intake_audit
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-061'
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T20:58:46.197Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-07T21:04:34.075Z'
 labels: []
 groups:
   - EPIC-014
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/679'
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T21:04:17.743Z'
+updated: '2026-09-07T21:04:34.075Z'
 ---
 
 ## What
