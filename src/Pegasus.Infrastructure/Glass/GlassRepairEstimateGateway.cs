@@ -257,7 +257,7 @@ public sealed class GlassRepairEstimateGateway(
             if (request.ExpectedCaseVersion is not { } caseVersion
                 || string.IsNullOrWhiteSpace(request.LeaseToken))
             {
-                throw new InvalidOperationException(
+                throw new GlassRepairEstimateRefusalException(
                     "Importing a waiting Glass's session needs the Case version and edit lease the "
                     + "Engineer has regained; resume it through the request that carries them.");
             }
@@ -318,7 +318,7 @@ public sealed class GlassRepairEstimateGateway(
         if (session.State is not (GlassRepairEstimateSessionState.Active
             or GlassRepairEstimateSessionState.Unknown))
         {
-            throw new InvalidOperationException(
+            throw new GlassRepairEstimateRefusalException(
                 $"A Glass's session in {session.State} cannot be resumed.");
         }
         if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
@@ -769,7 +769,7 @@ public sealed class GlassRepairEstimateGateway(
         ActionActor actor, CancellationToken cancellationToken) =>
         await credentials.GetEnabledAsync(
             actor, ExternalCredentialProvider.GlassRepairEstimate, cancellationToken)
-        ?? throw new InvalidOperationException(
+        ?? throw new GlassRepairEstimateRefusalException(
             "The signed-in Engineer has no enabled Glass's account, so no estimate can be started.");
 
     private async Task<GlassRepairEstimateSessionMaterial> RequireSessionAsync(

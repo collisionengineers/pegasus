@@ -109,6 +109,79 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
     }
 
+    [Fact]
+    public async Task TheRealCaseAuthorityRequiresTheExactVersionAndLiveLease()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var form = await workspace.LaunchFormAsync();
+        var version = long.Parse(form["expectedVersion"], CultureInfo.InvariantCulture);
+        var lease = form["editLeaseToken"];
+
+        var facts = await workspace.RequireCaseAuthorityAsync(version, lease);
+
+        Assert.Equal(GlassProviderFixture.Registration, facts.Registration);
+        Assert.Equal(GlassProviderFixture.MileageMiles, facts.MileageMiles);
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+            workspace.RequireCaseAuthorityAsync(version + 1, lease));
+
+        await workspace.FinishEditingAsync();
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            workspace.RequireCaseAuthorityAsync(version, lease));
+    }
+
+    [Theory]
+    [InlineData(CaseDataFieldNames.VehicleRegistration)]
+    [InlineData(CaseDataFieldNames.VehicleMileage)]
+    public async Task TheRealCaseAuthorityRefusesIncompleteVehicleFacts(string missingField)
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var form = await workspace.LaunchFormAsync();
+        await workspace.RemoveCaseFieldAsync(missingField);
+
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() =>
+            workspace.RequireCaseAuthorityAsync(
+                long.Parse(form["expectedVersion"], CultureInfo.InvariantCulture),
+                form["editLeaseToken"]));
+    }
+
+    [Fact]
+    public async Task AnUnexpectedLaunchFaultSurfacesAndCreatesNoSession()
+    {
+        var fault = new GatewayFault
+        {
+            LaunchFailure = new InvalidOperationException("An unrelated failure inside the gateway.")
+        };
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        await workspace.ClaimLeaseAsync();
+
+        using var failed = await workspace.LaunchAsync();
+
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        Assert.Empty(await workspace.SessionsAsync());
+        Assert.Empty(workspace.Mva.Requests);
+    }
+
+    [Fact]
+    public async Task AnExpectedLaunchRefusalReturnsToTheEstimateWithoutCreatingASession()
+    {
+        var fault = new GatewayFault
+        {
+            LaunchFailure = new GlassRepairEstimateRefusalException(
+                "The case records no vehicle registration, so no Glass's estimate can be started for it.")
+        };
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        await workspace.ClaimLeaseAsync();
+
+        using var refused = await workspace.LaunchAsync();
+
+        Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
+        Assert.StartsWith($"/Cases/{workspace.CaseId:D}", refused.Headers.Location!.ToString(), StringComparison.Ordinal);
+        Assert.Contains("no vehicle registration", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+        Assert.Empty(await workspace.SessionsAsync());
+    }
+
     /// <summary>
     /// A Glass's account holds one live calculation, so a second launch is
     /// refused where every other Estimate refusal is reported and no second
@@ -431,6 +504,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
     private sealed class GatewayFault
     {
+        public Exception? LaunchFailure { get; set; }
+
         public bool OnComplete { get; set; }
     }
 
@@ -439,7 +514,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
     {
         public Task<GlassRepairEstimateSession> LaunchAsync(
             GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
-            inner.LaunchAsync(request, cancellationToken);
+            fault.LaunchFailure is { } failure
+                ? Task.FromException<GlassRepairEstimateSession>(failure)
+                : inner.LaunchAsync(request, cancellationToken);
 
         public Task<GlassRepairEstimateSession> ResumeAsync(
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
@@ -548,6 +625,36 @@ public sealed class GlassRepairEstimateCallbackWebTests
             Assert.Equal(HttpStatusCode.Found, claimed.StatusCode);
             Assert.Contains(
                 "name=\"editLeaseToken\"", await CaseHtmlAsync(), StringComparison.Ordinal);
+        }
+
+        public async Task<GlassRepairEstimateCaseFacts> RequireCaseAuthorityAsync(
+            long expectedVersion,
+            string leaseToken)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateCaseAuthority>()
+                .RequireEditAuthorityAsync(
+                    ActionActor.Staff(
+                        DevelopmentOfflineIdentity.AdministratorId,
+                        [StaffRole.Administrator, StaffRole.Engineer]),
+                    CaseId,
+                    expectedVersion,
+                    leaseToken,
+                    CancellationToken.None);
+        }
+
+        public async Task RemoveCaseFieldAsync(string fieldName)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var fields = await context.Set<CaseDataFieldEntity>()
+                .Where(item => item.CaseId == CaseId && item.FieldName == fieldName)
+                .ToArrayAsync();
+            Assert.NotEmpty(fields);
+            context.RemoveRange(fields);
+            await context.SaveChangesAsync();
         }
 
         public async Task FinishEditingAsync()
