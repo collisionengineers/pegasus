@@ -157,74 +157,41 @@
                   data-workspace-href=""
                   data-workspace-label="">
                 <div class="content">
-
-<a class="back-link" href="administration-principals--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Principals
-</a>
-
+                    <a class="back-link" href="administration-principals--default.html">Back to Principals</a>
 <header class="page-header">
     <div class="page-title">
-            <p class="eyebrow">Administration</p>
         <h1>Create principal</h1>
     </div>
 </header>
 
+<div class="panel form-panel">
+    <form method="post" class="stack" action="administration-principal-create--default.html">
 
-    <div class="panel form-panel">
-        <form method="post" action="administration-principal-create--default.html">
-
-            <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-            <div>
-                <label for="OrganizationId">Work Provider organization</label>
-                <select data-val="true" data-val-required="The OrganizationId field is required." id="OrganizationId" name="OrganizationId">
-                    <option value="">Select an organization</option>
-                        <option value="test-ui-guid-1">Auto Logistic Solutions Ltd</option>
-                        <option value="test-ui-guid-2">AX</option>
-                        <option value="test-ui-guid-3">Baker Coleman</option>
-                        <option value="test-ui-guid-4">Blackstone Legal</option>
-                        <option value="test-ui-guid-5">Davison Flynn Duke Solicitors</option>
-                        <option value="test-ui-guid-6" selected="selected">Directory Web Caller Provider</option>
-                        <option value="test-ui-guid-7">Fairway Legal</option>
-                        <option value="test-ui-guid-8">Knightsbridge Solicitors</option>
-                        <option value="test-ui-guid-9">Montreal Prestige</option>
-                        <option value="test-ui-guid-10">Oakwood Solicitors</option>
-                        <option value="test-ui-guid-11">Performance Car Hire / Parkhouse</option>
-                        <option value="test-ui-guid-12">QC Law</option>
-                        <option value="test-ui-guid-13">QDOS</option>
-                        <option value="test-ui-guid-14">Robert James Solicitors</option>
-                        <option value="test-ui-guid-15">Smart Business Link</option>
-                        <option value="test-ui-guid-16">YM Law / Network HD UK</option>
-                </select>
-                <span class="field-validation-valid" data-valmsg-for="OrganizationId" data-valmsg-replace="true"></span>
-            </div>
-            <div>
-                <label for="Code">Principal code</label>
-                <input autocomplete="off" type="text" data-val="true" data-val-length="The field Code must be a string with a maximum length of 20." data-val-length-max="20" data-val-required="The Code field is required." id="Code" maxlength="20" name="Code" value="" />
-                <span class="field-validation-valid" data-valmsg-for="Code" data-valmsg-replace="true"></span>
-                <small class="empty-state">Letters and numbers only. The code is normalized to uppercase and cannot be edited.</small>
-            </div>
-            <div>
-                <label for="InspectionMode">Inspection mode</label>
-                <select data-val="true" data-val-required="The InspectionMode field is required." id="InspectionMode" name="InspectionMode">
-                    <option value="PhysicalAddress" selected="selected">Physical address</option>
-                    <option value="ImageBasedAssessment">Image Based Assessment</option>
-                </select>
-                <span class="field-validation-valid" data-valmsg-for="InspectionMode" data-valmsg-replace="true"></span>
-                <small class="empty-state">Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</small>
-            </div>
-            <div>
-                <label>
-                    <input type="checkbox" data-val="true" data-val-required="The EvaManualSubmission field is required." id="EvaManualSubmission" name="EvaManualSubmission" value="true" />
-                    Manual API submission
-                </label>
-            </div>
-            <div class="button-row">
-                <button type="submit" class="primary-action">Create principal</button>
-            </div>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="EvaManualSubmission" type="hidden" value="false" /></form>
-    </div>
-
+        <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
+        <div class="field">
+            <label for="Name">Name</label>
+            <input autocomplete="organization" type="text" data-val="true" data-val-length="The field Name must be a string with a maximum length of 300." data-val-length-max="300" data-val-required="The Name field is required." id="Name" maxlength="300" name="Name" value="" />
+            <span class="field-validation-valid" data-valmsg-for="Name" data-valmsg-replace="true"></span>
+        </div>
+        <div class="field">
+            <label for="Code">Principal code</label>
+            <input autocomplete="off" type="text" data-val="true" data-val-length="The field Code must be a string with a maximum length of 20." data-val-length-max="20" data-val-required="The Code field is required." id="Code" maxlength="20" name="Code" value="" />
+            <span class="field-validation-valid" data-valmsg-for="Code" data-valmsg-replace="true"></span>
+        </div>
+        <div class="field">
+            <label for="InspectionMode">Inspection mode</label>
+            <select data-val="true" data-val-required="The InspectionMode field is required." id="InspectionMode" name="InspectionMode">
+                <option value="PhysicalAddress" selected="selected">Physical address</option>
+                <option value="ImageBasedAssessment">Image Based Assessment</option>
+            </select>
+            <span class="field-validation-valid" data-valmsg-for="InspectionMode" data-valmsg-replace="true"></span>
+        </div>
+        <label class="choice"><input type="checkbox" data-val="true" data-val-required="The EvaManualSubmission field is required." id="EvaManualSubmission" name="EvaManualSubmission" value="true" /> Manual EVA API submission</label>
+        <div class="button-row">
+            <button type="submit" class="btn btn--primary">Create principal</button>
+        </div>
+    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="EvaManualSubmission" type="hidden" value="false" /></form>
+</div>
 
                 </div>
             </main>
