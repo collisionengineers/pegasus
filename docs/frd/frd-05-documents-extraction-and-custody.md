@@ -20,8 +20,25 @@ Pegasus must:
 - never execute macros, active content, external relationships, or embedded instructions;
 - distinguish scan-like material from corrupt, blank, unsupported, or encrypted material.
 
+### Qualified OCR
+
 Scan-like pages use the approved Azure Document Intelligence `prebuilt-layout`
-boundary. The provider operation identity and page output are retained before
+boundary ([ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md)). A
+retained estimate PDF may also qualify when its embedded text-map failure is
+positively established and its pages are structurally readable. A failed or
+ambiguous provider parser alone is insufficient. Corrupt, encrypted and
+non-renderable inputs must never be submitted to OCR. Readable embedded-text
+pages remain on the ordinary PDF path and are not submitted or replaced.
+
+Each operation binds exactly one authorized intake asset or Case document
+version, its content hash, length and selected page numbers. Retain the
+provider operation, pinned API/model, response hash, page coordinates and
+confidence. Deterministic instruction/estimate validation remains necessary;
+low confidence, missing structure or inconsistent totals cannot silently
+produce accepted fields or partial estimate lines. Unknown submissions with
+no provider identity remain visible and are not blindly repeated.
+
+The provider operation identity and page output are retained before
 instruction analysis. Provider completion alone does not complete the durable
 work: analysis failures or receipt-version conflicts retry against the retained
 output, without resubmitting pages. Completion is acknowledged only after an
