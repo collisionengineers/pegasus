@@ -39,3 +39,5 @@ changed by this preservation step.
   preserve dirty work, and push only reachable Stream C commits.
 
 - 2026-09-07T05:03:05.248Z claim-transfer antigravity-stream-c → codex-astra-a-c (live; operator: User reassigned full command of Stream C to this A controller; prior agent published clean head 49f05128abf840195cd587f8a14c1d1bb39493fd and preservation handoff. Restored exact recorded relative worktree and branch on this host from that remote head.; lease 9ae60d65-c40a-473e-a5ec-041f1ac5b5a5 → 6af494d4-13a5-4866-a54a-03cf407d3ee1 rev 84; branch task/pegasus-v1-intake; worktree ../pegasus-worktrees/v1-intake; expires 2026-09-07T05:33:05.241Z; evidence: workspace clean (matches-claim), pr open, commits 1, proof absent)
+
+- 2026-09-07T05:06:36.457Z lease-phase implementing → running-command (lease 6af494d4-13a5-4866-a54a-03cf407d3ee1 rev 85; expires 2026-09-07T07:06:36.450Z)
