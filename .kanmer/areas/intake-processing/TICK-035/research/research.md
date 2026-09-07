@@ -163,3 +163,14 @@ destination on replay, ready/not-ready outcome, unknown/conflict holds and
 PCH original-report separation. Preserve existing QDOS tests. Root alone owns
 build/test execution; no tests, scripts, cloud writes or corpus edits occurred
 during this preparation.
+
+## Local source-path reconciliation
+
+The nested ALS/YML paths above are evidence-registry locations, not current
+filesystem paths. Read-only inventory locates the same named originals at
+corpus/New Inspection Instruction.eml and
+corpus/FW LETTER OF INSTRUCTION - HD4021.eml. Use those existing immutable
+files for the actual-reader tests, subject to the recorded SHA256 assertion;
+never copy/recreate an email to satisfy a historical path. The first nested
+Test-Path checks returned false; this was corrected by rg --files, not treated
+as missing evidence or a permission blocker.
