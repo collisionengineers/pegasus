@@ -62,3 +62,26 @@ Do not edit corpus, provider source originals, operator-notes, migrations,
 Worker grants, MailboxIntake, Triage link workflow, engineer workflow, report
 stores or PLAT-028's unmerged worktree. INTK-061's merged durability is the
 base, not scope to reopen. Root owns all heavy verification and live actions.
+
+## Root-authorized acceptance-caller correction
+
+- src/Pegasus.Infrastructure/Persistence/CaseDataSnapshotFactory.cs: replace
+  QDOS display-name joins with current canonical case-field identity; preserve
+  typed values, exact source candidates, conflicts, uniqueness and origin hash.
+- src/Pegasus.Infrastructure/Persistence/CaseDataFieldNames.cs moved to
+  src/Pegasus.Core/Cases/CaseDataFieldNames.cs: move the existing vocabulary,
+  not a second copy. Existing consumers receive using-only adaptation if needed.
+- src/Pegasus.Core/Intake/IntakeContracts.cs: pure InstructionReviewField
+  canonical case-field method; no new JSON member or schema.
+- src/Pegasus.Core/Pegasus.Core.csproj: allow the existing IntegrationTests
+  assembly to reuse the internal OCR-result read mapper; no public test API.
+- tests/Pegasus.IntegrationTests/Top15InstructionCorpusTests.cs: exact original
+  MP scan and supplied hash-bound OCR through existing read mapping.
+- tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs: identify the
+  principal/delivery/allocation failure and prove the actual accepted source
+  facts/provenance for the same four original emails.
+- tests/Pegasus.Core.Tests/Intake/InstructionReviewFieldTests.cs: bounded pure
+  canonical mapping tests using existing field names, no invented domain data.
+
+No schema, stored JSON migration, alternative provenance, provider call or
+OCR-provider implementation change is authorized by this correction.

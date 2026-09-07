@@ -146,3 +146,30 @@ a conflicting or ambiguous profile fails closed. Additional principals still
 require an agreeing selected profile before automatic instruction extraction.
 Tests must preserve body-only QDOS and cross-provider-conflict coverage.
 Root explicitly approved this refinement; no blanket Inspection default.
+
+## Actual-caller correction approved by root
+
+The initial integration attempt failed on genuine ALS allocation because the
+existing CaseDataSnapshotFactory joined the typed draft to QDOS display labels.
+Move the existing CaseDataFieldNames vocabulary to Core; expose one pure method
+on InstructionReviewField that resolves its current accepted field binding to
+that vocabulary. Remove Factory's redundant extraction-display-name parameter;
+retain original review names/candidates/source spans and the exact typed draft
+values. Missing or ambiguous provenance still prevents allocation. Existing
+address-to-mode and explicit-mileage-unit derivations retain their exact source
+field. PCH mobile/home contact selection must join uniquely to the typed draft
+value, not choose an ambiguous first source or duplicate its priority policy.
+No second canonical namespace, parser, mapping service, schema or JSON member.
+
+Keep all four genuine email originals. Add accepted Case origin/source-hash,
+field-value and exact candidate-source attribution assertions, plus contextual
+allocation failure messages. Keep the same first MP scan; assert OCR need and
+consume its supplied page-1 OCR text only after checking both original and text
+hashes via the existing internal OCR-read mapper. Integration friend access is
+limited to this existing test assembly; no new public production API. This is
+supplied reference OCR evidence, not a newly executed Azure OCR call.
+
+After author static checks, root reruns only the two failed integration cases,
+new pure mapping cases and affected existing acceptance/provenance regressions.
+The earlier 224/12 Core and 21/2 integration results remain in the report; no
+repeat of unchanged 224 passing Core tests is needed.

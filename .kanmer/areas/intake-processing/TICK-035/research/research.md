@@ -184,3 +184,38 @@ agent-run test. There are consequently no existing non-QDOS Cases requiring
 case-match index reprojection for this activation. Do not add a backfill,
 migration, alternate read path or compatibility machinery for absent rows.
 Future allocated Cases use the one generalized existing index projector.
+
+## Actual acceptance caller failure — 7 September 2026
+
+Root's first real-source SQL run reached accepted ALS route, typed draft and
+Inspection classification, then allocation returned no Case. TRX stdout names
+InvalidDataException at CaseDataSnapshotFactory.AddExtractedValue: accepted
+field Claim number has no unambiguous source provenance. The factory joins
+review fields by QDOS display names, whereas thirteen current profiles bind
+Claim reference and Incident date to the same typed draft fields. MP/YML bind
+Vehicle make and model to draft.VehicleMake. All fifteen profile draft
+constructors and ProviderInstructionPolicy.ReviewFields were inspected.
+PCH additionally binds claimant mobile telephone, else home telephone, to
+ClaimantContactNumber. This is a production acceptance defect, not a reason
+to weaken the case-origin/provenance checks or change the original fixture.
+
+InstructionFieldEngine.FieldDefinition owns printed names and party/reference
+roles; IInstructionFieldRoles carries those roles into retained analysis.
+Neither defines a canonical case-data join. CaseDataFieldNames is the single
+existing canonical key vocabulary, currently internal in Infrastructure.
+Root authorized moving that owner to Core and a pure InstructionReviewField
+method resolving current fields to those keys (no serialized derived member).
+Factory must consume that identity, keep source candidates/locators unchanged,
+and refuse unresolved/conflicting/duplicate provenance. It must not introduce
+another label table in Infrastructure or default to staff confirmation.
+
+The same run's MP representative is the original MP PDF 01.pdf, SHA256
+79097baeec1eac46bb9a34afe67945d398df93a621857179c793f2cff5d5d3f4.
+The scan has no embedded profile; it needs OCR. Supplied source
+astra_output/reports/principals/MP/sources/6ca905773ea2.txt names that exact
+source SHA and contains page-1 OCR text; text-file SHA256 is
+bf3ebed1dbca26fd20fe4b6ffa15737da8d6844ba91bf10deab859f1c47748d6.
+Use that immutable hash-bound OCR output through the existing Core OCR-read
+mapping, explicitly attributed as supplied corpus evidence, not a fresh Azure
+provider response. Preserve the scan and all expected fields. No original or
+OCR file is modified or committed; no synthetic email wrapper is introduced.
