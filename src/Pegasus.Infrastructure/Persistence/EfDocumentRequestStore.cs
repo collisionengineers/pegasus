@@ -19,21 +19,13 @@ namespace Pegasus.Infrastructure.Persistence;
 /// command that talks to custody. Custody creates the document and version and
 /// says what state they are in; nothing here writes a custody status.
 /// </para>
-/// <para>
-/// <paramref name="retention"/> is optional because the Web host composes this
-/// store before the custody adapter behind that command exists. When it is
-/// absent the submission path refuses before writing a single row: an upload
-/// that cannot reach custody must not leave an occurrence claiming it did.
-/// This is the same optional-bridge shape the C01 and C08 stores use for their
-/// unregistered ports.
-/// </para>
 /// </remarks>
 internal sealed class EfDocumentRequestStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     RequestUploadPolicy uploadPolicy,
     RequestUploadLimits uploadLimits,
     TimeProvider timeProvider,
-    RetainIncomingArtifact? retention = null) :
+    RetainIncomingArtifact retention) :
     ICreateRequestUploadLink,
     IRevokeRequestUploadLink,
     IUploadToRequest,
@@ -60,7 +52,10 @@ internal sealed class EfDocumentRequestStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var operationKey = ValidateActorAndOperation(command.Actor, command.OperationKey);
+        var normalized = RequestUploadPolicy.NormalizeCreate(command);
+        var operationKey = ValidateActorAndOperation(normalized.Actor, normalized.OperationKey);
+        var recipient = normalized.Recipient;
+        var reason = normalized.Reason;
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var history = await FindHistoryAsync(context, operationKey, cancellationToken);
@@ -78,6 +73,12 @@ internal sealed class EfDocumentRequestStore(
             }
 
             var replayLink = ToCreatedUploadLink(replay, history);
+            if (!string.Equals(replayLink.Recipient, recipient, StringComparison.Ordinal)
+                || !string.Equals(replayLink.Reason, reason, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The upload-request creation operation key was reused with different values.");
+            }
             DocumentActionHistory.RequireExactReplay(
                 history,
                 "request_upload_link",
@@ -112,6 +113,8 @@ internal sealed class EfDocumentRequestStore(
             CreatedAtUtc = now,
             ExpiresAtUtc = uploadPolicy.CalculateExpiry(now),
             LimitsVersion = uploadLimits.Version,
+            Recipient = recipient,
+            Reason = reason,
             Version = 1,
             CreateOperationKey = operationKey
         };
@@ -214,14 +217,6 @@ internal sealed class EfDocumentRequestStore(
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.File);
-
-        // Fail closed before anything is read or written. Without the
-        // retention command there is nothing to hand the bytes to, so an
-        // occurrence recorded here would claim a custody that never happened.
-        if (retention is null)
-        {
-            return Unavailable();
-        }
 
         Guid linkId;
         try
@@ -871,6 +866,8 @@ internal sealed class EfDocumentRequestStore(
         entity.AcceptedFileCount,
         entity.AcceptedByteCount,
         entity.LimitsVersion,
+        ValidateStoredMetadata(entity.Recipient, 500, nameof(entity.Recipient)),
+        ValidateStoredReason(entity.Reason),
         entity.Version);
 
     private sealed record RequestUploadHistoryValue(
@@ -883,7 +880,29 @@ internal sealed class EfDocumentRequestStore(
         int AcceptedFileCount,
         long AcceptedByteCount,
         string LimitsVersion,
+        string? Recipient,
+        string? Reason,
         long Version);
+
+    private static string? ValidateStoredReason(string? reason)
+        => ValidateStoredMetadata(reason, 1000, nameof(reason));
+
+    private static string? ValidateStoredMetadata(
+        string? value,
+        int maximumLength,
+        string fieldName)
+    {
+        if (value is not null
+            && (string.IsNullOrWhiteSpace(value)
+                || value.Length > maximumLength
+                || !string.Equals(value, value.Trim(), StringComparison.Ordinal)))
+        {
+            throw new InvalidDataException(
+                $"The upload-request link has invalid {fieldName} metadata.");
+        }
+
+        return value;
+    }
 
     private static RequestUploadLink ToCreatedUploadLink(
         RequestUploadLinkEntity current,
@@ -891,6 +910,10 @@ internal sealed class EfDocumentRequestStore(
     {
         var snapshot =
             DocumentActionHistory.Deserialize<RequestUploadHistoryValue>(history.AfterJson);
+        var snapshotRecipient = ValidateStoredMetadata(snapshot.Recipient, 500, nameof(snapshot.Recipient));
+        var snapshotReason = ValidateStoredReason(snapshot.Reason);
+        var currentRecipient = ValidateStoredMetadata(current.Recipient, 500, nameof(current.Recipient));
+        var currentReason = ValidateStoredReason(current.Reason);
         if (snapshot.RequestId != current.Id
             || snapshot.CaseId != current.CaseId
             || !string.Equals(
@@ -906,6 +929,8 @@ internal sealed class EfDocumentRequestStore(
                 snapshot.LimitsVersion,
                 current.LimitsVersion,
                 StringComparison.Ordinal)
+            || !string.Equals(snapshotRecipient, currentRecipient, StringComparison.Ordinal)
+            || !string.Equals(snapshotReason, currentReason, StringComparison.Ordinal)
             || snapshot.Version != 1)
         {
             throw new InvalidDataException(
@@ -923,7 +948,9 @@ internal sealed class EfDocumentRequestStore(
             AcceptedFileCount: 0,
             AcceptedByteCount: 0,
             snapshot.LimitsVersion,
-            snapshot.Version);
+            snapshot.Version,
+            snapshotRecipient,
+            snapshotReason);
     }
 
     private static void EnsureExpectedVersion(long actual, long expected, string aggregate)
@@ -946,7 +973,9 @@ internal sealed class EfDocumentRequestStore(
         value.AcceptedFileCount,
         value.AcceptedByteCount,
         value.LimitsVersion,
-        value.Version);
+        value.Version,
+        ValidateStoredMetadata(value.Recipient, 500, nameof(value.Recipient)),
+        ValidateStoredReason(value.Reason));
 
     private static UploadToRequestResult Unavailable() =>
         new(RequestUploadDecision.Unavailable, null, false);
