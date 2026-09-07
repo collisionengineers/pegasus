@@ -520,7 +520,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task ANoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict()
+    public async Task NoActiveOperationInvalidOperationDoesNotMasqueradeAsASendConflict()
     {
         // PR 673 comment 5563408956: catch (InvalidOperationException) must
         // not label every failure as an existing correspondence operation.
@@ -552,20 +552,28 @@ public sealed class StaffCorrespondenceWebTests
             ["CorrespondenceBody"] = "Reviewed response."
         };
 
-        // No exception-handling middleware sits in front of this page in the
-        // Development profile these web tests run under (Program.cs only
-        // registers UseExceptionHandler outside Development), so an uncaught
-        // exception from the handler surfaces to the caller exactly as any
-        // other uncaught exception on this page would — the existing,
-        // unmodified error handling. That is the behaviour under test: the
-        // failure must NOT be relabelled as "existing correspondence
-        // operation" and must NOT produce a conflict redirect.
-        var surfaced = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.PostAsync(
-                $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form)));
-        Assert.Equal(
+        // The test host runs in the Development environment, where
+        // WebApplication installs the developer exception page ahead of the
+        // endpoint pipeline. That page catches the rethrown
+        // InvalidOperationException and turns it into a 500 response — it
+        // never reaches the caller as a thrown exception (see
+        // GraphMailWebhookTests.ValidNotificationQueueFailureReturnsRetryableServerError
+        // for the same shape). That is the behaviour under test: the failure
+        // must surface as a server error, not get relabelled as "existing
+        // correspondence operation" and redirected as a conflict.
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(
+            "existing correspondence operation", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
             "Staff mail delivery is unavailable in the DevelopmentOffline runtime profile.",
-            surfaced.Message);
+            body,
+            StringComparison.Ordinal);
+        // ThrowOnSend throws before RecordingStaffMailSend records a
+        // command, so SendCalls staying at zero confirms the double never
+        // treated this as a completed send.
         Assert.Equal(0, send.SendCalls);
     }
 
