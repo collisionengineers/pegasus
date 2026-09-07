@@ -83,8 +83,11 @@ is introduced. Root retains independent simplification/review ownership.
 
 - Root verification and scoped generated HTML/catalogue index are pending;
   current missing Settings snapshot is intentional until that capture.
-- Existing code replacement copies InspectionMode/manual EVA but does not copy
-  DefaultInspection* fields; reported explicitly to root for disposition.
+- The existing replacement-default loss was fixed under root's explicit
+  disposition: all six DefaultInspection* fields are copied into the same
+  customer's successor. One existing persistence test configures the location
+  through the current Core command and asserts the complete location/source
+  tuple after replacement, alongside immutable case/reference assertions.
 - General activated-domain metadata remains root's route follow-on. The
   top-15 extraction profile catalog is not treated as active route authority.
 - No live pegasustest or credential was created. Root can use
@@ -118,3 +121,5 @@ Root only, in the recorded worktree after the one coordinated build:
 
 Keep the taken record/worktree. No PR or Review move until root supplies
 verification and the explicit handoff. No worker build/test/capture is allowed.
+
+Source refrozen after this bounded fix; git diff --check exit 0. Root tests/capture remain pending.
