@@ -176,3 +176,16 @@ Stop when the existing Stream C branch and its single open PR contain all
 authorized Stream C work, the exact pushed SHA and check outcomes are recorded,
 and responsibility can transfer to agent A. Do not merge, deploy, mutate an
 external system, close historical PRs, or start another ticket.
+
+## Operator reassignment — 7 September 2026
+
+The operator reassigned full Stream C ownership to the Stream A controller.
+The existing branch and relative worktree were restored on A's host from
+published checkpoint `49f05128abf840195cd587f8a14c1d1bb39493fd` and the
+INTK-060 lease was transferred explicitly. A may now implement A and C files;
+B remains separately owned. This replaces the previous C-to-A handoff stop.
+The operator has authorized reviewed and verified integration into `dev`,
+including non-superseded original PR work, followed by opening a PR to `main`.
+That main PR must remain unmerged. No deployment or live provider, mailbox,
+Box, Glass's, EVA or cloud write is authorized. All existing test, review and
+evidence requirements remain; preserve original failures and helper history.
