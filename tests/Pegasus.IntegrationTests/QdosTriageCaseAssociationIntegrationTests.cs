@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
@@ -168,6 +169,113 @@ public sealed partial class QdosTriageIntegrationTests
                 Assert.Equal(1, item.BeforeVersion);
                 Assert.Equal(2, item.AfterVersion);
             });
+    }
+
+    [Fact]
+    [Trait("Category", "QdosAlphaAcceptance")]
+    public async Task IncomingFormalInstructionSharingVrmAndPrincipalWithOpenTriageDoesNotAutoLinkOrCloseTriage()
+    {
+        const string sharedVrm = "CD34 EFG";
+        const string normalizedVrm = "CD34EFG";
+
+        var extractionPolicy = new ConditionalTriageMatchPolicy(readResult =>
+            readResult.Content.Any(fragment =>
+                fragment.Text.Contains("TRIAGE-REQUEST", StringComparison.OrdinalIgnoreCase)));
+
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            extractionPolicy: extractionPolicy);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var triageEmail = IntakeTestEvidence.CreateEmail(
+            "triage-request.eml",
+            $"QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-REQUEST\r\nVehicle Registration: {sharedVrm}");
+        var triageUpload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            triageEmail.FileName,
+            triageEmail.MediaType,
+            triageEmail.Content);
+        var triageReceiptId = IntakeWebDriver.ReceiptId(triageUpload);
+
+        var initialTriage = await GetOnlyTriageAsync(factory.Services);
+        var triageId = initialTriage.Record.Id;
+        var initialVersion = initialTriage.Record.Version;
+
+        Assert.Equal(TriageState.Open, initialTriage.Record.State);
+        Assert.Null(initialTriage.Record.LinkedCaseId);
+        Assert.Equal(normalizedVrm, initialTriage.Record.NormalizedVehicleRegistration);
+
+        var formalInstructionEmail = IntakeTestEvidence.CreateEmail(
+            "formal-instruction.eml",
+            $"QDOS instruction\r\nClaimant Name: Formal Claimant\r\nClaim Number: FORMAL-001\r\nVehicle Registration: {sharedVrm}");
+        var instructionUpload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            formalInstructionEmail.FileName,
+            formalInstructionEmail.MediaType,
+            formalInstructionEmail.Content);
+        var instructionReceiptId = IntakeWebDriver.ReceiptId(instructionUpload);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+            var instructionReceipt = Assert.IsType<IntakeReceipt>(
+                await receipts.GetAsync(instructionReceiptId, CancellationToken.None));
+
+            Assert.Equal(IntakeDecision.CaseCreated, instructionReceipt.Decision);
+            Assert.NotNull(instructionReceipt.CurrentCaseId);
+            Assert.Equal(normalizedVrm, instructionReceipt.InstructionDraft?.VehicleRegistration);
+        }
+
+        var remainingTriage = await GetTriageAsync(factory.Services, triageId);
+        Assert.Equal(TriageState.Open, remainingTriage.Record.State);
+        Assert.Null(remainingTriage.Record.LinkedCaseId);
+        Assert.Equal(initialVersion, remainingTriage.Record.Version);
+        Assert.DoesNotContain(
+            remainingTriage.History,
+            entry => entry.EventType is "triage_case_linked" or "triage_state_changed");
+    }
+
+    private sealed class ConditionalTriageMatchPolicy(Func<IntakeSourceReadResult, bool> isTriage) : IInstructionExtractionPolicy
+    {
+        private readonly QdosInstructionExtractionPolicy inner = new();
+
+        public string PrincipalCode => inner.PrincipalCode;
+
+        public InstructionExtractionResult Extract(
+            IntakeSourceReadResult readResult,
+            DateTimeOffset processedAtUtc,
+            EstablishedPrincipalContext principalContext)
+        {
+            var result = inner.Extract(readResult, processedAtUtc, principalContext);
+            if (result.Applicability != InstructionPolicyApplicability.Applicable)
+            {
+                return result;
+            }
+
+            if (isTriage(readResult))
+            {
+                var acceptedMatches = new[]
+                {
+                    new IntakeEvidence(
+                        IntakeEvidenceSource.SystemDefault,
+                        IntakeEvidenceStrength.Strong,
+                        IntakeEvidenceFinding.AcceptedTriageMatch,
+                        "accepted-triage-request-1",
+                        "The test fixture represents an independently accepted Triage matcher result.",
+                        AcceptedMatcherKey,
+                        1)
+                };
+                return result with
+                {
+                    Evidence = [.. result.Evidence, .. acceptedMatches]
+                };
+            }
+
+            return result;
+        }
     }
 
     private static async Task<CaseEditLease> ClaimCaseLeaseAsync(
