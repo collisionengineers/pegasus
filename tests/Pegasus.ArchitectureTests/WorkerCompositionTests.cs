@@ -104,6 +104,62 @@ public sealed class WorkerCompositionTests
         }
     }
 
+    [Fact]
+    public async Task ConfiguredProductionRouterDispatchesOcrToItsTypedHandler()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var workItemId = Guid.NewGuid();
+            var configuration = CreateConfiguration("Production", root);
+            var services = CreateWorkerServices(configuration, new TestHostEnvironment(root));
+            var recorder = new RecordingOcrProcessor();
+            services.AddSingleton<IQueuedExternalWorkReader>(
+                new FixedExternalWorkReader(new(workItemId, ExternalWorkKinds.IntakeOcr)));
+            services.AddSingleton<IProcessIntakeOcr>(recorder);
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<IProcessQueuedExternalWork>()
+                .ExecuteAsync(workItemId, CancellationToken.None);
+
+            Assert.Equal([workItemId], recorder.ProcessedIds);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UnconfiguredProductionRouterRefusesOcrWork()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var workItemId = Guid.NewGuid();
+            var values = CreateProductionValues(root);
+            values.Remove("DocumentIntelligence:Endpoint");
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+            var services = CreateWorkerServices(configuration, new TestHostEnvironment(root));
+            services.AddSingleton<IQueuedExternalWorkReader>(
+                new FixedExternalWorkReader(new(workItemId, ExternalWorkKinds.IntakeOcr)));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+            var exception = await Assert.ThrowsAsync<UnknownExternalWorkKindException>(() =>
+                scope.ServiceProvider.GetRequiredService<IProcessQueuedExternalWork>()
+                    .ExecuteAsync(workItemId, CancellationToken.None));
+
+            Assert.Equal(workItemId, exception.WorkItemId);
+            Assert.Equal(ExternalWorkKinds.IntakeOcr, exception.Kind);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("not-an-endpoint")]
     [InlineData("   ")]
@@ -354,5 +410,25 @@ public sealed class WorkerCompositionTests
         public string ApplicationName { get; set; } = "Pegasus.ArchitectureTests";
         public string ContentRootPath { get; set; } = contentRootPath;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class FixedExternalWorkReader(QueuedExternalWork work)
+        : IQueuedExternalWorkReader
+    {
+        public Task<QueuedExternalWork?> GetAsync(
+            Guid workItemId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<QueuedExternalWork?>(work);
+    }
+
+    private sealed class RecordingOcrProcessor : IProcessIntakeOcr
+    {
+        public List<Guid> ProcessedIds { get; } = [];
+
+        public Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
+        {
+            ProcessedIds.Add(workItemId);
+            return Task.CompletedTask;
+        }
     }
 }
