@@ -22,9 +22,7 @@ public sealed class EfEvaSubmissionModeStore(
         var modes = await context.Principals
             .AsNoTracking()
             .Where(item => item.Code == normalized && item.IsActive)
-            .Select(item => new EvaSubmissionModes(
-                item.EvaManualSubmission,
-                item.EvaAutomaticSubmission))
+            .Select(item => new EvaSubmissionModes(item.EvaManualSubmission))
             .SingleOrDefaultAsync(cancellationToken);
 
         // A code naming no active principal has enabled nothing. Returning
