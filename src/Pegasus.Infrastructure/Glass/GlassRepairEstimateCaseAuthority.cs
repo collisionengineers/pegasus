@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -71,7 +72,7 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
     private static string RequireRegistration(IReadOnlyList<CaseDataFieldEntity> fields) =>
         CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleRegistration) is { Length: > 0 } registration
             ? registration
-            : throw new InvalidOperationException(
+            : throw new GlassRepairEstimateRefusalException(
                 "The case records no vehicle registration, so no Glass's estimate can be started for it.");
 
     /// <summary>
@@ -86,7 +87,7 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         if (CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMileage) is not { Length: > 0 } stated
             || !long.TryParse(stated, NumberStyles.None, CultureInfo.InvariantCulture, out var mileage))
         {
-            throw new InvalidOperationException(
+            throw new GlassRepairEstimateRefusalException(
                 "The case records no vehicle mileage, so no Glass's estimate can be started for it.");
         }
 
@@ -94,7 +95,7 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         var unit = CaseOdometerUnit.Miles;
         if (statedUnit is { Length: > 0 } && !CaseOdometer.TryParseUnit(statedUnit, out unit))
         {
-            throw new InvalidOperationException(
+            throw new GlassRepairEstimateRefusalException(
                 "The case records an unrecognized mileage unit, so no Glass's estimate can be started for it.");
         }
 

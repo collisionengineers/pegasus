@@ -155,7 +155,7 @@ public sealed class GlassRepairEstimateGatewayTests
         var harness = Harness.Create();
         harness.Credentials.Revoke(harness.Engineer);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.LaunchAsync());
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.LaunchAsync());
         Assert.Empty(harness.Store.Sessions);
         Assert.Empty(harness.Mva.Requests);
     }
@@ -672,7 +672,7 @@ public sealed class GlassRepairEstimateGatewayTests
         harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
         var waiting = await harness.CompleteAsync(session);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(
             () => harness.Gateway.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, waiting.Version),
                 CancellationToken.None));
@@ -978,6 +978,11 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassFailure.CallbackExpired, expired.FailureCode);
         Assert.Equal(launches, harness.Mva.Count("POST /ere/start-ere"));
         Assert.Null(harness.Store.Material(session.Id).Session.CallbackConsumedAtUtc);
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() =>
+            harness.Gateway.ResumeAsync(
+                new GlassRepairEstimateResumeRequest(
+                    harness.Engineer, expired.Id, expired.Version),
+                CancellationToken.None));
     }
 
     // -------------------------------------------------------- callback claim

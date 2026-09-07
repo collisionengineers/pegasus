@@ -2225,7 +2225,10 @@ public sealed partial class DetailsModel(
     }
 
     private static bool IsGlassRefusal(Exception exception) =>
-        exception is ArgumentException or InvalidOperationException or KeyNotFoundException;
+        exception is GlassRepairEstimateRefusalException
+            or GlassRepairEstimateSessionConflictException
+            or ArgumentException
+            or KeyNotFoundException;
 
     private long currentCaseVersion;
 
@@ -2988,4 +2991,3 @@ public sealed record EstimateEditorLine(
     string? PaintHours,
     string? PartPounds,
     Guid? ExistingLineId = null);
-
