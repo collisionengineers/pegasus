@@ -46,6 +46,8 @@
     </div>
 </header>
 
+<div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+
 @if (!string.IsNullOrWhiteSpace(Model.Message))
 {
     <div class="notice mb-2" role="status" aria-live="polite">
