@@ -2,13 +2,14 @@
 id: PLAT-028
 type: ticket
 title: Redesign Organizations and Principals with provider API controls
-status: implementing
+status: review
 area: platform-operations
 order: 80
 assignee: principal_delivery_audit
 profile: feature
 stageEntered:
   preparing: '2026-08-21T14:23:40.633Z'
+  review: '2026-09-07T21:19:29.994Z'
 taken_at: '2026-09-07T20:10:46.013Z'
 branch: PLAT-028-principal-customer
 worktree: .worktrees/plat-028
@@ -47,7 +48,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/680'
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T21:18:48.349Z'
+updated: '2026-09-07T21:19:29.994Z'
 ---
 
 ## What
