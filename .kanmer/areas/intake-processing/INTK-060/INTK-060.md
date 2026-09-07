@@ -11,14 +11,14 @@ stageEntered:
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T04:16:04.046Z'
+claim_expires_at: '2026-09-07T04:31:07.263Z'
 claim_controller: antigravity-stream-c
 lease_id: 9ae60d65-c40a-473e-a5ec-041f1ac5b5a5
-lease_revision: 77
+lease_revision: 78
 lease_controller_run: antigravity-stream-c-20260907
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T03:46:04.046Z'
+lease_heartbeat_at: '2026-09-07T04:01:07.263Z'
 lease_reclaimed_from: claude-fable-c2
 labels:
   - pegasus-v1
@@ -28,7 +28,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T03:46:04.046Z'
+updated: '2026-09-07T04:01:07.263Z'
 ---
 
 ## What
