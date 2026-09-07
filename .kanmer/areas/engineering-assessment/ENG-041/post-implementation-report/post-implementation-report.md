@@ -141,3 +141,11 @@ were refreshed by root. No manual visual review is claimed.
 Author git diff --check PASS, exit 0, after final capture. Root authorized commit
 with [skip ci], push to dev-targeting PR and move Review. Independent reviewer
 must bind attestation to the pushed SHA; no author self-review, merge or deployment.
+
+## Pushed candidate
+
+PR https://github.com/collisionengineers/pegasus/pull/683 targets dev.
+Head 1ac8bc428e0432b510b745342fdadd849d726878; commit uses root-authorized
+[skip ci]. Eighteen files changed, 750 insertions and 140 deletions; refreshed
+index/unavailable snapshot normalized to unchanged Git content, while default
+and conflict snapshots changed. Worktree is clean. Review attestation pending.
