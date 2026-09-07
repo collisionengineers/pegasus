@@ -23,6 +23,22 @@ present in the deployed release.
    JSON even though placeholder strings are used. Pass only `--connection` to
    the bundle.
 
+   The complete key list is the Production fail-fast array in
+   `src/Pegasus.Web/Program.cs` (`ConnectionStrings:Pegasus`,
+   `AzureIdentity:WebClientId`, the transport, intake-queue and custody
+   storage settings, the three `Graph:*` keys, the six `Box:*` keys including
+   `Box:HoldingFolderId`, and the six `Eva:*` keys). Take real values from the
+   azd environment and the live Web container's non-secret environment; use
+   placeholders only for secrets. The connection string is the live one with
+   `Authentication=Active Directory Default` in place of the managed-identity
+   clause, so the operator's CLI token is used.
+
+   Each migration runs in its own transaction. A failure inside migration N
+   leaves migrations 1..N-1 committed and the still-running previous release
+   facing the new schema; read the migration history and the live telemetry
+   before deciding how to proceed, and never re-run with altered inputs
+   without recording why.
+
 3. Reconcile and verify the runtime principals and exact permission census:
 
    ```powershell

@@ -13,6 +13,15 @@ Before preflight, require `uname -m` to report `x86_64`, `oras version` to
 report 1.3.4, and both `az account show` and `azd auth login --check-status` to
 identify the intended operator. Authentication is not write approval.
 
+Then run `npm ci`, `dotnet tool restore` (the repository pins `dotnet-ef` as a
+local tool) and `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud`, and require
+it to pass. Two Doctor failures have known repairs: a fresh checkout lacks the
+generated Playwright launcher (apply the repair Doctor prints), and a
+self-updated `azd` fails the pinned version (install the pinned release with
+`install-azd.sh --version <pin> --install-folder <dir> --symlink-folder <bin>`
+outside the repository and put that `<bin>` first on `PATH` for the release
+shell). Any other failure stops the release.
+
 [`docs/runbook.md`](../../../docs/runbook.md) and
 [`docs/engineering.md`](../../../docs/engineering.md) are authoritative. Stop
 if they disagree with this skill.
@@ -121,6 +130,21 @@ Create a disposable detached worktree outside the caller's checkout. The ignored
 azd environment is required in that worktree; copy only `.azure/pegasus-prod`
 from the existing repository checkout and verify it before use.
 
+If `.azure/pegasus-prod` does not exist on this workstation, reconstruct it
+from Azure rather than from another machine: `azd env new pegasus-prod
+--no-prompt --subscription $subscriptionId --location uksouth`, then `azd env
+set` every input of `infra/main.parameters.json` from the parameters recorded
+on the latest succeeded subscription deployment tagged
+`azd-env-name=pegasus-prod` (`az deployment sub list` / `az deployment sub
+show --query properties.parameters`), plus `AZURE_TENANT_ID`. Inputs added
+since that deployment have no recorded value and must come from the operator
+(`BOX_HOLDING_FOLDER_ID` is a Box folder *below* the root `405543781910`,
+never the root itself, or the Web host refuses to start) or from a separately
+approved Key Vault write (the two Automation MCP certificate URIs, see
+section 7). Only when every input is set does `azd env refresh -e pegasus-prod
+--no-prompt` succeed and populate the Bicep outputs the gates require. Verify
+every `*_SECRET_URI` names `pegasusprodkv252ow37g` before continuing.
+
 ```powershell
 $gitCommonDirectory = (git rev-parse --path-format=absolute --git-common-dir).Trim()
 $primaryRepository = Split-Path -Parent $gitCommonDirectory
@@ -143,7 +167,15 @@ $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Dept
 
 The manifest must use schema 3, `migrationRuntimeIdentifier` `linux-x64` and
 `migrationBundleName` `efbundle`. The four artifacts are `web.zip`,
-`worker.zip`, `web-image.tar.gz` and `efbundle`.
+`worker.zip`, `web-image.tar.gz` and `efbundle`. The build script asserts that
+`worker.zip` carries `.azurefunctions/` at its root; Kudu rejects a package
+without it, and release 39 found that the previous `Compress-Archive` glob
+dropped every dot-directory on Linux.
+
+Before requesting approval for a manifest whose migrations seed reference rows
+or add NOT NULL columns, read those migrations against the *populated*
+production tables they touch (row counts and unique keys are read-only checks).
+A migration proven only on empty test databases stopped release 39 twice.
 
 Record the manifest SHA-256, source SHA, image digest, migration identity and
 exact Azure operations. Obtain explicit approval for that manifest and those
@@ -183,6 +215,21 @@ must name `pegasusprodkv252ow37g`; `AZURE_RESOURCE_GROUP` must be
 `rg-pegasus-prod`; `PEGASUS_WORKER_ACTIVATION` must be
 `approved-live-worker`.
 
+`AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS` and
+`AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` are versioned secret URIs
+in the same vault. The Web host loads each secret value as a base64
+passwordless PKCS#12 and fails closed otherwise. Creating or rotating one is a
+separately approved Key Vault write: generate the certificate with `openssl
+req -x509 -newkey rsa:2048 -sha256 -days 730 -nodes` (signing uses
+`keyUsage=critical,digitalSignature`, encryption
+`keyUsage=critical,keyEncipherment`), export it with `openssl pkcs12 -export
+-passout pass:`, prove it loads with
+`X509CertificateLoader.LoadPkcs12(bytes, $null)`, store it with `az keyvault
+secret set --file <pfx> --encoding base64 --content-type
+application/x-pkcs12`, grant the Web identity `Key Vault Secrets User` on that
+exact secret scope, and shred the local key material. Vault-wide grants are
+prohibited.
+
 ```powershell
 azd env get-values -e $releaseEnvironment --no-prompt
 $revisionSuffix = $releaseSha.Substring(0,12)
@@ -192,12 +239,15 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision `
   -Environment $releaseEnvironment -ManifestPath $manifestPath `
   -WorkerActivation approved-live-worker `
   -ExpectedLiveWorkerActivation approved-live-worker
+azd provision -e $releaseEnvironment --preview --no-prompt
 azd provision -e $releaseEnvironment --no-prompt
 ```
 
-Provision deploys the digest-pinned Web image and any infrastructure or app
-setting changes. Read back the active revision and digest; do not trust the
-command's success message alone.
+Stop on the preview if it shows a deletion or a resource outside the fixed
+target; property noise on defaulted settings is expected. Provision deploys the
+digest-pinned Web image and any infrastructure or app setting changes. Read
+back the active revision and digest; do not trust the command's success
+message alone.
 
 ## 8. Deploy Worker
 
@@ -208,7 +258,9 @@ az functionapp deployment source config-zip --subscription $subscriptionId `
 ```
 
 Never use `azd deploy worker`; it invokes a remote Oryx build against the
-already-published package.
+already-published package. A rejected package leaves the previous Worker
+running against the *new* schema, so read back the deployment record
+(`status` 4, `active` true) and the function census before smoke.
 
 ## 9. Smoke the exact release
 

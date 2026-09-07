@@ -9,7 +9,10 @@ Use this reference only after the normal route fails or rollback is requested.
 | Old code is serving | Compare the active revision digest with the approved manifest. Never trust `azd provision` success alone. |
 | A Container App setting disappears | `infra/modules/platform.bicep` owns the complete environment array. Declare the setting there; do not repair drift with `az containerapp update --set-env-vars`. |
 | Worker crash-loops | Redeploy the approved `worker.zip` with Function App `config-zip`. Never use `azd deploy worker`. |
+| Kudu rejects `worker.zip`: `Cannot find required .azurefunctions directory` | The archive omitted dot-directories (a Linux `Compress-Archive` glob defect fixed after release 39). Do not hand-repack silently: rebuild from the exact SHA with the fixed script, record any deviation from the manifest hash, and redeploy. |
 | Migration host construction fails | Supply the complete Production environment and shape-valid placeholder Box JWT JSON described in the database-migration reference. |
+| `efbundle` fails with "column cannot be added to non-empty table" or a duplicate-key seed | The migration assumed an empty table. Stop; the earlier migrations in the bundle are already committed. Fix the migration in code, or, when the operator confirms the blocking rows are test data, remove exactly those rows under approval and re-run the same bundle. |
+| `azd env refresh` reports missing required inputs | Every parameter of `infra/main.parameters.json` must be set before refresh can evaluate outputs. Set the new inputs first. |
 | Runtime feature fails with SQL permission denial | Run the manifest-bound database bootstrap and compare the live runtime permission census before changing application code. |
 | App Insights is empty | Check `workspaceCapping.dataIngestionStatus`; the workspace may be over its 0.1 GB daily cap. Use bounded Container App console-log polling when capped. |
 | Build output is locked | Identify the host holding the assembly, then run `dotnet build-server shutdown`; do not delete another task's output. |

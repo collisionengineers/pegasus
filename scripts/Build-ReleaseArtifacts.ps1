@@ -75,8 +75,19 @@ try {
     & dotnet ef migrations bundle --self-contained -r $migrationRuntimeIdentifier --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release -o (Join-Path $releaseRoot $migrationBundleName) --force
     if ($LASTEXITCODE -ne 0) { throw 'EF migration bundle creation failed.' }
 
-    Compress-Archive -Path (Join-Path $webPublish '*') -DestinationPath (Join-Path $releaseRoot 'web.zip') -CompressionLevel Optimal
-    Compress-Archive -Path (Join-Path $workerPublish '*') -DestinationPath (Join-Path $releaseRoot 'worker.zip') -CompressionLevel Optimal
+    # ZipFile includes dot-directories such as .azurefunctions and .playwright;
+    # Compress-Archive's '*' glob skips them on Linux and Kudu rejects the result.
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($webPublish, (Join-Path $releaseRoot 'web.zip'), [System.IO.Compression.CompressionLevel]::Optimal, $false)
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($workerPublish, (Join-Path $releaseRoot 'worker.zip'), [System.IO.Compression.CompressionLevel]::Optimal, $false)
+    $workerArchive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $releaseRoot 'worker.zip'))
+    try {
+        if (-not ($workerArchive.Entries | Where-Object { $_.FullName.StartsWith('.azurefunctions/', [StringComparison]::Ordinal) })) {
+            throw 'worker.zip must contain the .azurefunctions directory at its root.'
+        }
+    }
+    finally {
+        $workerArchive.Dispose()
+    }
 
     $migrationIdentity = Get-ChildItem ./src/Pegasus.Infrastructure/Persistence/Migrations -Filter '*.cs' |
         Where-Object { $_.Name -notmatch '\.Designer\.cs$|ModelSnapshot\.cs$' } |
