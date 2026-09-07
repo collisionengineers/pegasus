@@ -1,9 +1,9 @@
 ---
 id: ADR-0034
-status: accepted
+status: superseded
 date: 2026-08-27
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0038]
 related_capabilities: [EXT-04]
 related_frd: [frd-07]
 tags: [eva, configuration, principals]
@@ -13,7 +13,8 @@ tags: [eva, configuration, principals]
 
 ## Status
 
-Accepted, 2026-08-27.
+Superseded by ADR-0038, 2026-09-07. This file preserves the earlier accepted
+decision and its context.
 
 ## Context
 
@@ -109,3 +110,4 @@ must not move the others.
 - [FRD-07 — Direct EVA API submission](../frd/frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
 - [ADR-0018 — Provider inspection mode as a database setting](0018-provider-inspection-mode-database-setting.md)
 - [ADR-0008 — Direct provider and intermediary email policies](0008-separate-direct-provider-and-intermediary-email-policies.md)
+- [ADR-0038 — Manual-only EVA API submission](0038-manual-only-eva-api-submission.md)

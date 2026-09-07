@@ -1118,10 +1118,9 @@ page at `/Administration/Glass/{staffId:guid}`.
   forced change at next sign-in, never emailed — D28); Create staff account.
 - **Principals:** table Name, Principal Code, Roles, State, Settings; Create
   Principal (creates the backing Organisation inline, D2); Settings dialog —
-  route e-mail addresses (read-only), the two independent ADR-0034 EVA
-  toggles — Manual API submission, Automatic API submission (ZIP export
-  needs no setting) — Pegasus API key (masked, Show / Hide), Generate new
-  key (danger → reason), Save.
+  route e-mail addresses (read-only), the ADR-0038 Manual API submission
+  setting (ZIP export needs no setting) — Pegasus API key (masked, Show / Hide),
+  Generate new key (danger → reason), Save.
 - **Workflow configuration:** Instruction completeness and Image completeness
   (required / not-required item rules with exact blockers, never a percentage
   — D23), no staff review panel (D44), Due work (Chase interval: whole
