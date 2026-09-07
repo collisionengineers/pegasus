@@ -255,7 +255,7 @@ public sealed class QdosIntakeWebTests
             predicate.Key == "direct.qdos-domain" && predicate.Matched);
 
         var caseId = Assert.IsType<Guid>(receipt.CurrentCaseId);
-        var caseReference = Assert.NotNull(receipt.CurrentCaseReference);
+        var caseReference = Assert.IsType<string>(receipt.CurrentCaseReference);
         Assert.False(string.IsNullOrWhiteSpace(caseReference));
         Assert.Contains("<h1>Case created</h1>", html, StringComparison.Ordinal);
         Assert.Contains(receipt.SourceFileName, html, StringComparison.Ordinal);
