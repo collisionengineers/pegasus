@@ -7,7 +7,7 @@
 
 ## Progress notes
 
-The six-file implementation is frozen for root verification on branch
+The seven-file implementation is frozen for root verification on branch
 `PLAT-065-document-intelligence`, worktree `.worktrees/plat-065`, base
 `d367219669ad26d5f2b727bd10b582330febc906` (merged TICK-041).
 `git diff --check` passed, exit 0. No author build/test, provider analysis,
@@ -21,3 +21,11 @@ copy files into the user-owned checkout or alter MCP configuration to bypass it.
 
 EPIC-011/EPIC-014 membership and source qualification/import ownership in
 TICK-041/TICK-085 remain unchanged. No repeated stress/full-suite verification.
+
+Root attempt 1: installed Bicep compilation PASS; Local deployment-plan FAIL
+exit 1 at the obsolete blanket deferred-service ban. Build/tests did not start.
+The authorized correction now permits only the declared FormRecognizer/S0
+keyless account and rejects other Cognitive Services plus the existing deferred
+services. The existing isolated Local validator test now has seven negative
+cases, including its original rogue Worker-setting assertion. Correction is
+frozen for root; no author build/test and no cloud write.

@@ -9,7 +9,7 @@ honest live canary evidence.
 ## Starting state
 
 Evidence: research/research.md@2965aedeaa0ce107;
-files/files.md@ee0cc1313c72b9a7. TICK-041 is merged into origin/dev at
+files/files.md@2a01b3a441157bc3. TICK-041 is merged into origin/dev at
 d367219669ad26d5f2b727bd10b582330febc906, including accepted ADR-0040
 and the implemented source-context contract; not activated.
 No live Cognitive Services account or Worker endpoint exists. Preserve

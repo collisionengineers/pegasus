@@ -8,8 +8,9 @@ local checks alone cannot establish completion.
 
 Branch: `PLAT-065-document-intelligence`; worktree `.worktrees/plat-065`.
 Exact base: `d367219669ad26d5f2b727bd10b582330febc906`, including merged
-TICK-041/ADR-0040. Plan `c83c5e07629abf54` preceded the claim and edits.
-Six expected files only; no source application, package, schema or convention
+TICK-041/ADR-0040. Initial plan `c83c5e07629abf54` preceded the claim and edits. Root-authorized
+validator amendment `60bf50e7ac0832ee` preceded its correction edits.
+Seven expected files only; no source application, package, schema or convention
 change. Commit/PR pending matching root PASS evidence.
 
 ## Implementation
@@ -23,6 +24,12 @@ change. Commit/PR pending matching root PASS evidence.
   the existing Worker identity only. Worker settings receive the account
   endpoint and depend on the role assignment. Web receives no role/endpoint.
   Existing activation inputs and seven-function census remain unchanged.
+- The existing Local/PreProvision validator's obsolete blanket OCR ban now
+  permits exactly the declared FormRecognizer/S0 keyless account, strips only
+  that account before checking for any other Cognitive Services resource, and
+  preserves Foundry/Maps/Vision/StaticWebApp rejection. The existing isolated
+  Local mutation test retains the rogue Worker-setting case and adds six
+  focused negatives; no new mode, flag or test fixture framework.
 - Existing platform/main outputs expose non-secret account ID and endpoint for
   exact release readback. No new parameter, module, runtime, flag, secret,
   custom role or permission framework.
@@ -57,13 +64,17 @@ cloud write. This author performed none.
 ## Validation attempts
 
 1. Author `git diff --check`: PASS, exit 0; only normal LF/CRLF worktree warnings.
-2. Root Bicep compilation, local deployment-plan and focused architecture/
-   composition checks: NOT RUN for this candidate yet. No author build/test.
-3. Live provisioning, Worker canary/replay, readable-PDF no-OCR route and actual
+2. Root installed Bicep compilation: PASS (resourceCount 3); no tool upgrade.
+3. Root Local deployment-plan validation: FAIL, exit 1 at line 65,
+   `Deferred Azure services are prohibited from the alpha deployment.` Build/
+   tests did not start. The guard correction above is frozen for focused root
+   rerun; no author build/test.
+4. Live provisioning, Worker canary/replay, readable-PDF no-OCR route and actual
    Web identity denial: NOT RUN. No provider request or endpoint activation.
 
-No failed compiler/test/preview attempt has been hidden or replaced. If root
-finds a failure, retain it here before its bounded correction and rerun.
+The failed Local attempt remains recorded. A later pass does not erase it.
+No production behavior, authorization rule or assertion was weakened to hide
+it: the obsolete service exclusion now matches the approved ADR-0040 resource.
 
 ## Simplification and scope review
 
@@ -78,7 +89,7 @@ configuration is distinguished from deployed capability throughout.
 Root runs the plan's Bicep build, `Test-AzureDeploymentPlan.ps1 -Mode Local`
 and architecture filter `WorkerActivationReleaseContractTests|WorkerCompositionTests`,
 with any necessary incremental build owned by root. After matching PASS,
-author commits/pushes this exact six-file candidate and opens a dev PR for
+author commits/pushes this exact seven-file candidate and opens a dev PR for
 independent review; no self-review or merge.
 
 Root later owns authorized release/provisioning and live evidence after
