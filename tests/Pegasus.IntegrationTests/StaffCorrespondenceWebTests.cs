@@ -1330,7 +1330,11 @@ public sealed class StaffCorrespondenceWebTests
                     command.ExpectedMailboxGeneration,
                     new string('A', 64),
                     preparedAtUtc,
-                    null);
+                    null,
+                    command.Purpose,
+                    command.ContextId,
+                    command.ExpectedContextVersion,
+                    command.OriginalMessage?.RetainedMessageId);
                 byOperationKey[command.OperationKey] = operation;
                 byOperationId[operation.Id] = operation;
                 return operation;
