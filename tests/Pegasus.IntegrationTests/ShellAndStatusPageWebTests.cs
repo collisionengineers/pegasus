@@ -180,7 +180,11 @@ public sealed class ShellAndStatusPageWebTests
                 services.RemoveAll<IGetAttentionRows>();
                 services.AddSingleton<IGetAttentionRows>(new UnavailableAttentionRows());
             }));
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139"),
+        });
 
         using var response = await client.GetAsync("/Search");
         var html = await response.Content.ReadAsStringAsync();

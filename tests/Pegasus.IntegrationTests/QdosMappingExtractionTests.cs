@@ -97,7 +97,8 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
         Assert.Equal(expected.Registration, draft.VehicleRegistration);
         if (expected.VehicleDescription is not null)
         {
-            Assert.Equal(expected.VehicleDescription, draft.VehicleDescription);
+            Assert.Equal(expected.VehicleDescription,
+                Assert.Single(result.Fields, field => field.Name == "Vehicle description").SuggestedValue);
             Assert.Null(draft.VehicleMake);
             Assert.Null(draft.VehicleModel);
         }
