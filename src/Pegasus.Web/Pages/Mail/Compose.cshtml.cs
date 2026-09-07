@@ -29,25 +29,13 @@ namespace Pegasus.Web.Pages.Mail;
 /// <see cref="ApprovedMailbox.Generation"/> — per Stream A's ruling (PR 673
 /// comment 5561214716, items 1-2): <see cref="ApprovedMailboxRouteScope.SentEvidence"/>
 /// alone is not send authorization, so the earlier <c>StaffSend</c>-or-
-/// <c>SentEvidence</c> fallback is removed. On this standalone C branch
-/// <c>EfApprovedMailboxStore.Map</c>/<c>Routes</c> (A-owned,
-/// <c>src/Pegasus.Infrastructure/Persistence/EfApprovedMailboxStore.cs</c>)
-/// does not yet map the backing <c>AllowStaffSend</c>/<c>MailboxGeneration</c>
-/// columns, so no mailbox is offered here until that mapping lands — recorded
-/// as ASSUMPTION 2 CLOSED (scratch/c08-notes on INTK-060), a known residual,
-/// not a fabricated value.
-///
-/// <see cref="ApprovedMailbox.VerifiedEncodedMessageSizeLimit"/> (G14) is not
-/// yet enforced here: this page sends with <c>Attachments: []</c> always (no
-/// attachment picker exists in this slice), so there is nothing to measure
-/// against a limit. A null limit means unverified, not unlimited — a future
-/// attachment slice must read the chosen mailbox's actual value and must
-/// never substitute a guessed number for it.
+/// <c>SentEvidence</c> fallback is removed.
 /// </remarks>
 public sealed class ComposeModel(
     IStaffMailSend staffMailSend,
     IApprovedMailboxStore approvedMailboxes,
-    IGetCase getCase) : StaffPageModel
+    IGetCase getCase,
+    IStaffMailAttachmentResolver attachmentResolver) : StaffPageModel
 {
     [BindProperty(SupportsGet = true)]
     public Guid? CaseId { get; set; }
@@ -74,6 +62,9 @@ public sealed class ComposeModel(
     public string? Body { get; set; }
 
     [BindProperty]
+    public List<string> SelectedAttachments { get; set; } = [];
+
+    [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
     [TempData]
@@ -84,6 +75,8 @@ public sealed class ComposeModel(
     public CaseSearchItem? Case { get; private set; }
 
     public StaffMailOperation? Operation { get; private set; }
+
+    public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -103,6 +96,8 @@ public sealed class ComposeModel(
             }
             Case = details.Summary;
             ExpectedContextVersion = details.Workflow.Version;
+            AvailableAttachments = await attachmentResolver.ListCaseAsync(
+                actor, caseId, cancellationToken);
         }
 
         // Carries the just-sent operation's identity across the post-send
@@ -152,6 +147,7 @@ public sealed class ComposeModel(
         }
 
         CaseDetails? details = null;
+        IReadOnlyList<StaffMailAttachment> attachments = [];
         if (CaseId is { } presentCaseId)
         {
             details = await getCase.ExecuteAsync(new(presentCaseId, actor), cancellationToken);
@@ -160,11 +156,22 @@ public sealed class ComposeModel(
                 return NotFound();
             }
             Case = details.Summary;
+            AvailableAttachments = await attachmentResolver.ListCaseAsync(
+                actor, presentCaseId, cancellationToken);
             if (details.Workflow.Version != ExpectedContextVersion)
             {
                 ModelState.AddModelError(
                     string.Empty,
                     "The Case changed after this page was loaded. Review it and try again.");
+            }
+            try
+            {
+                attachments = await attachmentResolver.ResolveCaseAsync(
+                    actor, presentCaseId, SelectedAttachments, cancellationToken);
+            }
+            catch (StaffMailAttachmentSelectionException exception)
+            {
+                ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
             }
         }
 
@@ -190,7 +197,7 @@ public sealed class ComposeModel(
                     ParseRecipients(Cc),
                     Subject!.Trim(),
                     Body!.Trim(),
-                    Attachments: [],
+                    attachments,
                     OperationKey),
                 cancellationToken);
         }

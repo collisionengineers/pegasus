@@ -411,8 +411,11 @@ public sealed class StaffMailSend(
             foreach (var attachment in command.Attachments)
             {
                 result.Add((attachment, await contentReader.OpenAsync(
-                    new(command.Actor, attachment.DocumentId, attachment.VersionId, null,
-                        caseId, null, attachment.Sha256, attachment.ContentLength),
+                    new(command.Actor, attachment.DocumentId, attachment.VersionId,
+                        attachment.IntakeAssetId,
+                        attachment.IntakeAssetId is null ? caseId : null,
+                        attachment.IntakeReceiptId,
+                        attachment.Sha256, attachment.ContentLength),
                     cancellationToken)));
             }
             return result;
@@ -457,8 +460,14 @@ public sealed class StaffMailSend(
             || command.Body is null
             || (string.IsNullOrWhiteSpace(command.Body) && command.Attachments.Count == 0)
             || command.To.Count + command.Cc.Count == 0
-            || command.Attachments.Any(value => value.DocumentId == Guid.Empty
-                || value.VersionId == Guid.Empty || value.ContentLength <= 0
+            || command.Attachments.Any(value =>
+                (value.DocumentId is null) != (value.VersionId is null)
+                || (value.IntakeAssetId is null) != (value.IntakeReceiptId is null)
+                || ((value.DocumentId is null || value.VersionId is null)
+                    == (value.IntakeAssetId is null || value.IntakeReceiptId is null))
+                || value.DocumentId == Guid.Empty || value.VersionId == Guid.Empty
+                || value.IntakeAssetId == Guid.Empty || value.IntakeReceiptId == Guid.Empty
+                || value.ContentLength <= 0
                 || value.Sha256.Length != 64 || string.IsNullOrWhiteSpace(value.FileName)))
         {
             throw new ArgumentException("The staff mail command is invalid.", nameof(command));

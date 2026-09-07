@@ -28,6 +28,7 @@ public sealed class MessageModel(
     IUploadCaseDecision caseDecision,
     IGetCase getCase,
     IStaffMailSend staffMailSend,
+    IStaffMailAttachmentResolver attachmentResolver,
     IApprovedMailboxStore approvedMailboxes,
     IGetIntake getIntake,
     IAcquireCaseEditLease acquireCaseEditLease,
@@ -135,6 +136,9 @@ public sealed class MessageModel(
     public string? CorrespondenceBody { get; set; }
 
     [BindProperty]
+    public List<string> SelectedAttachments { get; set; } = [];
+
+    [BindProperty]
     public string CorrespondenceOperationKey { get; set; } = NewOperationKey();
 
     [TempData]
@@ -215,6 +219,8 @@ public sealed class MessageModel(
     public ApprovedMailbox? CorrespondenceMailbox { get; private set; }
 
     public CaseDetails? CorrespondenceCase { get; private set; }
+
+    public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
     public bool CorrespondenceSendBlocked { get; private set; }
 
@@ -861,6 +867,18 @@ public sealed class MessageModel(
         if (to.Concat(cc).Any(recipient => !IsMailboxAddress(recipient.Address)))
             ModelState.AddModelError(nameof(CorrespondenceTo), "Enter valid recipient addresses.");
 
+        IReadOnlyList<StaffMailAttachment> attachments = [];
+        try
+        {
+            attachments = await attachmentResolver.ResolveCaseAsync(
+                actor, CorrespondenceCase.Summary.CaseId, SelectedAttachments,
+                cancellationToken);
+        }
+        catch (StaffMailAttachmentSelectionException exception)
+        {
+            ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
+        }
+
         if (!ModelState.IsValid)
             return await ReloadAsync(actor, id, cancellationToken);
 
@@ -886,7 +904,7 @@ public sealed class MessageModel(
                     cc,
                     CorrespondenceSubject!.Trim(),
                     CorrespondenceBody!.Trim(),
-                    Attachments: [],
+                    attachments,
                     CorrespondenceOperationKey.Trim()),
                 cancellationToken);
             CorrespondenceOperation = operation;
@@ -957,6 +975,8 @@ public sealed class MessageModel(
         CorrespondenceCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
         if (CorrespondenceCase is null || CorrespondenceCase.Workflow.Version <= 0)
             return false;
+        AvailableAttachments = await attachmentResolver.ListCaseAsync(
+            actor, caseId, cancellationToken);
 
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
         CorrespondenceMailbox = mailboxes.SingleOrDefault(item =>

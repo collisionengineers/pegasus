@@ -111,6 +111,36 @@ public sealed class StaffMailSendTests
         Assert.Equal(4, store.CurrentStaffChecks);
     }
 
+    [Fact]
+    public async Task IntakeAttachmentIsOpenedByItsAuthorizedReceiptIdentity()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var bytes = new byte[] { 1, 2, 3 };
+        var attachment = new StaffMailAttachment(
+            null, null,
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "instruction.eml", "message/rfc822", assetId, receiptId);
+        var command = Command(actor) with { Attachments = [attachment] };
+        var reader = new CapturingReader(bytes);
+        var send = new StaffMailSend(
+            new Store(),
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            reader,
+            new Transport(),
+            TimeProvider.System,
+            new ExecutionLock());
+
+        await send.SendAsync(command, CancellationToken.None);
+
+        Assert.Null(reader.Request!.DocumentId);
+        Assert.Null(reader.Request.VersionId);
+        Assert.Null(reader.Request.CaseId);
+        Assert.Equal(assetId, reader.Request.IntakeAssetId);
+        Assert.Equal(receiptId, reader.Request.IntakeReceiptId);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
@@ -293,6 +323,21 @@ public sealed class StaffMailSendTests
             SendEntered.SetResult();
             if (BlockSend) await ReleaseSend.Task.WaitAsync(cancellationToken);
             return new StaffMailSubmitResult(DateTimeOffset.UtcNow);
+        }
+    }
+
+    private sealed class CapturingReader(byte[] bytes) : IReadLogicalDocumentVersion
+    {
+        public ReadLogicalDocumentVersionRequest? Request { get; private set; }
+
+        public Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            return Task.FromResult(new LogicalDocumentContent(
+                new MemoryStream(bytes, writable: false),
+                request.DocumentId, request.VersionId, request.IntakeAssetId,
+                request.ExpectedSha256, bytes.Length, "instruction.eml", "message/rfc822"));
         }
     }
 

@@ -76,6 +76,12 @@ public sealed record IncomingArtifactOccurrence(
     long ContentLength,
     string Sha256);
 
+public static class IncomingArtifactOperationKey
+{
+    public static string ForIntake(Guid receiptId, Guid assetId) =>
+        $"intake:{receiptId:N}:{assetId:N}";
+}
+
 /// <summary>
 /// What the retention record holds after a hand-over. The logical document and
 /// version identities are kept for every state, not just
@@ -594,7 +600,8 @@ public sealed class RetainIncomingArtifact(
         RetainedIncomingArtifact existing,
         IncomingArtifactOccurrence occurrence)
     {
-        if ((existing.Sha256 is { } sha256
+        if (existing.OccurrenceId != occurrence.OccurrenceId
+            || (existing.Sha256 is { } sha256
                 && !string.Equals(sha256, occurrence.Sha256, StringComparison.OrdinalIgnoreCase))
             || (existing.ContentLength is { } contentLength
                 && contentLength != occurrence.ContentLength))

@@ -91,6 +91,21 @@
             <label asp-for="Body">Message</label>
             <textarea asp-for="Body" rows="10"></textarea>
         </div>
+        @if (Model.AvailableAttachments.Count > 0)
+        {
+            <fieldset class="field">
+                <legend>Attachments</legend>
+                @foreach (var attachment in Model.AvailableAttachments)
+                {
+                    <label>
+                        <input type="checkbox" name="SelectedAttachments" value="@attachment.Selection"
+                               checked="@Model.SelectedAttachments.Contains(attachment.Selection)" />
+                        @attachment.FileName
+                    </label>
+                }
+                <span asp-validation-for="SelectedAttachments"></span>
+            </fieldset>
+        }
         <div class="button-row">
             <button type="submit" class="btn btn--primary">
                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>

@@ -35,7 +35,8 @@ public sealed class DetailsModel(
     IAddTriageNote addNote,
     GetRetainedMail? getRetainedMail = null,
     IStaffMailSend? staffMailSend = null,
-    IApprovedMailboxStore? approvedMailboxes = null) : StaffPageModel
+    IApprovedMailboxStore? approvedMailboxes = null,
+    IStaffMailAttachmentResolver? attachmentResolver = null) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -51,6 +52,7 @@ public sealed class DetailsModel(
     private readonly GetRetainedMail? _getRetainedMail = getRetainedMail;
     private readonly IStaffMailSend? _staffMailSend = staffMailSend;
     private readonly IApprovedMailboxStore? _approvedMailboxes = approvedMailboxes;
+    private readonly IStaffMailAttachmentResolver? _attachmentResolver = attachmentResolver;
 
 
     public TriageDetail Triage { get; private set; } = null!;
@@ -74,6 +76,10 @@ public sealed class DetailsModel(
     public string? ChaserSubject { get; private set; }
 
     public string? ChaserBody { get; private set; }
+
+    public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
+
+    public IReadOnlyList<string> SelectedAttachments { get; private set; } = [];
 
     /// <summary>
     /// The photographs the provider attached to the Triage request. A Triage
@@ -399,6 +405,11 @@ public sealed class DetailsModel(
                 cancellationToken);
             if (RetainedMail is not null)
             {
+                if (_attachmentResolver is not null)
+                {
+                    AvailableAttachments = await _attachmentResolver.ListIntakeAsync(
+                        actor, triage.Record.Origin.ReceiptId, cancellationToken);
+                }
                 ChaserOperation = await _staffMailSend.GetLatestForOriginalAsync(
                     actor,
                     RetainedMail.Summary.Id,
@@ -608,6 +619,7 @@ public sealed class DetailsModel(
         string? cc,
         string? subject,
         string? body,
+        List<string>? selectedAttachments,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out _, out var actionActor))
@@ -624,7 +636,8 @@ public sealed class DetailsModel(
             return Forbid();
         }
 
-        if (_getRetainedMail is null || _staffMailSend is null || _approvedMailboxes is null)
+        if (_getRetainedMail is null || _staffMailSend is null || _approvedMailboxes is null
+            || _attachmentResolver is null)
         {
             return NotFound();
         }
@@ -701,6 +714,19 @@ public sealed class DetailsModel(
             ModelState.AddModelError(nameof(body), "A message is required.");
         }
 
+        IReadOnlyList<StaffMailAttachment> attachments = [];
+        SelectedAttachments = selectedAttachments ?? [];
+        try
+        {
+            attachments = await _attachmentResolver.ResolveIntakeAsync(
+                actionActor, triage.Record.Origin.ReceiptId, SelectedAttachments,
+                cancellationToken);
+        }
+        catch (StaffMailAttachmentSelectionException exception)
+        {
+            ModelState.AddModelError(nameof(selectedAttachments), exception.Message);
+        }
+
         if (!ModelState.IsValid)
         {
             return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
@@ -726,7 +752,7 @@ public sealed class DetailsModel(
             Cc: ccRecipients,
             Subject: subject!.Trim(),
             Body: body!.Trim(),
-            Attachments: [],
+            Attachments: attachments,
             OperationKey: operationKey.Trim());
 
         try

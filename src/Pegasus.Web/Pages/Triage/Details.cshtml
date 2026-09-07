@@ -465,6 +465,20 @@
                                 <label class="req" for="triage-chaser-body">Message</label>
                                 <textarea id="triage-chaser-body" name="body" rows="4" required maxlength="5000">@Model.ChaserBody</textarea>
                             </div>
+                            @if (Model.AvailableAttachments.Count > 0)
+                            {
+                                <fieldset class="field">
+                                    <legend>Attachments</legend>
+                                    @foreach (var attachment in Model.AvailableAttachments)
+                                    {
+                                        <label>
+                                            <input type="checkbox" name="selectedAttachments" value="@attachment.Selection"
+                                                   checked="@Model.SelectedAttachments.Contains(attachment.Selection)" />
+                                            @attachment.FileName
+                                        </label>
+                                    }
+                                </fieldset>
+                            }
                             <div class="button-row">
                                 <button type="submit" class="btn btn--primary">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>

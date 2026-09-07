@@ -1561,6 +1561,21 @@ internal sealed class EfPublicUploadRetentionStore(
     private static string ScopePrefix(Guid requestUploadLinkId) =>
         $"request:{requestUploadLinkId:N}:";
 
+    internal static string ScopeIntakeOperationKey(Guid receiptId, Guid assetId) =>
+        IncomingArtifactOperationKey.ForIntake(receiptId, assetId);
+
+    private static bool TryParseIntakeOperationKey(
+        string operationKey, out Guid receiptId, out Guid assetId)
+    {
+        receiptId = Guid.Empty;
+        assetId = Guid.Empty;
+        var parts = operationKey.Split(':');
+        return parts.Length == 3
+            && string.Equals(parts[0], "intake", StringComparison.Ordinal)
+            && Guid.TryParseExact(parts[1], "N", out receiptId)
+            && Guid.TryParseExact(parts[2], "N", out assetId);
+    }
+
     /// <summary>
     /// The states an arrival can still resolve into something else from. While
     /// one of these stands for a link, the sender's original operation key is
@@ -1622,6 +1637,25 @@ internal sealed class EfPublicUploadRetentionStore(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        if (TryParseIntakeOperationKey(operationKey, out var receiptId, out var assetId))
+        {
+            var asset = await context.Set<IntakeAssetEntity>().AsNoTracking()
+                .SingleOrDefaultAsync(
+                    item => item.Id == assetId && item.IntakeReceiptId == receiptId,
+                    cancellationToken);
+            return asset is null
+                ? null
+                : new(
+                    asset.Id,
+                    operationKey,
+                    string.IsNullOrWhiteSpace(asset.CustodyStatus)
+                        ? IncomingArtifactCustodyState.Unknown
+                        : ParseCustodyState(asset.CustodyStatus),
+                    BoxFileId: asset.BoxFileId,
+                    BoxVersionId: asset.BoxVersionId,
+                    Sha256: asset.ContentHash,
+                    ContentLength: asset.ContentLength);
+        }
         var row = await context.Set<PublicUploadOccurrenceEntity>()
             .AsNoTracking()
             .Where(occurrence => occurrence.OperationKey == operationKey)
@@ -1698,6 +1732,15 @@ internal sealed class EfPublicUploadRetentionStore(
             .ExecuteUpdateAsync(
                 update => update.SetProperty(item => item.CustodyState, UnknownCode),
                 cancellationToken);
+        if (claimed == 1)
+        {
+            return true;
+        }
+        claimed = await context.Set<IntakeAssetEntity>()
+            .Where(item => item.Id == occurrenceId && item.CustodyStatus == null)
+            .ExecuteUpdateAsync(
+                update => update.SetProperty(item => item.CustodyStatus, UnknownCode),
+                cancellationToken);
         return claimed == 1;
     }
 
@@ -1731,6 +1774,40 @@ internal sealed class EfPublicUploadRetentionStore(
     {
         ArgumentNullException.ThrowIfNull(artifact);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        if (TryParseIntakeOperationKey(artifact.OperationKey, out var receiptId, out var assetId))
+        {
+            var targetState = ToCode(artifact.State);
+            var sourceStates = ForwardSourceCodes[artifact.State];
+            var movedAsset = await context.Set<IntakeAssetEntity>()
+                .Where(item => item.Id == assetId
+                    && item.IntakeReceiptId == receiptId
+                    && (item.CustodyStatus == null || sourceStates.Contains(item.CustodyStatus)))
+                .ExecuteUpdateAsync(
+                    update => update.SetProperty(item => item.CustodyStatus, targetState),
+                    cancellationToken);
+            if (movedAsset == 0 && !await context.Set<IntakeAssetEntity>().AsNoTracking()
+                .AnyAsync(item => item.Id == assetId && item.IntakeReceiptId == receiptId,
+                    cancellationToken))
+            {
+                throw new KeyNotFoundException($"Intake asset '{assetId}' was not found.");
+            }
+            if (artifact.State == IncomingArtifactCustodyState.Confirmed
+                && (artifact.BoxFileId is not null || artifact.BoxVersionId is not null))
+            {
+                await context.Set<IntakeAssetEntity>()
+                    .Where(item => item.Id == assetId
+                        && item.IntakeReceiptId == receiptId
+                        && item.CustodyStatus == ConfirmedCode)
+                    .ExecuteUpdateAsync(
+                        update => update
+                            .SetProperty(item => item.BoxFileId,
+                                item => artifact.BoxFileId ?? item.BoxFileId)
+                            .SetProperty(item => item.BoxVersionId,
+                                item => artifact.BoxVersionId ?? item.BoxVersionId),
+                        cancellationToken);
+            }
+            return;
+        }
         var occurrences = context.Set<PublicUploadOccurrenceEntity>();
         var target = ToCode(artifact.State);
         var sources = ForwardSourceCodes[artifact.State];
