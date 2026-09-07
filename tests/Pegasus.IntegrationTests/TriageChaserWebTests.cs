@@ -144,7 +144,10 @@ public sealed partial class QdosTriageIntegrationTests
         });
         using var response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var responseHtml = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Redirect,
+            $"Expected redirect, received {(int)response.StatusCode}; validation: {ValidationFailure(responseHtml)}");
         Assert.Equal($"/Triage/{fixture.TriageId:D}", response.Headers.Location?.OriginalString);
 
         Assert.Equal(1, send.SendCalls);
@@ -249,7 +252,10 @@ public sealed partial class QdosTriageIntegrationTests
                 ["body"] = "Chaser body 1."
             });
             using var firstResponse = await client.SendAsync(firstRequest);
-            Assert.Equal(HttpStatusCode.Redirect, firstResponse.StatusCode);
+            var firstHtml = await firstResponse.Content.ReadAsStringAsync();
+            Assert.True(
+                firstResponse.StatusCode == HttpStatusCode.Redirect,
+                $"Expected redirect, received {(int)firstResponse.StatusCode}; validation: {ValidationFailure(firstHtml)}");
         }
         Assert.Equal(1, send.SendCalls);
 
@@ -273,6 +279,27 @@ public sealed partial class QdosTriageIntegrationTests
             Assert.Contains("The existing correspondence operation must finish or be resolved before another action.", html, StringComparison.Ordinal);
         }
     }
+
+    private static string ValidationFailure(string html)
+    {
+        var summary = ValidationSummaryRegex().Match(html);
+        if (!summary.Success)
+        {
+            return "no validation summary";
+        }
+
+        var text = WebUtility.HtmlDecode(HtmlTagRegex().Replace(summary.Groups["items"].Value, " "))
+            .Trim();
+        return text.Length <= 500 ? text : text[..500];
+    }
+
+    [GeneratedRegex(
+        "validation-summary-errors[^>]*>.*?<ul>(?<items>.*?)</ul>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex ValidationSummaryRegex();
+
+    [GeneratedRegex("<[^>]+>", RegexOptions.CultureInvariant)]
+    private static partial Regex HtmlTagRegex();
 
     [Fact]
     public async Task SendChaserWhenNonActiveOperationInvalidOperationThrownPropagatesException()

@@ -9,6 +9,9 @@ namespace Pegasus.IntegrationTests;
 
 public sealed partial class QdosTriageIntegrationTests
 {
+    private const string GenuineFormalInstructionHash =
+        "B91F5BBC622041B088D6F55E7A949CAEC945F476BDB18C489D0756D797552FB0";
+
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task CaseAssociationUsesCanonicalWorkflowVersionAndActiveCaseLease()
@@ -171,12 +174,12 @@ public sealed partial class QdosTriageIntegrationTests
             });
     }
 
-    [Fact]
+    [GenuineQdosCorpusFact(GenuineFormalInstructionHash)]
+    [Trait("Category", "Corpus")]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task IncomingFormalInstructionSharingVrmAndPrincipalWithOpenTriageDoesNotAutoLinkOrCloseTriage()
     {
-        const string sharedVrm = "CD34 EFG";
-        const string normalizedVrm = "CD34EFG";
+        var formalInstruction = GenuineQdosCorpus.Read(GenuineFormalInstructionHash);
 
         var extractionPolicy = new ConditionalTriageMatchPolicy(extracted =>
             string.Equals(
@@ -190,9 +193,29 @@ public sealed partial class QdosTriageIntegrationTests
             extractionPolicy: extractionPolicy);
         using var client = IntakeWebDriver.CreateClient(factory);
 
+        string normalizedVrm;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var read = await scope.ServiceProvider.GetRequiredService<IIntakeSourceReader>().ReadAsync(
+                new(
+                    formalInstruction.UploadName,
+                    formalInstruction.MediaType,
+                    formalInstruction.Bytes,
+                    DateTimeOffset.UtcNow,
+                    "genuine-qdos-fixture",
+                    new(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N"))),
+                CancellationToken.None);
+            normalizedVrm = Assert.IsType<string>(
+                new QdosCaseMatchPolicy().ExtractMatchKeys(read).NormalizedVrm);
+        }
+
         var triageEmail = IntakeTestEvidence.CreateEmail(
             "triage-request.eml",
-            $"QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-REQUEST\r\nVehicle Registration: {sharedVrm}");
+            "QDOS instruction\r\n"
+            + "Claimant Name: Triage Claimant\r\n"
+            + "Claim Number: TRIAGE-REQUEST\r\n"
+            + "Our Client's Vehicle: MERCEDES-BENZ E250 CDI AMG LINE AUTO\r\n"
+            + $"Registration: {normalizedVrm}");
         var triageUpload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,
@@ -209,15 +232,10 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Null(initialTriage.Record.LinkedCaseId);
         Assert.Equal(normalizedVrm, initialTriage.Record.NormalizedVehicleRegistration);
 
-        var formalInstructionEmail = IntakeTestEvidence.CreateEmail(
-            "formal-instruction.eml",
-            $"QDOS instruction\r\nClaimant Name: Formal Claimant\r\nClaim Number: FORMAL-001\r\nVehicle Registration: {sharedVrm}");
         var instructionUpload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,
-            formalInstructionEmail.FileName,
-            formalInstructionEmail.MediaType,
-            formalInstructionEmail.Content);
+            formalInstruction);
         var instructionReceiptId = IntakeWebDriver.ReceiptId(instructionUpload);
 
         await using (var scope = factory.Services.CreateAsyncScope())
