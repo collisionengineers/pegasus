@@ -9,8 +9,10 @@ namespace Pegasus.IntegrationTests;
 
 public sealed partial class QdosTriageIntegrationTests
 {
+    private const string GenuineTriageRequestHash =
+        "1c06ecfce12e08e76e38f6a690e004d6e063a4f415b001f92069cd38f53dd9a2";
     private const string GenuineFormalInstructionHash =
-        "21ad661ea450a7d05a082da8742f5ea0d6bb6917db5b5b290ab2dabe78c04ede";
+        "2a74ab47ff8100786bb1c7a23d49a30cdaf6ca4ae824648d7e2398f704e026dc";
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
@@ -179,35 +181,39 @@ public sealed partial class QdosTriageIntegrationTests
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task IncomingFormalInstructionSharingVrmAndPrincipalWithOpenTriageDoesNotAutoLinkOrCloseTriage()
     {
-        var sourcePath = Path.Combine(
-            Top15InstructionCorpusTests.PackRoot(),
-            "principal-docs",
-            "original-mapper-instruction-corpus",
-            "QDOS 01.pdf");
-        var sourceBytes = await File.ReadAllBytesAsync(sourcePath);
+        var mappingRoot = Path.Combine(QdosCorpus.Root, "qdosmapping");
+        var triageFileName =
+            "Engineer Triage - Our Claim Reference 46384_1 , Vehicle Registration YD14VGJ.eml";
+        var instructionFileName =
+            "(EREF12) RTA on 25_06_2026  Mr Liam Kinnear (Our Ref KAD__46384_1, Vehicle YD14VGJ).eml";
+        var triageBytes = await File.ReadAllBytesAsync(
+            Path.Combine(mappingRoot, triageFileName));
+        var instructionBytes = await File.ReadAllBytesAsync(
+            Path.Combine(mappingRoot, instructionFileName));
+        Assert.Equal(
+            GenuineTriageRequestHash,
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(triageBytes)));
         Assert.Equal(
             GenuineFormalInstructionHash,
-            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(sourceBytes)));
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(instructionBytes)));
+        var triageRequest = new GenuineCorpusSample(
+            GenuineTriageRequestHash,
+            triageFileName,
+            "message/rfc822",
+            triageBytes);
         var formalInstruction = new GenuineCorpusSample(
             GenuineFormalInstructionHash,
-            "QDOS 01.pdf",
-            "application/pdf",
-            sourceBytes);
-        var extractionCount = 0;
+            instructionFileName,
+            "message/rfc822",
+            instructionBytes);
 
-        var extractionPolicy = new ConditionalTriageMatchPolicy(_ =>
-            Interlocked.Increment(ref extractionCount) == 1);
-
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: extractionPolicy);
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var triageUpload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,
-            formalInstruction);
+            triageRequest);
         var triageReceiptId = IntakeWebDriver.ReceiptId(triageUpload);
 
         string normalizedVrm;
@@ -251,47 +257,6 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.DoesNotContain(
             remainingTriage.History,
             entry => entry.EventType is "triage_case_linked" or "triage_state_changed");
-    }
-
-    private sealed class ConditionalTriageMatchPolicy(
-        Func<InstructionExtractionResult, bool> isTriage) : IInstructionExtractionPolicy
-    {
-        private readonly QdosInstructionExtractionPolicy inner = new();
-
-        public string PrincipalCode => inner.PrincipalCode;
-
-        public InstructionExtractionResult Extract(
-            IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
-            EstablishedPrincipalContext principalContext)
-        {
-            var result = inner.Extract(readResult, processedAtUtc, principalContext);
-            if (result.Applicability != InstructionPolicyApplicability.Applicable)
-            {
-                return result;
-            }
-
-            if (isTriage(result))
-            {
-                var acceptedMatches = new[]
-                {
-                    new IntakeEvidence(
-                        IntakeEvidenceSource.SystemDefault,
-                        IntakeEvidenceStrength.Strong,
-                        IntakeEvidenceFinding.AcceptedTriageMatch,
-                        "accepted-triage-request-1",
-                        "The test fixture represents an independently accepted Triage matcher result.",
-                        AcceptedMatcherKey,
-                        1)
-                };
-                return result with
-                {
-                    Evidence = [.. result.Evidence, .. acceptedMatches]
-                };
-            }
-
-            return result;
-        }
     }
 
     private static async Task<CaseEditLease> ClaimCaseLeaseAsync(
