@@ -3,7 +3,9 @@
 ## Result and source
 
 Source frozen in .worktrees/deliv-048 on DELIV-048-portable-release from
-1d972f05c0f10c2ecf804f271a4fd3155242f1ef. Root's focused verification passed; authorised for commit/PR/Review. Fourteen scoped files, roughly 270 added/changed lines
+1d972f05c0f10c2ecf804f271a4fd3155242f1ef. Root's focused verification passed; commit
+b6ffdeda1f8eee7f71e86ca033260de20483cb60 is pushed in PR #681 to dev:
+https://github.com/collisionengineers/pegasus/pull/681. Fourteen scoped files, roughly 270 added/changed lines
 including 114 cheap script-test lines and the new ADR. No product code,
 packages, schemas, CI lanes, snapshots, cloud state or shared checkout changed.
 PLAT-028 source remained untouched by this lane.
@@ -70,8 +72,8 @@ worker repeated any heavy command.
 Focused C# filter:
 FullyQualifiedName~WorkerActivationReleaseContractTests
 
-Existing script: pwsh -NoProfile -File ./scripts/Test-AzureDeploymentPlan.ps1
--Mode Local (Bicep compilation; root owns this).
+Completed Local script: pwsh -NoProfile -File
+./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local (root PASS above).
 
 Final clean integrated release, once only: Build-ReleaseArtifacts.ps1 -Version
 <approved-version> -SourceRevision <exact-clean-head>, then existing

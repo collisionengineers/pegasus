@@ -33,9 +33,11 @@ refs:
 docs_todo: true
 commits:
   - b6ffdeda1f8eee7f71e86ca033260de20483cb60
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/681'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-07T21:21:50.469Z'
+updated: '2026-09-07T21:22:17.136Z'
 ---
 
 ## What
@@ -70,3 +72,7 @@ No CI redesign, extra test lanes, packages, cloud writes or deployment here.
 - [ ] Linux Web/Worker packages, OCI linux/amd64 and existing approval gates stay.
 - [ ] ADR-0039 supersedes ADR-0037; current instructions agree.
 - [ ] Focused script checks and root-owned release validation are recorded.
+
+## Implementation handoff — 7 September 2026
+
+Commit b6ffdeda1f8eee7f71e86ca033260de20483cb60 is pushed in PR #681 to dev. The current acceptance is implemented and the root-owned focused checks passed as recorded in post-implementation-report. Independent exact-head review and final integrated release packaging/required CI remain outstanding. This is not a deployment or native Linux execution claim; original Linux-only history above is superseded, not erased.
