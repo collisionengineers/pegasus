@@ -19,3 +19,5 @@ Root supplied focused passing checks and scoped snapshots, then authorised commi
 ## Transitions
 
 - 2026-09-07T21:19:45.186Z lease-phase implementing → review (lease 898e963f-db89-4b9c-830b-c8faf286e861 rev 8; expires 2026-09-07T21:49:45.171Z)
+
+- 2026-09-07T21:30:12.636Z stage review → implementing by codex-mcp-client; reason: needs-changes on 539aa4684d6dba1964c8fa594d2d2a0e3e3489b6: F-001, reconcile the two known browser callers of the removed Organizations workflow and correct report; same PR/worktree retained.; review_round 1

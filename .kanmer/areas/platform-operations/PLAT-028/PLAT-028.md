@@ -2,7 +2,7 @@
 id: PLAT-028
 type: ticket
 title: Redesign Organizations and Principals with provider API controls
-status: review
+status: implementing
 area: platform-operations
 order: 80
 assignee: principal_delivery_audit
@@ -10,11 +10,13 @@ profile: feature
 stageEntered:
   preparing: '2026-08-21T14:23:40.633Z'
   review: '2026-09-07T21:19:29.994Z'
+  implementing: '2026-09-07T21:30:12.602Z'
 taken_at: '2026-09-07T20:10:46.013Z'
 branch: PLAT-028-principal-customer
 worktree: .worktrees/plat-028
 claim_expires_at: '2026-09-07T21:49:45.171Z'
 claim_controller: principal_delivery_audit
+review_round: 1
 lease_id: 898e963f-db89-4b9c-830b-c8faf286e861
 lease_revision: 8
 lease_controller_run: 20260907T200500Z-v1-remediation
@@ -48,7 +50,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/680'
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-09-07T21:19:45.171Z'
+updated: '2026-09-07T21:30:12.602Z'
 ---
 
 ## What
