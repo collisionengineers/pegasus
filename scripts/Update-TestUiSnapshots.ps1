@@ -2,7 +2,7 @@
 param(
     [switch]$Verify,
     [switch]$SkipCapture,
-    [ValidateRange(0, 4)]
+    [ValidateSet(0, 1)]
     [int]$MaxParallelThreads = 0,
     [string]$Scope,
     [string]$CaptureFilter = 'FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~QdosTriageIntegrationTests.AuthenticatedTriagePageExecutesLifecycleWithVersionsAndPermanentHistory|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests'
