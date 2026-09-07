@@ -39,6 +39,19 @@ public sealed partial class TestUiSnapshotTests
             // The seeded list before any administrator change: the create
             // form is present and no test-created preset has been added.
             ["administration-valuation-presets--default"] = new("Create preset", "Roof rack"),
+            ["administration-action-logs--default"] = new("<h1>Action logs</h1>", "Access denied"),
+            ["administration-health--default"] = new("<h1>Health</h1>", "Access denied"),
+            ["administration-reports--default"] = new("<h1>Reports</h1>", "Access denied"),
+            ["administration-glass--default"] = new(
+                "glass-fixture-account", "Access denied", AlsoRequired: ">Enabled<"),
+            ["administration-mailboxes--default"] = new(
+                "instructions@collisionengineers.co.uk", "Access denied", AlsoRequired: "Not activated"),
+            ["inbox--default"] = new("Browser preview message", ">Unavailable<"),
+            ["upload-request--default"] = new(
+                "<h1>Upload a file</h1>", "Choose a document to upload.", AlsoRequired: "data-dropzone"),
+            ["triage-details--default"] = new(
+                "<article class=\"record\">", "We could not find that page",
+                AlsoRequired: "Available once a finding is recorded"),
             ["case-details--default"] = new(
                 "You are editing this case.",
                 AlsoRequired: "case-overview-panel",
