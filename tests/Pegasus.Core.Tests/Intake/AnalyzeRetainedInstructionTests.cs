@@ -173,6 +173,41 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Empty(harness.Store.Records);
     }
 
+    /// <summary>
+    /// A source that was read but not read COMPLETELY is unavailable, not
+    /// extractable.
+    ///
+    /// Every one of the fifteen extraction policies refuses an incomplete
+    /// reader result by throwing, so the alternative to this guard is not a
+    /// worse answer - it is an unhandled <see cref="ArgumentException"/> leaving
+    /// the command, which is what the /Received re-evaluation of a retained
+    /// legacy .doc actually did. The document still matched a profile here: the
+    /// point is that the command stops BEFORE selection, on the read, and says
+    /// why in the reader's own words.
+    ///
+    /// Nothing is recorded, exactly as for a source that could not be opened,
+    /// so a later attempt under the same key still analyses once the reader can
+    /// deliver the whole document rather than replaying a stored failure.
+    /// </summary>
+    [Fact]
+    public async Task AnIncompletelyReadSourceIsUnavailableAndRecordsNothing()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        harness.SourceReader.IsIncomplete = true;
+
+        var result = await harness.ExecuteAsync();
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        Assert.Null(result.Analysis);
+        Assert.Contains("some content may be missing", result.Reason, StringComparison.Ordinal);
+        Assert.Empty(harness.Store.Records);
+
+        // The same key analyses once the source reads completely.
+        harness.SourceReader.IsIncomplete = false;
+        var retry = await harness.ExecuteAsync();
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, retry.Outcome);
+    }
+
     [Fact]
     public async Task AReceiptWithNoRetainedSourceIsSourceUnavailable()
     {
@@ -740,6 +775,15 @@ public sealed class AnalyzeRetainedInstructionTests
     {
         public int Reads { get; private set; }
 
+        /// <summary>
+        /// Readable, but only partly read - what the real reader reports for a
+        /// legacy Word original whose binary parser returns Partial, or an
+        /// e-mail whose attachment could not be processed. The content it did
+        /// recover is still returned, which is precisely why the result looks
+        /// usable until a policy is handed it.
+        /// </summary>
+        public bool IsIncomplete { get; set; }
+
         public Task<IntakeSourceReadResult> ReadAsync(
             IntakeSource source,
             CancellationToken cancellationToken)
@@ -755,8 +799,18 @@ public sealed class AnalyzeRetainedInstructionTests
                         Encoding.UTF8.GetString(source.Content.Span))
                 ],
                 [],
-                [],
+                IsIncomplete
+                    ?
+                    [
+                        new(
+                            "doc-partial-extraction",
+                            "instruction.pdf contains structures outside the supported text "
+                            + "extraction, so some content may be missing.",
+                            IntakeEvidenceSource.DocumentContent)
+                    ]
+                    : [],
                 RequiresOcr: false,
+                IsIncomplete: IsIncomplete,
                 ReaderKey: "fake_reader",
                 ReaderVersion: "9"));
         }
