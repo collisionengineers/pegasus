@@ -963,6 +963,69 @@ public sealed class ProductionGraphSourceTests
         Assert.EndsWith("/messages/immutable-1/$value", requests[1], StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    public async Task NotifiedInboxUsesTheWipeBoundaryBeforeDownloadingMime(int secondsAfterCutoff, bool accepted)
+    {
+        var cutoff = new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero);
+        var mimeReads = 0;
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimeReads++;
+                return Response(HttpStatusCode.OK, "Message-Id: <one@example.test>\r\n\r\nBody", "message/rfc822");
+            }
+            return Response(HttpStatusCode.OK,
+                $$"""{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"{{cutoff.AddSeconds(secondsAfterCutoff):O}}"}""");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease")
+            with { StartBoundaryUtc = cutoff };
+
+        var message = await source.ReadNotifiedAsync(lease, "immutable-1", CancellationToken.None);
+
+        Assert.Equal(accepted, message is not null);
+        Assert.Equal(accepted ? 1 : 0, mimeReads);
+    }
+
+    [Fact]
+    public async Task ExpiredDeltaCursorCannotReplayMailBeforeTheWipeButAdmitsNewMail()
+    {
+        var deltaReads = 0;
+        var mimePaths = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimePaths.Add(path);
+                return Response(HttpStatusCode.OK, "Message-Id: <one@example.test>\r\n\r\nBody", "message/rfc822");
+            }
+            if (++deltaReads == 1)
+            {
+                return Response(HttpStatusCode.Gone, "{}");
+            }
+            return Response(HttpStatusCode.OK,
+                """{"value":[{"id":"historic","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T09:59:59Z"},{"id":"new","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=reset"}""");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+        var cursor = GraphCursor.Serialize(new Uri(
+            "https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=stale"), 0);
+        var lease = Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, cursor, "lease")
+            with { StartBoundaryUtc = new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero) };
+
+        var page = await source.ReadAsync(lease, 10, CancellationToken.None);
+
+        Assert.Equal("new", Assert.Single(page.Messages).ImmutableMessageId);
+        Assert.EndsWith("/messages/new/$value", Assert.Single(mimePaths), StringComparison.Ordinal);
+        Assert.Equal(2, deltaReads);
+    }
+
     /// <summary>
     /// Microsoft Graph guarantees only "at least the updated properties" on a sparse
     /// delta entry, so an already-known item can recur without receivedDateTime (e.g. a

@@ -442,6 +442,11 @@ verify each exact candidate and its deployment targets before acting. Test
 email may be sent only to `digital@collisionengineers.co.uk`, using the
 requested `pegasustest` customer. It does not authorize an intake-data wipe.
 
+The intake-data wipe script requires a separately approved maintenance window
+with the Worker stopped. It advances the persisted receive-time cutoff as
+part of SQL deletion; it never replays mail from original onboarding merely
+because occurrence rows were cleared. See the runbook's explicit wipe procedure.
+
 One verification owner per host coordinates focused checks and reuses matching
 CI evidence; no competing whole-repository builds or capacity/soak runs are
 part of this remediation. Product behavior and runtime state remain owned by

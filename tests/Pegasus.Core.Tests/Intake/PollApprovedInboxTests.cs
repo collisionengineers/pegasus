@@ -114,6 +114,30 @@ public sealed class PollApprovedInboxTests
             CancellationToken.None);
 
         Assert.Equal(0, handled);
+        Assert.Empty(harness.Source.Reads);
+        Assert.Equal([FirstMailbox.ApprovedMailboxId], harness.PollStore.CompletedNotifications);
+    }
+
+    [Fact]
+    public async Task NotificationProcessesOnlyItsMessageWithoutScanningOrAdvancingTheRecoveryCursor()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.PollStore.Cursors[FirstMailbox.GraphMailboxId] = "existing-recovery-cursor";
+        harness.Source.Notified = DisplayableMessage("notified", "not-a-scan-cursor");
+        harness.Source.Fail(FirstMailbox.GraphMailboxId, new IOException("A recovery scan must not run."));
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "notified",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Source.Reads);
+        Assert.Equal("existing-recovery-cursor", harness.PollStore.Cursors[FirstMailbox.GraphMailboxId]);
+        Assert.Equal([FirstMailbox.ApprovedMailboxId], harness.PollStore.CompletedNotifications);
+        Assert.Empty(harness.PollStore.Releases);
     }
 
     [Fact]
@@ -601,6 +625,8 @@ public sealed class PollApprovedInboxTests
 
         internal List<(string MailboxId, string FailureCode)> Releases { get; } = [];
 
+        internal List<Guid> CompletedNotifications { get; } = [];
+
         internal void WithholdLease(string mailboxId) => withheld.Add(mailboxId);
 
         internal void FailClaim(string mailboxId, Exception exception) =>
@@ -668,6 +694,15 @@ public sealed class PollApprovedInboxTests
             CancellationToken cancellationToken)
         {
             Cursors[graphIds[approvedMailboxId]] = nextCursor;
+            return Task.CompletedTask;
+        }
+
+        public Task CompleteNotificationAsync(
+            Guid approvedMailboxId,
+            string leaseToken,
+            CancellationToken cancellationToken)
+        {
+            CompletedNotifications.Add(approvedMailboxId);
             return Task.CompletedTask;
         }
 

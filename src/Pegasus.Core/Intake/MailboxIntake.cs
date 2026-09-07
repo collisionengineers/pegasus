@@ -198,6 +198,11 @@ public interface IApprovedInboxPollStore
         DateTimeOffset dueAtUtc,
         string failureCode,
         CancellationToken cancellationToken);
+
+    Task CompleteNotificationAsync(
+        Guid approvedMailboxId,
+        string leaseToken,
+        CancellationToken cancellationToken);
 }
 
 /// <param name="maximumContentLength">
@@ -364,8 +369,13 @@ public sealed class PollApprovedInbox(
                 notificationHandled = true;
             }
 
-            var recovered = await PollOneAsync(lease, 50, actorCode, cancellationToken);
-            return recovered + (notificationHandled ? 1 : 0);
+            // A notification names one message, not a completed mailbox scan.
+            // Timer/lifecycle recovery alone advances the delta cursor.
+            await pollStore.CompleteNotificationAsync(
+                lease.ApprovedMailboxId,
+                lease.LeaseToken,
+                cancellationToken);
+            return notificationHandled ? 1 : 0;
         }
         catch
         {
