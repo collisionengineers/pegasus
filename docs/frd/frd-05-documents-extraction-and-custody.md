@@ -20,7 +20,13 @@ Pegasus must:
 - never execute macros, active content, external relationships, or embedded instructions;
 - distinguish scan-like material from corrupt, blank, unsupported, or encrypted material.
 
-Alpha does not include dormant OCR. Scan-like OCR is a deferred capability and requires a separately accepted slice, provider, failure/recovery contract, caller proof, and evaluation.
+Scan-like pages use the approved Azure Document Intelligence `prebuilt-layout`
+boundary. The provider operation identity and page output are retained before
+instruction analysis. Provider completion alone does not complete the durable
+work: analysis failures or receipt-version conflicts retry against the retained
+output, without resubmitting pages. Completion is acknowledged only after an
+analyzed, no-profile, or ambiguous analysis outcome has been recorded. A bounded
+exhausted retry remains visibly failed, with its original output retained.
 
 ### Staging and custody
 
@@ -33,6 +39,10 @@ Receipt/staging and accepted case custody are different states.
 - A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
 - Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](../operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
+
+Incoming custody claims use the occurrence's operation identity to select its
+own source record. Intake claims update the matching receipt/asset pair directly;
+they do not probe public-upload records or require broader Worker permissions.
 
 An Image-initiated Case also has its own Box folder from registration
 (INTK-014): the folder is named for the permanent Image Intake Reference,

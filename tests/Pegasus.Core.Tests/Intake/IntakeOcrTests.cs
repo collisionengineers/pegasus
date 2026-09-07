@@ -35,7 +35,7 @@ public sealed class IntakeOcrTests
         // Re-analysis runs after the completion is stored, once, under a key
         // derived from the operation's own key.
         var request = Assert.Single(harness.Analysis.Requests);
-        Assert.Equal("ocr:ocr-1", request.OperationKey);
+        Assert.Equal($"ocr:{harness.WorkItemId:N}:{harness.Receipt.Version}", request.OperationKey);
         Assert.Equal(harness.Receipt.Id, request.ReceiptId);
         Assert.Equal(harness.Receipt.Version, request.ExpectedReceiptVersion);
         Assert.Equal(harness.SourceAssetId, request.IntakeAssetId);
@@ -78,6 +78,71 @@ public sealed class IntakeOcrTests
         Assert.Equal(1, operation.AttemptCount);
         Assert.Equal(1, harness.Provider.Analyses);
         Assert.Empty(harness.Analysis.Requests);
+    }
+
+    [Fact]
+    public async Task AnalysisFailureRetriesRetainedOutputWithoutAnotherProviderCall()
+    {
+        var harness = new Harness();
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5]);
+        harness.Analysis.FailuresRemaining = 1;
+
+        await harness.ExecuteAsync();
+        var pending = harness.Store.Single();
+        Assert.Equal(IntakeOcrState.RetryScheduled, pending.State);
+        Assert.NotNull(pending.Result);
+        Assert.False(pending.AnalysisCompleted);
+        Assert.Equal(Now.AddSeconds(30), pending.RetryAtUtc);
+
+        await harness.ExecuteAsync();
+        Assert.True(harness.Store.Single().AnalysisCompleted);
+        Assert.Equal(IntakeOcrState.Completed, harness.Store.Single().State);
+        Assert.Equal(1, harness.Provider.Analyses);
+        Assert.Equal(0, harness.Provider.Reconciliations);
+        Assert.Equal(2, harness.Analysis.Requests.Count);
+        Assert.Single(harness.Analysis.Requests.Select(request => request.OperationKey).Distinct());
+
+        await harness.ExecuteAsync();
+        Assert.Equal(2, harness.Analysis.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData(RetainedInstructionAnalysisOutcome.SourceUnavailable)]
+    [InlineData(RetainedInstructionAnalysisOutcome.Conflict)]
+    public async Task IncompleteAnalysisIsNotAcknowledged(RetainedInstructionAnalysisOutcome outcome)
+    {
+        var harness = new Harness();
+        harness.Provider.OnAnalyze = () => Harness.Completed([2, 5]);
+        harness.Analysis.Outcome = outcome;
+        await harness.ExecuteAsync();
+        Assert.Equal(IntakeOcrState.RetryScheduled, harness.Store.Single().State);
+        Assert.False(harness.Store.Single().AnalysisCompleted);
+
+        harness.Analysis.Outcome = RetainedInstructionAnalysisOutcome.NoProfile;
+        await harness.ExecuteAsync();
+        Assert.True(harness.Store.Single().AnalysisCompleted);
+        Assert.Equal(1, harness.Provider.Analyses);
+    }
+
+    [Fact]
+    public async Task CrashAfterProviderCompletionReplaysOnlyAnalysis()
+    {
+        var harness = new Harness();
+        var result = Harness.Completed([2, 5]);
+        harness.Store.Seed(harness.Store.Single() with
+        {
+            State = IntakeOcrState.Completed,
+            ProviderOperationId = result.ProviderOperationId,
+            Result = result,
+            Pages = result.PageResults,
+            ResponseSha256 = result.ResponseSha256
+        });
+
+        await harness.ExecuteAsync();
+        Assert.True(harness.Store.Single().AnalysisCompleted);
+        Assert.Single(harness.Analysis.Requests);
+        Assert.Equal(0, harness.Provider.Analyses);
+        Assert.Equal(0, harness.Provider.Reconciliations);
     }
 
     [Fact]
@@ -346,7 +411,8 @@ public sealed class IntakeOcrTests
                 state,
                 1,
                 providerOperationId,
-                AttemptCount: attemptCount));
+                AttemptCount: attemptCount,
+                AnalysisCompleted: state == IntakeOcrState.Completed));
             Command = new ProcessIntakeOcr(
                 Store,
                 Provider,
@@ -521,9 +587,19 @@ public sealed class IntakeOcrTests
                     ProviderOperationId = result.ProviderOperationId ?? operation.ProviderOperationId,
                     ResponseSha256 = result.ResponseSha256,
                     Pages = result.PageResults,
+                    Result = result,
                     LastError = null,
                     RetryAtUtc = null
                 }));
+
+        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
+            Task.FromResult(Update(operationId, expectedVersion, operation => operation with
+            {
+                State = IntakeOcrState.Completed,
+                AnalysisCompleted = true,
+                LastError = null,
+                RetryAtUtc = null
+            }));
 
         public Task<IntakeOcrOperation> RecordOutcomeAsync(
             Guid operationId,
@@ -675,14 +751,20 @@ public sealed class IntakeOcrTests
     private sealed class FakeAnalysis : IAnalyzeRetainedInstruction
     {
         public List<AnalyzeRetainedInstructionRequest> Requests { get; } = [];
+        public int FailuresRemaining { get; set; }
+        public RetainedInstructionAnalysisOutcome Outcome { get; set; } = RetainedInstructionAnalysisOutcome.NoProfile;
 
         public Task<AnalyzeRetainedInstructionResult> ExecuteAsync(
             AnalyzeRetainedInstructionRequest request,
             CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            if (FailuresRemaining-- > 0)
+            {
+                throw new TimeoutException("Injected analysis outage.");
+            }
             return Task.FromResult(new AnalyzeRetainedInstructionResult(
-                RetainedInstructionAnalysisOutcome.NoProfile,
+                Outcome,
                 null,
                 "no profile",
                 [],

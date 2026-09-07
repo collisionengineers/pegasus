@@ -806,12 +806,15 @@ public sealed class TriageQueuesWebTests
         await workStore.MarkDispatchedAsync(dispatchClaim.Id, dispatchClaim.LeaseToken!, now, CancellationToken.None);
         var processingClaim = await workStore.ClaimProcessingAsync(staged.Id, now, TimeSpan.FromMinutes(1), CancellationToken.None)
             ?? throw new InvalidOperationException("Expected the dispatched evaluation work item to be claimable for processing.");
-        var evaluation = await workStore.CompleteProcessingAsync(
+        var evaluation = await workStore.RecordEvaluationAsync(
             processingClaim.WorkItem.Id,
             processingClaim.WorkItem.LeaseToken!,
             processedReceiptId,
             now,
+            false,
             CancellationToken.None);
+        await workStore.CompleteProcessingAsync(processingClaim.WorkItem.Id,
+            processingClaim.WorkItem.LeaseToken!, now, CancellationToken.None);
         return evaluation.Id;
     }
 
