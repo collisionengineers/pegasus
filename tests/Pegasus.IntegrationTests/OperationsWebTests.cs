@@ -151,9 +151,13 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         Assert.Contains("EVA handoffs", html, StringComparison.Ordinal);
-        Assert.Contains("Pending work", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pending work", html, StringComparison.Ordinal);
         Assert.Contains("Latest activity", html, StringComparison.Ordinal);
         Assert.Contains("Failures", html, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.OfficeTime(FixedUtcNow),
+            html,
+            StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Presentation.OperatorLabels.OfficeTime(evaSubmissions.FailureAtUtc),
             html,
