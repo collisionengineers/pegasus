@@ -2,22 +2,23 @@
 id: INTK-060
 type: ticket
 title: 'Pegasus v1 intake, principals and operator shell'
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-09-06T05:34:15.786Z'
+  review: '2026-09-07T14:21:46.788Z'
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
-claim_expires_at: '2026-09-07T15:44:06.569Z'
+claim_expires_at: '2026-09-07T16:08:44.313Z'
 claim_controller: codex-astra-a-c
 lease_id: 6af494d4-13a5-4866-a54a-03cf407d3ee1
-lease_revision: 130
+lease_revision: 132
 lease_workspace: 'worktree:c:\users\pguser\documents\github\pegasus-worktrees\v1-intake'
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-07T13:44:06.568Z'
+lease_heartbeat_at: '2026-09-07T14:08:44.313Z'
 lease_reclaimed_from: antigravity-stream-c
 labels:
   - pegasus-v1
@@ -32,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/673'
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T13:44:06.568Z'
+updated: '2026-09-07T14:21:46.788Z'
 ---
 
 ## What
