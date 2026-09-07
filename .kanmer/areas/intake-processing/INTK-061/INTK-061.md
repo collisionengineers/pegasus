@@ -31,9 +31,11 @@ links:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
+commits:
+  - 3d58d8c58fe57aac5af6091f7ebf0e0b81b5b560
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T20:58:46.197Z'
+updated: '2026-09-07T21:03:32.788Z'
 ---
 
 ## What

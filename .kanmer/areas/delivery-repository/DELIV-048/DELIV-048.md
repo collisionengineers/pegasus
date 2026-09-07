@@ -28,10 +28,12 @@ groups:
   - EPIC-014
 links:
   - DELIV-047
+refs:
+  - docs/adr/0007-direct-terminal-azure-deployment.md
 docs_todo: true
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-07T21:03:16.800Z'
+updated: '2026-09-07T21:03:36.679Z'
 ---
 
 ## What
