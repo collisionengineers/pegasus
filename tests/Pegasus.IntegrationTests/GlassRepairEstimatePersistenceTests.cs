@@ -1,11 +1,11 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -40,22 +40,17 @@ public sealed class GlassRepairEstimatePersistenceTests
     private static readonly string OtherCallbackDigest = new('b', 64);
 
     /// <summary>
-    /// The canonical account key a launch carries. It is the lower-hex SHA-256
-    /// of the provider and the normalized username, mirroring Stream A's
-    /// <c>EfPerUserExternalCredentialStore.NormalizeAccountKey</c>: a fixture
-    /// that mints a key of the real shape, not a second owner of the rule. The
-    /// store under test neither mints nor re-derives it — it is handed the
-    /// canonical key and must keep it exactly.
+    /// Two opaque fixtures shaped like the canonical key Stream A mints (64
+    /// lower-hex characters). The key rule is A's alone and is proved below
+    /// against A's real credential store; these fixtures assert nothing
+    /// about how a key is derived, only that the store keeps whatever it is
+    /// handed byte for byte.
     /// </summary>
-    private static string AccountKey(string username) =>
-        Convert.ToHexStringLower(
-            SHA256.HashData(
-                Encoding.UTF8.GetBytes(
-                    $"{ExternalCredentialProvider.GlassRepairEstimate}\n{username.Trim().ToLowerInvariant()}")));
+    private const string EngineerAccountKey =
+        "4b3a9c1e7f0d2b8a6c5e4f3d2a1b0c9e8d7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b";
 
-    private static readonly string EngineerAccountKey = AccountKey("a.engineer");
-
-    private static readonly string OtherAccountKey = AccountKey("b.engineer");
+    private const string OtherAccountKey =
+        "9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d";
 
     /// <summary>
     /// The provider allows one live ERE calculation per account, so the
@@ -176,6 +171,61 @@ public sealed class GlassRepairEstimatePersistenceTests
         Assert.True(EngineerAccountKey.All(Uri.IsHexDigit));
         Assert.DoesNotContain("engineer", EngineerAccountKey, StringComparison.OrdinalIgnoreCase);
         Assert.NotEqual(EngineerAccountKey, OtherAccountKey);
+    }
+
+    /// <summary>
+    /// The key the session store keeps is the one Stream A's credential store
+    /// mints: a credential is recorded through the host's registered
+    /// administration port, its enabled reference is read back through the
+    /// registered reader, and that exact <c>NormalizedExternalAccountKey</c>
+    /// is what the session store stores, reads and replays on, byte for byte.
+    /// This runs only where the host composes A's store; a host that does not
+    /// register the two ports does not build.
+    /// </summary>
+    [Fact]
+    public async Task TheKeyTheSessionStoreKeepsIsTheOneTheCredentialStoreMinted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<IPerUserExternalCredentialAdministration>();
+        var reader = scope.ServiceProvider.GetRequiredService<IPerUserExternalCredentialReader>();
+        var userId = DevelopmentOfflineIdentity.AdministratorId;
+        var administrator = ActionActor.Staff(userId, [StaffRole.Administrator]);
+        var engineer = ActionActor.Staff(userId, [StaffRole.Administrator, StaffRole.Engineer]);
+
+        var before = await administration.GetAsync(
+            administrator, userId, ExternalCredentialProvider.GlassRepairEstimate, CancellationToken.None);
+        await administration.ReplaceAsync(
+            administrator,
+            userId,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            before.Version,
+            "Glass.Engineer",
+            "glass-fixture-value-not-a-secret",
+            enabled: true,
+            CancellationToken.None);
+        var material = await reader.GetEnabledAsync(
+            engineer, ExternalCredentialProvider.GlassRepairEstimate, CancellationToken.None);
+        Assert.NotNull(material);
+        var canonicalKey = material.Reference.NormalizedExternalAccountKey;
+        Assert.Equal(64, canonicalKey.Length);
+        Assert.True(canonicalKey.All(Uri.IsHexDigit));
+
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Store.CreateAsync(
+            harness.Material(canonicalKey, GlassRepairEstimateSessionState.Active, "launch-1"),
+            CancellationToken.None);
+        var read = await harness.Store.GetAsync(created.Session.Id, CancellationToken.None);
+        var replayed = await harness.Store.CreateAsync(
+            harness.Material(canonicalKey, GlassRepairEstimateSessionState.Active, "launch-1"),
+            CancellationToken.None);
+
+        Assert.NotNull(read);
+        Assert.Equal(canonicalKey, created.Session.NormalizedExternalAccountKey);
+        Assert.Equal(canonicalKey, read.Session.NormalizedExternalAccountKey);
+        Assert.Equal(canonicalKey, await harness.ActiveAccountKeyAsync(created.Session.Id));
+        Assert.Equal(created.Session.Id, replayed.Session.Id);
+        Assert.Equal(canonicalKey, replayed.Session.NormalizedExternalAccountKey);
     }
 
     [Fact]
@@ -872,7 +922,12 @@ public sealed class GlassRepairEstimatePersistenceTests
     private sealed record LaunchOutcome(
         GlassRepairEstimateSessionMaterial? Created, Exception? Error);
 
-    private sealed class Harness : IAsyncDisposable
+    /// <summary>
+    /// Internal, not private, so the Glass's gateway suite can drive the real
+    /// store on the same seeded Case and user instead of keeping a second copy
+    /// of this seeding.
+    /// </summary>
+    internal sealed class Harness : IAsyncDisposable
     {
         private Harness(
             LocalDbTestDatabase database,
@@ -897,7 +952,7 @@ public sealed class GlassRepairEstimatePersistenceTests
 
         private LocalDbTestDatabase Database { get; }
 
-        private PooledDbContextFactory<PegasusDbContext> Factory { get; }
+        public PooledDbContextFactory<PegasusDbContext> Factory { get; }
 
         public CaseDataCompletenessPersistenceTests.MutableTimeProvider TimeProvider { get; }
 
