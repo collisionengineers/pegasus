@@ -14,10 +14,12 @@ The named test files below are source locations found by exact tool-name or
 tool-discovery reference. Their presence is not execution evidence. The
 PLAT-075 execution scratch records all 20 selected MCP tests passing at local
 combined checkpoint `0ce9510cc` after the single-rate correction. That proof
-predates both source heads above and is not final-host proof. The scratch does
-not record a later successful execution of
-`AutomationIntakeParityIngressTests`; its earlier Triage failure remains
-historical evidence and must not be relabelled PASS. Exact final combined-head
+predates both source heads above and is not final-host proof. The earlier Triage parity failure remains historical evidence. A fresh
+`AutomationIntakeParityIngressTests` run at combined
+`e28522281847b3a83a1607166e965205b30f9b34` subsequently passed all three tests
+with zero failures/skips (1m09), after a zero-warning/error build (1m36.89).
+TRX: `v1-current-intake-parity.trx`. This disposes that focused current-head
+failure; it does not replace final whole-host verification. Exact final combined-head
 build, test, activation and deployment evidence remain pending.
 
 | Tool | Required scope | Current source disposition | Test-source references |
