@@ -373,6 +373,32 @@ public sealed class AnalyzeRetainedInstruction(
                 false);
         }
 
+        // A PARTIALLY read source is not a source to extract from, and every
+        // one of the fifteen extraction policies says so by throwing
+        // ArgumentException on an incomplete result. Selection sits outside the
+        // try/catch above, so without this guard a readable-but-partial
+        // document - a legacy .doc whose binary parser reports Partial, an
+        // e-mail whose attachment could not be processed - left the command as
+        // an unhandled exception on the /Received re-evaluation path instead of
+        // as an answer.
+        //
+        // The honest answer is the one an unopenable source already gets: the
+        // same typed outcome, carrying the reader's OWN account of what is
+        // missing, and nothing recorded - so a later attempt under the same key
+        // still analyses rather than replaying a stored failure for ever. The
+        // guard belongs here rather than in the policies: a policy refusing
+        // material it cannot extract from is right, and the caller deciding
+        // what that refusal means to staff is this command's job.
+        if (readResult.IsIncomplete)
+        {
+            return new(
+                RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                null,
+                IncompleteSourceReason(readResult),
+                [],
+                false);
+        }
+
         // Selection is by document signature AND document role: this use case
         // reads instructions, so a profile written for another document role
         // is not a candidate for it.
@@ -851,6 +877,18 @@ public sealed class AnalyzeRetainedInstruction(
     /// action from the same owner, so the two cannot disagree about whether
     /// analysis is possible.
     /// </summary>
+    /// <summary>
+    /// Why a readable source was not read completely, in the reader's words.
+    /// The reader records an issue for every gap it knows about; repeating them
+    /// is what lets staff see that a legacy Word original lost its embedded
+    /// objects rather than being told only that "something" was missing.
+    /// </summary>
+    private static string IncompleteSourceReason(IntakeSourceReadResult readResult) =>
+        readResult.Issues.Count == 0
+            ? "The retained source could not be read completely."
+            : "The retained source could not be read completely: "
+                + string.Join("; ", readResult.Issues.Select(issue => issue.Reason));
+
     private static IntakeAssetRecord? SelectAsset(IntakeReceipt receipt, Guid? assetId) =>
         assetId is { } explicitId
             ? receipt.AssetRecords.SingleOrDefault(asset => asset.Id == explicitId)
