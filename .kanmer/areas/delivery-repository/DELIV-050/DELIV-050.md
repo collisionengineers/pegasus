@@ -2,12 +2,13 @@
 id: DELIV-050
 type: ticket
 title: Record report-input permission migration in the release bootstrap census
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-v1-remediation-root
 profile: fix
 stageEntered:
   preparing: '2026-09-07T23:40:52.619Z'
+  review: '2026-09-07T23:43:38.044Z'
 taken_at: '2026-09-07T23:41:24.189Z'
 branch: DELIV-050-bootstrap-census
 worktree: .worktrees/deliv-050
@@ -28,9 +29,13 @@ links:
   - DELIV-048
 refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
+commits:
+  - 4b7a2af44342c8c4153bb7c7df87716edb103e49
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/687'
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:41:24.189Z'
+updated: '2026-09-07T23:43:38.044Z'
 ---
 
 ## What
