@@ -1,3 +1,4 @@
+﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -118,7 +119,8 @@ public sealed record ImageIntakeSummary(
     ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
     string? ClosureReason = null,
     int ImageCount = 0,
-    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload);
+    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload,
+    string? PrincipalCode = null);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,
@@ -146,7 +148,8 @@ public sealed record ImageIntakeDetail(
     DateTimeOffset RegisteredAtUtc,
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
-    ImageCustodyState? Custody = null)
+    ImageCustodyState? Custody = null,
+    string? PrincipalCode = null)
 {
     public ImageInitiatedCaseState State => Record.State;
 
@@ -180,6 +183,20 @@ public sealed record CloseImageInitiatedCaseRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
+    long ExpectedVersion);
+
+/// <summary>
+/// Records, replaces or clears the optional known principal on an Image
+/// Intake. A null <see cref="PrincipalId"/> is the `Not known` state — a
+/// legitimate value staff may return to, not an error. There is no operation
+/// key: the value is replaceable and clearable, so a replay probe returning
+/// the current record (which is only correct for a terminal transition) would
+/// be wrong here; <see cref="ExpectedVersion"/> alone guards the write.
+/// </summary>
+public sealed record SetImageIntakePrincipalRequest(
+    Guid ImageIntakeId,
+    Guid? PrincipalId,
+    ActionActor Actor,
     long ExpectedVersion);
 
 /// <summary>
@@ -229,6 +246,19 @@ public interface IImageIntakeQueries
     Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
         string normalizedVehicleRegistration,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The active principals a staff member may record against an Image
+    /// Intake, ordered by code. The organisation administration query is
+    /// paginated and gated behind `ManageOrganizationsAndPrincipals`, so it
+    /// cannot serve this page. The default fails closed rather than returning
+    /// an empty option list that would silently look like `no principals
+    /// exist` when an implementation is missing.
+    /// </summary>
+    Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<Principal>>(
+            new NotSupportedException("Active principal options are not available."));
 }
 
 /// <summary>
@@ -247,7 +277,9 @@ public sealed record ImageIntakeOperationReplay(ImageIntakeRecord Result);
 /// transaction. Registration identity is immutable after creation — only the
 /// Image-initiated lifecycle columns change, and only through
 /// <see cref="MergeAsync"/>/<see cref="CloseAsync"/>; case association lives
-/// exclusively on the origin receipt.
+/// exclusively on the origin receipt. The optional known principal is the one
+/// exception: it is not registration identity and is recorded, replaced or
+/// cleared through <see cref="SetPrincipalAsync"/> alone.
 /// </summary>
 public interface IImageIntakeStore : IImageIntakeQueries
 {
@@ -279,6 +311,18 @@ public interface IImageIntakeStore : IImageIntakeQueries
         CloseImageInitiatedCaseRequest request,
         CancellationToken cancellationToken) =>
         Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    /// <summary>
+    /// Records, replaces or clears the optional known principal. This is not a
+    /// lifecycle transition: it writes no lifecycle event, infers nothing from
+    /// a registration match or a linked Case, and a same-value re-submission
+    /// is a no-op that leaves the version alone.
+    /// </summary>
+    Task<ImageIntakeRecord> SetPrincipalAsync(
+        SetImageIntakePrincipalRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(
+            new NotSupportedException("Image Intake principal assignment is not available."));
 
     Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,

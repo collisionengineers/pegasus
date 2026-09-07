@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
@@ -25,11 +26,60 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
 
     [GenuineFormatCorpusFact(".msg", PinnedMsgHash)]
     [Trait("Category", "Corpus")]
-    public async Task GenuineMsgIsRetainedInNeedsSortingWithoutReference()
+    public async Task GenuineMsgIsADirectQdosInstructionThatAllocatesACase()
     {
         var receipt = await UploadSelectedAsync(".msg", PinnedMsgHash);
 
-        AssertNeedsSortingWithoutReferenceOrOcr(receipt);
+        // Correction, not weakening: the foundation now seeds the QDOS principal and its
+        // accepted direct route, so this pinned message resolves to a definitive
+        // instruction rather than the pre-foundation NeedsSorting outcome. The retention
+        // invariants that are independent of the decision (no scanned PDF pages, no OCR
+        // evidence signal) are kept exactly as the old shared helper proved them.
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.Empty(receipt.ScannedPdfPages);
+        Assert.DoesNotContain(
+            receipt.Evidence,
+            item => item.Signal.Contains("ocr", StringComparison.OrdinalIgnoreCase));
+
+        var route = receipt.MailRouteDecision;
+        Assert.NotNull(route);
+        Assert.Equal(MailRouteDisposition.Accepted, route!.Disposition);
+        Assert.Equal("QDOS", route.SelectedRoute?.RouteOwnerCode);
+        Assert.Equal(MailRouteKind.DirectProvider, route.SelectedRoute?.Kind);
+        Assert.Equal("QDOS", route.SelectedRoute?.WorkProviderCode);
+        Assert.Equal(QdosMailRoutePolicy.Key, route.PolicyKey);
+        Assert.Equal(QdosMailRoutePolicy.Version, route.PolicyVersion);
+        AssertRoutePredicate(route, "direct.sender-exactly-one", matched: true);
+        AssertRoutePredicate(route, "forward.staff-transport", matched: false);
+        AssertRoutePredicate(route, "forward.original-exactly-one", matched: false);
+        AssertRoutePredicate(route, "forward.original-external", matched: false);
+        AssertRoutePredicate(route, "direct.qdos-domain", matched: true);
+        AssertRoutePredicate(route, "intermediary.accepted-policy", matched: false);
+
+        var classification = receipt.MailClassificationDecision;
+        Assert.NotNull(classification);
+        Assert.Equal(MailClassificationOutcome.Classified, classification!.Outcome);
+        Assert.Equal(MailDirection.Received, classification.Category?.Direction);
+        Assert.Equal(ReceivedMailFamily.NewInstructionReceived, classification.Category?.ReceivedFamily);
+        Assert.Equal("inspection", classification.Category?.Subtype);
+        Assert.False(classification.Category?.IsReplyContext);
+        Assert.Equal(CaseType.InspectionAndAudit, classification.CaseType);
+        Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
+        Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
+        AssertClassificationPredicate(classification, "subject.automatic-reply", matched: false);
+        AssertClassificationPredicate(classification, "subject.reply-prefix", matched: false);
+        AssertClassificationPredicate(classification, "body.triage-only-request", matched: false);
+        AssertClassificationPredicate(classification, "subject.engineer-triage", matched: false);
+        AssertClassificationPredicate(classification, "attachment.audit-report-notification", matched: false);
+        AssertClassificationPredicate(classification, "attachment.engineer-notification", matched: true);
+
+        Assert.Equal(QdosInstructionExtractionPolicy.Key, receipt.ExtractionPolicyKey);
+        Assert.Equal(QdosInstructionExtractionPolicy.Version, receipt.ExtractionPolicyVersion);
+        Assert.Contains(
+            receipt.Evidence,
+            item => item.Signal == "established-principal"
+                && item.Detail == $"Principal QDOS was established by {QdosMailRoutePolicy.Key} v{QdosMailRoutePolicy.Version}.");
+
         WriteAggregate("MSG", receipt.Decision);
     }
 
@@ -99,6 +149,14 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
             receipt.Evidence,
             item => item.Signal.Contains("ocr", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static void AssertRoutePredicate(
+        MailRouteEvaluationResult route, string key, bool matched) =>
+        Assert.Equal(matched, Assert.Single(route.Predicates, predicate => predicate.Key == key).Matched);
+
+    private static void AssertClassificationPredicate(
+        MailClassificationResult classification, string key, bool matched) =>
+        Assert.Equal(matched, Assert.Single(classification.Predicates, predicate => predicate.Key == key).Matched);
 
     private void WriteAggregate(string format, IntakeDecision decision)
     {

@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Intake;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Custody;
@@ -10,6 +10,7 @@ public static class ExternalWorkKinds
     public const string CreateImageCaseCustody = "create_image_case_custody";
     public const string MergeImageCaseCustody = "merge_image_case_custody";
     public const string VehicleLookup = "vehicle_lookup";
+    public const string IntakeOcr = "intake_ocr";
 }
 
 public sealed record QueuedExternalWork(Guid Id, string Kind);
@@ -60,7 +61,8 @@ public interface IProcessQueuedExternalWork
 public sealed class ProcessQueuedExternalWork(
     IQueuedExternalWorkReader workReader,
     IProcessQueuedCustody custody,
-    IProcessQueuedVehicleLookup vehicle) : IProcessQueuedExternalWork
+    IProcessQueuedVehicleLookup vehicle,
+    IProcessIntakeOcr? intakeOcr = null) : IProcessQueuedExternalWork
 {
     public async Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
     {
@@ -89,6 +91,9 @@ public sealed class ProcessQueuedExternalWork(
                 return;
             case ExternalWorkKinds.VehicleLookup:
                 await vehicle.ExecuteAsync(workItemId, cancellationToken);
+                return;
+            case ExternalWorkKinds.IntakeOcr when intakeOcr is not null:
+                await intakeOcr.ExecuteAsync(workItemId, cancellationToken);
                 return;
             default:
                 throw new UnknownExternalWorkKindException(workItemId, work.Kind);

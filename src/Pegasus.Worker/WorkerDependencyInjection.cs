@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -42,6 +42,20 @@ public static class WorkerDependencyInjection
         ProductionExternalOptions? productionOptions = developmentOffline
             ? null
             : GetProductionExternalOptions(configuration);
+        AzureDocumentIntelligenceOptions? ocrOptions = null;
+        var ocrEndpointValue = configuration[WorkerAzureClientFactory.DocumentIntelligenceEndpointKey];
+        if (!developmentOffline && !string.IsNullOrEmpty(ocrEndpointValue))
+        {
+            if (string.IsNullOrWhiteSpace(ocrEndpointValue)
+                || !Uri.TryCreate(ocrEndpointValue, UriKind.Absolute, out var ocrEndpoint)
+                || !ocrEndpoint.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"{WorkerAzureClientFactory.DocumentIntelligenceEndpointKey} must be an absolute HTTPS URI.");
+            }
+
+            ocrOptions = AzureDocumentIntelligenceOptions.Create(ocrEndpoint);
+        }
         var azureClientRegistration = developmentOffline
             ? WorkerAzureClientFactory.CreateDevelopmentOffline(configuration)
             : WorkerAzureClientFactory.CreateProduction(configuration);
@@ -88,8 +102,16 @@ public static class WorkerDependencyInjection
                 productionOptions.Value.Vehicle);
             services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
 
+            if (ocrOptions is not null)
+            {
+                services.AddSingleton(ocrOptions);
+                services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>();
+                services.AddScoped<IProcessIntakeOcr, ProcessIntakeOcr>();
+            }
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
+
+        services.AddScoped<VehicleRegistrationCandidateLookup>();
 
         services.AddScoped<EfIntakeWorkStore>();
         services.AddScoped<IIntakeWorkStore>(serviceProvider =>

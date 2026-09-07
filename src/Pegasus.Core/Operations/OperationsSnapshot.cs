@@ -62,6 +62,23 @@ public interface IGetOperationsSnapshot
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// The shell notifications menu's own narrow query (C08): the same
+/// needs-attention rows <see cref="IGetOperationsSnapshot"/> composes, cut to
+/// <see cref="GetOperationsSnapshot.MaximumAttentionRows"/> rather than the
+/// full fifty, and without the dashboard counts a notifications menu has no
+/// use for. <see cref="RailCountsPageFilter"/> calls it once per authenticated
+/// request for every page except Work Centre, which already holds its own
+/// full snapshot and slices its own top ten instead of paying for a second
+/// call.
+/// </summary>
+public interface IGetAttentionRows
+{
+    Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class GetOperationsSnapshot(
     IIntakeReceiptQueries intakeQueries,
     IListTriage listTriage,
@@ -71,7 +88,7 @@ public sealed class GetOperationsSnapshot(
     IUnidentifiedStore unidentifiedStore,
     GetRequestOperations requestOperations,
     IStaffAccountQueries staffAccounts,
-    TimeProvider timeProvider) : IGetOperationsSnapshot
+    TimeProvider timeProvider) : IGetOperationsSnapshot, IGetAttentionRows
 {
     /// <summary>
     /// The needs-attention list's bound, and the bound each of its source
@@ -79,6 +96,13 @@ public sealed class GetOperationsSnapshot(
     /// in one sitting; the Cases tabs carry the rest.
     /// </summary>
     public const int MaximumNeedsAttention = 50;
+
+    /// <summary>
+    /// The shell notifications menu's bound (C08): more than ten items in a
+    /// dropdown is a list the operator cannot scan, so the same ordered rows
+    /// are cut here rather than a second wording of the fifty-row bound.
+    /// </summary>
+    public const int MaximumAttentionRows = 10;
 
     private readonly IIntakeReceiptQueries intakeQueries =
         intakeQueries ?? throw new ArgumentNullException(nameof(intakeQueries));
@@ -111,6 +135,68 @@ public sealed class GetOperationsSnapshot(
             LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
 
         var intake = await intakeQueries.GetCountsAsync(cancellationToken);
+        var inputs = await FetchAttentionInputsAsync(actor, asOfUtc, cancellationToken);
+        var caseStages = await dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+
+        var needsAttention = await ComposeNeedsAttentionAsync(
+            asOfUtc,
+            dayEndUtc,
+            inputs.DueWork,
+            inputs.Held,
+            inputs.Unidentified,
+            inputs.Triage,
+            inputs.Requests,
+            cancellationToken);
+
+        return new(
+            asOfUtc,
+            intake,
+            inputs.TriageTotalCount,
+            inputs.Unidentified.Count,
+            inputs.DueWork,
+            caseStages,
+            needsAttention);
+    }
+
+    /// <inheritdoc cref="IGetAttentionRows.ExecuteAsync"/>
+    /// <remarks>
+    /// The notifications menu's narrow read (C08): the same ordered rows
+    /// <see cref="ExecuteAsync(ActionActor, CancellationToken)"/> composes,
+    /// without the intake or dashboard counts a menu has no use for.
+    /// </remarks>
+    async Task<IReadOnlyList<NeedsAttentionItem>> IGetAttentionRows.ExecuteAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+
+        var asOfUtc = timeProvider.GetUtcNow();
+        var (_, dayEndUtc, _) = LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
+        var inputs = await FetchAttentionInputsAsync(actor, asOfUtc, cancellationToken);
+        var rows = await ComposeNeedsAttentionAsync(
+            asOfUtc,
+            dayEndUtc,
+            inputs.DueWork,
+            inputs.Held,
+            inputs.Unidentified,
+            inputs.Triage,
+            inputs.Requests,
+            cancellationToken);
+
+        return rows.Take(MaximumAttentionRows).ToArray();
+    }
+
+    /// <summary>
+    /// The five needs-attention sources, fetched once and shared by the full
+    /// snapshot and the notifications menu's narrower read — one query each,
+    /// never a second copy of the fetch behind a second wording.
+    /// </summary>
+    private async Task<AttentionInputs> FetchAttentionInputsAsync(
+        ActionActor actor,
+        DateTimeOffset asOfUtc,
+        CancellationToken cancellationToken)
+    {
         // The Triage kind is work without a finding, so both no-finding states
         // are queried directly. One unfiltered page would not do: the list is
         // newest-first across every state, so fifty settled records would
@@ -126,32 +212,28 @@ public sealed class GetOperationsSnapshot(
             asOfUtc,
             MaximumNeedsAttention,
             cancellationToken);
-        var caseStages = await dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-
         var held = await searchCases.ExecuteAsync(
             new(actor, new(State: CaseLifecycleState.Held), Page: 1, PageSize: MaximumNeedsAttention),
             cancellationToken);
         var unidentified = await unidentifiedStore.ListQueueAsync(null, cancellationToken);
         var requests = await requestOperations.ExecuteAsync(actor, cancellationToken);
-        var needsAttention = await ComposeNeedsAttentionAsync(
-            asOfUtc,
-            dayEndUtc,
+
+        return new AttentionInputs(
             dueWork,
             held.Items,
             unidentified,
             triageWithoutFinding,
-            requests.Items,
-            cancellationToken);
-
-        return new(
-            asOfUtc,
-            intake,
             openTriagePage.TotalCount + awaitingTriagePage.TotalCount,
-            unidentified.Count,
-            dueWork,
-            caseStages,
-            needsAttention);
+            requests.Items);
     }
+
+    private readonly record struct AttentionInputs(
+        IReadOnlyList<CaseDueWork> DueWork,
+        IReadOnlyList<CaseSearchItem> Held,
+        IReadOnlyList<UnidentifiedQueueRow> Unidentified,
+        IReadOnlyList<TriageSummary> Triage,
+        int TriageTotalCount,
+        IReadOnlyList<RequestOperationProjection> Requests);
 
     /// <summary>
     /// The five needs-attention kinds, each read from the query that already

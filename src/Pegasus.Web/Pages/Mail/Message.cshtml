@@ -8,14 +8,33 @@
     var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
 }
 
-@* Outbound actions remain with MAIL-026. AUTO-014 adds only the
-   retained post-report query action that has a live handler here. *@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Inbox message</p>
         <h1 class="wrap">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
     </div>
     <div class="page-actions">
+        @if (Model.CanCorrespond)
+        {
+            @if (Model.CanReply)
+            {
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
+            }
+            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+               asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">Forward</a>
+        }
         <a class="btn" asp-page="/Mail/Index"
            asp-route-mailbox="@Model.MailboxFilter"
            asp-route-folder="@Model.FolderRouteValue"
@@ -174,7 +193,99 @@
                 <span>@queryResponseNotice</span>
             </div>
         }
+        @if (Model.CorrespondenceNotice is { } correspondenceNotice)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <span>@correspondenceNotice</span>
+            </div>
+        }
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        @if (Model.CorrespondenceOperation is { } mailOperation)
+        {
+            <section class="panel">
+                <div class="panel-head"><h2>Send status</h2></div>
+                <div class="panel-body fact-grid">
+                    <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(mailOperation.State)</dd></dl>
+                    @if (mailOperation.State is Pegasus.Core.Operations.StaffMailState.Submitted
+                        or Pegasus.Core.Operations.StaffMailState.Unknown)
+                    {
+                        <form method="post" asp-page-handler="ReconcileCorrespondence" asp-route-id="@summary.Id">
+                            <input type="hidden" name="mailOperationId" value="@mailOperation.Id" />
+                            <input type="hidden" name="expectedOperationVersion" value="@mailOperation.Version" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                <span>@OperatorLabels.StaffMail.Reconcile</span>
+                            </button>
+                        </form>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (Model.CanCorrespond && Model.CorrespondenceMode is { } correspondenceMode)
+        {
+            var handler = correspondenceMode switch
+            {
+                "reply" => "Reply",
+                "reply-all" => "ReplyAll",
+                "forward" => "Forward",
+                _ => null
+            };
+            if (handler is not null)
+            {
+                <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id"
+                      asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                      asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                      asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" class="panel section-gap">
+                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? "Forward" : correspondenceMode == "reply-all" ? "Reply all" : "Reply")</h2></div>
+                    <div class="panel-body stack">
+                        <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
+                        <input type="hidden" asp-for="CorrespondenceOperationKey" />
+                        @if (correspondenceMode == "forward")
+                        {
+                            <div class="field">
+                                <label asp-for="CorrespondenceTo">To</label>
+                                <input asp-for="CorrespondenceTo" type="text" />
+                                <span asp-validation-for="CorrespondenceTo"></span>
+                            </div>
+                            <div class="field">
+                                <label asp-for="CorrespondenceCc">Cc</label>
+                                <input asp-for="CorrespondenceCc" type="text" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="definition-list">
+                                <dl class="definition"><dt>To</dt><dd>@Model.CorrespondenceTo</dd></dl>
+                                @if (!string.IsNullOrWhiteSpace(Model.CorrespondenceCc))
+                                {
+                                    <dl class="definition"><dt>Cc</dt><dd>@Model.CorrespondenceCc</dd></dl>
+                                }
+                            </div>
+                        }
+                        <div class="field">
+                            <label asp-for="CorrespondenceSubject">Subject</label>
+                            <input asp-for="CorrespondenceSubject" type="text" />
+                            <span asp-validation-for="CorrespondenceSubject"></span>
+                        </div>
+                        <div class="field">
+                            <label asp-for="CorrespondenceBody">Message</label>
+                            <textarea asp-for="CorrespondenceBody" rows="8"></textarea>
+                            <span asp-validation-for="CorrespondenceBody"></span>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--dark">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                <span>Send</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            }
+        }
 
         @if (Model.ActiveSection == "message")
         {
