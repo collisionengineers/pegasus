@@ -370,3 +370,10 @@ No push, no PR (controller override: build-only round). Full report:
 
 Combined-tree test filter for the runner:
 `dotnet test ./Pegasus.slnx --configuration Release --filter "FullyQualifiedName~Pegasus.IntegrationTests.StaffCorrespondenceWebTests"`
+
+C08 r6 (correction round 6, test-only): fixed the regression test that FAILed in the combined tree.
+Root cause per F1-F6: Development-environment developer exception page turns the rethrown InvalidOperationException into an HTTP 500 before it reaches the client as a thrown exception, so `Assert.ThrowsAsync` never observed one.
+Fix: assert `HttpStatusCode.InternalServerError`, body excludes "existing correspondence operation", body includes the ThrowOnSend double's message; kept SendCalls==0 as a non-tautological secondary guard (double throws before recording). Renamed off the stray leading "A" (F6).
+F5: extracted shared `IsActiveOperation(StaffMailOperation?)` in Message.cshtml.cs, used by both the exception handler and CorrespondenceSendBlocked — no behaviour change.
+Compile gates (foreground, explicit timeouts): Pegasus.Web 0W/0E; IntegrationTests 0W/1E, sole error CS0246 EfCaseArtifactCustody (A-owned, expected).
+Commit 729b284e1 on c08-shell. No push, no PR this round (controller override). Report: scratchpad/takeover/c08-r6-report.md. READY_FOR_TESTS.
