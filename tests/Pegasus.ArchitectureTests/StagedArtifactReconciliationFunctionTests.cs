@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Pegasus.Core.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -27,8 +26,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
                 typeof(ReconcileUnidentifiedDestinations),
                 typeof(ReconcileAutomaticVehicleLookups),
                 typeof(ReconcileProviderSubmissions),
-                typeof(ILogger<StagedArtifactReconciliationFunction>),
-                typeof(ReconcileAutomaticEvaSubmissions)
+                typeof(ILogger<StagedArtifactReconciliationFunction>)
             ],
             constructor.GetParameters().Select(parameter => parameter.ParameterType));
     }
