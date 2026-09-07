@@ -88,9 +88,11 @@ internal sealed class EfCaseArtifactCustody(
         Guid caseId,
         Guid documentId,
         Guid versionId,
+        Guid occurrenceId,
         CancellationToken cancellationToken)
     {
-        if (caseId == Guid.Empty || documentId == Guid.Empty || versionId == Guid.Empty)
+        if (caseId == Guid.Empty || documentId == Guid.Empty || versionId == Guid.Empty
+            || occurrenceId == Guid.Empty)
         {
             throw new ArgumentException("Complete Case artifact identities are required.");
         }
@@ -109,6 +111,7 @@ internal sealed class EfCaseArtifactCustody(
             where document.CaseId == caseId
                 && document.Id == documentId
                 && item.Id == versionId
+                && occurrence.Id == occurrenceId
                 && occurrence.CaseId == caseId
                 && occurrence.DocumentId == documentId
                 && !item.IsLogicallyRemoved
