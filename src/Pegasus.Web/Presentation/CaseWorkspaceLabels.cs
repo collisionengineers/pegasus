@@ -282,6 +282,70 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Estimate section's Glass's surface: the control that opens the
+    /// provider's estimator, the Engineer's own session for this Case, and the
+    /// outcomes the provider's return can land on. The state words are the one
+    /// operator-facing vocabulary for
+    /// <see cref="GlassRepairEstimateSessionState"/>, so the Case section and
+    /// the return page cannot name the same session two ways.
+    /// </summary>
+    public static class GlassSession
+    {
+        public const string Launch = "Glass's";
+        public const string Resume = "Resume";
+        public const string State = "State";
+        public const string Failure = "Failure";
+
+        /// <summary>The outcomes a launch, a return or a resume reports.</summary>
+        public const string Imported = "The Glass's estimate was recorded as a draft.";
+
+        public const string AwaitingImport =
+            "The Glass's estimate is held and waits for the case's edit authority.";
+
+        public const string NotImported = "The Glass's estimate was not recorded.";
+
+        /// <summary>
+        /// An uncertain provider outcome states what is known and invites no
+        /// retry, the same rule the report send follows (ENG-024).
+        /// </summary>
+        public const string OutcomeUnknown = "The Glass's session result is not yet known.";
+
+        public const string LaunchRefused =
+            "The Glass's estimate was not started. Retry the operation.";
+
+        public const string ResumeRefused =
+            "The Glass's session was not resumed. Retry the operation.";
+
+        /// <summary>
+        /// What a settled session reports, wherever it settled: the Estimate
+        /// section's own commands and the provider's return read the same one
+        /// sentence per outcome.
+        /// </summary>
+        public static string OutcomeMessage(GlassRepairEstimateSessionState state) => state switch
+        {
+            GlassRepairEstimateSessionState.Completed => Imported,
+            GlassRepairEstimateSessionState.AwaitingImport => AwaitingImport,
+            GlassRepairEstimateSessionState.Unknown => OutcomeUnknown,
+            _ => NotImported,
+        };
+
+        public static string StateLabel(GlassRepairEstimateSessionState state) => state switch
+        {
+            GlassRepairEstimateSessionState.Prepared => "Prepared",
+            GlassRepairEstimateSessionState.Launching => "Starting",
+            GlassRepairEstimateSessionState.Active => "Open",
+            GlassRepairEstimateSessionState.Importing => "Recording",
+            GlassRepairEstimateSessionState.AwaitingImport => "Waiting",
+            GlassRepairEstimateSessionState.Completed => "Recorded",
+            GlassRepairEstimateSessionState.Failed => "Failed",
+            GlassRepairEstimateSessionState.Unknown => "Unknown",
+            GlassRepairEstimateSessionState.Expired => "Expired",
+            GlassRepairEstimateSessionState.Cancelled => "Cancelled",
+            _ => state.ToString(),
+        };
+    }
+
+    /// <summary>
     /// The per-Engineer Glass repair-estimate credential page's words, same
     /// ownership rule as the sections above: Case- and Glass-only labels live
     /// here so no Stream B change touches the shared OperatorLabels file.

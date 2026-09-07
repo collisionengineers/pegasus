@@ -12,3 +12,9 @@
 .report-images { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4); }
 .report-image { padding: var(--sp-4); border: var(--border); border-radius: var(--radius); background: var(--paper); }
 .report-image h3 { margin: 0 0 var(--sp-3); }
+/* B08: the drag reorder's two states. Nothing here is required for the move —
+   Move up and Move down remain the keyboard and script-off route — so both
+   cues are cosmetic and neither carries meaning on its own. */
+.report-image[draggable="true"] { cursor: grab; }
+.report-image[data-dragging] { opacity: .5; }
+.report-image[data-drop-target] { border-color: var(--ce-red); }

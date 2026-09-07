@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -89,7 +90,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </remarks>
 public sealed class EfGlassRepairEstimateSessionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IGlassRepairEstimateSessionStore
+    TimeProvider timeProvider) : IGlassRepairEstimateSessionStore, IGlassRepairEstimateSessionReader
 {
     /// <summary>
     /// The states in which the session holds its account's one live slot,
@@ -128,6 +129,46 @@ public sealed class EfGlassRepairEstimateSessionStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == sessionId, cancellationToken);
         return entity is null ? null : ToMaterial(entity);
+    }
+
+    /// <summary>
+    /// The Engineer's own newest session for a Case. Ordered by the row's own
+    /// <c>CreatedAtUtc</c> and then its id, so a Case an Engineer has launched
+    /// more than once answers with the latest deterministically rather than
+    /// with whichever row the server happened to return first.
+    /// </summary>
+    public async Task<GlassRepairEstimateSession?> GetForCaseAsync(
+        Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.UserId == pegasusUserId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : ToSession(entity);
+    }
+
+    /// <summary>
+    /// The session a one-use correlation names. The token is never stored, so
+    /// the row is found by the fingerprint its launch recorded — minted by the
+    /// gateway that owns that derivation, never a second time here.
+    /// </summary>
+    public async Task<GlassRepairEstimateSession?> FindByCallbackAsync(
+        string correlation, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(correlation))
+        {
+            return null;
+        }
+
+        var digest = GlassRepairEstimateGateway.CallbackDigestOf(correlation);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CallbackDigest == digest, cancellationToken);
+        return entity is null ? null : ToSession(entity);
     }
 
     public async Task<GlassRepairEstimateSessionMaterial> CreateAsync(
@@ -339,24 +380,27 @@ public sealed class EfGlassRepairEstimateSessionStore(
 
     private static GlassRepairEstimateSessionMaterial ToMaterial(GlassRepairEstimateSessionEntity entity) =>
         new(
-            new GlassRepairEstimateSession(
-                entity.Id,
-                entity.CaseId,
-                entity.UserId,
-                entity.CredentialGeneration,
-                entity.NormalizedAccountKey,
-                entity.State,
-                entity.Version,
-                entity.OperationKey,
-                entity.CreatedAtUtc,
-                entity.ExpiresAtUtc,
-                entity.ProviderVehicleId,
-                entity.EreId,
-                entity.LastError,
-                entity.CallbackConsumedAtUtc),
+            ToSession(entity),
             entity.ProtectedSession,
             entity.CallbackDigest,
             entity.ResultArtifactsJson);
+
+    private static GlassRepairEstimateSession ToSession(GlassRepairEstimateSessionEntity entity) =>
+        new(
+            entity.Id,
+            entity.CaseId,
+            entity.UserId,
+            entity.CredentialGeneration,
+            entity.NormalizedAccountKey,
+            entity.State,
+            entity.Version,
+            entity.OperationKey,
+            entity.CreatedAtUtc,
+            entity.ExpiresAtUtc,
+            entity.ProviderVehicleId,
+            entity.EreId,
+            entity.LastError,
+            entity.CallbackConsumedAtUtc);
 
     private static bool OccupiesAccount(GlassRepairEstimateSessionState state) =>
         Array.IndexOf(AccountOccupyingStates, state) >= 0;
