@@ -57,6 +57,12 @@
     "reason": "Redirects to Sign in after ending the authenticated session."
   },
   {
+    "source": "src/Pegasus.Web/Pages/Integrations/Glass/Callback.cshtml",
+    "route": "/Integrations/Glass/Callback/{correlation}",
+    "classification": "redirect",
+    "reason": "Handles the authenticated owner's provider return and redirects to the Case Estimate section; refusals render no page."
+  },
+  {
     "source": "src/Pegasus.Web/Pages/Administration/Accounts/Confirm.cshtml",
     "route": "/Administration/Accounts/Confirm/{operation}/{staffId:guid}",
     "classification": "visual",
