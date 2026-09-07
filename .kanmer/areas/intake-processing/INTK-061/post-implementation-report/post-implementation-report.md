@@ -150,3 +150,8 @@ independent-review preparation; do not merge this ticket's own PR.
    grouped-image reconciliation cases otherwise passed. Root is rebuilding the
    frozen corrections and will rerun the one Core group case, three affected
    association integration cases, and the two affected counter cases only.
+
+6. Corrected frozen-source Release build passed with exit code 0, zero warnings
+   and errors, in 30.72 seconds. Root is running only the previously failing
+   Core group case and affected SQL cases against that build; their results
+   remain pending.
