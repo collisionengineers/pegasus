@@ -127,6 +127,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 pendingVersionId = pending.Id;
                 Assert.Equal(DocumentCustodyStatus.Pending, pending.CustodyStatus);
                 pendingOccurrenceId = (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id;
+                Assert.Equal(0, (await db.CaseWorkflows.SingleAsync()).Version);
             }
 
             // The provider result was lost, but the accepted Pending intent is
@@ -155,6 +156,9 @@ public sealed class CaseArtifactCustodyRecoveryTests
                     DocumentCustodyStatus.Confirmed,
                     (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
                 Assert.Null((await db.Set<DocumentVersionEntity>().SingleAsync()).PendingContentStorageKey);
+                // This retained artifact has no GeneratedCaseArtifacts identity,
+                // so it is source evidence and confirmation advances the Case.
+                Assert.Equal(1, (await db.CaseWorkflows.SingleAsync()).Version);
                 var confirmed = await db.Set<DocumentVersionEntity>().SingleAsync();
                 confirmed.IsLogicallyRemoved = true;
                 await db.SaveChangesAsync();
@@ -702,6 +706,13 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 CustodyRootRemoteId = "case-root",
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 ConcurrencyToken = Guid.NewGuid()
+            },
+            new CaseWorkflowEntity
+            {
+                CaseId = caseId,
+                State = "NotReady",
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid(),
             });
         await db.SaveChangesAsync();
         return caseId;

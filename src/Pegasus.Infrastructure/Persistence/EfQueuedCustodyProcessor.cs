@@ -394,6 +394,7 @@ internal sealed class EfQueuedCustodyProcessor(
             .Select(occurrence => occurrence.OperationKey)
             .ToListAsync(cancellationToken);
         var recorded = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
+        var added = false;
 
         foreach (var file in retainedFiles)
         {
@@ -427,6 +428,7 @@ internal sealed class EfQueuedCustodyProcessor(
             };
             context.Add(document);
             context.Add(version);
+            added = true;
             if (file.IntakeAssetId is { } intakeAssetId)
             {
                 var asset = await context.Set<IntakeAssetEntity>()
@@ -448,6 +450,12 @@ internal sealed class EfQueuedCustodyProcessor(
                 RecordedAtUtc = now,
                 OperationKey = file.OperationKey
             });
+        }
+        if (added)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, caseId, Pegasus.Core.Reports.CaseReportStaleReasons.SourceDocumentsChanged,
+                now, cancellationToken);
         }
     }
 

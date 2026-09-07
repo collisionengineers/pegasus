@@ -424,6 +424,8 @@ internal sealed class EfDocumentCustodyStore(
         var beforeVersion = workflow.Version;
         CaseMutationGuard.Complete(workflow);
         AddRemovalNote(context, workflow, command, beforeVersion, timeProvider.GetUtcNow());
+        await EfCaseReportGenerationStore.SourceDocumentChangedAsync(
+            context, command.CaseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -862,6 +864,8 @@ internal sealed class EfDocumentCustodyStore(
         };
         context.Add(version);
         context.Add(occurrence);
+        await EfCaseReportGenerationStore.SourceDocumentChangedAsync(
+            context, command.CaseId, command.OperationKey, now, cancellationToken);
         var contentWrite = await contentStore.StoreVersionAsync(
             Address(
                 command.CaseId,

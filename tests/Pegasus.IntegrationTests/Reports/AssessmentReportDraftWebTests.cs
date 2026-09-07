@@ -33,6 +33,23 @@ public sealed partial class AssessmentReportDraftWebTests
         new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task PreviewReportDateUsesLondonAtBstMidnight()
+    {
+        var caseId = Guid.NewGuid();
+        var renderer = new FakeRenderer([1, 2, 3, 4]);
+        var preview = new GenerateCaseAssessmentReportDraft(new FakeGetAssessmentAccess(true),
+            new FakeProjectionSource(ReadyInput(caseId) with { ReportDate = null }),
+            new GenerateAssessmentReportDraft(renderer),
+            new ReportClock(new DateTimeOffset(2026, 9, 6, 23, 30, 0, TimeSpan.Zero)));
+
+        var result = await preview.ExecuteAsync(caseId,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Equal(GenerateCaseAssessmentReportDraftOutcome.Generated, result.Outcome);
+        Assert.Equal(new DateOnly(2026, 9, 7), renderer.Snapshot!.ReportDate);
+    }
+
+    [Fact]
     public async Task CompleteCaseRendersAndReturnsThePdf()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -368,14 +385,24 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         public string EngineVersion => "fake";
 
+        public AssessmentReportSnapshot? Snapshot { get; private set; }
+
         public Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
             CaseReportArtifactKind kind,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RenderedReportArtifact(
+            CancellationToken cancellationToken = default)
+        {
+            Snapshot = snapshot;
+            return Task.FromResult(new RenderedReportArtifact(
                 $"{kind}.pdf", pdfBytes, 1,
                 Convert.ToHexStringLower(SHA256.HashData(pdfBytes)),
                 AssessmentReportContract.TemplateVersion, EngineVersion));
+        }
+    }
+
+    private sealed class ReportClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private sealed class ThrowingDocumentContentStore : IDocumentContentStore
