@@ -1153,6 +1153,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 link.CaseId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                Guid.Empty, // LOCAL VERIFICATION SHIM ONLY
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             status.GetAsync(
@@ -1160,6 +1161,7 @@ public sealed partial class PublicUploadRetentionWebTests
                 revoked.CaseId,
                 Guid.NewGuid(),
                 Guid.NewGuid(),
+                Guid.Empty, // LOCAL VERIFICATION SHIM ONLY
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             status.FindByOperationKeyAsync(
@@ -1244,13 +1246,13 @@ public sealed partial class PublicUploadRetentionWebTests
         var status = scope.ServiceProvider.GetRequiredService<ICaseArtifactCustodyStatus>();
         var foreignActor = ActionActor.RequestLink(foreignLinkId);
         await Assert.ThrowsAsync<FileNotFoundException>(() => status.GetAsync(
-            foreignActor, owner.CaseId, documentId, versionId, CancellationToken.None));
+            foreignActor, owner.CaseId, documentId, versionId, Guid.Empty, CancellationToken.None));
         Assert.Null(await status.FindByOperationKeyAsync(
             foreignActor, owner.CaseId, scopedOperationKey, CancellationToken.None));
 
         var wrongCaseId = Guid.NewGuid();
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.GetAsync(
-            foreignActor, wrongCaseId, documentId, versionId, CancellationToken.None));
+            foreignActor, wrongCaseId, documentId, versionId, Guid.Empty, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => status.FindByOperationKeyAsync(
             foreignActor, wrongCaseId, scopedOperationKey, CancellationToken.None));
 
@@ -1258,7 +1260,7 @@ public sealed partial class PublicUploadRetentionWebTests
             ActionActor.RequestLink(owner.LinkId),
             owner.CaseId,
             documentId,
-            versionId,
+            versionId, Guid.Empty,
             CancellationToken.None);
         Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, ownResult.Disposition);
     }
@@ -2759,6 +2761,7 @@ internal sealed class RecordingCaseArtifactCustody(
             Disposition,
             documentId,
             versionId,
+            null, // LOCAL VERIFICATION SHIM ONLY
             boxFileId,
             boxVersionId,
             request.Sha256,
@@ -2779,6 +2782,7 @@ internal sealed class RecordingCaseArtifactCustody(
         Guid caseId,
         Guid documentId,
         Guid versionId,
+        Guid occurrenceId, // LOCAL VERIFICATION SHIM ONLY
         CancellationToken cancellationToken)
     {
         // Counted before the rule is applied, so a test can prove the read was
@@ -2888,6 +2892,7 @@ internal sealed class RecordingCaseArtifactCustody(
             disposition,
             documentId,
             versionId,
+            null, // LOCAL VERIFICATION SHIM ONLY
             boxFileId,
             boxVersionId,
             version.Sha256,
