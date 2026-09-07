@@ -2923,6 +2923,29 @@ internal sealed class RecordingCaseArtifactCustody(
     {
         ArgumentNullException.ThrowIfNull(request);
         Interlocked.Increment(ref HandOverAttempts);
+        if (request.Actor.Kind == ActorKind.SystemWorker && request.CaseId is null)
+        {
+            StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
+            await using var holdingBuffer = new MemoryStream();
+            await request.Content.CopyToAsync(holdingBuffer, cancellationToken);
+            var holdingContent = holdingBuffer.ToArray();
+            if (holdingContent.LongLength != request.ContentLength
+                || !string.Equals(
+                    PublicUploadRetentionWebTests.Sha256Hex(holdingContent),
+                    request.Sha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The holding artifact content does not match its receipt identity.");
+            }
+            return new(
+                CaseArtifactCustodyDisposition.Confirmed,
+                null, null, null, null, null,
+                request.Sha256,
+                request.ContentLength,
+                request.MediaType,
+                null,
+                null);
+        }
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var linkId = RequireAuthority(request, context, timeProvider.GetUtcNow());
         var caseId = request.CaseId!.Value;
