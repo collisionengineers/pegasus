@@ -115,8 +115,6 @@ public sealed partial class OrganizationAdministrationWebTests
         // GetHtmlAsync so a Test UI capture records this page (it asserts 200).
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
         Assert.Contains("Settings for WEBP", evaSubmissionHtml, StringComparison.Ordinal);
-        // EXT-18 item 7: automatic EVA submission is retired from this page.
-        Assert.DoesNotContain("EvaAutomaticSubmission", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
@@ -137,7 +135,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT CASE WHEN EvaManualSubmission = 1 AND EvaAutomaticSubmission = 0 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+                $"SELECT CASE WHEN EvaManualSubmission = 1 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
         var replacePath =
             $"/Administration/Principals/Replace/{organizationId:D}/{principalId:D}";

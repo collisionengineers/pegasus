@@ -408,26 +408,6 @@ public sealed class OrganizationAdministrationTests
     }
 
     /// <summary>
-    /// EXT-18 item 7: automatic EVA submission is retired from this
-    /// administration surface. Even a principal persisted with it already
-    /// true (historical data) is forced back to false the next time its
-    /// manual setting is saved, and it can never be turned on again here.
-    /// </summary>
-    [Fact]
-    public void AutomaticEvaSubmissionIsAlwaysClearedByThisUpdate()
-    {
-        var current = Principal(version: 3) with { EvaAutomaticSubmission = true };
-
-        var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
-            current,
-            expectedVersion: 3,
-            evaManualSubmission: false);
-
-        Assert.False(updated.EvaAutomaticSubmission);
-        Assert.Equal(4, updated.Version);
-    }
-
-    /// <summary>
     /// Saving the settings unchanged is not a change, so it does not move the
     /// version and cannot invalidate another administrator's open form.
     /// </summary>
@@ -529,8 +509,7 @@ public sealed class OrganizationAdministrationTests
                 true,
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
-                request.EvaManualSubmission,
-                EvaAutomaticSubmission: false));
+                request.EvaManualSubmission));
         }
 
         public List<UpdatePrincipalDefaultInspectionLocationRequest> DefaultInspectionLocationUpdates
