@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Hosting;
@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -132,6 +133,22 @@ public sealed class RetainedInstructionAnalysisTests
             Assert.Null(candidate.DocumentVersionId);
             Assert.Equal(row.IntakeAssetId, candidate.IntakeAssetId);
         });
+
+        var reports = services.GetRequiredService<IThirdPartyReportCandidateQueries>();
+        Assert.Empty(await reports.GetAsync(
+            StaffActor(), receiptId, null, row.IntakeAssetId, CancellationToken.None));
+        Assert.Empty(await reports.GetAsync(
+            StaffActor(), Guid.NewGuid(), null, null, CancellationToken.None));
+        Assert.Empty(await reports.GetAsync(
+            StaffActor(), receiptId, Guid.NewGuid(), null, CancellationToken.None));
+        Assert.Empty(await reports.GetAsync(
+            StaffActor(), receiptId, null, Guid.NewGuid(), CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => reports.GetAsync(
+            ActionActor.RequestLink(Guid.NewGuid()),
+            receiptId,
+            null,
+            row.IntakeAssetId,
+            CancellationToken.None));
     }
 
     [Fact]
