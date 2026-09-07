@@ -45,11 +45,15 @@ else if (Model.UploadPolicy is { } view)
             {
                 <li>
                     <span>@file.FileName</span>
-                    @* Every file, with the state custody actually gave it. A
-                       file custody refused says so and is never counted. *@
-                    <span class="badge">@OperatorLabels.Upload.RequestFileState(file.CustodyState)</span>
+                    @* Every file, with the state custody actually gave it, or
+                       "Replaced" where the sender has since sent another in its
+                       place. A file custody refused says so and is never
+                       counted; a replaced one is never shown as a current
+                       file, whatever custody still holds for it. *@
+                    <span class="badge">@OperatorLabels.Upload.RequestFileState(file.CustodyState, file.SupersededByOccurrenceId is not null)</span>
                     @if (view.SessionState == PublicUploadSessionState.Open
                         && view.AcceptsMoreFiles
+                        && file.SupersededByOccurrenceId is null
                         && file.CustodyState == IncomingArtifactCustodyState.Confirmed)
                     {
                         <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">

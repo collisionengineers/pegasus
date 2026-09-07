@@ -1752,17 +1752,28 @@ public static class OperatorLabels
             string.Create(CultureInfo.InvariantCulture, $"Replace {fileName}");
 
         /// <summary>
-        /// What one file's custody state says to the sender. A file custody
+        /// What one file in the submission says to the sender. A file custody
         /// has not confirmed is never presented as a success, and one it
         /// refused is never counted as a submitted file.
         /// </summary>
-        public static string RequestFileState(IncomingArtifactCustodyState state) => state switch
-        {
-            IncomingArtifactCustodyState.Confirmed => "Received",
-            IncomingArtifactCustodyState.Pending => "Being stored",
-            IncomingArtifactCustodyState.Failed => "Not accepted",
-            _ => "Still arriving"
-        };
+        /// <param name="isSuperseded">
+        /// Whether the sender has sent another file in this one's place. That
+        /// answers before the custody state does: custody may well still hold
+        /// these bytes, but they are not what the sender is submitting, so
+        /// calling a replaced file "Received" would name the wrong file.
+        /// </param>
+        public static string RequestFileState(
+            IncomingArtifactCustodyState state,
+            bool isSuperseded = false) =>
+            isSuperseded
+                ? "Replaced"
+                : state switch
+                {
+                    IncomingArtifactCustodyState.Confirmed => "Received",
+                    IncomingArtifactCustodyState.Pending => "Being stored",
+                    IncomingArtifactCustodyState.Failed => "Not accepted",
+                    _ => "Still arriving"
+                };
 
         /// <summary>
         /// Why Finish was refused, naming the state that is holding the

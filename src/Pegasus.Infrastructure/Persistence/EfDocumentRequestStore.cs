@@ -365,18 +365,21 @@ internal sealed class EfDocumentRequestStore(
             return new(RequestUploadDecision.LimitsVersionMismatch, false);
         }
 
-        // Only an arrival custody has not answered holds the submission open.
-        // A Failed occurrence is an answer it has given: it is rendered as
-        // failed, it is never counted and it is never called a finalized file,
-        // but it does not trap the sender until the window expires either.
-        var blocking = await context.Set<PublicUploadOccurrenceEntity>()
-            .AsNoTracking()
-            .Where(value => value.SessionId == session.Id
-                && EfPublicUploadRetentionStore.UnresolvedCodes.Contains(value.CustodyState))
-            .OrderBy(value => value.ProposedName)
-            .ThenBy(value => value.Id)
+        // Only a current arrival custody has not answered holds the
+        // submission open. A Failed occurrence is an answer custody has given -
+        // rendered as failed, never counted, never called a finalized file, but
+        // it does not trap the sender until the window expires either. A
+        // superseded one is not a file the sender is submitting any more,
+        // whatever state it is in.
+        var current = (await SessionOccurrencesOf(context, session.Id)
+            .ToArrayAsync(cancellationToken))
+            .Where(value => value.SupersededByOccurrenceId is null)
+            .ToArray();
+        var blocking = current
+            .Where(value => EfPublicUploadRetentionStore.UnresolvedCodes
+                .Contains(value.CustodyState))
             .Select(value => value.CustodyState)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefault();
         if (blocking is not null)
         {
             // Named, so the sender is told which of the files they can see is
@@ -699,14 +702,17 @@ internal sealed class EfDocumentRequestStore(
                 Size = command.File.Content.Length,
                 Sha256 = authorization.ContentHash!,
                 // Not a custody state: the bytes have not been offered yet.
-                CustodyState = EfPublicUploadRetentionStore.ArrivedCode
+                CustodyState = EfPublicUploadRetentionStore.ArrivedCode,
 
-                // round 2 (R-1b): ReplacesOccurrenceId = replacementId, once
-                // Stream A publishes that column on PublicUploadOccurrences
-                // (PR 673). It records which slot this row supersedes, which
-                // is the only thing missing here: until it exists the session
-                // lists both rows with the states custody gave them, which is
-                // true but does not say that one replaced the other.
+                // Which slot this row was sent in place of. The addressed
+                // occurrence was read from this session a moment ago, which is
+                // what the composite foreign key
+                // (SessionId, ReplacesOccurrenceId) -> (SessionId, Id)
+                // enforces underneath: a lineage cannot reach out of the
+                // session it belongs to, so a cross-session address is refused
+                // above and never becomes a constraint violation the sender
+                // would see.
+                ReplacesOccurrenceId = replacementId
             };
             context.Add(arrival);
         }
@@ -734,6 +740,52 @@ internal sealed class EfDocumentRequestStore(
             arrival.Size,
             arrival.Sha256));
     }
+
+    /// <summary>
+    /// One session's occurrences in the order the page lists them, each with
+    /// the occurrence that replaced it if one has.
+    /// </summary>
+    /// <remarks>
+    /// The supersession relation is read here and nowhere else. The page and
+    /// the finalization both need it and would otherwise each carry their own
+    /// idea of what a current file is, which is exactly how the finalize path
+    /// came to disagree with the upload path about an exhausted link. A
+    /// session holds a handful of rows, so both callers materialise this and
+    /// ask their own question of it in memory rather than composing two
+    /// different queries over one relation.
+    /// </remarks>
+    private static IQueryable<SessionOccurrence> SessionOccurrencesOf(
+        PegasusDbContext context,
+        Guid sessionId)
+    {
+        var occurrences = context.Set<PublicUploadOccurrenceEntity>();
+        return occurrences
+            .AsNoTracking()
+            .Where(value => value.SessionId == sessionId)
+            .OrderBy(value => value.ProposedName)
+            .ThenBy(value => value.Id)
+            .Select(value => new SessionOccurrence(
+                value.Id,
+                value.ProposedName,
+                value.CustodyState,
+                occurrences
+                    .Where(other => other.SessionId == sessionId
+                        && other.ReplacesOccurrenceId == value.Id)
+                    // Ordered so the same row answers twice running. Two files
+                    // sent in one slot's place is a truthful state and not a
+                    // choice to make here; what the page needs to know is that
+                    // the slot was replaced.
+                    .OrderBy(other => other.Id)
+                    .Select(other => (Guid?)other.Id)
+                    .FirstOrDefault()));
+    }
+
+    /// <summary>One occurrence, and what became of it inside its session.</summary>
+    private sealed record SessionOccurrence(
+        Guid Id,
+        string ProposedName,
+        string CustodyState,
+        Guid? SupersededByOccurrenceId);
 
     /// <summary>
     /// The arrival one session-scoped operation key already has, if any. The
@@ -854,7 +906,13 @@ internal sealed class EfDocumentRequestStore(
     /// What they count is what custody holds or may still hold —
     /// <see cref="EfPublicUploadRetentionStore.RetainedOrInFlightCodes"/> —
     /// and the one thing they leave out is a refusal, because that is the one
-    /// answer that says custody kept nothing.
+    /// answer that says custody kept nothing. A superseded occurrence still
+    /// counts: custody holds those bytes whether or not the sender has since
+    /// sent something in its place, and the limits bound what custody holds
+    /// rather than what the page currently lists. A replacement therefore
+    /// consumes a file against
+    /// <see cref="RequestUploadLimits.MaximumFileCount"/>, which is the point
+    /// of the limit and not a defect of it.
     /// </para>
     /// <para>
     /// Derived means only as current as the last derivation, so this runs on
@@ -1083,30 +1141,21 @@ internal sealed class EfDocumentRequestStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(value => value.RequestUploadLinkId == linkId, cancellationToken);
         // Every occurrence, each carrying the state custody actually gave
-        // it. Filtering to the confirmed ones hid a pending or failed file
-        // from the only person who can act on it, and made the page's custody
-        // state a constant that could never say anything else. The stored code
-        // is read back and parsed by the one parser, because a projection EF
-        // can translate cannot call it.
+        // it and whatever replaced it. Filtering to the confirmed ones hid a
+        // pending or failed file from the only person who can act on it, and
+        // made the page's custody state a constant that could never say
+        // anything else. The stored code is read back and parsed by the one
+        // parser, because a projection EF can translate cannot call it.
         var occurrences = Array.Empty<RequestUploadOccurrenceView>();
         if (session is not null)
         {
-            var rows = await context.Set<PublicUploadOccurrenceEntity>()
-                .AsNoTracking()
-                .Where(value => value.SessionId == session.Id)
-                .OrderBy(value => value.ProposedName)
-                .ThenBy(value => value.Id)
-                .Select(value => new
-                {
-                    value.Id,
-                    value.ProposedName,
-                    value.CustodyState
-                })
+            var rows = await SessionOccurrencesOf(context, session.Id)
                 .ToArrayAsync(cancellationToken);
             occurrences = [.. rows.Select(value => new RequestUploadOccurrenceView(
                 value.Id,
                 value.ProposedName,
-                EfPublicUploadRetentionStore.ParseCustodyState(value.CustodyState)))];
+                EfPublicUploadRetentionStore.ParseCustodyState(value.CustodyState),
+                value.SupersededByOccurrenceId))];
         }
 
         return new(
