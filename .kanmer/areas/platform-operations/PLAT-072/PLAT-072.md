@@ -35,9 +35,11 @@ links:
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - 278f605333f7569fb1927c3d4ed360d080903453
 archived: false
 created: '2026-09-03T16:29:07.376Z'
-updated: '2026-09-07T23:51:56.078Z'
+updated: '2026-09-07T23:54:27.978Z'
 ---
 
 ## What
