@@ -36,7 +36,7 @@ public sealed partial class OrganizationAdministrationWebTests
             client,
             "/Administration/ClaimSources");
         Assert.Contains("Create claim source", claimSourcesHtml, StringComparison.Ordinal);
-        Assert.Contains("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
         var claimSourceForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
@@ -44,7 +44,6 @@ public sealed partial class OrganizationAdministrationWebTests
                 "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(claimSourcesHtml, "OperationKey"),
             ["Name"] = "Web Caller Claim Source",
-            ["Notes"] = "Renamed",
             ["Reason"] = "Web caller claim source proof"
         };
         using var claimSourcePost = await client.PostAsync(
@@ -57,7 +56,7 @@ public sealed partial class OrganizationAdministrationWebTests
             client,
             $"/Administration/ClaimSources/Edit/{claimSourceId:D}");
         Assert.Contains("Edit Web Caller Claim Source</h1>", claimSourceEditHtml, StringComparison.Ordinal);
-        Assert.Contains("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
 
         using var organizationGet = await client.GetAsync("/Administration/Organizations");
         var organizationHtml = await organizationGet.Content.ReadAsStringAsync();
