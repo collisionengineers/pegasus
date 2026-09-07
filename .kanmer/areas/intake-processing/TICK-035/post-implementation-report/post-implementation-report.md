@@ -3,8 +3,10 @@
 ## Status and source
 
 Implementation is frozen for root-owned compiler and focused runtime checks.
-Final verification is pending, not PASS. Root's first build passed; the first
-Core test attempt failed on obsolete fixture expectations, recorded below. No commit, PR, Review move, merge or live
+Final verification is pending, not PASS. Root's builds and corrected Core
+checks passed; the first Integration run failed on two genuine-source paths,
+recorded below. The actual acceptance defect and MP OCR fixture are corrected
+and frozen for root's targeted rerun. No commit, PR, Review move, merge or live
 deployment is claimed. Stop remains independent review after passing evidence.
 
 Worktree: `.worktrees/tick-035`. Branch: `TICK-035-principal-routes`.
@@ -183,3 +185,54 @@ their existing contract. Triage/formal linking, engineer handoff, Glass,
 OCR provisioning, mailbox onboarding and deployment belong to their separate
 tickets. Exact-merge proof is still required after independent review/merge;
 this pre-merge implementation report is not that proof.
+
+## Actual-caller remediation and retained attempts
+
+Root's corrected Release build PASS, 0 warnings/errors, 20.79 seconds.
+The targeted 14 Core cases PASS, exit 0, 123 ms; unchanged 224 passing cases
+were not repeated. The first Integration run then FAILed, exit 1: 23 total,
+21 PASS, 2 FAIL, zero skips, 64 seconds. Its local TRX is
+ tests/Pegasus.IntegrationTests/TestResults/tick-035-integration.trx.
+One failure was the same first MP scan not matching without OCR. The other
+was first ALS allocation returning no Case. TRX stdout identified
+InvalidDataException: Claim number has no unambiguous source provenance, from
+CaseDataSnapshotFactory.AddExtractedValue through AcceptIntake/AllocateIntake.
+No easier original or new expected acceptance was substituted.
+
+Root approved research8bf1c099ada9f0e9, files6034ec179a40c9c2 and
+planc8592b394784a49d amendments before this correction:
+- Move the existing CaseDataFieldNames unchanged from Infrastructure/Persistence
+  into Core/Cases as the sole public key vocabulary. Three existing persistence
+  consumers add using Pegasus.Core.Cases only (CaseMatchEntities,
+  EfIntakeMutationStore, EfVehicleWorkflowStore).
+- InstructionReviewField.ToCaseDataFieldName is a pure method, not a serialized
+  new property. It maps the current typed bindings only; original names and
+  candidates remain intact. No second case-key vocabulary or Infra alias table.
+- CaseDataSnapshotFactory removes its extraction display-name parameter and
+  joins canonical keys. PCH's existing mobile/home choice joins to the unique
+  matching typed draft value; no duplicate phone priority or ambiguous first
+  source. Existing exact-source address/mode and mileage/unit derivations stay.
+  Missing/conflicting/duplicate attribution continues to reject allocation.
+- Nine pure Core mapping cases cover current name variants and unknown roles,
+  and verify no new derived JSON member. The same four real email paths now
+  assert actual Case source hash/origin, typed facts and exact retained candidate
+  source label/policy. Allocation failure messages name principal/file/delivery.
+- The MP PDF remains original SHA79097baeec1eac46bb9a34afe67945d398df93a621857179c793f2cff5d5d3f4.
+  Its supplied Astra page-1 OCR file is hash-bound separately
+  (bf3ebed1dbca26fd20fe4b6ffa15737da8d6844ba91bf10deab859f1c47748d6),
+  verifies its stated source path/hash, and flows through the existing internal
+  AnalyzeRetainedInstruction.CreateOcrReadResult mapping. The existing friend
+  assembly mechanism adds IntegrationTests, not a public test API. Attribution
+  explicitly says supplied-corpus/astra-ocr/reference-v1: no Azure request,
+  provider operation, response or extraction run is falsely claimed.
+- FRD-02 records canonical identity plus preserved provenance. No source corpus,
+  original OCR evidence, schema, provider implementation or cloud state changed.
+
+Pending root rerun after the correction:
+Core filter FullyQualifiedName~InstructionReviewFieldTests.
+Integration filter selects the two failed genuine-source tests plus
+CaseDataCompletenessPersistenceTests.AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues
+and ProviderApiCaseDataSnapshotPersistenceTests to preserve the directly
+changed QDOS and authenticated/staff Provider API provenance paths. New rerun
+outcomes are not yet known. No unchanged 224-Core/21-Integration cohort rerun
+is requested solely to repeat prior evidence. Settings capture remains pending.

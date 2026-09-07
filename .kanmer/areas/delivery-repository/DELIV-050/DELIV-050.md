@@ -2,12 +2,23 @@
 id: DELIV-050
 type: ticket
 title: Record report-input permission migration in the release bootstrap census
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-v1-remediation-root
 profile: fix
 stageEntered:
   preparing: '2026-09-07T23:40:52.619Z'
+taken_at: '2026-09-07T23:41:24.189Z'
+branch: DELIV-050-bootstrap-census
+worktree: .worktrees/deliv-050
+claim_expires_at: '2026-09-08T00:11:24.190Z'
+claim_controller: codex-v1-remediation-root
+lease_id: 82c1a50c-868f-4287-90cb-1fba8b1ca3f0
+lease_revision: 1
+lease_controller_run: 20260907T234022Z-bootstrap-census
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-050'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-07T23:41:24.189Z'
 labels: []
 groups:
   - EPIC-014
@@ -19,7 +30,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-09-07T23:40:22.715Z'
-updated: '2026-09-07T23:40:52.619Z'
+updated: '2026-09-07T23:41:24.189Z'
 ---
 
 ## What
