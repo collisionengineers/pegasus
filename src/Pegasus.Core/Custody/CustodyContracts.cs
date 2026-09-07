@@ -715,7 +715,7 @@ public sealed record CaseArtifactCustodyRequest(
     string OperationKey, string FileName, string MediaType, long ContentLength,
     string Sha256, Stream Content);
 public sealed record CaseArtifactCustodyResult(
-    CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId,
+    CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,
     string? MediaType, string? FailureCode, string? PendingContentStorageKey);
 public interface ICaseArtifactCustody
