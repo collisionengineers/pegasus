@@ -589,6 +589,10 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
+            services.AddScoped<EfPublicUploadRetentionStore>();
+            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
+                provider.GetRequiredService<EfPublicUploadRetentionStore>());
+            services.AddScoped<RetainIncomingArtifact>();
             // The Provider API reader decorates the ordinary one: it answers for
             // its own channel and defers for every other (API-01).
             services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
@@ -630,10 +634,6 @@ public static class DependencyInjection
         {
             services.AddSingleton(requestUploadLimitsFactory);
             services.AddSingleton<RequestUploadPolicy>();
-            services.AddScoped<EfPublicUploadRetentionStore>();
-            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
-                provider.GetRequiredService<EfPublicUploadRetentionStore>());
-            services.AddScoped<RetainIncomingArtifact>();
             services.AddScoped<EfDocumentRequestStore>();
             services.AddScoped<ICreateRequestUploadLink>(provider =>
                 provider.GetRequiredService<EfDocumentRequestStore>());
