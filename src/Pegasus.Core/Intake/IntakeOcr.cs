@@ -1,7 +1,51 @@
+using System.Security.Cryptography;
+using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
+
+internal static class IntakeOcrOperations
+{
+    public static Task<IntakeOcrOperation> BeginAsync(
+        IIntakeOcrOperationStore store,
+        Guid receiptId,
+        IntakeAssetRecord asset,
+        IReadOnlyList<int> qualifiedPages,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(qualifiedPages);
+
+        var pages = qualifiedPages.Distinct().Order().ToArray();
+        var operationId = OperationId(receiptId, asset.Id, asset.ContentHash, pages);
+        return store.BeginAsync(
+            operationId,
+            new(
+                receiptId,
+                DocumentVersionId: null,
+                asset.Id,
+                asset.ContentHash,
+                asset.ContentLength,
+                pages,
+                $"intake-ocr:{operationId:N}"),
+            cancellationToken);
+    }
+
+    private static Guid OperationId(
+        Guid receiptId,
+        Guid assetId,
+        string sourceSha256,
+        IReadOnlyList<int> pages)
+    {
+        var identity = FormattableString.Invariant(
+            $"intake-ocr/v1|{receiptId:D}|{assetId:D}|{sourceSha256.ToUpperInvariant()}|{string.Join(',', pages)}");
+        Span<byte> digest = stackalloc byte[32];
+        SHA256.HashData(Encoding.UTF8.GetBytes(identity), digest);
+        return new Guid(digest[..16]);
+    }
+}
 
 /// <summary>
 /// The life of one page-restricted OCR operation.

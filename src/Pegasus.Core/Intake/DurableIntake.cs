@@ -545,6 +545,7 @@ public sealed class ProcessQueuedIntake(
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
     IReadLogicalDocumentVersion retainedContentReader,
+    IIntakeOcrOperationStore ocrOperations,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
@@ -726,6 +727,7 @@ public sealed class ProcessQueuedIntake(
                     isFinalAttempt,
                     cancellationToken);
             }
+            await BeginOcrOperationsAsync(processed, cancellationToken);
             if (mailboxImageIntake is not null)
             {
                 mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
@@ -817,6 +819,30 @@ public sealed class ProcessQueuedIntake(
         return triage == TriageCreationOutcome.Failed
             ? QueuedIntakeProcessingOutcome.RetryScheduled
             : QueuedIntakeProcessingOutcome.Completed;
+    }
+
+    private async Task BeginOcrOperationsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        foreach (var candidates in receipt.ScannedPdfPages
+                     .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
+        {
+            var asset = receipt.AssetRecords.SingleOrDefault(item =>
+                string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
+            if (asset is null)
+            {
+                throw new InvalidDataException(
+                    "An OCR-qualified source does not identify its retained asset.");
+            }
+
+            await IntakeOcrOperations.BeginAsync(
+                ocrOperations,
+                receipt.Id,
+                asset,
+                candidates.Select(candidate => candidate.PageNumber).ToArray(),
+                cancellationToken);
+        }
     }
 
     private async Task<(ReadOnlyMemory<byte> Content, string StorageKey)> ReadRetainedSourceAsync(

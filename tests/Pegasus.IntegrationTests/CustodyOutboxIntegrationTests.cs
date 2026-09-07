@@ -2480,7 +2480,8 @@ public sealed class CustodyOutboxIntegrationTests
                 // A first pass over a staged source, so nothing here re-reads a
                 // retained one. A reader that refuses says so out loud if that
                 // ever changes; standalone C composes no concrete reader.
-                RecordingLogicalDocumentVersionReader.Refusing())
+                RecordingLogicalDocumentVersionReader.Refusing(),
+                services.GetRequiredService<IIntakeOcrOperationStore>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
             await services.GetRequiredService<IIntakeReceiptStore>()
