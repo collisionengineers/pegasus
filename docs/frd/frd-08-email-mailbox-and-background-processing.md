@@ -305,6 +305,18 @@ never grants Exchange access; the Microsoft 365 tenant must separately admit the
 application to that mailbox, and until it does, polling that mailbox alone fails
 and says so.
 
+An explicitly authorised intake-data wipe records one UTC receive-time cutoff
+in the existing Inbox poll state, atomically with clearing the SQL data. It
+does not change mailbox identity, approval, onboarding time or subscriptions.
+The effective start is the later of activation and that cutoff, including for
+a mailbox that has not yet been polled. Clearing occurrence identities,
+rebinding cursor scope, resetting an expired Graph delta token or receiving an
+old queued notification must never lower the cutoff or repopulate cleared
+mail. Mail received at or after the cutoff remains eligible; forwarding an old
+email creates a newly received message and is evaluated normally. Ordinary
+deployment or Worker restart never advances this boundary. Wipes run only
+with the Worker stopped and application writes excluded for maintenance.
+
 ### Mailbox wake-up and recovery
 
 Each enabled approved Inbox has one Microsoft Graph basic change-notification
@@ -324,9 +336,11 @@ expired, malformed, or wrongly scoped notifications fail closed without queuing
 work or disclosing the secret.
 
 The Worker remains the sole owner of the mailbox lease, cursor/delta read,
-retention, shared intake call, and retry outcome. A wake message causes the same
-idempotent delta/cursor pass as polling; duplicate or coalesced notifications are
-safe. Lifecycle `missed`, `subscriptionRemoved`, and reauthorization events
+retention, shared intake call, and retry outcome. A creation notification with
+an immutable message ID fetches and processes only that exact message, subject
+to the same receive-time cutoff. It does not also scan the Inbox or advance its
+recovery cursor. Duplicate notifications are safe. Lifecycle `missed`,
+`subscriptionRemoved`, and reauthorization events
 schedule the same delta resynchronisation rather than introducing another mail
 processing route.
 

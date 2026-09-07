@@ -781,7 +781,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
             lease.InboxFolderIdentity,
             immutableMessageId,
             cancellationToken);
-        if (item?.ReceivedAtUtc is null)
+        if (item?.ReceivedAtUtc is null || item.ReceivedAtUtc < lease.StartBoundaryUtc)
         {
             return null;
         }

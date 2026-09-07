@@ -1261,7 +1261,7 @@ release workstation; the image also remains in the production ACR by digest).
    affected capability in that release's record** in `operations.md`, and roll
    forward rather than back. Recovering the case data is the operator-approved
    selective wipe already recorded in `operations.md` — which preserves
-   identity, principal, mailbox-cursor and **the sequence tables, so no
+   identity, principal, mailbox configuration and **the sequence tables, so no
    reference is reused** — never an unqualified rebuild. Restoring data is a
    [Production recovery](#production-recovery) exercise with its own
    approvals, never part of an artifact rollback.
@@ -1281,6 +1281,28 @@ A production recovery exercise must:
 8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+
+### Explicit intake-data wipe
+
+Use `scripts/Invoke-IntakeDataWipe.ps1` for a read-only inventory. Execution
+requires separate exact-target wipe approval, a maintenance window excluding
+application writes, and `pegasus-prod-worker-252ow37gij` already stopped.
+The script checks that Worker state before its first destructive operation;
+it does not stop or restart any service itself.
+
+`-Execute` records one UTC cutoff before clearing blobs, then advances or
+seeds Inbox poll boundaries in the same SQL transaction as row deletion.
+Mailbox identities, approval, original activation times, subscriptions and
+reference sequences stay intact. Old cursors and leases are cleared; their
+next normal claim binds current Graph scope without lowering the cutoff.
+Old mail stays excluded even after Graph cursor expiry or delayed notification,
+while newly received or forwarded messages remain eligible. Deployment and
+ordinary restarts do not perform this reset.
+
+Record the committed cutoff with the existing wipe inventory and post-run
+checks in `operations.md`. Resume the previously approved Worker only after
+successful verification. A failed wipe is not a successful reset: retain its
+failure and keep the maintenance window in place until resolved.
 
 #### Point-in-time restore commands
 
