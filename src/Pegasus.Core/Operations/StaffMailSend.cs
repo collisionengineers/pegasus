@@ -30,17 +30,13 @@ public sealed record StaffMailOperation(
     DateTimeOffset? ObservedSentAtUtc, string? FailureCode,
     Guid ApprovedMailboxId, long MailboxGeneration, string PayloadHash,
     DateTimeOffset? AttemptRequestedAtUtc, DateTimeOffset? UploadSessionExpiresAtUtc,
-    StaffMailPurpose Purpose = StaffMailPurpose.GeneralCorrespondence,
-    Guid ContextId = default,
-    long ExpectedContextVersion = 0,
-    Guid? OriginalRetainedMessageId = null);
+    StaffMailPurpose Purpose, Guid ContextId, long ExpectedContextVersion,
+    Guid? OriginalRetainedMessageId);
 
 public interface IStaffMailSend
 {
     Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken);
     Task<StaffMailOperation?> GetAsync(ActionActor actor, Guid operationId, CancellationToken cancellationToken);
-    Task<StaffMailOperation?> GetLatestForOriginalAsync(
-        ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken);
     Task<StaffMailOperation> ReconcileAsync(ActionActor actor, Guid operationId,
         long expectedVersion, CancellationToken cancellationToken);
     Task<StaffMailOperation> CancelAsync(ActionActor actor, Guid operationId,
