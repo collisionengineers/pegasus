@@ -2,10 +2,12 @@
 id: DOCS-020
 type: ticket
 title: Keep report snapshots consistent and invalidate changed report inputs
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T20:21:48.709Z'
 labels: []
 groups:
   - EPIC-014
@@ -15,7 +17,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-09-07T19:58:09.568Z'
-updated: '2026-09-07T19:58:09.568Z'
+updated: '2026-09-07T20:21:48.709Z'
 ---
 
 ## What
