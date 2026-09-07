@@ -26,6 +26,8 @@ public sealed class StaffMailSendPersistenceTests
         var replay = await store.PrepareAsync(command, new string('A', 64), now, CancellationToken.None);
 
         Assert.Equal(first.Id, replay.Id);
+        AssertOperationContext(first, command);
+        AssertOperationContext(replay, command);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             store.PrepareAsync(command, new string('B', 64), now, CancellationToken.None));
     }
@@ -255,8 +257,9 @@ public sealed class StaffMailSendPersistenceTests
             firstCommand, new string('A', 64),
             new DateTimeOffset(2026, 9, 6, 10, 2, 0, TimeSpan.Zero), CancellationToken.None);
         _ = await MoveToTerminalAsync(store, actor.SubjectId, first, StaffMailState.Failed);
+        var secondCommand = ReplyCommand(actor, mailboxId, retainedMessageId, "second-reply");
         var second = await store.PrepareAsync(
-            ReplyCommand(actor, mailboxId, retainedMessageId, "second-reply"),
+            secondCommand,
             new string('B', 64),
             new DateTimeOffset(2026, 9, 6, 10, 1, 0, TimeSpan.Zero), CancellationToken.None);
 
@@ -268,6 +271,7 @@ public sealed class StaffMailSendPersistenceTests
         Assert.NotNull(latest);
         Assert.Equal(second.Id, latest.Id);
         Assert.Equal(StaffMailState.Prepared, latest.State);
+        AssertOperationContext(latest, secondCommand);
         Assert.Null(otherActor);
     }
 
@@ -308,6 +312,7 @@ public sealed class StaffMailSendPersistenceTests
             var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
             var operation = await store.PrepareAsync(
                 command, new string('A', 64), DateTimeOffset.UtcNow, CancellationToken.None);
+            AssertOperationContext(operation, command);
             operation = await store.TransitionAsync(command.Actor.SubjectId, operation.Id, operation.Version,
                 StaffMailState.DraftCreating, StaffMailAttemptStage.CreateDraft, null, null, null, null,
                 CancellationToken.None);
@@ -334,6 +339,7 @@ public sealed class StaffMailSendPersistenceTests
         Assert.NotNull(candidate);
         Assert.Equal(operationId, candidate!.Operation.Id);
         Assert.Equal("draft-id", candidate.DraftImmutableId);
+        AssertOperationContext(candidate.Operation, command);
     }
 
     [Fact]
@@ -486,6 +492,15 @@ public sealed class StaffMailSendPersistenceTests
         new(retainedMessageId, mailboxId, "immutable-message", "<message@example.invalid>",
             "conversation"),
         [new("recipient@example.invalid", null)], [], "Subject", "Body", [], operationKey);
+
+    private static void AssertOperationContext(
+        StaffMailOperation operation, StaffMailSendCommand command)
+    {
+        Assert.Equal(command.Purpose, operation.Purpose);
+        Assert.Equal(command.ContextId, operation.ContextId);
+        Assert.Equal(command.ExpectedContextVersion, operation.ExpectedContextVersion);
+        Assert.Equal(command.OriginalMessage?.RetainedMessageId, operation.OriginalRetainedMessageId);
+    }
 
     private static async Task<ActionActor> SeedStaffAsync(
         LocalDbTestDatabase database, string userName)

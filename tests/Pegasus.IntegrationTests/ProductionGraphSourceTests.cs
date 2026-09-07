@@ -518,7 +518,10 @@ public sealed class ProductionGraphSourceTests
         operationId, StaffMailState.DraftCreating, StaffMailAttemptStage.CreateDraft, 1,
         new DateTimeOffset(2026, 9, 6, 8, 0, 0, TimeSpan.Zero), null, null, null,
         Guid.Parse("11111111-1111-1111-1111-111111111111"), 1, "PAYLOAD-HASH",
-        new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero), null, continuation);
+        new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero), null,
+        StaffMailPurpose.GeneralCorrespondence,
+        Guid.Parse("22222222-2222-2222-2222-222222222222"), 1, null,
+        continuation);
     [Fact]
     public async Task ChangeSubscriptionCreatesExactInboxBasicNotification()
     {

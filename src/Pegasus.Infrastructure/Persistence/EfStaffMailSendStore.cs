@@ -447,6 +447,7 @@ internal sealed class EfStaffMailSendStore(
         value.CreatedAtUtc, value.SubmittedAtUtc, value.ObservedSentAtUtc,
         value.LastError, value.MailboxId, value.MailboxGeneration, value.PayloadHash,
         value.LastAttemptAtUtc, value.UploadSessionExpiresAtUtc,
+        value.Purpose, value.ContextId, value.ContextVersion, value.OriginalRetainedMessageId,
         value.ReconciliationContinuation, value.DraftImmutableId);
 
     private sealed record Recipients(

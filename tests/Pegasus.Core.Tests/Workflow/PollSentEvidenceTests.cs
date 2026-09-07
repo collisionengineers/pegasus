@@ -479,16 +479,18 @@ public sealed class PollSentEvidenceTests
     {
         var lease = Lease();
         var operationId = Guid.NewGuid();
+        var contextId = Guid.NewGuid();
         var operation = new StaffMailOperation(
             operationId, StaffMailState.Sending, StaffMailAttemptStage.Send, 4,
             NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
-            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null);
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null);
         var frozen = new StaffMailAttachment(
             Guid.NewGuid(), Guid.NewGuid(), new string('D', 64), 10,
             "report.pdf", "application/pdf");
         var staffStore = new ObservationStore(new StaffMailExecution(
             Guid.NewGuid().ToString("D"), operation, "draft", [frozen],
-            StaffMailPurpose.GeneralCorrespondence, Guid.NewGuid(), 1, null));
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null));
         var item = Item("staff-mismatch", "sent-items", "cursor", [], []) with
         {
             Provenance = Item("staff-mismatch", "sent-items", "cursor", [], []).Provenance! with
@@ -522,15 +524,17 @@ public sealed class PollSentEvidenceTests
     {
         var lease = Lease();
         var operationId = Guid.NewGuid();
+        var contextId = Guid.NewGuid();
         var hash = new string('D', 64);
         var operation = new StaffMailOperation(
             operationId, StaffMailState.Sending, StaffMailAttemptStage.Send, 4,
             NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
-            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null);
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null);
         var staffStore = new ObservationStore(new StaffMailExecution(
             Guid.NewGuid().ToString("D"), operation, "draft",
             [new(Guid.NewGuid(), Guid.NewGuid(), hash, 10, "report.pdf", "application/pdf")],
-            StaffMailPurpose.GeneralCorrespondence, Guid.NewGuid(), 1, null));
+            StaffMailPurpose.GeneralCorrespondence, contextId, 1, null));
         var template = Item("staff-match", "sent-items", "cursor", [], []);
         var item = template with
         {
