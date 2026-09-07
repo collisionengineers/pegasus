@@ -102,3 +102,20 @@ DetailsModel constructor callers needing adjustment (Razor uses DI).
 Repository-configured git diff --check PASS, exit 0. No author build/test.
 Candidate frozen again for root incremental verification. Earlier failure is
 preserved; this correction is not a claimed compiler PASS.
+
+## Root focused test feedback — 2026-09-07
+
+Core EstimateTests PASS: 56 cases, 187 ms. Integration focused run completed
+with 154 total, 153 PASS, 1 FAIL, 0 skipped in 154 s; TRX is
+ tests/Pegasus.IntegrationTests/TestResults/eng-041-focused.trx.
+Only SavingTheEditorStampsTheChangedLineAndKeepsTheUntouchedOnes failed: expected
+the injected 2031-05-06T10:30Z host clock, received system 2026 time. Production
+EfRepairSpecificationStore already uses its injected TimeProvider. The test's
+RecordingStores double had invoked ApplyEditorEvidence with DateTimeOffset.UtcNow.
+After root confirmed the run complete, its existing ISaveEstimate registration
+was changed to supply the host TimeProvider to RecordingStores.Clock; the
+Core policy invocation now uses Clock.GetUtcNow(). Timestamp and provenance
+assertions are unchanged. No production edit or author build/test occurred.
+Author git diff --check PASS exit 0; candidate frozen. Root reruns only this
+one case after incremental build. Three minimal Case-detail captures in the
+154-case run passed; no whole-cohort recapture/rerun is requested.
