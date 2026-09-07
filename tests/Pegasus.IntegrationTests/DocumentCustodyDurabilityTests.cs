@@ -305,7 +305,7 @@ public sealed class DocumentCustodyDurabilityTests
             var limits = new RequestUploadLimits(
                 "durability-v1",
                 TimeSpan.FromHours(1),
-                2,
+                1,
                 1024,
                 2048,
                 ["text/plain"],
@@ -380,13 +380,25 @@ public sealed class DocumentCustodyDurabilityTests
                         command.File.OperationKey),
                     (await context.Set<PublicUploadOccurrenceEntity>().SingleAsync()).OperationKey);
                 Assert.Equal(
-                    1,
+                    2,
                     await context.Set<RequestUploadLinkEntity>()
                         .Where(value => value.Id == requestId)
                         .Select(value => value.Version)
                         .SingleAsync());
                 Assert.Equal(
-                    0,
+                    RequestUploadStatus.Active,
+                    await context.Set<RequestUploadLinkEntity>()
+                        .Where(value => value.Id == requestId)
+                        .Select(value => value.Status)
+                        .SingleAsync());
+                var reservedTotals = await context.Set<RequestUploadLinkEntity>()
+                    .Where(value => value.Id == requestId)
+                    .Select(value => new { value.AcceptedFileCount, value.AcceptedByteCount })
+                    .SingleAsync();
+                Assert.Equal(1, reservedTotals.AcceptedFileCount);
+                Assert.Equal(command.File.Content.LongLength, reservedTotals.AcceptedByteCount);
+                Assert.Equal(
+                    1,
                     await context.CaseWorkflows
                         .Where(value => value.CaseId == caseId)
                         .Select(value => value.Version)
@@ -444,17 +456,43 @@ public sealed class DocumentCustodyDurabilityTests
                 Assert.Equal(retainedOrdinal, document.Ordinal);
                 Assert.Equal(document.Ordinal, occurrence.Ordinal);
                 Assert.Equal(
-                    2,
+                    3,
                     await context.Set<RequestUploadLinkEntity>()
                         .Where(value => value.Id == requestId)
                         .Select(value => value.Version)
                         .SingleAsync());
                 Assert.Equal(
-                    1,
+                    RequestUploadStatus.Exhausted,
+                    await context.Set<RequestUploadLinkEntity>()
+                        .Where(value => value.Id == requestId)
+                        .Select(value => value.Status)
+                        .SingleAsync());
+                Assert.Equal(
+                    2,
                     await context.CaseWorkflows
                         .Where(value => value.CaseId == caseId)
                         .Select(value => value.Version)
                         .SingleAsync());
+            }
+
+            UploadToRequestResult replay;
+            await using (var replayScope = database.CreateAsyncScope())
+            {
+                replay = await CreateUpload(replayScope.ServiceProvider)
+                    .ExecuteAsync(command, CancellationToken.None);
+            }
+
+            Assert.Equal(RequestUploadDecision.Replay, replay.Decision);
+            Assert.True(replay.IsReplay);
+            Assert.Equal(result.ReceiptId, replay.ReceiptId);
+            Assert.Single(contentStore.Addresses);
+            await using (var replayContext = await database.CreateContextAsync())
+            {
+                Assert.Single(await replayContext.Set<CaseDocumentEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<DocumentVersionEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<PublicUploadOccurrenceEntity>().ToArrayAsync());
+                Assert.Single(await replayContext.Set<RequestUploadReceiptEntity>().ToArrayAsync());
             }
 
             IUploadToRequest CreateUpload(IServiceProvider services)
