@@ -6,11 +6,31 @@ public enum GlassRepairEstimateSessionState
 {
     Prepared, Launching, Active, Importing, AwaitingImport, Completed, Failed, Unknown, Expired, Cancelled
 }
+
+/// <summary>Which invariant a Glass's session write ran into.</summary>
+public enum GlassRepairEstimateSessionConflict
+{
+    ActiveAccount,
+    Version,
+    Callback,
+    OperationKey
+}
+
+/// <summary>A Glass's session write refused because it would break an invariant.</summary>
+public sealed class GlassRepairEstimateSessionConflictException(
+    GlassRepairEstimateSessionConflict conflict, Guid sessionId, string message)
+    : InvalidOperationException(message)
+{
+    public GlassRepairEstimateSessionConflict Conflict { get; } = conflict;
+    public Guid SessionId { get; } = sessionId;
+}
+
 public sealed record GlassRepairEstimateSession(
     Guid Id, Guid CaseId, Guid PegasusUserId, long CredentialGeneration,
     string NormalizedExternalAccountKey, GlassRepairEstimateSessionState State,
     long Version, string OperationKey, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc,
-    string? ProviderVehicleId, string? ProviderEstimateId, string? FailureCode);
+    string? ProviderVehicleId, string? ProviderEstimateId, string? FailureCode,
+    DateTimeOffset? CallbackConsumedAtUtc = null);
 public sealed record GlassRepairEstimateLaunchRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     string OperationKey);
@@ -28,11 +48,13 @@ public interface IGlassRepairEstimateGateway
 }
 /// <summary>Durable provider session material stays server-side and protected at rest.</summary>
 public sealed class GlassRepairEstimateSessionMaterial(
-    GlassRepairEstimateSession session, string protectedProviderState, string callbackDigest)
+    GlassRepairEstimateSession session, string protectedProviderState, string callbackDigest,
+    string? resultArtifactsJson = null)
 {
     public GlassRepairEstimateSession Session { get; } = session;
     public string ProtectedProviderState { get; } = protectedProviderState;
     public string CallbackDigest { get; } = callbackDigest;
+    public string? ResultArtifactsJson { get; } = resultArtifactsJson;
     public override string ToString() => nameof(GlassRepairEstimateSessionMaterial);
 }
 public interface IGlassRepairEstimateSessionStore
