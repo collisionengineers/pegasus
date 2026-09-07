@@ -2,12 +2,24 @@
 id: DELIV-049
 type: ticket
 title: Remove NOW.md and reconcile the canonical documentation authority
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-09-07T20:06:42.765Z'
+taken_at: '2026-09-07T20:08:06.522Z'
+branch: DELIV-049-canonical-docs
+worktree: .worktrees/deliv-049
+claim_expires_at: '2026-09-07T20:38:06.522Z'
+claim_controller: codex-v1-remediation-root
+lease_id: eee0c2c4-f5b5-4ca9-b032-5b5d9278d9ee
+lease_revision: 1
+lease_controller_run: 20260907T200500Z-v1-remediation
+lease_worker_run: root-docs-20260907
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-049'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-07T20:08:06.522Z'
 labels: []
 groups:
   - EPIC-014
@@ -18,7 +30,7 @@ refs:
   - docs/index.md
 archived: false
 created: '2026-09-07T20:01:20.404Z'
-updated: '2026-09-07T20:06:42.765Z'
+updated: '2026-09-07T20:08:06.522Z'
 ---
 
 ## What
