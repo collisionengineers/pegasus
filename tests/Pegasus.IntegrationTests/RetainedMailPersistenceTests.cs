@@ -230,6 +230,81 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task OriginMailboxReceiptResolvesItsExactRetainedMessage()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("origin-query");
+        await RetainAsync(database, message);
+        var receipt = await StoreClassifiedReceiptAsync(
+            database,
+            message,
+            MailClassificationResult.Unclassified([], "Fixture.", "test", 1));
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetByOriginReceiptAsync(receipt.Id, CancellationToken.None));
+
+        Assert.Equal("origin-query", detail.ImmutableMessageId);
+        Assert.Equal(
+            await database.ScalarAsync<Guid>(
+                "SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = 'origin-query';"),
+            detail.Summary.Id);
+    }
+
+    [Fact]
+    public async Task OriginReceiptLookupReturnsNullOutsideTheExactMailboxMapping()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var nonMailboxId = Guid.NewGuid();
+        var missingTokenId = Guid.NewGuid();
+        var unretainedId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var missingToken = Receipt(missingTokenId, "");
+            missingToken.SourceChannel = "mailbox";
+            var unretained = Receipt(unretainedId, "origin:unretained");
+            unretained.SourceChannel = "mailbox";
+            context.IntakeReceipts.AddRange(
+                Receipt(nonMailboxId, "origin:non-mailbox"),
+                missingToken,
+                unretained);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        Assert.Null(await queries.GetByOriginReceiptAsync(Guid.NewGuid(), CancellationToken.None));
+        Assert.Null(await queries.GetByOriginReceiptAsync(nonMailboxId, CancellationToken.None));
+        Assert.Null(await queries.GetByOriginReceiptAsync(missingTokenId, CancellationToken.None));
+        Assert.Null(await queries.GetByOriginReceiptAsync(unretainedId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OriginReceiptLookupRefusesAnAmbiguousRetainedToken()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var first = Message("ambiguous-origin");
+        var second = Message("ambiguous-origin-copy") with
+        {
+            ExternalReceiptToken = first.ExternalReceiptToken
+        };
+        await RetainAsync(database, first);
+        await RetainAsync(database, second);
+        var receipt = await StoreClassifiedReceiptAsync(
+            database,
+            first,
+            MailClassificationResult.Unclassified([], "Fixture.", "test", 1));
+
+        await using var scope = database.CreateAsyncScope();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetByOriginReceiptAsync(receipt.Id, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task MissingStoredReplyToMetadataRemainsUnavailable()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
