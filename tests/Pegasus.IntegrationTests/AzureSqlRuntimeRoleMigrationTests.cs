@@ -236,7 +236,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE
         GeneratedCaseArtifacts:SELECT,INSERT
         GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
-        IntakeOcrOperations:SELECT
+        IntakeOcrOperations:SELECT,INSERT
         IntakeSourceCandidates:SELECT
         LabourRateCards:SELECT,INSERT,UPDATE
         OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
@@ -963,6 +963,75 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             END CATCH;
             REVERT;
             """);
+    }
+
+    [Fact]
+    public async Task WebRuntimeCanInsertPairedOcrWorkRowsButCannotProcessOcr()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO [dbo].[IntakeReceipts] (
+                [Id], [SourceFileName], [MediaType], [SourceLength], [SourceHash],
+                [SourceChannel], [ExternalReceiptToken], [ReceivedAtUtc], [ProcessedAtUtc],
+                [SourceReaderKey], [SourceReaderVersion], [Version], [Decision],
+                [DecisionReason], [EvidenceJson], [FieldsJson], [OcrCandidatesJson])
+            VALUES (
+                '{receiptId:D}', N'ocr-permission.eml', N'message/rfc822', 1,
+                REPLICATE(N'A', 64), N'manual_upload', N'ocr-permission:{receiptId:N}',
+                '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00',
+                N'runtime-role-test', N'1', 0, N'retained',
+                N'runtime role permission fixture', N'[]', N'{{}}', N'[]');
+            INSERT INTO [dbo].[IntakeAssets] (
+                [Id], [IntakeReceiptId], [SourceLabel], [FileName], [MediaType],
+                [Kind], [Disposition], [ContentLength], [ContentHash], [StorageKey])
+            VALUES (
+                '{assetId:D}', '{receiptId:D}', N'attachment', N'evidence.pdf',
+                N'application/pdf', N'attachment', N'retained', 1,
+                REPLICATE(N'B', 64), N'runtime-role/{assetId:N}');
+            """);
+
+        var operationId = Guid.NewGuid();
+        var workId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            CREATE USER [pegasus_test_ocr_web] WITHOUT LOGIN;
+            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_ocr_web];
+            EXECUTE AS USER = N'pegasus_test_ocr_web';
+            BEGIN TRANSACTION;
+            INSERT INTO [dbo].[IntakeOcrOperations] (
+                [Id], [IntakeAssetId], [SourceSha256], [QualifiedPagesJson],
+                [OperationKey], [State], [Version], [ConcurrencyToken])
+            VALUES (
+                '{operationId:D}', '{assetId:D}', REPLICATE(N'B', 64), N'[1]',
+                N'ocr-permission-operation', N'Pending', 0, '{Guid.NewGuid():D}');
+            INSERT INTO [dbo].[ExternalWorkItems] (
+                [Id], [Kind], [OperationKey], [State], [AttemptCount], [DueAtUtc])
+            VALUES (
+                '{workId:D}', N'intake_ocr', N'ocr-permission-operation', N'pending', 0,
+                '2031-05-06T10:32:00+00:00');
+            COMMIT TRANSACTION;
+            BEGIN TRY
+                UPDATE [dbo].[IntakeOcrOperations]
+                SET [State] = N'Completed'
+                WHERE [Id] = '{operationId:D}';
+                THROW 51000, 'Web runtime unexpectedly processed OCR work.', 1;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() <> 229 THROW;
+            END CATCH;
+            REVERT;
+            """);
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM [dbo].[IntakeOcrOperations] WHERE [Id] = '{operationId:D}' AND [State] = N'Pending'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{workId:D}' AND [State] = N'pending'"));
     }
 
     [Fact]
