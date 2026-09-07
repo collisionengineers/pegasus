@@ -761,6 +761,16 @@ Configuration ownership is:
 
 Tool availability does not authorize external action.
 
+The optional Production Worker OCR adapter reads `DocumentIntelligence:Endpoint`
+as an absolute HTTPS URI and reuses the credential selected by
+`AzureIdentity:WorkerClientId`. It adds no API-key setting. An absent endpoint
+leaves the provider and processor unregistered; an OCR work row then fails
+closed through the existing external-work dispatcher. `DevelopmentOffline`
+rejects the endpoint setting and composes no OCR provider. The durable OCR
+store remains available to both hosts. Configuration, resource permission,
+deployment and live provider proof require their separately approved targets;
+local composition tests do not establish any of them.
+
 Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
 
 ## Testing model
