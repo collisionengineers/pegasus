@@ -12,16 +12,16 @@ stageEntered:
 taken_at: '2026-09-07T23:16:06.247Z'
 branch: PLAT-065-document-intelligence
 worktree: .worktrees/plat-065
-claim_expires_at: '2026-09-07T23:46:06.248Z'
+claim_expires_at: '2026-09-07T23:54:09.508Z'
 claim_controller: codex-v1-remediation-root
 lease_id: d9fbecef-2648-4b4b-9e34-5b8ae84342e4
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: pack-reconcile-plat065
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-065'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T23:16:06.247Z'
+lease_heartbeat_at: '2026-09-07T23:24:09.508Z'
 labels:
   - requires-live-approval
   - azure
@@ -39,7 +39,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-07T23:16:06.247Z'
+updated: '2026-09-07T23:24:09.508Z'
 ---
 
 ## What
