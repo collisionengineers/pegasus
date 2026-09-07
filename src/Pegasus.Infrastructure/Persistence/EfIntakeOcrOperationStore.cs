@@ -256,6 +256,16 @@ public sealed class EfIntakeOcrOperationStore(
         var result = entity.ResultJson is null
             ? null
             : JsonSerializer.Deserialize<ResultEnvelope>(entity.ResultJson, SerializerOptions);
+        var typedResult = result is null
+            ? null
+            : new IntakeOcrResult(
+                IntakeOcrState.Completed,
+                result.Provider,
+                result.ModelId,
+                result.ApiVersion,
+                entity.ProviderOperationId,
+                entity.ResponseSha256?.TrimEnd(),
+                result.Pages);
         return new(
             entity.Id,
             envelope.IntakeReceiptId,
@@ -273,7 +283,8 @@ public sealed class EfIntakeOcrOperationStore(
             envelope.AttemptCount,
             result?.Pages,
             envelope.SubmitAttemptedAtUtc,
-            envelope.SubmittedAtUtc);
+            envelope.SubmittedAtUtc,
+            typedResult);
     }
 
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
