@@ -78,10 +78,6 @@ else
                                 <td>@principal.Code</td>
                                 <td><partial name="Shared/_StatusChip" model="@(principal.IsActive ? "Active" : "Disabled")" /></td>
                                 <td>@(principal.InspectionMode == Pegasus.Core.Cases.CaseInspectionMode.ImageBasedAssessment ? "Image Based Assessment" : "Physical address")</td>
-                                @* EXT-18 item 7: automatic EVA submission is
-                                   retired from this administration surface —
-                                   only the explicit optional manual setting
-                                   remains to name. *@
                                 <td>@(principal.EvaManualSubmission ? "On" : "Off")</td>
                                 <td>@DefaultLocation(principal)</td>
                                 <td>@(principal.PredecessorId?.ToString("D") ?? "None")</td>

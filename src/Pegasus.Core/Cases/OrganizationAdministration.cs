@@ -396,11 +396,6 @@ public static class OrganizationAdministrationPolicy
         };
     }
 
-    /// <remarks>
-    /// EXT-18 item 7: automatic EVA submission is retired from C's
-    /// administration surface. A principal is always created with it false;
-    /// only the explicit optional manual EVA setting remains.
-    /// </remarks>
     public static Principal PlanPrincipalCreation(
         Guid principalId,
         Guid sequenceLineageId,
@@ -426,8 +421,7 @@ public static class OrganizationAdministrationPolicy
             true,
             0,
             inspectionMode,
-            evaManualSubmission,
-            EvaAutomaticSubmission: false);
+            evaManualSubmission);
     }
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
@@ -478,8 +472,7 @@ public static class OrganizationAdministrationPolicy
                 true,
                 0,
                 predecessor.InspectionMode,
-                predecessor.EvaManualSubmission,
-                EvaAutomaticSubmission: false));
+                predecessor.EvaManualSubmission));
     }
 
     public static void RequireOrganizationCanOwnPrincipals(Organization organization)
@@ -619,9 +612,7 @@ public static class OrganizationAdministrationPolicy
     /// <summary>
     /// EXT-04/EXT-18 item 7: the manual EVA setting changes, and nothing else
     /// does. The code, the organization, the lineage and the allocation
-    /// history are untouched, and automatic EVA submission is retired from
-    /// this administration surface — it is always set to false here, never
-    /// read from staff input.
+    /// history are untouched.
     /// </summary>
     public static Principal PlanPrincipalEvaSubmissionUpdate(
         Principal current,
@@ -645,12 +636,10 @@ public static class OrganizationAdministrationPolicy
                 OrganizationAdministrationError.PrincipalInactive);
         }
 
-        var changed = current.EvaManualSubmission != evaManualSubmission
-            || current.EvaAutomaticSubmission;
+        var changed = current.EvaManualSubmission != evaManualSubmission;
         return current with
         {
             EvaManualSubmission = evaManualSubmission,
-            EvaAutomaticSubmission = false,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }

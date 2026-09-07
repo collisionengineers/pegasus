@@ -27,10 +27,7 @@ public sealed class CreateModel(
     public CaseInspectionMode InspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
 
     /// <summary>
-    /// EXT-04/EXT-18 item 7: the one optional, explicit EVA setting a
-    /// principal may have. Automatic submission is retired from this
-    /// administration surface — the page offers no control for it and a new
-    /// principal is always created with it false.
+    /// EXT-04/EXT-18 item 7: the optional manual EVA submission setting.
     /// </summary>
     [BindProperty]
     public bool EvaManualSubmission { get; set; }

@@ -131,8 +131,7 @@ public sealed class EvaSubmissionModel(
                         actor,
                         EvaOperationKey!,
                         EvaReason!,
-                        EvaManualSubmission,
-                        EvaAutomaticSubmission: false),
+                        EvaManualSubmission),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     "The principal's manual EVA submission setting was updated.";

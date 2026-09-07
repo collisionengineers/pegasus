@@ -42,8 +42,6 @@ public sealed partial class OrganizationDirectoryWebTests
             $"/Administration/Principals/Create?organizationId={organizationId:D}");
         var principalHtml = await principalGet.Content.ReadAsStringAsync();
         principalGet.EnsureSuccessStatusCode();
-        // EXT-18 item 7: automatic EVA submission has no control on this page.
-        Assert.DoesNotContain("EvaAutomaticSubmission", principalHtml, StringComparison.Ordinal);
         var principalForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(principalHtml, "__RequestVerificationToken"),
@@ -109,7 +107,7 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND EvaManualSubmission = 1 AND EvaAutomaticSubmission = 0 AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF';"));
+                $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND EvaManualSubmission = 1 AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF';"));
 
         using var indexGet = await client.GetAsync("/Administration/Principals");
         var indexHtml = await indexGet.Content.ReadAsStringAsync();

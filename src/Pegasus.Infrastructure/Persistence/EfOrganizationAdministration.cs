@@ -299,7 +299,6 @@ public sealed class EfOrganizationAdministration(
             IsActive = result.IsActive,
             InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
             EvaManualSubmission = result.EvaManualSubmission,
-            EvaAutomaticSubmission = result.EvaAutomaticSubmission,
             Version = result.Version
         };
         context.PrincipalSequenceLineages.Add(lineage);
@@ -381,7 +380,6 @@ public sealed class EfOrganizationAdministration(
             request.EvaManualSubmission);
 
         entity.EvaManualSubmission = result.EvaManualSubmission;
-        entity.EvaAutomaticSubmission = result.EvaAutomaticSubmission;
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();
@@ -576,7 +574,6 @@ public sealed class EfOrganizationAdministration(
             IsActive = result.IsActive,
             InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
             EvaManualSubmission = result.EvaManualSubmission,
-            EvaAutomaticSubmission = result.EvaAutomaticSubmission,
             Version = result.Version
         };
         var predecessorAfter = replacement.Predecessor;
@@ -851,8 +848,7 @@ public sealed class EfOrganizationAdministration(
             entity.IsActive,
             entity.Version,
             ProviderInspectionModePolicy.Parse(entity.InspectionMode),
-            entity.EvaManualSubmission,
-            entity.EvaAutomaticSubmission);
+            entity.EvaManualSubmission);
 
     private static OrganizationRole[] ParseRoles(IEnumerable<string> roles) =>
         roles.Select(ParseRole).OrderBy(role => role).ToArray();

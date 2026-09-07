@@ -57,9 +57,6 @@ else
                 <span asp-validation-for="InspectionMode"></span>
                 <small class="empty-state">Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</small>
             </div>
-            @* EXT-18 item 7: automatic EVA submission is retired from this
-               administration surface; manual remains the one optional,
-               explicit setting a principal may have. *@
             <div>
                 <label>
                     <input asp-for="EvaManualSubmission" type="checkbox" />
