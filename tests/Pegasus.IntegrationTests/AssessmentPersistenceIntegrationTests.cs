@@ -252,6 +252,30 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 ConfirmedBy = engineer,
                 ConfirmedAtUtc = recordedAt
             }));
+        var recordedBreakdown = new EstimateCalculationBreakdown(
+            RepairSpecificationPolicy.PolicyVersion,
+            20m,
+            new EstimateRawTotals(
+                Parts: 200m,
+                PanelLabour: 100m,
+                PaintLabour: 0m,
+                Materials: 50m,
+                Specialist: 0m,
+                OffPattern: 0m,
+                Category: 350m,
+                Net: 350m,
+                Taxable: 350m,
+                Vat: 70m,
+                Gross: 420m),
+            new EstimatePrintedTotals(
+                Parts: 200m,
+                PanelLabour: 100m,
+                PaintLabour: 0m,
+                Materials: 50m,
+                Specialist: 0m,
+                Net: 350m,
+                Vat: 70m,
+                Gross: 420m));
 
         context.Set<CaseRepairSpecificationEntity>().Add(new()
         {
@@ -269,6 +293,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CalculationTotal = 420m,
             CalculationPolicyVersion =
                 $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
+            CalculationBreakdownJson = JsonSerializer.Serialize(
+                recordedBreakdown,
+                EfRepairSpecificationStore.JsonOptions),
             CreatedBy = engineer,
             CreationOperationKey = "case-040-report-ready-estimate",
             CreatedAtUtc = recordedAt,
