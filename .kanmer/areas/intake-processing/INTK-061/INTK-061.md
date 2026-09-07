@@ -2,13 +2,14 @@
 id: INTK-061
 type: ticket
 title: Restore durable intake custody and exactly one destination after failures
-status: review
+status: verifying
 area: intake-processing
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-07T20:06:18.099Z'
   review: '2026-09-07T21:04:33.926Z'
+  verifying: '2026-09-07T21:12:13.772Z'
 taken_at: '2026-09-07T20:09:50.926Z'
 branch: INTK-061-intake-recovery
 worktree: .worktrees/intk-061
@@ -38,7 +39,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/679'
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T21:10:32.358Z'
+updated: '2026-09-07T21:12:13.772Z'
 ---
 
 ## What
