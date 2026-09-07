@@ -457,6 +457,19 @@ helper branches remain preservation evidence until their changes are checked
 against the owner branch. The controller retains the same review, validation
 and integration duties across A, B and C.
 
+For this consolidated closeout, merge the frozen B and C source-owner tips
+into A and reconcile only their recorded integration differences. Compare the
+resulting tree to the reviewed combined checkout; do not merge the verification
+branch itself. Advance B and C to the resulting common source head only by
+strict fast-forward after proving their original tips remain ancestors. Keep
+the three existing PRs and each ticket's independent scope review, exact-head
+checks and evidence. Integrating that common head through a normal existing
+PR contains all three histories; verify GitHub's disposition of the other two
+PRs and record containment rather than claiming separate code merges. This
+closeout exception supersedes the pack's original cross-stream source-merge
+prohibition following the operator's all-stream consolidation. It introduces
+no fourth implementation PR or general branch convention.
+
 The `main` PR must remain unmerged. No deployment, reset, real email, Outlook
 mutation, Box write or live provider operation is authorized. This exception
 governs the three owners only; ordinary task rules below continue elsewhere.
