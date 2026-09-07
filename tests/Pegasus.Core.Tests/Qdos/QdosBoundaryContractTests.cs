@@ -131,7 +131,7 @@ public sealed class QdosBoundaryContractTests
     {
         Assert.Equal(30 * 1024 * 1024, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
         Assert.True(
-            IntakeEnvelopeLimits.MaximumContentLength
+            IntakeEnvelopeLimits.MaximumProviderApiFileLength
                 <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
             "A single Provider API file may never be allowed past the envelope.");
 
@@ -142,12 +142,19 @@ public sealed class QdosBoundaryContractTests
             [ProviderFile(0, 1024)]);
         Assert.Single(withinBounds);
 
+        // Four files, each well inside the per-file bound, still sum past the
+        // envelope: the envelope is enforced on the batch as well as on one
+        // file.
         var overEnvelope = Enumerable
-            .Range(0, IntakeEnvelopeLimits.MaximumBatchFileCount)
-            .Select(ordinal => ProviderFile(
-                ordinal,
-                IntakeEnvelopeLimits.MaximumContentLength))
+            .Range(0, 4)
+            .Select(ordinal => ProviderFile(ordinal, 8 * 1024 * 1024))
             .ToArray();
+        Assert.All(
+            overEnvelope,
+            file => Assert.True(
+                file.Content.Length <= IntakeEnvelopeLimits.MaximumProviderApiFileLength,
+                "Each file must be inside the per-file bound, or this proves "
+                    + "the per-file check rather than the envelope."));
         Assert.True(
             overEnvelope.Sum(file => (long)file.Content.Length)
                 > IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
@@ -155,6 +162,30 @@ public sealed class QdosBoundaryContractTests
         var refused = Assert.Throws<ProviderSubmissionException>(
             () => ProviderSubmissionPolicy.RequireEnvelope(overEnvelope));
         Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, refused.Error);
+    }
+
+    /// <summary>
+    /// The Provider API per-file bound at the limit and one byte past it. The
+    /// manual channel's 100 MiB cap does not reach this channel: a file that
+    /// the staff form would accept is refused here (C07 item 5, INTK-052).
+    /// </summary>
+    [Fact]
+    public void TheProviderApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
+    {
+        var atTheLimit = ProviderSubmissionPolicy.RequireEnvelope(
+            [ProviderFile(0, IntakeEnvelopeLimits.MaximumProviderApiFileLength)]);
+        Assert.Single(atTheLimit);
+
+        var overTheLimit = Assert.Throws<ProviderSubmissionException>(
+            () => ProviderSubmissionPolicy.RequireEnvelope(
+                [ProviderFile(0, IntakeEnvelopeLimits.MaximumProviderApiFileLength + 1)]));
+        Assert.Equal(ProviderSubmissionError.EnvelopeExceeded, overTheLimit.Error);
+
+        Assert.True(
+            IntakeEnvelopeLimits.MaximumContentLength
+                > IntakeEnvelopeLimits.MaximumProviderApiFileLength,
+            "This test only means something while the manual per-file cap is "
+                + "the larger of the two.");
     }
 
     private static ProviderSubmissionFile ProviderFile(int ordinal, int length) => new(
