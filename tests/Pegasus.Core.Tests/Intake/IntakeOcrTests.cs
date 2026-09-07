@@ -13,8 +13,8 @@ public sealed class IntakeOcrTests
 {
     private static readonly DateTimeOffset Now = new(2026, 4, 1, 10, 0, 0, TimeSpan.Zero);
     private static readonly byte[] SourceBytes = [1, 2, 3, 4, 5, 6, 7, 8];
-    private const string SourceHash = "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
-    private const string ResponseHash = "bb11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff0011223344";
+    private const string SourceHash = "aa112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    private const string ResponseHash = "bb112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
     [Fact]
     public async Task AnUnstartedOperationIsSubmittedCompletedAndReanalysedExactlyOnce()
