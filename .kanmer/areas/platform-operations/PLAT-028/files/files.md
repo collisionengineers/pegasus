@@ -3,30 +3,39 @@
 ## Where the change lands
 
 | Path | Why |
-|---|---|
-| `src/Pegasus.Web/Pages/Administration/Organizations/` | Redesign list/detail as the consolidated Organization/Principal surface and add thin API-04 credential handlers/views. |
-| `src/Pegasus.Web/Pages/Administration/Principals/` | Retain create/replace routes where useful, remove the duplicate index destination, and redirect legacy navigation safely. |
-| `src/Pegasus.Web/Pages/Administration/Index.cshtml` and shared navigation | Point Administration to the consolidated surface without adding a second destination. |
-| `src/Pegasus.Core/Cases/OrganizationAdministration.cs` | Extend projections only as needed to display API-04 credential status; business lifecycle remains owned by TICK-061. |
-| `tests/Pegasus.IntegrationTests/` and browser/accessibility tests | Prove authorization, existing workflows, one-time secret handling, lifecycle controls, responsive layout, keyboard flow, axe, and no horizontal overflow. |
-| `docs/frd/frd-04-parties-accounts-and-access.md`, `docs/frd/frd-09-provider-and-intermediary-routes.md`, `docs/design/README.md`, `docs/capabilities.md` | Authorize the narrow credential UI and document the consolidated design. |
+| --- | --- |
+| src/Pegasus.Core/Cases/CaseContracts.cs | Name-based atomic customer creation; known caller update only. |
+| src/Pegasus.Core/Cases/OrganizationAdministration.cs | Principal paging/detail and creation normalization using current owner. |
+| src/Pegasus.Infrastructure/Persistence/EfOrganizationAdministration.cs | Existing transaction creates customer identity and Principal; direct bounded principal queries. |
+| src/Pegasus.Infrastructure/DependencyInjection.cs | Register the principal query use cases. |
+| src/Pegasus.Web/Pages/Administration/Principals/** | Flat list, create customer, Settings including provider commands, same-customer code replacement. |
+| src/Pegasus.Web/Pages/Administration/Organizations/** | Remove obsolete separate administration routes. |
+| src/Pegasus.Web/Pages/Administration/Index.cshtml | Remove obsolete Organisations entry. |
+| src/Pegasus.Web/Presentation/OperatorLabels.cs | One owner for labels. |
+| tests/Pegasus.Core.Tests/Cases/OrganizationAdministrationTests.cs | Updated creation contract/normalization. |
+| tests/Pegasus.IntegrationTests/OrganizationAdministrationWebTests.cs | Actual customer create/settings/credential, authorization and replay journeys. |
+| tests/Pegasus.IntegrationTests/OrganizationAdministrationPersistenceTests.cs | Atomic name/code uniqueness and replay. |
+| tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs | Updated existing creation caller. |
+| tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs | Updated existing creation caller. |
+| tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs | Remove retired route states if catalogue requires it. |
+| docs/frd/frd-04-parties-accounts-and-access.md | Current single customer behavior, no hierarchy. |
+| docs/design/README.md | Principal-only administration wording. |
+| docs/design/test-ui/** | Root verifier owns scoped capture and catalogue update. |
 
 ## Context files
 
-| Path | What it tells the implementer |
-|---|---|
-| `src/Pegasus.Web/Pages/Administration/Organizations/Edit.cshtml(.cs)` | Existing combined data, authorization, reason, expected-version and operation-key behavior to preserve. |
-| `src/Pegasus.Web/Pages/Administration/Principals/Create.cshtml(.cs)` | Current Principal creation validation and redirect behavior. |
-| `src/Pegasus.Web/Pages/Administration/Principals/Replace.cshtml(.cs)` | Immutable Principal replacement flow that redesign must not collapse into editing. |
-| `src/Pegasus.Web/Pages/Administration/Automation/Index.cshtml(.cs)` | Existing enable/disable and rotate-once UI convention, while API-04 remains a different owner. |
-| `src/Pegasus.Core/Cases/OrganizationAdministration.cs` | Core remains the sole policy owner for Organizations and Principals. |
-| `docs/design/README.md` | Page economy, no explanatory copy, destructive consequence, accessibility, and responsive constraints. |
-| `docs/frd/frd-04-parties-accounts-and-access.md` | Current access matrix must be deliberately narrowed for provider-key administration. |
+| Path | Constraint |
+| --- | --- |
+| src/Pegasus.Core/Cases/PrincipalCredentials.cs | Existing authorization, lifecycle, show-once and replay contracts. |
+| src/Pegasus.Core/Cases/OrganizationDirectory.cs | Real repairer/storage/location directory remains independent. |
+| src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml | Existing semantic dialog pattern and common script. |
+| docs/frd/frd-09-provider-and-intermediary-routes.md | Existing provider API and route authority; unchanged. |
+| docs/engineering.md | Existing testing and reuse rules. |
 
 ## Ripple effects
 
-Depends on TICK-061 backend contracts. Existing bookmarks to Principal routes need deliberate redirect/not-found behavior. Navigation, authorization tests, screenshots, CSS only where existing primitives cannot carry the layout, and current-state docs follow.
+Existing callers follow the changed create request. Old URLs are removed, not retained as compatibility paths. Snapshot route records follow removals. No new package, table, migration or runtime.
 
 ## Out of scope
 
-Provider API submission/result endpoints, credential hashing/authentication implementation, multiple credentials, provider self-service, staff/MCP credentials, generic rules, cloud secrets, live issuance, and changes to immutable Principal replacement policy.
+Live pegasustest creation, live credential issuance, sending mail, intake allocation, mail routing policies, report/Glass changes, unrelated administration and directory changes.

@@ -27,3 +27,13 @@ The operator has resolved ownership, pause semantics, and consolidation. Visual 
 ## Azure architecture refresh — 2026-08-21
 
 The administration UI already runs in the production Web Container App and persists through Azure SQL. Provider controls therefore need no Azure Portal surface, App Configuration, Key Vault secret browser, new app, or new deployment unit. The page consumes TICK-061's Core commands and status projection. Clear generated/reset text exists only in the immediate HTTPS response; Azure SQL stores only its verifier and lifecycle metadata, and logs/telemetry must never capture it. Live issuance remains an external write requiring exact-target approval.
+
+## Current remediation research — 7 September 2026
+
+The current operator and EPIC-014 supersede the earlier organisation-detail plan. Principal is one customer identity. At origin/dev 3da60bd0c270111d5168dc17246dc831882108ea, Principals/Index.cshtml still groups customers under organisations and Create.cshtml requires an existing Work Provider. FRD-04 already requires inline creation. CreatePrincipalRequest in CaseContracts.cs has only three production/Core owners and a few test callers; replace its selected organisation ID with customer Name, and create the existing backing identity plus Principal in one transaction. No schema change or second directory is needed.
+
+EfOrganizationAdministration owns transaction, idempotency, permanent history and normalized uniqueness. Extend its query projection to page Principals directly and resolve one Principal by ID. Existing OrganizationDirectory has independent repairer/storage/location callers and is not removed.
+
+PrincipalCredentials.cs already supplies issue/reset/pause/resume/revoke and show-once outcomes with registered production implementations; no administration page currently calls these. The current EvaSubmission page supplies manual-only EVA and default-location settings; rename/fold it into one Principal Settings dialog/surface with provider controls and existing route catalog addresses. Retire separate Organizations pages, keep customer code replacement on the same backing customer with no owner choice. FRD-09 policy is unchanged. No sources are declared (get_sources returned an empty list).
+
+Existing validation owners: OrganizationAdministrationWebTests, OrganizationAdministrationPersistenceTests, Cases/OrganizationAdministrationTests, PrincipalCredentialPersistenceTests; ProviderApiSubmissionTests has one create caller to update. Root is the sole verifier. No live customer or credential is created by this lane.
