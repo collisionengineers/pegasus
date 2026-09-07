@@ -578,9 +578,9 @@ public static class CaseReportReadiness
     private static bool MatchesConfirmedSource(
         PreparedReportImage image,
         IReadOnlyDictionary<Guid, DocumentVersion> confirmed) =>
-        !confirmed.TryGetValue(image.OccurrenceId, out var version)
-        || (version.Id == image.VersionId
-            && string.Equals(version.Sha256, image.Sha256, StringComparison.Ordinal));
+        confirmed.TryGetValue(image.OccurrenceId, out var version)
+        && version.Id == image.VersionId
+        && string.Equals(version.Sha256, image.Sha256, StringComparison.Ordinal);
 
     private static string? Value(CaseAssessmentProjection assessment, string path) =>
         assessment.Field(path)?.Value;
