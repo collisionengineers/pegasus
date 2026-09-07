@@ -173,10 +173,11 @@ public sealed class GlassRepairEstimateGatewayTests
 
     // -------------------------------------------- launch stage refusals (200)
 
-    public static TheoryData<string, int, string, string?, string, GlassRepairEstimateSessionState>
+    public static TheoryData<string, string, int, string, string?, string, GlassRepairEstimateSessionState>
         RefusedStages() => new()
     {
         {
+            "login-csrf-missing",
             "GET /login/index",
             (int)HttpStatusCode.OK,
             "<form><input name=\"csrf_token\" value=\"nope\" /></form>",
@@ -185,6 +186,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "login-form-rerendered",
             // A re-rendered login form inside an HTTP 200 is a refused sign-in.
             "POST /login/index",
             (int)HttpStatusCode.OK,
@@ -194,6 +196,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "login-redirect-external",
             "POST /login/index",
             (int)HttpStatusCode.Found,
             string.Empty,
@@ -202,6 +205,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "login-landing-form",
             "GET /index",
             (int)HttpStatusCode.OK,
             "<form name=\"Form_Login\">stocklistGrid</form>",
@@ -210,6 +214,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "lookup-unavailable",
             "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1",
             (int)HttpStatusCode.OK,
             "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}",
@@ -218,6 +223,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "candidates-refused",
             "GET /three-phase-vehicle/get-vehicles",
             (int)HttpStatusCode.OK,
             "{\"success\":false,\"html\":\"\"}",
@@ -226,6 +232,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "candidates-none",
             "GET /three-phase-vehicle/get-vehicles",
             (int)HttpStatusCode.OK,
             "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N/C: 999999999</div>\"}",
@@ -234,6 +241,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "candidates-ambiguous",
             "GET /three-phase-vehicle/get-vehicles",
             (int)HttpStatusCode.OK,
             "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N/C: "
@@ -243,6 +251,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "vehicle-vrm-mismatch",
             // Created state may exist at Glass's, so this is uncertain and keeps
             // the account's live slot rather than being replaced.
             "GET /index/create-new-vehicle",
@@ -253,6 +262,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Unknown
         },
         {
+            "vehicle-id-zero",
             "GET /index/create-new-vehicle",
             (int)HttpStatusCode.OK,
             "\uFEFF{\"vrm\":\"" + Registration + "\",\"id\":\"0\"}",
@@ -261,6 +271,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Unknown
         },
         {
+            "details-profile-mismatch",
             "GET /index/vehicle-details-value/",
             (int)HttpStatusCode.OK,
             "<div>profile 9999 natcode " + NatCode + "</div>",
@@ -269,6 +280,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "selection-count-ambiguous",
             "GET /index/get-selected-vehicle-count/grid/stocklistGrid",
             (int)HttpStatusCode.OK,
             "{\"grid\":\"stocklistGrid\",\"error\":false,\"count\":\"2\"}",
@@ -277,6 +289,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "start-status-error",
             "POST /ere/start-ere",
             (int)HttpStatusCode.OK,
             "{\"message\":\"Profile not available\",\"status\":\"error\",\"ere_url\":\"\"}",
@@ -285,6 +298,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "start-url-missing-component",
             // A launch URL missing one of its own segments is not rewritten.
             "POST /ere/start-ere",
             (int)HttpStatusCode.OK,
@@ -295,6 +309,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Unknown
         },
         {
+            "start-url-duplicate-caller",
             // Two callers is ambiguous; picking one would be a guess.
             "POST /ere/start-ere",
             (int)HttpStatusCode.OK,
@@ -305,6 +320,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Unknown
         },
         {
+            "start-caller-external-host",
             "POST /ere/start-ere",
             (int)HttpStatusCode.OK,
             StartEre(LaunchUrl(caller:
@@ -314,6 +330,7 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Unknown
         },
         {
+            "start-caller-query-suffix",
             "POST /ere/start-ere",
             (int)HttpStatusCode.OK,
             StartEre(LaunchUrl(caller:
@@ -327,6 +344,7 @@ public sealed class GlassRepairEstimateGatewayTests
     [Theory]
     [MemberData(nameof(RefusedStages))]
     public async Task AStageThatRefusesInsideAnHttp200StopsTheLaunchWhereItStopped(
+        string scenario,
         string route,
         int statusCode,
         string body,
@@ -334,6 +352,7 @@ public sealed class GlassRepairEstimateGatewayTests
         string expectedFailure,
         GlassRepairEstimateSessionState expectedState)
     {
+        _ = scenario; // Makes every theory row uniquely discoverable by the shard guard.
         var harness = Harness.Create();
         harness.Mva.Set(route, new((HttpStatusCode)statusCode, body, Location: location));
 
