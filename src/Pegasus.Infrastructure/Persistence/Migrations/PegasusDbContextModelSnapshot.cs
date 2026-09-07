@@ -5795,11 +5795,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DefaultInspectionSourceVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<bool>("EvaAutomaticSubmission")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
                     b.Property<bool>("EvaManualSubmission")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
