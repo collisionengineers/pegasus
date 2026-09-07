@@ -877,6 +877,11 @@ public sealed class AnalyzeRetainedInstruction(
     /// action from the same owner, so the two cannot disagree about whether
     /// analysis is possible.
     /// </summary>
+    private static IntakeAssetRecord? SelectAsset(IntakeReceipt receipt, Guid? assetId) =>
+        assetId is { } explicitId
+            ? receipt.AssetRecords.SingleOrDefault(asset => asset.Id == explicitId)
+            : IntakeFileIdentity.SourceAsset(receipt);
+
     /// <summary>
     /// Why a readable source was not read completely, in the reader's words.
     /// The reader records an issue for every gap it knows about; repeating them
@@ -888,11 +893,6 @@ public sealed class AnalyzeRetainedInstruction(
             ? "The retained source could not be read completely."
             : "The retained source could not be read completely: "
                 + string.Join("; ", readResult.Issues.Select(issue => issue.Reason));
-
-    private static IntakeAssetRecord? SelectAsset(IntakeReceipt receipt, Guid? assetId) =>
-        assetId is { } explicitId
-            ? receipt.AssetRecords.SingleOrDefault(asset => asset.Id == explicitId)
-            : IntakeFileIdentity.SourceAsset(receipt);
 
     private static string ActorLabel(ActionActor actor) =>
         $"{actor.Kind.ToString().ToLowerInvariant()}:{actor.SubjectId}";
