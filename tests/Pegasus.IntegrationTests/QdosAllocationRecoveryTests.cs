@@ -1188,10 +1188,7 @@ public sealed class IntakeAllocationConsumerTests
             var first = Assert.IsType<IntakeAllocationResult>(
                 await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, first.State.Status);
-            var replay = Assert.IsType<IntakeAllocationResult>(
-                await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
-            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, replay.State.Status);
-            Assert.True(replay.IsSuppressed);
+            Assert.Null(await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
 
             var receipt = Assert.IsType<IntakeReceipt>(
                 await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
