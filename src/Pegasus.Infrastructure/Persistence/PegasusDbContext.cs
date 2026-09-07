@@ -463,9 +463,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.EvaManualSubmission)
                 .IsRequired()
                 .HasDefaultValue(false);
-            entity.Property(item => item.EvaAutomaticSubmission)
-                .IsRequired()
-                .HasDefaultValue(false);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -1132,7 +1129,6 @@ internal sealed class PrincipalEntity
     public string? DefaultInspectionSourceRecordId { get; set; }
     public long? DefaultInspectionSourceVersion { get; set; }
     public bool EvaManualSubmission { get; set; }
-    public bool EvaAutomaticSubmission { get; set; }
     public long Version { get; set; }
     public List<CaseEntity> Cases { get; set; } = [];
 }
