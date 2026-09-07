@@ -11,16 +11,16 @@ stageEntered:
 taken_at: '2026-09-07T20:09:50.926Z'
 branch: INTK-061-intake-recovery
 worktree: .worktrees/intk-061
-claim_expires_at: '2026-09-07T21:16:08.207Z'
+claim_expires_at: '2026-09-07T21:19:48.212Z'
 claim_controller: /root
 lease_id: caff30a5-8e3d-4009-820d-f471bec4d716
-lease_revision: 6
+lease_revision: 7
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: intake_audit
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-061'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T20:46:08.207Z'
+lease_heartbeat_at: '2026-09-07T20:49:48.212Z'
 labels: []
 groups:
   - EPIC-014
@@ -33,7 +33,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T20:46:08.207Z'
+updated: '2026-09-07T20:49:48.212Z'
 ---
 
 ## What
