@@ -1,3 +1,4 @@
+using Pegasus.Core.Custody;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -289,11 +290,15 @@ public sealed class DocumentCustodyDurabilityTests
             "Pegasus.IntegrationTests",
             Guid.NewGuid().ToString("N"));
         var interceptor = new FailNextDocumentSaveInterceptor();
+        var contentStore = new ManagedOnlyDocumentContentStore(
+            new LocalDocumentContentStore(Path.Combine(root, "custody")));
         try
         {
             await using var database = await LocalDbTestDatabase.CreateAsync(
                 configureDatabase: options => options.AddInterceptors(interceptor),
-                localArtifactRootFactory: _ => root);
+                localArtifactRootFactory: _ => root,
+                configureServices: services =>
+                    services.AddSingleton<IDocumentContentStore>(contentStore));
             var caseId = await SeedCaseAsync(database);
             var token = RequestUploadToken.Create();
             var requestId = Guid.NewGuid();
@@ -324,8 +329,6 @@ public sealed class DocumentCustodyDurabilityTests
                 await context.SaveChangesAsync();
             }
 
-            var contentStore = new ManagedOnlyDocumentContentStore(
-                new LocalDocumentContentStore(Path.Combine(root, "custody")));
             var command = new UploadToRequestCommand(
                 token.Secret.Token,
                 new(
@@ -459,11 +462,9 @@ public sealed class DocumentCustodyDurabilityTests
                 var contextFactory = services
                     .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
                 var timeProvider = services.GetRequiredService<TimeProvider>();
-                var custody = new EfCaseArtifactCustody(
-                    contextFactory,
-                    contentStore,
-                    services.GetRequiredService<IIntakeArtifactStore>(),
-                    timeProvider);
+                var custody = services.GetRequiredService<ICaseArtifactCustody>();
+                var custodyStatus = services.GetRequiredService<ICaseArtifactCustodyStatus>();
+                Assert.Same(custody, custodyStatus);
                 return new EfDocumentRequestStore(
                     contextFactory,
                     new RequestUploadPolicy(limits, timeProvider),
@@ -472,7 +473,7 @@ public sealed class DocumentCustodyDurabilityTests
                     new RetainIncomingArtifact(
                         custody,
                         new EfPublicUploadRetentionStore(contextFactory),
-                        custody));
+                        custodyStatus));
             }
         }
         finally
