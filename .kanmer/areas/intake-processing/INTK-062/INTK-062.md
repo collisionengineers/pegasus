@@ -2,13 +2,14 @@
 id: INTK-062
 type: ticket
 title: Bound public upload bodies before multipart buffering
-status: review
+status: verifying
 area: intake-processing
 assignee: principal_delivery_audit
 profile: fix
 stageEntered:
   preparing: '2026-09-07T21:24:37.487Z'
   review: '2026-09-07T22:44:35.228Z'
+  verifying: '2026-09-07T22:49:48.666Z'
 taken_at: '2026-09-07T21:30:17.097Z'
 branch: INTK-062-public-upload-bound
 worktree: .worktrees/intk-062
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/684'
 archived: false
 created: '2026-09-07T20:01:20.291Z'
-updated: '2026-09-07T22:44:35.321Z'
+updated: '2026-09-07T22:49:48.666Z'
 ---
 
 ## What

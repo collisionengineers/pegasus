@@ -134,3 +134,15 @@ No manual visual pass is claimed. No author build/test/cloud/email run occurred.
 Root explicitly directed [skip ci] on this scoped branch commit to avoid a
 second duplicate heavy build; independent reviewer must inspect current checks
 and the recorded local evidence and must not silently bypass a required check.
+
+## Exact-merge verification follow-up — PR685
+
+Original merged522e67f passed locked restore, Release build139.38s and52 focused report/role/custody cases, but existing migration test failed because the new permission migration was absent from its exact pending list. Whole failed proof50597d092c61d794 is preserved. Same ticket/branch/worktree resumed; an attempted fast-forward was refused without mutation, then ordinary history-preserving merge of dev succeeded, with full-tree equality to dev before the correction (`git diff --exit-code origin/dev HEAD` exit0). Root added only the exact migration ID in CaseWorkflowMigrationTests.cs, preserving its historical target and all assertions.
+
+Corrected `dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore` succeeded, zero warnings/errors47.26s. `git diff --check` exit0. Root then ran:
+
+```powershell
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName=Pegasus.IntegrationTests.CaseWorkflowMigrationTests.CustodyEvidenceOrdinalsAndOperationsMigrateFromPreviousSchemaWithoutIdentityLoss" --logger "trx;LogFileName=docs-020-correction.trx"
+```
+
+PASS exit0,1/1,zero skips,21s. The earlier52 passes were not repeated or erased. Commit2b1d700ba70336560934b171fa623d8c66df5559 ([skip ci]) pushed in follow-up https://github.com/collisionengineers/pegasus/pull/685. PR diff versus dev is one test file,+2/-1; no application/schema behavior change. Root authored this correction, so independent principal-delivery reviewer must review exact new head; no self-review or deployment claimed.

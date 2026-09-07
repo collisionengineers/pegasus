@@ -2,7 +2,7 @@
 id: DOCS-020
 type: ticket
 title: Keep report snapshots consistent and invalidate changed report inputs
-status: implementing
+status: review
 area: documents-reports
 assignee: pack_reconcile
 profile: fix
@@ -32,11 +32,14 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 commits:
   - 1bf9ac613a2b7610d2ddc23e8acfd9f4b462ef79
+  - 522e67f270ab4d6086d9fba04095988db3598888
+  - 2b1d700ba70336560934b171fa623d8c66df5559
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/682'
+  - 'https://github.com/collisionengineers/pegasus/pull/685'
 archived: false
 created: '2026-09-07T19:58:09.568Z'
-updated: '2026-09-07T22:43:54.189Z'
+updated: '2026-09-07T22:49:42.410Z'
 ---
 
 ## What
