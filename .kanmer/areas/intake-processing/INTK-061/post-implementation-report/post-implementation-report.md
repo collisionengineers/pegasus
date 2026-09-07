@@ -121,3 +121,22 @@ independent-review preparation; do not merge this ticket's own PR.
    no LIKE wildcard characters). This does not use an untranslatable
    StringComparison overload. `git diff --check` completed with exit code 0;
    the real-SQL grouped-image tests remain required on root's rerun.
+
+3. Root Release build retry 3 passed with zero warnings/errors. Focused Core
+   run then exited 1: 139 passed, one failed in the new conflicting-group test.
+   `ActionActor` is a sealed class with reference equality, so whole-request
+   record equality compared two separate actor instances despite identical
+   values. The assertion now explicitly checks both origins, canonical reasons,
+   safe detail, operation keys, exact timestamps, actor kind/subject and role
+   sets; no substantive assertion was removed. Root's SQL run is still pending.
+
+4. Root accepted the own-review concurrent-association edge correction: both
+   helpers refresh a receipt on AlreadyAssociated as well as Associated. This
+   prevents later holding work seeing stale CurrentCaseId when a competing write
+   committed between the initial read and association response. Existing live
+   and completed-replay association tests now simulate that exact response and
+   assert the receipt handed to downstream image/holding automation has the
+   current case. The unique-match failure test includes the same race. Two
+   missing table cases were added to the existing test-count helper for the new
+   IntakeEvaluations/ImageIntakes assertions. Source is frozen pending root's
+   targeted rebuild/retest; no tests were run by this worker.
