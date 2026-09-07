@@ -721,13 +721,13 @@ public sealed partial class QdosTriageIntegrationTests
             "qdos_triage",
             1);
         var sourceIdentity = new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, externalToken);
-        var receiptId = await StoreMinimalReceiptAsync(
+        var receiptId = await TriageQueuesWebTests.StoreMinimalReceiptAsync(
             scope.ServiceProvider,
             "triage-instruction.pdf",
             evidence: [acceptedMatch],
             sourceIdentity: sourceIdentity,
             sourceHash: new string('A', 64));
-        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(
+        var evaluationRevisionId = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(
             scope.ServiceProvider, receiptId);
 
         var store = scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>();
@@ -797,13 +797,13 @@ public sealed partial class QdosTriageIntegrationTests
             1);
 
         await using var scope = factory.Services.CreateAsyncScope();
-        var receiptId = await StoreMinimalReceiptAsync(
+        var receiptId = await TriageQueuesWebTests.StoreMinimalReceiptAsync(
             scope.ServiceProvider,
             "upload.pdf",
             evidence: [acceptedMatch],
             sourceIdentity: sourceIdentity,
             sourceHash: new string('C', 64));
-        var evaluationRevisionId = await StageAndCompleteEvaluationAsync(
+        var evaluationRevisionId = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(
             scope.ServiceProvider, receiptId);
         var triageRecord = await scope.ServiceProvider
             .GetRequiredService<ICreateTriageFromIntake>()
@@ -997,6 +997,10 @@ public sealed partial class QdosTriageIntegrationTests
                         1,
                         "test_hash",
                         null,
+                        null,
+                        StaffMailPurpose.TriageChaser,
+                        operationId,
+                        expectedVersion,
                         null);
                 var updated = current with
                 {

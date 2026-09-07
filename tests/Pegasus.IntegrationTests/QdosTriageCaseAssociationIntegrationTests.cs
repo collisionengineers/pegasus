@@ -178,9 +178,9 @@ public sealed partial class QdosTriageIntegrationTests
         const string sharedVrm = "CD34 EFG";
         const string normalizedVrm = "CD34EFG";
 
-        var extractionPolicy = new ConditionalTriageMatchPolicy(readResult =>
+        var extractionPolicy = new ConditionalTriageMatchPolicy(extracted =>
             string.Equals(
-                readResult.InstructionDraft?.ClaimNumber,
+                extracted.InstructionDraft?.ClaimNumber,
                 "TRIAGE-REQUEST",
                 StringComparison.OrdinalIgnoreCase));
 
@@ -240,7 +240,8 @@ public sealed partial class QdosTriageIntegrationTests
             entry => entry.EventType is "triage_case_linked" or "triage_state_changed");
     }
 
-    private sealed class ConditionalTriageMatchPolicy(Func<IntakeSourceReadResult, bool> isTriage) : IInstructionExtractionPolicy
+    private sealed class ConditionalTriageMatchPolicy(
+        Func<InstructionExtractionResult, bool> isTriage) : IInstructionExtractionPolicy
     {
         private readonly QdosInstructionExtractionPolicy inner = new();
 
@@ -257,7 +258,7 @@ public sealed partial class QdosTriageIntegrationTests
                 return result;
             }
 
-            if (isTriage(readResult))
+            if (isTriage(result))
             {
                 var acceptedMatches = new[]
                 {
