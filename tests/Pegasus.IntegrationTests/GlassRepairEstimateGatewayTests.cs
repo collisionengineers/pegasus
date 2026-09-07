@@ -173,56 +173,72 @@ public sealed class GlassRepairEstimateGatewayTests
 
     // -------------------------------------------- launch stage refusals (200)
 
-    public static TheoryData<string, Reply, string, GlassRepairEstimateSessionState> RefusedStages() => new()
+    public static TheoryData<string, int, string, string?, string, GlassRepairEstimateSessionState>
+        RefusedStages() => new()
     {
         {
             "GET /login/index",
-            new(HttpStatusCode.OK, "<form><input name=\"csrf_token\" value=\"nope\" /></form>"),
+            (int)HttpStatusCode.OK,
+            "<form><input name=\"csrf_token\" value=\"nope\" /></form>",
+            null,
             GlassFailure.LoginCsrf,
             GlassRepairEstimateSessionState.Failed
         },
         {
             // A re-rendered login form inside an HTTP 200 is a refused sign-in.
             "POST /login/index",
-            new(HttpStatusCode.OK, "<form name=\"Form_Login\"></form>"),
+            (int)HttpStatusCode.OK,
+            "<form name=\"Form_Login\"></form>",
+            null,
             GlassFailure.LoginRedirect,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "POST /login/index",
-            new(HttpStatusCode.Found, string.Empty, Location: "https://attacker.test/index"),
+            (int)HttpStatusCode.Found,
+            string.Empty,
+            "https://attacker.test/index",
             GlassFailure.LoginRedirect,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "GET /index",
-            new(HttpStatusCode.OK, "<form name=\"Form_Login\">stocklistGrid</form>"),
+            (int)HttpStatusCode.OK,
+            "<form name=\"Form_Login\">stocklistGrid</form>",
+            null,
             GlassFailure.LoginLanding,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1",
-            new(HttpStatusCode.OK, "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}"),
+            (int)HttpStatusCode.OK,
+            "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}",
+            null,
             GlassFailure.LookupUnavailable,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "GET /three-phase-vehicle/get-vehicles",
-            new(HttpStatusCode.OK, "{\"success\":false,\"html\":\"\"}"),
+            (int)HttpStatusCode.OK,
+            "{\"success\":false,\"html\":\"\"}",
+            null,
             GlassFailure.CandidatesRefused,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "GET /three-phase-vehicle/get-vehicles",
-            new(HttpStatusCode.OK, "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N/C: 999999999</div>\"}"),
+            (int)HttpStatusCode.OK,
+            "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N/C: 999999999</div>\"}",
+            null,
             GlassFailure.CandidatesNone,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "GET /three-phase-vehicle/get-vehicles",
-            new(HttpStatusCode.OK,
-                "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N/C: "
-                + NatCode + "</div><div class=\\\"three_phase_car_info car2\\\">N/C: " + NatCode + "</div>\"}"),
+            (int)HttpStatusCode.OK,
+            "{\"success\":true,\"html\":\"<div class=\\\"three_phase_car_info car1\\\">N/C: "
+                + NatCode + "</div><div class=\\\"three_phase_car_info car2\\\">N/C: " + NatCode + "</div>\"}",
+            null,
             GlassFailure.CandidatesAmbiguous,
             GlassRepairEstimateSessionState.Failed
         },
@@ -230,61 +246,79 @@ public sealed class GlassRepairEstimateGatewayTests
             // Created state may exist at Glass's, so this is uncertain and keeps
             // the account's live slot rather than being replaced.
             "GET /index/create-new-vehicle",
-            new(HttpStatusCode.OK, "\uFEFF{\"vrm\":\"ZZ99ZZZ\",\"id\":\"33584499\"}"),
+            (int)HttpStatusCode.OK,
+            "\uFEFF{\"vrm\":\"ZZ99ZZZ\",\"id\":\"33584499\"}",
+            null,
             GlassFailure.VehicleIdentity,
             GlassRepairEstimateSessionState.Unknown
         },
         {
             "GET /index/create-new-vehicle",
-            new(HttpStatusCode.OK, "\uFEFF{\"vrm\":\"" + Registration + "\",\"id\":\"0\"}"),
+            (int)HttpStatusCode.OK,
+            "\uFEFF{\"vrm\":\"" + Registration + "\",\"id\":\"0\"}",
+            null,
             GlassFailure.VehicleIdentity,
             GlassRepairEstimateSessionState.Unknown
         },
         {
             "GET /index/vehicle-details-value/",
-            new(HttpStatusCode.OK, "<div>profile 9999 natcode " + NatCode + "</div>"),
+            (int)HttpStatusCode.OK,
+            "<div>profile 9999 natcode " + NatCode + "</div>",
+            null,
             GlassFailure.DetailsProfile,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "GET /index/get-selected-vehicle-count/grid/stocklistGrid",
-            new(HttpStatusCode.OK, "{\"grid\":\"stocklistGrid\",\"error\":false,\"count\":\"2\"}"),
+            (int)HttpStatusCode.OK,
+            "{\"grid\":\"stocklistGrid\",\"error\":false,\"count\":\"2\"}",
+            null,
             GlassFailure.SelectCount,
             GlassRepairEstimateSessionState.Failed
         },
         {
             "POST /ere/start-ere",
-            new(HttpStatusCode.OK, "{\"message\":\"Profile not available\",\"status\":\"error\",\"ere_url\":\"\"}"),
+            (int)HttpStatusCode.OK,
+            "{\"message\":\"Profile not available\",\"status\":\"error\",\"ere_url\":\"\"}",
+            null,
             GlassFailure.StartStatus,
             GlassRepairEstimateSessionState.Failed
         },
         {
             // A launch URL missing one of its own segments is not rewritten.
             "POST /ere/start-ere",
-            new(HttpStatusCode.OK, StartEre(LaunchUrl().Replace(
-                "&EuComp=1005_1005_powered_by_eucomp", string.Empty, StringComparison.Ordinal))),
+            (int)HttpStatusCode.OK,
+            StartEre(LaunchUrl().Replace(
+                "&EuComp=1005_1005_powered_by_eucomp", string.Empty, StringComparison.Ordinal)),
+            null,
             GlassFailure.StartUrl,
             GlassRepairEstimateSessionState.Unknown
         },
         {
             // Two callers is ambiguous; picking one would be a guess.
             "POST /ere/start-ere",
-            new(HttpStatusCode.OK, StartEre(LaunchUrl() + "&caller=" + Uri.EscapeDataString(
-                "https://mva.test/ere/ere-callback/ere_id/9/ere_session/other"))),
+            (int)HttpStatusCode.OK,
+            StartEre(LaunchUrl() + "&caller=" + Uri.EscapeDataString(
+                "https://mva.test/ere/ere-callback/ere_id/9/ere_session/other")),
+            null,
             GlassFailure.StartUrl,
             GlassRepairEstimateSessionState.Unknown
         },
         {
             "POST /ere/start-ere",
-            new(HttpStatusCode.OK, StartEre(LaunchUrl(caller:
-                "https://attacker.test/ere/ere-callback/ere_id/1954488/ere_session/" + EreSession))),
+            (int)HttpStatusCode.OK,
+            StartEre(LaunchUrl(caller:
+                "https://attacker.test/ere/ere-callback/ere_id/1954488/ere_session/" + EreSession)),
+            null,
             GlassFailure.StartCaller,
             GlassRepairEstimateSessionState.Unknown
         },
         {
             "POST /ere/start-ere",
-            new(HttpStatusCode.OK, StartEre(LaunchUrl(caller:
-                "https://mva.test/ere/ere-callback/ere_id/1954488/ere_session/" + EreSession + "?x=1"))),
+            (int)HttpStatusCode.OK,
+            StartEre(LaunchUrl(caller:
+                "https://mva.test/ere/ere-callback/ere_id/1954488/ere_session/" + EreSession + "?x=1")),
+            null,
             GlassFailure.StartCaller,
             GlassRepairEstimateSessionState.Unknown
         },
@@ -293,10 +327,15 @@ public sealed class GlassRepairEstimateGatewayTests
     [Theory]
     [MemberData(nameof(RefusedStages))]
     public async Task AStageThatRefusesInsideAnHttp200StopsTheLaunchWhereItStopped(
-        string route, Reply reply, string expectedFailure, GlassRepairEstimateSessionState expectedState)
+        string route,
+        int statusCode,
+        string body,
+        string? location,
+        string expectedFailure,
+        GlassRepairEstimateSessionState expectedState)
     {
         var harness = Harness.Create();
-        harness.Mva.Set(route, reply);
+        harness.Mva.Set(route, new((HttpStatusCode)statusCode, body, Location: location));
 
         var session = await harness.LaunchAsync();
 
@@ -514,33 +553,35 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Custody.Retained);
     }
 
-    public static TheoryData<Reply, string> RefusedRelays() => new()
+    public static TheoryData<string, string> RefusedRelays() => new()
     {
         {
-            new(HttpStatusCode.OK, "<html><body>Session expired</body></html>"),
+            "<html><body>Session expired</body></html>",
             GlassFailure.RelayShape
         },
         {
-            new(HttpStatusCode.OK, Relay("\"1\", \"2\", 1954488, 1, \"\"")),
+            Relay("\"1\", \"2\", 1954488, 1, \"\""),
             GlassFailure.RelayShape
         },
         {
-            new(HttpStatusCode.OK, Relay("\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\", 999, 1, \"\"")),
+            Relay("\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\", 999, 1, \"\""),
             GlassFailure.RelayEstimate
         },
         {
-            new(HttpStatusCode.OK, Relay("\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\", 1954488, 0, \"\"")),
+            Relay("\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\", 1954488, 0, \"\""),
             GlassFailure.RelayOutcome
         },
     };
 
     [Theory]
     [MemberData(nameof(RefusedRelays))]
-    public async Task ARelayThatDoesNotConfirmTheSaveStopsTheSession(Reply reply, string expectedFailure)
+    public async Task ARelayThatDoesNotConfirmTheSaveStopsTheSession(
+        string body,
+        string expectedFailure)
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
-        harness.Mva.Set("GET /ere/ere-callback/", reply);
+        harness.Mva.Set("GET /ere/ere-callback/", new(HttpStatusCode.OK, body));
 
         var settled = await harness.CompleteAsync(session);
 
