@@ -552,9 +552,19 @@ public sealed class GlassRepairEstimatePersistenceTests
         var first = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
             CancellationToken.None);
+        var current = first;
+        if (importing == GlassRepairEstimateSessionState.AwaitingImport)
+        {
+            await harness.Store.SaveAsync(
+                Transition(current, GlassRepairEstimateSessionState.Importing, ereId: "ere-1"),
+                current.Session.Version,
+                CancellationToken.None);
+            current = Assert.IsType<GlassRepairEstimateSessionMaterial>(
+                await harness.Store.GetAsync(first.Session.Id, CancellationToken.None));
+        }
         await harness.Store.SaveAsync(
-            Transition(first, importing, ereId: "ere-1"),
-            first.Session.Version,
+            Transition(current, importing, ereId: "ere-1"),
+            current.Session.Version,
             CancellationToken.None);
 
         var conflict = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
