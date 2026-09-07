@@ -469,6 +469,43 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Empty(embedded.VehicleLookup.Requests);
     }
 
+    [Fact]
+    public async Task OrdinaryAnalysisWorksWithoutVehicleLookupComposition()
+    {
+        var harness = new Harness(
+            composeVehicleLookup: false,
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+
+        var result = await harness.ExecuteAsync(operationKey: "web-analysis");
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, result.Outcome);
+        Assert.Single(harness.Store.Records);
+        Assert.Equal(1, harness.Documents.Opens);
+        Assert.Equal(1, harness.SourceReader.Reads);
+    }
+
+    [Fact]
+    public async Task OcrAnalysisWithoutVehicleLookupCompositionRefusesBeforeOpeningOrWriting()
+    {
+        var harness = new Harness(
+            composeVehicleLookup: false,
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+
+        var result = await harness.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            harness.Receipt.Id,
+            harness.Receipt.Version,
+            "worker-not-composed",
+            harness.SourceAssetId,
+            OcrEvidence(SourceHash)));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+        Assert.Equal(0, harness.SourceReader.Reads);
+        Assert.Empty(harness.VehicleLookup.Requests);
+    }
+
     private static CompletedOcrEvidence OcrEvidence(string sourceHash) => new(
         sourceHash,
         [2],
@@ -555,6 +592,13 @@ public sealed class AnalyzeRetainedInstructionTests
     private sealed class Harness
     {
         public Harness(params InstructionExtractionPolicySelectorTests.StubProfilePolicy[] policies)
+            : this(true, policies)
+        {
+        }
+
+        public Harness(
+            bool composeVehicleLookup,
+            params InstructionExtractionPolicySelectorTests.StubProfilePolicy[] policies)
         {
             SourceAssetId = Guid.NewGuid();
             Receipt = BuildReceipt(SourceAssetId);
@@ -566,9 +610,9 @@ public sealed class AnalyzeRetainedInstructionTests
                 Documents,
                 SourceReader,
                 new InstructionExtractionPolicySelector(policies),
-                new VehicleRegistrationCandidateLookup(VehicleLookup),
                 Store,
-                new FixedTimeProvider(Now));
+                new FixedTimeProvider(Now),
+                composeVehicleLookup ? new VehicleRegistrationCandidateLookup(VehicleLookup) : null);
         }
 
         public Guid SourceAssetId { get; }
