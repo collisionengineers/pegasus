@@ -4,22 +4,21 @@ type: ticket
 title: 'Pegasus v1 Case engineering, Glass''s and reports'
 status: implementing
 area: case-reference-workflow
-assignee: claude-fable-b
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-09-06T05:34:15.740Z'
 taken_at: '2026-09-06T05:58:38.228Z'
 branch: task/pegasus-v1-casework
 worktree: ../pegasus-worktrees/v1-casework
-claim_expires_at: '2026-09-07T05:53:40.206Z'
-claim_controller: claude-fable-b
-lease_id: 0053a7bb-66b1-4c58-81bc-5e0bce9f026f
-lease_revision: 78
+claim_expires_at: '2026-09-07T06:12:04.180Z'
+claim_controller: codex-astra-abc
+lease_id: cb4bf945-0e59-43ad-a6ae-f73ba0679239
+lease_revision: 79
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus-worktrees\v1-casework'
-lease_provider: claude-code
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T05:23:40.206Z'
-lease_reclaimed_from: 'opencode-backup-b (user-authorized backup for claude-fable-b until 17:50Z)'
+lease_heartbeat_at: '2026-09-07T05:42:04.180Z'
+lease_reclaimed_from: claude-fable-b
 labels:
   - pegasus-v1
   - stream-b
@@ -44,7 +43,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/672'
 archived: false
 created: '2026-09-06T05:33:42.471Z'
-updated: '2026-09-07T05:23:40.206Z'
+updated: '2026-09-07T05:42:04.180Z'
 ---
 
 ## What
