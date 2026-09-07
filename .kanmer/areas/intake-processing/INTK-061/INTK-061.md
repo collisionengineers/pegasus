@@ -33,9 +33,11 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 commits:
   - 3d58d8c58fe57aac5af6091f7ebf0e0b81b5b560
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/679'
 archived: false
 created: '2026-09-07T19:58:09.516Z'
-updated: '2026-09-07T21:03:32.788Z'
+updated: '2026-09-07T21:04:17.743Z'
 ---
 
 ## What
