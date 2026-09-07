@@ -26,3 +26,22 @@ Paused at clean, pushed owner head df198034aa5b96f6eb7ca150cb3092dacee3134e. All
 Latest slice df198034a completes public session add/addressed-replace/fixed-expiry/replay-safe finalize/refusal in 8 files. Web Release build PASS 0W0E. Independent review and HTTP/store test remain required; Integration compile is held solely by missing A-owned EfCaseArtifactCustody at DocumentCustodyDurabilityTests.cs:462. Do not add a C stub.
 
 Pending A: Web/Worker Analyze composition; C05 Core projector then A typed query; exact persisted OCR-result projection accepted in PR673 comment 5563481547; current custody/mail/combined resolution. Pending B: typed report acceptance, address/Claim Source Case snapshots, formal-instruction Case entrypoint. Remaining C: all15 real Analyze integration proof; C05 projector/OCR replay/report path; C06 fresh snapshots and repairer path; C07 promotion/link and public-session review; C08 Triage chaser and Create route; C09 full matrices/review/gates/combined stop. PRs 672/673/674 open and unmerged. No deployment/live writes/send.
+
+## 2026-09-07 Checkpoint — C07, C08, and C03 Completion (head `ee60b1217`)
+
+Owner head `task/pegasus-v1-intake` pushed to `ee60b1217` on `origin` with clean working tree. All 3 prioritized areas verified against real SQL Server and delivered in clean commits:
+
+1. **C07: Admission Reservation & Single Successor (commit `70714326d`)**:
+   - `EfDocumentRequestStore`: Prospective arrivals (`ArrivedCode`) reserve capacity under the link serialization lock; un-exhausts link if capacity freed; single successor enforced (`addressed.SupersededByOccurrenceId is null || addressed.SupersededByOccurrenceId == arrival?.Id`).
+   - `PublicUploadRetentionWebTests`: 3 real-SQL barrier tests added (`TwoSimultaneousSubmissionsAtFileCountLimitPermitOnlyOneCustodyInitiation`, `TwoSimultaneousSubmissionsAtByteCountLimitPermitOnlyOneCustodyInitiation`, `TwoSimultaneousReplacementsOfOnePredecessorPermitOnlyOneCurrentSuccessor`) — 4/4 PASS.
+2. **C08: Triage Chaser Reconciliation & Context Binding (commit `72413fffb`)**:
+   - `StaffMailSend`: Extended `StaffMailOperation` record with `Purpose`, `ContextId`, `ExpectedContextVersion`, `OriginalRetainedMessageId`.
+   - `Details.cshtml.cs`: `OnPostReconcileChaserAsync` validates triage is Mailbox origin, loads retained mail, loads operation and validates `Purpose == TriageChaser`, `ContextId == triage.Id`, `OriginalRetainedMessageId == detail.Summary.Id`, and concurrency check on `ExpectedContextVersion == triage.Version`.
+   - `TriageChaserWebTests`: 7/7 PASS against real SQL Server.
+3. **C03: OCR UpdateAsync Paired-Row Invariant (commit `ee60b1217`)**:
+   - `EfIntakeOcrOperationStore`: Injected `TimeProvider`; removed fabricated fallback in `BeginAsync`; enforced non-null paired `ExternalWorkItemEntity` in `BeginAsync` and `UpdateAsync`; verified fail-closed `InvalidOperationException` behavior; all 33 OCR tests (+3 skip) PASS.
+4. **Validation & Delivery Gates**:
+   - `Pegasus.Core.Tests`: 1569 PASS, 0 FAIL.
+   - `Test-UiCatalogue.ps1`: valid (57 routed sources, 61 prototypes, 0 broken).
+   - `Test-MigrationGrants.ps1`: 99 migration files checked, all granted/exempted.
+   - No deployment, no live provider writes, no mail sends. PR 673 remains open/unmerged targeting `dev`.
