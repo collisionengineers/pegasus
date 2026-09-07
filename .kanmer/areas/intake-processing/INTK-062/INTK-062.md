@@ -2,10 +2,12 @@
 id: INTK-062
 type: ticket
 title: Bound public upload bodies before multipart buffering
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T21:24:37.487Z'
 labels: []
 groups:
   - EPIC-014
@@ -15,7 +17,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-09-07T20:01:20.291Z'
-updated: '2026-09-07T20:01:20.291Z'
+updated: '2026-09-07T21:24:37.487Z'
 ---
 
 ## What
