@@ -810,3 +810,35 @@ integrated clauses and implement only the remaining gap.
 ## Stop condition
 
 All assigned implementation, independent review, standalone and combined checks are complete; exactly three replacement PRs target dev, open and unmerged. No merge, deployment, reset or live provider write. External provider/workload evidence remains honestly named operator gates, never fabricated PASS.
+
+## Consolidated closeout under operator authority
+
+The operator has moved all A/B/C operations and remaining scope to this host
+and controller. This closeout uses the scoped procedure now recorded in
+AGENTS.md: merge the frozen B and C source-owner histories into A, compare
+the resulting source tree with the combined validation tree, then advance
+B/C only by strict fast-forward to the reviewed common source head. Never
+merge the verification branch into a source branch, rewrite history, add a
+temporary compatibility path, create a fourth implementation PR, or merge
+main. This supersedes the original cross-stream source-merge prohibition
+for this consolidated closeout only.
+
+Frozen source inputs were A dfb0d3f0bcc56a3b5aad44c50518961ffc6344e9,
+B 83e875022a1f732af3bbbb2c60f431cd2323bfa6, and
+C 5eb00580263773ac20cdbbe4b20771995a7cc8b4. A source merge
+b32eaf14d83fb87b25845e88b865efe8c2a0441d contains all three histories.
+Its only tree differences from validation commit
+543dbbd5841736258ec38231bf0501c506f0620a are the AGENTS.md and NOW.md
+closeout procedure records. The recorded conflict resolutions preserve
+the already-validated Glass composition, OCR poison handling, current
+snapshot fixtures and scoped typed callers. Later fixes and captures must
+receive their own current-head checks; this checkpoint is not a final PASS.
+
+Keep each ticket's original file/scope manifest and independent review.
+The existing three PRs remain review vehicles for their scopes even when
+they share the final source head. One normal GitHub merge of that head
+into dev contains every owner commit. Verify the other PRs' actual GitHub
+state and report containment honestly rather than inventing separate merges.
+Verify the exact resulting dev commit, then open dev to main and leave it
+unmerged. All cloud/deployment/provider/mail/Outlook/Box write prohibitions
+remain unchanged.
