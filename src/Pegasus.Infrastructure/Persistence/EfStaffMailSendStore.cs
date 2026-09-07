@@ -417,7 +417,7 @@ internal sealed class EfStaffMailSendStore(
                     .ThenBy(value => value.Sha256, StringComparer.Ordinal)
                     .ToArray();
                 var actual = generated
-                    .Select(value => (value.VersionId, value.Sha256))
+                    .Select(value => (VersionId: (Guid?)value.VersionId, value.Sha256))
                     .OrderBy(value => value.VersionId)
                     .ThenBy(value => value.Sha256, StringComparer.Ordinal)
                     .ToArray();
