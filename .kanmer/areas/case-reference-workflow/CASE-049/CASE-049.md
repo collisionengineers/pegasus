@@ -2,10 +2,12 @@
 id: CASE-049
 type: ticket
 title: Make native engineer handoff the review action without an EVA prerequisite
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-07T23:13:19.040Z'
 labels: []
 groups:
   - EPIC-014
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-07T23:11:41.757Z'
-updated: '2026-09-07T23:11:41.757Z'
+updated: '2026-09-07T23:13:19.040Z'
 ---
 
 ## What
