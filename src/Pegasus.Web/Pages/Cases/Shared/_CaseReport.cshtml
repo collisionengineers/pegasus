@@ -1,19 +1,13 @@
-@using System.Globalization
 @using Pegasus.Core.Assessment
-@using Pegasus.Core.Documents
 @using Pegasus.Core.Reports
+@using Pegasus.Web.Pages.Cases
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @using ReportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery
-@using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
     var generation = Model.CurrentReportGeneration;
     var preparation = Model.CurrentDeliveryPreparation;
-    // The prepared cards name the file each one is, read through the one
-    // owner of "which of a case's documents are live files".
-    var fileNames = CaseFiles.Live(Model.Case!.Documents)
-        .ToDictionary(file => file.Occurrence.Id, file => file.Version.FileName);
 }
 
 <section class="panel" aria-labelledby="section-report-title">
@@ -147,29 +141,16 @@
                 </form>
             }
         }
-        @* B06: the prepared images exactly as the report will use them —
-           Close-up, Overview, then Supporting in order, Not used omitted.
-           Files renders the same loaded set, so a card here and a card there
-           can never state different preparation for one image. *@
+        @* B06/B08: the prepared images exactly as the report will use them —
+           Close-up, Overview, then Supporting in order, Not used omitted —
+           and, in edit mode, the same preparation controls the Files section
+           offers, from the one shared partial. A card here and a card there
+           can never state different preparation, or offer a different
+           control, for one image. *@
         @if (Model.PreparedReportImages.Count > 0)
         {
-            <div class="report-images">
-                @foreach (var image in Model.PreparedReportImages)
-                {
-                    <article class="report-image" data-report-image="@image.OccurrenceId">
-                        <h3>@(fileNames.GetValueOrDefault(image.OccurrenceId) ?? Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue)</h3>
-                        <dl class="detail-list">
-                            <div><dt>@ReportImageLabels.Role</dt><dd>@ReportImageLabels.RoleLabel(image.Role)</dd></div>
-                            @if (image.Role == CaseAssetReportRole.Supporting)
-                            {
-                                <div><dt>@ReportImageLabels.Order</dt><dd>@(image.Order?.ToString(CultureInfo.InvariantCulture) ?? Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-                            }
-                            <div><dt>@ReportImageLabels.Rotation</dt><dd>@ReportImageLabels.RotationLabel(image.Rotation)</dd></div>
-                            <div><dt>@ReportImageLabels.Crop</dt><dd>@ReportImageLabels.CropLabel(image.Crop)</dd></div>
-                        </dl>
-                    </article>
-                }
-            </div>
+            <partial name="Cases/Shared/_CaseReportImagePreparation"
+                     model="ReportImagePreparationView.Report(Model)" />
         }
         <dl class="detail-list">
             <div><dt>@EngineerLabels.EngineersComments</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.EngineersComments)</dd></div>
