@@ -18,6 +18,8 @@
 | tests/Pegasus.IntegrationTests/OrganizationAdministrationPersistenceTests.cs | Atomic name/code uniqueness and replay. |
 | tests/Pegasus.IntegrationTests/PrincipalCredentialPersistenceTests.cs | Updated existing creation caller. |
 | tests/Pegasus.IntegrationTests/ProviderApiSubmissionTests.cs | Updated existing creation caller. |
+| tests/Pegasus.IntegrationTests/Browser/AccessibilityTests.cs | Retired route removed from HTTP-200 browser inventory; current Principal entries retained. |
+| tests/Pegasus.IntegrationTests/Browser/QdosAllocationRecoveryBrowserTests.cs | Existing recovery scenario creates the single Name/Code customer; preserves all scenario assertions. |
 | tests/Pegasus.IntegrationTests/TestUiSnapshotTests.cs | Remove retired route states if catalogue requires it. |
 | docs/frd/frd-04-parties-accounts-and-access.md | Current single customer behavior, no hierarchy. |
 | docs/design/README.md | Principal-only administration wording. |
@@ -44,3 +46,7 @@ Live pegasustest creation, live credential issuance, sending mail, intake alloca
 ## Superseded API removal (root disposition, 2026-09-07)
 
 The completed source-caller audit finds IListOrganizations, IGetOrganization, ICreateOrganization and IUpdateOrganizationRoles only in DI/declarations/implementations; remaining consumers are old tests. Remove these registrations, request/projection/use-case contracts and unused EF methods, plus dead helpers used only by them, in the already-listed CaseContracts, OrganizationAdministration, EfOrganizationAdministration and DependencyInjection files. Preserve Organization/OrganizationRole persistence and helpers still needed by atomic Principal creation, same-customer replacement and the real OrganizationDirectory owner. Replace obsolete API-only test assertions with new Principal creation/concurrency/detail coverage in the already-listed Core and persistence suites. No new file or schema is required. Root asked for this cleanup as removal of the replaced path; no compatibility API remains. Keep the existing no-build/test/capture stop condition.
+
+## Remediation round 1 — F-001
+
+Independent review at539aa4684d6dba1964c8fa594d2d2a0e3e3489b6 found two missed browser consumers. Root explicitly authorises only their correction on the same worktree/PR680. Remove the retired Organizations URL from AccessibilityTests inventory, retaining Principals/Create. In FailedAllocationShowsSafeRecoveryWithoutRawIdentifiers replace the parent-organization setup with /Administration/Principals/Create, Name, Code, Create principal. Preserve authorization, keyboard retry, immutable destination and exact replay assertions. Correct the report's overstated zero-caller claim; original review and evidence remain. No product/UI/snapshot change, build or test by worker. Freeze for root's targeted browser checks before pushing the same PR.
