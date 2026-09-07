@@ -429,10 +429,10 @@ public sealed class QdosIntakeWebTests
 
         Assert.Equal(new IntakeQueueCounts(1, 0), counts);
         Assert.Matches(
-            "(?s)data-value=\"unidentified\".*?<span class=\"metric-value\">1</span>",
+            "(?s)data-value=\"unidentified\"(?:(?!</a>).)*?<span class=\"metric-value\">1</span>",
             dashboard);
         Assert.Matches(
-            "(?s)data-value=\"blocked\".*?<span class=\"metric-value\">0</span>",
+            "(?s)data-value=\"blocked\"(?:(?!</a>).)*?<span class=\"metric-value\">0</span>",
             dashboard);
         var sortingItem = Assert.Single(sortingQueue.Items);
         Assert.Equal(IntakeDecision.NeedsSorting, sortingItem.Decision);
