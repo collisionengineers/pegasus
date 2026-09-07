@@ -1,7 +1,6 @@
 ﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Tests.Vehicle;
@@ -266,9 +265,8 @@ public sealed class VehicleWorkflowTests
         var custody = new RecordingCustodyProcessor();
         var vehicle = new RecordingVehicleProcessor();
         var eva = new RecordingEvaProcessor();
-        var ocr = new RecordingOcrProcessor();
         var reader = new MutableExternalWorkReader(new(workId, ExternalWorkKinds.VehicleLookup));
-        var dispatcher = new ProcessQueuedExternalWork(reader, custody, vehicle, eva, ocr);
+        var dispatcher = new ProcessQueuedExternalWork(reader, custody, vehicle, eva);
 
         await dispatcher.ExecuteAsync(workId, CancellationToken.None);
         Assert.Empty(custody.ProcessedIds);
@@ -282,25 +280,12 @@ public sealed class VehicleWorkflowTests
         Assert.Equal([workId], vehicle.ProcessedIds);
         Assert.Equal([workId], eva.ProcessedIds);
 
-        reader.Work = new(workId, ExternalWorkKinds.IntakeOcr);
-        await dispatcher.ExecuteAsync(workId, CancellationToken.None);
-        Assert.Empty(custody.ProcessedIds);
-        Assert.Equal([workId], vehicle.ProcessedIds);
-        Assert.Equal([workId], eva.ProcessedIds);
-        Assert.Equal([workId], ocr.ProcessedIds);
-
         reader.Work = new(workId, "not_registered");
         await Assert.ThrowsAsync<UnknownExternalWorkKindException>(() =>
             dispatcher.ExecuteAsync(workId, CancellationToken.None));
         Assert.Empty(custody.ProcessedIds);
         Assert.Equal([workId], vehicle.ProcessedIds);
         Assert.Equal([workId], eva.ProcessedIds);
-        Assert.Equal([workId], ocr.ProcessedIds);
-
-        var dispatcherWithoutOcr = new ProcessQueuedExternalWork(reader, custody, vehicle, eva);
-        reader.Work = new(workId, ExternalWorkKinds.IntakeOcr);
-        await Assert.ThrowsAsync<UnknownExternalWorkKindException>(() =>
-            dispatcherWithoutOcr.ExecuteAsync(workId, CancellationToken.None));
     }
 
     public static TheoryData<VehicleLookupResult, int, VehicleLookupWorkState> QueueOutcomes()
@@ -521,17 +506,6 @@ public sealed class VehicleWorkflowTests
     }
 
     private sealed class RecordingEvaProcessor : IProcessQueuedEvaSubmission
-    {
-        public List<Guid> ProcessedIds { get; } = [];
-
-        public Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
-        {
-            ProcessedIds.Add(workItemId);
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class RecordingOcrProcessor : IProcessIntakeOcr
     {
         public List<Guid> ProcessedIds { get; } = [];
 
