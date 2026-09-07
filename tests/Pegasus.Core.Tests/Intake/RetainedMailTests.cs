@@ -361,6 +361,42 @@ public sealed class RetainedMailTests
                 Caseworker(),
                 Guid.Empty,
                 CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore())
+                .ExecuteByOriginReceiptAsync(
+                    ActionActor.RequestLink(Guid.NewGuid()),
+                    Guid.NewGuid(),
+                    CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore())
+                .ExecuteByOriginReceiptAsync(
+                    Caseworker(),
+                    Guid.Empty,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetByOriginReceiptUsesTheAuthorizedReceiptLookup()
+    {
+        var originReceiptId = Guid.NewGuid();
+        var queries = new Queries
+        {
+            DetailToReturn = Detail(
+                "mailbox-a",
+                new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1),
+                    "system-worker:poll", NowUtc, []))
+        };
+
+        var result = await new GetRetainedMail(
+            queries,
+            new NoStaffAccounts(),
+            new MailboxStore()).ExecuteByOriginReceiptAsync(
+                Caseworker(),
+                originReceiptId,
+                CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(originReceiptId, queries.OriginReceiptId);
     }
 
     [Fact]
@@ -740,6 +776,8 @@ public sealed class RetainedMailTests
 
         internal RetainedMailDetail? DetailToReturn { get; set; }
 
+        internal Guid? OriginReceiptId { get; private set; }
+
         public Task<RetainedMailPage> ListAsync(
             MailWorkspaceScope scope,
             int page,
@@ -771,6 +809,14 @@ public sealed class RetainedMailTests
             CancellationToken cancellationToken,
             string? searchTerm = null) =>
             Task.FromResult(DetailToReturn);
+
+        public Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+            Guid originReceiptId,
+            CancellationToken cancellationToken)
+        {
+            OriginReceiptId = originReceiptId;
+            return Task.FromResult(DetailToReturn);
+        }
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>
