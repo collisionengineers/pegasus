@@ -11,3 +11,11 @@ Independent simplification disposition requested from root: old organization adm
 ## 2026-09-07 root simplification disposition implemented
 
 Obsolete IListOrganizations/IGetOrganization/ICreateOrganization/IUpdateOrganizationRoles APIs and registrations removed, including API-only request/projection/EF code and tests. Current same-customer replacement is enforced by Core and has no SuccessorOrganizationId input. Organization and OrganizationRole persistence and real directory code are untouched. Core normalization and new Principal concurrent replay/detail tests replace obsolete organization API tests. Source frozen again at 20:41 UTC; same worktree/branch, still uncommitted; no builds/tests/captures run. git diff --check exit 0; zero obsolete API symbols found under src/tests. Root notified; post-implementation report/checklist authored, runtime verification intentionally pending.
+
+## 2026-09-07 PR/Review handoff
+
+Root supplied focused passing checks and scoped snapshots, then authorised commit/push/PR after INTK-061 merge. Commit 539aa4684d6dba1964c8fa594d2d2a0e3e3489b6 is pushed; https://github.com/collisionengineers/pegasus/pull/680 is OPEN to dev at that exact head. After a ticket revision conflict, live state and gates were reread; the ticket moved Implementing to Review at 21:19:29 UTC. Whole report 8f0858a7084ed0ea and checklist 493424b181919405 retain root evidence and unverified visual inspection (browser file URL blocked). No duplicate tests or self-review/merge performed. Worktree .worktrees/plat-028 on PLAT-028-principal-customer remains clean and retained. Final integrated CI/packaging and post-merge proof remain root-owned.
+
+## Transitions
+
+- 2026-09-07T21:19:45.186Z lease-phase implementing → review (lease 898e963f-db89-4b9c-830b-c8faf286e861 rev 8; expires 2026-09-07T21:49:45.171Z)
