@@ -2,13 +2,14 @@
 id: INTK-060
 type: ticket
 title: 'Pegasus v1 intake, principals and operator shell'
-status: review
+status: verifying
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-09-06T05:34:15.786Z'
   review: '2026-09-07T14:21:46.788Z'
+  verifying: '2026-09-07T14:30:40.951Z'
 taken_at: '2026-09-06T05:55:51.417Z'
 branch: task/pegasus-v1-intake
 worktree: ../pegasus-worktrees/v1-intake
@@ -31,9 +32,13 @@ commits:
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/674'
   - 'https://github.com/collisionengineers/pegasus/pull/673'
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 3da60bd0c270111d5168dc17246dc831882108ea
+delivery_recorded_at: '2026-09-07T14:30:41.410Z'
 archived: false
 created: '2026-09-06T05:33:42.519Z'
-updated: '2026-09-07T14:21:46.788Z'
+updated: '2026-09-07T14:30:41.410Z'
 ---
 
 ## What
@@ -50,4 +55,7 @@ Complete the stream plan and mapped residual acceptance; exact-head independent 
 
 ## Outcome
 
-PR #673 was closed as superseded, not merged, on 7 September 2026 after all three stream heads were verified identical at a3769c1ac3f98cc5300da8bdb4504d7c3995aa35. PR #674 is the sole integration PR. Original branches and histories are preserved. Integration, final review and proof remain outstanding.
+PR #673 was closed as superseded, not merged, on 7 September 2026 after all three stream heads were verified identical at a3769c1ac3f98cc5300da8bdb4504d7c3995aa35. PR #674 is the sole integration PR. Original branches and histories are preserved. This was the pre-integration state; see the final outcome below.
+
+
+Integrated through PR #674 into dev at 3da60bd0c270111d5168dc17246dc831882108ea on 7 September 2026. All three independent review records were bound and pushed before merge. The merged tree is identical to reviewed head fbbcff265ffb0c84df8be85b704be1d507951802 (git diff --exit-code: 0); existing main history is contained (git merge-base --is-ancestor: 0). PR #675 is open from dev to main, unmerged, with auto-merge disabled. Operator explicitly waived unfinished CI 34131467006; cancelled checks are not PASS. Full merged-head verification is not claimed; retain Verifying. Six scan-only MP corpus cases and live provider/runtime acceptance retain their separately recorded release dispositions. No deployment was performed.
