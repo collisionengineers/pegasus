@@ -1,18 +1,18 @@
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Intake;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
 public sealed partial class QdosTriageIntegrationTests
 {
-    private const string GenuineTriageRequestHash =
-        "1c06ecfce12e08e76e38f6a690e004d6e063a4f415b001f92069cd38f53dd9a2";
     private const string GenuineFormalInstructionHash =
-        "2a74ab47ff8100786bb1c7a23d49a30cdaf6ca4ae824648d7e2398f704e026dc";
+        "3063ff9ecb31878f582fb439047d999a41a7c6fe5b978cfbee5c7e7f277553b4";
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
@@ -182,25 +182,13 @@ public sealed partial class QdosTriageIntegrationTests
     public async Task IncomingFormalInstructionSharingVrmAndPrincipalWithOpenTriageDoesNotAutoLinkOrCloseTriage()
     {
         var mappingRoot = Path.Combine(QdosCorpus.Root, "qdosmapping");
-        var triageFileName =
-            "Engineer Triage - Our Claim Reference 46384_1 , Vehicle Registration YD14VGJ.eml";
         var instructionFileName =
-            "(EREF12) RTA on 25_06_2026  Mr Liam Kinnear (Our Ref KAD__46384_1, Vehicle YD14VGJ).eml";
-        var triageBytes = await File.ReadAllBytesAsync(
-            Path.Combine(mappingRoot, triageFileName));
+            "(EREF10) RTA on 14_08_2026  Mr Paul Larcombe (Our Ref AMA_47857_1, Vehicle PG18 BTY).eml";
         var instructionBytes = await File.ReadAllBytesAsync(
             Path.Combine(mappingRoot, instructionFileName));
         Assert.Equal(
-            GenuineTriageRequestHash,
-            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(triageBytes)));
-        Assert.Equal(
             GenuineFormalInstructionHash,
             Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(instructionBytes)));
-        var triageRequest = new GenuineCorpusSample(
-            GenuineTriageRequestHash,
-            triageFileName,
-            "message/rfc822",
-            triageBytes);
         var formalInstruction = new GenuineCorpusSample(
             GenuineFormalInstructionHash,
             instructionFileName,
@@ -210,24 +198,92 @@ public sealed partial class QdosTriageIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var triageUpload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            triageRequest);
-        var triageReceiptId = IntakeWebDriver.ReceiptId(triageUpload);
-
-        string normalizedVrm;
+        // Arrange the pre-existing Triage at its real Core creation boundary.
+        // Its VRM, principal and source identity come from the same genuine
+        // instruction that the production intake path processes below; only
+        // the already-open Triage state is test setup.
+        var receivedAtUtc = new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero);
+        var sourceIdentity = new IntakeSourceIdentity(
+            IntakeSourceChannel.Mailbox,
+            $"triage-association-arrangement:{Guid.NewGuid():N}");
+        var readResult = await new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System)
+            .ReadAsync(
+                new(
+                    instructionFileName,
+                    "message/rfc822",
+                    instructionBytes,
+                    receivedAtUtc,
+                    "qdos-triage-association",
+                    sourceIdentity),
+                CancellationToken.None);
+        Assert.Equal(IntakeSourceReadStatus.Readable, readResult.Status);
+        var route = new QdosMailRoutePolicy().Evaluate(readResult);
+        Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
+        var extracted = new QdosInstructionExtractionPolicy().Extract(
+            readResult,
+            receivedAtUtc,
+            new(
+                QdosInstructionExtractionPolicy.SupportedPrincipalCode,
+                QdosMailRoutePolicy.Key,
+                QdosMailRoutePolicy.Version));
+        var draft = Assert.IsType<InstructionDraft>(extracted.InstructionDraft);
+        var normalizedVrm = Assert.IsType<string>(draft.VehicleRegistration);
+        Assert.Equal(QdosInstructionExtractionPolicy.SupportedPrincipalCode, draft.SuggestedPrincipalCode);
+        Assert.Equal(
+            CaseType.Inspection,
+            new QdosMailClassificationPolicy().Classify(readResult).CaseType);
+        var acceptedMatch = new IntakeEvidence(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            normalizedVrm,
+            "The pre-existing Triage state is arranged at the production Core boundary.",
+            "triage-association-arrangement",
+            1);
+        Guid triageId;
+        long initialVersion;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var receipt = Assert.IsType<IntakeReceipt>(
-                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                    .GetAsync(triageReceiptId, CancellationToken.None));
-            normalizedVrm = Assert.IsType<string>(receipt.InstructionDraft?.VehicleRegistration);
+            var services = scope.ServiceProvider;
+            var receipt = await services.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+                new(
+                    instructionFileName,
+                    "message/rfc822",
+                    instructionBytes.LongLength,
+                    GenuineFormalInstructionHash,
+                    sourceIdentity,
+                    receivedAtUtc,
+                    receivedAtUtc,
+                    "qdos-triage-association",
+                    IntakeDecision.NeedsSorting,
+                    "Pre-existing Triage arrangement.",
+                    [acceptedMatch],
+                    [],
+                    draft,
+                    [],
+                    null,
+                    null,
+                    readResult.ReaderKey,
+                    readResult.ReaderVersion,
+                    QdosInstructionExtractionPolicy.Key,
+                    QdosInstructionExtractionPolicy.Version),
+                CancellationToken.None);
+            var evaluationId = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(
+                factory.Services,
+                receipt.Id);
+            var triage = await services.GetRequiredService<ICreateTriageFromIntake>().ExecuteAsync(
+                new(
+                    new(receipt.Id, sourceIdentity, GenuineFormalInstructionHash, evaluationId),
+                    normalizedVrm,
+                    acceptedMatch,
+                    ActionActor.SystemWorker("test-worker"),
+                    $"triage-association-arrangement:{receipt.Id:N}"),
+                CancellationToken.None);
+            triageId = triage.Id;
+            initialVersion = triage.Version;
         }
 
-        var initialTriage = await GetOnlyTriageAsync(factory.Services);
-        var triageId = initialTriage.Record.Id;
-        var initialVersion = initialTriage.Record.Version;
+        var initialTriage = await GetTriageAsync(factory.Services, triageId);
 
         Assert.Equal(TriageState.Open, initialTriage.Record.State);
         Assert.Null(initialTriage.Record.LinkedCaseId);
