@@ -154,6 +154,15 @@ internal sealed record WordPiece(
     bool IsUnicode,
     ushort PropertyModifier);
 
+/// <summary>
+/// One table cell a story's own character stream states, in the order it was
+/// written. <c>Table</c> is 1 for every cell a story carries: a binary Word
+/// story records no table boundary in its text, so the rows are numbered
+/// consecutively within the one table the locator can honestly name - the same
+/// shape the RTF branch reports.
+/// </summary>
+internal sealed record WordTableCell(int Table, int Row, int Column, string Text);
+
 internal sealed record WordTextSegment(
     WordTextSegmentKind Kind,
     string Text,
@@ -169,7 +178,8 @@ internal sealed record WordStory(
     WordStoryKind Kind,
     uint GlobalCpStart,
     uint GlobalCpEnd,
-    ImmutableArray<WordTextSegment> Segments)
+    ImmutableArray<WordTextSegment> Segments,
+    ImmutableArray<WordTableCell> TableCells)
 {
     public string Text
     {
