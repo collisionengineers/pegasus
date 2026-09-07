@@ -195,3 +195,13 @@ FullyQualifiedName~GlassRepairEstimateGatewayTests.ResumedFreshWritesRequireCurr
 Stop before commit/push or returning Review until root supplies exact runtime
 evidence. Later commit must update this existing PR, not create another one;
 record its new SHA here. No self-review, merge or deployment.
+
+## Round-1 compiler feedback
+
+Root correction build 1 FAIL, exit 1, 21.70 s: CA1068 on
+GlassMvaClient.ReadAsync requires CancellationToken to be the final parameter.
+Author reordered outcomeUnknown before CancellationToken in the private
+signature and its two callers only; behavior and tests are unchanged.
+Author git diff --check PASS, exit 0 (CRLF warnings only). Candidate frozen
+for root incremental build and the same ten-case correction cohort. No author
+build or test run, and the failed attempt remains recorded.
