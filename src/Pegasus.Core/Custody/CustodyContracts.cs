@@ -725,14 +725,14 @@ public interface ICaseArtifactCustody
 }
 
 /// <summary>
-/// Reads the durable state of an exact Case artifact version. A pending result
+/// Reads the durable state of an exact Case artifact occurrence and version. A pending result
 /// retains its logical identities so callers can retry after process restart.
 /// This is custody state, not report readiness or permission to send.
 /// </summary>
 public interface ICaseArtifactCustodyStatus
 {
     Task<CaseArtifactCustodyResult> GetAsync(
-        ActionActor actor, Guid caseId, Guid documentId, Guid versionId,
+        ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
         CancellationToken cancellationToken);
 
     /// <summary>
