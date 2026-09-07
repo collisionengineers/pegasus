@@ -708,6 +708,76 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
+    public async Task CompareEstimatesShowsCanonicalTotalsForEveryPersistedEstimate()
+    {
+        var caseId = Guid.NewGuid();
+        var draftBase = DraftSpecification(caseId);
+        var draft = draftBase with
+        {
+            Details = draftBase.Details with { Name = "Repairer draft" },
+        };
+        var currentBase = DraftSpecification(caseId);
+        var current = currentBase with
+        {
+            SpecificationId = Guid.NewGuid(),
+            Version = 2,
+            State = RepairSpecificationState.Accepted,
+            Lines = [currentBase.Lines.Single() with { Price = 100.01m }],
+            Details = currentBase.Details with { Name = "Engineer current" },
+            IsCurrent = true,
+        };
+        var store = new RecordingStores(caseId)
+        {
+            CurrentDraft = draft,
+            CurrentAccepted = current,
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}&dialog=compare-estimates");
+
+        var start = html.IndexOf("data-dialog=\"compare-estimates-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start);
+        var dialog = html[start..end];
+        Assert.Contains("<h2 id=\"compare-estimates-dialog-title\" tabindex=\"-1\">Compare estimates</h2>", dialog, StringComparison.Ordinal);
+        Assert.Contains("Repairer draft", dialog, StringComparison.Ordinal);
+        Assert.Contains("Engineer current &#xB7; Current", dialog, StringComparison.Ordinal);
+        Assert.Contains(">Draft</td>", dialog, StringComparison.Ordinal);
+        Assert.Contains(">Accepted</td>", dialog, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;620.20", dialog, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;124.04", dialog, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;744.24", dialog, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;100.01", dialog, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;20.00", dialog, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;120.01", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("Savings", dialog, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Difference", dialog, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CompareEstimatesIsUnavailableUntilTwoEstimatesExist()
+    {
+        var caseId = Guid.NewGuid();
+        var draft = DraftSpecification(caseId);
+        var store = new RecordingStores(caseId) { CurrentDraft = draft };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}&dialog=compare-estimates");
+
+        Assert.DoesNotContain("compare-estimates-dialog", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Compare</", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DuplicateEstimatePostsToTheNamedEstimateUseCase()
     {
         var caseId = Guid.NewGuid();

@@ -196,6 +196,16 @@
                                         </button>
                                     </form>
                                 }
+                                @if (Model.Estimates.Count >= 2)
+                                {
+                                    <a class="btn" asp-page="/Cases/Details"
+                                       asp-route-id="@caseId" asp-route-section="estimate"
+                                       asp-route-estimate="@estimate?.SpecificationId"
+                                       asp-route-dialog="compare-estimates"
+                                       data-dialog-open="compare-estimates-dialog">
+                                        <span>@EngineerLabels.Compare</span>
+                                    </a>
+                                }
                                 @if (Model.SelectedEstimateCanBeCurrent && estimate is not null
                                      && Model.UseEstimateCondition is null)
                                 {
@@ -441,6 +451,53 @@
                     <button type="submit" class="btn btn--dark">@EngineerLabels.ImportEstimate</button>
                 </div>
             </form>
+        </section>
+    </div>
+}
+
+@if (Model.Estimates.Count >= 2)
+{
+    <div class="dialog-backdrop" data-dialog="compare-estimates-dialog"
+         hidden="@(Model.OpenDialog == "compare-estimates" ? null : "hidden")">
+        <section class="dialog dialog--wide" role="dialog" aria-modal="true"
+                 aria-labelledby="compare-estimates-dialog-title">
+            <div class="dialog-head">
+                <h2 id="compare-estimates-dialog-title" tabindex="-1">@EngineerLabels.CompareEstimates</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">@EngineerLabels.Estimate</th>
+                                <th scope="col">@EngineerLabels.State</th>
+                                <th scope="col" class="num">@TotalsLabels.Net</th>
+                                <th scope="col" class="num">@EngineerLabels.Vat</th>
+                                <th scope="col" class="num">@TotalsLabels.Gross</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var compared in Model.Estimates)
+                            {
+                                var comparedTotals = EstimateTotals.Compute(compared).Printed;
+                                <tr>
+                                    <td>@compared.Details.Name@(compared.IsCurrent ? $" · {EngineerLabels.Current}" : null)</td>
+                                    <td>@EngineerLabels.EstimateState(compared.State)</td>
+                                    <td class="num">@comparedTotals.Net.ToString("C2", CultureInfo.GetCultureInfo("en-GB"))</td>
+                                    <td class="num">@comparedTotals.Vat.ToString("C2", CultureInfo.GetCultureInfo("en-GB"))</td>
+                                    <td class="num">@comparedTotals.Gross.ToString("C2", CultureInfo.GetCultureInfo("en-GB"))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>@EngineerLabels.CloseDialog</button>
+            </div>
         </section>
     </div>
 }
