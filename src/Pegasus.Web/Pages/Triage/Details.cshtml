@@ -419,6 +419,76 @@
             </section>
         }
 
+        @if (Model.RetainedMail is not null)
+        {
+            <section class="panel section-gap" aria-labelledby="triage-chaser-title">
+                <div class="panel-head"><h2 id="triage-chaser-title">Chaser correspondence</h2></div>
+                <div class="panel-body stack">
+                    @if (Model.ChaserOperation is { } chaserOp)
+                    {
+                        <div class="notice mb-2" role="status">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                            <span>Latest chaser status: @OperatorLabels.StaffMail.State(chaserOp.State)</span>
+                        </div>
+                        @if (chaserOp.State == Pegasus.Core.Operations.StaffMailState.Unknown)
+                        {
+                            <form method="post" asp-page-handler="ReconcileChaser" asp-route-id="@record.Id" class="mb-2">
+                                <input type="hidden" name="operationId" value="@chaserOp.Id" />
+                                <input type="hidden" name="expectedOperationVersion" value="@chaserOp.Version" />
+                                <button type="submit" class="btn btn--small">
+                                    <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                    <span>Reconcile chaser status</span>
+                                </button>
+                            </form>
+                        }
+                    }
+                    @if (mutable && !Model.ChaserOperationBlocked && Model.ChaserMailbox is not null)
+                    {
+                        <form method="post" asp-page-handler="SendChaser" asp-route-id="@record.Id" class="stack">
+                            <input type="hidden" name="expectedVersion" value="@record.Version" />
+                            <input type="hidden" name="operationKey" value="@Model.ChaserOperationKey" />
+                            <div class="field">
+                                <label class="req" for="triage-chaser-to">To</label>
+                                <input id="triage-chaser-to" name="to" value="@Model.ChaserTo" required maxlength="500" />
+                            </div>
+                            <div class="field">
+                                <label for="triage-chaser-cc">Cc</label>
+                                <input id="triage-chaser-cc" name="cc" value="@Model.ChaserCc" maxlength="500" />
+                            </div>
+                            <div class="field">
+                                <label class="req" for="triage-chaser-subject">Subject</label>
+                                <input id="triage-chaser-subject" name="subject" value="@Model.ChaserSubject" required maxlength="500" />
+                            </div>
+                            <div class="field">
+                                <label class="req" for="triage-chaser-body">Message</label>
+                                <textarea id="triage-chaser-body" name="body" rows="4" required maxlength="5000">@Model.ChaserBody</textarea>
+                            </div>
+                            <div class="button-row">
+                                <button type="submit" class="btn btn--primary">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                    <span>Send chaser</span>
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    else if (Model.ChaserOperationBlocked)
+                    {
+                        <div class="notice notice--warning" role="alert">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>The existing correspondence operation must finish or be resolved before another action.</span>
+                        </div>
+                    }
+                    else if (mutable && Model.ChaserMailbox is null)
+                    {
+                        <div class="notice notice--warning" role="status">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>No approved mailbox with staff send capability is available for this origin.</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
         @* The panel is "Notes" (EPIC-011 §1.5). Its entries are still the one
            permanent, attributed, versioned history: an operator note is an
            entry in that stream, not a second, editable record beside it. The
