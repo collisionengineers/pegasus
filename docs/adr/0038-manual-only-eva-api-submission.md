@@ -35,8 +35,8 @@ Engineer` under FRD-07's existing outcome and history rules.
 
 Pegasus does not submit to EVA solely because a case reaches `Review`.
 `EvaAutomaticSubmission`, its reconciliation sweep and its external-work kind
-are removed. There is no compatibility path because the application is
-pre-release and automatic submission was never activated for a Principal.
+are removed. The application is pre-release; the approved target requires
+manual submission only and no preservation of the obsolete automatic path.
 
 The Principal create, replacement and administration operations carry only the
 manual setting. A replacement Principal inherits it; a disabled Principal's
