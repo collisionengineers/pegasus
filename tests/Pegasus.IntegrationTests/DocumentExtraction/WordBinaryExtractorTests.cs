@@ -178,28 +178,42 @@ public sealed class WordBinaryExtractorTests
     }
 
     [Fact]
-    public void ExtractPicturesAndSecondaryFibForceVisiblePartialOutcome()
+    public void ExtractSecondaryFibIsVisiblePartialBecauseItsStoriesAreNeverDecoded()
     {
         CompoundFile file = WordBinaryFixture.Create(
-            [new(0, 2, 700, false, "Hi")], hasPictures: true, nextFibPage: 2);
+            [new(0, 2, 700, false, "Hi")], nextFibPage: 2);
 
         WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
 
         Assert.Equal(WordBinaryOutcome.Partial, result.Outcome);
-        string[] codes = result.Issues.Select(static issue => issue.Code).ToArray();
-        Assert.Contains("doc-pictures-unprocessed", codes);
-        Assert.Contains("doc-secondary-fib-unprocessed", codes);
+        Assert.Contains("doc-secondary-fib-unprocessed", result.Issues.Select(static issue => issue.Code));
     }
 
     [Fact]
-    public void ExtractStoryCatalogueReturnsOrderedSecondaryStoryAndPartialAnchorIssue()
+    public void ExtractDeclaredPicturesAreRecordedWithoutClaimingTextIsMissing()
+    {
+        // A picture is not document text and is never opened (ADR-0025), so its
+        // presence is recorded and the text read stays complete.
+        CompoundFile file = WordBinaryFixture.Create(
+            [new(0, 2, 700, false, "Hi")], hasPictures: true);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
+        Assert.Contains("doc-pictures-unprocessed", result.Issues.Select(static issue => issue.Code));
+    }
+
+    [Fact]
+    public void ExtractStoryCatalogueReturnsOrderedSecondaryStoryAndRecordsItsAnchorIssue()
     {
         CompoundFile file = WordBinaryFixture.Create(
             [new(0, 7, 700, false, "abc\rde\r")], storyLengths: [4, 2, 0, 0, 0, 0, 0, 0]);
 
         WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
 
-        Assert.Equal(WordBinaryOutcome.Partial, result.Outcome);
+        // The footnote story text WAS decoded; only its anchor is unresolved,
+        // which loses no text and so does not make the read incomplete.
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
         Assert.Equal(8, result.Stories.Length);
         Assert.Equal(WordStoryKind.Main, result.Stories[0].Kind);
         Assert.Equal("abc\n", result.Stories[0].Text);
@@ -217,7 +231,7 @@ public sealed class WordBinaryExtractorTests
 
         WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
 
-        Assert.Equal(WordBinaryOutcome.Partial, result.Outcome);
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
         WordStory story = result.Stories[0];
         WordTextSegmentKind[] kinds = story.Segments.Select(static segment => segment.Kind).ToArray();
         Assert.Contains(WordTextSegmentKind.Tab, kinds);
@@ -230,20 +244,94 @@ public sealed class WordBinaryExtractorTests
         Assert.Contains(WordTextSegmentKind.OptionalHyphen, kinds);
     }
 
+    /// <summary>
+    /// Every semantic control marker the extractor classifies. Each is recorded
+    /// under its own issue code so it stays visible to a reviewer, and none of
+    /// them removes a character of the text the reader hands on, so the read
+    /// they appear in is complete.
+    /// </summary>
     [Theory]
+    [InlineData("\u0001", (int)WordTextSegmentKind.Picture)]
+    [InlineData("\u0002", (int)WordTextSegmentKind.FootnoteOrEndnoteReference)]
+    [InlineData("a\u0007", (int)WordTextSegmentKind.CellOrRowMark)]
+    [InlineData("\u0008", (int)WordTextSegmentKind.EmbeddedObjectMarker)]
+    [InlineData("\u000c", (int)WordTextSegmentKind.PageOrSectionBreak)]
     [InlineData("\u0013", (int)WordTextSegmentKind.FieldBegin)]
     [InlineData("\u0014", (int)WordTextSegmentKind.FieldSeparator)]
     [InlineData("\u0015", (int)WordTextSegmentKind.FieldEnd)]
-    [InlineData("\u0002", (int)WordTextSegmentKind.FootnoteOrEndnoteReference)]
-    public void ExtractUnpairedSemanticControlsForcePartialOutcome(string text, int expectedKind)
+    [InlineData("\u0003", (int)WordTextSegmentKind.UnsupportedControl)]
+    public void ExtractSemanticControlMarkersAreRecordedWithoutDegradingTheOutcome(
+        string text, int expectedKind)
     {
         CompoundFile file = WordBinaryFixture.Create([new(0, (uint)text.Length, 700, true, text)]);
 
         WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
 
-        Assert.Equal(WordBinaryOutcome.Partial, result.Outcome);
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
         Assert.Contains((WordTextSegmentKind)expectedKind, result.Stories[0].Segments.Select(static segment => segment.Kind));
-        Assert.Contains("doc-control-semantic-partial", result.Issues.Select(static issue => issue.Code));
+        Assert.Contains(
+            $"doc-control-semantic-partial:{(WordTextSegmentKind)expectedKind}",
+            result.Issues.Select(static issue => issue.Code));
+    }
+
+    /// <summary>
+    /// A flat label/value table, exactly as a binary Word story states it: each
+    /// cell's text terminated by a cell mark, each row closed by a further
+    /// mark. The cells are an addition to the flattened text, not a
+    /// replacement for it.
+    /// </summary>
+    [Fact]
+    public void ExtractTableMarksProduceCellsInRowAndColumnOrder()
+    {
+        const string table =
+            "Claim Number\u0007CLM-9003\u0007\u0007Registration\u0007AB12 CDE\u0007\u0007";
+        CompoundFile file = WordBinaryFixture.Create([new(0, (uint)table.Length, 700, true, table)]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
+        Assert.Equal(
+            [(1, 1, 1, "Claim Number"), (1, 1, 2, "CLM-9003"), (1, 2, 1, "Registration"), (1, 2, 2, "AB12 CDE")],
+            result.Stories[0].TableCells.Select(
+                static cell => (cell.Table, cell.Row, cell.Column, cell.Text)));
+        Assert.Equal("Claim Number\tCLM-9003\t\tRegistration\tAB12 CDE\t\t", result.Stories[0].Text);
+    }
+
+    [Fact]
+    public void ExtractCellsNeverSwallowTheParagraphTextPrecedingTheTable()
+    {
+        const string text = "Assessment instruction\rOur Ref\u0007S486562.001\u0007\u0007";
+        CompoundFile file = WordBinaryFixture.Create([new(0, (uint)text.Length, 700, true, text)]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        Assert.Equal(
+            [(1, 1, 1, "Our Ref"), (1, 1, 2, "S486562.001")],
+            result.Stories[0].TableCells.Select(
+                static cell => (cell.Table, cell.Row, cell.Column, cell.Text)));
+    }
+
+    [Fact]
+    public void ExtractStoryWithoutTableMarksReportsNoCellsAtAll()
+    {
+        CompoundFile file = WordBinaryFixture.Create([new(0, 12, 700, true, "Our Ref\tABC1")]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        // An ordinary tab is not a cell boundary and never acquires cell
+        // authority, exactly as the RTF branch already refuses to let it.
+        Assert.Empty(result.Stories[0].TableCells);
+    }
+
+    [Fact]
+    public void ExtractStrayControlByteIsStrippedFromTheProjectedText()
+    {
+        CompoundFile file = WordBinaryFixture.Create([new(0, 5, 700, true, "AB\u0003CD")]);
+
+        WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
+
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
+        Assert.Equal("ABCD", result.Stories[0].Text);
     }
 
     [Fact]
@@ -286,16 +374,25 @@ public sealed class WordBinaryExtractorTests
         Assert.Equal("AB", result.Stories[0].Text);
     }
 
+    /// <summary>
+    /// The read every genuine legacy instruction in the corpus actually is: a
+    /// clean single save, so the fast-save flag is unset, carrying the style
+    /// sheet and document-property ranges Word always writes. Both conditions
+    /// are recorded, neither removes text, and the read is complete.
+    /// </summary>
     [Fact]
-    public void ExtractUnprocessedFibRangesForceVisiblePartialOutcome()
+    public void ExtractNormalNonFastSavedFileCarryingAStyleSheetIsComplete()
     {
         CompoundFile file = WordBinaryFixture.Create(
-            [new(0, 2, 700, false, "Hi")], addUnprocessedRange: true);
+            [new(0, 2, 700, false, "Hi")], addUnprocessedRange: true, complex: false);
 
         WordBinaryExtractionResult result = WordBinaryExtractor.Extract(file);
 
-        Assert.Equal(WordBinaryOutcome.Partial, result.Outcome);
-        Assert.Contains("doc-fib-ranges-unprocessed", result.Issues.Select(static issue => issue.Code));
+        Assert.Equal(WordBinaryOutcome.Complete, result.Outcome);
+        Assert.Equal("Hi", result.Stories[0].Text);
+        string[] codes = result.Issues.Select(static issue => issue.Code).ToArray();
+        Assert.Contains("doc-fib-ranges-unprocessed", codes);
+        Assert.Contains("doc-complex-flag-unset", codes);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
@@ -7,21 +7,32 @@ namespace Pegasus.Core.Intake;
 public static class IntakeEnvelopeLimits
 {
     /// <summary>
-    /// One file uploaded through the staff form, which arrives inside one
-    /// bounded multipart HTTP request.
+    /// One file uploaded through the staff form or a public request link,
+    /// which arrives inside one bounded multipart HTTP request.
     /// </summary>
-    public const int MaximumContentLength = 10 * 1024 * 1024;
+    /// <remarks>
+    /// Exactly 100 MiB, set by C07 item 5 (residual INTK-052) as the single
+    /// per-file cap the manual and public channels share. This class is the
+    /// one owner of that figure: host, ingress and per-request
+    /// <c>DocumentRequests</c> settings may tighten it and may never raise it.
+    ///
+    /// The Provider API does not follow this cap. Its files arrive inline as
+    /// base64 in one request body, so they are bounded by
+    /// <see cref="MaximumProviderApiFileLength"/> instead.
+    /// </remarks>
+    public const int MaximumContentLength = 100 * 1024 * 1024;
 
     /// <summary>
     /// One received mailbox message, envelope and every attachment together.
     /// </summary>
     /// <remarks>
     /// A received instruction is not an uploaded file. The staff form takes
-    /// one file, so 10 MiB bounds one file; an instruction email carries the
-    /// covering message plus the 2–20+ documents and photographs of the job,
-    /// and applying the one-file figure to the whole envelope refused real
-    /// QDOS instructions outright — a 16.69 MB forward was rejected as
-    /// <c>message_too_large</c> on 2026-08-05 without ever being read.
+    /// one file, so <see cref="MaximumContentLength"/> bounds one file; an
+    /// instruction email carries the covering message plus the 2–20+ documents
+    /// and photographs of the job, and applying the one-file figure to the
+    /// whole envelope refused real QDOS instructions outright — a 16.69 MB
+    /// forward was rejected as <c>message_too_large</c> on 2026-08-05, against
+    /// the 10 MiB one-file bound then in force, without ever being read.
     ///
     /// This bound is deliberately permissive rather than a capacity claim.
     /// Exchange Online will not carry a message anywhere near it, the reader
@@ -38,6 +49,10 @@ public static class IntakeEnvelopeLimits
     /// group. Mirrors the 2–20+ documents a real QDOS instruction envelope
     /// carries (see <see cref="MaximumMailboxContentLength"/>), so a staff
     /// member reproducing that job manually is not capped below it.
+    ///
+    /// C07 item 5 (residual INTK-052) retained 20 unchanged while the per-file
+    /// cap rose, so the file count and the byte budget are now independent
+    /// facts rather than two halves of one multiplication.
     /// </summary>
     public const int MaximumBatchFileCount = 20;
 
@@ -45,14 +60,26 @@ public static class IntakeEnvelopeLimits
     /// One Provider API submission, decoded: every attached file together.
     ///
     /// It is not the mailbox bound, because the whole envelope arrives inline
-    /// as base64 in one request body and is held in memory to be decoded — and
-    /// the Web container runs in 2 GiB shared with the report renderer. It is
-    /// not the single-file bound either, because a real instruction carries the
-    /// documents and photographs of a job: the mailbox note above records a
-    /// genuine 16.69 MB QDOS instruction, so this is set comfortably above that
-    /// and well inside the container's headroom.
+    /// as base64 in one request body and is held in memory to be decoded. It
+    /// is not the manual per-file bound either, because a real instruction
+    /// carries the documents and photographs of a job: the mailbox note above
+    /// records a genuine 16.69 MB QDOS instruction, so this is set comfortably
+    /// above that. C07 item 5 (residual INTK-052) left it unchanged.
     /// </summary>
     public const int MaximumProviderApiEnvelopeLength = 30 * 1024 * 1024;
+
+    /// <summary>
+    /// One file inside a Provider API submission.
+    /// </summary>
+    /// <remarks>
+    /// The channel's decoded envelope is the effective ceiling for one file as
+    /// well as for the batch, so the per-file bound is the envelope itself. It
+    /// is stated separately, and used separately, so that the Provider API can
+    /// never inherit the manual channel's larger
+    /// <see cref="MaximumContentLength"/> the next time that cap moves
+    /// (C07 item 5, residual INTK-052).
+    /// </remarks>
+    public const int MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength;
 
     /// <summary>
     /// The request body that carries it. Base64 costs a third again, plus the
@@ -61,18 +88,35 @@ public static class IntakeEnvelopeLimits
     public const int MaximumProviderApiRequestLength = 42 * 1024 * 1024;
 
     /// <summary>
-    /// The multipart request body budget for one Upload submission: every
-    /// file in the batch at its individual cap, plus the same fixed
-    /// boundary/field overhead the single-file form always allowed.
+    /// The multipart request body budget for one whole Upload submission.
     /// </summary>
-    public const long MaximumBatchContentLength =
-        (MaximumBatchFileCount * (long)MaximumContentLength) + MultipartOverhead;
+    /// <remarks>
+    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB plus the
+    /// fixed multipart overhead, and deliberately not derived from
+    /// <see cref="MaximumBatchFileCount"/> times
+    /// <see cref="MaximumContentLength"/>: raising the per-file cap while
+    /// deriving this figure would hand one request a body budget far past what
+    /// the Web instance can hold. Every file may be at its individual cap; the
+    /// batch as a whole may not, and is refused by this budget first.
+    /// </remarks>
+    public const long MaximumBatchContentLength = (200L * 1024 * 1024) + MultipartOverhead;
 
     /// <summary>
     /// Fixed slack for multipart boundaries and non-file form fields,
     /// independent of how many files are in the batch.
     /// </summary>
     public const long MultipartOverhead = 64 * 1024;
+
+    /// <summary>
+    /// The aggregate file byte budget for one whole public Upload submission,
+    /// excluding multipart boundaries and non-file form fields.
+    /// </summary>
+    /// <remarks>
+    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Public
+    /// aggregate byte limit excludes multipart overhead, which belongs only
+    /// to HTTP request framing.
+    /// </remarks>
+    public const long MaximumPublicAggregateContentLength = 200L * 1024 * 1024;
 }
 
 /// <summary>
