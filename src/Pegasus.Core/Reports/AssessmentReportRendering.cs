@@ -237,7 +237,7 @@ public sealed record ReportRepairCosts(
             estimate.Lines.Sum(line => line.WorkUnits ?? 0m),
             estimate.Lines.Sum(line => line.PaintWorkUnits ?? 0m),
             estimate.Details.HourlyRate,
-            EstimateTotals.Compute(estimate));
+            EstimateTotals.ForProjection(estimate));
     }
 
     [JsonIgnore]

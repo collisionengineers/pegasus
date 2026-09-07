@@ -782,6 +782,7 @@ public sealed class EfRepairSpecificationStore(
     internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity)
     {
         var details = ReadDetails(entity);
+        var breakdown = ReadBreakdown(entity);
         return new(
             entity.Id, entity.CaseId, entity.Version,
             Enum.Parse<RepairSpecificationState>(entity.State),
@@ -800,7 +801,16 @@ public sealed class EfRepairSpecificationStore(
             entity.CreatedBy, entity.CreatedAtUtc, entity.AcceptedBy, entity.AcceptedAtUtc,
             entity.SupersedesSpecificationId, entity.SupersessionReason,
             details,
-            entity.IsCurrent, entity.AiJobId, entity.DiscardReason);
+            entity.IsCurrent, entity.AiJobId, entity.DiscardReason,
+            breakdown is null
+                ? null
+                : new(
+                    breakdown.Raw,
+                    breakdown.Printed,
+                    details.VatPolicy,
+                    breakdown.VatPercent,
+                    breakdown.CalculationPolicyVersion,
+                    []));
     }
 
     /// <summary>

@@ -321,9 +321,10 @@ public sealed class AssessmentReportRenderingTests
     /// The one cost block every snapshot here uses: 50 parts, five panel hours
     /// at 30, 20 materials and 5 specialist, printed net 225.
     /// </summary>
-    internal static ReportRepairCosts Costs(decimal vatPercent) => ReportRepairCosts.For(
-        new RepairSpecificationVersion(
-            Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Accepted,
+    internal static ReportRepairCosts Costs(decimal vatPercent)
+    {
+        var draft = new RepairSpecificationVersion(
+            Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
             new(RepairSpecificationSourceRoute.Manual, null, null, null),
             [
                 Line(1, "repair", "Nearside door", workUnits: 5m, price: null),
@@ -331,7 +332,13 @@ public sealed class AssessmentReportRenderingTests
             ],
             null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
             new EstimateDetails("Repairer", null, 30m, 20m, 5m, vatPercent, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-            IsCurrent: true));
+            IsCurrent: true);
+        return ReportRepairCosts.For(draft with
+        {
+            State = RepairSpecificationState.Accepted,
+            RecordedTotals = EstimateTotals.Compute(draft),
+        });
+    }
 
     private static CaseEstimateLineRecord Line(
         int position, string type, string description, decimal? workUnits, decimal? price) => new(
