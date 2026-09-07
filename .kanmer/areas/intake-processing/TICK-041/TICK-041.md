@@ -2,26 +2,27 @@
 id: TICK-041
 type: ticket
 title: INT-16 — Azure OCR for scan-like and unusable-text-map PDF pages
-status: implementing
+status: review
 area: intake-processing
 order: 950
 assignee: codex-v1-remediation-root
 profile: feature
 stageEntered:
   preparing: '2026-09-07T21:14:38.247Z'
+  review: '2026-09-07T22:56:59.820Z'
 taken_at: '2026-09-07T22:04:42.073Z'
 branch: TICK-041-qualified-ocr
 worktree: .worktrees/tick-041
-claim_expires_at: '2026-09-07T23:22:44.315Z'
+claim_expires_at: '2026-09-07T23:26:59.913Z'
 claim_controller: codex-v1-remediation-root
 lease_id: 80597482-bbde-49de-afe1-a3a97a0d65c9
-lease_revision: 4
+lease_revision: 5
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: root-ocr
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-041'
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T22:52:44.315Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-07T22:56:59.913Z'
 labels:
   - capability
   - INT-16
@@ -45,9 +46,13 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 docs_todo: true
+commits:
+  - 890f656be13149c140980b86837e2b7897d26117
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/686'
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-07T22:52:46.594Z'
+updated: '2026-09-07T22:56:59.913Z'
 ---
 
 ## What
