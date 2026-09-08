@@ -12,14 +12,14 @@ stageEntered:
 taken_at: '2026-09-08T03:02:52.244Z'
 branch: TICK-085-glass-pdf-import
 worktree: .worktrees/tick-085
-claim_expires_at: '2026-09-08T04:39:07.533Z'
+claim_expires_at: '2026-09-08T05:17:41.730Z'
 claim_controller: principal_delivery_audit
 lease_id: 7c250788-4f65-4278-8df1-367330d21dd7
-lease_revision: 8
+lease_revision: 9
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-085'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T04:09:07.533Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-08T04:17:41.730Z'
 labels:
   - capability
   - EXT-12
@@ -41,7 +41,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-08T04:09:07.533Z'
+updated: '2026-09-08T04:17:41.730Z'
 ---
 
 ## What

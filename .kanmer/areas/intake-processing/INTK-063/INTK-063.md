@@ -2,24 +2,25 @@
 id: INTK-063
 type: ticket
 title: Recover Image-initiated Case pairing using current accepted identity
-status: implementing
+status: review
 area: intake-processing
 assignee: pack_reconcile
 profile: fix
 stageEntered:
   preparing: '2026-09-07T23:51:17.244Z'
+  review: '2026-09-08T04:17:33.123Z'
 taken_at: '2026-09-08T02:44:23.546Z'
 branch: INTK-063-image-link-recovery
 worktree: .worktrees/intk-063
-claim_expires_at: '2026-09-08T04:46:36.241Z'
+claim_expires_at: '2026-09-08T04:47:35.897Z'
 claim_controller: root
 lease_id: 96040972-2231-4565-8a48-d176ea4c6aec
-lease_revision: 14
+lease_revision: 15
 lease_worker_run: pack_reconcile
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-063'
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T04:16:36.241Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T04:17:35.897Z'
 labels:
   - image-intake
   - pairing
@@ -43,7 +44,7 @@ delivery_state: not-integrated
 delivery_recorded_at: '2026-09-08T04:15:55.596Z'
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T04:17:04.588Z'
+updated: '2026-09-08T04:17:35.897Z'
 ---
 
 ## What
