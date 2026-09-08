@@ -4,16 +4,21 @@
 
 Automatically link a uniquely identified Triage and formal Case in either
 arrival order, preserving permanent Triage reference/findings and reasoned
-manual control. Current read-only accepted baseline:
-a022fc4b2db87d4d2eeb14437b41f6d8344d63e6.
-Evidence: research 1233ce70e848f312; files 2f4c7571281556ee.
+manual control. Current execution baseline:
+aefe4c32d078ad79c0368666b5666032e6865248 (fresh origin/dev).
+Evidence: research 1233ce70e848f312; files 07e40ec3beb8068c.
 Prior plan 597e4162d28c4a76 remains historical; its transaction/replacement
 guards are retained below.
 
-TICK-035 is Done/released. INTK-063 is integrated but still Verifying/taken;
-TICK-085 owns Infrastructure DI. Preparation only until root confirms both
-file releases and approves the refreshed shape. Root's frozen one-ticket
-supplemental run and original roster are unchanged.
+TICK-035 is Done/released. INTK-063 is Done/closed/released at
+a022fc4b2db87d4d2eeb14437b41f6d8344d63e6. TICK-085 is integrated at
+aefe4c32d078ad79c0368666b5666032e6865248 and remains Verifying for genuine
+OCR acceptance. Root's 2026-09-08 handoff in both execution scratch records
+releases only the DI Triage registration and direct AcceptIntake constructor
+fixtures to INTK-064; it does not release TICK-085's claim or OCR scope.
+Root approved execution of this bounded plan. Fresh census preserves all
+historical claims, including INTK-060. The frozen supplemental run and original
+roster are unchanged; use INTK-064-triage-link-recovery at .worktrees/intk-064.
 
 ## Governing docs
 
@@ -80,7 +85,7 @@ serializable transaction.
 
 ## Expected files and do not modify
 
-Exact paths/responsibilities are files 2f4c7571281556ee: seven production files,
+Exact paths/responsibilities are files 07e40ec3beb8068c: seven production files,
 three canonical docs, six behavior-test files and six constructor-only test
 files. Compared with the old map, DurableIntake.cs and
 EvaluateIntakeCaseMatch.cs are read-only context; AddTriageNoteTests and the
@@ -117,11 +122,11 @@ Pre-reading only a target version is insufficient: candidate and redirect
 currentness must be checked in the link transaction. Stop on an unfit existing
 query boundary or newly evidenced permission/schema requirement; root must
 review any such expansion. Do not add TriageFindings access to support a broad
-UI read. No tests/builds during this preparation refresh.
+UI read. No author tests/builds; root owns focused verification.
 
 ## Stop condition
 
-Preparing and untaken; return this whole refreshed plan/map to root.
-After explicit execution authorization and predecessor file release, later
-implementation stops frozen for root verification, then independent Review.
+Execution authorized by root after the recorded narrow predecessor handoffs.
+Stop source-frozen for root's named verification; no commit/push/PR before
+root supplies actual PASS evidence. Then stop at independent Review.
 No self-review, merge, cleanup, foreign claim change or next-ticket execution.

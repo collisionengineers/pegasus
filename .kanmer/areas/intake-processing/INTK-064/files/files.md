@@ -1,6 +1,7 @@
 # Files — INTK-064
 
-Evidence refreshed at dev a022fc4b2db87d4d2eeb14437b41f6d8344d63e6.
+Execution base refreshed to dev aefe4c32d078ad79c0368666b5666032e6865248;
+root-approved plan shape and paths unchanged.
 Research 1233ce70e848f312; supersedes map e960169a2d34216e.
 
 ## Production changes
@@ -60,7 +61,9 @@ No fake ITriageLifecycle wrapper, IServiceProvider lookup or manual construction
 in Worker to bypass composition ownership. Do not read TriageFindings merely
 to link: narrow candidate inputs suffice and preserve current Worker grants.
 
-TICK-035 is Done/released. INTK-063 still owns its integrated-but-not-closed
-acceptance/Worker/FRD/test surfaces, and TICK-085 owns Infrastructure DI.
-Execution remains serialized until root confirms exact releases. Historical
-INTK-060 and other linked ticket claims remain untouched.
+TICK-035 and INTK-063 are Done/closed/released. TICK-085 is integrated at
+aefe4c32d078ad79c0368666b5666032e6865248 and still Verifying for real OCR.
+Root's recorded narrow handoff releases only this map's DI Triage registration
+and direct AcceptIntake constructor fixture edits, not TICK-085's whole claim.
+INTK-064 execution is authorized. Historical INTK-060 and other linked ticket
+claims remain untouched.
