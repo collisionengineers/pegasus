@@ -10,10 +10,15 @@ provider resubmission.
 ## Starting state
 
 Evidence: research/research.md@d3759f8ba28174b4; files/files.md@5f18ecab1fd5634d.
-Source inspected: origin/dev 783b537f189ead88553f940d03df0d1f9558ef75.
-TICK-041 merged d367219669ad26d5f2b727bd10b582330febc906 and ENG-041 merged baafa29e0f7002b8235aa43bf333f5d9bb172828; their exact contracts are now recorded in open-questions. Execution still waits for CASE-049's native handoff/access change to merge and release overlapping Case Details/assessment fixture ownership. The
-root approved this design in principle and the MCP/current-source-persistence
-dispositions. Ticket remains Preparing, untaken; no source worktree exists.
+Current accepted baseline: dev cc441645b0a62a806e34367ad75e9eaff4df8b11.
+TICK-041's d367219669ad26d5f2b727bd10b582330febc906 contract is integrated.
+CASE-049 native handoff is Done/closed at 3a5ce645cfc0872d7a4324c6818497360c39cca4.
+ENG-041's automatic-custody correction is Done/closed at cc441645b, with
+FRD-06 ownership released. Do not use its superseded baafa29e authority behavior.
+Execution still waits for TICK-035 to integrate and release Infrastructure DI
+and ProductionComposition ownership, and UIIMP-017 to release the generated
+snapshot index. The root approved the canonical command and persisted-authority
+dispositions below. Ticket remains Preparing, untaken; no source worktree exists.
 Historical ticket descriptions of absent Glass XML/launch and no shared command
 are stale: current XML and launch stay, current Web bypass is repaired.
 
@@ -168,8 +173,10 @@ runs. Preserve ENG-041, DOCS-020 and all unrelated work.
 - Four text PDFs produce complete reviewed rows without OCR; YL's retained
   result produces its reviewed fifth oracle. False font/format triggers refuse
   or parse normally, never charge unnecessary OCR.
-- Correct net/gross source section observations are in the local research
-  JSON; compare every imported row and source identity, not totals alone.
+- The four independently checked full-row oracles are indexed at
+  pegasus_pack/current/glass-row-oracles-readable.md; compare all main rows,
+  included operations, contextual parts joins and source identity, not totals
+  alone. The older section-level JSON is context, not a competing oracle.
 - Different Case/occurrence/version/hash/length, wrong scope/actor, stale lease,
   forged provider save, ambiguous PDF, malformed amount and low-confidence
   required evidence all fail closed without partial Draft rows.
@@ -179,6 +186,28 @@ runs. Preserve ENG-041, DOCS-020 and all unrelated work.
   JSON and Audatex imports remain valid, as do Engineer-only Current rules.
 - Source-evidence bytes/hash remain immutable; original totals do not replace
   selected card/VAT arithmetic. No source schema or live provider action.
+
+## Source-oracle dispositions
+
+The four readable oracles cover 244 main rows (58 included/unpriced) and 65
+parts rows across 17 pages, independently inspected before parser implementation.
+Preserve printed blanks as blanks, genuine zero rates as zero and the PDF's
+already-net hours. Do not deduplicate LT72PYX's separately charged B74/B82 camera
+reset rows, invent the clipped end of LG73ZCJ A40, or equate a guide code with
+a manufacturer part number. Retain the original source for Engineer review.
+
+VX21TZD A02 has different printed guide IDs in the main and position appendices.
+Do not silently substitute one for the other or fabricate an authoritative join.
+The main-table observation and original appendix both remain source evidence;
+if the existing line representation requires choosing a conflicting identity,
+surface that bounded source issue before code-ready instead of hiding it in a
+passing oracle. Parts appendices supplement rows only through unambiguous
+ordered/contextual joins and never add a second charge.
+
+YL69YFO's real retained OCR and reviewed fifth oracle remain acceptance work.
+The four readable parsers and canonical pending/completion callers may be
+implemented while PLAT-065 activation is pending, but no all-five/provider PASS
+or Done claim is permitted before the actual source-backed result is checked.
 
 ## Commands
 
@@ -196,8 +225,8 @@ PDFs, and cannot report a missing local source as PASS.
 
 ## Failure and deviation rules
 
-Stop for missing exact TICK-041 API/ADR, mismatched source hash, incomplete
-oracle, failing tests, new schema/permissions/dependencies or overlapping
+Stop for missing exact TICK-041 API/ADR, mismatched source hash, unresolved required source identity,
+an incomplete oracle for a claimed passing sample, failing tests, new schema/permissions/dependencies or overlapping
 unmerged UI changes. Record non-PASS; never weaken a money/provenance assertion
 or call every unreadable parse an OCR case. New work belongs to its owner.
 

@@ -5,7 +5,7 @@
 | Path | Why |
 | --- | --- |
 | src/Pegasus.Core/Assessment/EstimateImport.cs | Existing canonical command owns retained-source/hash replay, typed pending OCR outcome and completed-format result |
-| src/Pegasus.Core/Assessment/RepairSpecifications.cs | Narrow imported-document persistence method on existing store; no new store |
+| src/Pegasus.Core/Assessment/RepairSpecifications.cs | Narrow non-mutating persisted authority check and imported-document persistence on existing store; no new store |
 | src/Pegasus.Core/Assessment/Estimates.cs | Existing Core import authorization/normalization only; preserve ordinary Automation AiDraft/job rules |
 | src/Pegasus.Infrastructure/Assessment/PdfEstimateDocumentParser.cs | One PDF container registration, shared coordinate extraction, retained OCR words, explicit format dispatch |
 | src/Pegasus.Infrastructure/Assessment/GlassEstimatePdfParser.cs | Glass Body/Auxiliary/Paint reader, source identity/notes, reconciliation, whole-file refusal |
@@ -13,7 +13,7 @@
 | src/Pegasus.Infrastructure/Assessment/JsonEstimateParser.cs | Adapt existing parser result contract |
 | src/Pegasus.Infrastructure/Glass/GlassEstimateXmlParser.cs | Adapt existing parser result contract; do not alter XML time semantics |
 | src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs | Consume explicit canonical imported/pending result; no launch/recovery redesign |
-| src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs | Share current save transaction for narrow validated raw-import entry; provenance and unconfirmed Automation rows |
+| src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs | Reuse CaseMutationGuard.Require without mutation before OCR/replay; share existing final save transaction and unconfirmed Automation row writer |
 | src/Pegasus.Infrastructure/DependencyInjection.cs | One JSON/XML/PDF parser set |
 | src/Pegasus.Web/Pages/Cases/Details.cshtml.cs | Existing upload and retained-source completion callers call canonical import with submitted version/lease; no direct parse/save policy |
 | src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml | Only source auto-detection/pending completion UI and expected-version fields |
@@ -42,10 +42,11 @@
 | src/Pegasus.Infrastructure/Intake/AzureDocumentIntelligenceOcr.cs | TICK-041 adapter; parser must not submit, poll or parse raw provider JSON |
 | src/Pegasus.Infrastructure/Persistence/EfIntakeOcrOperationStore.cs | Existing durable source/page identity, completed evidence and no duplicate work |
 | src/Pegasus.Infrastructure/Persistence/AssessmentEntities.cs | No source-header JSON; CalculationBreakdownJson is Pegasus pricing, not provider evidence |
-| src/Pegasus.Core/Documents/DocumentContracts.cs | Upload custody return has occurrence/version/replay, not a fabricated workflow +1 guarantee |
+| src/Pegasus.Core/Documents/DocumentContracts.cs | Staff Add completes exactly one mutation on non-replay; replay needs fresh submitted authority, unlike version-neutral automatic confirmation |
 | docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Rate-card, repairer VAT and Engineer Current acceptance remain independent |
 | docs/design/README.md | Whole-page drop owed ENG-033; TICK-085 must not duplicate that interaction lane |
-| pegasus_pack/current/glass-pdf-research.json | Genuine hashes, section-level oracle observations and net-vs-gross warning |
+| pegasus_pack/current/glass-row-oracles-readable.md | Independently inspected full-row evidence for four readable PDFs, exact hashes and unresolved source-identity observations |
+| pegasus_pack/current/glass-pdf-research.json | Genuine original paths/hashes and historical section observations; not the full-row oracle |
 
 ## Ripple effects
 

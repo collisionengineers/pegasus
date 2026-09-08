@@ -24,16 +24,19 @@
 ## Before execution
 
 - [x] TICK-041 merged d367219669ad26d5f2b727bd10b582330febc906 with ADR-0040. Exact API: IntakeOcrOperations.BeginDocumentAsync(IIntakeOcrOperationStore, CaseDocumentMetadata, IReadOnlyList<int>, CancellationToken); normalized pages and source Case/occurrence/version/hash bind its ID and persisted length. Completed IntakeOcrOperation.Result/PageResults are retained neutral evidence. PdfOcrQualification.HasUnusableTextMap(PdfDocument, Page) owns only the positive Type3 text-map fault, not scan policy. No parallel OCR request/worker.
-- [x] ENG-041 merged baafa29e0f7002b8235aa43bf333f5d9bb172828; current integration includes its accepted interruption/replay/authority corrections.
+- [x] ENG-041 original baafa29e0f7002b8235aa43bf333f5d9bb172828 required a later correction. PR691 cc441645b0a62a806e34367ad75e9eaff4df8b11 now passes exact merged acceptance and is Done/closed; automatic confirmation preserves Case authority and FRD-06 ownership is released.
 - [x] CASE-049 merged 3a5ce645cfc0872d7a4324c6818497360c39cca4, passed exact merged acceptance and closed out with claim released; PLAT-072 is likewise verified Done/closed. Native handoff and current workspace access are accepted.
 - [x] Root inspected EstimateImport, IRepairSpecificationStore, EfRepairSpecificationStore.Guard, CaseMutationGuard and explicit IAddCaseDocument. The plan now requires non-mutating persisted authority before OCR/replay and distinguishes one fresh staff custody mutation from version-neutral automatic confirmation and custody replay.
-- [ ] ENG-041 PR691 correction must integrate and release its FRD-06 ownership; its independent PASS is awaiting final merge. TICK-035 must integrate and release Infrastructure DI/ProductionComposition ownership. Root coordinates execution after these actual overlapping claims release.
+- [ ] TICK-035 must integrate and release Infrastructure DI/ProductionComposition ownership, and UIIMP-017 must release the generated snapshot index. Root coordinates execution after these actual overlapping claims release.
 
 ## Evidence work in the bounded checklist
 
-Historical full-line oracles and recorded YL Azure evidence are absent locally;
-this is not a credential lock or permission question. Build fresh reviewed
-line oracles from the immutable five originals in the local evidence lane and
-use the TICK-041/PLAT-065 captured provider result when supplied. Section-level
-observations already exist in pegasus_pack/current/glass-pdf-research.json.
-Do not call a synthetic/gibberish fixture a passing fifth-sample OCR oracle.
+The four readable full-row oracles now exist at
+pegasus_pack/current/glass-row-oracles-readable.md, including original hashes,
+all 244 main/65 parts rows, independent decimal reconciliation and disclosed
+source ambiguities. Follow the plan's explicit dispositions; do not infer a
+manufacturer identity, silently repair clipping or deduplicate printed charges.
+YL69YFO's genuine retained Azure output and fifth reviewed oracle are still
+absent; this is acceptance work, not a credential lock. Four-readable/parser
+and canonical pending/completion implementation may proceed once file owners
+release. No synthetic/gibberish fixture may stand in for fifth-sample acceptance.
