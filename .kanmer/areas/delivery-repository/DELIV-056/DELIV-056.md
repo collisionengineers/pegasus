@@ -2,12 +2,13 @@
 id: DELIV-056
 type: ticket
 title: Align intake regression fixtures with definitive instruction evidence
-status: preparing
+status: implementing
 area: delivery-repository
 assignee: ''
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:29:14.702Z'
+  implementing: '2026-09-08T13:34:43.025Z'
 labels:
   - regression
   - test-fixtures
@@ -18,7 +19,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-08T13:28:13.915Z'
-updated: '2026-09-08T13:29:14.702Z'
+updated: '2026-09-08T13:34:43.025Z'
 ---
 
 ## What

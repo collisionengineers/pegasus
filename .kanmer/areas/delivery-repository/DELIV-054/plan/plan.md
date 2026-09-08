@@ -88,8 +88,8 @@ about 40 lines. Evidence:
   release commands.
 - Negative cases: a dot-prefixed directory must not be filtered out; an extra
   top-level `web/` or `worker/` directory must not be introduced.
-- Tests: host verification only; `scripts/Test-PegasusPlatform.ps1` and
-  artifact-mode deployment-plan validation after an isolated package build.
+- Tests: host verification only; the focused synthetic ZIP contract in
+  `scripts/Test-PegasusPlatform.ps1`.
 - Commands: none in this execution.
 - Expected output: source diff changes only the two ZIP construction calls.
 - Done when: both ZIPs are created by `ZipFile` with their publish roots as
@@ -111,8 +111,8 @@ about 40 lines. Evidence:
   match.
 - Negative cases: missing either hidden root fails artifact validation before
   the OCI tool is called.
-- Tests: host verification only; existing platform fixture and
-  `Test-AzureDeploymentPlan.ps1 -Mode Artifact` against a built artifact.
+- Tests: host verification only; existing platform fixture and the existing
+  deployment-plan contract, without an actual release-artifact package build.
 - Commands: none in this execution.
 - Expected output: a precise failure naming the ZIP and required hidden root.
 - Done when: validator rejects artifacts missing either required root.
@@ -132,8 +132,9 @@ about 40 lines. Evidence:
   unchanged.
 - Forbidden: a new test project, generated committed artifacts, browser host,
   or package installation.
-- Negative cases: the valid fixture must satisfy new checks, while removal of a
-  required root is left to the validator's named failure path.
+- Negative cases: separate root-free Worker and Web fixture ZIPs must fail
+  with the respective `.azurefunctions/` and `.playwright/` validator errors
+  before the ORAS stub is called.
 - Tests: host verification only; `pwsh ./scripts/Test-PegasusPlatform.ps1`.
 - Commands: none in this execution.
 - Expected output: fixture retains a valid manifest and reaches the existing
@@ -158,10 +159,8 @@ about 40 lines. Evidence:
 - Negative cases: missing host results or a scope expansion leaves the ticket
   in Implementing for the parent to resolve.
 - Tests: parent-arranged host-only checks:
-  `pwsh ./scripts/Test-PegasusPlatform.ps1`; an isolated release-artifact
-  build followed by `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Artifact
-  -ManifestPath <manifest>`; and the existing deployment-plan contract
-  appropriate to the verifier's scope.
+  `pwsh ./scripts/Test-PegasusPlatform.ps1` and the existing
+  `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` contract.
 - Commands: none in this execution.
 - Expected output: independently recorded PASS/FAIL/INCONCLUSIVE evidence.
 - Done when: implementation is ready for verification, not merged or released.
@@ -185,8 +184,9 @@ about 40 lines. Evidence:
 ## Commands
 
 No commands may be run in this execution. After DELIV-053 releases the host
-reservation, the parent may assign the verifier the Step 4 commands in an
-isolated exact-head worktree.
+reservation, the parent may assign the focused synthetic ZIP and existing
+artifact-contract checks in Step 4. Immutable actual release packaging remains
+D6 work, not this corrective-ticket verification.
 
 ## Failure and deviation rules
 

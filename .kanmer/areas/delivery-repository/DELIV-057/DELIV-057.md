@@ -2,12 +2,22 @@
 id: DELIV-057
 type: ticket
 title: Seed the historical vehicle lookup migration schema accurately
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:30:20.896Z'
+taken_at: '2026-09-08T13:34:30.046Z'
+branch: DELIV-057-seed-historical-vehicle-lookup-schema
+worktree: .worktrees/deliv-057
+claim_expires_at: '2026-09-08T14:04:30.046Z'
+claim_controller: codex-mcp-client
+lease_id: 8216975d-1775-4d5b-a9ef-f6a812bb3800
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-057'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T13:34:30.046Z'
 labels:
   - regression
   - test-fixtures
@@ -17,7 +27,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-08T13:28:14.030Z'
-updated: '2026-09-08T13:30:20.896Z'
+updated: '2026-09-08T13:34:30.046Z'
 ---
 
 ## What
