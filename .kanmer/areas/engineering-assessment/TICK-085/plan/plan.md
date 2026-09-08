@@ -336,3 +336,19 @@ Root's focused follow-up is the 17 shared consumers plus these two assertion
 methods (19 exact method selectors in the report), using an incremental
 Integration build and a unique TRX. Do not rerun unchanged Core 61 or the
 113 passing Integration cases. Stop frozen for root evidence; no PR yet.
+
+## Approved integration and final-acceptance milestones — 2026-09-08
+
+Root explicitly approved this sequencing after local Core 61 PASS, retained
+113 Integration PASS plus all 19 corrected/affected methods PASS, four complete
+readable-source oracles PASS, and three fresh Case captures with scoped
+snapshot/catalogue PASS. Independent source review is still required before
+merge. The approved [skip ci] author commit follows EPIC-014's single converged
+final-CI policy; it is not CI evidence and cannot bypass a live required check.
+
+Integration of the caller is a prerequisite for the real deployed Worker/OCR
+canary. Therefore PR/Review/integration may proceed now; the actual retained
+YL69YFO Azure output and independently reviewed fifth full-row oracle remain
+mandatory unchecked final acceptance on this same ticket in Verifying. They
+are not waived, synthetic, a credential block or transferred away. Coordinate
+with PLAT-065/TICK-041 release; never claim all-five/provider or final v1 PASS.
