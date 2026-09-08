@@ -2,12 +2,25 @@
 id: DOCS-019
 type: ticket
 title: Design README still asserts the embedded Andy signature resource (D18-era)
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-09-08T04:17:00.364Z'
+taken_at: '2026-09-08T04:28:12.024Z'
+branch: DOCS-019-signature-documentation
+worktree: .worktrees/docs-019
+claim_expires_at: '2026-09-08T04:58:12.024Z'
+claim_controller: root
+lease_id: 5d5fa3d9-cd0a-478d-bc48-f06ea21374ea
+lease_revision: 1
+lease_controller_run: 20260907T200500Z-v1-remediation
+lease_worker_run: intake_audit-docs019
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\docs-019'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T04:28:12.024Z'
 labels:
   - sign-off
   - case-workspace-v2
@@ -20,7 +33,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-09-03T19:35:41.384Z'
-updated: '2026-09-08T04:17:00.364Z'
+updated: '2026-09-08T04:28:12.024Z'
 ---
 
 ## What

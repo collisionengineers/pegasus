@@ -7,7 +7,7 @@ reviewer: "codex-v1-remediation-root"
 independent: true
 plan_hash: "10543d55d4090f66"
 ticket_updated: "2026-09-08T04:25:42.240Z"
-board_sha: "49bfba2b7bb1e6fbe2fa07bb144ec060b35de737"
+board_sha: "168e02886dbd6a7def0f9bf3dd0ee1a999cb47ee"
 expected_reviewers:
   - "codex-v1-remediation-root"
 threads_snapshot: []
@@ -76,8 +76,9 @@ registration, live incoming mail, provider behavior or deployment.
 ## GitHub and residual obligations
 
 Gathered exact PR head/base, comments, reviews, checks and GraphQL review
-threads. No reviews or review threads existed; threads_snapshot is truthfully
-empty. Informational Codex security-summary comment
+threads. The re-gather now includes root's public review PRR_kwDOThBrk88AAAABMjUefw
+on this exact head, repeating this disposition; no review threads exist and
+threads_snapshot is truthfully empty. Informational Codex security-summary comment
 IC_kwDOThBrk88AAAABTIpgiA says running with mergeGateEnabled:false; it contains
 no finding, is not an expected reviewer and is not claimed as a completed
 security review. Re-gather immediately before merge and disposition any new
@@ -93,3 +94,7 @@ were read; all six checklist entries describe completed author work/handoff,
 not Done. Exact merged-SHA verification remains required before Done, using
 the approved bounded cohorts and retained failures. Final release/live
 acceptance remains with EPIC-014.
+
+Final re-gather retained exact head/base, empty checks and no review threads.
+Root public review was posted at2026-09-08T04:26:37Z; no new substantive finding
+was present. Expected independent reviewer root is settled on this head.
