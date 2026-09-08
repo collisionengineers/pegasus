@@ -625,7 +625,7 @@ never copied, except the Case Workspace v2 fixture set permitted by D43
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
-| Supplied engineer signatures | Andy Patterson's approved exact tuple is embedded by Infrastructure; other supplied assets remain governed; never Web decorative imagery. The signatory policy is D31 (the Case's Sign-off Engineer tuple), delivered by `DOCS-017`. |
+| Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type (D31, DOCS-017). No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
 The imported renderer can exercise its own assets without proving the planned
