@@ -7,7 +7,7 @@ group: EPIC-014
 project_fingerprint: kanmer-proj-v1:a69953eac623b7bf77d689311f5dcbf2738db2f80b66fcc29c2bf965884c9aa0
 controller: codex-v1-remediation-root
 status: running
-updated_at: 2026-09-08T06:00:53Z
+updated_at: 2026-09-08T06:41:46Z
 ---
 
 # Current v1 remediation run

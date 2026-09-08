@@ -41,3 +41,5 @@ The separate exact CaseDataCompletenessPersistenceTests assertion consumer is ma
 ## Root narrow integrated-source handoff — 2026-09-08 06:26 UTC
 
 PR699 is integrated at 96777888bfa7ee7f85d63979a4a09ae10cda7d13. Root retains INTK-064 verification ownership but releases only the existing CaseDataCompletenessPersistenceTests.ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory equal-name/VRM assertions to ENG-029's mapped provenance correction: unchanged accepted values retain original Fact/source and do not acquire Confirmed attribution. Preserve every unrelated lease/version/replay/history assertion and INTK-064's merged constructor dependency. No constructor copy, dirty-worktree baseline merge, parallel build or broader source handoff is authorized here.
+
+- 2026-09-08T06:42:15.149Z lease-phase running-command → implementing (lease 000b26b8-fb8d-4e16-809f-8127f200cd4e rev 9; expires 2026-09-08T07:12:15.139Z)

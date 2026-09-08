@@ -147,8 +147,9 @@ not a reviewed checkbox.
 5. Freeze source and provide root exact focused filters. Root alone restores/
    builds once and runs the bounded actual callers below; retain every failure.
    Correct an observed failure at its actual owner, not by weakening assertions.
-   Root performs scoped capture/update/verify/catalogue and visual inspection.
-   After actual PASS, write report, update checklist/traceability, publish the
+   Root performs scoped capture/update/verify/catalogue; manual visual acceptance
+   follows the explicit sequencing below if its browser environment is blocked.
+   After actual runtime and scoped snapshot PASS, write report, update checklist/traceability, publish the
    same ticket PR to configured dev and stop at independent review. No self
    review/merge or claimed deployment.
 
@@ -258,3 +259,25 @@ after PR699 merged at 96777888bfa7ee7f85d63979a4a09ae10cda7d13 releases
 only this assertion method. Preserve the constructor change during later
 coordinated integration; do not cherry-pick or merge into the dirty tree. Root still owns the separate
 submitted-Overview test in CaseWorkspacePersistenceTests.
+
+## Publication sequencing — approved 2026-09-08
+
+Root and the independent reviewer explicitly permit source/runtime integration
+with manual visual acceptance retained as an outstanding Verifying obligation.
+The corrected source has focused runtime and scoped capture/update/verify/
+catalogue PASS. Manual inspection at 1580/1100/760 for editable, read-only and
+conflict states was blocked by browser local-file URL security and is
+INCONCLUSIVE, not waived or substituted by the existing 1440 snapshot checks.
+Keep its checklist marker unchecked and do not claim Done until the required
+visual acceptance is genuinely completed. No extra backend, renderer or test
+infrastructure is authorized to work around this environment restriction.
+
+For this publication only, checkpoint the 25 mapped source/doc/test files and
+actual scoped snapshot deltas, then normally merge accepted origin/dev
+96777888bfa7ee7f85d63979a4a09ae10cda7d13 into the clean author branch.
+Preserve INTK-064's constructor change alongside the handed-off assertion
+method. No new build at this step. Return the integrated checkpoint/source
+census to root before push/PR. Independent whole-ticket review is owned by
+principal_delivery_audit; root contributed Core/SQL/report tests and is not
+that reviewer. Exact merged-source verification and manual visual acceptance
+remain later gates, with no provider/deployment claim.
