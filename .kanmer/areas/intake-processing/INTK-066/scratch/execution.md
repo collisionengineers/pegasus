@@ -150,3 +150,24 @@ Root reread canonical IDLE 78acaa06b3a63a10 and ready resumed packet; actual cle
 Before original build, exact owned-node cleanup is authorized for PIDs 22280,26136,26840,27528,29136,29728 only. Root CIM read proves parent7436, creation2026-09-08T19:18:26.365448–.473165Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true, matching last granted build. Recheck these exact identities with the corrected UTC DateTimeOffset comparison, then native Stop-Process only matching listed nodes; record absence. No broad name-based termination or foreign process changes.
 
 Then run same original dotnet build Pegasus.slnx followed by Core --no-build, existing focused nonbrowser SQL and UploadCaseSearch browser queue if all prior pass. Retain all earlier failures (26bf source, c57 lock, cleanup precondition, c57 duplicate helper). No source/snapshot edits, autonomous second retry, assertion/filter weakening, live actions or push/PR. First genuine failure stops and returns canonical IDLE. Lease renewed running-command rev15 for60min. Report each command promptly.
+
+## Test-compiler corrected-head build — source compile/analyzer failure — 2026-09-08
+
+Grant inputs: ticket revision `rev1:cc949b6b1cceef0b`, lease revision 15, exact base/head `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `4b3329675f48faede428a9c97212d1a610584136`.
+
+Preflight and cleanup exited 0 at `2026-09-08T19:23:30.8790598Z`: exact branch/head were clean, base ancestry passed, and there was no unexpected heavy process. The only six processes were the exact authorized reusable MSBuild nodes PIDs 22280, 26136, 26840, 27528, 29136 and 29728, each revalidated as Program Files dotnet, parent PID 7436, `MSBuild.dll /nodemode:1 /nodeReuse:true`, created `2026-09-08T19:18:26.3654480Z`–`19:18:26.4731650Z`. Only those nodes were stopped and all were confirmed absent.
+
+The original command then ran:
+- `2026-09-08T19:23:44.2154273Z`–`2026-09-08T19:24:36.1233145Z`
+- `dotnet build Pegasus.slnx`
+- Exit 1; **FAILED**, 0 warnings, 13 errors, elapsed 00:00:50.89.
+
+Core, Core.Tests, Infrastructure, Web, Worker and ArchitectureTests compiled. IntegrationTests failed to compile with:
+- `CaseCreateWebTests.cs(436,57)` CS1503: `WebApplicationFactory<Program>` cannot convert to `IntakeWebApplicationFactory`.
+- CA1305 invariant-format errors for `long.ToString()`: `UploadConfirmationWebTests.cs` lines 284, 509, 513, 614, 618, 687 and 698; `Browser/UploadCaseSearchBrowserTests.cs` line 42; `CasesIndexWebTests.cs` lines 65, 67, 150 and 152.
+
+This genuine source failure is retained alongside all earlier failures. Per stop-first-failure, Core tests, focused non-browser SQL tests and conditional UploadCaseSearch browser tests are **NOT RUN**. No retry, source/assertion/filter change, snapshot, SQL fixture, browser, cloud, Outlook, Box, commit, push or PR action occurred.
+
+Postcheck at `2026-09-08T19:24:57.1086662Z` exited 0: exact head/branch remained clean. Six build-created reusable MSBuild nodes remain: PIDs 13640, 14296, 17400, 17848, 24080 and 28952, parent PID 7104, created `2026-09-08T19:23:44.918616Z`–`19:23:45.043171Z`. They were not touched without a fresh bounded disposition; no testhost or vstest process remained.
+
+- 2026-09-08T19:25:53.123Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 16; expires 2026-09-08T19:55:53.109Z)

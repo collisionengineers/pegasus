@@ -307,3 +307,13 @@ Root reread canonical IDLE 78acaa06b3a63a10 and ready resumed packet; actual cle
 Before original build, exact owned-node cleanup is authorized for PIDs 22280,26136,26840,27528,29136,29728 only. Root CIM read proves parent7436, creation2026-09-08T19:18:26.365448–.473165Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true, matching last granted build. Recheck these exact identities with the corrected UTC DateTimeOffset comparison, then native Stop-Process only matching listed nodes; record absence. No broad name-based termination or foreign process changes.
 
 Then run same original dotnet build Pegasus.slnx followed by Core --no-build, existing focused nonbrowser SQL and UploadCaseSearch browser queue if all prior pass. Retain all earlier failures (26bf source, c57 lock, cleanup precondition, c57 duplicate helper). No source/snapshot edits, autonomous second retry, assertion/filter weakening, live actions or push/PR. First genuine failure stops and returns canonical IDLE. Lease renewed running-command rev15 for60min. Report each command promptly.
+
+## Host slot handoff — INTK-066 test compiler correction build failed — 2026-09-08
+
+At exact clean HEAD `4b3329675f48faede428a9c97212d1a610584136`, sole verifier `/root/agent_config_verifier` exactly revalidated and stopped only the six authorized reusable nodes from the preceding build, confirmed absence, and ran the original solution build.
+
+`dotnet build Pegasus.slnx` ran `19:23:44.2154273Z`–`19:24:36.1233145Z`, exit 1 with 0 warnings and 13 IntegrationTests compiler/analyzer errors: one CS1503 factory-type mismatch in `CaseCreateWebTests.cs(436,57)`, and twelve CA1305 invariant-format violations across the recorded UploadConfirmation, UploadCaseSearchBrowser and CasesIndex test lines. Core, Web, Worker and Architecture projects compiled. Exact evidence is retained in INTK-066.
+
+Core, focused non-browser SQL and browser tests are NOT RUN; no retry or fix occurred. The head remained clean. Six new reusable MSBuild nodes (PIDs 13640, 14296, 17400, 17848, 24080 and 28952; parent 7104; created 19:23:44.918616–19:23:45.043171Z) remain untouched, with no active testhost/vstest or verification command.
+
+Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned**.
