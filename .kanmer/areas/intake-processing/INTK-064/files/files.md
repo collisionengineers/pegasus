@@ -7,13 +7,13 @@ Research 1233ce70e848f312; supersedes map e960169a2d34216e.
 
 | Path | Responsibility |
 | --- | --- |
-| src/Pegasus.Core/Triage/TriageContracts.cs | Narrow automatic candidate/transaction contract on ITriageStore; distinct from manual TriageCaseLinkRequest. |
-| src/Pegasus.Core/Triage/TriageLifecycle.cs | One concrete TriageCasePairing command and post-create/replay call from existing CreateTriageFromIntake; preserve manual authorization/replay. |
+| src/Pegasus.Core/Triage/TriageContracts.cs | Narrow ITriageCasePairing caller port and automatic candidate/transaction contract on ITriageStore; distinct from manual TriageCaseLinkRequest. |
+| src/Pegasus.Core/Triage/TriageLifecycle.cs | One ITriageCasePairing/TriageCasePairing command and post-create/replay call from existing CreateTriageFromIntake; preserve manual authorization/replay. |
 | src/Pegasus.Infrastructure/Persistence/EfTriageStore.cs | Eligible pending reads and existing serializable link/history transaction's SystemWorker-only path; current principal, origin, candidate, lease and manual-intent guards. |
 | src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs | Context-bound form of both existing EfCaseMatchIndex query methods; no duplicate grammar/eliminator. |
 | src/Pegasus.Core/Intake/AcceptIntake.cs | Formal acceptance and duplicate-replay pairing, preserving current INTK-063 image recovery. |
 | src/Pegasus.Worker/IntakeFunctions.cs | Call pairing from the existing reconciliation timer and surface bounded failure counts/type. |
-| src/Pegasus.Infrastructure/DependencyInjection.cs | One concrete automatic-command registration beside existing Triage commands; no ITriageLifecycle exists. |
+| src/Pegasus.Infrastructure/DependencyInjection.cs | One automatic-command registration beside existing Triage commands; no ITriageLifecycle exists. |
 | docs/frd/frd-03-triage.md | Automatic/manual linkage and distinct-reference Case terminology without normal Case/PO allocation or finding promotion. |
 | docs/frd/frd-02-intake-and-source-identity.md | Triage association currentness/reversal/recovery; preserve accepted INTK-063 image rules. |
 | docs/current-architecture.md | Actual automatic Triage callers/recovery after implementation, not a deployment claim. |
@@ -28,6 +28,17 @@ Research 1233ce70e848f312; supersedes map e960169a2d34216e.
 | tests/Pegasus.IntegrationTests/TriageFromIntakeIntegrationTests.cs | Actual Triage creation caller and inverse arrival order/replay. |
 | tests/Pegasus.IntegrationTests/QdosTriageReplayIntegrationTests.cs | Durable retry and unchanged permanent reference/finding/completion behavior. |
 | tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs | Actual SystemWorker pairing and replay under existing restricted connection factory; no copied permission list. |
+
+The following direct AcceptIntake constructor fixtures need only the new
+required pairing dependency supplied through an existing test-double style;
+preserve every assertion and do not create an optional/no-op production path:
+
+- tests/Pegasus.Core.Tests/Cases/ImmediateExternalPublicationTests.cs
+- tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs
+- tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs
+- tests/Pegasus.IntegrationTests/CaseMatchIntegrationTests.cs
+- tests/Pegasus.IntegrationTests/ProviderApiCaseDataSnapshotPersistenceTests.cs
+- tests/Pegasus.IntegrationTests/ProviderInspectionModeAcceptanceTests.cs
 
 ## Context files
 
