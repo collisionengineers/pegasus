@@ -41,13 +41,17 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 commits:
-  - 9863dd4264440ef228a0766d3e2949faf6a4e12b
+  - 3c1d04781719f92c86a190f510c1924fc9df6328
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/694'
 deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 3c1d04781719f92c86a190f510c1924fc9df6328
+delivery_recorded_at: '2026-09-08T03:45:29.079Z'
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-09-08T03:37:29.727Z'
+updated: '2026-09-08T03:45:29.079Z'
 ---
 
 # Send the canonical claimant address in EVA API submissions
@@ -103,3 +107,11 @@ CASE-031 may take its fresh isolated branch/worktree from accepted dev
 only this ticket's API paragraph is authorized. No product choice is unresolved.
 
 ## Outcome
+
+Integrated and independently accepted on dev at
+3c1d04781719f92c86a190f510c1924fc9df6328 (PR694). Root exact-merge
+verification passed: Release build, 57 Core and 13 integration cases, no skips.
+Manual EVA API now receives the accepted canonical claimant address unchanged;
+invalid input fails before external work. No deployment or live EVA call.
+All five test records, including the initial failed integration run, are
+retained with SHA256 manifest in pegasus_pack/current/proofs/CASE-031.
