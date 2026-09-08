@@ -20,7 +20,7 @@ and32Core/14Integration passed. Exact detached merge build126.45s,
 32Core/14Integration and127documentation-link checks passed. No broad corpus,
 parallel heavy run, provider notification or live-cloud claim.
 
-Four original/merged TRXs,326942bytes, are retained under
+Four original/merged TRXs,328942bytes, are retained under
 pegasus_pack/current/proofs/INTK-064 with verified hashes. manifest.json
 SHA2565DECA8FFFEBA1FE17D98960CAE54A800891F4840144C2D3E08007BE4645578ED.
 Normal owned verification/implementation worktree removal, local branch -d,
