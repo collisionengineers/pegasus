@@ -38,12 +38,14 @@ refs:
   - docs/frd/frd-03-triage.md
 commits:
   - 1e4f20e5718ec97abf269563fbba1fd944b944a4
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/699'
 deployment: not-deployed
 delivery_state: not-integrated
 delivery_recorded_at: '2026-09-08T06:06:01.134Z'
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T06:06:01.134Z'
+updated: '2026-09-08T06:06:38.142Z'
 ---
 
 ## What

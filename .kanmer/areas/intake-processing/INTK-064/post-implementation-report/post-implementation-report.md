@@ -5,8 +5,11 @@
 Author source-complete with root's focused pre-merge runtime PASS; not yet
 integrated or deployed.
 The isolated branch is INTK-064-triage-link-recovery at .worktrees/intk-064,
-still based on aefe4c32d078ad79c0368666b5666032e6865248. No source commit or
-PR yet. Root remains the sole heavy verification owner.
+based on aefe4c32d078ad79c0368666b5666032e6865248. Published source commit
+1e4f20e5718ec97abf269563fbba1fd944b944a4 is the same frozen source verified
+below; only this scoped checkpoint was committed after the PASS. PR #699:
+https://github.com/collisionengineers/pegasus/pull/699 targets dev and its live
+head matches the local/remote branch. Root remains the sole heavy verifier.
 
 Plan 87b4d11fd251180e and file map f05f000a8b26f9be govern this diff.
 Root approved the two necessary final direct-constructor fixture amendments
@@ -153,5 +156,16 @@ The required focused SQL/Worker checks passed under root without a grant.
 Any later newly evidenced permission/schema need still requires root review. Read-only context and original provider grammar are unchanged.
 This adds no live deployment or external provider acceptance claim.
 Root supplied actual PASS and authorized publication after the independent
-static preflight. Publish once for independent exact-head review; do not
-self-review, merge, clean up or start another ticket.
+static preflight. pack_reconcile reported no material finding on the frozen
+24-file diff, including transaction-bound currentness, manual intent, narrow
+Worker reads and all three production callers. That was a read-only static
+preflight, not an exact-head attestation or new runtime execution.
+
+The author validated exactly the 24 mapped paths, clean committed worktree,
+normal push and the one open PR #699 at
+1e4f20e5718ec97abf269563fbba1fd944b944a4, targeting dev. Author diff --check
+and staged diff --check passed, exit 0. No source changed after root's PASS.
+PR and commit are recorded on the ticket; delivery is not-integrated and
+not-deployed. Stop at independent Review. The reviewer still owes exact-head
+attestation; merged proof remains outstanding. No self-review, merge, cleanup
+or next-ticket execution.
