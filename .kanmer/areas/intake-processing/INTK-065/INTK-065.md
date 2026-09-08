@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-08T13:43:28.206Z'
 branch: INTK-065-principal-evidence-inventory
 worktree: .worktrees/intk-065
-claim_expires_at: '2026-09-08T14:13:28.206Z'
+claim_expires_at: '2026-09-08T14:04:43.342Z'
 claim_controller: codex-mcp-client
 lease_id: 67bf01af-2c70-47df-a295-5ddca0f3fd7e
-lease_revision: 1
+lease_revision: 2
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-065'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T13:43:28.206Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-08T13:49:43.342Z'
 labels:
   - regression
   - source-inventory
@@ -30,7 +30,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-09-08T07:15:35.565Z'
-updated: '2026-09-08T13:43:28.206Z'
+updated: '2026-09-08T13:49:43.342Z'
 ---
 
 ## What
