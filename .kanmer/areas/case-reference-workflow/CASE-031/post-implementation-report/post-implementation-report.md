@@ -2,8 +2,8 @@
 
 ## Status
 
-Root attempt 1 has one failing intake fixture setup; correction investigation
-is active. No overall PASS, PR, integration or deployment claim. No author
+Root attempt 1 had one failing intake fixture setup. The root-authorized
+fixture-only correction is now code-ready and frozen for a focused rerun. No overall PASS, PR, integration or deployment claim. No author
 build/test/live call ran.
 
 ## Starting state and scope
@@ -131,3 +131,42 @@ Root focused verification, then report/checklist update and authorized
 commit/push/PR for independent review. No self-review/merge. Post-merge proof
 must bind the actual integration SHA and reuse or rerun appropriate exact-source
 checks honestly. No deployment has occurred.
+
+
+## Attempt 1 disposition and frozen correction
+
+The old fixture attached only literal `%PDF-1.4 synthetic instruction letter`
+bytes, with no attached ENGINEER NOTIFICATION tell. Its accepted QDOS sender
+still gets the existing QDOS fallback: the new non-QDOS selected-profile guard
+is not the cause. Source inspection of ProcessIntake.cs:891-899 and the single
+PrincipalMailClassificationPolicy shows that unclassified work must withhold
+Case allocation. The original TRX carries only NeedsSorting, not a captured
+receipt reason; no exact runtime reason beyond that was reconstructed as fact.
+The corrected assertion now emits actual receipt reason/route/profile/work type.
+
+Root approved replacing that stale setup with an in-memory derived fixture
+based on the unchanged supplied QDOS email and letter. Original path:
+corpus/qdosmapping/(EREF10) RTA on 14_08_2026  Mr Paul Larcombe (Our Ref AMA_47857_1, Vehicle PG18 BTY).eml.
+SHA256: 3063FF9ECB31878F582FB439047D999A41A7C6FE5B978CFBEE5C7E7F277553B4.
+Read-only decoding with the already-built MimeKit/PdfPig assemblies confirmed
+33742_1_LtrtoEngineerIn.pdf, ENGINEER NOTIFICATION (REPORT + AUDIT REPORT),
+AMA/47857/1 and PG18 BTY. This was file inspection, not a test or new build.
+
+Only CustodyOutboxIntegrationTests.cs changed after attempt 1. Existing
+QdosCorpus.Root resolution and QdosMappingCustodyFact convention are reused;
+there is no new loader. The test hash-pins original bytes, retains its genuine
+headers/body/PDF and appends exactly the same two existing fixture JPEGs in
+memory. It is explicitly a derived export probe, not an untouched original.
+Original files were not edited. Classification/acceptance now assert the
+actual InspectionAndAudit type; exported source reference is AMA/47857/1.
+CaseCreated remains mandatory and every downstream ZIP/image/manual outcome/
+state/version/race assertion remains. No production intake source changed.
+
+Both original TRXs remain immutable. Root must compile and rerun only:
+
+    dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CustodyOutboxIntegrationTests.EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange"
+
+The method must execute and pass on this host; a corpus skip is not acceptance.
+Already-passed 57 Core and 12 transport cases need no identical rerun for this
+fixture-only correction. Author git diff --check remains exit0, changed-path
+census is still the approved ten files. No author build/test/commit/push/PR.
