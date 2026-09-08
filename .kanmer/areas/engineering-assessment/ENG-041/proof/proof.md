@@ -305,3 +305,29 @@ on that refusal. Lease renewed by exact CAS to revision19, closeout phase.
 No build, test, application edit, cloud/provider/mail action or deployment
 occurred during closeout. Outcome is integrated and accepted on dev, not
 deployed. Git cleanup and claim release are tracked separately below.
+
+
+## Authorized Git cleanup completed
+
+All three explicit clean roots were removed with normal git worktree remove:
+.worktrees/eng-041,
+.worktrees/verify-eng-041-baafa29e0f7002b8235aa43bf333f5d9bb172828 and
+.worktrees/verify-eng-041-cc441645b0a62a806e34367ad75e9eaff4df8b11.
+Normal git branch -d ENG-041-glass-recovery passed, then the exact remote
+branch deletion passed. Git noted the author tip was merged to its upstream
+but not the stale shared-checkout HEAD; no force flag, reset, rebase or source
+checkout was used. Integrated merge reachability was already verified above.
+
+Fetch --prune origin passed. Worktree-prune dry run had no candidates, and
+normal prune passed. Exact path/ref/server checks confirm all three roots
+and local/tracking/remote ENG-041 branch are absent. Before/after registered
+worktree paths agree after subtracting precisely those three roots; all
+foreign worktrees and claims, including the board and shared source checkout,
+remain untouched. The stored proof readback differed only in CRLF normalization;
+a complete LF-normalized comparison matched before cleanup.
+
+All 14 TRXs and 104 capture files were rehashed from their archive manifest
+immediately before removal. Accepted source remains recoverable from the
+two merged PRs and dev; failed and passing evidence remains in the ignored
+proof archive. Claim release is the final ownership operation, after this
+record and completed Git checks; no work remains in flight for ENG-041.

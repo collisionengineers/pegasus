@@ -58,7 +58,7 @@ checklist completion claims. Stop for the independent reviewer.
 - [x] Final PASS proof retains PR URLs, merge dates and every relevant TRX with verified retained hashes.
 - [x] Verified-success terminal stage is Done, not archived.
 - [x] Outcome and integrated-dev traceability recorded; no deployment claimed.
-- [ ] Remove only the three explicitly approved clean ENG-041 author/verification worktrees.
-- [ ] Delete ENG-041-glass-recovery local/remote branch normally, without force.
-- [ ] Fetch/prune and confirm no other worktree or claim was changed.
+- [x] Remove only the three explicitly approved clean ENG-041 author/verification worktrees.
+- [x] Delete ENG-041-glass-recovery local/remote branch normally, without force.
+- [x] Fetch/prune and confirm no other worktree or claim was changed.
 - [ ] Release the ENG-041 claim last.
