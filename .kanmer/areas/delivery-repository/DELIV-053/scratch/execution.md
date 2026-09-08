@@ -199,3 +199,7 @@ Canonical CEALEX-May25 slot is explicitly **IDLE / unassigned**. Root's independ
 ## Sole host verification queue active — 2026-09-08
 
 After INTK-065 generation recorded explicit IDLE and all processes exited, /root grants `/root/agent_config_verifier` sole CEALEX-May25 verification ownership. Strict serialized queue: INTK-065, then DELIV-057, then ENG-029, then DELIV-056. Before each lane, re-read its live ticket packet and frozen inputs. Run only packet-authorized scoped commands, sequentially; stop the remaining queue on the first genuine failure, retain exact command/exit/timestamp, make no fix/retry/source or generated-data write, and do not kill foreign processes. Current lane: **INTK-065 — preflight and independent generated-JSON/content/determinism/documentation/Core verification**. Slot state: **ACTIVE**.
+
+## Transitions
+
+- 2026-09-08T15:16:17.827Z lease-phase implementing → verifying (lease 820e4f1a-1e6e-4d12-82be-f2082dffa481 rev 11; expires 2026-09-08T15:46:17.818Z)

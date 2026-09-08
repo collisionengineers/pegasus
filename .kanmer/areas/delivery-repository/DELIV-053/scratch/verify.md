@@ -22,3 +22,5 @@ Final lane disposition:
 - DELIV-058 focused 2/2 and full Architecture 116/116: PASS.
 
 No testhost/vstest or active verification command remains. Only reusable idle MSBuild nodes from the final build may be resident; they are not running a verification lane. Canonical slot state: **IDLE**. No further lane is queued.
+
+Host slot acquired by /root after /root/agent_config_verifier explicitly returned IDLE following D58 PASS. ACTIVE lane is DELIV-053 exact-merge acceptance at ed20af4275d0312c963a6fc86c330f563141c98c in its clean detached verification worktree. Only sequential strict Codex doctor, actual five-role read-only acceptance, own fresh metadata/config/MCP checks and relevant documentation checks are authorized. No application restore/build/test, cloud operation, user trust/config change or competing verifier. All other agents remain static-only until root returns IDLE.
