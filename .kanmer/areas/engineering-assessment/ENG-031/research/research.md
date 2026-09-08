@@ -262,3 +262,118 @@ or a hand-off recorded on this ticket.
   person's reflection? No such classification exists, yet the governing
   requirement (`docs/frd/frd-06-vehicle-and-engineering-evidence.md:129`)
   says it remains excluded from report selection.
+
+## Current v1 reconciliation — 2026-09-08
+
+Read-only source pin: accepted dev
+`aefe4c32d078ad79c0368666b5666032e6865248`. Historical September 2
+research above remains evidence of that earlier tree, not current edit
+authority. No source, claim, branch, build, test, capture or live write in
+this preparation. Declared research sources: none (get_sources).
+
+Current intent is EPIC-012 D46, FRD-06 report-image preparation, FRD-12
+Assessment and design README:991–992, plus Astra B-casework B06:495–521.
+D46 requires visual frame/handles/rotation/aspect/reset/preview and both
+Files-viewer and Report-card entry without first pressing Edit Case.
+Astra and the current design require one global Save/Discard covering Files
+preparation. Root explicitly retained this requirement on 8 September.
+
+### What is already integrated
+
+- Core Documents/CaseAssetPreparation.cs:34–197 owns quarter rotations,
+  normalized rotated-source crops (7 decimal places), occurrence identity,
+  source version/hash, role/order, per-preparation version, and queries.
+  CaseAssetPreparationPolicy:242–385 owns validation, unique primaries and
+  ordered report projection. Do not create the historical plan's second
+  ReportImageCuration vocabulary/store/schema.
+- EfCaseAssetPreparationStore:267–391 already has transaction-compatible
+  PrepareSaveAsync. It merges edits, checks per-image versions and sources,
+  invokes Core once, and writes existing DocumentOccurrence columns with
+  actor/time. It neither commits nor increments the Case version.
+- EfCaseWorkspaceStore:30–216 owns serializable global save, CaseOperationReplay,
+  version/lease/archive guards, one CaseMutationGuard.Complete, one three-part
+  CaseMutationHistory and atomic MarkStaleAsync. Its request/hash/history
+  presently omit image preparation.
+- Generation freeze and renderer already retain and consume exact prepared
+  image/source identities. CaseReportGenerationPersistenceTests:282–321 proves
+  frozen identity/hash custody. No new approval entity or renderer is needed.
+- Existing ReportImagePreparationView, _CaseReportImagePreparation and
+  case-workspace.js implement numeric crop, quarter rotation, role and
+  Supporting move/drag. Both sections read the same occurrence records.
+  Report is already eagerly rendered (Details:563–567); Files may lazy-mount.
+  The shared EvidenceViewer/site.js owns paging, focus, Escape, downloads,
+  original image/PDF preview and mount binders. Raw viewing already requires
+  no edit lease and must remain that way.
+
+### Actual gaps and dispositions
+
+1. Visual controls are absent: current cards contain only metadata/numeric
+   fields; no frame, handles, aspect lock or live preview. Supplied prototype
+   24-cropper.js has the required geometry/interaction, but its global S
+   state, hardcoded fixture data, inline styles, autonomous history writes
+   and auto-committing Save must not be copied.
+2. Immediate image Save/Reset in Details:1532–1646 call a separate committing
+   store; Save clears the lease (1580), and EfCaseAssetPreparationStore:107
+   completes the Case mutation before global Save. SaveCaseWorkspaceRequest
+   has no image member. Root disposition: fold existing preparation edits
+   into the existing global transaction; no undo/draft database or secret
+   immediate commit. Crop Apply stages page fields; global Save persists.
+3. Production caller census for ICaseAssetPreparationStore/Save/Reset is
+   Details plus DI only. Remaining references are the existing image
+   persistence/Web tests. AssessmentPersistenceIntegrationTests:87 constructs
+   the class for its query interface, not mutation. Remove superseded
+   immediate public commands/handlers/registration; preserve the query class
+   and internal transaction helper, updating that constructor caller.
+4. Helper preconditions must be explicit on integration: every edited
+   occurrence must have its exact current, confirmed, nonremoved source.
+   The current helper silently omits missing current sources, and Core
+   intentionally skips freshness for untouched rows absent from the map.
+   Enforce complete edited-source membership before calling Core; retain
+   historical immutable metadata readers unchanged. Current global save
+   accepts general staff/Automation casework, whereas the actual image Web
+   command requires Engineer/editable assessment state. Enforce that image-
+   payload authority in Core and persisted transaction, not only Web.
+5. All image edits, including role/order/Reset, must stage the same existing
+   CaseAssetPreparationEdit values. Reset stages NotUsed/no order/no rotation/
+   Full crop. No SQL/Blob write occurs until global Save; Discard only releases
+   the existing lease/reloads persisted state. Frozen reports stay immutable.
+6. D46 lazy acquisition uses existing ClaimLease; its current helper is PRG
+   only. Proposed narrow native enhancement: submit crop fields through this
+   existing handler, acquire unchanged authority, then render the same page
+   with those values staged, without modifying original expected versions.
+   This proposal needs root review before execution; no new JSON API, modal
+   loader, session draft store or storage-backed undo.
+7. Files and Report must not submit duplicate indexed image payloads. Report
+   already renders eagerly and can own the single form-associated editable
+   value set; Files/viewer and Report-card controls target it. Shared source
+   metadata does not create a second mutable preparation record.
+
+### Superseded historical premises, not erased decisions
+
+Q1's former report-approval snapshot mechanism is superseded by the accepted
+generation freeze implemented under CASE-047/DOCS-020/ENG-041; the intended
+immutable issued source snapshot is retained. Q2's Not used disposition stays
+resolved; no reflection marker is introduced. D46 remains binding.
+DELIV-040 is Done. ENG-034 remains Verifying historically, but the native
+host and moved handlers are integrated through PR674/CASE-047; do not
+force-release that historic claim or pretend it is a missing backend.
+TICK-095 is archived as an empty superseded umbrella and explicitly names
+ENG-031 as the precise image owner.
+
+### Current ownership and proportional proof
+
+ENG-029 (pack confirmed) owns Details.cshtml.cs, CaseMutationPageModel,
+_CaseReport, CaseWorkspaceLabels, FRD06/11 and design README, plus its
+workspace/assessment fixtures. It does not own case-workspace.js/css,
+site.js/css or shared viewer. ENG-031 must start only after exact release/
+handoff. INTK-064 owns DI; root serializes generated Case snapshots/index.
+No worktree is taken by this preparation.
+
+Reuse CaseAssetPreparation core/persistence/Web assertions, workspace
+transaction tests and existing BrowserTestSupport. Add one focused crop
+browser fixture, using actual supplied immutable images through existing
+authorized content routes. Cover Apply/Discard/Save, same-record both
+entrypoints, frame/handles/keyboard/aspect/quarter rotations/reset, read-only
+view, lazy mount, stale authority/source and atomic mixed edits. Root alone
+schedules focused runtime and scoped case-details capture; no broad repeated
+builds or new test infrastructure.
