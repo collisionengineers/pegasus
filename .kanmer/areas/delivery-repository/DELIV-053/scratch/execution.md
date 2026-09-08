@@ -528,3 +528,13 @@ Run the scoped capture workflow directly; its first phase compiles the affected 
 Retain full internal browser/nonbrowser/update results. The nonbrowser selection includes BOTH strengthened processing test cases plus all existing UploadConfirmation/Qdos tests and appended TestUiFocusedRenderTests. Confirm these cases were selected. Expected generated inventory is three existing upload-group-status states; only docs/design/test-ui/pages/upload-group-status--*.html may change. Do not hand-edit snapshots, source, tests, scripts, catalogue or index; actual undeclared content drift stops.
 
 Root just validated existing absolute capture target C:/Users/Alex/Documents/GitHub/pegasus/.worktrees/INTK-066/artifacts/test-ui-capture inside recorded worktree; target and artifacts are nonlinked directories. Freshly revalidate before the normal script removes this disposable capture directory. Prior captured defect is retained in committed snapshot/history; new capture replaces the disposable input for current verification. No other cleanup target permitted. Use same exact-owned-node cleanup only after invocation parent exit if needed, never foreign/broad process termination. Lease heartbeats owned by verifier, source frozen, no live/cloud/externalSQL/Outlook/Box, packaging or commit/push/PR. Stop first genuine failure, record all commands and return both records IDLE/lease implementing; no retry or fixes. Root will inspect the corrected rendered diff and own final report/commit/PR.
+
+## Canonical host-slot handoff — operator-cancelled INTK-066 group capture — 2026-09-09
+
+Operator cancelled the sole verifier's active group-only Test UI command and revoked all capture grants. Frozen source remained clean at `684ddce42c6a8535d603adb54354c9b3c2bca6b5`.
+
+Retained partial result: affected build completed; browser capture PASS 4/4 (1m11s test, 2m53s phase); nonbrowser capture started but produced no final result before cancellation and is INCONCLUSIVE. Ctrl-C interrupted only the owned session; command exit1. Snapshot update and all later Verify/catalogue/documentation/placement/diff commands were NOT RUN.
+
+Exact owned residual chain was observed as dotnet PID20040 → vstest7136 → testhost32124, bound by worktree/filter/correlation/parent facts. All three self-exited before exact-PID cleanup; no process was stopped and no foreign process touched. Final census at `2026-09-08T22:59:59.1905583Z`: no dotnet/MSBuild/testhost/vstest, exact head/branch, tracked status clean, disposable capture retained. No source/generated cleanup or hand-edit occurred.
+
+Lease returned to `implementing` revision72. All capture/test grants revoked. Canonical CEALEX-May25 host slot explicitly **IDLE / unassigned**.
