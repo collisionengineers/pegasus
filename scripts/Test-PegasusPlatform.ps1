@@ -12,7 +12,7 @@ $platformResolver = ${function:Get-PegasusPlatform}
 try {
     foreach ($hostKind in @('Windows', 'Linux')) {
         function Get-PegasusPlatform {
-            [pscustomobject]@{ IsWindows = $hostKind -eq 'Windows'; IsLinux = $hostKind -eq 'Linux' }
+            [pscustomobject]@{ Kind = $hostKind; IsWindows = $hostKind -eq 'Windows'; IsLinux = $hostKind -eq 'Linux' }
         }
         $bundle = Get-PegasusMigrationBundle
         $expectedRuntime = if ($hostKind -eq 'Windows') { 'win-x64' } else { 'linux-x64' }
@@ -20,6 +20,10 @@ try {
         if ($bundle.RuntimeIdentifier -cne $expectedRuntime -or $bundle.Name -cne $expectedName -or
             $bundle.IsLinux -ne ($hostKind -eq 'Linux')) {
             throw "Incorrect migration bundle identity for $hostKind."
+        }
+        $orasHint = Get-PegasusRepairHint -Id 'oras'
+        if ($orasHint -cne 'Install ORAS 1.3.4 from https://oras.land/docs/installation/') {
+            throw "Incorrect ORAS installation guidance for $hostKind."
         }
     }
 }
