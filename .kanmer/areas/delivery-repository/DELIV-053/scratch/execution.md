@@ -178,3 +178,20 @@ After the retained retry failure and root's read-only diagnosis, /root authorize
 ## Host slot handoff — DELIV-055 and DELIV-054 complete — 2026-09-08
 
 Sole verifier `/root/agent_config_verifier` completed the active queue. DELIV-055 final documentation verification PASS: relative links passed and exactly five indented PowerShell fences parsed without execution; retained earlier harness errors remain classified as harness/invocation failures. DELIV-054 exact-merge verification PASS at clean detached `6509746913eda16d2c4440add20e7f6793500f0b`: all three PowerShell files parsed, the platform regression passed, and the Local deployment-plan contract passed. Exact timestamps, hashes, commands and exits are recorded in the owning ticket scratch files. All invoked processes exited; no child or verification process remains. Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned** for the queued INTK-065 regeneration handoff.
+
+## Bounded generation slot — INTK-065 active — 2026-09-08
+
+After the explicit IDLE handoff and root's fresh process census, `/root/migration_fixture_implementation` holds the sole CEALEX-May25 slot for exactly one command in `.worktrees/intk-065` on `INTK-065-principal-evidence-inventory`: `python artifacts/intk-065-refresh.py`. Frozen harness SHA-256: `b797b875d0338ce485b212b27fc14cb2a2af26eec6ab70f931bf1d4de198b5a7`; pre-command JSON SHA-256: `b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284`. No full historical regeneration, test, build, verification script, packaging, browser, cloud action, commit, PR, or retry is authorized.
+
+## Bounded generation slot — INTK-065 complete — 2026-09-08
+
+The active slot ran exactly one command:
+```text
+COMMAND: python artifacts/intk-065-refresh.py
+EXIT: 0
+OUTPUT: status=written before_sha256=b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284 after_sha256=494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251 historical_sha256={"coverage":"80acb31adcd06a5e9a8813f094f7d81f215dad2cd1dd5e104974ee6f409580d9","evaluationSummaries":"309beb5d6d9d45cc42c8043141a872448ecbb8ea16a0f5cae03d830c0a2818d5","evidenceItems":"a04bd2b57e42010b277f809b0492eb9575f842fc60f40d1f6aadfa015a5d91ce","historicalCrosswalks":"a0252005287068de34a307bb35cf9e99576d171d294693e997a5c021bf8ab212","runtimeContract":"adfacf2d30f22ba574bfac1b88ef52956d353f795a075e097a9311803d00108e","sharedTaxonomy":"a0d656083d0c70b5a30349532b39500599847330c64aed9960b87f0f525b9339","supportingIdentities":"e711e9a82d5d7d19d5d6c76537a39a10350b9f283f53ee1867a45a0ec3e10f09"}
+```
+
+The harness verified all retained historical-section hashes before publishing, rejected any delta outside approved purpose/current references/current policy snapshots, and verified published bytes equal canonical bytes. Final JSON SHA-256 is `494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251`; final Git blob is `f65930bdc27a5984e6b9e2dde684a68d64f9e081`. Post-command census found no Python, dotnet, MSBuild, testhost, or vstest process. No full historical regeneration, test, build, verification script, packaging, browser, cloud action, commit, PR, or retry occurred. This is final materialization output, not an independent verification PASS.
+
+Canonical CEALEX-May25 slot is explicitly **IDLE / unassigned**. Root's independent verifier owns all subsequent content/determinism/test evidence; no further command retry is authorized without root.
