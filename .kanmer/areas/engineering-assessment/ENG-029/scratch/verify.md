@@ -153,3 +153,19 @@ Retained artifacts:
 - `artifacts/verification/eng-029-integration-05995d325cc4c1ccd44096bf69d05fd42eeda3d2.trx` — SHA-256 `B479188CAA42D5CA49565ECCA8E9088BF5C4C841A5E6E336F3665F74A6433C13`.
 
 This scratch entry records only the authorized exact-SHA runtime chunk. Snapshot/capture, manual F-005, checklist, proof, stage and cleanup remain untouched.
+
+## Exact-merge fresh capture and verify-first result — 2026-09-08
+
+Target/worktree remained `05995d325cc4c1ccd44096bf69d05fd42eeda3d2` / `.worktrees/verify-eng-029-05995d325cc4c1ccd44096bf69d05fd42eeda3d2`. At 2026-09-08T16:38:34.2009858Z the canonical `artifacts/test-ui-capture` directory was absent and no scoped dotnet/testhost/vstest process was active. It was created fresh, never overwritten.
+
+The capture-only environment set `PEGASUS_TEST_UI_CAPTURE_DIR` to that canonical resolved directory for the exact test process and restored the prior environment in `finally`.
+
+- 2026-09-08T16:39:00.8810816Z–2026-09-08T16:39:40.5278538Z — `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~Pegasus.IntegrationTests.CaseDetailsWebTests.ARefusedCompletenessChangeKeepsUncheckedProposalsBesideTheCurrentValues|FullyQualifiedName~Pegasus.IntegrationTests.CaseDetailsWebTests.CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey|FullyQualifiedName~Pegasus.IntegrationTests.TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor" --logger "trx;LogFileName=eng-029-capture-05995d325cc4c1ccd44096bf69d05fd42eeda3d2.trx" --results-directory ./artifacts/verification`, exit 0: 3 passed, 0 failed, 0 skipped; environment restored.
+- Capture census at 2026-09-08T16:39:53.3882938Z found 20 files (10 `response.html` + `response.json` pairs), all freshly timestamped. Ordered relative-path/length/content-hash manifest SHA-256: `6D863F150A2496C8C96E28E65047061B177C2991E26B27D16FE1789C54C8F1F0`.
+- Capture TRX SHA-256: `26A6E0FD2A14469428A411D77A872D8D82238D4E53A7D0B04C5DA0C205DBE9EE`.
+
+Verify-first then ran against committed snapshots:
+
+- 2026-09-08T16:40:07.1282273Z–2026-09-08T16:40:10.7248905Z — `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details`, exit 1: 2 passed, 1 failed. Authoritative failure: `Generated Test UI file is stale: pages/case-details--conflict.html`; `CapturedRazorResponsesMatchCommittedTestUiSnapshots` failed at `TestUiSnapshotTests.cs:118`. The script threw `Test UI phase 'Snapshot verify' failed with exit code 1`.
+
+Stopped immediately. `Test-UiCatalogue.ps1` was not run; snapshot update/new baseline was not run. Fresh captures remain preserved. Post-failure `git status --short --branch` returned only `## HEAD (no branch)`; `git diff -- docs/design/test-ui/pages/case-details--conflict.html` was empty because verify mode did not mutate committed files. Result remains FAIL/outstanding in Verifying; no manual workaround, proof or stage action occurred.
