@@ -27,7 +27,7 @@
 - [x] ENG-041 original baafa29e0f7002b8235aa43bf333f5d9bb172828 required a later correction. PR691 cc441645b0a62a806e34367ad75e9eaff4df8b11 now passes exact merged acceptance and is Done/closed; automatic confirmation preserves Case authority and FRD-06 ownership is released.
 - [x] CASE-049 merged 3a5ce645cfc0872d7a4324c6818497360c39cca4, passed exact merged acceptance and closed out with claim released; PLAT-072 is likewise verified Done/closed. Native handoff and current workspace access are accepted.
 - [x] Root inspected EstimateImport, IRepairSpecificationStore, EfRepairSpecificationStore.Guard, CaseMutationGuard and explicit IAddCaseDocument. The plan now requires non-mutating persisted authority before OCR/replay and distinguishes one fresh staff custody mutation from version-neutral automatic confirmation and custody replay.
-- [ ] TICK-035 must integrate and release Infrastructure DI/ProductionComposition ownership, and UIIMP-017 must release the generated snapshot index. Root coordinates execution after these actual overlapping claims release.
+- [x] Root re-read current records: TICK-035 is Done/closed at 56566371a5b80ef59c4f98e377c8e8ff6469b5f7, and UIIMP-017 is Done/closed at cdaa02584c38ecc27d3bd24784f59da189138bc1 with claim released 2026-09-08T02:50:48.373Z. DI/ProductionComposition/index ownership is free. INTK-063 does not write DI; CASE-031 owns only FRD-07, a context-only reference here. Root authorizes the exact-baseline isolated execution recorded in the current plan.
 
 ## Evidence work in the bounded checklist
 

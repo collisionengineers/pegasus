@@ -9,16 +9,22 @@ provider resubmission.
 
 ## Starting state
 
-Evidence: research/research.md@d3759f8ba28174b4; files/files.md@5f18ecab1fd5634d.
-Current accepted baseline: dev cc441645b0a62a806e34367ad75e9eaff4df8b11.
+Evidence: research/research.md@d3759f8ba28174b4; files/files.md@c35dbd86dfa59d16.
+Current accepted baseline: dev cdaa02584c38ecc27d3bd24784f59da189138bc1.
 TICK-041's d367219669ad26d5f2b727bd10b582330febc906 contract is integrated.
 CASE-049 native handoff is Done/closed at 3a5ce645cfc0872d7a4324c6818497360c39cca4.
 ENG-041's automatic-custody correction is Done/closed at cc441645b, with
 FRD-06 ownership released. Do not use its superseded baafa29e authority behavior.
-Execution still waits for TICK-035 to integrate and release Infrastructure DI
-and ProductionComposition ownership, and UIIMP-017 to release the generated
-snapshot index. The root approved the canonical command and persisted-authority
-dispositions below. Ticket remains Preparing, untaken; no source worktree exists.
+TICK-035 is Done/closed at 56566371a5b80ef59c4f98e377c8e8ff6469b5f7;
+Infrastructure DI and ProductionComposition ownership is released. UIIMP-017
+is Done/closed at cdaa02584c38ecc27d3bd24784f59da189138bc1 and released its
+snapshot index claim at 2026-09-08T02:50:48.373Z. Root checked both current
+ticket records. CASE-031 writes FRD-07 only; it is context, not a write, here.
+INTK-063 reuses already-registered pairing and does not modify DI. No current
+write-map overlap remains. Root approved the canonical command, source-oracle
+and persisted-authority dispositions below. Ticket is Preparing and untaken;
+execution is authorized on TICK-085-glass-pdf-import in .worktrees/tick-085
+from the exact accepted baseline, after a fresh ready packet and isolated take.
 Historical ticket descriptions of absent Glass XML/launch and no shared command
 are stale: current XML and launch stay, current Web bypass is repaired.
 
