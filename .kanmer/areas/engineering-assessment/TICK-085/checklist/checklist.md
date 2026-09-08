@@ -18,3 +18,9 @@ assessment-editable-state gate before read and final save, and canonical Web
 initial naming are implemented and frozen. Runtime/all-five acceptance boxes
 remain unchecked; root owns the first combined verification. No test failure
 has yet been observed on this branch because no runtime command has run.
+
+
+Root first verification attempt 80403: restore PASS, Release build FAIL
+58.02 seconds / 0 warnings / 5 test compile errors; no tests or TRX. Four mapped
+fixture-only corrections are frozen for root rerun. All acceptance boxes stay
+unchecked; the failure remains in the post-implementation report.

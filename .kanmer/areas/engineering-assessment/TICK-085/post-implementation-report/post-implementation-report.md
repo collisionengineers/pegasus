@@ -155,3 +155,27 @@ All three root-confirmed pre-runtime findings are corrected within the mapped
 Existing root filters above already cover all new assertions; no additional
 cohort or full-suite duplication is needed. Latest bounded git diff --check
 passed exit 0. Source is frozen again for one combined root runtime attempt.
+
+
+## First root runtime attempt — retained FAIL
+
+Root session 80403 exited 1 before any test ran. Locked restore of all seven
+projects passed (maximum reported project time 918 ms). Whole-solution Release
+build failed after 58.02 seconds, zero warnings and five test compile/analyzer
+errors. No TRX or capture was created; Core and Integration cohorts are still
+unrun. This failure is retained, not converted into a product/runtime failure.
+
+- AssessmentPersistenceIntegrationTests lines 922/923 and
+  AutomationAssessmentIngressTests line 34 referenced unqualified GlassExport.
+  The real existing fixture is nested in GlassEstimateXmlParserTests; both
+  callers now qualify that existing type. No source evidence was fabricated.
+- AssessmentEstimateImportWebTests line 1368 passed retained Documents in
+  constructor argument 7 (RequestUploadLinks). They now occupy the actual
+  CaseDetails.Documents argument 4; ActiveLease remains argument 3.
+- ProductionCompositionTests line 108 triggered xUnit2031. It now uses
+  Assert.Single(parsers, predicate), preserving the exactly-one-parser assertion.
+
+Only those four mapped test files changed in this correction. No production,
+contract, parser, source fixture or assertion meaning changed. Bounded git diff
+--check passes exit 0. Source frozen for root incremental Integration build
+and the first still-unrun Core/Integration cohorts, using the same filters.

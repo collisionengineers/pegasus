@@ -55,6 +55,7 @@ transient Processing and active-link/terminal-failure intent to operator
 decisions on 21 August, and empty 202 / identifier-only 200 / generic 422 to
 2 September. TICK-059's archived body corroborates the earlier attribution.
 The board Git records are:
+
 - `504390ef1377f54b37483b0155e1db264c61dadd`, 21 August 14:42:28Z:
   removes earlier “minimal polling default” and explicitly parks exact wire
   codes while retaining no transient Processing / actual link / terminal fail.
@@ -74,6 +75,7 @@ them obsolete merely because code and FRD agree.
 ### PR ancestry and evidence reuse limits
 
 GitHub read-back:
+
 - PR594 MERGED 29 August 14:24:43Z at
   `0d985c9e0b3284f211f824d387e2f36460c0c826`, an ancestor of inspected dev.
 - PR646 CLOSED UNMERGED, author head
@@ -89,9 +91,8 @@ GitHub read-back:
   for false closed-gate claims, not a review of the 202/422 result proposal.
 
 Existing source tests:
-`ProviderSubmissionTests.ResultsArePrincipalScopedAndPausedCredentialsCanRead`
-(name must be checked before any command) covers ownership and paused result
-reading; `ProviderSubmissionResultChangesFromReceivedAfterAcceptRecovery`
+`ProviderSubmissionTests.ResultIsReadableWhilePausedAndNeverAcrossPrincipals`
+covers ownership and paused result reading; `ProviderSubmissionResultChangesFromReceivedAfterAcceptRecovery`
 covers recovery state. `ProviderApiSubmissionTests` covers Received/Complete
 detailed 200, invalid authentication, pause, foreign 404, Triage with no Case,
 and existing-Case rejection as Failed with null reference. These assertions
