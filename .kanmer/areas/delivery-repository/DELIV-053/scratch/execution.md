@@ -150,3 +150,7 @@ OUTPUT: deliv-053-acceptance.ps1: Exception calling "Start" with "0" argument(s)
 Disposition: **INCONCLUSIVE**. `ProcessStartInfo` could not resolve the installed Codex command shim. The failure occurred before a Codex primary session was created, so none of the five roles was discovered or exercised and no client-visible effective model/effort evidence was produced. Per stop-first-failure, the verifier did not resolve/substitute the shim path or retry. The ignored harness was removed with `apply_patch` after the failed invocation. No child, shell/MCP operation by an agent, test/build, browser, packaging, config/trust edit, product edit, cloud write or external mutation occurred. All invoked processes exited.
 
 Canonical CEALEX-May25 host verification slot is now explicitly **IDLE / unassigned**.
+
+## Host slot transfer — primary owns DELIV-053 acceptance
+
+After the verifier's explicit Attempt3 IDLE (ProcessStartInfo could not resolve npm shim; no session began), /root takes the sole CEALEX-May25 slot for actual profile acceptance. The resolved PowerShell command is `C:/Users/Alex/AppData/Roaming/npm/codex.ps1`; no ProcessStartInfo wrapper is needed. Use direct native invocation through the existing PowerShell host, preserving the same bounded read-only fresh-session/role constraints above. All other workers remain source/static-only. This is a deliberate idle transfer, not concurrent verification. Record exact commands/exits and return IDLE before the next verifier task.
