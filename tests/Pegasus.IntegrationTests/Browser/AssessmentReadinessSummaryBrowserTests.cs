@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
@@ -25,6 +26,7 @@ public sealed class AssessmentReadinessSummaryBrowserTests
     public async Task NotReadyReportDraftControlsStateTheConditionAndTheShellRenders()
     {
         var caseId = Guid.NewGuid();
+        var source = new FakeProjectionSource(NearEmptyInput(caseId));
         await using var support = await BrowserTestSupport.StartAsync(
             width: 1920,
             height: 1080,
@@ -34,18 +36,18 @@ public sealed class AssessmentReadinessSummaryBrowserTests
                 services.RemoveAll<IGetCaseAssessment>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
-                services.RemoveAll<IAssessmentReportProjectionSource>();
+                services.RemoveAll<ICaseReportSnapshotSource>();
                 services.AddSingleton<IGetCase>(new FakeGetCase(caseId));
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(NearEmptyProjection(caseId)));
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
                     AssessmentWorkspaceTestData.Create(NearEmptyProjection(caseId))));
-                services.AddSingleton<IAssessmentReportProjectionSource>(
-                    new FakeProjectionSource(NearEmptyInput(caseId)));
+                services.AddSingleton<ICaseReportSnapshotSource>(source);
             }));
 
         var response = await support.GoToAsync($"/Cases/{caseId:D}?section=report");
         Assert.Equal(200, response.Status);
+        Assert.True(source.MetadataReads > 0);
 
         // The Case frame remains the one page and the addressed Report body
         // renders server-side on the initial response.
@@ -84,7 +86,7 @@ public sealed class AssessmentReadinessSummaryBrowserTests
         caseId,
         "QDOS-2026-00042",
         CaseVersion: 0,
-        State: CaseLifecycleState.NotReady,
+        State: CaseLifecycleState.ReportPreparation,
         AssignedEngineerId: null,
         Fields: [],
         EstimateLines: [],
@@ -122,7 +124,7 @@ public sealed class AssessmentReadinessSummaryBrowserTests
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
             var workflow = new CaseWorkflowRecord(
-                caseId, identity, CaseLifecycleState.NotReady, null, null,
+                caseId, identity, CaseLifecycleState.ReportPreparation, null, null,
                 null, null, null, null, null, 0);
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
@@ -141,10 +143,20 @@ public sealed class AssessmentReadinessSummaryBrowserTests
     }
 
     private sealed class FakeProjectionSource(AssessmentReportProjectionInput input)
-        : IAssessmentReportProjectionSource
+        : ICaseReportSnapshotSource
     {
-        public Task<AssessmentReportProjectionInput?> GetAsync(
-            Guid caseId, ActionActor actor, CancellationToken cancellationToken = default) =>
-            Task.FromResult<AssessmentReportProjectionInput?>(input);
+        public int MetadataReads { get; private set; }
+
+        public Task<CaseReportFreezeInputs?> GetAsync(
+            Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+        {
+            MetadataReads++;
+            return Task.FromResult<CaseReportFreezeInputs?>(new(
+                input,
+                new(input.Assessment, null, null, [], null, null, [],
+                    new Dictionary<Guid, DocumentVersion>()),
+                input.OurReference,
+                input.Assessment.CaseVersion));
+        }
     }
 }
