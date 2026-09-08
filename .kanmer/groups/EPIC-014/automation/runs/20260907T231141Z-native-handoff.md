@@ -8,7 +8,7 @@ scope_selector: "CASE-049 only; residual discovered during authorized v1 review"
 controller: codex-v1-remediation-root
 status: running
 created_at: 2026-09-07T23:11:41.757Z
-updated_at: 2026-09-07T23:29:43Z
+updated_at: 2026-09-08T00:59:00Z
 lane_limit: 1
 ---
 
@@ -18,7 +18,7 @@ Frozen roster: CASE-049 only. This separate discovery run does not add to or rew
 
 ## State
 
-CASE-049 is untaken Preparing. Research3c0b558c3e2f9cb5, files4689efb462748ddf, plan83f0e5d4bccd6e53, checklist857dbb455d09c7ea. Wait for PLAT-072 shared fixture cleanup merge, then fresh dev ticket worktree, one implementation owner, root-only focused checks, independent review, exact integrated proof and cleanup. No credential block. Historical CASE-040/ENG-034/CASE-047 claims preserved.
+CASE-049 is Implementing with pack_reconcile in its recorded .worktrees/case-049 on CASE-049-native-handoff, based on accepted dev19e6f523bf6760cab39104b4dca3674b0ac8a512. Research3c0b558c3e2f9cb5, files4689efb462748ddf and current plan a5e40190fbaa6886 were read before take. PLAT-072 is Done/closed. ENG-041 correction has seven explicitly disjoint current files; prior historical scope is not a current edit claim. Root-only focused checks, independent review, exact integrated proof and cleanup remain owed. No credential block. Historical CASE-040/ENG-034/CASE-047 claims preserved.
 
 ## Resume
 
