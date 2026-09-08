@@ -47,3 +47,15 @@ OUTPUT: No PowerShell code fences found in .agents/skills/pegasus-release/refere
 Disposition: **INCONCLUSIVE**. This is a verifier harness/discovery failure, not evidence that an embedded block has invalid PowerShell syntax. Per the stop-first-failure rule, no alternative fence-label inspection, harness correction or retry ran. The earlier Markdown-placement missing-`Base`/`Head` error remains retained and is still an invocation failure, not content evidence; placement is N/A for these existing modified files under the current grant. The ignored harness was removed with `apply_patch`.
 
 The queued DELIV-054 detached-merge verification did not start. No embedded recipe, azd command, migration, release, Azure/live operation, application build/test, cloud write, browser, product edit or child agent ran. All invoked processes exited.
+
+## Parser harness authorized retry — 2026-09-08 — INCONCLUSIVE
+
+After attempt 2 returned IDLE, /root authorized one bounded ignored-harness correction and retry. The diagnosed attempt-2 defect was that the multiline regex closing-fence expression did not consume CR in CRLF text. The replacement used `StringReader.ReadLine()` line-state discovery, exact opening `^\`\`\`powershell\s*$`, exact closing `^\`\`\`\s*$`, and required exactly five blocks before passing any block to `Parser.ParseInput`.
+
+```text
+COMMAND: pwsh -NoProfile -File ./artifacts/deliv-055-parse.ps1
+EXIT: 1
+OUTPUT: Expected exactly 5 PowerShell code fences; found 0.
+```
+
+Disposition: **INCONCLUSIVE**. The retry confirms CRLF was not the sole discovery mismatch; the source fence shape does not match the harness's exact unindented three-backtick `powershell` line assumption. No code block reached the PowerShell parser and no embedded command executed. Per the one-retry grant, no further fence inspection, harness edit or retry ran. The ignored harness is intentionally retained at `artifacts/deliv-055-parse.ps1` for diagnosis. DELIV-054 post-merge verification did not start. All invoked processes exited.
