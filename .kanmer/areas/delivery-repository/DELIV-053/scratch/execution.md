@@ -325,3 +325,15 @@ Root reread canonical IDLE b526a49928cc4793 and ready packet. Observed clean HEA
 Before original build, validate then stop only previous granted build nodes13640,14296,17400,17848,24080,28952 if still exact owned identities: parent7104, created2026-09-08T19:23:44.918616–19:23:45.043171Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true. Use proven UTC DateTimeOffset comparison and native exact-ID Stop-Process. Missing exited nodes are harmless; identity mismatch stops. No broad name-based cleanup.
 
 Then same original build and complete initial queue (Core --no-build; existing focused nonbrowser SQL; UploadCaseSearch browser only if earlier pass). Preserve all prior failures. After this build exits, this grant ALSO permits cleanup of new reusable MSBuild nodes demonstrably spawned by THIS exact build: record PID, start time, parent and expected MSBuild nodemode command at creation/postcheck, stop only exact matching owned nodes after parent build exited. This prevents another retained DLL lock and does not authorize foreign process termination. No source edits, snapshot generation, autonomous retry, assertion/filter weakening, push/PR/live operations. First genuine failure stops tests and returns canonical IDLE with exact evidence; owned resource cleanup may complete before handoff.
+
+## Host slot handoff — INTK-066 initial queue stopped on focused integration — 2026-09-08
+
+At exact clean HEAD `cc826889407b97dc2d951219c70b59e619de70f2`, sole verifier `/root/agent_config_verifier` completed exact previous-node cleanup, then:
+- Solution build PASS: 0 warnings/errors.
+- Exact-build reusable-node cleanup PASS: six exact nodes stopped after their parent exited.
+- Core PASS: 1,955 passed, 14 skipped, 0 failed.
+- Focused non-browser integration FAIL: 111 passed, 15 failed, 0 skipped, 126 total.
+
+Exact commands, timestamps, cleanup identities and all 15 failures are retained in INTK-066 `scratch/execution`. Per stop-first-failure, the UploadCaseSearch browser command is NOT RUN. No retry or fix occurred. Postcheck found the exact head clean and no dotnet/MSBuild/testhost/vstest process remaining.
+
+Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned**.

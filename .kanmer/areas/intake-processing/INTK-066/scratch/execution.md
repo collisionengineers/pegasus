@@ -183,3 +183,46 @@ Root reread canonical IDLE b526a49928cc4793 and ready packet. Observed clean HEA
 Before original build, validate then stop only previous granted build nodes13640,14296,17400,17848,24080,28952 if still exact owned identities: parent7104, created2026-09-08T19:23:44.918616–19:23:45.043171Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true. Use proven UTC DateTimeOffset comparison and native exact-ID Stop-Process. Missing exited nodes are harmless; identity mismatch stops. No broad name-based cleanup.
 
 Then same original build and complete initial queue (Core --no-build; existing focused nonbrowser SQL; UploadCaseSearch browser only if earlier pass). Preserve all prior failures. After this build exits, this grant ALSO permits cleanup of new reusable MSBuild nodes demonstrably spawned by THIS exact build: record PID, start time, parent and expected MSBuild nodemode command at creation/postcheck, stop only exact matching owned nodes after parent build exited. This prevents another retained DLL lock and does not authorize foreign process termination. No source edits, snapshot generation, autonomous retry, assertion/filter weakening, push/PR/live operations. First genuine failure stops tests and returns canonical IDLE with exact evidence; owned resource cleanup may complete before handoff.
+
+## Invariant-corrected initial verification — build/Core pass, focused integration fail — 2026-09-08
+
+Grant inputs: ticket revision `rev1:d95f7bbc323b51d0`, lease revision 18, exact base/head `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `cc826889407b97dc2d951219c70b59e619de70f2`.
+
+Preflight and prior-node cleanup exited 0 at `2026-09-08T19:30:32.6088176Z`: exact clean branch/head and base ancestry passed; no unexpected heavy process existed. PIDs 13640, 14296, 17400, 17848, 24080 and 28952 all matched their authorized Program Files dotnet / parent 7104 / creation 19:23:44.918616–19:23:45.043171Z / `MSBuild.dll /nodemode:1 /nodeReuse:true` identities, were stopped, and were confirmed absent.
+
+### Solution build — PASS
+
+`dotnet build Pegasus.slnx` ran `2026-09-08T19:30:48.9793931Z`–`19:31:43.0902018Z`, exit 0: 0 warnings, 0 errors, elapsed 00:00:53.11.
+
+Per this grant's resource-cleanup authority, the six reusable MSBuild nodes created by this exact build were recorded and stopped only after parent PID 7868 had exited: PIDs 19884, 12216, 3720, 26116, 27072 and 14844, created `19:30:49.603180Z`–`19:30:49.607868Z`, all Program Files dotnet running `MSBuild.dll /nodemode:1 /nodeReuse:true`. Cleanup exited 0 with none remaining at `19:32:14.0581708Z`.
+
+### Core tests — PASS
+
+`dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --no-build` ran `19:32:30.7552963Z`–`19:32:37.6361897Z`, exit 0: 1,955 passed, 14 skipped, 0 failed, 1,969 total.
+
+### Focused non-browser integration — FAIL
+
+`dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-build --filter "(FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~MailWorkspaceWebTests)&Category!=Browser"` ran `19:32:59.4444651Z`–`19:37:35.3088122Z`, exit 1: 111 passed, 15 failed, 0 skipped, 126 total, duration 4m32s.
+
+Failures:
+1. `TriageQueuesWebTests.AwaitingAttachMovesTheImageIntakeToAnExistingCase` line 534 — expected HTTP Found, actual OK.
+2. `UploadOutcomeQueriesTests.CompletedGroupedImageWithoutASettledDestinationIsStillProcessing` line 218 — expected Working, actual ReadyToCreate.
+3. `UploadOutcomeQueriesTests.NoUsableVrmImageGroupRoutedToUnidentifiedIsReportedForReview` line 198 — expected NeedsReview, actual ReadyToCreate.
+4. `UploadOutcomeQueriesTests.ResolvedGroupedUnidentifiedItemIsReportedWithoutPollingOrAnotherDecision` line 260 — expected Resolved, actual ReadyToCreate.
+5. `ImageIntakeWebTests.ConfidentReadAutoRegistersAndAutoAssociatesTheUnambiguousCase` via helper line 394 — expected Guid CaseId, actual null.
+6. `UploadConfirmationWebTests.AttachGroupAddsEveryOpenMemberToTheChosenCase` line 475 — expected HTTP Found, actual OK.
+7. `UploadConfirmationWebTests.ManualUploadWithAUniqueImageMatchStillRequiresStaffConfirmation` line 253 — rendered HTML lacked `QDOS31001`.
+8. `UploadConfirmationWebTests.AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely` line 110 — rendered HTML lacked `Choose a case destination`.
+9. `ImageIntakePersistenceTests.GroupRegistrationAndInterruptedPairingPreserveEveryMember(reverseSibling: False, staffOverride: True)` line 419 — expected MergedIntoInstructionCase, actual AwaitingInstruction.
+10. The same parameterized test with `staffOverride: False` line 419 — expected MergedIntoInstructionCase, actual AwaitingInstruction.
+11. `UploadConfirmationWebTests.AttachMergesARegisteredImageGroupIntoACaseTypedByReference` line 212 — expected HTTP Found, actual OK.
+12. `CasesIndexWebTests.AwaitingImageSelectionCarriesTheExactOriginReceiptIntoConfirmation` line 75 — expected HTTP Found, actual OK.
+13. `CaseCreateWebTests.CreateReplaysTheCommittedAddressBeforeRetryingAcceptance` line 453 — create returned HTTP 200 instead of redirect; message: `The case could not be confirmed. Reload the page before trying again.`
+14. `ImageIntakePersistenceTests.ReceiptLinkEnforcesEligibilityOnceAnImageIntakeExists` line 686 — expected exact `ImageIntakeCaseNotEligibleException`, actual `IntakeAssociationConflictException` with message `The selected case is not currently available for this manual upload.`
+15. `CaseCreateWebTests.RepeatedCreateSubmissionWithTheSameOperationIdAllocatesOneReference` line 273 — expected HTTP Found, actual OK.
+
+The exact invocation did not configure a TRX logger, so stdout is the retained failure source. The HTML assertion output exposed only the normal document prefix plus the absent expected text; no rerun or extra data collection occurred.
+
+Per stop-first-failure, the UploadCaseSearch browser command is **NOT RUN**. No retry, source/assertion/filter edit, snapshot generation, live action, push or PR occurred. All earlier failures remain retained.
+
+Postcheck at `2026-09-08T19:38:00.2793518Z` exited 0: exact branch/head remained clean and no dotnet, MSBuild, testhost or vstest process remained.
