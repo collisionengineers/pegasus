@@ -47,6 +47,13 @@ Reuse its real QDOS policy with QdosInstructionExtractionPolicy as in
 CaseMatchIntegrationTests; preserve every concurrency assertion. Root approved
 this fixture-only map correction after the exact caller census.
 
+The existing Worker timer has two direct constructor consumers in
+`tests/Pegasus.IntegrationTests/StagedArtifactReconciliationFunctionIntegrationTests.cs`.
+Root approved adding this fixture: supply required pairing, preserve earlier
+result assertions, and assert the actual Triage call's bound/count/failure
+log fields. Reuse its existing recording convention and real store/policy
+for the image recovery helper; no production no-op.
+
 ## Context files
 
 | Path | Constraint |
