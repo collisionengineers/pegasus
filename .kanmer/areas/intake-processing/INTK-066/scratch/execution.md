@@ -347,3 +347,5 @@ Verifier `/root/agent_config_verifier` ran the freshly granted queue in `.worktr
 5. `dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-build --filter "Category=Browser&(FullyQualifiedName~UploadCaseSearchBrowserTests|FullyQualifiedName~QdosAllocationRecoveryBrowserTests)" -- xUnit.MaxParallelThreads=1` — exit 0: 10 passed, 0 skipped, 0 failed in 1m48s. This includes the actual confirmation and editable Create checks at 1580/1100/760.
 
 Final postcheck remained at exact clean HEAD `500b86a9b21adbd7a8fe56a65ddd52782630ce21`; no `dotnet`, MSBuild, testhost or vstest process remained. No retry, source/snapshot edit, live action, push or PR occurred. Remaining full Release rails and four-scope snapshot work remain separate obligations.
+
+- 2026-09-08T20:24:14.922Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 30; expires 2026-09-08T20:54:14.915Z)
