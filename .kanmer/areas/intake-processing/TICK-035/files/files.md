@@ -163,3 +163,14 @@ must be column2. No reader/framework/schema or additional fixture file.
   party VRM as a structural conflicting client value. Keep identical table/row/
   column numbers but distinct physical source labels. Require both candidate
   values/source locators, HasConflict and no typed VRM, not last-document wins.
+
+
+## Released CASE-049 document ownership handoff
+
+Additional file: docs/frd/frd-01-case-identity-and-lifecycle.md, only the
+incoming-cancellation association paragraph around line101. Replace obsolete
+focused-alpha/QDOS-only association wording with current principal-scoped
+supported-profile/typed-key behavior, retaining QDOS correspondence/cancellation
+predicates and manual Case-state rules. Root expressly authorized this after
+CASE-049 Done/claim release. Its native handoff paragraphs and implementation
+remain unchanged through normal accepted-dev merge; no other author edit.

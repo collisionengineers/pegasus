@@ -298,3 +298,28 @@ no typed registration. Original source files/hashes stay immutable.
 Freeze both corrections together for root source review and focused verification;
 no author builds/tests. Preserve previous3 PASS, every prior failure and exact
 TRX identity. No repeated unaffected cohorts or new PR until root results.
+
+
+## Final canonical paragraph and accepted-dev integration
+
+CASE-049 is Done and its claim/worktrees released. Root authorizes normal
+merge of accepted dev3a5ce645cfc0872d7a4324c6818497360c39cca4 into the
+clean verified checkpoint7fcd4c662c5457024d1d20c5fe0c02c842e98a63.
+Preserve the accepted native engineer handoff and all its source/tests/docs;
+stop on ambiguous conflicts rather than resolving another owner's behavior.
+
+Only additional author edit is FRD-01's incoming-cancellation paragraph:
+remove the obsolete focused-alpha/QDOS-only association limit. Describe the
+actual principal-scoped matching owner: existing QDOS correspondence predicates
+remain; non-QDOS matching relies on supported current instruction profiles and
+unambiguous typed keys, not blanket correspondence support. Cite current FRD-02
+as behavior owner. Preserve current-envelope boundaries, QDOS cancellation
+recognition, manual authorized Case-state changes and permanent history.
+No new product behavior, source, test, configuration or policy is authorized.
+
+Check that TICK-035 runtime sources/tests match the verified checkpoint, that
+all accepted CASE-049 source remains identical to dev, and that the final author
+increment contains only this paragraph. No new builds/tests for that doc-only
+increment. Record merge parents/equality scope honestly, not a full-tree test
+reuse claim. Then commit [skip ci], push one PR to dev, update ticket/report,
+check fresh gates and move Implementing to Review for an independent reviewer.
