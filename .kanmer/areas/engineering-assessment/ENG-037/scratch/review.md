@@ -7,7 +7,7 @@ reviewer: "/root/intake_audit"
 independent: true
 plan_hash: "7acbd02e0af054f3"
 ticket_updated: "2026-09-08T03:13:33.468Z"
-board_sha: "d01df11422a1bfc21f4755eb079e5c6ab0d8add6"
+board_sha: "fddd4e84ae8460e6dd488a32b573c8405c9ecc75"
 expected_reviewers:
   - "/root/intake_audit"
 threads_snapshot: []
@@ -94,10 +94,21 @@ The reviewed board tip was pushed (ahead 0, behind 0). Local custom-skill
 drift warnings were observed as existing setup state; this review used the
 repository skill and did not mutate unrelated setup.
 
-## Handoff
+## Final authorized merge handoff
 
-No merge, lease, stage or branch mutation by the reviewer. Root explicitly
-reserved the merge decision. Root must recheck exact head, plan/ticket
-freshness, checks, threads and pushed board immediately before any authorized
-merge. After confirmed merge and Review to Verifying, kanmer-verify owns
-exact merged acceptance; this review is not proof.
+Root subsequently delegated the normal guarded squash merge to this independent
+reviewer under the user's full merge permission, after CASE-031 PR694 merged
+at 3c1d04781719f92c86a190f510c1924fc9df6328 on 8 September 2026 at 03:27:01Z.
+This serializes changes to the integration branch. It is not self-merge.
+
+The final gather retained the same plan version, ticket timestamp, author head,
+public independent review, completed informational bot comment, empty review
+threads and empty check/rule set; protection remains HTTP 404. Full two-file
+diff is unchanged. The new pushed board tip is recorded above.
+
+The reviewer will use a normal squash merge with the exact head guard and
+[skip ci] subject, without admin bypass or branch deletion. A failed merge
+leaves Review unchanged. After GitHub confirms the merge, fresh doc gates
+precede the single Review to Verifying move. Root owns exact merged-source
+verification; this review is not proof. No reviewer build/test, source,
+lease, unrelated metadata or workspace changes are authorized.

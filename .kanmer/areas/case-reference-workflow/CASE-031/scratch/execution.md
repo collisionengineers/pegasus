@@ -9,3 +9,5 @@ Attempt1 retained: root restore/build PASS,57Core PASS,12Integration PASS/1FAIL 
 - 2026-09-08T03:12:09.412Z lease-phase implementing → review (lease 6841f0dc-8036-4424-85e4-fa38fda4c5ee rev 8; expires 2026-09-08T03:42:09.405Z)
 
 Published clean head9863dd4264440ef228a0766d3e2949faf6a4e12b as PR694 to dev; normal push and live PR head/base/footer readback passed. Root focused57Core+12transport+corrected1actualCaller PASS; original failed13-case attempt preserved. Fresh enter-review gates passed; ticket moved Implementing→Review. Author stop: independent review required. No source edit/build/test/merge/cleanup after publication. Lease revision8 retained; threeTRXs remain in author worktree.
+
+- 2026-09-08T03:28:05.486Z lease-phase review → running-command (lease 6841f0dc-8036-4424-85e4-fa38fda4c5ee rev 9; expires 2026-09-08T03:58:05.478Z)

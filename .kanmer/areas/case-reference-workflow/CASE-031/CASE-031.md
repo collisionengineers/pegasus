@@ -14,16 +14,16 @@ stageEntered:
 taken_at: '2026-09-08T02:31:14.238Z'
 branch: CASE-031-eva-claimant-address
 worktree: .worktrees/case-031
-claim_expires_at: '2026-09-08T03:42:09.405Z'
+claim_expires_at: '2026-09-08T03:58:05.478Z'
 claim_controller: /root
 lease_id: 6841f0dc-8036-4424-85e4-fa38fda4c5ee
-lease_revision: 8
+lease_revision: 9
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: intake_audit
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\case-031'
 lease_provider: codex
-lease_phase: review
-lease_heartbeat_at: '2026-09-08T03:12:09.405Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-08T03:28:05.478Z'
 labels:
   - claimant-address
   - intake
@@ -46,7 +46,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-09-08T03:27:20.461Z'
+updated: '2026-09-08T03:28:05.478Z'
 ---
 
 # Send the canonical claimant address in EVA API submissions
