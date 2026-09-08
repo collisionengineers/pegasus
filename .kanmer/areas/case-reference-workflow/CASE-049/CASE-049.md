@@ -2,7 +2,7 @@
 id: CASE-049
 type: ticket
 title: Make native engineer handoff the review action without an EVA prerequisite
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: codex-mcp-client
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-07T23:13:19.040Z'
   review: '2026-09-08T01:12:38.095Z'
   verifying: '2026-09-08T01:19:58.256Z'
+  done: '2026-09-08T01:27:22.294Z'
 taken_at: '2026-09-08T00:45:33.045Z'
 branch: CASE-049-native-handoff
 worktree: .worktrees/case-049
@@ -39,7 +40,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/690'
 archived: false
 created: '2026-09-07T23:11:41.757Z'
-updated: '2026-09-08T01:21:51.024Z'
+updated: '2026-09-08T01:27:22.294Z'
 ---
 
 ## What
