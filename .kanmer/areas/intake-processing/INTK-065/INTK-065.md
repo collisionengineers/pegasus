@@ -2,12 +2,14 @@
 id: INTK-065
 type: ticket
 title: Refresh principal evidence source inventory after policy consolidation
-status: implementing
+status: review
 area: intake-processing
+order: 0
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T07:15:57.942Z'
+  review: '2026-09-08T14:45:48.793Z'
 taken_at: '2026-09-08T13:43:28.206Z'
 branch: INTK-065-principal-evidence-inventory
 worktree: .worktrees/intk-065
@@ -28,9 +30,13 @@ links:
   - INTK-060
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
+commits:
+  - 5e0aeb47b9cb87258e12f66967e1efee4743b3f3
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/706'
 archived: false
 created: '2026-09-08T07:15:35.565Z'
-updated: '2026-09-08T14:26:20.489Z'
+updated: '2026-09-08T14:45:48.793Z'
 ---
 
 ## What

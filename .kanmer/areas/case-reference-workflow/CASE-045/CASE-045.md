@@ -4,6 +4,7 @@ type: ticket
 title: Show an optional known principal on image-initiated cases
 status: review
 area: case-reference-workflow
+order: 20
 assignee: wf-build/case-045
 profile: feature
 stageEntered:
@@ -37,7 +38,7 @@ prs:
   - '671'
 archived: false
 created: '2026-09-04T10:21:48.548Z'
-updated: '2026-09-05T09:39:55.441Z'
+updated: '2026-09-08T14:45:47.810Z'
 ---
 
 ## What

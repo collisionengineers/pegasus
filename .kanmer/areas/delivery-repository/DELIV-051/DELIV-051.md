@@ -4,6 +4,7 @@ type: ticket
 title: Revamp repository documentation and agent context
 status: review
 area: delivery-repository
+order: 30
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -38,7 +39,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-08T08:15:33.723Z'
-updated: '2026-09-08T12:23:25.495Z'
+updated: '2026-09-08T14:45:47.842Z'
 ---
 
 ## What

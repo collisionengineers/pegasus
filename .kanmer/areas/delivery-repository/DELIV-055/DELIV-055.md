@@ -4,6 +4,7 @@ type: ticket
 title: Restore the self-contained release migration host recipe
 status: review
 area: delivery-repository
+order: 40
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/705'
 archived: false
 created: '2026-09-08T13:25:29.949Z'
-updated: '2026-09-08T14:24:56.601Z'
+updated: '2026-09-08T14:45:47.884Z'
 ---
 
 ## What

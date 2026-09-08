@@ -35,4 +35,4 @@ Full original-input regeneration is unavailable on this host and was not claimed
 
 ## Handoff
 
-The implementation is ready for one bounded commit and a draft PR targeting `dev`. No self-review, merge, proof, closeout, or deployment action has been performed.
+Commit `5e0aeb47b9cb87258e12f66967e1efee4743b3f3` is pushed and draft [PR #706](https://github.com/collisionengineers/pegasus/pull/706) targets `dev`. It is ready for independent review. No self-review, merge, proof, closeout, or deployment action has been performed.
