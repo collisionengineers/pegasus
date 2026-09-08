@@ -980,7 +980,7 @@ $script:PegasusRepairHints = @{
         Linux = 'curl -fsSL https://aka.ms/install-azd.sh | sudo bash'
     }
     'oras' = @{
-        Windows = 'The authorised release terminal is Linux; install ORAS there.'
+        Windows = 'Install ORAS 1.3.4 from https://oras.land/docs/installation/'
         Linux = 'Install ORAS 1.3.4 from https://oras.land/docs/installation/'
     }
     'bicep' = @{
