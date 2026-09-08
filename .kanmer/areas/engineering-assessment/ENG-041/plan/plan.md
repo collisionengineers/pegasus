@@ -41,10 +41,13 @@ not a cloud/provider investigation.
 Meets linked FRD-06: an Engineer-owned Glass estimate lands as a source-labelled
 Draft, with custody and replay retained and no duplicate external calculation.
 Meets FRD-11 immutable/current report inputs and atomic stale-generation rules.
-Under the current v1 remediation authority, clarify only FRD-11's existing
-snapshot-freshness paragraph: complete source census is rechecked at freeze;
-automatic custody confirmation is not a staff edit consuming its lease.
-No product mechanism needs a new ADR. Preserve operator-notes meaning.
+FRD-11 stays unchanged: root confirmed its current wording requires source
+freshness/invalidation, not Case-version advancement or clearing a staff lease.
+Under the current v1 remediation authority, clarify only the already linked
+FRD-06 Glass's section: own returned artifact retention preserves still-valid
+Engineer authority; genuine staff edits or expired leases still defer import.
+Record the source-recheck mechanism in existing code comments and the ticket
+report, not a new governing document. No ADR is needed. Preserve operator notes.
 
 ## Required changes
 
@@ -90,7 +93,7 @@ No product mechanism needs a new ADR. Preserve operator-notes meaning.
 | Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateCallbackWebTests.cs` | Actual callback Completed/import/custody/replay assertions. |
 | Modify | `tests/Pegasus.IntegrationTests/CaseArtifactCustodyRecoveryTests.cs` | Immediate/recovered custody and replay preserve live authority. |
 | Modify | `tests/Pegasus.IntegrationTests/Reports/CaseReportGenerationPersistenceTests.cs` | Real-shaped source fixture and focused source-race/invalidation evidence. |
-| Modify | `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Existing snapshot-freshness paragraph only. |
+| Modify | `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Existing Glass's authority/retention section only. |
 
 ## Do not modify
 
@@ -101,6 +104,7 @@ No product mechanism needs a new ADR. Preserve operator-notes meaning.
 - `src/Pegasus.Web/Pages/Cases/**`
 - `src/Pegasus.Web/Presentation/**`
 - `src/Pegasus.Core/**`
+- `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md`
 - `docs/operator-notes.md`
 - `docs/design/test-ui/**`
 
@@ -112,9 +116,9 @@ Use existing fixture documents and identities; no fabricated domain corpus.
 Root-only heavy checks. Preserve the exact-merge FAIL proof and both TRXs.
 
 Current scope removes prior Case Details/assessment edit ownership. Live
-CASE-049 files/files.md@4689efb462748ddf intersects only FRD-11. Reserve its
-freshness paragraph explicitly with root before concurrent execution; do not
-touch CASE-049 native access text. DOCS-020 is Done and its claim is released.
+CASE-049 files/files.md@4689efb462748ddf has no overlap with these seven
+current correction files. FRD-11 and CASE-049 native access text stay untouched.
+DOCS-020 is Done and its claim is released.
 
 ## Ordered steps
 
@@ -131,8 +135,8 @@ touch CASE-049 native access text. DOCS-020 is Done and its claim is released.
    do not make a supposedly stale fixture reread current sources at assertion
    time. Keep explicit source/hash/currentness assertions independently of the
    reused mapping, and preserve the existing stale staff-version negative.
-4. Add/adjust the focused assertions below and clarify the reserved FRD-11
-   paragraph. Freeze source and return exact filters/files to root; no author
+4. Add/adjust the focused assertions below and clarify only the FRD-06 Glass's
+   authority paragraph. Freeze source and return exact filters/files to root; no author
    build/test. After root evidence, the author updates the report and follows
    the approved new-PR review route for this post-merge correction.
 

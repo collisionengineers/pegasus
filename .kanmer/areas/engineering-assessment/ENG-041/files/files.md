@@ -12,7 +12,7 @@ PR683's delivered diff remain historical evidence, not future edit authority.
 | `tests/Pegasus.IntegrationTests/GlassRepairEstimateCallbackWebTests.cs` | Preserve both actual callback success/replay assertions; assert unchanged authority through the session's own custody stage where appropriate. |
 | `tests/Pegasus.IntegrationTests/CaseArtifactCustodyRecoveryTests.cs` | Actual immediate/recovered custody and replay preserve an existing live lease and Case version. |
 | `tests/Pegasus.IntegrationTests/Reports/CaseReportGenerationPersistenceTests.cs` | Complete real-shaped fixture census; pre-freeze source races, exact metadata, currentness, staleness, generated-output exemption and runtime role evidence. |
-| `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Only the existing snapshot-freshness paragraph: source recheck and automatic custody preserving staff authority. |
+| `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Only the existing Glass's section: own artifact retention preserves still-valid Engineer authority; genuine staff changes/expired lease still wait. |
 
 ## Existing callers and unchanged boundaries
 
@@ -26,9 +26,10 @@ store, DTO, migration, grants, package, runtime, UI handler or provider API.
 Do not edit explicit staff Add/Remove document commands in EfDocumentCustodyStore,
 CaseMutationGuard, Glass gateway/import authority, Case Details, shared labels,
 estimate save/replay, CASE-049 handoff/access files, or generated UI snapshots.
-CASE-049's live file map @4689efb462748ddf intersects this proposed scope only at
-FRD-11; reserve the freshness paragraph explicitly before concurrent execution.
-DOCS-020 is Done with claim released; retain its earlier proof/history.
+CASE-049's live file map @4689efb462748ddf has no overlap with this correction
+scope. FRD-11 stays unchanged: its current wording already requires the source
+freshness and atomic invalidation preserved here. DOCS-020 is Done with claim
+released; retain its earlier proof/history.
 
 ## Execution boundary
 
