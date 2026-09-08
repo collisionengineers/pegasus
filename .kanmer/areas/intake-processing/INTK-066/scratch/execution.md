@@ -231,3 +231,7 @@ Only the three authorized checks ran:
 3. `git diff --check` — exit 0.
 
 Final census `2026-09-08T23:34:47.4638803Z`: exact head/branch, clean tracked and untracked status, no dotnet/MSBuild/testhost/vstest process. No restore, build, application test, browser, capture, installer, cleanup, edit, commit, push or PR action occurred. Prior build and 80-pass/6-skip focused evidence remains the applicable evidence for unchanged application inputs. Lease returned to `implementing`, revision 78. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
+
+## Publication complete
+
+Pushed exact e8bc3fcb47b2b47e405c806d17314cccefc71e26 on recorded branch. No matching PR existed, so created draft https://github.com/collisionengineers/pegasus/pull/712 to dev, immediately recorded prs[], read passing Review gates and moved implementing→review, confirmed board sync ahead0/behind0, then marked PR712 ready. Remote read-back matched exact head/base/open/non-draft; worktree clean. All host processes idle. No author review attestation, merge, deployment, workspace release or next ticket. Independent kanmer-review is next.
