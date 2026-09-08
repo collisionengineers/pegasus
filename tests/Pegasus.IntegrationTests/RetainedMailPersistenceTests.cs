@@ -989,7 +989,8 @@ public sealed class RetainedMailPersistenceTests
         // different policy, or the policy's predicate logic regressed, this
         // call -- not a fabricated result -- would change and the
         // assertions below would fail.
-        var policy = services.GetRequiredService<IMailClassificationPolicy>();
+        var policy = Assert.Single(services.GetServices<IMailClassificationPolicy>(),
+            candidate => candidate.WorkProviderCode == "QDOS");
         var original = policy.Classify(new(
             IntakeSourceReadStatus.Readable,
             [
@@ -1003,8 +1004,8 @@ public sealed class RetainedMailPersistenceTests
             [],
             false));
         Assert.Equal(MailClassificationOutcome.Ambiguous, original.Outcome);
-        Assert.Equal(QdosMailClassificationPolicy.Key, original.PolicyKey);
-        Assert.Equal(QdosMailClassificationPolicy.Version, original.PolicyVersion);
+        Assert.Equal(PrincipalMailClassificationPolicy.Key, original.PolicyKey);
+        Assert.Equal(PrincipalMailClassificationPolicy.Version, original.PolicyVersion);
 
         foreach (var message in messages)
         {

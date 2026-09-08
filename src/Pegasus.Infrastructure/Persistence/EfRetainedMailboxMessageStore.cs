@@ -798,7 +798,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 // unwrap is applied to what retention already holds, so a
                 // staff forward is never rendered as the forwarding desk.
                 var effectiveSenderAddress = receipt?.EffectiveSenderAddress
-                    ?? QdosMailRoutePolicy.ProvisionalEffectiveSender(
+                    ?? PrincipalMailRoutePolicy.ProvisionalEffectiveSender(
                         row.SenderAddress,
                         row.BodyHead);
                 var isStaffForward = effectiveSenderAddress is { } effectiveSender

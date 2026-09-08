@@ -248,7 +248,9 @@ public sealed record MailRouteEvaluationResult(
 
 public interface IMailRoutePolicy
 {
-    MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult);
+    MailRouteEvaluationResult Evaluate(
+        IntakeSourceReadResult readResult,
+        InstructionPolicySelection? instruction = null);
 }
 
 public sealed record IntakeSourceIdentity(
@@ -559,7 +561,37 @@ public sealed record InstructionReviewField(
     string? SuggestedValue,
     IReadOnlyList<InstructionFieldCandidate> Candidates,
     bool IsDefaulted,
-    bool HasConflict);
+    bool HasConflict)
+{
+    /// <summary>
+    /// The existing case field this profile binds to its typed instruction
+    /// draft. Printed names and source candidates remain unchanged. A method
+    /// keeps this derived identity out of the persisted review-field JSON.
+    /// </summary>
+    public string? ToCaseDataFieldName() => Name switch
+    {
+        "Claimant name" => CaseDataFieldNames.ClaimantName,
+        "Claim number" or "Claim reference" => CaseDataFieldNames.ClaimNumber,
+        "Vehicle registration" => CaseDataFieldNames.VehicleRegistration,
+        "Vehicle make" or "Vehicle make and model" => CaseDataFieldNames.VehicleMake,
+        "Vehicle model" => CaseDataFieldNames.VehicleModel,
+        "Vehicle mileage" => CaseDataFieldNames.VehicleMileage,
+        "Vehicle mileage unit" => CaseDataFieldNames.VehicleMileageUnit,
+        "Accident circumstances" => CaseDataFieldNames.AccidentCircumstances,
+        "Date of incident" or "Incident date" => CaseDataFieldNames.IncidentDate,
+        "Instruction date" => CaseDataFieldNames.InstructionDate,
+        "Inspection date" => CaseDataFieldNames.InspectionDate,
+        "Inspection address" => CaseDataFieldNames.InspectionAddress,
+        "Claimant contact number" or "Claimant mobile telephone" or "Claimant home telephone"
+            => CaseDataFieldNames.ClaimantContactNumber,
+        "Claimant address" => CaseDataFieldNames.ClaimantAddress,
+        "Contact name" => CaseDataFieldNames.ContactName,
+        "Contact email" => CaseDataFieldNames.ContactEmailAddress,
+        "Contact phone" => CaseDataFieldNames.ContactPhoneNumber,
+        "VAT status" => CaseDataFieldNames.VatStatus,
+        _ => null
+    };
+}
 
 public sealed record InstructionDraft(
     string? SuggestedPrincipalCode,

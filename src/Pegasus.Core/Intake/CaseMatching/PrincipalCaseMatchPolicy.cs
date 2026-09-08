@@ -3,7 +3,9 @@ using System.Text.RegularExpressions;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// QDOS case-match key extraction and normalization (operator-accepted predicates,
+/// Principal-scoped match keys reuse the registered role-labelled extractor and
+/// retain full non-QDOS references. Read and Case-index writes share normalization.
+/// QDOS retains its case-match grammar (operator-accepted predicates,
 /// decision 2026-08-03). Extraction is label-anchored with a required separator — free
 /// text is never scraped, which is what excludes the predecessor's false registrations
 /// (AND2 from an office-address footer, OCTOBER, postcode outward codes). The durable
@@ -12,18 +14,33 @@ namespace Pegasus.Core.Intake;
 /// the same provider. Only the client vehicle is a key: TP-prefixed labels are skipped,
 /// which keeps two claimants from one accident apart.
 /// </summary>
-public sealed partial class QdosCaseMatchPolicy : IProviderCaseMatchPolicy
+public sealed partial class PrincipalCaseMatchPolicy(
+    IInstructionExtractionPolicy extractionPolicy) : IProviderCaseMatchPolicy
 {
-    public const string Key = "qdos_case_match";
+    public const string Key = "principal_case_match";
     public const int Version = 1;
 
-    public string WorkProviderCode => "QDOS";
+    public string WorkProviderCode => extractionPolicy.PrincipalCode;
     public string PolicyKey => Key;
     public int PolicyVersion => Version;
 
     public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult)
     {
         ArgumentNullException.ThrowIfNull(readResult);
+        if (WorkProviderCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
+        {
+            var result = extractionPolicy.Extract(readResult, DateTimeOffset.UnixEpoch,
+                new(WorkProviderCode, Key, Version));
+            var draft = result.InstructionDraft;
+            if (draft is null)
+            {
+                return new(null, null, null, null, null);
+            }
+            var derived = DeriveIndexKeys(new(draft.ClaimNumber,
+                draft.VehicleRegistration, draft.ClaimantName, draft.DateOfIncident));
+            return new(derived.DurableClaimToken, derived.NormalizedVrm,
+                derived.NormalizedSurname, derived.NormalizedFirstInitial, derived.IncidentDate);
+        }
         var subject = readResult.TransportEvidence
             .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value ?? string.Empty;
         var texts = readResult.Content
@@ -90,11 +107,19 @@ public sealed partial class QdosCaseMatchPolicy : IProviderCaseMatchPolicy
         ArgumentNullException.ThrowIfNull(caseData);
         var name = NormalizeName(caseData.ClaimantName ?? string.Empty);
         return new(
-            NormalizeClaimReference(caseData.ClaimNumber ?? string.Empty),
+            WorkProviderCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
+                ? NormalizeClaimReference(caseData.ClaimNumber ?? string.Empty)
+                : NormalizeFullReference(caseData.ClaimNumber),
             NormalizeVrm(caseData.VehicleRegistration ?? string.Empty),
             name?.Surname,
             name?.Initial,
             caseData.IncidentDate);
+    }
+
+    private static string? NormalizeFullReference(string? value)
+    {
+        var reference = value?.Trim().ToUpperInvariant();
+        return string.IsNullOrEmpty(reference) || reference.Length > 100 ? null : reference;
     }
 
     internal static string? NormalizeClaimReference(string value)

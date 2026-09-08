@@ -28,10 +28,10 @@
         <div class="status-card status-card--success" role="status">@status</div>
     }
 
-    @if (Model.AcceptedDomains.Count > 0)
+    @if (Model.AcceptedIdentities.Count > 0)
     {
         <dl class="detail-list">
-            <div><dt>Accepted e-mail domains</dt><dd>@string.Join(", ", Model.AcceptedDomains)</dd></div>
+            <div><dt>Accepted e-mail identities</dt><dd>@string.Join(", ", Model.AcceptedIdentities)</dd></div>
         </dl>
     }
 

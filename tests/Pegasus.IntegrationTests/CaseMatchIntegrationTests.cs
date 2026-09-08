@@ -31,7 +31,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal("EXAMPLE", row.NormalizedSurname);
         Assert.Equal("J", row.NormalizedFirstInitial);
         Assert.Equal(new DateOnly(2031, 4, 1), row.IncidentDate);
-        Assert.Equal("qdos_case_match", row.MatchPolicyKey);
+        Assert.Equal("principal_case_match", row.MatchPolicyKey);
         Assert.Equal(1, row.MatchPolicyVersion);
     }
 
@@ -102,7 +102,7 @@ public sealed class CaseMatchIntegrationTests
         var request = new AutomaticCaseAssociationRequest(
             chaserReceiptId,
             caseId,
-            "qdos_case_match",
+            "principal_case_match",
             1,
             "system-worker:intake-processing",
             "case-match-association:test-op-1",
@@ -129,7 +129,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(caseId, association.CaseId);
         Assert.Equal(nameof(ActorKind.SystemWorker), association.ActorKind);
         Assert.Equal("system-worker:intake-processing", association.ActorSubjectId);
-        Assert.Equal("qdos_case_match", association.MatchPolicyKey);
+        Assert.Equal("principal_case_match", association.MatchPolicyKey);
         Assert.Equal(1, association.MatchPolicyVersion);
         Assert.Equal(1, await context.IntakeMutationHistory
             .CountAsync(item => item.IntakeReceiptId == chaserReceiptId
@@ -160,7 +160,7 @@ public sealed class CaseMatchIntegrationTests
             new(
                 chaserReceiptId,
                 caseId,
-                "qdos_case_match",
+                "principal_case_match",
                 1,
                 "system-worker:intake-processing",
                 "case-match-association:while-leased",
@@ -198,7 +198,7 @@ public sealed class CaseMatchIntegrationTests
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             await seed.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, UnlinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey, MatchPolicyKey, MatchPolicyVersion) VALUES ({chaserReceiptId}, {caseId}, {false}, {1L}, {StartUtc}, {StartUtc.AddMinutes(5)}, {"Staff"}, {Guid.NewGuid().ToString()}, {"[]"}, {"Staff reversed a mistaken automatic match"}, {"case-match-association:reversed-op"}, {"qdos_case_match"}, {1})");
+                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, UnlinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey, MatchPolicyKey, MatchPolicyVersion) VALUES ({chaserReceiptId}, {caseId}, {false}, {1L}, {StartUtc}, {StartUtc.AddMinutes(5)}, {"Staff"}, {Guid.NewGuid().ToString()}, {"[]"}, {"Staff reversed a mistaken automatic match"}, {"case-match-association:reversed-op"}, {"principal_case_match"}, {1})");
         }
 
         var store = new EfIntakeMutationStore(harness.Factory);
@@ -206,7 +206,7 @@ public sealed class CaseMatchIntegrationTests
             new(
                 chaserReceiptId,
                 caseId,
-                "qdos_case_match",
+                "principal_case_match",
                 1,
                 "system-worker:intake-processing",
                 "case-match-association:new-evaluation-op",
@@ -311,7 +311,7 @@ public sealed class CaseMatchIntegrationTests
                     [])
             ],
             "Exactly one candidate case survived with no contradictory identity evidence.",
-            "qdos_case_match",
+            "principal_case_match",
             1);
 
         await using var scope = database.CreateAsyncScope();
@@ -352,7 +352,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(new DateOnly(2026, 6, 18), audit.Keys.IncidentDate);
         var candidate = Assert.Single(audit.Candidates);
         Assert.Equal(["claim-reference", "vehicle-registration"], candidate.HitKeys);
-        Assert.Equal("qdos_case_match", audit.PolicyKey);
+        Assert.Equal("principal_case_match", audit.PolicyKey);
         Assert.Equal(1, audit.PolicyVersion);
     }
 
@@ -402,7 +402,7 @@ public sealed class CaseMatchIntegrationTests
                 var staffActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
                 await SeedAsync(factory, receiptId);
 
-                IProviderCaseMatchPolicy[] matchPolicies = [new QdosCaseMatchPolicy()];
+                IProviderCaseMatchPolicy[] matchPolicies = [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())];
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider, matchPolicies);
                 var dataStore = new EfCaseDataStore(factory, timeProvider, matchPolicies);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
