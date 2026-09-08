@@ -236,3 +236,65 @@ and ProviderApiCaseDataSnapshotPersistenceTests to preserve the directly
 changed QDOS and authenticated/staff Provider API provenance paths. New rerun
 outcomes are not yet known. No unchanged 224-Core/21-Integration cohort rerun
 is requested solely to repeat prior evidence. Settings capture remains pending.
+
+
+## Second focused verification and source correction
+
+Root's next Release build PASS, exit0, zero warnings/errors,56.38 seconds.
+InstructionReviewFieldTests9 PASS. Integration filter5 returned3 PASS/2 FAIL
+(no skip), recorded in artifacts/verification/tick-035-provenance-integration.trx.
+The MP test failed its actual-reader RequiresOcr assertion. ALS now allocated
+an actual Case, but its correct Review state differed from the fixture's
+blanket NotReady assumption. These failures are retained, not reclassified as
+passes. Root authorized read-only diagnosis then bounded corrections.
+
+The original MP PDF has no text, /Rotate270 and one full-page3507x2480 raster.
+Already-built PdfPig inspection showed its image Top0 and Bottom841.68, while
+the CropBox is unrotated841.68x595.2. The old Coverage returned0. Existing
+PdfPig GetVisibleBounds(rotation), Normalise and Intersect now replace only
+that faulty geometry.80-character and0.8 coverage gates remain unchanged.
+Current dev's separate PdfOcrQualification is solely anonymous Type3 mapping
+qualification; it contains no competing scan geometry, and remains untouched.
+Seven direct geometric probes cover all quarter-turns and images outside the
+visible crop. No generated domain PDF or new renderer/coordinate framework.
+The same hash-bound MP original still must qualify via the real reader before
+its supplied OCR evidence enters the existing mapper. This is not Azure proof.
+The PDF skill caused read-only text/image/rotation inspection, not PDF edits.
+
+Already-built production reader and InstructionEvidenceImages.Select measured
+ALS4, YML18, FW0 and SBL0 qualifying images. ALS includes images-cvd.pdf;
+YML includes photographs in the attached vehicle reports, FW only inline
+signature graphics, SBL only a wide banner. The genuine-email SQL fixture now
+pins those exact counts plus persisted InstructionComplete/ImagesComplete and
+Review/Review/NotReady/NotReady initial and workflow states. Originals and all
+source provenance/identity/replay assertions remain unchanged.
+
+Independent pre-review found two code defects, both fixed under root approval:
+- PCH's unused home/mobile alternative conflict no longer vetoes its already
+  selected unique typed source. The selected source's conflict/candidates still
+  fail closed, and two equal canonical source bindings remain ambiguous. Four
+  direct Factory tests cover both unused alternatives and both refusal cases.
+- QDOS classification and standalone Audit evidence now use the same existing
+  CurrentInstructionContent boundary as selection. Proved originals remain
+  actionable while arbitrary/deeper nested chasers and old history are excluded.
+  Generated QDOS body/Triage/reply/Audit predicates are retained. Three added
+  structural policy cases cover Inspection, Audit with original report and
+  unproved carry; none claims a fabricated genuine envelope.
+The reviewer's intermediate OCR scheduling question was resolved without a
+change: DurableIntake unconditionally begins OCR from retained scan candidates.
+
+Research b00e638d0db7ea0d, files dbfee47055d146e0 and plan db5aba70a6afb19d
+were written before these source edits. No restore/build/test was run by the
+author; PowerShell reflection invoked already-built reader/PdfPig/selection
+only on four actual originals and the MP metadata. One diagnostic used the
+wrong custody enum namespace, producing invalid empty counts; that output was
+discarded and corrected under Stop-on-error. Final valid counts are above.
+Static read-through corrected an entity property target and an enum spelling
+before freeze; git diff --check exit0. These are not test execution claims.
+
+Source re-frozen at8 September2026 approximately00:09 UTC; no commit/PR yet.
+Root rerun request (actual outcomes pending):
+- Core FullyQualifiedName~PrincipalMailClassificationPolicyTests.
+- Integration FullyQualifiedName~GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions|FullyQualifiedName~OneGenuineInstructionPerPrincipalProvesSelectedWorkTypeAndMatchKeys|FullyQualifiedName~FullPageRasterCoverageUsesRotatedVisibleCoordinates|FullyQualifiedName~RasterCoverageClipsImagesOutsideTheVisibleCrop|FullyQualifiedName~TypedPhoneSource|FullyQualifiedName~ACorruptDocumentIsRefusedRatherThanPartlyRead.
+  Expected14 cases:2 originals,7 geometry,4 provenance,1 corrupt-source boundary.
+Settings focused capture/verify/catalogue remains root-owned and pending.
