@@ -212,3 +212,9 @@ After the completed build/test parents exited, postcheck found six reusable MSBu
 Final census `2026-09-08T23:30:26.7039057Z`: exact HEAD/branch unchanged; no staged changes; only the authorized unstaged `tests/Pegasus.IntegrationTests/packages.lock.json` regeneration remains; lock SHA-256 `5333B1C7F5FDF054EE5CF6EA9A2CF3921D604D80FA66375CC1E00D26CCB9052A`, binary-diff blob hash `8842de3e37a4a596a0eb5678f0bce9669524f0d7`; no host verification process remains. No source/docs/test hand-edit, commit, push, PR, packaging, cloud/external SQL/Outlook/Box write, capture, browser or installer execution occurred.
 
 The separately reported obsolete `scripts/PegasusPlatform.ps1` browser-evidence comment was observed after the frozen grant and was not edited by the verifier; root owns its narrow follow-up. INTK-066 lease returned to `implementing`, revision 76. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
+
+- 2026-09-08T23:33:06.774Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 77; expires 2026-09-08T23:48:06.750Z)
+
+## Final text-only runtime hint check
+
+Canonical prior IDLE9674519a8465b055 read; current clean HEAD e8bc3fcb47b2b47e405c806d17314cccefc71e26. /root/final_verifier sole ACTIVE CEALEX-May25 slot. This head commits the exact already-tested generated Integration lock plus one textual Linux certificate repair hint in scripts/PegasusPlatform.ps1; no application/test/CI/doc logic changed since last PASS. Run ONLY pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1, PowerShell Parser for scripts/PegasusPlatform.ps1, and git diff --check, each with exact exits. No build/restore/application tests/browser/capture/installer/cleanup/source edits/PR. Fresh packet/root/process checks as usual. First failure stop. Record results and BOTH IDLE promptly, return lease implementing. Reuse prior 80PASS6skip/build/doc/script evidence truthfully for unchanged inputs.
