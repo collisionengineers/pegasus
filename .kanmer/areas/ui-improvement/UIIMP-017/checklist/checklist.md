@@ -24,4 +24,4 @@ manual visual/deployment claim.
 - [x] Remove only the two validated owned worktrees from the shared checkout.
 - [x] Delete only local and remote UIIMP-017-health-display without force.
 - [x] Verify exact refs/registrations absent; broad prune is unnecessary after normal removal.
-- [ ] Release the claim last.
+- [x] Release the claim last after all exact Git cleanup and retained evidence checks.
