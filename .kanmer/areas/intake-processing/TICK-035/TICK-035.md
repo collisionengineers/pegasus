@@ -2,26 +2,27 @@
 id: TICK-035
 type: ticket
 title: Activate evidenced principal routes through automatic intake
-status: implementing
+status: review
 area: intake-processing
 order: 910
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-09-07T21:12:54.514Z'
+  review: '2026-09-08T01:41:18.011Z'
 taken_at: '2026-09-07T22:43:36.690Z'
 branch: TICK-035-principal-routes
 worktree: .worktrees/tick-035
-claim_expires_at: '2026-09-08T02:07:33.139Z'
+claim_expires_at: '2026-09-08T02:11:18.145Z'
 claim_controller: /root
 lease_id: 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744
-lease_revision: 24
+lease_revision: 25
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: intake_audit
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-035'
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T01:37:33.139Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T01:41:18.145Z'
 labels:
   - capability
   - INT-04
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/692'
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T01:40:33.411Z'
+updated: '2026-09-08T01:41:18.145Z'
 ---
 
 ## What
