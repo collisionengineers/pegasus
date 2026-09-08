@@ -11,3 +11,11 @@ Without a current host-verifier grant, I ran `node --check .worktrees/INTK-066/s
 ## Commit identity correction — 8 September 2026
 
 An earlier handoff copied the wrong full SHA (`da6ff8e1680080b5eb349602ac6cae7ec42767d3`). Read-only `git rev-parse HEAD` on the recorded worktree returned the actual clean commit: `da6ff8e16815100e42da65e60df3e45a3cced2d2`. The ticket commits field was corrected to that exact identity. No source, commit, or worktree mutation occurred while resolving this record.
+
+## Transitions
+
+- 2026-09-08T18:56:25.287Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 4; expires 2026-09-08T19:56:25.271Z)
+
+## Sole host verification grant — INTK-066 — 2026-09-08
+
+Root reread canonical IDLE version 5d4225ae78c12801 and confirmed clean exact HEAD da6ff8e16815100e42da65e60df3e45a3cced2d2 in .worktrees/INTK-066 on INTK-066-manual-upload-confirmation, base 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c. Sole CEALEX-May25 verifier /root/agent_config_verifier is now ACTIVE. Recheck exact inputs, process census and ownership before commands. Sequential grant: dotnet build Pegasus.slnx; Core tests --no-build; Integration tests --no-build filter (UploadConfirmationWebTests|UploadOutcomeQueriesTests|CaseCreateWebTests|GroupedIntakeWebTests|ImageIntake|CasesIndexWebTests|MailWorkspaceWebTests) AND Category!=Browser using actual FullyQualifiedName predicates; only after all pass run Category=Browser&FullyQualifiedName~UploadCaseSearchBrowserTests with repository documented browser environment and xUnit.MaxParallelThreads=1. Read engineering/runbook setup first. Existing disposable local SQL fixture permitted; no production/cloud/Outlook/Box changes. Stop first genuine failure, record exact commands/exits and unstarted obligations; no source fix, generated snapshot update, autonomous retry, commit/push/PR. Preserve all prior failures. Recheck clean HEAD at end and explicitly return canonical slot IDLE. Root renewed INTK lease rev4 through 19:56:25Z; coordinate heartbeat before long commands. Other agents remain static-only.
