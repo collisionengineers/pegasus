@@ -5,7 +5,9 @@
 - src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs — existing store/query
   contracts carry current candidate principal and bounded pending eligibility.
 - src/Pegasus.Core/ImageIntake/ImageIntakeCasePairing.cs — one pairing/recovery
-  owner and meaningful per-item outcomes; deterministic existing merge replay.
+  owner and meaningful per-item outcomes; deterministic existing merge replay;
+  existing IIntakeReceiptQueries and ListImagesAsync complete group members
+  before the one merge, preserving current recorded staff decisions.
 - src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs — registered replay and
   first-arrival pairing use that same owner and known-principal guard.
 - src/Pegasus.Core/Intake/AcceptIntake.cs — duplicate acceptance also wakes the

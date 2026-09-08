@@ -35,13 +35,36 @@ and current operator brief. Historical owners remain linked, not absorbed.
    association equals the intended Case, known principal and Case eligibility
    inside the existing merge transaction. An image lifecycle version alone
    does not detect a staff unlink/relink between automatic link and merge.
-4. Wire registered-image replay, acceptance replay and existing staged-artifact
+4. For a registered group, use the existing ListImagesAsync and
+   IIntakeReceiptQueries to link every current image member before the single
+   final merge. A member failure leaves Awaiting instruction for replay/timer;
+   never override a staff-unlinked or reassigned member. This repairs the
+   observed first-member merge window without another orchestration owner.
+5. Wire registered-image replay, acceptance replay and existing staged-artifact
    reconciliation timer to the same owner. Reuse SyncMergeAfterLinkAsync and
    pending custody dispatch. Report recoverable failures and continue unrelated
    rows, leaving durable eligible state for the next existing sweep.
-5. Update canonical FRD/as-built statements and extend existing fixtures only.
+6. Update canonical FRD/as-built statements and extend existing fixtures only.
    Preserve the actual timer test's complete result assertions and add the
    registered-image recovery result; adapt its explicit constructor.
+
+## Root-approved execution refinements
+
+Root approved the grouped interruption and manual-origin refinements on
+2026-09-08 after reading FRD-02 and the current caller chain. A still-current,
+reasoned persisted staff association may intentionally differ in VRM/principal;
+recovery honors that decision. Its persisted association/history origin, never
+the timer actor or a caller-supplied bypass flag, distinguishes it from an
+automatic match. Every merge rechecks current target, pre-report/nonarchived
+eligibility and applicable lease/concurrency in the existing transaction.
+Automatic-origin matching and known-principal constraints remain strict.
+
+The existing restricted Worker SQL connection/ConnectedContextFactory fixture
+will exercise actual registered-image recovery. Read-only grant census found no
+missing permission; no migration is authorized or needed on that evidence.
+Add focused interrupted-group and recorded-staff-origin assertions in the
+already-mapped fixtures. Constructor consumers receive the existing receipt
+query; no new DI registration, test host, service or schema is introduced.
 
 ## Composition and file ownership
 
