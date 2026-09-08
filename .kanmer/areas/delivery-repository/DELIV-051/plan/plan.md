@@ -1,4 +1,14 @@
 # Plan — DELIV-051
+
+> SUPERSEDED FOR EXECUTION by the operator's expanded scope on 2026-09-08.
+> The ticket body and new checklist define the current requested outcome.
+> The previous plan below is retained as historical evidence, not a completed
+> full-repository audit or authority to restore removed local Kanmer skills.
+> Research, file mapping and the implementation plan must be refreshed for
+> AGENTS.md, docs/**, CONTEXT.md, README.md and operator skill/removal changes.
+> New documentation is allowed as required. Current-head regression validation
+> is required; the prior build cancellation is not a waiver for the expanded work.
+
 ## Objective
 Implement the full owner-approved amendment from the conversation, including condensed project principles and both local Kanmer mirrors.
 ## Starting state
