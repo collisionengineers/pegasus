@@ -2,9 +2,9 @@
 
 ## Status
 
-Root attempt 1 had one failing intake fixture setup. The root-authorized
-fixture-only correction is now code-ready and frozen for a focused rerun. No overall PASS, PR, integration or deployment claim. No author
-build/test/live call ran.
+Focused verification PASS after the documented fixture correction on
+2026-09-08. Original failed attempt retained. Ready for independent PR review;
+not integrated or deployed. No author build/test/live call ran.
 
 ## Starting state and scope
 
@@ -36,7 +36,7 @@ expansion or new schema, dependency, UI or automatic submission.
 - FRD-07: only the direct-API paragraph gains the claimant prerequisite and
   exact refusal/replay behavior, expressly not a Case-readiness or ZIP gate.
 
-## Focused tests written, not yet run
+## Focused test coverage
 
 - EvaApiMappingTests: existing caller updates plus exact value/whitespace
   preservation, independent inspection address and API version2.
@@ -104,7 +104,8 @@ In .worktrees/case-031, PowerShell7, no live providers required:
     dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~EvaApiMappingTests|FullyQualifiedName~EvaSubmissionPolicyTests|FullyQualifiedName~EvaBundleContractTests"
     dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~EvaApiTransportTests|FullyQualifiedName~CustodyOutboxIntegrationTests.EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange"
 
-No extra method/filter, browser, snapshot, corpus or capacity run is needed.
+No extra method/filter, browser, snapshot, full-corpus or capacity run is needed.
+The corrected one-method fixture requires its existing local QDOS source.
 Record actual root command exits and retained artifacts here before publication.
 
 ## Governing docs and simplicity
@@ -127,13 +128,13 @@ additional document scope. Both deviations are retained rather than hidden.
 
 ## Remaining boundary
 
-Root focused verification, then report/checklist update and authorized
-commit/push/PR for independent review. No self-review/merge. Post-merge proof
+Root focused verification is complete. Author is finalizing report/checklist
+and authorized commit/push/PR for independent review. No self-review/merge. Post-merge proof
 must bind the actual integration SHA and reuse or rerun appropriate exact-source
 checks honestly. No deployment has occurred.
 
 
-## Attempt 1 disposition and frozen correction
+## Attempt 1 disposition and accepted correction
 
 The old fixture attached only literal `%PDF-1.4 synthetic instruction letter`
 bytes, with no attached ENGINEER NOTIFICATION tell. Its accepted QDOS sender
@@ -162,7 +163,7 @@ actual InspectionAndAudit type; exported source reference is AMA/47857/1.
 CaseCreated remains mandatory and every downstream ZIP/image/manual outcome/
 state/version/race assertion remains. No production intake source changed.
 
-Both original TRXs remain immutable. Root must compile and rerun only:
+Both original TRXs remain immutable. Root compiled and reran only:
 
     dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~CustodyOutboxIntegrationTests.EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange"
 
@@ -170,3 +171,30 @@ The method must execute and pass on this host; a corpus skip is not acceptance.
 Already-passed 57 Core and 12 transport cases need no identical rerun for this
 fixture-only correction. Author git diff --check remains exit0, changed-path
 census is still the approved ten files. No author build/test/commit/push/PR.
+
+
+## Root attempt 2 — corrected actual caller PASS
+
+2026-09-08 root session73724: incremental Integration/dependency Release build
+PASS, 42.27s, zero warnings/errors. Exact one-method Integration command above
+PASS, 1/1, 37s, zero skipped; guarded script exit0. It reached and passed the
+actual source hash/profile/work-type assertions and every retained downstream
+ZIP, missing-Engineer/mode, state/race, first-send, resend, replay, invalid-address
+and exact-payload assertion. Author independently read the named TRX counters,
+method result and SHA256, without executing another test.
+
+- artifacts/verification/case-031-caller-corrected.trx
+- SHA256 CE49FFEF3436A0FC7051737DDC0B8B271BD950E82A9D285FF5F9155046DF22AD
+- TRX start 2026-09-08T04:07:53.2717524+01:00;
+  finish 2026-09-08T04:08:33.0496455+01:00.
+
+All three TRXs remain retained unmodified. The earlier 57 Core and 12 transport
+passes remain relevant because only the failed fixture setup changed before
+this rerun. Unique focused coverage is 57 Core plus 13 Integration cases; this
+is not a claim that the full solution test rail or CI ran. No image snapshot
+or runtime/provider activation was required. No source changed after the
+corrected root build/test; git diff --check and ten-file census remain clean.
+
+Current correction authority: plan ecb1dab6abfa296b/files77b89acba62aface,
+amended before source edit under root approval. Next: publish the ten-file
+commit and dev PR, fresh gates to Review, then stop for an independent reviewer.
