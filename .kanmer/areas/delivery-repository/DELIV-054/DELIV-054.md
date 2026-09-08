@@ -25,9 +25,11 @@ links: []
 refs:
   - .agents/skills/pegasus-release/SKILL.md
   - docs/adr/0039-windows-and-linux-release-workstations.md
+commits:
+  - ca6ecb0253b0b5ed9884320e4883ceb9621829fe
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:44:37.179Z'
+updated: '2026-09-08T13:45:40.806Z'
 ---
 
 ## What
