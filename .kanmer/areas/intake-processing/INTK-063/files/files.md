@@ -10,6 +10,10 @@
   before the one merge, preserving current recorded staff decisions.
 - src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs — registered replay and
   first-arrival pairing use that same owner and known-principal guard.
+- src/Pegasus.Core/Intake/IntakeContracts.cs — automatic group completion carries
+  expected origin association version; no caller bypass flag.
+- src/Pegasus.Core/Intake/DurableIntake.cs — LinkIntake's existing advisory
+  completion uses the same observable pairing owner, without empty suppression.
 - src/Pegasus.Core/Intake/AcceptIntake.cs — duplicate acceptance also wakes the
   existing idempotent pairing path; failure remains observable/recoverable.
 - src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs — its embedded

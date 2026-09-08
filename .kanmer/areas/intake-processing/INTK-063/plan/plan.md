@@ -79,6 +79,25 @@ Add focused interrupted-group and recorded-staff-origin assertions in the
 already-mapped fixtures. Constructor consumers receive the existing receipt
 query; no new DI registration, test host, service or schema is introduced.
 
+## Partial staff-group completion (root-approved 2026-09-08)
+
+A current reasoned staff decision applies to the registered group, not only its
+origin. Reuse AutoLinkAsync for SystemWorker completion of untouched members.
+The serializable transaction derives authority from that exact active group
+origin association and target, checks its expected association version, and
+requires current Case eligibility/version/lease. A sibling with ANY prior
+association history is not overwritten or revived. Automatic-origin paths keep
+the exact/unique/known-principal rule. The Core command carries a concurrency
+expectation, never a bypass flag; existing detail reads expose the associated
+Case version. Existing JSON history evidence retains originating receipt,
+association version, staff identity/reason/operation alongside SystemWorker
+completion attribution. Final merge rechecks the current origin and members.
+
+Route LinkIntake's already-committed advisory completion through the same
+observable pairing owner, removing its empty catch without a new logger or
+service. Existing tests add partial manual group, changed-origin before write,
+and prior-sibling-history guards. No schema or broad manual-link rewrite.
+
 ## Composition and file ownership
 
 Root checked accepted source: DependencyInjection already registers the same
