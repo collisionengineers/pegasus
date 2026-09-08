@@ -2,10 +2,12 @@
 id: UIIMP-017
 type: ticket
 title: Use one office-time display and one reproducible Health snapshot state
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-08T00:42:19.213Z'
 labels: []
 groups:
   - EPIC-014
@@ -16,7 +18,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-09-08T00:39:38.232Z'
-updated: '2026-09-08T00:39:38.232Z'
+updated: '2026-09-08T00:42:19.213Z'
 ---
 
 ## What
