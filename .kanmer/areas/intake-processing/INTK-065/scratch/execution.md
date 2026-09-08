@@ -53,3 +53,58 @@ Postcheck completed `2026-09-08T14:39:44.7920238Z`: no scoped processes remained
 Disposition: **PASS**. No fix, rerun of product commands, full rail, or source write was performed.
 
 - 2026-09-08T15:30:44.121Z lease-phase implementing → verifying (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 6; expires 2026-09-08T16:00:44.113Z)
+
+## Correction to pre-merge host-verification ledger — 2026-09-08
+
+This appendix corrects transcription errors in the earlier `Host serialized verification — PASS` prose. It is based on the verifier's persisted command/tool receipts and the retained TRX; no command was rerun.
+
+### Frozen identity correction
+
+The actual preflight receipt at `2026-09-08T14:28:32.6603718Z` reported:
+- branch: `INTK-065-principal-evidence-inventory`
+- HEAD: `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`
+- JSON SHA-256: `494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251`
+
+The earlier prose's `7b6aa189b9d00d772819e3d3f21022be549ee229` value is incorrect and must not be used as evidence.
+
+### Exact command corrections
+
+The actual persisted receipts are:
+
+1. `python -B ./artifacts/intk-065-verify.py`
+   - attempted_at: `2026-09-08T14:36:43.304316Z`
+   - exit_code: **1**
+   - retained harness failure: `Historical section hash drifted: coverage`.
+2. `python -B ./artifacts/intk-065-verify.py` after root-authorized harness-only correction
+   - attempted_at: `2026-09-08T14:37:35.729996Z`
+   - exit_code: **0**
+   - output included exact final JSON hash; historical sections 7 unchanged; current snapshots 5 valid; approved evidence-reference replacements 26; allowed JSON delta PASS.
+3. `python -m unittest discover -s scripts/reference_data/tests -p test_build_principal_identification_corpus.py`
+   - attempted_at: `2026-09-08T14:37:45.141971Z`
+   - exit_code: **0**
+   - output: 2 tests ran; OK.
+4. `pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1`
+   - attempted_at: `2026-09-08T14:37:54.580170Z`
+   - exit_code: **0**
+   - output: all relative Markdown links resolve; 140 files checked.
+5. `pwsh -NoProfile -File ./scripts/Test-TestMarkdownPlacement.ps1`
+   - attempted_at: `2026-09-08T14:38:04.486740Z`
+   - exit_code: **0**
+   - output: Markdown placement regression tests passed. This was the regression harness, not `Test-MarkdownPlacement.ps1`.
+6. `dotnet restore ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --locked-mode`
+   - attempted_at: `2026-09-08T14:38:31.003382Z`
+   - exit_code: **0**
+7. `dotnet build ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-restore`
+   - attempted_at: `2026-09-08T14:38:41.851408Z`
+   - exit_code: **0**
+   - output: 0 warnings, 0 errors.
+8. `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~PrincipalIdentificationCorpusTests" --logger "trx;LogFileName=intk-065-source-inventory.trx" --results-directory ./artifacts/verification`
+   - attempted_at: `2026-09-08T14:39:25.076420Z`
+   - exit_code: **0**
+   - output: Failed 0, Passed 7, Skipped 0, Total 7.
+   - retained TRX: `artifacts/verification/intk-065-source-inventory.trx`
+   - current retained TRX SHA-256: `E32A60A18AED5DA1687AFD6B6D373405A04FFCF68ECB28ED9EA620AD62D2F886`.
+
+The prior prose names `tests/test_generate_principal_identification_evidence.py`, `scripts/verify_docs_links.py`, a parameterless `Test-MarkdownPlacement.ps1`, and `INTK-065.trx` under `artifacts/test-results/INTK-065`; none of those strings describes the actual invocations/receipt path and they are superseded by this appendix.
+
+This repairs the pre-merge evidence ledger only. It does not promote it to exact-merge proof, does not alter the retained harness failure, and does not substitute for the separately prepared exact-merge fallback.
