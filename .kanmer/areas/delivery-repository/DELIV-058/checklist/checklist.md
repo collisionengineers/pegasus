@@ -17,11 +17,19 @@
 
 ## Closeout — DELIV-058
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date confirmed)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-058`
-- [ ] `git branch -d DELIV-058-architecture-assertions` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date confirmed)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] Pre-merge TRXs retained with matching SHA-256 values
+- [x] cd out of worktree; `git worktree remove .worktrees/deliv-058`
+- [x] `git branch -D DELIV-058-architecture-assertions` (squash-merged)
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `git push origin --delete DELIV-058-architecture-assertions`
 - [ ] `take_ticket action: "release"`
+
+PR #708 merge and the full schema-2 PASS proof were re-read before cleanup.
+The pre-merge focused/full TRXs were copied outside the disposable worktree and
+hash-verified; the recorded clean implementation worktree and local/remote
+feature branches were then removed. Existing unrelated dirty source-worktree
+changes were left untouched.

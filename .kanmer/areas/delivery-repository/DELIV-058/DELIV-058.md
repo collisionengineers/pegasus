@@ -13,16 +13,6 @@ stageEntered:
   review: '2026-09-08T15:20:07.226Z'
   verifying: '2026-09-08T15:47:47.145Z'
   done: '2026-09-08T15:59:59.620Z'
-taken_at: '2026-09-08T15:09:15.962Z'
-branch: DELIV-058-architecture-assertions
-worktree: .worktrees/deliv-058
-claim_expires_at: '2026-09-08T16:18:25.204Z'
-claim_controller: codex-mcp-client
-lease_id: 238978fe-9448-4810-8709-bb4a4db3b019
-lease_revision: 3
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-058'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T15:48:25.204Z'
 labels:
   - corrective
   - ci
@@ -44,7 +34,7 @@ delivery_sha: 0a6ccca799eb670825e60b614cf24b846cdf4572
 delivery_recorded_at: '2026-09-08T16:01:36.460Z'
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T16:01:36.460Z'
+updated: '2026-09-08T16:02:19.903Z'
 ---
 
 ## What
