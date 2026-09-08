@@ -14,6 +14,7 @@
 | src/Pegasus.Infrastructure/Glass/GlassEstimateXmlParser.cs | Adapt existing parser result contract; do not alter XML time semantics |
 | src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs | Consume explicit canonical imported/pending result; no launch/recovery redesign |
 | src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs | Reuse CaseMutationGuard.Require without mutation before OCR/replay; share existing final save transaction and unconfirmed Automation row writer |
+| src/Pegasus.Infrastructure/Persistence/EfDocumentCustodyStore.cs | Exact occurrence/version metadata join only; no IsCurrent narrowing or custody mutation |
 | src/Pegasus.Infrastructure/DependencyInjection.cs | One JSON/XML/PDF parser set |
 | src/Pegasus.Web/Pages/Cases/Details.cshtml.cs | Existing upload and retained-source completion callers call canonical import with submitted version/lease; no direct parse/save policy |
 | src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml | Only source auto-detection/pending completion UI and expected-version fields |

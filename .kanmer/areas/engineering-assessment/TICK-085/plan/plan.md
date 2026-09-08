@@ -22,7 +22,8 @@ snapshot index claim at 2026-09-08T02:50:48.373Z. Root checked both current
 ticket records. CASE-031 writes FRD-07 only; it is context, not a write, here.
 INTK-063 reuses already-registered pairing and does not modify DI. No current
 write-map overlap remains. Root approved the canonical command, source-oracle
-and persisted-authority dispositions below. Ticket is Preparing and untaken;
+and persisted-authority dispositions below. Ticket was taken at 03:02:52Z
+on 2026-09-08; the validated worktree remains on the recorded branch.
 execution is authorized on TICK-085-glass-pdf-import in .worktrees/tick-085
 from the exact accepted baseline, after a fresh ready packet and isolated take.
 Historical ticket descriptions of absent Glass XML/launch and no shared command
@@ -101,6 +102,16 @@ Original bytes retain source headers/totals; no source-evidence schema or
 misuse of Pegasus CalculationBreakdownJson. Source rate/VAT never invents a
 chosen card or repairer VAT status.
 
+## Exact metadata tuple correction
+
+Root approved the existing EfDocumentCustodyStore metadata query's one missing
+join predicate: occurrence.VersionId must equal version.Id. Do not add IsCurrent:
+a correctly paired, confirmed, nonremoved historical occurrence/version remains
+valid for immutable-source download/OCR. This changes no custody mutation.
+The real persisted metadata port in the MCP integration fixture must reject a
+live occurrence paired with another version of its document and accept both
+correctly paired historical and current tuples. No fake metadata port proves it.
+
 ## Expected files
 
 | Action | Repo-root-relative path | Responsibility |
@@ -115,6 +126,7 @@ chosen card or repairer VAT status.
 | Modify | `src/Pegasus.Infrastructure/Glass/GlassEstimateXmlParser.cs` | Adapt existing parser result contract; do not alter XML time semantics |
 | Modify | `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs` | Consume explicit canonical imported/pending result; no launch/recovery redesign |
 | Modify | `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs` | Reuse persisted edit authority non-mutating before OCR/replay, and share save transaction for validated raw import |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfDocumentCustodyStore.cs` | Add exact occurrence/version metadata join only, preserving historical tuples |
 | Modify | `src/Pegasus.Infrastructure/DependencyInjection.cs` | One JSON/XML/PDF parser set |
 | Modify | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Existing upload and retained-source completion callers call canonical import with submitted version/lease; no direct parse/save policy |
 | Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml` | Only source auto-detection/pending completion UI and expected-version fields |
