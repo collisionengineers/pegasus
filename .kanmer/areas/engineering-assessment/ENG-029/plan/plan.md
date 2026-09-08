@@ -4,7 +4,10 @@
 
 Root approved bounded author execution after whole plan/map read and the
 2026-09-08 05:17 UTC source handoff recorded in scratch/execution.md.
-Current accepted baseline: aefe4c32d078ad79c0368666b5666032e6865248.
+Author worktree baseline: aefe4c32d078ad79c0368666b5666032e6865248.
+Current integration tip is 96777888bfa7ee7f85d63979a4a09ae10cda7d13
+(INTK-064 PR699, merged 2026-09-08T06:16:37Z); do not merge it into the
+dirty author worktree before root's coordinated checkpoint.
 TICK-085 PR698 and DOCS-019 are integrated; preserve their changes. The earlier
 preparation baseline was 498144b0bb55b68fd53b9a31ffc89ef90622c73a.
 The current files document owns the exact scope; historical versions remain.
@@ -250,7 +253,8 @@ its equal Jane Example and AB12CDE expectations currently require redundant
 Confirmed rows. Update only those assertions to unchanged original Fact/source
 and no Confirmed, preserving all version/lease/replay/history/identity and
 readiness assertions. Add that exact method to focused verification. Its file
-contains INTK-064's constructor change, so author must wait for that ticket's
-integration and explicit source handoff before editing it; never import an
-unpublished or cherry-picked constructor delta. Root still owns the separate
+contains INTK-064's integrated constructor change. Root's explicit handoff
+after PR699 merged at 96777888bfa7ee7f85d63979a4a09ae10cda7d13 releases
+only this assertion method. Preserve the constructor change during later
+coordinated integration; do not cherry-pick or merge into the dirty tree. Root still owns the separate
 submitted-Overview test in CaseWorkspacePersistenceTests.

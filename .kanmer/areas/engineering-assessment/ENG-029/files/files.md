@@ -1,6 +1,8 @@
 # Files — ENG-029
 
-Execution baseline: accepted dev aefe4c32d078ad79c0368666b5666032e6865248.
+Author worktree baseline: aefe4c32d078ad79c0368666b5666032e6865248.
+Current integrated dev is 96777888bfa7ee7f85d63979a4a09ae10cda7d13;
+root requires a coordinated checkpoint before merging it into this dirty tree.
 This current map replaces af87e92a3c8c7d0a; historical versions remain.
 Root approved this exact scope and handed off mapped files at 05:17 UTC on
 2026-09-08 (scratch/execution.md). No new source file is planned.
@@ -36,7 +38,7 @@ Root approved this exact scope and handed off mapped files at 05:17 UTC on
 | tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs | Update existing recording save caller; all new fields/typed members, old hidden facts, authority/antiforgery, refusal retention, partial-load/no-render side effects. Existing fixture only. |
 | tests/Pegasus.IntegrationTests/CaseEngineerSectionsWebTests.cs | Existing metadata-source fake composition and required frozen accepted-estimate totals only, preserving the existing lifecycle/read-only/recorded-value assertions. |
 | tests/Pegasus.IntegrationTests/CaseEditModeWebTests.cs | Existing one Save/Discard/form association/current-versus-proposed and keyboard/cross-section intent; no new browser harness. |
-| tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs | Only ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory equal-value expectations: preserve original accepted Fact/source without redundant Confirmed; retain all other assertions. Await INTK-064 integration/source handoff before editing; its constructor change is not this ticket's scope. |
+| tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs | Only ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory equal-value expectations: preserve original accepted Fact/source without redundant Confirmed; retain all other assertions. Root released only this method after INTK-064 PR699 integration at 96777888bfa7ee7f85d63979a4a09ae10cda7d13; preserve its constructor change during later coordinated integration. |
 | tests/Pegasus.IntegrationTests/CaseWorkspacePersistenceTests.cs | Actual SQL combined save/replay/rollback, PostReport and preserved Case facts/completeness/current-report invalidation. |
 | tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs | Actual page metadata-readiness and saved-field-to-preview input parity with existing renderer seam; no external image read on ordinary GET. |
 | docs/design/test-ui/pages/case-details--default.html | Scoped fresh capture/update/verify of changed route. |
@@ -68,6 +70,9 @@ CASE-047 releases only this mapped source scope for ENG-029 execution.
 TICK-085 PR698 is integrated at aefe4c32d078ad79c0368666b5666032e6865248;
 preserve its import/Glass changes and coordinate any later shared correction.
 Preserve DOCS-019's signature row. Historical claims/status/proof debts remain;
-do not release or clean them. INTK-064 has no approved-map overlap.
+do not release or clean them. INTK-064 is integrated at
+96777888bfa7ee7f85d63979a4a09ae10cda7d13. Root explicitly handed off only
+the mapped CaseDataCompleteness assertion method after that merge;
+its accepted constructor change remains outside this ticket's edits.
 Fresh isolated packet/worktree/take remain required. Root alone runs heavy
 checks; freeze before publication. ENG-031 and ENG-036 remain excluded.

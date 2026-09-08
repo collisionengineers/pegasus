@@ -31,3 +31,17 @@ Windows/PowerShell7, exact author worktree .worktrees/eng-029 on aefe base; sole
 Actual failures separate into shared causes: optional assessment dictionary binding consumed unrelated ordinary form fields before Save/version check; accepted estimate fixture omitted recorded totals; authority test singleton tried resolving scoped staff query; root's minimal CaseDataHarness omitted mandatory report incident/instruction dates. Fixes target actual owners/fixtures, not production guards or assertions. Root's two preview cases now record the existing report fixture dates through real Overview save and use saved Case identity. Their assessment/Case fields are read from SQL; current estimate/signatory profile remain explicit existing source-fixture seams, not a claim of full persisted account resolution.
 
 Independent source review additionally found actual Save authorization refusal missing proposed-value retention, and equal carried Fact/Confirmed values gaining refreshed staff attribution. Existing mapped catch is corrected; approved map4b2258b967332368 adds only shared EfCaseDataStore.SetConfirmed owner and exact prior assertion consumer (awaiting INTK064 handoff). Root added actual submitted-Overview SQL provenance/correction test and strengthened first workspace test to assert unchanged Facts/no fabricated confirmation. No runtime PASS for those corrections yet. Final selective rerun must include all21failed cases, known changed SQL consumers, proposal/unknown-key guards and3canonical captures; do not rerun unchanged100Core merely for fixture fixes.
+
+## Final correction freeze after INTK-064 handoff
+
+INTK-064 PR699 merged at 96777888bfa7ee7f85d63979a4a09ae10cda7d13 (2026-09-08T06:16:37Z). Root explicitly released only CaseDataCompletenessPersistenceTests.ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory equal-name/VRM assertions. Whole plan b5d165f5ae417cd4 / files 9a7f6a62591c25fe updated and read back before edit; no stale no-overlap claim remains. Author changed only those two superseded expectations into equality of the whole original Fact/source and no redundant Confirmed; every other assertion remains. This worktree still has author base aefe4c32, and no dev merge/cherry-pick was performed. Preserve INTK-064's accepted constructor changes during root's later coordinated checkpoint/integration.
+
+Root's SubmittedOverviewPreservesAcceptedProvenanceAndDoesNotConfirmAnUnpostedSuggestion and the existing OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce were reread, as were both override-date instances of WorkspaceSavedReportAndSettlementFieldsReachTheActualPreview and their mandatory-date fixture correction. Root's files were not edited by pack_reconcile. Writer no-op preserves actual changes, explicitly chosen suggestions and existing clear handling. No runtime PASS claimed yet.
+
+Add these three exact method selectors to the prior 15-method correction filter:
+
+```text
+FullyQualifiedName~CaseWorkspacePersistenceTests.SubmittedOverviewPreservesAcceptedProvenanceAndDoesNotConfirmAnUnpostedSuggestion|FullyQualifiedName~CaseWorkspacePersistenceTests.OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce|FullyQualifiedName~CaseDataCompletenessPersistenceTests.ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory
+```
+
+Final diff check PASS exit0. Exactly 25 mapped source/doc/test files are dirty; no capture files have yet been regenerated. Source is frozen. Root remains sole heavy verifier and owns capture/update/verify/catalogue.

@@ -35,3 +35,9 @@ All corrections stay within the current approved file map. No new schema, bindin
 Root-approved whole plan 24256b3baa6994ca and file map 4b2258b967332368 were read back before editing. Added only CaseDataFieldWriter.SetConfirmed's exact value/type accepted-value no-op in EfCaseDataStore: Confirmed first, otherwise Fact; Suggestion excluded. Null/clear and changed values retain the existing logic and source metadata. Existing workspace and SaveCase/MCP callers share this owner. git diff --check PASS, no author runtime. This production correction is frozen for root's newly authored SQL proof.
 
 The separate exact CaseDataCompletenessPersistenceTests assertion consumer is mapped but NOT edited: wait for INTK-064 integration/source handoff, preserving its constructor change. Root owns CaseWorkspacePersistenceTests, including SubmittedOverviewPreservesAcceptedProvenanceAndDoesNotConfirmAnUnpostedSuggestion and the adjusted existing OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce; both exact methods join the correction filter. No current SQL provenance PASS is claimed.
+
+- 2026-09-08T06:26:14.253Z lease-phase implementing → running-command (lease 000b26b8-fb8d-4e16-809f-8127f200cd4e rev 8; expires 2026-09-08T07:26:14.242Z)
+
+## Root narrow integrated-source handoff — 2026-09-08 06:26 UTC
+
+PR699 is integrated at 96777888bfa7ee7f85d63979a4a09ae10cda7d13. Root retains INTK-064 verification ownership but releases only the existing CaseDataCompletenessPersistenceTests.ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory equal-name/VRM assertions to ENG-029's mapped provenance correction: unchanged accepted values retain original Fact/source and do not acquire Confirmed attribution. Preserve every unrelated lease/version/replay/history assertion and INTK-064's merged constructor dependency. No constructor copy, dirty-worktree baseline merge, parallel build or broader source handoff is authorized here.

@@ -39,15 +39,17 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-03-triage.md
 commits:
-  - 1e4f20e5718ec97abf269563fbba1fd944b944a4
+  - 96777888bfa7ee7f85d63979a4a09ae10cda7d13
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/699'
 deployment: not-deployed
-delivery_state: not-integrated
-delivery_recorded_at: '2026-09-08T06:06:01.134Z'
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 96777888bfa7ee7f85d63979a4a09ae10cda7d13
+delivery_recorded_at: '2026-09-08T06:26:18.051Z'
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T06:25:48.858Z'
+updated: '2026-09-08T06:26:18.051Z'
 ---
 
 ## What
@@ -85,9 +87,10 @@ implementation must follow its merged/released ownership. Root owns a separate
 one-ticket supplemental run; original218 roster unchanged. Root approved
 execution after INTK-063 closeout and TICK-085's narrow integrated-source
 handoff. Taken at .worktrees/intk-064 on INTK-064-triage-link-recovery from
-aefe4c32d078ad79c0368666b5666032e6865248. Root's focused verification passed;
-PR #699 at 1e4f20e5718ec97abf269563fbba1fd944b944a4 now awaits independent
-exact-head review. No queue/schema/framework or Worker grant was added.
+aefe4c32d078ad79c0368666b5666032e6865248. Root's focused author verification passed. Independent exact-head review
+236cd47ab3845f07 passed for PR #699 at
+1e4f20e5718ec97abf269563fbba1fd944b944a4; it merged into dev at
+96777888bfa7ee7f85d63979a4a09ae10cda7d13 on 2026-09-08T06:16:37Z. No queue/schema/framework or Worker grant was added.
 Historical claims and the separate original roster remain unchanged.
 
 ## Outcome
@@ -95,5 +98,6 @@ Historical claims and the separate original roster remain unchanged.
 Implemented creation/replay, formal acceptance/replay and existing timer
 association. Root verified Release build, 32 Core and 14 integration tests
 (including genuine arrival orders and restricted Worker), plus 127 document
-link checks. The report retains the earlier compile failure. Not integrated
-or deployed; independent review and exact-merge proof remain outstanding.
+link checks. The report retains the earlier compile failure. Integrated and independently
+reviewed, not deployed. Root retains the Verifying lease for exact-merge proof;
+no post-merge runtime or Done claim yet.
