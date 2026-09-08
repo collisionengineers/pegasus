@@ -7,7 +7,7 @@ reviewer: "codex-v1-remediation-root"
 independent: true
 plan_hash: "a5e40190fbaa6886"
 ticket_updated: "2026-09-08T01:12:38.095Z"
-board_sha: "af315c79f0e9f07f3b3552d9bea44618027618e1"
+board_sha: "3e9be8af8e04759535d4701fa34482120a2b132a"
 expected_reviewers: ["codex-v1-remediation-root"]
 threads_snapshot: []
 findings:
@@ -85,3 +85,12 @@ or undispositioned finding remains.
 PASS for bounded reviewed implementation. Operator-authorized root may merge
 only after a fresh unchanged head/check/thread/board gather. Exact merged-SHA
 verification and Done remain kanmer-verify's separate obligation.
+
+## Final settle gather
+
+At 2026-09-08T01:17Z, the exact head remains unchanged; rules/checks/threads
+remain empty. Root public review PRR_kwDOThBrk88AAAABMiYpoA is COMMENTED on
+this same head and repeats this PASS and F-001 disposition. No other finding
+arrived; the bot status remains non-gating running information. The board is
+now synchronized after one observed pending autopush; no gate result from
+that earlier ahead1 observation was treated as current.
