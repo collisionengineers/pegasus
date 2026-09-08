@@ -30,11 +30,11 @@ The earlier D56 formal-document conversion remains recorded in scratch/notes.md.
 
 ## Closeout — DELIV-056
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date appended)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-056`
-- [ ] `git branch -d DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] cd out of worktree; `git worktree remove .worktrees/deliv-056`
+- [x] `git branch -d DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence` (`-D` if squash/rebase-merged)
+- [x] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
