@@ -22,11 +22,18 @@ build occurred; immutable actual-release packaging remains D6 work.
 
 ## Closeout — DELIV-054
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date confirmed)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-054`
-- [ ] `git branch -d DELIV-054-hidden-runtime-zips` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date confirmed)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] cd out of worktree; `git worktree remove .worktrees/deliv-054`
+- [x] `git branch -D DELIV-054-hidden-runtime-zips` (squash-merged)
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `git push origin --delete DELIV-054-hidden-runtime-zips`
 - [ ] `take_ticket action: "release"`
+
+Closeout checks confirmed PR #703 as merged and the schema-2 proof's three
+authoritative PASS attempts. The scoped worktree and local/remote feature
+branches were removed. An initial `git fetch origin --prune` received
+`fatal: Empty reply from server`; the retry succeeded. Unrelated dirty source
+worktree changes were left untouched.
