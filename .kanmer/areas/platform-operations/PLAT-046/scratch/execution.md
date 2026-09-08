@@ -94,3 +94,5 @@ The canonical host verifier recorded a platform PASS followed by Test-AzureDeplo
 Root authorized the bounded affected-consumer correction. Test-AzureDeploymentPlan now asserts that production smoke assigns expectedWorkerSettings from Get-PegasusWorkerDisabledSettingNames, while retaining the existing smoke assertions for live settings read, activation value mapping, ordinal name set, WorkerOnly, ActivationOnly, default exact census, disabled-setting query and recovery-timer behavior. Its Bicep source and compiled-template exact censuses remain unchanged. No empty-census allowance or duplicate list was added.
 
 Git diff check passed with an LF-to-CRLF advisory. Committed the one-file correction locally as 7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08, Keep deployment plan smoke census canonical. Branch is clean. No rerun, host command, cloud operation, push, or PR was performed; this exact head requires fresh verifier binding.
+
+- 2026-09-08T18:31:13.712Z lease-phase implementing → running-command (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 7; expires 2026-09-08T19:01:13.703Z)
