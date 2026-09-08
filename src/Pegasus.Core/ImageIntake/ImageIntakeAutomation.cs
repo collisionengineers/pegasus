@@ -54,10 +54,8 @@ public sealed class ImageIntakeAutomation(
     IImageIntakeStore imageIntakeStore,
     IRegisterImageIntake registerImageIntake,
     IImageIntakeCaseCandidates caseCandidates,
-    IIntakeMutationStore intakeMutationStore,
     IIntakeReceiptQueries receiptQueries,
     IImageIntakeCasePairing casePairing,
-    TimeProvider timeProvider,
     IIntakeSubmissionGroupStore? groupStore = null) : IImageIntakeAutomation
 {
     public const string ActorId = "image-intake-automation";
@@ -69,22 +67,14 @@ public sealed class ImageIntakeAutomation(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        if (!IsImageOnly(receipt))
+        if (!ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+            || receipt.Decision is not (IntakeDecision.NeedsSorting or IntakeDecision.ImageIntakeRegistered))
         {
             return new(receipt);
         }
 
         using var activity = Telemetry.StartActivity("image_intake_automation");
         activity?.SetTag("intake.receipt_id", receipt.Id);
-
-        if (groupStore is not null)
-        {
-            var groupOutcome = await TryApplyGroupAsync(receipt, activity, cancellationToken);
-            if (groupOutcome is not null)
-            {
-                return groupOutcome;
-            }
-        }
 
         var existing = await imageIntakeStore.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
         if (existing is not null)
@@ -97,11 +87,24 @@ public sealed class ImageIntakeAutomation(
                 await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(
                     receipt.Id,
                     cancellationToken);
+                RecordPairingOutcome(activity,
+                    await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken));
                 return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
+                activity?.SetTag("image_intake.failure_type", exception.GetType().Name);
+                activity?.SetStatus(ActivityStatusCode.Error, "registered_replay_failed");
                 return new(receipt);
+            }
+        }
+
+        if (groupStore is not null)
+        {
+            var groupOutcome = await TryApplyGroupAsync(receipt, activity, cancellationToken);
+            if (groupOutcome is not null)
+            {
+                return groupOutcome;
             }
         }
 
@@ -365,17 +368,18 @@ public sealed class ImageIntakeAutomation(
                     record.NormalizedVehicleRegistration,
                     actor,
                     cancellationToken);
-                if (target is not null && memberReceipt.CurrentCaseId is null)
-                {
-                    await TryAssociateAsync(memberReceipt, target, actor, activity, cancellationToken);
-                }
-
                 if (memberReceipt.Decision == IntakeDecision.NeedsSorting)
                 {
                     await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(
                         memberReceipt.Id,
                         cancellationToken);
                 }
+            }
+
+            if (target is not null)
+            {
+                RecordPairingOutcome(activity,
+                    await casePairing.PairRegisteredReceiptAsync(primary.Id, cancellationToken));
             }
 
             return true;
@@ -412,10 +416,6 @@ public sealed class ImageIntakeAutomation(
 
         return exactMatches.Length == 0 && candidates.Count == 1 ? candidates[0] : null;
     }
-
-    private static bool IsImageOnly(IntakeReceipt receipt) =>
-        receipt.Decision == IntakeDecision.NeedsSorting
-        && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
 
     private async Task<IReadOnlyList<ImageVrmSuggestion>> ScanAsync(
         IntakeReceipt receipt,
@@ -581,7 +581,8 @@ public sealed class ImageIntakeAutomation(
                 cancellationToken);
             if (target is not null)
             {
-                await TryAssociateAsync(receipt, target, actor, activity, cancellationToken);
+                RecordPairingOutcome(activity,
+                    await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken));
             }
             else if (receipt.CurrentCaseId is not null)
             {
@@ -638,38 +639,13 @@ public sealed class ImageIntakeAutomation(
         }
     }
 
-    /// <summary>
-    /// The automatic association runs at most once per receipt (its operation
-    /// key is receipt-scoped) against the single unambiguous eligible
-    /// candidate selected before registration. Later changes are reasoned
-    /// staff decisions and are never re-run automatically.
-    /// </summary>
-    private async Task TryAssociateAsync(
-        IntakeReceipt receipt,
-        ImageIntakeCaseCandidate candidate,
-        ActionActor actor,
-        Activity? activity,
-        CancellationToken cancellationToken)
+    private static void RecordPairingOutcome(Activity? activity, ImageIntakePairingResult result)
     {
-        try
+        activity?.SetTag("image_intake.pairing_merged", result.Merged);
+        activity?.SetTag("image_intake.pairing_failures", result.Failures);
+        if (result.Failures > 0)
         {
-            await intakeMutationStore.AutoLinkAsync(
-                new(
-                    receipt.Id,
-                    candidate.CaseId,
-                    candidate.CaseVersion,
-                    actor,
-                    $"image-intake-associate:{receipt.Id:N}",
-                    $"Automatic association: the confirmed registration matches case {candidate.CaseReference} unambiguously."),
-                timeProvider.GetUtcNow(),
-                cancellationToken);
-            await casePairing.SyncMergeAfterLinkAsync(receipt.Id, candidate.CaseId, actor, cancellationToken);
-            activity?.SetTag("image_intake.association", "associated");
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            activity?.SetTag("image_intake.association", "failed");
-            activity?.SetTag("image_intake.failure_type", exception.GetType().Name);
+            activity?.SetTag("image_intake.failure_type", result.FirstFailure);
             activity?.SetStatus(ActivityStatusCode.Error, "association_failed");
         }
     }
