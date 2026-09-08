@@ -65,7 +65,8 @@ public sealed class ConcurrencyTokenPersistenceTests
             "concurrency-test-matcher",
             1);
 
-        var triageStore = new EfTriageStore(factory, timeProvider);
+        var triageStore = new EfTriageStore(factory,
+            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider);
         var triage = await triageStore.CreateAsync(
             new(
                 new(

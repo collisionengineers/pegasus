@@ -181,10 +181,33 @@ internal static class CaseMatchIndexProjector
             : null;
 }
 
-public sealed class EfCaseMatchIndex(
-    IDbContextFactory<PegasusDbContext> contextFactory) : ICaseMatchCandidateQueries
+public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
 {
+    private readonly IDbContextFactory<PegasusDbContext>? _contextFactory;
+    private readonly PegasusDbContext? _transactionContext;
+
+    public EfCaseMatchIndex(IDbContextFactory<PegasusDbContext> contextFactory) =>
+        _contextFactory = contextFactory;
+
+    internal EfCaseMatchIndex(PegasusDbContext transactionContext) =>
+        _transactionContext = transactionContext;
+
     public async Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+        string workProviderCode,
+        CaseMatchKeys keys,
+        CancellationToken cancellationToken)
+    {
+        if (_transactionContext is not null)
+        {
+            return await FindByAnyKeyAsync(_transactionContext, workProviderCode, keys, cancellationToken);
+        }
+
+        await using var context = await _contextFactory!.CreateDbContextAsync(cancellationToken);
+        return await FindByAnyKeyAsync(context, workProviderCode, keys, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+        PegasusDbContext context,
         string workProviderCode,
         CaseMatchKeys keys,
         CancellationToken cancellationToken)
@@ -195,7 +218,6 @@ public sealed class EfCaseMatchIndex(
         var claim = keys.DurableClaimToken;
         var vrm = keys.NormalizedVrm;
         var surname = keys.NormalizedSurname;
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.CaseMatchIndex
             .AsNoTracking()
             .Where(item => item.WorkProviderCode == workProviderCode
@@ -232,7 +254,20 @@ public sealed class EfCaseMatchIndex(
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        if (_transactionContext is not null)
+        {
+            return await FindByCaseIdAsync(_transactionContext, caseId, cancellationToken);
+        }
+
+        await using var context = await _contextFactory!.CreateDbContextAsync(cancellationToken);
+        return await FindByCaseIdAsync(context, caseId, cancellationToken);
+    }
+
+    private static async Task<CaseMatchCandidate?> FindByCaseIdAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
         var row = await context.CaseMatchIndex
             .AsNoTracking()
             .Where(item => item.CaseId == caseId)
