@@ -33,6 +33,7 @@ Root approved this exact scope and handed off mapped files at 05:20 UTC on
 | tests/Pegasus.Core.Tests/Assessment/AssessmentPolicyTests.cs | Missing PostReport write acceptance with unchanged other-state boundaries; dead path refusal and existing normalization/finding invariants. |
 | tests/Pegasus.Core.Tests/Reports/AssessmentReportProjectionTests.cs | Existing D41 exact values/equity/Estimate repair days reused by both projections, including missing accepted input. |
 | tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs | Update existing recording save caller; all new fields/typed members, old hidden facts, authority/antiforgery, refusal retention, partial-load/no-render side effects. Existing fixture only. |
+| tests/Pegasus.IntegrationTests/CaseEngineerSectionsWebTests.cs | Existing metadata-source fake composition only, preserving the existing lifecycle/read-only/recorded-value assertions. |
 | tests/Pegasus.IntegrationTests/CaseEditModeWebTests.cs | Existing one Save/Discard/form association/current-versus-proposed and keyboard/cross-section intent; no new browser harness. |
 | tests/Pegasus.IntegrationTests/CaseWorkspacePersistenceTests.cs | Actual SQL combined save/replay/rollback, PostReport and preserved Case facts/completeness/current-report invalidation. |
 | tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs | Actual page metadata-readiness and saved-field-to-preview input parity with existing renderer seam; no external image read on ordinary GET. |

@@ -212,3 +212,12 @@ only that denial wording with a current-state refusal. No guard, query or
 permission changes. The Core writable-state owner remains the single list.
 Root approved this exact bounded extension before edits; no tests assert the
 old wording. Preserve all other behavior and historical review dispositions.
+
+## Existing Engineer-section fixture caller amendment
+
+Root approved adapting CaseEngineerSectionsWebTests' existing source fake to
+supply the newly consumed metadata snapshot port. Its two existing test
+methods keep their full lifecycle, recorded-value and read-only assertions;
+no new fixture host or production change. Root separately owns the already
+mapped CaseWorkspacePersistenceTests and AssessmentReportDraftWebTests
+changes while pack_reconcile owns the other Web fixtures and source.
