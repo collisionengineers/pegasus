@@ -2,13 +2,23 @@
 id: PLAT-046
 type: ticket
 title: Stop old Web and Worker before planned destructive migrations
-status: preparing
+status: implementing
 area: platform-operations
 order: 90
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-28T07:54:27.369Z'
+taken_at: '2026-09-08T17:52:41.849Z'
+branch: PLAT-046-destructive-migration-shutdown
+worktree: .worktrees/plat-046
+claim_expires_at: '2026-09-08T18:22:41.849Z'
+claim_controller: codex-mcp-client
+lease_id: f52130e7-d7ab-40ac-aa69-edb643bda825
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-046'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T17:52:41.849Z'
 labels:
   - release
   - worker
@@ -20,7 +30,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-09-08T17:50:42.299Z'
+updated: '2026-09-08T17:52:41.849Z'
 ---
 
 ## What
