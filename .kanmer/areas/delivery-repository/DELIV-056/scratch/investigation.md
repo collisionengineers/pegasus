@@ -49,3 +49,7 @@ Candidate D56 correction paths only: tests/Pegasus.IntegrationTests/CustodyOutbo
 Not approved / needs owner decision: UploadConfirmationWebTests.cs and Browser/UploadCaseSearchBrowserTests.cs require an explicit current-contract decision for the manual attach entry state; they should not be folded into the six fixture/test corrections merely to make the focused run green.
 
 After root packet approval, run the narrow existing test methods for the six corrected failing scenarios plus their immediate helper consumers as a single host-owned focused selection. Separately run UploadConfirmation Attach and the browser case-search test only after its manual-attach contract is decided. Re-run HeldLease after D56 integration to demonstrate the formal shared seed resolves PR706 setup. Retain the original 13-class broad-filter failure as evidence; do not treat its 269-case result as narrow proof.
+
+## Plan packet validation (2026-09-08)
+
+Readback confirmed revised plan.md@b285fa245635a7af and checklist.md@636161d6156db976. The advisory get_execution_packet step-1 check is not executable yet: it reports GATE_BLOCKED because repository tracked-path inspection rejects the pre-existing tracked path `reference/eva_information/screenshots/{0E6CBDDD-7C09-4088-A2F7-35C9041AAA42}.png` as unsafe. This is outside DELIV-056’s two-file correction scope and no remediation was attempted. Root approval remains required before any source edit; this environmental packet limitation must be resolved or explicitly handled by the board/operator before constrained-step execution.

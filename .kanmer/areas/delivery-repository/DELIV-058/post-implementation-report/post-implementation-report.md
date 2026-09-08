@@ -35,4 +35,4 @@ The verifier’s postcheck retained the same two-file diff, clean `git diff --ch
 
 ## Review handoff
 
-The commit is recorded on the ticket and a draft PR targets `dev`. Independent review must confirm the two-file scope, the selector/collection negative boundary, and the exact Worker constructor ordering. Exact-merge verification remains required after review.
+PR [#708](https://github.com/collisionengineers/pegasus/pull/708) targets `dev`, has head `71c1bc1266583459d40b82c3d19d59af632afa7d`, and is ready for independent review. The ticket is in Review. The reviewer must confirm the two-file scope, selector/collection negative boundary, and exact Worker constructor ordering. Exact-merge verification remains required after review.

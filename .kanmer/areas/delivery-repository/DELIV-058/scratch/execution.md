@@ -1,0 +1,1 @@
+2026-09-08: Sole-host PASS recorded in `scratch/verify.md`. Committed only the two approved architecture tests as `71c1bc1266583459d40b82c3d19d59af632afa7d` and pushed `DELIV-058-architecture-assertions`. Draft PR: https://github.com/collisionengineers/pegasus/pull/708 (base `dev`); ticket moved to Review. No further source/test/build/merge/cleanup action by author.
