@@ -15,14 +15,14 @@ stageEntered:
 taken_at: '2026-09-08T13:32:27.085Z'
 branch: DELIV-055-migration-host-doc
 worktree: 'C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\deliv-055'
-claim_expires_at: '2026-09-08T14:52:51.369Z'
+claim_expires_at: '2026-09-08T15:28:06.651Z'
 claim_controller: codex-mcp-client
 lease_id: b9dc1816-f141-49a6-a72c-873df695f7f0
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-055'
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T14:22:51.368Z'
+lease_phase: verifying
+lease_heartbeat_at: '2026-09-08T14:58:06.651Z'
 labels:
   - release
   - corrective
@@ -35,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/705'
 archived: false
 created: '2026-09-08T13:25:29.949Z'
-updated: '2026-09-08T14:54:07.503Z'
+updated: '2026-09-08T14:58:06.651Z'
 ---
 
 ## What
