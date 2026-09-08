@@ -113,11 +113,20 @@ The exact-six and exact-seven intermediate failures also remain retained. This
 review does not relabel any of those runs green or call the focused deltas a
 broad-suite pass.
 
-At attestation gather, optional changes, documentation, local-development
-scripts, reference-data and unit jobs passed; infrastructure was path-skipped;
-three SQL shards, browser and Test UI were still pending. None is configured as
-a required check. Their later results remain evidence to re-gather before any
-authorized merge and must be recorded truthfully.
+At the final pre-merge evidence gather for workflow run 34249188255, optional
+changes, documentation, local-development scripts, reference-data and unit jobs
+passed; infrastructure was path-skipped. Browser job 102139235365 and Test UI
+job 102139295116 each failed only
+UploadCaseSearchBrowserTests.CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision:
+134 passed and one failed while waiting for the unchanged
+details.upload-attach > summary locator. SQL shard 3 job 102139253051 ran all
+635 assigned tests and failed only
+UploadConfirmationWebTests.AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely:
+634 passed and one failed on the unchanged stale
+"No existing case matched this" assertion. These are the same manual-attach
+contract recorded as F-001 and deferred to INTK-066; no DELIV-056 changed line
+or acceptance claim is implicated. SQL shards 1 and 2 were still completing.
+None is configured as a required check.
 
 ## Finding, residual scope and recommendation
 
