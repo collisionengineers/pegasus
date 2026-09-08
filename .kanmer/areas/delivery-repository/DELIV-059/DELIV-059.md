@@ -2,22 +2,23 @@
 id: DELIV-059
 type: ticket
 title: Restore release-39 history to the canonical operations record
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T16:08:50.581Z'
+  review: '2026-09-08T16:39:10.872Z'
 taken_at: '2026-09-08T16:18:57.206Z'
 branch: DELIV-059-restore-release-39-history
 worktree: .worktrees/deliv-059
-claim_expires_at: '2026-09-08T17:07:41.871Z'
+claim_expires_at: '2026-09-08T17:08:27.785Z'
 claim_controller: codex-mcp-client
 lease_id: a406b4c8-fa2f-4fe1-8339-b1e2d0de03d3
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-059'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T16:37:41.871Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-08T16:38:27.785Z'
 labels:
   - documentation
   - release-evidence
@@ -32,10 +33,12 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 commits:
   - 67b357475433df5fdb09cf7296284b90de516d47
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/710'
 deployment: n/a
 archived: false
 created: '2026-09-08T16:07:49.662Z'
-updated: '2026-09-08T16:37:41.871Z'
+updated: '2026-09-08T16:39:10.872Z'
 ---
 
 ## What
