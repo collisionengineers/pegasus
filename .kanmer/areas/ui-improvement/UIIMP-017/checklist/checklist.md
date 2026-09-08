@@ -13,3 +13,15 @@ failures remain in the report. Final unique-TRX run passed 2/2; build20.79s,
 scoped snapshot update3/verify3 and catalogue60/67/0 passed. No source markup
 or timestamp assertion was weakened. Independent review next; no CI/live/
 manual visual/deployment claim.
+
+## Closeout — UIIMP-017
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`).
+- [x] Whole final PASS proof read; PR URL and merge date present.
+- [x] Done accepted by root after exact merged verification.
+- [ ] Retain and hash-check three TRXs and associated author/merged captures.
+- [ ] Outcome and reachable merge/delivery recorded in ticket body.
+- [ ] Remove only the two validated owned worktrees from the shared checkout.
+- [ ] Delete only local and remote UIIMP-017-health-display without force.
+- [ ] Verify exact refs/registrations absent; broad prune is unnecessary after normal removal.
+- [ ] Release the claim last.
