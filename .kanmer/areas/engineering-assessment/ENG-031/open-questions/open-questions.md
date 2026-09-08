@@ -30,7 +30,10 @@ Q2 and D46 remain binding.
   fields. Root approved provided invalid/stale acquisition preserves original
   values/Case/preparation versions and never persists or silently refreshes
   retry authority.
-- [ ] Root full-read approval of current executable plan and exact map.
+- [x] Root fully read and approved plan 573221b0ad2d17c3, map
+  f99fed081e68ece6 and checklist 83c95366582199f5. Existing global Save,
+  original-version refusal and exact-source checks remain binding; execution
+  still waits for the separate source-ownership handoff below.
 - [ ] ENG-029 shared source/fixtures, INTK-064 DI and root snapshot/index
   ownership released or precisely handed off; stale ENG-034 blocking relation
   disposed on its actual integrated-host evidence without forcing old claim.
