@@ -157,3 +157,9 @@ branch are absent. All five retained TRXs still match the manifest. Shared
 source remains on dev at3284f93fc3ea9fd3bbbea9405ec92dc7818378f2.
 Only temporary checkout/build artifacts were removed; source remains in the
 merge and test evidence is retained. Claim release is the final cleanup step.
+
+Claim released last at2026-09-08T03:46:53.341Z. Final item readback is Done,
+unarchived, integrated/dev at the exact merge, not-deployed, with no taken_at,
+branch, worktree or lease. The manifest SHA256 is
+4C7889816DF1F1212C5EA606F9E19C65AD2B2F5BE8F9CFF98CBC5700D349044C.
+Closeout is complete; no new runtime verification or deployment was performed.
