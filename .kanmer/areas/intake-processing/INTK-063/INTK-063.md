@@ -38,15 +38,17 @@ links:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
-  - e7db237e47322d2378ccf44749d97024db377aeb
+  - a022fc4b2db87d4d2eeb14437b41f6d8344d63e6
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/696'
 deployment: not-deployed
-delivery_state: not-integrated
-delivery_recorded_at: '2026-09-08T04:15:55.596Z'
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: a022fc4b2db87d4d2eeb14437b41f6d8344d63e6
+delivery_recorded_at: '2026-09-08T04:55:49.534Z'
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T04:53:34.162Z'
+updated: '2026-09-08T04:55:49.534Z'
 ---
 
 ## What
@@ -84,3 +86,25 @@ Preparation only until root plan review. No new queue, schema, grants or
 framework absent concrete evidence and root approval. Root owns heavy checks.
 
 ## Outcome
+
+Integrated into dev by [PR #696](https://github.com/collisionengineers/pegasus/pull/696)
+at `a022fc4b2db87d4d2eeb14437b41f6d8344d63e6` on 2026-09-08T04:37:37Z.
+Root read the whole exact-merge PASS proof `97b3f0a8b71eb09d` and moved this
+ticket Done at 04:53:34.162Z: locked restore/Release build, 75 Core and 18
+integration cases passed with no skips. Not deployed; no live/provider or
+initial-registration claim from the restricted Worker recovery fixture.
+
+Existing automatic, registered/acceptance replay, staff link and timer callers
+now recover current-identity image pairing while preserving recorded staff
+intent, reversals, custody and replay. The actual RequestHash correction and
+initial-principal hypothesis disposition remain in the independent review
+`4859da1b06b2cefe` and report `67f2c76040cf0b1c`. Both prior author failures
+remain in proof; all five TRXs are retained with verified hashes at
+`pegasus_pack/current/proofs/intk-063/manifest.json` (manifest SHA256
+`FCC14EF2269BD14D1F17890D549C344B88DA685E8F75AF2A4B11A51724AE784F`).
+
+Only this ticket's clean roots/branch are authorized for closeout; claim
+release is last. [[INTK-064]] may use the released acceptance/timer/matcher
+ownership after cleanup. This does not transfer or close historical
+[[TICK-042]], [[INTK-039]], [[INTK-060]] or [[INTK-061]] claims. Final v1
+release/live acceptance remains with [[EPIC-014]].
