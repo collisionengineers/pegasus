@@ -35,12 +35,17 @@ links:
 refs:
   - docs/design/README.md
 commits:
-  - c72f0df959de5de07f0ca15cda87c04e3b8879cd
+  - 493f7460d7728a6576d240d4feb7d0bf2a377ec5
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/697'
+deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 493f7460d7728a6576d240d4feb7d0bf2a377ec5
+delivery_recorded_at: '2026-09-08T04:49:25.875Z'
 archived: false
 created: '2026-09-03T19:35:41.384Z'
-updated: '2026-09-08T04:47:29.592Z'
+updated: '2026-09-08T04:49:25.875Z'
 ---
 
 ## What
@@ -88,3 +93,13 @@ refresh from `origin/dev` before editing.
 - [x] `grep -rn "brand.signatures" src/` returns nothing, matching the doc.
 - [x] `./scripts/Test-DocumentationLinks.ps1` and `./scripts/Test-UiCatalogue.ps1`
       still pass.
+
+## Outcome — 8 September 2026
+
+PR #697 merged into dev at 493f7460d7728a6576d240d4feb7d0bf2a377ec5.
+Independent pack_reconcile review passed, and root's exact merged proof
+bb2739e65b8ac95a passed one-row/source-resource/caller and both lightweight
+Markdown/UI catalogue checks. No build, capture or deployment was required.
+The stale embedded-signature claim is corrected; supplied assets and all
+historical shared-document claims remain unchanged. No follow-up in this
+bounded scope; final v1 delivery remains [[EPIC-014]].
