@@ -33,6 +33,7 @@ commits:
   - 4b3329675f48faede428a9c97212d1a610584136
   - cc826889407b97dc2d951219c70b59e619de70f2
   - cca2c76cb9d4acc19e68a1a776719d5dc701f8d3
+  - 500b86a9b21adbd7a8fe56a65ddd52782630ce21
 capture_evidence:
   - 'https://github.com/collisionengineers/pegasus/actions/runs/34240260482'
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -44,7 +45,7 @@ capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T20:05:55.601Z'
+updated: '2026-09-08T20:11:04.224Z'
 ---
 
 ## Observation
