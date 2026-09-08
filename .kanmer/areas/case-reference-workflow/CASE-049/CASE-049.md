@@ -30,17 +30,23 @@ links:
   - CASE-040
   - ENG-034
   - CASE-047
+  - TICK-035
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-12-operator-experience.md
 commits:
-  - 24eb2f77276fd7eb847f8c1746e6909113866b58
+  - 3a5ce645cfc0872d7a4324c6818497360c39cca4
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/690'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 3a5ce645cfc0872d7a4324c6818497360c39cca4
+delivery_recorded_at: '2026-09-08T01:32:04.173Z'
 archived: false
 created: '2026-09-07T23:11:41.757Z'
-updated: '2026-09-08T01:27:22.294Z'
+updated: '2026-09-08T01:32:04.173Z'
 ---
 
 ## What
@@ -57,9 +63,22 @@ Reuse the current assignment command, persisted readiness/lease/version guards, 
 
 ## Verification
 
-- [ ] Ready Case handoff assigns the eligible Engineer and advances exactly once under the existing lease/version authority.
-- [ ] Incomplete, stale, unauthorized and replay requests preserve correct state/history.
-- [ ] Native estimation and reports work without an EVA export; unrelated EVA delivery evidence remains correct.
-- [ ] One visible native handoff action replaces mandatory two-step progression; current docs and scoped snapshots agree.
+- [x] Ready Case handoff assigns the eligible Engineer and advances exactly once under the existing lease/version authority.
+- [x] Incomplete, stale, unauthorized and replay requests preserve correct state/history.
+- [x] Native estimation and reports work without an EVA export; unrelated EVA delivery evidence remains correct.
+- [x] One visible native handoff action replaces mandatory two-step progression; current docs and scoped snapshots agree.
 
 ## Outcome
+
+Integrated and independently accepted on dev at
+3a5ce645cfc0872d7a4324c6818497360c39cca4 via
+https://github.com/collisionengineers/pegasus/pull/690 (merged
+2026-09-08T01:19:12Z). Proof c9b63f3798849fdf retains root's exact merged
+restore/build, 56 Core, 32 SQL/Web and scoped snapshot/catalogue PASS.
+All four author/merged TRXs are preserved with verified SHA256 hashes under
+pegasus_pack/current/proofs/CASE-049/. Native handoff meets the four accepted
+obligations above; live Glass/mail/OCR and deployment are not claimed.
+
+Review note F-001 remains assigned to [[TICK-035]]: the unrelated stale
+QDOS-only incoming-cancellation paragraph in FRD-01. No native handoff work
+was deferred. Existing foreign CASE/ENG claims and evidence are unchanged.

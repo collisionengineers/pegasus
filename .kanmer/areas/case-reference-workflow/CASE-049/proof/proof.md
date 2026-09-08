@@ -115,3 +115,22 @@ ENG-041's separate original failed proof remains untouched. No foreign claim
 or workspace was modified. Closeout follows after the fresh Done gate and must
 preserve evidence, clean only this ticket's exact owned worktrees/branch, then
 release the lease last.
+
+## Closeout evidence preservation
+
+PR https://github.com/collisionengineers/pegasus/pull/690 merged to dev on
+2026-09-08T01:19:12Z at 3a5ce645cfc0872d7a4324c6818497360c39cca4.
+All four TRXs were copied before Git cleanup to the ignored durable folder
+pegasus_pack/current/proofs/CASE-049/ with unchanged filenames. SHA256 was
+verified against the author report and this proof both before and after copy:
+
+- case-049-core.trx: EEE5754A1286B5E5367B0AF4F03EDE596D7A9BDCC9CD8B960480F8B1D4E9CFC2.
+- case-049-handoff.trx: 2CFA92669142BA7DB422E95D55F8617D55D2772A6436BF1E9C67CF1D49E42336.
+- case-049-merged-core.trx: 84988EA66C196143D62E01A218740E4B7BD25EAE8BE8A7924A77088CEC044C51.
+- case-049-merged-handoff.trx: 0F7E27611610B0B140D5989A79B151E799F37B3FAA3A2B57BE9870A4614C811F.
+
+Original command cwd values above are historical execution locations, not
+claims that disposable worktrees remain after closeout. The final PASS and
+all attempts, including the pre-merge board-autopush guard exit1, are preserved.
+The board's legacy proof report warning is advisory, not a typed proof claim.
+No deployment or live provider/mail acceptance is inferred.
