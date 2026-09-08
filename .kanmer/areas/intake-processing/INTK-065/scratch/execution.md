@@ -7,3 +7,5 @@ Phase 1 PASS (source/diff inspection only): changed generator and Core expectati
 - 2026-09-08T13:49:43.351Z lease-phase implementing → running-command (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 2; expires 2026-09-08T14:04:43.342Z)
 
 - 2026-09-08T13:51:06.240Z lease-phase running-command → implementing (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 3; expires 2026-09-08T14:21:06.225Z)
+
+Step 2 materialization completed under root's explicit sole CEALEX-May25 slot (canonical record: DELIV-053/scratch/execution). One command only: `python artifacts/intk-065-refresh.py`; exit 0; package SHA-256 changed from `3e043f4fab71c00ecce8c88abd8e4a5a88c35cee5a582f2d5d76daf378227d62` to `b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284` (Git blob `e99e7c54923d8b5326454734dbe15f284408e3bb`). The ignored temporary script used existing snapshot/canonical_json_bytes/publish helpers for exactly the five policy snapshots and four source-reference IDs, then was removed. No test/build/verification script or independent PASS claim; canonical host slot returned IDLE. Step 2 remains unticked pending independent verifier evidence.
