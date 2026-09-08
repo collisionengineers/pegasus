@@ -82,3 +82,11 @@ Whole reviewe636932136f144cc read; reviewer returned samePR700 to Implementing r
   2. `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md`: retained current `origin/dev` report-generation wording and added only the narrow ENG scope paragraph: one workspace Save for Settlement/Report with reason/version/lease; Report comments/fee/description/sign-off/switches/date override; Vehicle History only in Vehicle; preserve unsubmitted accepted values, explicit clears/false, date-override semantics, and bounded current-versus-proposed refusal. The older detailed readiness/image/rate-card claims were not retained because the current FRD supersedes them.
 - The merge-wide staged `git diff --check` reports inherited trailing whitespace in incoming `docs-review-temp` patch files and vendor YAML, outside ENG-029's resolved files. Scoped `git diff --cached --check -- docs/design/README.md docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` passed.
 - Worktree was clean after the merge. No push, PR merge, deployment, build, or test was performed here. The frozen merged input is ready for the named documentation pass and focused revalidation; the recorded visual F-005 remains INCONCLUSIVE and must not be represented as complete.
+
+## Remediation round 1 finalization — 2026-09-08
+
+Fresh resumed packet was ready; exact recorded worktree/common repository/branch were revalidated at clean HEAD `2cde68831485bfc426e062a83030edea661f976d`. Lease `a76da773-df66-4631-9861-9b29734e5c4c` renewed from revision 15 to 16 in Implementing.
+
+Whole-file report and checklist updates retain all prior failure evidence and record the merged-head documentation/F-004 revalidation PASS. The multi-width visual inspection remains INCONCLUSIVE and unchecked; no waiver, Done, deployment, self-review, or self-merge claim was made.
+
+Existing remote PR700 branch was fast-forwarded normally from `f86054c0e7cc73cb6245355dd21c03e58196d582` to `2cde68831485bfc426e062a83030edea661f976d` with `git push origin ENG-029-case-workspace-editors`. No force push and no additional PR were used. Next: fresh gate read and Implementing → Review handoff for independent delta review.

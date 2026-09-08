@@ -52,8 +52,9 @@ was removed, and historical preparation notes above are preserved as history.
   local/CI failures; amend current plan/map for only the two missed fixtures.
 - [x] Adapt the existing browser metadata/current-state fixture and existing
   SetCurrentEstimate fake's frozen breakdown without weakening assertions.
-- [ ] Freeze for root's two named caller checks, record every result, and
-  publish the correction only to existing PR700 after root authorization.
+- [x] Freeze for root's two named caller checks, retain every result, and
+  publish the correction only to existing PR700 after root authorization. Merged-head
+  documentation and 2/2 caller revalidation PASS are recorded in scratch/verify.
 - [ ] Independent F-004 delta review after corrected root runtime evidence.
 
 No existing visual or exact-merge proof marker is completed by this re-entry.
