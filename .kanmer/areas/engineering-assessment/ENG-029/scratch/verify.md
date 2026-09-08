@@ -63,3 +63,32 @@ FullyQualifiedName~Pegasus.IntegrationTests.Browser.AssessmentReadinessSummaryBr
 ```
 
 Both files use existing fixture/production owners, all prior assertions preserved. Browser source adds one positive metadata-read assertion and aligns current state; accepted estimate fake records one computed breakdown/basis and retains already accepted totals. No Razor/source/snapshot delta in this correction, so no automatic broad capture or screenshot regeneration is requested. Existing manual visual acceptance remains outstanding. Source freeze+diffcheckPASS is not runtime PASS. Preserve prior root TRXs and all CI34196369756 failures; do not rerun their unrelated cohorts.
+
+## Sole-host F-004 verification — PASS (2026-09-08)
+
+Verifier: `/root/agent_config_verifier`
+Queue lane: 3/4
+Frozen worktree: `.worktrees/eng-029`
+Frozen branch: `ENG-029-case-workspace-editors`
+Frozen head: `f86054c0e7cc73cb6245355dd21c03e58196d582`
+
+Preflight at `2026-09-08T14:48:27.6971066Z` found only idle reusable MSBuild nodes left by the preceding serialized lane and no testhost/vstest or active competing command. Source status was exactly the two approved F-004 fixture files, 32 insertions/10 deletions; `git diff --check` exited 0 (repository LF→CRLF advisory only). Binary diff hash: `bc859ac1a9125523c1f49e7bab02837053e89dd2`.
+
+### Commands
+
+1. `dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore`
+   - attempted_at: `2026-09-08T14:48:35.8600003Z`
+   - exit_code: **0**
+   - result: PASS
+   - summary: Build succeeded; 0 warnings, 0 errors.
+2. `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~Pegasus.IntegrationTests.Browser.AssessmentReadinessSummaryBrowserTests.NotReadyReportDraftControlsStateTheConditionAndTheShellRenders|FullyQualifiedName~Pegasus.IntegrationTests.AssessmentEstimateImportWebTests.UseEstimateRecordsTheEngineersAcceptance" --logger "trx;LogFileName=eng-029-f004-host-20260908.trx" --results-directory artifacts/verification`
+   - attempted_at: `2026-09-08T14:49:58.0108709Z`
+   - exit_code: **0**
+   - result: PASS
+   - summary: Failed 0, Passed 2, Skipped 0, Total 2.
+   - TRX: `artifacts/verification/eng-029-f004-host-20260908.trx`
+   - TRX SHA-256: `976C6702C25F578C496438F6E6DA4E9D1377BF5E3885474F828EE41B5722EF9F`
+
+Postcheck at `2026-09-08T14:50:56.5167692Z` retained the same two-file status, clean diff check, and exact binary diff hash. Only idle reusable MSBuild nodes remained. No broader browser/capture/SQL cohort, rerun, source write, commit, push, PR update, merge, or stage mutation was performed. All previously recorded failures remain untouched.
+
+Disposition for the bounded F-004 caller lane: **PASS**. This does not satisfy or waive ENG-029's separately recorded multi-width manual visual acceptance, which remains INCONCLUSIVE/outstanding.

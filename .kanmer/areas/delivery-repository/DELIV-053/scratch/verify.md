@@ -3,3 +3,5 @@ PR704 confirmed MERGED at exact ed20af4275d0312c963a6fc86c330f563141c98c. Reconc
 Host verification queue update — 2026-09-08: INTK-065 completed PASS with every attempt and postcheck recorded on its scratch/execution. Canonical host state remains ACTIVE; current lane is DELIV-057 (2/4). Queue order remains DELIV-057 → ENG-029 → DELIV-056. No competing heavy verification may start.
 
 Host verification queue update — 2026-09-08: DELIV-057 completed PASS with exact locked restore, Release Integration build, and three focused tests recorded on its scratch/execution. Canonical host state remains ACTIVE; current lane is ENG-029 (3/4). Queue remainder is ENG-029 → DELIV-056.
+
+Host verification queue update — 2026-09-08: ENG-029 bounded F-004 caller lane completed PASS and was recorded without disturbing prior failures or the outstanding manual-visual obligation. Canonical host state remains ACTIVE; current and final lane is DELIV-056 (4/4).
