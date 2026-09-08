@@ -9,3 +9,16 @@
 ## Progress notes
 
 The verifier evidence and its exact exits are retained in `scratch/execution.md`. Full-solution verification is neither required nor run.
+
+---
+
+## Closeout — DELIV-057
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date confirmed)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-057`
+- [ ] `git branch -d DELIV-057-seed-historical-vehicle-lookup-schema` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
