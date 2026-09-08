@@ -2,10 +2,11 @@
 
 ## Current result
 
-Source frozen for root verification; not runtime PASS, not Review or deployed.
+Root focused runtime/snapshot evidence PASS; ready for independent review.
+Not merged, deployed, live-tested or CI-verified.
 Fresh isolated branch `UIIMP-017-health-display`, worktree
-`.worktrees/uiimp-017`, base/HEAD
-`cc441645b0a62a806e34367ad75e9eaff4df8b11`. No author commit or PR yet.
+`.worktrees/uiimp-017`, accepted base
+`cc441645b0a62a806e34367ad75e9eaff4df8b11`. Commit/PR traceability is recorded with the ticket at publication.
 Packet plan 0b651b4eb610041b/files cc4555712d217bf6 and EPIC014 context
 apply. Root is the sole heavy verifier.
 
@@ -26,8 +27,11 @@ apply. Root is the sole heavy verifier.
   automation-only, marker-outside-cell, wrong-page and denied HTML fragments.
   No Case selector or normalization change.
 - `docs/design/test-ui/catalogue.json`: names the actual populated mailbox
-  failure scenario. Its generated Health output and conditional index remain
-  owed from root's fresh focused capture; never hand-edited.
+  failure scenario.
+- `docs/design/test-ui/pages/administration-health--default.html`: root's
+  fresh actual route capture changes only the formatted metrics timestamp.
+- `docs/design/test-ui/index.html`: generated catalogue changes only the
+  Health scenario wording. Both generated files were never hand-edited.
 
 FRD12 and design/README's existing one-clock/Test UI rules govern this change.
 The Razor skill led to the existing page/formatter, not a new component,
@@ -39,13 +43,14 @@ TICK035's precise index-only handoff is recorded in plan/files. Its Settings
 outputs, historical UIIMP005 claim/worktree, shared checkout, other page
 selectors, cloud/mailbox and corpus remain untouched.
 
-## Checks and pending exact commands
+## Checks and exact commands
 
 Author read-only `git diff --check` and catalogue JSON parsing passed, exit 0.
 Initial frozen source had four paths, +22/-4; after the analyzer correction
 it has the same four paths, +23/-5. Git emitted only the existing LF/CRLF checkout
-warnings. No build, test or capture was run by the author. No runtime PASS or
-manual visual claim is made.
+warnings. Final six-file source/generated diff is +25/-7. No build, test or
+capture was run by the author; root supplied the evidence below. No manual
+visual claim is made.
 
 ### Initial root attempt and bounded correction
 
@@ -61,6 +66,7 @@ the field declaration from `IReadOnlyDictionary` to `Dictionary`. Dictionary
 content, selectors, initializer and assertions stay unchanged. No suppression,
 interface, factory or scope expansion. Author `git diff --check` passed again
 with only the existing LF/CRLF warnings. No author build/test/capture.
+
 ### Second root attempt and exact whitespace correction
 
 Root session 60924: corrected incremental Integration build PASS, 44.19s,
@@ -85,23 +91,30 @@ start 2026-09-08T03:18:56.5001682+01:00, finish
 2026-09-08T03:19:33.9165457+01:00. Captured HTML remains under
 `artifacts/test-ui-capture/5c7c63feae9391d9ef3ba092f7ea349ee659beeda9fbc7fd495c4892a144482e/response.html`.
 Neither file was overwritten. Snapshot update/verify/catalogue had not run.
-Source is frozen again; root uses a new TRX name for the correction run.
+This failing attempt remains preserved separately from the corrected result.
 
-### Pending corrected route and generated evidence
+### Final corrected route and generated evidence
 
-Root cwd: `.worktrees/uiimp-017`. Locked restore already passed; root schedules
-the incremental Integration Release rebuild,
-then Integration `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build`
-with the exact filter:
+Root session 19696, cwd `.worktrees/uiimp-017`: incremental Integration
+Release build PASS in 20.79s, zero warnings/errors. Locked restore had already
+passed in session 61210. The two actual route/selector tests PASS in 36s;
+scoped snapshot update 3 PASS (144ms), verify 3 PASS (3s; script 6s), and
+catalogue PASS: 60 routed pages, 67 prototypes, zero broken references.
+Root `git diff --check` exited 0, six authorized paths only.
+
+Build: `dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore`.
+Test: `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build`
+with `--logger "trx;LogFileName=uiimp-017-health-corrected.trx"`
+and `--results-directory ./artifacts/verification`, exact filter:
 
 ```text
 FullyQualifiedName=Pegasus.IntegrationTests.ApprovedMailboxAdministrationWebTests.ThePageShowsActivationAndSubscriptionHealthPerMailbox|FullyQualifiedName=Pegasus.IntegrationTests.TestUiSnapshotTests.HealthDefaultSnapshotRequiresTheRecordedMailboxFailureState
 ```
 
-Set `PEGASUS_TEST_UI_CAPTURE_DIR` to this worktree's absolute
+Root set `PEGASUS_TEST_UI_CAPTURE_DIR` to this worktree's absolute
 `artifacts/test-ui-capture`, `PEGASUS_TEST_UI_SCOPE=administration-health`,
 `PEGASUS_TEST_UI_MODE` unset. This is 2 tests, not the broad capture default.
-Then root runs:
+Root then ran:
 
 ```powershell
 pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -SkipCapture -Scope administration-health
@@ -110,6 +123,21 @@ pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1
 ```
 
 The snapshot script's existing TestUiSnapshotTests cohort now also contains
-this cheap selector Fact. Keep actual outputs/failures in this report. Commit
-only approved six-path output after root PASS; independent review next. No
-self-review, merge, deployment or claim release.
+this cheap selector Fact, explaining the three checks per update/verify.
+
+Final retained TRX `artifacts/verification/uiimp-017-health-corrected.trx`
+SHA256 `80431E38A5D8BE48469ABA2009547ACAE659CC9200F7E20F9669010C886B9AF5`.
+Author independently read/hash-checked counters 2 executed, 2 passed, 0 failed,
+0 skipped; start 2026-09-08T03:27:26.9621279+01:00, finish
+2026-09-08T03:28:05.5418501+01:00. The original failing TRX remains unchanged.
+
+Author compared complete newline-normalized generated bytes to accepted HEAD:
+Health equals the original with only `Current (06/05/2031 10:20:00 &#x2B;00:00)`
+replaced by `Current (06 May 2031 11:20)`; index equals the original with only
+the declared Health scenario wording replaced. Both comparisons and final
+`git diff --check` passed. No Settings, Case or other snapshot drift.
+
+Root authorizes one scoped `[skip ci]` commit and dev-targeting PR, retaining
+the final converged CI obligation and all prior failures. No manual visual,
+non-UK request-culture, live/cloud/mail or deployment PASS is claimed. Root
+independent review next; author stops without self-review/merge/claim release.
