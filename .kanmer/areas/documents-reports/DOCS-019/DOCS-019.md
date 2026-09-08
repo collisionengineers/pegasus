@@ -11,19 +11,6 @@ stageEntered:
   review: '2026-09-08T04:30:53.583Z'
   verifying: '2026-09-08T04:45:53.248Z'
   done: '2026-09-08T04:47:29.592Z'
-taken_at: '2026-09-08T04:28:12.024Z'
-branch: DOCS-019-signature-documentation
-worktree: .worktrees/docs-019
-claim_expires_at: '2026-09-08T05:01:16.252Z'
-claim_controller: root
-lease_id: 5d5fa3d9-cd0a-478d-bc48-f06ea21374ea
-lease_revision: 2
-lease_controller_run: 20260907T200500Z-v1-remediation
-lease_worker_run: intake_audit-docs019
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\docs-019'
-lease_provider: codex
-lease_phase: review
-lease_heartbeat_at: '2026-09-08T04:31:16.252Z'
 labels:
   - sign-off
   - case-workspace-v2
@@ -45,7 +32,7 @@ delivery_sha: 493f7460d7728a6576d240d4feb7d0bf2a377ec5
 delivery_recorded_at: '2026-09-08T04:49:25.875Z'
 archived: false
 created: '2026-09-03T19:35:41.384Z'
-updated: '2026-09-08T04:49:25.875Z'
+updated: '2026-09-08T04:51:12.506Z'
 ---
 
 ## What
