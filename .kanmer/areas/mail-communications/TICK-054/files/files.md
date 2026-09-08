@@ -34,7 +34,7 @@ board history. This is not authority to take a worktree or modify source yet.
 | `docs/capabilities.md` | State implementation vs activation accurately, not Done from registration. |
 | `docs/current-architecture.md` | Describe the actual shared owner and explicit still-closed activation state after implementation. |
 | `docs/design/test-ui/pages/inbox-message--*.html` | Generated captures owned by the changed route, only measured states. |
-| `docs/design/test-ui/index.md` | Generated capture metadata if changed by the existing update script. |
+| `docs/design/test-ui/index.html` | Generated capture metadata if changed by the existing update script. |
 
 ## Context files
 

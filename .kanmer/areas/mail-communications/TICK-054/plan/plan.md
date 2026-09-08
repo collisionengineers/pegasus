@@ -11,7 +11,7 @@ Retained source evidence never changes. No permanent-delete operation exists.
 
 Source: accepted dev `19e6f523bf6760cab39104b4dca3674b0ac8a512`.
 Evidence: `research/research.md`@`22e4a219a7da018e`,
-`files/files.md`@`208e30995b4d953e`.
+`files/files.md`@`b8ec0443c3eb4d64`.
 Resolved questions version: e58a7bab450fa458.
 
 This replaces plan `f3f565c096f44a0c` and its obsolete permanent-delete journey.
@@ -129,7 +129,7 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 | Modify | `docs/capabilities.md` | State implementation vs activation accurately, not Done from registration. |
 | Modify | `docs/current-architecture.md` | Describe the actual shared owner and explicit still-closed activation state after implementation. |
 | Modify | `docs/design/test-ui/pages/inbox-message--*.html` | Generated captures owned by the changed route, only measured states. |
-| Modify | `docs/design/test-ui/index.md` | Generated capture metadata if changed by the existing update script. |
+| Modify | `docs/design/test-ui/index.html` | Generated capture metadata if changed by the existing update script. |
 
 ## Do not modify
 
@@ -210,7 +210,7 @@ rewrite or preservation framework.
 - Expected output: recorded exit-zero focused results, exact TRX/capture artifacts and reviewed scope report.
 - Deviation stop: any failing result is returned for a bounded correction; no repeated whole-suite loop.
 
-- Files: `docs/design/test-ui/pages/inbox-message--*.html`, `docs/design/test-ui/index.md`.
+- Files: `docs/design/test-ui/pages/inbox-message--*.html`, `docs/design/test-ui/index.html`.
 - Change: root runs the scheduled focused cohort below, captures the actual message route, updates/verifies only that scope and checks catalogue/grants. Author records every attempt, source/head and exact outcomes in the ticket report; no failure is erased by later recovery.
 - Done when: root provides passing bounded evidence, author reconciles the checklist/report and hands the unchanged reviewed scope to independent review. No self-review, merge, activation or live journey is claimed here.
 
