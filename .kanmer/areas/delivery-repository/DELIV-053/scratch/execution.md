@@ -127,3 +127,26 @@ The sequential grant stopped during DELIV-055 before DELIV-053 acceptance began.
 Following explicit D55 IDLE, /root re-grants /root/agent_config_verifier sole CEALEX-May25 ownership for the DELIV-053 actual fresh-session acceptance portion of the preceding grant. D55 is removed from this queue while its final native-exit examples are corrected. The D55 placement invocation omitted required commit arguments; it is a harness-contract failure, not content failure, and D55 modifies existing Markdown only (no added/renamed placement target).
 
 Proceed now with installed exec help and the one bounded fresh read-only acceptance session already specified above: Sol test primary, sequential five configured roles, harmless supplied text, no shell/tests/builds/MCP writes or recursive child delegation, no host-slot delegation to a child, no auto-trust/config mutation. The expected ungranted-test response is queue/refuse, not execution. Use safe ignored apply_patch harness if needed and retain only client-visible model/effort metadata/output summaries. No further unrelated static diagnostics; report precisely if the supported interface cannot establish a criterion. Preserve exits and explicit IDLE on completion.
+
+## Host verification attempt 3 — actual profile acceptance — 2026-09-08 — INCONCLUSIVE
+
+Sole slot owner: `/root/agent_config_verifier` on `CEALEX-May25`. Fresh census found no dotnet/MSBuild/testhost/vstest process.
+
+```text
+COMMAND: codex exec --help
+EXIT: 0
+OBSERVED SUPPORT: --strict-config; --model; --sandbox with read-only; --config; --ephemeral; --json; stdin prompt via '-'.
+```
+
+An ignored `artifacts/deliv-053-acceptance.ps1` harness was created with `apply_patch`. It was designed to keep the harmless acceptance prompt and raw JSONL in memory, invoke one ephemeral Sol primary with strict config, read-only sandbox and `approval_policy="never"`, request the five configured roles sequentially, forbid shell/MCP/test/build/write/recursive work, and emit only safe client metadata/event counts and bounded summaries.
+
+First and only acceptance invocation:
+```text
+COMMAND: pwsh -NoProfile -File ./artifacts/deliv-053-acceptance.ps1
+EXIT: 1
+OUTPUT: deliv-053-acceptance.ps1: Exception calling "Start" with "0" argument(s): "An error occurred trying to start process 'codex' with working directory 'C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\deliv-053'. The system cannot find the file specified."
+```
+
+Disposition: **INCONCLUSIVE**. `ProcessStartInfo` could not resolve the installed Codex command shim. The failure occurred before a Codex primary session was created, so none of the five roles was discovered or exercised and no client-visible effective model/effort evidence was produced. Per stop-first-failure, the verifier did not resolve/substitute the shim path or retry. The ignored harness was removed with `apply_patch` after the failed invocation. No child, shell/MCP operation by an agent, test/build, browser, packaging, config/trust edit, product edit, cloud write or external mutation occurred. All invoked processes exited.
+
+Canonical CEALEX-May25 host verification slot is now explicitly **IDLE / unassigned**.
