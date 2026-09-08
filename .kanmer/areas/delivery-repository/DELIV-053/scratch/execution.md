@@ -345,3 +345,14 @@ Root read canonical IDLE c8b61ca457a80335, ready resumed packet, reviewed both e
 Run original build, then Core --no-build, then exact focused nonbrowser Integration queue with one necessary affected-caller addition: (FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~MailWorkspaceWebTests|FullyQualifiedName~TriageQueuesWebTests.AwaitingAttach)&Category!=Browser. This explicitly includes the changed blank-reason caller test rather than relying on method-name ImageIntake substring. Only after all pass, run Category=Browser&FullyQualifiedName~UploadCaseSearchBrowserTests with xUnit.MaxParallelThreads=1 and documented browser setup. Preserve all failures; no weakening or source/snapshot changes; first genuine failure stops remainder/no autonomous retry.
 
 Fresh process census required; prior final census was empty. Exact invocation-owned reusable MSBuild nodes may be recorded and stopped after their parent build exits using PID/start/parent/expected command validation, as preceding grant; no foreign/name-based termination. Local disposable SQL only, no live/cloud/Outlook/Box/push/PR. Record commands/exits and explicit canonical IDLE on completion/stop. Later remaining full cohorts, responsive and four-scope snapshot obligations are not waived.
+
+## Host slot handoff — INTK-066 focused correction still fails integration — 2026-09-08
+
+At exact clean HEAD `cca2c76cb9d4acc19e68a1a776719d5dc701f8d3`, sole verifier `/root/agent_config_verifier` completed:
+- Build PASS, 0 warnings/errors; exact invocation-owned reusable nodes cleaned after parent exit.
+- Core PASS, 1,955 passed / 14 skipped / 0 failed.
+- Amended focused non-browser integration FAIL, 119 passed / 8 failed / 0 skipped / 127 total.
+
+All eight exact names/assertions, commands, timestamps and cleanup identities are retained in INTK-066 execution. Browser is NOT RUN; no retry or fix occurred. Final exact-head postcheck was clean with empty dotnet/MSBuild/testhost/vstest census.
+
+Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned**.

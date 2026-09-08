@@ -271,3 +271,39 @@ Root read canonical IDLE c8b61ca457a80335, ready resumed packet, reviewed both e
 Run original build, then Core --no-build, then exact focused nonbrowser Integration queue with one necessary affected-caller addition: (FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~MailWorkspaceWebTests|FullyQualifiedName~TriageQueuesWebTests.AwaitingAttach)&Category!=Browser. This explicitly includes the changed blank-reason caller test rather than relying on method-name ImageIntake substring. Only after all pass, run Category=Browser&FullyQualifiedName~UploadCaseSearchBrowserTests with xUnit.MaxParallelThreads=1 and documented browser setup. Preserve all failures; no weakening or source/snapshot changes; first genuine failure stops remainder/no autonomous retry.
 
 Fresh process census required; prior final census was empty. Exact invocation-owned reusable MSBuild nodes may be recorded and stopped after their parent build exits using PID/start/parent/expected command validation, as preceding grant; no foreign/name-based termination. Local disposable SQL only, no live/cloud/Outlook/Box/push/PR. Record commands/exits and explicit canonical IDLE on completion/stop. Later remaining full cohorts, responsive and four-scope snapshot obligations are not waived.
+
+## Focused-integration corrected head — build/Core pass, focused integration fail — 2026-09-08
+
+Grant inputs initially read at ticket revision `rev1:cd6a7f62f4f36235`, lease revision 22, exact base/head `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `cca2c76cb9d4acc19e68a1a776719d5dc701f8d3`. The first evidence append was rejected with REVISION_CONFLICT after a concurrent root update advanced the ticket to `rev1:119f6a9c51703007` / lease revision 24; nothing was overwritten, and this append preserves that update.
+
+Preflight at `2026-09-08T19:53:43.0309831Z` exited 0: exact clean branch/head, base ancestry, and empty dotnet/MSBuild/testhost/vstest census.
+
+### Build — PASS
+
+`dotnet build Pegasus.slnx` ran `19:53:55.1622127Z`–`19:55:38.6768183Z`, exit 0: 0 warnings, 0 errors, elapsed 00:01:43.08.
+
+After parent PID 17232 exited, six exact invocation-created reusable MSBuild nodes were validated and stopped: PIDs 25204, 8876, 22656, 30760, 21132 and 20468; created `19:53:55.777319Z`–`19:53:55.782216Z`; all expected Program Files dotnet `MSBuild.dll /nodemode:1 /nodeReuse:true`. Cleanup exited 0 with none remaining at `19:56:05.0281741Z`.
+
+### Core — PASS
+
+`dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --no-build` ran `19:56:12.9585336Z`–`19:56:20.1397209Z`, exit 0: 1,955 passed, 14 skipped, 0 failed, 1,969 total.
+
+### Amended focused non-browser integration — FAIL
+
+`dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-build --filter "(FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~MailWorkspaceWebTests|FullyQualifiedName~TriageQueuesWebTests.AwaitingAttach)&Category!=Browser"` ran `19:56:37.8598213Z`–`20:02:06.0961379Z`, exit 1: 119 passed, 8 failed, 0 skipped, 127 total, duration 5m25s.
+
+Failures:
+1. `UploadConfirmationWebTests.AttachGroupAddsEveryOpenMemberToTheChosenCase` line 475 — expected HTTP Found, actual OK.
+2. `UploadConfirmationWebTests.AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely` line 125 — expected HTTP Found, actual OK.
+3. `UploadConfirmationWebTests.RegisterGroupCreatesOneVehicleImageCaseFromTheStaffTypedRegistration` line 427 — expected non-null value, actual null.
+4. `TriageQueuesWebTests.AwaitingAttachMovesTheImageIntakeToAnExistingCase` line 534 — expected HTTP Found, actual OK.
+5. `UploadConfirmationWebTests.AnUndecidedGroupShowsOneSubmissionDecisionInsteadOfPerFileOffers` line 374 — rendered HTML lacked `This submission`.
+6. `UploadConfirmationWebTests.AttachMergesARegisteredImageGroupIntoACaseTypedByReference` line 212 — expected HTTP Found, actual OK.
+7. `CasesIndexWebTests.AwaitingManualImageGroupLinksToItsSubmissionConfirmation` line 123 — expected non-null value, actual null.
+8. `CasesIndexWebTests.AwaitingImageSelectionCarriesTheExactOriginReceiptIntoConfirmation` line 75 — expected HTTP Found, actual OK.
+
+No TRX/logger or durable rendered response was configured; stdout exposed only the ordinary HTML document prefix and the absent text for failure 5. All previous failures remain retained.
+
+Per stop-first-failure, the UploadCaseSearch browser command is **NOT RUN**. No retry, source/assertion/filter change, snapshot update, live action, push or PR occurred.
+
+Postcheck at `2026-09-08T20:02:24.1103209Z` exited 0: exact branch/head remained clean and no dotnet, MSBuild, testhost or vstest process remained.
