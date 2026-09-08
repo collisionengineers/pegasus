@@ -92,3 +92,5 @@ Whole-file report and checklist updates retain all prior failure evidence and re
 Existing remote PR700 branch was fast-forwarded normally from `f86054c0e7cc73cb6245355dd21c03e58196d582` to `2cde68831485bfc426e062a83030edea661f976d` with `git push origin ENG-029-case-workspace-editors`. No force push and no additional PR were used. Next: fresh gate read and Implementing → Review handoff for independent delta review.
 
 - 2026-09-08T15:47:15.863Z lease-phase implementing → review (lease a76da773-df66-4631-9861-9b29734e5c4c rev 17; expires 2026-09-08T16:17:15.850Z)
+
+- 2026-09-08T16:14:42.094Z lease-phase review → verifying (lease a76da773-df66-4631-9861-9b29734e5c4c rev 18; expires 2026-09-08T16:44:42.084Z)
