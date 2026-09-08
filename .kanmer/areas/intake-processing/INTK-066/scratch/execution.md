@@ -307,3 +307,5 @@ No TRX/logger or durable rendered response was configured; stdout exposed only t
 Per stop-first-failure, the UploadCaseSearch browser command is **NOT RUN**. No retry, source/assertion/filter change, snapshot update, live action, push or PR occurred.
 
 Postcheck at `2026-09-08T20:02:24.1103209Z` exited 0: exact branch/head remained clean and no dotnet, MSBuild, testhost or vstest process remained.
+
+- 2026-09-08T20:04:14.575Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 25; expires 2026-09-08T20:34:14.567Z)
