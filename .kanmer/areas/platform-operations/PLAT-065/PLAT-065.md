@@ -2,7 +2,7 @@
 id: PLAT-065
 type: ticket
 title: Provision and activate Azure Document Intelligence PDF OCR
-status: review
+status: verifying
 area: platform-operations
 order: 860
 assignee: pack_reconcile
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   preparing: '2026-09-07T23:01:32.665Z'
   review: '2026-09-08T00:02:36.746Z'
+  verifying: '2026-09-08T00:08:21.424Z'
 taken_at: '2026-09-07T23:16:06.247Z'
 branch: PLAT-065-document-intelligence
 worktree: .worktrees/plat-065
@@ -44,7 +45,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-08T00:02:36.746Z'
+updated: '2026-09-08T00:08:21.424Z'
 ---
 
 ## What
