@@ -238,19 +238,24 @@ lazily; there is no layout switch. The sections, in order, are **Overview**,
 **Estimate**, **Settlement**, **Report**, **Files**, **Notes** (D30). Every
 section is always viewable; the Engineer sections — Damage, Valuation,
 Estimate, Settlement, Report — are editable in With Engineer and read-only
-once Complete (D30; the former D11 access rule is now this read-only rule).
+in every other state (D30; the former D11 access rule is now this read-only
+rule).
 The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 
 The action bar offers only actions the Core use cases permit for the current
 state: Edit Case / Finish editing / Renew editing, or the holder and expiry
 when another account holds the lease ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery));
-Place on Hold / Release Hold; Create upload link; **Send to EVA** in Review
-as the implicit review action, moving the Case to With Engineer, and again in
-With Engineer as a re-send (D36, D44) — the dialog holds Engineer,
+Place on Hold / Release Hold; Create upload link; **Hand to Engineer** in
+Review while editing — its dialog selects an eligible Engineer and the one
+handoff assigns them and enters With Engineer. Handoff is review; there is
+no reviewed checkbox or separate Start report preparation action.
+**Send to EVA** remains optional in Review and With Engineer as a re-send
+(D36, D44); its dialog shows the Engineer and holds
 Sign-off Engineer and Download ZIP / Send via API, with Send via API disabled
 unless the Principal enables it ([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
-there is no separate Download EVA package action;
+there is no separate Download EVA package action and EVA never gates native
+engineering;
 **Report sent** in With Engineer, which confirms detected or linked Sent
 evidence and enters post-report work — it never completes the Case and
 never records a manual assertion ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));

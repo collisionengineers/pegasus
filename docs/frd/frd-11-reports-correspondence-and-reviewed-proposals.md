@@ -135,9 +135,11 @@ separately owned human acts described below.
 The Engineer sections of the Case record — Damage, Valuation, Estimate,
 Settlement, Report — are always viewable (D30, 2026-09-02). They are editable
 in `Report preparation` and `Post report` (displayed "With Engineer") under
-the Case edit lease, and read-only in `Post-report complete` and the other
-terminal outcomes; the former D11 access rule is now this read-only rule.
-Report generation does not depend on an EVA export or submission. EVA is
+the Case edit lease, and read-only in every other state, including Review
+and terminal outcomes; the former D11 access rule is now this read-only rule.
+Native handoff from Review opens engineering actions, including estimates
+and Glass's, without an EVA export or submission. Report generation likewise
+does not depend on EVA. EVA is
 optional and never gates report readiness; its hand-off and report preparation
 remain separate workflows.
 

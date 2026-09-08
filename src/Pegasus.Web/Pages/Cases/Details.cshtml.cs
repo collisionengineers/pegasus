@@ -242,7 +242,7 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Whether the Engineer sections are read-only: the one Core access rule
-    /// (Complete only), read by ENG-034's Engineer forms. The record has no
+    /// (outside With Engineer), read by the Engineer forms. The record has no
     /// Open Assessment action and no section visibility gate (D30). An
     /// unresolved access answer reads as read-only.
     /// </summary>
@@ -383,11 +383,13 @@ public sealed partial class DetailsModel(
             : Labels.CaseWorkspace.AbsentValue;
 
     public string? ImportCondition =>
-        AssessmentIsReadOnly
-            ? Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete
-            : !ActorIsEngineer
-                ? Labels.CaseWorkspace.EngineerSections.EngineerOnlyImport
-                : null;
+        !AssessmentCanOpen
+            ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
+            : AssessmentIsReadOnly
+                ? Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete
+                : !ActorIsEngineer
+                    ? Labels.CaseWorkspace.EngineerSections.EngineerOnlyImport
+                    : null;
 
     public string? SendToClaudeCondition { get; private set; }
 
@@ -693,16 +695,13 @@ public sealed partial class DetailsModel(
 
     private async Task EvaluateEngineerSectionConditionsAsync(CancellationToken cancellationToken)
     {
-        if (AssessmentIsReadOnly)
+        if (!AssessmentCanOpen)
+        {
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.NotAvailableForCase;
+        }
+        else if (AssessmentIsReadOnly)
         {
             SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete;
-        }
-        else if (!AssessmentCanOpen)
-        {
-            // D11: the assessment workspace has not opened yet, so
-            // HasAssessmentAccessAsync will refuse the mutation the same as
-            // GuardEstimateEditAsync does for the other Estimate handlers.
-            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.NotAvailableForCase;
         }
         else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {
@@ -1184,7 +1183,7 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
-        if (!await HasReportJourneyAccessAsync(id, actor, cancellationToken))
+        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
         {
             return NotFound();
         }
@@ -1342,7 +1341,6 @@ public sealed partial class DetailsModel(
             id,
             operationKey,
             editLeaseToken,
-            AssessmentAccessPolicy.CanOpenReports,
             "Only an Engineer can generate or deliver reports.",
             () => RedirectToReport(id),
             cancellationToken);
@@ -1369,7 +1367,7 @@ public sealed partial class DetailsModel(
     /// What every section command on the record requires before it touches
     /// the case: an authorized actor, an assessment this command may open, an
     /// Engineer, a case that is not read-only, a live form, and an edit
-    /// lease. Only the opening rule, the role refusal and the section the
+    /// lease. Only the role refusal and the section the
     /// refusal lands on differ between the Report, Valuation and Files
     /// commands, so the checks themselves are written once.
     /// </summary>
@@ -1377,7 +1375,6 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        Func<AssessmentAccessState, bool> canOpen,
         string engineerOnlyRefusal,
         Func<IActionResult> redirect,
         CancellationToken cancellationToken)
@@ -1388,7 +1385,7 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
         var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access is null || !canOpen(access))
+        if (access is null || !access.CanOpen)
         {
             return NotFound();
         }
@@ -1514,7 +1511,6 @@ public sealed partial class DetailsModel(
             id,
             operationKey,
             editLeaseToken,
-            access => access.CanOpen,
             "Only an Engineer can record a valuation.",
             () => RedirectToValuation(id),
             cancellationToken);
@@ -1681,7 +1677,6 @@ public sealed partial class DetailsModel(
             id,
             operationKey,
             editLeaseToken,
-            access => access.CanOpen,
             "Only an Engineer can prepare report images.",
             () => RedirectToPreparation(id),
             cancellationToken);
@@ -2691,19 +2686,6 @@ public sealed partial class DetailsModel(
         (await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
             cancellationToken))?.CanOpen == true;
-
-    /// <summary>
-    /// H3: the report generation/preview/delivery journey uses the workspace
-    /// state set without D11's EVA-export clause.
-    /// </summary>
-    private async Task<bool> HasReportJourneyAccessAsync(
-        Guid caseId,
-        ActionActor actor,
-        CancellationToken cancellationToken) =>
-        (await getAssessmentAccess.ExecuteAsync(
-            new(caseId, actor),
-            cancellationToken)) is { } access
-        && AssessmentAccessPolicy.CanOpenReports(access);
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;

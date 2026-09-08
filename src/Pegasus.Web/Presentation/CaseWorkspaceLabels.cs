@@ -12,6 +12,8 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class CaseWorkspaceLabels
 {
+    public const string HandToEngineer = "Hand to Engineer";
+
     /// <summary>
     /// The Vehicle section's lookup-chip surface. These live here, not in the
     /// shared OperatorLabels, because they are Case-only: the shared file is

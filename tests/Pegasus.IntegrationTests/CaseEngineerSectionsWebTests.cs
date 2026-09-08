@@ -61,7 +61,7 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
 
-        if (state == CaseLifecycleState.PostReportComplete)
+        if (state is not (CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport))
         {
             Assert.DoesNotContain("New estimate", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
@@ -77,11 +77,11 @@ public sealed class CaseEngineerSectionsWebTests
     /// (read-only) editor panel.
     /// </summary>
     [Theory]
-    [InlineData("User", true)]
-    [InlineData("Engineer", false)]
-    public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, bool canOpen)
+    [InlineData("User", CaseLifecycleState.ReportPreparation)]
+    [InlineData("Engineer", CaseLifecycleState.Review)]
+    public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, CaseLifecycleState state)
     {
-        var source = new EngineerSectionSource(CaseLifecycleState.ReportPreparation, canOpen);
+        var source = new EngineerSectionSource(state);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -120,11 +120,8 @@ public sealed class CaseEngineerSectionsWebTests
         private readonly CaseDetails details;
         private readonly AssessmentWorkspace workspace;
         private readonly RepairSpecificationVersion estimate;
-        private readonly bool canOpen;
-
-        public EngineerSectionSource(CaseLifecycleState state, bool canOpen = true)
+        public EngineerSectionSource(CaseLifecycleState state)
         {
-            this.canOpen = canOpen;
             CaseId = Guid.NewGuid();
             var identity = new CaseIdentity(CaseId, "QDOS", 2026, 42, "QDOS-2026-00042");
             var workflow = new CaseWorkflowRecord(
@@ -195,7 +192,7 @@ public sealed class CaseEngineerSectionsWebTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<AssessmentAccessState?>(
                 query.CaseId == CaseId
-                    ? new(details.Workflow.State, 7, canOpen ? 7 : null)
+                    ? new(details.Workflow.State)
                     : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(

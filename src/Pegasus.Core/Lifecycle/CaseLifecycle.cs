@@ -102,7 +102,8 @@ public sealed class AssignCaseEngineer(
                 profiles)?.StaffId;
         }
 
-        return await _store.AssignEngineerAsync(request, signOffEngineerId, cancellationToken);
+        return await _store.AssignEngineerAsync(
+            request, signOffEngineerId, CaseLifecycleState.ReportPreparation, cancellationToken);
     }
 }
 
