@@ -41,3 +41,5 @@ Root sole heavy session 65450: locked restore all seven projects PASS (maximum 1
 After root explicitly released the source, added only using System.Globalization to the existing mapped store file. No author build/test was run.
 
 Read-only initial-principal hypothesis inspection: ImageIntakeOrigin has no PrincipalId (receipt/source/hash/evaluation only); its actual EF resolver exposes no principal. RegisterAsync's new entity initializer never assigns PrincipalId; SetPrincipalAsync is the sole production setter, after registration. Consequently an already-known principal at the initial origin boundary is not currently representable; no new inferred origin/provenance field was invented. Existing initial tests explicitly allow the accepted truncated-read completion. Already registered records instead take the early replay path and retain their known principal and immutable VRM. Root has this distinction for disposition before the combined rerun.
+
+- 2026-09-08T03:52:15.274Z lease-phase running-command → implementing (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 11; expires 2026-09-08T04:22:15.266Z)
