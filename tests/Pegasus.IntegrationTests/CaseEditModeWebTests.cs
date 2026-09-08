@@ -1,6 +1,14 @@
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
+using Pegasus.Web.Presentation;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -11,6 +19,219 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
+    [Theory]
+    [InlineData("Engineer", false, true)]
+    [InlineData("User", false, false)]
+    [InlineData("Engineer", true, false)]
+    public async Task WorkspaceSaveUsesCoreFindingAndEligibleSignOffAuthority(
+        string role, bool forgeSignOffAccount, bool reachesStore)
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            Substitute<IGetCase>(services, store);
+            Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<IGetAssessmentAccess>(services, store);
+            Substitute<IGetAssessmentWorkspace>(services, store);
+            Substitute<ICaseReportSnapshotSource>(services, store);
+            services.RemoveAll<ISaveCaseWorkspace>();
+            services.AddScoped<ISaveCaseWorkspace>(provider => new SaveCaseWorkspace(store,
+                provider.GetRequiredService<IStaffAccountQueries>()));
+        }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", role);
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(AntiforgeryValue(initial), ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+        var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var outcomeName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.Outcome);
+        Assert.Equal(role == "Engineer", editing.Contains($"name=\"{outcomeName}\"", StringComparison.Ordinal));
+        var field = forgeSignOffAccount ? "signOffEngineerId" : outcomeName;
+        var value = forgeSignOffAccount
+            ? Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId.ToString("D") : "repairable";
+        using var response = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(AntiforgeryValue(editing), ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey), ("editLeaseToken", store.LeaseToken),
+                ("reason", "Correct recorded settlement"), (field, value)));
+        AssertPrg(response, store.CaseId);
+        Assert.Equal(reachesStore ? 1 : 0, store.Saves.Count);
+        if (reachesStore)
+            Assert.Equal("repairable", store.Saves[0].Settlement!.AssessmentFields![AssessmentVocabulary.Outcome]);
+        else
+            Assert.Contains(forgeSignOffAccount ? "Sign-off Engineer" : "Outcome",
+                ProposedValuesPanel(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CaseSavePreservesUnpostedAcceptedFactsWithoutPromotingSuggestions()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var data = (await store.ExecuteAsync(new Pegasus.Core.Cases.GetCaseQuery(store.CaseId,
+            ActionActor.Staff(Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId,
+                [StaffRole.Administrator])), CancellationToken.None))!.Data!;
+        store.DataOverride = data with
+        {
+            Claim = new(new(data.Claim.Number.Confirmed! with { Kind = CaseDataValueKind.Fact },
+                data.Claim.Number.Confirmed! with { Kind = CaseDataValueKind.Suggestion, Value = "CLM-99" }, null)),
+            Contact = data.Contact with
+            {
+                Name = new(data.Contact.Name.Confirmed! with { Kind = CaseDataValueKind.Fact }, null, null)
+            }
+        };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Equal("CLM-42", InputValue(html, "claimNumber"));
+        Assert.Equal("Case contact", InputValue(html, "contactName"));
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(workspace.AntiforgeryToken, ("expectedVersion", (store.CaseVersion - 1).ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey), ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected claimant spelling"), ("claimantName", "")));
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal(store.CaseVersion - 1, saved.ExpectedVersion);
+        Assert.Null(saved.Overview!.ClaimantName);
+        Assert.Equal("CLM-42", saved.Overview.ClaimNumber);
+        Assert.Equal("Case contact", saved.Overview.ContactName);
+        Assert.Null(saved.Inspection);
+        Assert.Null(saved.Vehicle);
+        Assert.Null(saved.Report);
+        Assert.Null(saved.Settlement);
+    }
+
+    [Fact]
+    public async Task EngineeringEditorsShareTheCaseSaveAndRetainClearsAndFalseOnConflict()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IGetAssessmentAccess>(services, store);
+            Substitute<IGetAssessmentWorkspace>(services, store);
+            Substitute<ICaseReportSnapshotSource>(services, store);
+        });
+        var html = await workspace.GetWorkspaceAsync();
+        foreach (var path in CaseWorkspaceLabels.Editors.Settlement.Keys.Concat(CaseWorkspaceLabels.Editors.Report.Keys)
+                     .Append(AssessmentVocabulary.HistoryCheck))
+        {
+            var name = CaseWorkspaceLabels.Editors.FormName(path);
+            // The default authenticated fixture is an Administrator, not an
+            // Engineer: finding controls are read-only, ordinary editors live.
+            if (AssessmentVocabulary.Definitions[path].IsFinding)
+                Assert.DoesNotContain($"name=\"{name}\"", html, StringComparison.Ordinal);
+            else
+                Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
+        }
+        Assert.Single(Regex.Matches(html, "id=\"case-edit-form\""));
+        Assert.DoesNotContain("Saving returns the case to Not ready", html, StringComparison.Ordinal);
+        Assert.True(store.MetadataReads > 0);
+
+        var fields = new (string Name, string Value)[]
+        {
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementClaimantVatRegistered), "false"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck), ""),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.EngineersComments), "Engineer comments recorded"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportDateOverride), "false"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportIncludeUnrelatedDamage), "false"),
+            ("storagePerDay", "14.50"), ("recoveryCharge", "0")
+        };
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement", fields));
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        AssertLeasedMutation(workspace, saved, DetailsModelOperationKey, "Correct recorded settlement");
+        Assert.Null(saved.Overview);
+        Assert.Equal("0", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
+        Assert.Equal("false", saved.Settlement.AssessmentFields[AssessmentVocabulary.SettlementClaimantVatRegistered]);
+        Assert.Null(saved.Vehicle!.AssessmentFields![AssessmentVocabulary.HistoryCheck]);
+        Assert.Equal("Engineer comments recorded", saved.Report!.AssessmentFields![AssessmentVocabulary.EngineersComments]);
+        Assert.Equal("false", saved.Report.AssessmentFields[AssessmentVocabulary.ReportDateOverride]);
+        Assert.Equal(new DateOnly(2031, 5, 6), saved.Report.ReportDate);
+        Assert.Equal(14.50m, saved.Inspection!.StoragePerDay);
+        Assert.Equal(0m, saved.Inspection.RecoveryCharge);
+
+        var refused = await workspace.GetWorkspaceAsync();
+        var panel = ProposedValuesPanel(refused);
+        Assert.Contains("Vehicle history", panel, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.AbsentValue, panel, StringComparison.Ordinal);
+        Assert.Contains("No", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("<input", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(store.LeaseToken, panel, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.Held)]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    public async Task CraftedEngineeringSaveIsRefusedOutsideTheCoreEditStates(CaseLifecycleState state)
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        store.State = state;
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement",
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0")));
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(store.Saves);
+        Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvalidTypedEngineeringValueCannotBecomeASilentClear()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement", ("recoveryCharge", "invalid amount")));
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(store.Saves);
+        Assert.Contains("invalid amount", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnAssessmentPathOutsideTheCaseEditorRefusesTheWholeSave()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement",
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.StatementOfTruth),
+                    "I confirm this report is true")));
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(store.Saves);
+        Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnAuthorizationRefusalKeepsTheProposedCaseValuesWithoutKeepingEditAuthority()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        store.NextFailure = new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Corrected claimant spelling",
+                ("claimantName", "Rebecca Proposed")));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(store.Saves);
+        var refused = await workspace.GetWorkspaceAsync();
+        Assert.Contains("Rebecca Proposed", ProposedValuesPanel(refused), StringComparison.Ordinal);
+        Assert.DoesNotContain(store.LeaseToken, refused, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", refused, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task WorkspaceRenewsAndLeavesEditModeWithTheOperationKeysItRendered()
     {
@@ -168,8 +389,43 @@ public sealed partial class CaseDetailsWebTests
     private sealed partial class RecordingCaseDetailsStore :
         IRenewCaseEditLease,
         IHeartbeatCaseEditLease,
-        IReleaseCaseEditLease
+        IReleaseCaseEditLease,
+        IGetAssessmentAccess,
+        IGetAssessmentWorkspace,
+        ICaseReportSnapshotSource,
+        ICaseWorkspaceStore
     {
+        public int MetadataReads { get; private set; }
+
+        Task<SaveCaseWorkspaceResult> ICaseWorkspaceStore.SaveAsync(
+            SaveCaseWorkspaceRequest request, CancellationToken cancellationToken) =>
+            ((ISaveCaseWorkspace)this).ExecuteAsync(request, cancellationToken);
+
+        private CaseAssessmentProjection EngineeringAssessment() => new(
+            CaseId, "QDOS3100042", CaseVersion, State, null,
+            [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
+                "recorded-engineer", _now, "recorded-engineer", _now)],
+            [], new("AB12CDE", null, null, null, null, null, null, null, null));
+
+        Task<AssessmentAccessState?> IGetAssessmentAccess.ExecuteAsync(
+            GetAssessmentAccessQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<AssessmentAccessState?>(new(State));
+
+        Task<AssessmentWorkspace?> IGetAssessmentWorkspace.ExecuteAsync(
+            GetAssessmentWorkspaceQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<AssessmentWorkspace?>(AssessmentWorkspaceTestData.Create(EngineeringAssessment()));
+
+        Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
+            Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+        {
+            MetadataReads++;
+            var assessment = EngineeringAssessment();
+            return Task.FromResult<CaseReportFreezeInputs?>(new CaseReportFreezeInputs(
+                new(assessment, "Case claimant", assessment.Reference, "CLM-42", [], null, [], []),
+                new(assessment, null, null, [], null, null, [], new Dictionary<Guid, Pegasus.Core.Documents.DocumentVersion>()),
+                assessment.Reference, CaseVersion));
+        }
+
         public string RenewedLeaseToken { get; } = "opaque-renewed-case-lease";
         public List<RenewCaseEditLeaseRequest> LeaseRenewals { get; } = [];
         public List<HeartbeatCaseEditLeaseRequest> LeaseHeartbeats { get; } = [];

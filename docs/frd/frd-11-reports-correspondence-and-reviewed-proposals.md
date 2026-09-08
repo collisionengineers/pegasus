@@ -143,16 +143,27 @@ does not depend on EVA. EVA is
 optional and never gates report readiness; its hand-off and report preparation
 remain separate workflows.
 
+Settlement and Report editors join the Case's one workspace Save and share
+its reason, expected version and edit lease. Report records Engineer
+comments, agreed fee, description lines, an eligible Sign-off Engineer,
+the existing content switches and report-date override. Vehicle History is
+edited once in Vehicle. Unsubmitted accepted values remain unchanged;
+explicit clears and false values are submitted values. Switching off the
+date override does not clear an unsubmitted recorded date. Validation and
+concurrency refusals retain bounded current-versus-proposed values.
+
 **Fee note preview.** The Report section renders a fee note preview from the
 agreed fee and the description lines recorded on the Case (D42, 2026-09-02).
 It is a preview of the fee-note artifact the renderer emits; sending stays
 `MAIL-17`.
 
-**Readiness.** A single readiness rail decides whether the control is enabled:
-`AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
-post-Review list) plus only requirements first introduced after the case
-entered `Review`: the Case's sign-off Engineer tuple and the accepted estimate
-figures (below). Requirements already enforced by the transition into `Review` are not
+**Readiness.** `CaseReportReadiness` owns the single named readiness rail,
+using `ICaseReportSnapshotSource`'s metadata-only input on the Case page.
+It includes `AssessmentPolicy.EvaluatePostReviewReadiness`, the eligible
+sign-off profile, accepted estimate and prepared-image requirements. Ordinary
+page reads neither open image bytes nor render a report. Generation and
+preview independently re-read and validate their inputs. Requirements already
+enforced by the transition into `Review` are not
 recalculated as report readiness. The saved case identity, instruction,
 inspection and custody facts are consumed when the draft is generated; if one
 is unexpectedly absent, generation fails as an invalid case state rather than

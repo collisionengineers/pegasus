@@ -50,6 +50,35 @@ public sealed class AssessmentPolicyTests
         Assert.Equal(expected, access.IsReadOnly);
     }
 
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, true)]
+    [InlineData(CaseLifecycleState.Review, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true)]
+    [InlineData(CaseLifecycleState.PostReport, true)]
+    [InlineData(CaseLifecycleState.Held, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, false)]
+    [InlineData(CaseLifecycleState.ProviderCancelled, false)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
+    [InlineData(CaseLifecycleState.CreatedInError, false)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
+    public void WorkspaceAssessmentWritesUseOnlyTheSupportedLifecycleStates(
+        CaseLifecycleState state, bool expected)
+    {
+        Assert.Equal(expected, AssessmentPolicy.IsWritableState(state));
+    }
+
+    [Fact]
+    public void SettlementCannotWriteASecondEstimateRepairDuration()
+    {
+        const string obsoletePath = "settlement.repair_duration";
+
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey(obsoletePath));
+        Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.NormalizeWritableField(obsoletePath, "3"));
+        Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(Request(new() { [obsoletePath] = "3" })));
+    }
+
     [Fact]
     public void UnknownFieldPathFailsClosed()
     {

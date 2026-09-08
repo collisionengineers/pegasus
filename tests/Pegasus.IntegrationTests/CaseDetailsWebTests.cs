@@ -1222,15 +1222,9 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// SaveCase writes every member of <c>CaseEditableData</c>, so
-    /// a value the handler does not bind is written as null and clears the
-    /// confirmed field. The claimant's own contact number and address were
-    /// omitted from both the form and the handler, so every Overview save
-    /// silently discarded them (CASE-027).
-    ///
-    /// This asserts the values reach <c>SaveCase</c>, not merely that the inputs
-    /// render: rendering them while the handler ignores them is exactly the
-    /// half-fix this test exists to refuse.
+    /// The original CASE-027 regression dropped claimant contact/address.
+    /// Keep its actual caller assertion when moving the single Save to the
+    /// workspace command, whose submitted sections replace all their members.
     /// </summary>
     [Fact]
     public async Task ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand()
@@ -1242,10 +1236,10 @@ public sealed partial class CaseDetailsWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1271,15 +1265,17 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(saveResponse, store.CaseId);
 
         var saved = Assert.Single(store.Saves);
-        Assert.Equal("07700 900123", saved.Data.ClaimantContactNumber);
-        Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Data.ClaimantAddress);
-        Assert.Equal("14 Storage Lane", saved.Data.StorageLocation);
-        Assert.Equal("7 No Script Road", saved.Data.InspectionAddress);
-        Assert.Equal(CaseInspectionMode.PhysicalAddress, saved.Data.InspectionMode);
+        Assert.Equal("07700 900123", saved.Overview!.ClaimantContactNumber);
+        Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Overview!.ClaimantAddress);
+        Assert.Equal("14 Storage Lane", saved.Inspection!.StorageLocation);
+        Assert.Equal("7 No Script Road", saved.Inspection!.Address);
+        Assert.Equal(CaseReportAddressTreatment.PhysicalVehicleLocation, saved.Inspection!.AddressTreatment);
 
-        // The values the operator did not touch still travel, because SaveCase
-        // nulls anything absent — the same defect one field over.
-        Assert.Equal("Rebecca Claimant", saved.Data.ClaimantName);
+        // A submitted section still contains the other accepted members.
+        Assert.Equal("Rebecca Claimant", saved.Overview!.ClaimantName);
+        Assert.Equal("CLM-42", saved.Overview.ClaimNumber);
+        Assert.Equal("Case contact", saved.Overview.ContactName);
+        Assert.Null(saved.Vehicle);
     }
 
     [Fact]
@@ -1292,10 +1288,10 @@ public sealed partial class CaseDetailsWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1420,10 +1416,10 @@ public sealed partial class CaseDetailsWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1481,9 +1477,9 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1522,9 +1518,9 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1574,9 +1570,9 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1721,11 +1717,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<ISaveCase>();
+                services.RemoveAll<ISaveCaseWorkspace>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<ISaveCase>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders("r.hughes"));
             }));
@@ -2087,7 +2083,7 @@ public sealed partial class CaseDetailsWebTests
         ITransitionCase,
         ICaseWorkflowQueries,
         IConfirmCompleteness,
-        ISaveCase,
+        ISaveCaseWorkspace,
         IEngineerNoteQueries,
         IAddEngineerNote
     {
@@ -2158,7 +2154,8 @@ public sealed partial class CaseDetailsWebTests
             set => _leaseHolderKind = value;
         }
 
-        public List<SaveCaseRequest> Saves { get; } = [];
+        public List<SaveCaseWorkspaceRequest> Saves { get; } = [];
+        public CaseDataProjection? DataOverride { get; set; }
         public List<ConfirmCompletenessRequest> CompletenessConfirmations { get; } = [];
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
@@ -2203,7 +2200,7 @@ public sealed partial class CaseDetailsWebTests
                 AvailableReportSentEvidence,
                 HistoryEntries)
             {
-                Data = CreateData(),
+                Data = DataOverride ?? CreateData(),
                 VehicleEvidence = VehicleLookupEvidence,
                 QueryEmails = QueryEmails,
                 Custody = ExposeCustody
@@ -2218,7 +2215,7 @@ public sealed partial class CaseDetailsWebTests
         /// case pages (the EVA send page) use.
         /// </summary>
         public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseDataProjection?>(caseId == CaseId ? CreateData() : null);
+            Task.FromResult<CaseDataProjection?>(caseId == CaseId ? DataOverride ?? CreateData() : null);
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
             Guid caseId,
@@ -2388,11 +2385,12 @@ public sealed partial class CaseDetailsWebTests
         }
 
 
-        Task<CaseDataProjection> ISaveCase.ExecuteAsync(
-            SaveCaseRequest request,
+        Task<SaveCaseWorkspaceResult> ISaveCaseWorkspace.ExecuteAsync(
+            SaveCaseWorkspaceRequest request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Saves.Add(request);
             throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
         }

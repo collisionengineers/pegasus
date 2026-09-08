@@ -1,4 +1,5 @@
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Reports
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
@@ -6,11 +7,65 @@
 <section class="panel" aria-labelledby="section-settlement-title">
     <div class="panel-head"><h2 id="section-settlement-title">@EngineerLabels.Settlement</h2></div>
     <div class="panel-body">
+        <div class="grid grid-2">
+            @foreach (var field in CaseWorkspaceLabels.Editors.Settlement)
+            {
+                var definition = AssessmentVocabulary.Definitions[field.Key];
+                var value = Model.AssessmentEditorValue(field.Key);
+                var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
+                if (Model.CanEditAssessmentField(field.Key))
+                {
+                    <div class="field">
+                        <label for="edit-@field.Key">@field.Value</label>
+                        @if (definition.Type == AssessmentFieldType.Flag)
+                        {
+                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
+                                <option value="" selected="@(value is null)"></option>
+                                <option value="true" selected="@(value == "true")">Yes</option>
+                                <option value="false" selected="@(value == "false")">No</option>
+                            </select>
+                        }
+                        else if (definition.Type == AssessmentFieldType.Enumerated)
+                        {
+                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
+                                <option value="" selected="@(value is null)"></option>
+                                @foreach (var code in definition.Codes ?? [])
+                                {
+                                    <option value="@code" selected="@(value == code)">@code.Replace('_', ' ')</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input id="edit-@field.Key" name="@name" form="case-edit-form" value="@value"
+                                   type="@(definition.Type == AssessmentFieldType.Date ? "date" : definition.Type is AssessmentFieldType.Money or AssessmentFieldType.WholeNumber ? "number" : "text")"
+                                   step="@(definition.Type == AssessmentFieldType.Money ? "0.01" : null)" maxlength="@definition.MaximumLength" />
+                        }
+                    </div>
+                }
+                else
+                {
+                    <dl class="detail-list"><div><dt>@field.Value</dt><dd>@Model.AssessmentValue(field.Key)</dd></div></dl>
+                }
+            }
+            @if (Model.CanEditEngineering)
+            {
+                <div class="field"><label for="edit-storage-per-day">Storage per day</label><input type="number" step="0.01" id="edit-storage-per-day" name="storagePerDay" form="case-edit-form" value="@Model.AssessmentEditorValue(AssessmentVocabulary.SettlementStoragePerDay)" /></div>
+                <div class="field"><label for="edit-recovery-charge">Recovery charge</label><input type="number" step="0.01" id="edit-recovery-charge" name="recoveryCharge" form="case-edit-form" value="@Model.AssessmentEditorValue(AssessmentVocabulary.CostRecoveryCharge)" /></div>
+            }
+            else
+            {
+                <dl class="detail-list">
+                    <div><dt>Storage per day</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.SettlementStoragePerDay)</dd></div>
+                    <div><dt>@EngineerLabels.RecoveryCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRecoveryCharge)</dd></div>
+                </dl>
+            }
+        </div>
         <dl class="detail-list">
-            <div><dt>@EngineerLabels.Outcome</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.Outcome)</dd></div>
-            <div><dt>@EngineerLabels.SalvageCategory</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.SalvageCategory)</dd></div>
-            <div><dt>@EngineerLabels.SalvageValue</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.SalvageValue)</dd></div>
-            <div><dt>@EngineerLabels.RecoveryCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRecoveryCharge)</dd></div>
+            <div><dt>Repair total</dt><dd>@(Model.AcceptedSpecification is { } estimate ? ReportRepairCosts.For(estimate).Total.ToString("0.00") : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+            <div><dt>Repair days</dt><dd>@(Model.AcceptedSpecification?.Details.RepairDays?.ToString() ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
+            <div><dt>Engineer's Value</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ValueEngineer)</dd></div>
+            <div><dt>Equity</dt><dd>@(Model.Settlement?.Equity.ToString("0.00") ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
             <div><dt>@EngineerLabels.StorageCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostStorageCharge)</dd></div>
             <div><dt>@EngineerLabels.RepairerVatRegistered</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRepairerVatRegistered)</dd></div>
         </dl>

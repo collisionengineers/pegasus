@@ -187,7 +187,8 @@ public static class AssessmentReportProjection
                 "check_labour", "paint_new", "paint_repair", "paint_blend", "paint_prep",
                 "specialist_fixed", "specialist_wu"),
             Damage: BuildDamage(fields),
-            Settlement: BuildSettlement(fields, input.CurrentEstimate, costs),
+            Settlement: BuildSettlement(assessment, input.CurrentEstimate)
+                ?? throw new InvalidDataException("A ready report has incomplete accepted settlement inputs."),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
             EngineerComments: Field(assessment, AssessmentVocabulary.EngineersComments),
             Signatory: new ReportSignatory(
@@ -282,12 +283,29 @@ public static class AssessmentReportProjection
             Field(fields, AssessmentVocabulary.DamageMaterialTransfer));
     }
 
-    private static ReportSettlement BuildSettlement(
-        IReadOnlyDictionary<string, string?> fields,
-        RepairSpecificationVersion? estimate,
-        ReportRepairCosts costs)
+    /// <summary>
+    /// The Case display and report share the same accepted settlement figures.
+    /// Incomplete or unconfirmed calculation inputs withhold the projection;
+    /// they never become zero-valued facts. Repair days belong to Current.
+    /// </summary>
+    public static ReportSettlement? BuildSettlement(
+        CaseAssessmentProjection assessment,
+        RepairSpecificationVersion? currentEstimate)
     {
-        var engineerValue = ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m;
+        ArgumentNullException.ThrowIfNull(assessment);
+        if (currentEstimate is not { IsCurrent: true, State: RepairSpecificationState.Accepted }
+            || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { IsConfirmed: true } value
+            || ParseMoney(value.Value) is not { } engineerValue
+            || assessment.Field(AssessmentVocabulary.SettlementBetterment) is { IsConfirmed: false }
+            || assessment.Field(AssessmentVocabulary.SalvageValue) is { IsConfirmed: false })
+        {
+            return null;
+        }
+
+        var fields = assessment.Fields
+            .Where(field => field.IsConfirmed)
+            .ToDictionary(field => field.Path, field => (string?)field.Value, StringComparer.Ordinal);
+        var costs = ReportRepairCosts.For(currentEstimate);
         var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
         var salvage = ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue));
         return new(
@@ -296,7 +314,7 @@ public static class AssessmentReportProjection
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementClaimantVatRegistered)),
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementReserve)),
             engineerValue - (costs.Total - (betterment ?? 0m)) - (salvage ?? 0m),
-            estimate?.Details.RepairDays,
+            currentEstimate.Details.RepairDays,
             Field(fields, AssessmentVocabulary.SettlementRepairDelays),
             Field(fields, AssessmentVocabulary.SettlementReportDelay),
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementStoragePerDay)),

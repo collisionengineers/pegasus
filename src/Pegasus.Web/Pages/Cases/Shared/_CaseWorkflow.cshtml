@@ -152,60 +152,47 @@
         <section class="panel" aria-labelledby="case-edit-title">
             <div class="panel-head"><h2 id="case-edit-title">Edit Case data</h2></div>
             <div class="panel-body stack">
-                @* The save overwrites every editable value, so the fields the
-                   drawn editor does not carry post back unchanged beside the
-                   six the operator edits. *@
+                @* Submitted workspace sections retain unshown accepted
+                   values; these hidden controls also use Confirmed then Fact,
+                   never the suggestion fallback. *@
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
                       asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save class="stack">
                     <input type="hidden" name="id" value="@workflow.CaseId" />
                     <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                     <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    @* CASE-027: the claimant's own contact number and address
-                       are editable values too, and SaveCase writes every one of
-                       the twenty — an omitted value is written as null and
-                       clears the confirmed field, so leaving these two out of
-                       the form silently discarded them on every save. *@
-                    <input type="hidden" name="claimantContactNumber" value="@data.Claimant.ContactNumber.Confirmed?.Value" />
-                    <input type="hidden" name="claimantAddress" value="@data.Claimant.Address.Confirmed?.Value" />
-                    <input type="hidden" name="vehicleMileage" value="@data.Vehicle.Mileage.Confirmed?.Value" />
-                    <input type="hidden" name="vehicleMileageUnit" value="@data.Vehicle.MileageUnit.Confirmed?.Value" />
-                    <input type="hidden" name="incidentDate" value="@data.Accident.IncidentDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="contactName" value="@data.Contact.Name.Confirmed?.Value" />
-                    <input type="hidden" name="contactEmailAddress" value="@data.Contact.EmailAddress.Confirmed?.Value" />
-                    <input type="hidden" name="contactPhoneNumber" value="@data.Contact.PhoneNumber.Confirmed?.Value" />
-                    <input type="hidden" name="instructionDate" value="@data.Instruction.InstructionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="vatStatus" value="@data.Instruction.VatStatus.Confirmed?.Value" />
-                    <input type="hidden" name="inspectionDate" value="@data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="inspectionDeadline" value="@data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd")" />
+                    @* Preserve the claimant's own contact details separately
+                       from the Case contact (CASE-027). *@
+                    <input type="hidden" name="claimantContactNumber" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claimant.ContactNumber)?.Value)" />
+                    <input type="hidden" name="claimantAddress" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claimant.Address)?.Value)" />
+                    <input type="hidden" name="vehicleMileage" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Mileage)?.Value)" />
+                    <input type="hidden" name="vehicleMileageUnit" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.MileageUnit)?.Value)" />
+                    <input type="hidden" name="incidentDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Accident.IncidentDate)?.Value.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="contactName" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Contact.Name)?.Value)" />
+                    <input type="hidden" name="contactEmailAddress" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Contact.EmailAddress)?.Value)" />
+                    <input type="hidden" name="contactPhoneNumber" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Contact.PhoneNumber)?.Value)" />
+                    <input type="hidden" name="instructionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="vatStatus" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Instruction.VatStatus)?.Value)" />
+                    <input type="hidden" name="inspectionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.InspectionDate)?.Value.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
                     @* CASE-038: `inspectionAddress` is not hidden here. The
                        Inspection section renders the one visible control for it
                        and associates it with this form, so the record has a
                        single editor and a save cannot overwrite an unsaved
                        address with the stored one. *@
-                    <input type="hidden" name="inspectionMode" value="@data.Inspection.Mode.Confirmed?.Value" />
+                    <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Mode)?.Value)" />
                     <div class="grid grid-2">
-                        <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="@data.Claimant.Name.Confirmed?.Value" /></div>
-                        <div class="field"><label for="edit-provider-reference">Provider reference</label><input id="edit-provider-reference" name="claimNumber" maxlength="200" value="@data.Claim.Number.Confirmed?.Value" /></div>
-                        <div class="field"><label for="edit-registration">Registration</label><input id="edit-registration" name="vehicleRegistration" maxlength="20" value="@data.Vehicle.Registration.Confirmed?.Value" /></div>
-                        <div class="field"><label for="edit-make">Make</label><input id="edit-make" name="vehicleMake" maxlength="100" value="@data.Vehicle.Make.Confirmed?.Value" /></div>
-                        <div class="field"><label for="edit-model">Model</label><input id="edit-model" name="vehicleModel" maxlength="100" value="@data.Vehicle.Model.Confirmed?.Value" /></div>
+                        <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claimant.Name)?.Value)" /></div>
+                        <div class="field"><label for="edit-provider-reference">Provider reference</label><input id="edit-provider-reference" name="claimNumber" maxlength="200" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claim.Number)?.Value)" /></div>
+                        <div class="field"><label for="edit-registration">Registration</label><input id="edit-registration" name="vehicleRegistration" maxlength="20" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Registration)?.Value)" /></div>
+                        <div class="field"><label for="edit-make">Make</label><input id="edit-make" name="vehicleMake" maxlength="100" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Make)?.Value)" /></div>
+                        <div class="field"><label for="edit-model">Model</label><input id="edit-model" name="vehicleModel" maxlength="100" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Model)?.Value)" /></div>
                         <div class="field"><label class="req" for="edit-reason">Reason</label><input id="edit-reason" name="reason" required maxlength="500" /></div>
                     </div>
                     <div class="field">
                         <label for="edit-circumstances">Accident circumstances</label>
-                        <textarea id="edit-circumstances" name="accidentCircumstances" maxlength="2000" rows="4">@data.Accident.Circumstances.Confirmed?.Value</textarea>
+                        <textarea id="edit-circumstances" name="accidentCircumstances" maxlength="2000" rows="4">@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Accident.Circumstances)?.Value)</textarea>
                     </div>
-                    @if (state == CaseLifecycleState.Review)
-                    {
-                        @* One consequence sentence, from the closed necessary-copy intent:
-                           a save demotes the case to Not ready until completeness is
-                           confirmed again. *@
-                        <div class="notice notice--warning">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>Saving returns the case to Not ready.</span>
-                        </div>
-                    }
                     <div class="button-row">
                         <button type="submit" class="btn btn--primary">
                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>

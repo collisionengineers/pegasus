@@ -708,6 +708,16 @@ internal static class CaseDataFieldWriter
             return;
         }
 
+        // A section save also carries unedited accepted values. Keeping one
+        // must not manufacture a confirmation or rewrite its attribution.
+        var accepted = existing ?? snapshot.Fields.SingleOrDefault(
+            item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact);
+        if (accepted is not null && accepted.ValueType == valueType
+            && string.Equals(accepted.Value, value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         var underlying = snapshot.Fields.SingleOrDefault(
             item => item.FieldName == fieldName
                 && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion

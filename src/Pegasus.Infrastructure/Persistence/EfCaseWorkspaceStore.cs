@@ -70,7 +70,7 @@ public sealed class EfCaseWorkspaceStore(
             || !AssessmentPolicy.IsWritableState(state))
         {
             throw new InvalidOperationException(
-                "The Case can be saved only on a Not ready, Review, or Report preparation case.");
+                "The Case cannot be saved in its current state.");
         }
 
         var beforeData = CaseDataFieldWriter.ReadEditable(snapshot);

@@ -245,13 +245,20 @@ stay with `EXT-10` (later).
 
 The settlement fields are outcome, category, salvage value, excess,
 betterment, claimant VAT registered, reserve, equity (derived), repair
-duration and delays, report delay, storage per day, recovery, hire start and
+days and delays, report delay, storage per day, recovery, hire start and
 daily cost, diminution, and salvage logistics (D41, 2026-09-02). Equity is
 derived, never entered. Financial ratio lines are permitted, not required;
 the "no percentage" rule
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence))
 applies only to completeness. Outcome semantics are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
+
+Settlement joins the Case's single workspace Save. Storage per day and
+recovery use the existing typed Inspection members; lump storage charge is
+a separate fact. Repair total and repair days are read from the Current
+accepted estimate, with repair days edited only through Estimate. Equity
+uses the report's existing calculation over accepted inputs and is absent
+when those inputs are incomplete, never a fabricated zero.
 
 ### Canonical repair specifications
 

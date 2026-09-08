@@ -1028,11 +1028,14 @@ Report are editable only With Engineer and read-only in every other state.
   plus whole-page raw import.
 - **Settlement:** `outcome-option` (Total loss / Repairable / Cash in lieu /
   Contract repair), Category, Salvage value, Excess, Betterment, Claimant
-  VAT registered, Reserve, Equity (`derived`), Repair duration, Delays,
+  VAT registered, Reserve, Equity (`derived`), Current estimate repair days,
+  repair total (`derived`), Delays,
   Report delay, Storage per day, Recovery, Hire start, Hire daily cost,
   Diminution, Salvage logistics; ratio lines are permitted, not required
-  (D41).
-- **Report:** content switches, report-date override, fee-note preview, image
+  (D41). Repair days are edited in Estimate, not duplicated here. Typed
+  storage per day and recovery remain distinct from lump storage charge.
+- **Report:** Engineer comments, agreed fee, description lines, eligible
+  Sign-off Engineer, content switches, report-date override, fee-note preview, image
   preparation (Close-up, Overview, Supporting, Not used), and delivery
   preparation; it also prints the marked damage diagram (D39).
 - **Files:** Documents (Add evidence → `/Upload`; rows name, type ·
@@ -1047,8 +1050,12 @@ Dialogs: reason (hold, release, close, reopen); Create upload request
 (Recipient, Reason; expiry, max files and max size shown as read-only policy
 values → one-time secret toast); Record chase (Recipient, Channel, Prepared
 content, Disposition, Reason); Case note; Engineer note; Add valuation;
-finish-edit; stale-version conflict (current versus proposed); save-in-Review
-warning.
+finish-edit; stale-version conflict (current versus proposed).
+
+Settlement, Report and Vehicle History controls use the single Case Save
+and Discard. Unshown accepted values survive that save; explicit clears and
+false values retain their meaning. Saving Case facts re-evaluates factual
+completeness and does not force a ready Case back to Not ready.
 
 ### Assessment `/Cases/{id}/Assessment`
 

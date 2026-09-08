@@ -212,7 +212,8 @@ public static class AssessmentPolicy
     public static bool IsWritableState(CaseLifecycleState state) =>
         state is CaseLifecycleState.NotReady
             or CaseLifecycleState.Review
-            or CaseLifecycleState.ReportPreparation;
+            or CaseLifecycleState.ReportPreparation
+            or CaseLifecycleState.PostReport;
 
     /// <summary>
     /// The readiness rail: every requirement the screen names, with its
