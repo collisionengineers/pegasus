@@ -70,3 +70,11 @@ At 2026-09-08T19:08:35.0504412Z the exact HEAD remained clean. The postcheck wra
 - 2026-09-08T19:10:45.809Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 8; expires 2026-09-08T19:40:45.800Z)
 
 2026-09-08 corrective compile pass: verifier reported six compile errors at `26bf5d00206014f58adf8149abe39084fd52b3f4`. Applied only the authorized two-PageModel correction and committed `c57d8487cd343321a07abb68c161bd7d9a00aa27`: `Cases/Index.RenderSurfaceAsync` now assigns `TabFilter`; `UploadGroupStatus` explicitly proves posted receipt versions and prepared confirmation non-null, and makes its private binder-facing receipt-version helpers concrete `Dictionary<Guid, long>` types. `git diff --check` exited 0 (only CRLF conversion warnings); no build or test was run by the author under the host-verifier constraint. `git status --short` after commit was empty. Freeze this head for the named verifier.
+
+- 2026-09-08T19:12:43.509Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 10; expires 2026-09-08T20:12:43.499Z)
+
+## Sole host re-grant — INTK-066 compile correction — 2026-09-08
+
+Root reread canonical IDLE baa17945d93e515d, ready resumed packet, and actual clean HEAD c57d8487cd343321a07abb68c161bd7d9a00aa27 in unchanged .worktrees/INTK-066 / INTK-066-manual-upload-confirmation. Two-file compiler correction statically checked: assign TabFilter, explicit nullable flow, concrete private dictionary types; no suppressed diagnostics or changed assertions. Keep failed26bf build evidence.
+
+Sole owner /root/agent_config_verifier ACTIVE. Run the same full initial sequential queue from build, Core, focused nonbrowser SQL (including CasesIndex/MailWorkspace), then UploadCaseSearch browser only if prior pass, exact commands and boundaries from immediately preceding grant. No source/snapshot changes or retries. Fresh process census distinguish recorded idle build-created daemons from active competing verification; do not terminate foreign processes. Local disposable test SQL allowed, external writes forbidden. Lease renewed running-command rev10/60min. Report each result; stop first genuine failure; return explicit canonical IDLE with exact outputs/exits/unstarted work. No new scope, push/PR/live operations.

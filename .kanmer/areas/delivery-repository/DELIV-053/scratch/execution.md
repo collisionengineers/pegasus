@@ -269,3 +269,9 @@ The corrected INTK-066 queue stopped at command 1. `dotnet build Pegasus.slnx` e
 No verification command/session remains active. Six dotnet processes created at the build start remained after its exit (PIDs recorded in the owning ticket); they were not killed or touched, per the daemon/foreign-process boundary. Any future verifier must perform a fresh ownership/process census before commands.
 
 Canonical CEALEX-May25 host verification slot is now explicitly **IDLE / unassigned**. INTK-066 awaits the already-root-diagnosed source correction, a new clean frozen head, and a fresh exact-input grant.
+
+## Sole host re-grant — INTK-066 compile correction — 2026-09-08
+
+Root reread canonical IDLE baa17945d93e515d, ready resumed packet, and actual clean HEAD c57d8487cd343321a07abb68c161bd7d9a00aa27 in unchanged .worktrees/INTK-066 / INTK-066-manual-upload-confirmation. Two-file compiler correction statically checked: assign TabFilter, explicit nullable flow, concrete private dictionary types; no suppressed diagnostics or changed assertions. Keep failed26bf build evidence.
+
+Sole owner /root/agent_config_verifier ACTIVE. Run the same full initial sequential queue from build, Core, focused nonbrowser SQL (including CasesIndex/MailWorkspace), then UploadCaseSearch browser only if prior pass, exact commands and boundaries from immediately preceding grant. No source/snapshot changes or retries. Fresh process census distinguish recorded idle build-created daemons from active competing verification; do not terminate foreign processes. Local disposable test SQL allowed, external writes forbidden. Lease renewed running-command rev10/60min. Report each result; stop first genuine failure; return explicit canonical IDLE with exact outputs/exits/unstarted work. No new scope, push/PR/live operations.
