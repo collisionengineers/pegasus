@@ -51,3 +51,33 @@ The existing capture script appends TestUiFocusedRenderTests and runs Browser ca
 Static investigation while frozen full non-browser command remains in flight: verifier observed QdosIntakeWebTests.ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage line80 expecting old automatic-matching/Unidentified message. No final aggregate exit/count yet; conditional snapshot grant is blocked by this observed failure. Root is inspecting current FRD-02 eligible manual non-image decision and existing Core CanBecomeCase(NeedsSorting), plus Create's mandatory correction/acceptance, before deciding whether this is an obsolete direct-consumer expectation or product defect. /root/fixture_corrections assigned read-only diagnosis only, no edits or host commands. Preserve no Case/PO before acceptance and duplicate receipt assertions; do not simply remove assertions or change the source fixture to an automatic channel. Source remains frozen75f112a18, no correction/retry authorized yet.
 
 - 2026-09-08T22:31:44.965Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 62; expires 2026-09-08T23:01:44.954Z)
+
+## Sole-host regression result — post-retirement full Release rails — 2026-09-08 — FAIL
+
+Verifier `/root/final_verifier` held the sole CEALEX-May25 host slot for INTK-066. Frozen input was `C:/Users/Alex/Documents/GitHub/pegasus/.worktrees/INTK-066`, branch `INTK-066-manual-upload-confirmation`, clean HEAD `75f112a18ef7c228a044772686d8cbb403a4825d`.
+
+Fresh resumed whole-ticket execution packet was ready. Plan/files explicitly authorized deletion of only `tests/Pegasus.IntegrationTests/QdosExtractionCoverageTests.cs`; preflight confirmed it absent. Preflight at `2026-09-08T21:32:14.2345529Z` passed: PowerShell 7.6.5; exact clean head/branch/worktree/common repository; no competing ticket location or host verifier; no dotnet/MSBuild/testhost/vstest process; external SQL override variables unset; Windows MSSQLLocalDB available. Read-only project census corrected the grant's mistyped Architecture path before invocation to the existing `tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj`; no nonexistent command ran.
+
+Sequential results:
+1. `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0: build succeeded with 0 warnings and 0 errors in 00:01:48.74.
+2. Build parent PID 27160 (created `2026-09-08T22:32:41.546185+01:00`) exited. Six exact invocation-created reusable nodes—PIDs 11368, 20016, 27668, 13872, 27884 and 30092—were revalidated with parent 27160, Program Files dotnet executable, creation after the parent via DateTimeOffset, and expected `MSBuild.dll ... /nodemode:1 /nodeReuse:true` command. Exact-PID cleanup stopped those nodes; none remained at `2026-09-08T21:34:49.3996647Z`.
+3. `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` — exit 0: 1,955 passed, 14 skipped, 0 failed, 1,969 total.
+4. `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` — exit 0: 116 passed, 0 skipped, 0 failed, 116 total, duration 31s.
+5. `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2` — exit 1: 1,969 passed, 5 failed, 0 skipped, 1,974 total, duration 54m33s.
+
+Retained failures:
+- `QdosIntakeWebTests.ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage`, line 80: `Assert.Contains` expected the obsolete “This could not be matched automatically …” presentation text, absent from the returned HTML.
+- `InstructionDraftWebTests.SameManualUploadTokenReplaysOneReceiptDraftAndAssetSet`, line 48: expected 2, actual 1.
+- `InstructionDraftWebTests.SameManualUploadTokenWithDifferentBytesShowsConflictWithoutSecondPersistenceOrArtifact`, line 83: expected 2, actual 1.
+- `InstructionDraftWebTests.IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes`, line 119: expected `Guid`, actual null.
+- `InstructionDraftWebTests.UploadAndReviewPersistsTypedFieldsAndAutomaticallyAllocatesTheInstructedCase`, line 154: expected `IntakeAllocationState`, actual null.
+
+The four InstructionDraft failures are the directly affected ManualUpload automatic-allocation consumer class identified by read-only source inspection; the QdosIntake presentation expectation is separate. This records diagnosis only, not authorization to edit or waive them.
+
+A read-only liveness check during the long Integration command found the correct test parent/vstest/testhost chain present and responding. Testhost PID 16428 had 1,117.015625 cumulative CPU seconds and gained 0.3125 CPU seconds over a five-second sample, so no stall or timeout inference was made and no process was interrupted.
+
+Final postcheck at `2026-09-08T22:31:23.8688063Z` passed: exact clean HEAD `75f112a18ef7c228a044772686d8cbb403a4825d`, recorded branch/common repository unchanged, and no dotnet/MSBuild/testhost/vstest process remained.
+
+Disposition: **FAIL**, stopped on the first failing command. Build, Core and Architecture passes are retained, as are all five Integration failures. The conditional four-scope snapshot capture, retained verification, catalogue, documentation links, Markdown placement and diff check were **NOT RUN**. No retry, source/test/snapshot edit, capture, packaging, push/PR, live/cloud/Outlook/Box or external-SQL action occurred.
+
+All invoked processes exited. INTK-066 lease phase returned to `implementing` at revision 62. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
