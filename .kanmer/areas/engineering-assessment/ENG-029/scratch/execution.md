@@ -19,3 +19,11 @@ Two-file diff --check exit 0. SHA256 CaseWorkspacePersistenceTests B6BCC934B6127
 ## Transitions
 
 - 2026-09-08T06:02:34.631Z lease-phase implementing → running-command (lease 000b26b8-fb8d-4e16-809f-8127f200cd4e rev 6; expires 2026-09-08T07:02:34.624Z)
+
+## Root first runtime and bounded correction — 2026-09-08
+
+Root build session 72086 PASS, Release solution build 63.93 s, zero warnings; Core 100 PASS in 131 ms. Root integration session 42335 exited 1 after 1m57: 38 PASS, 21 FAIL, 0 skipped (59 total), retained in artifacts/verification/eng-029-integration.trx. No author runtime command was run.
+
+Actual TRX stdout establishes three author-slice causes: the existing CaseEngineerSections accepted estimate fixture lacks its required frozen RecordedTotals; the new authority theory registers a singleton factory that resolves scoped IStaffAccountQueries; and optional assessmentFields dictionary binding falls back to the empty prefix on plain Case posts, causing unrelated form fields to be rejected before the expected version conflict reaches the store. Root approved fixture-only totals using existing EstimateTotals.Compute, scoped test composition, and an explicit MVC FromForm name on the existing dictionary parameter. Keep unknown-key rejection, version/lease authority and every existing assertion. Root separately corrected its report-preview fixture's absent instruction/incident dates using the existing ReadyInput values, with no production readiness fallback.
+
+All corrections stay within the current approved file map. No new schema, binding framework, command, test host, or source-policy fallback. Root alone will rerun the failed cases plus focused unknown-key/proposed-retention and the three capture inputs after the combined source freeze.
