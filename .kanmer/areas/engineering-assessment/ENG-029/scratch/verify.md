@@ -45,3 +45,11 @@ FullyQualifiedName~CaseWorkspacePersistenceTests.SubmittedOverviewPreservesAccep
 ```
 
 Final diff check PASS exit0. Exactly 25 mapped source/doc/test files are dirty; no capture files have yet been regenerated. Source is frozen. Root remains sole heavy verifier and owns capture/update/verify/catalogue.
+
+## Corrected root runtime — 2026-09-08 06:38 UTC
+
+Root session52531: existing Integration project Release build --no-restore PASS, exit0,54.67s,0warnings/errors. Unchanged100Core were not rerun. Session48296: exact18-method correction filter (stored above),31executed/31PASS/0skip,2m16s,exit0. artifacts/verification/eng-029-integration-corrected.trx SHA256045402CA0DBE8570923D8AF88CEDA07FE4F5F742BA57F44664F790977D0FF65A, actual UTC start06:33:05.7876076Z finish06:35:25.1320806Z. Covers all21originalfailed cases plus actual unchanged-provenance SQL, previous SaveCase consumer, authority/unknown-field/proposal guards and3canonical capture methods. Prior100Core+38Integration passes and21FAIL retained, not rewritten.
+
+Capture script source inspection shows it deliberately uses artifacts/test-ui-capture, ignoring an externally supplied alternate directory. Root safely renamed the initial failed-run capture directory to artifacts/test-ui-capture-initial-failed (resolved exact paths within author artifacts, no overwrite) and made a new empty canonical capture directory before corrected tests. This preserves old evidence without accidentally regenerating from it. Session59742 scoped Update -SkipCapture -Scope case-details PASS3checks,exit0, fresh outputs; verify/catalogue session38933 is still pending.
+
+Manual CUA local-file navigation was rejected by browser URL security policy; no workaround used. Manual1580/1100/760visual inspection is INCONCLUSIVE, no process execution/exit code. Existing offline1440 snapshot render checks are not a substitute for a claimed human visual review. Record this boundary in report; do not mark the ticket Done unless remaining plan acceptance is genuinely satisfied. This does not erase source/runtime acceptance or authorize deployment.

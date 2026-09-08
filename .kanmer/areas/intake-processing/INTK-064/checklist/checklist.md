@@ -13,7 +13,7 @@
 - [x] proof.md finalized with PR and merge date
 - [x] Moved to final stage
 - [x] Outcome recorded in ticket body (PR, follow-ups)
-- [ ] Exit and remove exact owned verification/implementation worktrees
-- [ ] Remove merged ticket branch normally (no force)
-- [ ] Fetch/prune owned Git metadata and check no leftovers
-- [ ] Release ticket claim last
+- [x] Exit and remove exact owned verification/implementation worktrees
+- [x] Remove merged ticket branch normally (no force)
+- [x] Fetch/prune owned Git metadata and check no leftovers
+- [x] Release ticket claim last
