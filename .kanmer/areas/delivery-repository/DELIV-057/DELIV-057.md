@@ -25,9 +25,13 @@ labels:
 links: []
 refs:
   - docs/engineering.md
+commits:
+  - 9ab1368bfbb7c93c70cbde4e91fea3bb9408ce2b
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/707'
 archived: false
 created: '2026-09-08T13:28:14.030Z'
-updated: '2026-09-08T14:48:31.455Z'
+updated: '2026-09-08T14:50:04.425Z'
 ---
 
 ## What
