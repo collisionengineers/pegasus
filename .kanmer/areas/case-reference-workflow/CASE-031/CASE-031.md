@@ -2,13 +2,14 @@
 id: CASE-031
 type: ticket
 title: Send the canonical claimant address in EVA API submissions
-status: implementing
+status: review
 area: case-reference-workflow
 order: 40
 assignee: intake_audit
 profile: feature
 stageEntered:
   preparing: '2026-08-28T17:08:43.378Z'
+  review: '2026-09-08T03:13:22.847Z'
 taken_at: '2026-09-08T02:31:14.238Z'
 branch: CASE-031-eva-claimant-address
 worktree: .worktrees/case-031
@@ -44,7 +45,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-09-08T03:13:06.802Z'
+updated: '2026-09-08T03:13:22.847Z'
 ---
 
 # Send the canonical claimant address in EVA API submissions
