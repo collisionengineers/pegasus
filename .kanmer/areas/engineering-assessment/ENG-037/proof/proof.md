@@ -70,3 +70,13 @@ converged solution/release verification remains under EPIC-014.
 PASS permits fresh gates and Verifying to Done, then kanmer-closeout record
 keeping, exact owned Git cleanup and claim release last. No unrelated branch,
 worktree or evidence may be removed.
+
+
+## Closeout retention — 8 September 2026
+
+[PR695](https://github.com/collisionengineers/pegasus/pull/695) merged at
+2026-09-08T03:29:23Z; verified Done at03:39 UTC. Both named TRXs have been
+copied without overwrite to pegasus_pack/current/proofs/ENG-037 and their
+SHA256 values exactly match the originals above. MANIFEST.sha256 names both.
+The current ticket records the merged SHA, PR, integrated/dev and not-deployed.
+Owned temporary Git cleanup and release are pending, with artifacts safe.
