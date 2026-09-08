@@ -1,82 +1,65 @@
-# Files — ENG-029 (2026-09-02)
+# Files — ENG-029
 
-Produced by gpt-5.6-terra (high) in the read-only `.worktrees/research`
-checkout at `897db953`; path existence and the sibling-lane ownership claims
-below were re-checked by the Claude wrapper against the repo and the board
-files (`areas/*/<id>/files/files.md`).
+Preparation against dev 498144b0bb55b68fd53b9a31ffc89ef90622c73a.
+This current map replaces af87e92a3c8c7d0a; historical versions remain.
+No file is claimed or editable until root approves the whole plan and releases
+overlapping active/historical ownership. No new source file is planned.
 
-## Planned files
+## Exact intended production and documentation edits
 
-**ASSUMED** — this is the smallest ENG-029 change set after ENG-034, ENG-035,
-PLAT-068, CASE-040, DOCS-017, and the CASE-038 handler-host hand-off land.
-Every existing path was checked with `Test-Path` or `rg --files`; absent
-Settlement/Report partials were confirmed with `Get-ChildItem`.
+| File | Bounded purpose |
+| --- | --- |
+| src/Pegasus.Web/Pages/Cases/Details.cshtml.cs | Replace existing Save's ISaveCase call with ISaveCaseWorkspace; bind/route existing canonical editor values and typed fields; preserve unshown accepted facts and posted concurrency intent; load metadata-only readiness and eligible signer choices; extend current-versus-proposed presentation. No Estimate import/Glass handler changes. |
+| src/Pegasus.Web/Pages/Cases/Shared/_CaseWorkflow.cshtml | Retain the one case-edit-form/authority/reason; align hidden accepted values and remove obsolete forced-NotReady save warning. |
+| src/Pegasus.Web/Pages/Cases/Shared/_CaseSettlement.cshtml | Native form-associated D41 editors and read-only derived figures, current Estimate repair days; no independent form/save. |
+| src/Pegasus.Web/Pages/Cases/Shared/_CaseReport.cshtml | Form-associated comments/fee/sign-off/current content choices/date override; retain existing statement display and generation/preview/delivery/image components without redesign. |
+| src/Pegasus.Web/Pages/Cases/Shared/_CaseVehicle.cshtml | Add the one Vehicle History control/read-only value in its current design location only; preserve existing vehicle evidence/suggestion callers. |
+| src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Extend existing bounded proposed-value retention for the same editor fields, explicit clears/false and safe signer display; retain authority exclusions/size signals and existing errors. |
+| src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs | Existing presentation owner for missing labels and the single editor-field presentation map shared by binding/retention/rendering where needed. Canonical paths/types remain Core-owned; no generic form framework. |
+| src/Pegasus.Core/Assessment/AssessmentContracts.cs | Remove unused SettlementRepairDuration constant and writable definition only; add no vocabulary. |
+| src/Pegasus.Core/Assessment/AssessmentPolicy.cs | Include supported PostReport in existing writable-state owner only. Do not broaden any other lifecycle state or finding authority. |
+| src/Pegasus.Core/Reports/AssessmentReportProjection.cs | Expose the existing settlement calculation as one pure incomplete-input-safe projection reused by Case display and report generation; no duplicate formula/output record or changed report semantics. |
+| docs/frd/frd-06-vehicle-and-engineering-evidence.md | Clarify one workspace editor and Estimate-owned repair days, typed storage/recovery ownership. Preserve TICK-085 canonical import decisions. |
+| docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Clarify current Report/Vehicle field writer and metadata-based named readiness, existing write states and sign-off/content/date rules only. |
+| docs/design/README.md | Align affected single-Save/Settlement/Vehicle/Report behavior and remove obsolete forced-demotion warning reference. No independent design or new screen. |
 
-| Path | Action (create/change) | Why | Reuses |
-| --- | --- | --- | --- |
-| `src/Pegasus.Web/Pages/Cases/Shared/_CaseSettlement.cshtml` | change | Replace ENG-034's read-only shell with Settlement controls and derived values. | `AssessmentVocabulary`, `EstimateTotals`, Case partial panels, `OperatorLabels`. |
-| `src/Pegasus.Web/Pages/Cases/Shared/_CaseReport.cshtml` | change | Replace ENG-034's read-only shell with Report fields, named readiness, and draft actions. | `AssessmentReportProjection.Prepare`, Case partial forms, `OperatorLabels`. |
-| `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | change, only after explicit CASE-038/CASE-040 whole-file hand-off | Host the Case-page assessment save handler and load data required by the two partials. | Former `OnPostSaveDamageAsync` (`36655f26^`), `CaseMutationPageModel`, `ISaveAssessment`. |
-| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | change, serialized shared lock | Add only ENG-029's Settlement and Report editor vocabulary. | `OperatorLabels.CaseWorkspace`. |
-| `tests/Pegasus.IntegrationTests/CaseAssessmentEditorsWebTests.cs` | create | Prove Case-page posts round-trip supported fields, preserve lease/version behaviour, show named readiness, and pass saved values to preview. | Assessment persistence and report-draft web test fixtures. |
+## Exact existing test and generated outputs
 
-**VERIFIED** — `rg -n 'CK_CaseAssessmentFields_FieldPath'
-src/Pegasus.Infrastructure/Persistence/Migrations/
-PegasusDbContextModelSnapshot.cs` — no migration belongs in this ticket.
-ENG-035 changes the vocabulary and constraint before these editors bind its
-new D41 fields.
+| File | Required evidence/change |
+| --- | --- |
+| tests/Pegasus.Core.Tests/Assessment/AssessmentPolicyTests.cs | Missing PostReport write acceptance with unchanged other-state boundaries; dead path refusal and existing normalization/finding invariants. |
+| tests/Pegasus.Core.Tests/Reports/AssessmentReportProjectionTests.cs | Existing D41 exact values/equity/Estimate repair days reused by both projections, including missing accepted input. |
+| tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs | Update existing recording save caller; all new fields/typed members, old hidden facts, authority/antiforgery, refusal retention, partial-load/no-render side effects. Existing fixture only. |
+| tests/Pegasus.IntegrationTests/CaseEditModeWebTests.cs | Existing one Save/Discard/form association/current-versus-proposed and keyboard/cross-section intent; no new browser harness. |
+| tests/Pegasus.IntegrationTests/CaseWorkspacePersistenceTests.cs | Actual SQL combined save/replay/rollback, PostReport and preserved Case facts/completeness/current-report invalidation. |
+| tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs | Actual page metadata-readiness and saved-field-to-preview input parity with existing renderer seam; no external image read on ordinary GET. |
+| docs/design/test-ui/pages/case-details--default.html | Scoped fresh capture/update/verify of changed route. |
+| docs/design/test-ui/pages/case-details--conflict.html | Scoped current-versus-proposed/readonly refusal evidence. |
+| docs/design/test-ui/pages/case-details--unavailable.html | Only if scoped generator actually changes this existing output; preserve no-data behavior. |
+| docs/design/test-ui/index.html | Only if scoped generation changes the catalogue index; no unrelated routes. |
 
-**VERIFIED** — `rg -n 'Update-TestUiSnapshots|Test-UiCatalogue'
-scripts/*.ps1` and the live board ticket `UIIMP-014` — ENG-029 must not edit
-`docs/design/test-ui/**`; UIIMP-014 owns new snapshot states and catalogue
-entries.
+## Reuse/read-only boundaries
 
-## Must not touch
+CaseWorkspace.cs, EfCaseWorkspaceStore, EfAssessmentReportProjectionSource,
+CaseReportGeneration/CaseReportReadiness, CaseSignOffEngineerResolver,
+IStaffAccountQueries, AssessmentAccessPolicy, EstimateTotals/ReportRepairCosts,
+CaseDataCompletenessPersistenceTests.CaseDataHarness, existing Case page CSS,
+site.js and capture scripts are existing reuse points, not a second system.
+Use the already registered ISaveCaseWorkspace and ICaseReportSnapshotSource;
+no DI change is expected. New engineering form values must be checked using
+the stricter Core AssessmentAccessPolicy, preserving ordinary-data save states.
 
-- **VERIFIED** — `ENG-034 files/files.md` — ENG-034 owns
-  `src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml`,
-  `Index.cshtml.cs`, `Suggestions.cshtml`, `_CaseDamage.cshtml`,
-  `_CaseEstimate.cshtml`, route-retirement tests, and the old Assessment
-  catalogue reclassification. ENG-029 changes only the bodies of
-  `_CaseSettlement.cshtml` and `_CaseReport.cshtml` after their creation.
+If implementation proves that an existing Core/store or other fixture needs
+a change beyond this exact map, stop and amend research/map/plan with root
+before editing. In particular, do not alter typed-section contracts to hide
+incomplete Web mapping, widen a store's lifecycle permissions, or silently
+change report generation behavior.
 
-- **VERIFIED** — `ENG-035 files/files.md` — ENG-035 owns
-  `src/Pegasus.Core/Assessment/AssessmentContracts.cs`,
-  `AssessmentPolicy.cs`, `src/Pegasus.Infrastructure/Persistence/
-  EfCaseAssessmentStore.cs`, `src/Pegasus.Core/Reports/
-  AssessmentReportProjection.cs`, `AssessmentReportRendering.cs`,
-  `src/Pegasus.Infrastructure/Reports/PlaywrightAssessmentReportRenderer.cs`,
-  `docs/design/assets/report-renderer/templates/assessment_report.scriban`,
-  and all `Persistence/Migrations/**` changes.
+## Ownership stop
 
-- **VERIFIED** — `PLAT-068 files/files.md` — PLAT-068 owns
-  `src/Pegasus.Core/Identity/StaffAccountAdministration.cs`,
-  `src/Pegasus.Infrastructure/Persistence/EfStaffAccountAdministration.cs`,
-  `EfStaffAccountQueries.cs`, `PegasusDbContext.cs`, Administration Accounts
-  pages, and the staff-account sign-off migration.
-
-- **VERIFIED** — `CASE-040 files/files.md` — CASE-040 owns
-  sign-off Case identity and defaulting in `CaseWorkflowContracts.cs`,
-  `CaseLifecycle.cs`, workflow persistence, `Workflow.cshtml.cs`,
-  `Shared/_CaseSummary.cshtml`, and `Cases/Eva/Send.*`. Do not change
-  `Details.cshtml.cs` unless CASE-038 and CASE-040 transfer its whole-file
-  ownership for the assessment-handler addition.
-
-- **VERIFIED** — `ENG-031 files/files.md` — ENG-031 owns
-  `ReportImageCuration.cs`, `_CaseReportImages.cshtml`, `cropper.js`,
-  report-image persistence, and report-image readiness/projection changes.
-
-- **VERIFIED** — `ENG-036` ticket and `rg --files src/Pegasus.Web |
-  rg 'damage-diagram'` — ENG-036 owns the presently absent damage diagram,
-  damage controls, styles, JavaScript, and diagram-report output.
-
-- **VERIFIED** — `CASE-029 files/files.md` — CASE-029 owns
-  `_CaseVehicle.cshtml`, `_CaseValuation.cshtml`, `Cases/Vehicle.cshtml.cs`,
-  `Cases/Valuation.*`, valuation persistence, and its migration.
-
-- **VERIFIED** — `DOCS-018` ticket — DOCS-018 owns the Report-section fee
-  note preview. ENG-029 edits agreed-fee inputs only.
-
-- **VERIFIED** — `UIIMP-014` ticket and `rg -n 'catalogue|prototype'
-  scripts/Test-UiCatalogue.ps1` — UIIMP-014 owns
-  `docs/design/test-ui/**` new Case-record snapshots and browser walk.
+TICK-085 currently overlaps Details.cshtml.cs, CaseWorkspaceLabels.cs,
+FRD-06 and generated Case snapshots/index. ENG-034, CASE-040 and CASE-047
+retain historical taken records over related Case/report areas. Their
+integrated code is evidence, not permission to erase their claims.
+Await explicit root sequencing/clearance. ENG-031 image preparation and
+ENG-036 damage diagram are excluded. No take/worktree/source write occurred.

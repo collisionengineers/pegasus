@@ -295,3 +295,141 @@ disk and were confirmed there.
 ## Open questions for the operator
 
 none
+
+## Current v1 caller audit — 2026-09-08
+
+This section supersedes the historical implementation premises above, not the
+record of earlier research/review. Root requested preparation only at accepted
+dev 498144b0bb55b68fd53b9a31ffc89ef90622c73a. No source edit, claim, branch,
+build, test or live operation was performed. Declared reference sources are
+empty; the supplied pack and current repository are sufficient evidence.
+
+### Authority and actual remaining scope
+
+Read current FRD-06 Settlement/canonical specifications, FRD-11 assessment
+and report behavior, docs/design/README.md Case workspace, EPIC-011/012
+decisions, EPIC-014 constraints and the complete
+pegasus_pack/current/preparing-audit-next-10.md. The supplied historical
+ui/in-progress-ui-work/Pegasus_UI_v2_src/src/22-case-engineer.js contains
+Settlement/Report examples; its per-section saves, second repair-duration
+value, Vehicle History in Report and explanatory copy are superseded by the
+current canonical design and root's current decisions.
+
+The remaining change is a real Case-page writer, not vocabulary/schema or
+section-host construction. The current ticket body still names ISaveAssessment
+and puts Vehicle History in Report; those promises must be synchronized to
+the current plan before execution. Root decided: repair days belong to the
+current accepted estimate; include current Report content switches/date
+override/narrative/fee/sign-off controls; Vehicle History is edited in Vehicle
+only; fix the PostReport state mismatch without widening other states.
+
+### Production ownership and caller evidence
+
+- Details.cshtml.cs constructor and OnPostSaveAsync (around68,938) use ISaveCase.
+  There is no Web/MCP ISaveCaseWorkspace caller. The existing registered
+  SaveCaseWorkspace/Core contract and EfCaseWorkspaceStore already implement
+  one serializable mutation, expected version, lease, request-hash replay,
+  one history event/version advance, accepted facts and assessment fields,
+  CaseMatchIndex refresh and same-transaction current-report invalidation.
+- _CaseWorkflow.cshtml:159 owns case-edit-form. Sticky Save in Details.cshtml
+  already targets it. _CaseInspectionAddress uses native form association.
+  site.js:570 onward resolves control.form for dirty/discard/Ctrl+S: no new
+  JavaScript form coordinator is needed.
+- _CaseSettlement is six read-only values, including old lump storage charge
+  and Repairer VAT. Neither is the new Storage per day/Claimant VAT field.
+  _CaseReport has generation/delivery/image preparation and read-only scalar
+  values, but no writer for required choices. _CaseVehicle lacks the current
+  design's Vehicle History writer.
+- AssessmentVocabulary.Definitions already owns field paths, types, bounds,
+  flags/codes and finding authority. The 23-region damage map is a different
+  concept, not an editor field list. Outcome/category/salvage remain Engineer
+  findings; ordinary report/settlement inputs do not confer Engineer rights.
+  The full tracked src/tests/docs census of SettlementRepairDuration and
+  settlement.repair_duration has only the constant and Definitions entry
+  (AssessmentContracts.cs:109,285); there is no current consumer. Remove the
+  dead writable entry rather than leave an input that cannot affect output.
+- CaseWorkspace.cs has replace-all typed sections. Null section means
+  untouched; null member in a submitted section clears that fact. Storage/day
+  and recovery belong to Inspection.StoragePerDay/RecoveryCharge, not a free
+  assessment dictionary; ReportDate and SignOffEngineerId likewise have typed
+  members. A small partially populated record would erase unshown claim-source,
+  storage-business, inspection provenance/notes, odometer or date facts.
+  Preserve current accepted members in the existing mapper and keep the
+  submitted expectedVersion; never silently rebase the save to a fresh version.
+- CaseField.Current may include an unaccepted suggestion. Existing Vehicle
+  display correctly uses Confirmed then Fact. Hidden/readback values must
+  follow accepted precedence and retain explicit clearing; do not promote a
+  suggestion or submit the display placeholder as real data.
+- AssessmentAccessPolicy.IsReadOnly allows engineering edits only in
+  ReportPreparation and PostReport. AssessmentPolicy.IsWritableState omits
+  PostReport and is used by EfCaseAssessmentStore, EfCaseWorkspaceStore and
+  EfValuationStore. Add the missing supported state only; retain ordinary Case
+  fact edits in NotReady/Review and the existing terminal/archive refusals.
+  New engineering form submissions must still use the stricter Core access
+  rule, not treat the broad ordinary-data save gate as engineering permission.
+- Details currently calls AssessmentReportProjection.Prepare without a
+  signatory, so the page's named readiness can falsely report a missing signer.
+  ICaseReportSnapshotSource.GetAsync uses existing
+  EfAssessmentReportProjectionSource.LoadAsync(includeImageContent:false):
+  it obtains version-bound persisted assessment/accepted estimate/valuation,
+  eligible profiles and confirmed image/preparation metadata without opening
+  image content. Reuse CaseReportReadiness.Evaluate on that input; do not use
+  the preview interface on a page GET, since that loads image bytes.
+- AssessmentReportProjection.BuildSettlement:285 already owns equity
+  (Engineer value minus repair total less betterment, minus salvage) and reads
+  RepairDays from CurrentEstimate.Details. Reuse that calculation for the
+  editor's derived figures through a small pure entry point in the same owner,
+  returning no derived figure when accepted inputs are absent. Do not copy
+  formulas into Razor/JavaScript, introduce a second settlement record, or add
+  optional ratio work. Report generation/preview continue to own rendering.
+- CaseMutationPageModel retains proposed form values through the existing
+  bounded conflict panel, but its scalar allowlist cannot retain the new
+  canonical assessment keys; it drops blank values and GUID-valued sign-off
+  selections. Extend that existing route-specific presentation retention
+  coherently, preserving clear/false intent and safe displayed signer names.
+  Preserve explicit existing shortened/dropped signals and exclude authority
+  tokens/versions/operation keys. Do not replace it with another conflict store.
+
+### Reuse and focused proof seams
+
+Existing CaseDetailsWebTests recording store and partial CaseEditModeWebTests
+cover actual antiforgery/lease/form navigation. Update the recording
+ISaveCase registration/SaveCaseRequest assertions to the actual workspace
+command, preserving every earlier claimant/address/inspection assertion.
+Other direct ISaveCase consumers (AssessmentMcpTools and existing address
+tests) remain legitimate separate callers; do not delete their port/store.
+
+CaseWorkspacePersistenceTests reuses the existing
+CaseDataCompletenessPersistenceTests.CaseDataHarness: extend it for combined
+accepted Overview/Settlement/Report save, current-report stale invalidation,
+one version/history/replay and complete rollback on refusal. Existing
+AssessmentPolicyTests, CaseWorkspaceTests and AssessmentReportProjectionTests
+already own normalization/finding/derived-value evidence. Existing
+Reports/AssessmentReportDraftWebTests is the real upstream preview caller with
+only the renderer replaced; reuse its accepted fixture for page-readiness and
+saved-input-to-preview parity. Root alone runs bounded checks/captures.
+
+### Prerequisites versus historical edges
+
+Live feature gates currently find research/files/plan/checklist and no open
+questions; they do not establish that the old documents are accurate.
+ENG-035 vocabulary and PLAT-068 sign-off are Done; ENG-034 section hosting is
+integrated but historically Verifying/taken. CASE-047 and CASE-040 also retain
+foreign historical claims. Do not transfer, release, rewrite or absorb them.
+
+TICK-085 actively owns Details.cshtml.cs, CaseWorkspaceLabels.cs, FRD-06 and
+case-details snapshots/index; its actual current file map, not a context-only
+reference, is an execution blocker. Preparation does not take those files.
+Wait for root-approved plan and explicit current/historical ownership clearance,
+fresh source/file census and an isolated ready execution packet. ENG-031 crop
+UI and ENG-036 diagram remain independent tickets; preserve their existing
+components and future one-save seam, do not implement their work here.
+
+### Risks, exclusions and evidence limits
+
+No credentials are required for this local writer. No new dependency, schema,
+store, API, renderer, AI, image preparation, provider/estimate import or release
+work is justified. No model-generated domain content is acceptable. Existing
+supplied fixtures/accepted test estate are reused; structural probes are
+identified as probes, not genuine instructions. All findings above are source
+inspection, not new runtime PASS evidence.
