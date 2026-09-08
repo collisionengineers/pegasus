@@ -2,13 +2,14 @@
 id: PLAT-065
 type: ticket
 title: Provision and activate Azure Document Intelligence PDF OCR
-status: implementing
+status: review
 area: platform-operations
 order: 860
 assignee: pack_reconcile
 profile: feature
 stageEntered:
   preparing: '2026-09-07T23:01:32.665Z'
+  review: '2026-09-08T00:02:36.746Z'
 taken_at: '2026-09-07T23:16:06.247Z'
 branch: PLAT-065-document-intelligence
 worktree: .worktrees/plat-065
@@ -38,10 +39,12 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 commits:
   - fb00e457610535325de28d478c22eddef7c67705
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/689'
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-08T00:02:10.178Z'
+updated: '2026-09-08T00:02:36.746Z'
 ---
 
 ## What
