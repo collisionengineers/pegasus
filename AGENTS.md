@@ -82,6 +82,41 @@ local removal must confirm the alias is stopped before deleting its metadata.
 24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
 <!-- kanmer:instructions:end -->
 
+## Codex reusable subagents
+
+Project-local roles are defined in [`.codex/agents`](.codex/agents):
+`pegasus-scout`, `pegasus-investigator`, `pegasus-implementer`,
+`pegasus-reviewer`, and `pegasus-verifier`. Their configuration follows the
+[OpenAI subagent configuration documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents)
+and [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference),
+read 2026-09-08.
+
+- Delegate only independent work that is useful to the active task, normally to
+  2–4 children and never beyond the configured eight-child ceiling. Every
+  assignment names either its ticket and worktree, or an explicit direct-work
+  designation and source root, plus input revision, allowed files, expected
+  output, and stop condition. The primary owns assignment, file-overlap
+  resolution, approvals, integration, and release operations.
+- Children do not recursively delegate, change unrelated files, or autonomously
+  start tests, builds, verification scripts, capture/browser hosts, or packaging.
+  Scout, investigator, and reviewer never perform external writes; other children
+  need an explicit bounded workflow that authorizes the action and target. Role
+  profiles do not grant permissions or override parent runtime policy.
+- All host test/build work, including focused commands, verification scripts,
+  capture/browser hosts, and packaging, is serialized behind one explicit current
+  host-slot owner. Each such assignment names the canonical
+  `<ticket>/scratch/execution.md` host-slot record. Before running, the owner
+  reads it and refuses a missing, stale, ambiguous, wrong-host, wrong-input, or
+  non-owner slot; it also checks other active execution contexts and host
+  processes. All host sessions share that record, with no second active record;
+  process absence or a profile never grants a slot. The current owner records
+  explicit idle before transfer, then the primary rereads and records the next
+  owner. Static reads and Git diff inspection may overlap.
+- The verifier runs commands sequentially against frozen inputs, retains failed
+  results, and makes no product fixes. The primary may take the slot for release
+  packaging only after an explicit idle handoff. Other host sessions coordinate
+  and never kill foreign processes.
+
 # Pegasus repository instructions
 
 Pegasus is Collision Engineers' case-management and reporting application.
