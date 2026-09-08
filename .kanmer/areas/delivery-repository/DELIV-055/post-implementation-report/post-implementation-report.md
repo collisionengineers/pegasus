@@ -21,12 +21,17 @@
   canonical release skill and migration recipe. No managed Kanmer or
   new-subagent text changed.
 
+## Commit
+
+- `91a53a15353f442f5d3dad00fe9216f6561b692f` —
+  `docs(release): restore migration host recipe`
+
 ## Files changed
 
 - `.agents/skills/pegasus-release/references/database-migration.md`
 - `AGENTS.md`
 
-## Inspection
+## Verification and review
 
 - `git diff --name-only` identified exactly the two expected files.
 - `git diff --check` completed with exit code 0; Git emitted only
@@ -36,16 +41,21 @@
   `infra/modules/platform.bicep`, azd inputs in `infra/main.parameters.json`,
   and the existing process-local derivation in
   `scripts/Invoke-ProductionAdministratorBootstrap.ps1`.
+- The sole verifier's final documentation check passed: 140 documentation
+  links resolved and all five embedded PowerShell blocks parsed with exit code
+  0. An earlier documentation-placement harness did not apply because it only
+  inspects added, copied, or renamed Markdown files while this change modifies
+  existing files; that inconclusive attempt is retained rather than presented
+  as a pass.
+- Independent documentation re-review found no findings.
 
 ## Not run
 
-- No builds, tests, verification scripts, migrations, releases, cloud
-  operations, secret retrieval, commit, push, or PR action ran.
-- The relevant serialized documentation check and independent documentation
-  review remain queued for parent-coordinated sole-verifier/review ownership.
+- No application build, test, migration, release, cloud operation, or secret
+  retrieval ran.
 
 ## Handoff
 
-DELIV-055 remains in Implementing on `DELIV-055-migration-host-doc` at
-`C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\deliv-055`, uncommitted
-and ready for the required documentation verification and independent review.
+Ready for a draft PR to `dev`. The independent reviewer owns the next
+review, attestation, and merge; this ticket must not be self-reviewed or merged
+by its author.
