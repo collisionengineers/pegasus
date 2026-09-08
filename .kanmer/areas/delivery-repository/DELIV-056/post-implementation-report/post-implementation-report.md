@@ -2,7 +2,7 @@
 
 ## Outcome
 
-The bounded D56 fixture correction is implemented across the final ten test files. It replaces stale QDOS route/body-token fixtures with actual definitive PDF instruction evidence, retains the original behavioral assertions, and records the two narrow amendments exposed by focused verification. The retained base HEAD is `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`. No production policy, schema, runtime route, helper framework, dependency, documentation, corpus, commit, push, PR, merge, release or deployment changed.
+The bounded D56 fixture correction is implemented and published for independent review across the final ten test files. It replaces stale QDOS route/body-token fixtures with actual definitive PDF instruction evidence, retains the original behavioral assertions, and records the two narrow amendments exposed by focused verification. The retained base HEAD is `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`; the implementation commit is `23ea02f310a790c9aa3224a10de40efacf5444eb`, whose sole parent is that base. Draft PR [#709](https://github.com/collisionengineers/pegasus/pull/709) targets `dev` from `DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence` at that exact SHA. No production policy, schema, runtime route, helper framework, dependency, documentation, corpus, merge, release or deployment changed.
 
 ## Changed files
 
@@ -19,10 +19,16 @@ The bounded D56 fixture correction is implemented across the final ten test file
 | `tests/Pegasus.IntegrationTests/RecoveryTests.cs` | Aligns recovery fixture input with definitive instruction evidence. |
 | `tests/Pegasus.IntegrationTests/SendToAiIntegrationTests.cs` | Uses the real accepted-case seed and proves an inaccessible case has neither the Send-to-Claude dialog nor its interactive launcher while the POST remains 404. |
 
+## Publication record
+
+- Pre-commit static audit: `git diff --check` passed (exit 0; only repository LF-to-CRLF advisories).
+- Frozen pre-commit binary diff hash: `bdbe80e82a6569a4a79ee57f44998f98f679eef2`; 294 insertions / 108 deletions across exactly the ten paths above.
+- Commit: `23ea02f310a790c9aa3224a10de40efacf5444eb`; it changes exactly those ten paths and the working tree was clean immediately after commit.
+- Remote branch read-back matched that exact commit before PR creation.
+- PR: [#709](https://github.com/collisionengineers/pegasus/pull/709), open draft, base `dev`, head `DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence`, head SHA `23ea02f310a790c9aa3224a10de40efacf5444eb`, with the standalone `Kanmer: DELIV-056` footer.
+
 ## Verification
 
-- Current static check: `git diff --check` passed (exit 0; only repository LF-to-CRLF advisories).
-- Current full binary diff hash: `bdbe80e82a6569a4a79ee57f44998f98f679eef2`; the final change set is 294 insertions / 108 deletions across exactly the ten paths above.
 - Original broad coverage was the host-owned 13-class `FullyQualifiedName~` selection, started at 2026-09-08T14:54:38Z: 269 total, 261 passed, 7 failed, 1 skipped, exit 1. Its retained TRX is `artifacts/verification/deliv-056-focused-host-20260908.trx` (SHA-256 `01E4E965C1203ECEBE13AB50DCF0DDCF16EBAD2A416F581D60119E76BF411C7F`). Six original D56 failures were later corrected; the seventh is the deferred UploadConfirmation/browser current-contract decision owned by [[INTK-066]].
 - Designated host incremental Release build at 2026-09-08T15:59:40Z passed, exit 0, with 0 warnings and 0 errors.
 - The seven-method focused run at hash `bfa477f890e1da5fb570c0bdecfd0825459a3f7c` passed five unchanged-source methods, including the Send-to-Claude negative launcher assertion, and failed only the two Audit version-token methods. Its failure record is retained in `scratch/verify.md@7fc07a84d76567c5`.
@@ -40,4 +46,4 @@ The bounded D56 fixture correction is implemented across the final ten test file
 
 ## Handoff
 
-Publication authorization is in effect: after reconfirming the frozen ten-file diff, commit only those files, push the recorded branch, open one draft PR to `dev`, record its exact commit/PR, move the ticket to Review, and mark that PR ready for independent review. Do not rebase, merge, alter the base, run additional verification, or clean up the worktree.
+The ticket is ready for independent review of draft PR #709 at `23ea02f310a790c9aa3224a10de40efacf5444eb`. The author must not review, merge, move it to Verifying, release, deploy, or clean up its worktree.
