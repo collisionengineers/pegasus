@@ -2,10 +2,12 @@
 id: DELIV-057
 type: ticket
 title: Seed the historical vehicle lookup migration schema accurately
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-08T13:30:20.896Z'
 labels:
   - regression
   - test-fixtures
@@ -15,7 +17,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-08T13:28:14.030Z'
-updated: '2026-09-08T13:28:14.030Z'
+updated: '2026-09-08T13:30:20.896Z'
 ---
 
 ## What

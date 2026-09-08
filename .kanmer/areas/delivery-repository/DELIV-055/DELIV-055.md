@@ -2,12 +2,13 @@
 id: DELIV-055
 type: ticket
 title: Restore the self-contained release migration host recipe
-status: preparing
+status: implementing
 area: delivery-repository
 assignee: ''
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:28:18.420Z'
+  implementing: '2026-09-08T13:30:29.628Z'
 labels:
   - release
   - corrective
@@ -16,7 +17,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-09-08T13:25:29.949Z'
-updated: '2026-09-08T13:28:18.420Z'
+updated: '2026-09-08T13:30:29.628Z'
 ---
 
 ## What
