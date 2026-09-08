@@ -2,7 +2,7 @@
 
 Execution baseline: accepted dev aefe4c32d078ad79c0368666b5666032e6865248.
 This current map replaces af87e92a3c8c7d0a; historical versions remain.
-Root approved this exact scope and handed off mapped files at 05:20 UTC on
+Root approved this exact scope and handed off mapped files at 05:17 UTC on
 2026-09-08 (scratch/execution.md). No new source file is planned.
 
 ## Exact intended production and documentation edits
@@ -61,7 +61,7 @@ change report generation behavior.
 
 ## Current ownership handoff
 
-Root's 2026-09-08 05:20 UTC handoff on ENG-029/TICK-085/ENG-034/CASE-040/
+Root's 2026-09-08 05:17 UTC handoff on ENG-029/TICK-085/ENG-034/CASE-040/
 CASE-047 releases only this mapped source scope for ENG-029 execution.
 TICK-085 PR698 is integrated at aefe4c32d078ad79c0368666b5666032e6865248;
 preserve its import/Glass changes and coordinate any later shared correction.

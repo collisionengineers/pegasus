@@ -3,11 +3,11 @@
 ## Decision and starting state
 
 Root approved bounded author execution after whole plan/map read and the
-2026-09-08 05:20 UTC source handoff recorded in scratch/execution.md.
+2026-09-08 05:17 UTC source handoff recorded in scratch/execution.md.
 Current accepted baseline: aefe4c32d078ad79c0368666b5666032e6865248.
 TICK-085 PR698 and DOCS-019 are integrated; preserve their changes. The earlier
 preparation baseline was 498144b0bb55b68fd53b9a31ffc89ef90622c73a.
-Current file map: 2ecd5b509751b500; behavior/scope unchanged.
+The current files document owns the exact scope; historical versions remain.
 Fresh ready whole-ticket packet and exact isolated worktree/take are required.
 No author build/test; root owns heavy verification and publication follows PASS.
 
@@ -59,8 +59,9 @@ Case Details is the existing route/host. Retain the eleven sections and
 case-edit-form in _CaseWorkflow; all new native controls use
 form="case-edit-form", the one sticky Save/Discard, existing reason/operation,
 version and lease. No nested forms, per-section Save or broad autosave.
-Outcome choices use existing outcome-option styling with actual native
-choice semantics; codes come from Core. Money/date/flag/text controls follow
+Outcome choices use a native select with current field styling; codes come
+from Core. The design's outcome-option class has no current stylesheet rule;
+root approved this native-control refinement without CSS or an inert class. Money/date/flag/text controls follow
 their current definitions; absent is blank, never an output placeholder.
 Ordinary flags preserve absent/false/true as supported; report switches follow
 their existing absent-is-off semantics. Default focus/tab order follows the

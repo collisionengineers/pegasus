@@ -41,7 +41,7 @@ Planning only. No path is executable until root approves and ownership clears.
 | docs/design/README.md | Only photo editor/Files/Report contract, using existing one-editor requirement. ENG-029/PLAT-050 overlap. |
 | docs/design/test-ui/pages/case-details--default.html | Generated only by root scoped actual route capture. |
 | docs/design/test-ui/pages/case-details--conflict.html | Generated only by root scoped actual route capture. |
-| docs/design/test-ui/pages/case-details--closed.html | Generated only by root scoped actual route capture. |
+| docs/design/test-ui/pages/case-details--unavailable.html | Generated only by root scoped actual route capture. |
 | docs/design/test-ui/index.html | Conditional generated change only; root-serialized ownership. |
 
 ## Context only — do not modify
@@ -52,7 +52,7 @@ Planning only. No path is executable until root approves and ownership clears.
 | docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Existing generation freeze/readiness/source invalidation authority; no new approval snapshot. |
 | src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Reuse ClaimLeaseAsync/RestoreLeaseState/authority/failure handling without another lease protocol. Not in edit scope. |
 | src/Pegasus.Web/Pages/Cases/Shared/_CaseWorkflow.cshtml | ENG-029's one case-edit-form; no second form or rewrite. |
-| src/Pegasus.Core/Assessment/AssessmentAccess.cs | Existing persisted-state read-only policy; no copied state list. |
+| src/Pegasus.Core/Assessment/AssessmentWorkspace.cs | Existing persisted-state read-only policy; no copied state list. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseWorkflowStore.cs | ClaimAsync preserves Case version; correct holder/version/archive/replay authority. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseReportGenerationStore.cs | Existing MarkStale and frozen immutable tuple; no new freeze writer. |
 | src/Pegasus.Infrastructure/Persistence/EfAssessmentReportProjectionSource.cs | Existing prepared projection/current source owner. |
