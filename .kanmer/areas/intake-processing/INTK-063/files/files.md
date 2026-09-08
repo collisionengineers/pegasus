@@ -32,7 +32,13 @@
 - tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeLifecycleTests.cs — only
   existing store interface consumer adaptation and preserved lifecycle guards.
 - tests/Pegasus.IntegrationTests/ImageIntakePersistenceTests.cs
-- tests/Pegasus.IntegrationTests/GroupedImageIntakeConcurrencyTests.cs
+- tests/Pegasus.IntegrationTests/GroupedImageIntakeConcurrencyTests.cs — read-only
+  existing stress reference; no new stress run.
+- tests/Pegasus.IntegrationTests/ImageCaseCustodyIntegrationTests.cs — existing
+  direct merge fixture establishes current reasoned staff associations first.
+- tests/Pegasus.Core.Tests/Cases/ImmediateExternalPublicationTests.cs — existing
+  acceptance fixture proves duplicate acceptance wakes pairing without another
+  acceptance custody publication.
 - tests/Pegasus.IntegrationTests/StagedArtifactReconciliationFunctionIntegrationTests.cs —
   existing explicit function constructor, actual recovery invocation and all
   existing/new result-field assertions.

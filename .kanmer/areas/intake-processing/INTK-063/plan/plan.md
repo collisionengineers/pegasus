@@ -62,6 +62,19 @@ Automatic-origin matching and known-principal constraints remain strict.
 The existing restricted Worker SQL connection/ConnectedContextFactory fixture
 will exercise actual registered-image recovery. Read-only grant census found no
 missing permission; no migration is authorized or needed on that evidence.
+Persisted IntakeSubmissionGroup.ExpectedMemberCount owns the distinction:
+HasSiblingMembers is ExpectedMemberCount > 1; a one-member group follows
+single-image exact precedence, while a multiple-member group retains the
+original complete-candidate-count rule. Group ID alone is never that policy.
+All current durable image members participate even if their queue decision
+changed; a staff reversal cannot disappear from the merge guard.
+
+The existing ImageCaseCustodyIntegrationTests direct merge fixture must first
+establish reasoned staff associations for every member; retain its original
+custody assertions. ImmediateExternalPublicationTests proves duplicate
+acceptance wakes pairing without republishing acceptance custody. These are
+bounded existing-consumer adaptations, not new harnesses or stress suites.
+
 Add focused interrupted-group and recorded-staff-origin assertions in the
 already-mapped fixtures. Constructor consumers receive the existing receipt
 query; no new DI registration, test host, service or schema is introduced.
