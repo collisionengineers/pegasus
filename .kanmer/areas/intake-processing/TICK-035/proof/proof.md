@@ -322,3 +322,32 @@ or removed from the archive.
 No source/build/test, deployment/cloud/mail action, stage move or lease change
 was performed during this record-keeping. Normal Git cleanup and release-last
 will be recorded separately below; no force operation is authorized.
+
+## Authorized Git cleanup completed — 2026-09-08
+
+Normal git worktree remove succeeded for only .worktrees/tick-035 and
+.worktrees/verify-tick-035-56566371a5b80ef59c4f98e377c8e8ff6469b5f7.
+The before/after registered worktree census is identical after subtracting
+exactly those two authorized paths. All foreign worktrees and claims,
+including CASE-031, UIIMP-017, TICK-085, the board and shared checkout,
+were left untouched.
+
+Normal git branch -d TICK-035-principal-routes and exact remote branch
+deletion both passed. Git warned the author branch was fully merged to its
+upstream but not the stale shared-checkout HEAD; no force, reset, rebase,
+checkout, stash or source repair was used. The actual accepted merge SHA's
+origin/dev ancestry had already passed.
+
+git fetch --prune origin passed. Worktree prune dry-run found no candidates;
+normal prune passed. Exact read-only path/ref/server checks confirm both
+roots and local/tracking/remote TICK-035 branch are absent. All55 archived
+files were rehashed immediately before removal and remain preserved with
+their unchanged manifest.
+
+Earlier pending verification/cleanup paragraphs are historical attempt
+records, not current ownership or merge conditions. The full PASS, all failed
+attempts, exact commands, source-scoped Settings reuse and non-deployment
+limits above are unchanged. Accepted source is recoverable from merged
+PR692/dev and all failed/passing evidence remains in the local archive.
+Record-keeping and Git cleanup are complete; claim release is the final
+ownership action. No implementation, new build/test or cloud action occurred.
