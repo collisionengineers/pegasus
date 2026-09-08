@@ -100,6 +100,24 @@ public sealed class EfCaseReportGenerationStore(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
         CaseMutationGuard.RequireVersion(workflow, inputs.CaseVersion);
 
+        // Automatic custody does not consume a staff edit lease or advance its
+        // Case version. Recheck all source membership/metadata under this same
+        // serializable transaction so a newly confirmed or removed source
+        // cannot slip between the outside projection and the frozen snapshot.
+        var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
+            context, request.CaseId, cancellationToken);
+        var currentSources = EfAssessmentReportProjectionSource.ReportSources(confirmed);
+        var currentImages = EfAssessmentReportProjectionSource.ConfirmedImageSources(confirmed);
+        if (!currentSources.SequenceEqual(inputs.Projection.Sources)
+            || currentImages.Count != inputs.Readiness.ConfirmedImageSources.Count
+            || currentImages.Any(pair =>
+                !inputs.Readiness.ConfirmedImageSources.TryGetValue(pair.Key, out var captured)
+                || pair.Value != captured))
+        {
+            throw new InvalidOperationException(
+                "The source evidence changed while report inputs were being read; generate again.");
+        }
+
         var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
         if (!readiness.IsReady)
         {

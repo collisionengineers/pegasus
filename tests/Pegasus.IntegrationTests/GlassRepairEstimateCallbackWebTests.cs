@@ -312,6 +312,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
+        var launchVersion = await workspace.CaseVersionAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
 
         using var returned = await workspace.ReturnAsync(correlation);
@@ -330,6 +331,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(RepairSpecificationState.Draft, estimate.State);
         Assert.NotEmpty(estimate.Lines);
         Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
+        // Only landing the Draft is a staff mutation; retaining its two source
+        // artifacts must not spend the authority the import still needs.
+        Assert.Equal(launchVersion + 1, await workspace.CaseVersionAsync());
     }
 
     [Fact]
@@ -378,6 +382,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             Assert.Equal(HttpStatusCode.Found, first.StatusCode);
         }
         var consumedAtUtc = Assert.Single(await workspace.SessionsAsync()).CallbackConsumedAtUtc;
+        var completedVersion = await workspace.CaseVersionAsync();
 
         using var again = await workspace.ReturnAsync(correlation);
 
@@ -390,6 +395,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(consumedAtUtc, session.CallbackConsumedAtUtc);
         Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+        Assert.Equal(completedVersion, await workspace.CaseVersionAsync());
     }
 
     /// <summary>
@@ -751,8 +757,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
             await using var context = await scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
-            return await context.Set<CaseEntity>()
-                .Where(item => item.Id == CaseId)
+            return await context.CaseWorkflows
+                .Where(item => item.CaseId == CaseId)
                 .Select(item => item.Version)
                 .SingleAsync();
         }

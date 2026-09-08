@@ -380,12 +380,12 @@ internal sealed class EfCaseArtifactCustody(
         PegasusDbContext db, Guid caseId, string operationKey,
         DateTimeOffset nowUtc, CancellationToken cancellationToken)
     {
-        var workflow = await db.CaseWorkflows.SingleAsync(
-            item => item.CaseId == caseId, cancellationToken);
         if (await EfCaseReportGenerationStore.SourceDocumentChangedAsync(
                 db, caseId, operationKey, nowUtc, cancellationToken))
         {
-            CaseMutationGuard.Complete(workflow);
+            // Custody is not a staff edit: keep the Engineer's live authority
+            // for the import that retained these artifacts. Freeze rechecks
+            // the complete source census in its own transaction.
             await db.SaveChangesAsync(cancellationToken);
         }
     }
