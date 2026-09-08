@@ -7,7 +7,7 @@ reviewer: "/root/parallel_plan_review"
 independent: true
 plan_hash: "b7e0dfdbb97bcd01"
 ticket_updated: "2026-09-08T14:45:48.793Z"
-board_sha: "b08e91f526bbef5fa32d3f00a9e4070977ca7e2e"
+board_sha: "517993c94a6c75904e6ff2bee2e86a11de11dc72"
 expected_reviewers: ["/root/parallel_plan_review"]
 threads_snapshot: []
 findings:
@@ -45,7 +45,7 @@ findings:
 The reviewer is a separately assigned reviewer role and did not author the change.
 Reviewed PR 706 at exact head 5e0aeb47b9cb87258e12f66967e1efee4743b3f3
 against plan b7e0dfdbb97bcd01 and ticket revision rev1:22467f0c3b14383c.
-The PR is open, draft, mergeable, targets dev, and has nine logical changed paths
+The PR is open, ready, mergeable, targets dev, and has nine logical changed paths
 including two renames. The head, bounded diff, complete ticket packet, EPIC-014
 context, FRD-09, implementation report, verifier record, checks, reviews,
 comments and all review threads were gathered. Reviews, comments and threads
@@ -130,7 +130,7 @@ failed. None of those failures is caused by or repaired in this diff:
   controls when AssessmentIsReadOnly, while the POST CanOpen guard still fails
   closed. ENG-034, currently Verifying and blocked, owns this stale assertion.
 
-These notes are not waivers and do not convert the broader run to green. They
+The ready event triggered Codex status comment IC_kwDOThBrk88AAAABTQo_Iw on this exact head. Its security review completed at 2026-09-08T15:23:17.056799Z with no suggestion, review or thread; its metadata says mergeGateEnabled false. The comment is informational and has no finding to disposition.\n\nThese notes are not waivers and do not convert the broader run to green. They
 keep each baseline failure with its owning corrective work so independently
 reviewed corrections can integrate without requiring every sibling fix to have
 already integrated. The corrective programme still owes one converged full
