@@ -13,14 +13,14 @@ stageEntered:
 taken_at: '2026-09-08T08:16:57.989Z'
 branch: DELIV-051-instructions
 worktree: .worktrees/deliv-051
-claim_expires_at: '2026-09-08T12:38:46.000Z'
+claim_expires_at: '2026-09-08T12:45:14.731Z'
 claim_controller: codex-mcp-client
 review_round: 1
 lease_id: 4f76801a-7137-4e01-aa89-a8454709c1fc
-lease_revision: 6
+lease_revision: 7
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-051'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T12:08:46.000Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T12:15:14.731Z'
 labels:
   - documentation
   - kanmer
@@ -36,7 +36,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-08T08:15:33.723Z'
-updated: '2026-09-08T12:12:37.067Z'
+updated: '2026-09-08T12:15:14.731Z'
 ---
 
 ## What
