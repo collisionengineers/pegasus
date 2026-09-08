@@ -9,3 +9,10 @@ Root-owned locked restore/build, focused architecture 17/17 and Local
 deployment-plan checks passed. Report records both worker cheap checks and
 root evidence. Final integrated release packaging/required CI remain owed
 once; no post-merge proof, native Linux execution or deployment is claimed.
+
+## Follow-up acceptance — 2026-09-08
+
+- [x] Exact-merge failure preserved and same recorded workspace resumed.
+- [x] Two mapped hint/test changes pass existing script and native hint check.
+- [ ] Follow-up independent exact-head review and integration complete.
+- [ ] Final clean integrated release-artifact validation completes without duplicate build.

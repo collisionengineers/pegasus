@@ -2,7 +2,7 @@
 id: DELIV-048
 type: ticket
 title: Restore Windows and Linux release workstation support
-status: implementing
+status: review
 area: delivery-repository
 assignee: principal_delivery_audit
 profile: fix
@@ -14,14 +14,14 @@ stageEntered:
 taken_at: '2026-09-07T20:58:55.907Z'
 branch: DELIV-048-portable-release
 worktree: .worktrees/deliv-048
-claim_expires_at: '2026-09-08T07:13:06.973Z'
+claim_expires_at: '2026-09-08T07:22:07.867Z'
 claim_controller: principal_delivery_audit
 lease_id: 3c8db85f-4398-4b63-9133-6f8a1b49830a
-lease_revision: 39
+lease_revision: 40
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-048'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T06:43:06.973Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T06:52:07.867Z'
 labels:
   - ci
   - tests
@@ -35,12 +35,13 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 docs_todo: true
 commits:
-  - b6ffdeda1f8eee7f71e86ca033260de20483cb60
+  - 1c1d7a0a45555604bafd3e732bd606bf083b804a
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/681'
+  - 'https://github.com/collisionengineers/pegasus/pull/701'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-08T06:46:29.631Z'
+updated: '2026-09-08T06:52:07.867Z'
 ---
 
 ## What
@@ -79,3 +80,12 @@ No CI redesign, extra test lanes, packages, cloud writes or deployment here.
 ## Implementation handoff — 7 September 2026
 
 Commit b6ffdeda1f8eee7f71e86ca033260de20483cb60 is pushed in PR #681 to dev. The current acceptance is implemented and the root-owned focused checks passed as recorded in post-implementation-report. Independent exact-head review and final integrated release packaging/required CI remain outstanding. This is not a deployment or native Linux execution claim; original Linux-only history above is superseded, not erased.
+
+## Current follow-up — 2026-09-08
+
+Exact-merge proof2462b18082379607 retains FAIL for the omitted Windows
+ORAS hint. Root resumed the same workspace and corrected only mapped
+PegasusPlatform/Test-PegasusPlatform guidance, with native script/hint PASS.
+PR701 is the follow-up to independently reviewed/squash-integrated PR681;
+new independent exact-head review and integrated artifact acceptance remain.
+No cloud/deployment/Done claim; full reportf380ddd091eb9ccb retains history.

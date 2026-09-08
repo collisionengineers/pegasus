@@ -1,5 +1,37 @@
 # DELIV-048 implementation report
 
+## Current follow-up — 8 September 2026
+
+The original PR681 was squash-merged into dev at
+1c1d7a0a45555604bafd3e732bd606bf083b804a. Exact-merge proof2462b18082379607
+found one implementation omission: actual Windows Get-PegasusRepairHint oras
+still demanded Linux (command07e9d2,exit1,1.512s). Full proof was read;
+Verifying returned to Implementing. The original evidence below is retained.
+
+Root resumed the same recorded branch/worktree through a ready packet under
+planea1fca1e3f50f1fb. The clean normal baseline merge initially conflicted
+only on ADR index's newly added0040 row. Root retained accepted dev's row
+using apply_patch, then proved the complete staged tree identical to
+96777888bfa7ee7f85d63979a4a09ae10cda7d13 before merge commit59c43f567.
+No source was discarded, no force/stash/rebase and no shared ref changed.
+
+The follow-up modifies exactly two already mapped files (+6/-2):
+PegasusPlatform.ps1 now gives Windows the same existing official pinned
+ORAS1.3.4 installation guidance; Test-PegasusPlatform's existing two-host loop
+supplies Kind and checks the actual repair hint for both Windows and Linux.
+The production caller is Invoke-Doctor.ps1:547. No new installer, package,
+convention, abstraction, application code, schema or cloud action.
+
+Actual command3e756e passed exit0,2.2845s: git diff --check,
+pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1, and native
+Get-PegasusRepairHint oras. All original manifest/negative/LocalDB assertions
+remain and pass. No .NET build, native Linux claim or new artifact validation.
+Root authored this follow-up; a different agent must independently review it.
+Final exact integrated release-artifact validation remains required before Done.
+This corrects an existing ADR0039 convention, not a new command convention.
+
+## Retained original PR681 report
+
 ## Result and source
 
 Source frozen in .worktrees/deliv-048 on DELIV-048-portable-release from
