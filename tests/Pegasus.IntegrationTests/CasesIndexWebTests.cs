@@ -88,6 +88,8 @@ public sealed class CasesIndexWebTests
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "GROUP-GUARD-01");
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
         var upload = await IntakeWebDriver.PostUploadManyAsync(
             client, form.AntiforgeryToken, form.ExternalReceiptToken,
@@ -135,13 +137,20 @@ public sealed class CasesIndexWebTests
 
         var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None);
+        var workflow = await scope.ServiceProvider.GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId, CancellationToken.None);
         Assert.NotNull(receipt);
+        Assert.NotNull(workflow);
+        var caseReference = workflow!.Case.Reference;
         var forgedIndex = new Dictionary<string, string>
         {
             ["id"] = image.Record.Id.ToString("D"),
             ["receiptId"] = receiptId.ToString("D"),
             ["operationId"] = Guid.NewGuid().ToString("D"),
             ["receiptVersion"] = receipt!.Version.ToString(),
+            ["caseId"] = caseId.ToString("D"),
+            ["caseVersion"] = workflow!.Version.ToString(),
+            ["reference"] = caseReference,
             ["reason"] = "Forged single-member group attachment."
         };
         using var rejected = await PostImageAttachAsync(client, forgedIndex);
@@ -152,7 +161,14 @@ public sealed class CasesIndexWebTests
         var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
             .GetAsync(groupId, CancellationToken.None);
         Assert.NotNull(group);
-        var memberId = group!.Members[0].StagedReceiptId;
+        var statusQueries = scope.ServiceProvider.GetRequiredService<IQueuedIntakeStatusQueries>();
+        var memberStatuses = await Task.WhenAll(group!.Members.Select(async member => new
+        {
+            Member = member,
+            Status = await statusQueries.GetAsync(member.StagedReceiptId, CancellationToken.None)
+        }));
+        var memberId = Assert.Single(memberStatuses, item => item.Status?.ProcessedReceiptId == receiptId)
+            .Member.StagedReceiptId;
         using var memberPage = await client.GetAsync($"/Upload/Status/{memberId:D}");
         Assert.Equal(HttpStatusCode.Redirect, memberPage.StatusCode);
         Assert.Equal($"/Upload/Group/{groupId:D}", memberPage.Headers.Location?.OriginalString);
@@ -164,6 +180,7 @@ public sealed class CasesIndexWebTests
         Assert.Equal("[]", (await memberScopedSearch.Content.ReadAsStringAsync()).Trim());
         Assert.Equal("[]", (await memberAllSearch.Content.ReadAsStringAsync()).Trim());
 
+        forgedIndex.Remove("id");
         forgedIndex["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var memberRejected = await client.PostAsync(
             $"/Upload/Status/{memberId:D}?handler=Attach",
@@ -171,6 +188,12 @@ public sealed class CasesIndexWebTests
         Assert.Equal(HttpStatusCode.Redirect, memberRejected.StatusCode);
         Assert.Null((await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None))!.CurrentCaseId);
+        foreach (var memberStatus in memberStatuses)
+        {
+            var memberReceiptId = memberStatus.Status!.ProcessedReceiptId ?? memberStatus.Member.StagedReceiptId;
+            Assert.Null((await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(memberReceiptId, CancellationToken.None))!.CurrentCaseId);
+        }
     }
 
     [Fact]
