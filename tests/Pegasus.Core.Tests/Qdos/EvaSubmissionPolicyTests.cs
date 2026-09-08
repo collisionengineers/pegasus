@@ -1,4 +1,5 @@
 using System.Net;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Workflow;
 
@@ -6,6 +7,62 @@ namespace Pegasus.Core.Tests.Qdos;
 
 public sealed class EvaSubmissionPolicyTests
 {
+    [Theory]
+    [InlineData("22 Park Avenue")]
+    [InlineData("22 Park Avenue, Watford")]
+    [InlineData("22-24 Park Avenue")]
+    [InlineData("22 Park Avenue, St John's")]
+    public void AcceptedClaimantAddressRetainsOrdinaryAddressText(string value)
+    {
+        // Structural punctuation variants of the supplied vendor address,
+        // not additional instruction evidence or a postal-validity claim.
+        Assert.Equal(value, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(value, CaseDataValueKind.Fact), null, null)));
+    }
+
+    [Fact]
+    public void ConfirmedClaimantAddressWinsAndSuggestionsAreNotAccepted()
+    {
+        var fact = AddressValue("22 Park Avenue", CaseDataValueKind.Fact);
+        var confirmed = AddressValue("15 High Street", CaseDataValueKind.Confirmed);
+        var suggestion = AddressValue("22 Park Avenue", CaseDataValueKind.Suggestion);
+
+        Assert.Equal(confirmed.Value, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(fact, suggestion, confirmed)));
+        Assert.Equal(fact.Value, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(fact, suggestion, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(new(null, suggestion, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(new(null, null, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(fact, null, confirmed with { Value = " " })));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t\r\n\u00a0")]
+    [InlineData("22\0 Park Avenue")]
+    [InlineData("22 Park\nAvenue")]
+    [InlineData("22\u200b Park Avenue")]
+    [InlineData("22\U000e0001 Park Avenue")]
+    public void UnusableClaimantAddressIsNotSent(string value) =>
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(value, CaseDataValueKind.Fact), null, null)));
+
+    [Fact]
+    public void ClaimantAddressLengthIsEnforcedWithoutTruncation()
+    {
+        // Length probes, not fabricated postal-address evidence.
+        var boundary = "22 Park Avenue".PadRight(40, 'x');
+        Assert.Equal(boundary, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(boundary, CaseDataValueKind.Fact), null, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(boundary + "x", CaseDataValueKind.Fact), null, null)));
+    }
+
+    private static CaseDataValue<string> AddressValue(string value, CaseDataValueKind kind) =>
+        new(value, kind, new(CaseDataSourceKind.IntakeEvidence,
+            "eva-request-model", "supplied EVA address example", "case-031-fixture", 1));
+
     [Fact]
     public void FirstManualSendMovesReviewToReportPreparation() =>
         Assert.Equal(

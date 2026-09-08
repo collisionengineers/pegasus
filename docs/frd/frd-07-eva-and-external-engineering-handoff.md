@@ -72,6 +72,17 @@ EXT-04. Pegasus submits a case to EVA over its API, carrying the same mapped
 values and the same eligible images the export carries. The route was built
 against EVA's test credentials on 2026-08-27 by operator direction.
 
+The API also sends the canonical accepted claimant address as `ClmAdd`,
+required by EVA with a maximum of 40 characters. The current Confirmed value
+takes precedence over Fact; a suggestion or unresolved value is not accepted.
+Missing, whitespace-only, over-limit or control/format-containing values block
+a new submission before image retrieval or the EVA call, without recording an
+attempt or changing the Case. Known-operation replay returns the prior outcome
+first. Valid text, including ordinary address punctuation, is sent unchanged;
+Pegasus never truncates it or substitutes an inspection or other party's
+address. This is an API request prerequisite, not another Case-readiness or ZIP
+export gate; the thirteen-field package remains unchanged.
+
 **Pegasus has not yet called EVA.** The contract below is proved against the
 vendor's own recorded traffic and against its published request model; no
 submission has been made to any EVA environment, so nothing here establishes
