@@ -39,7 +39,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T05:45:48.585Z'
+updated: '2026-09-08T05:48:22.964Z'
 ---
 
 ## What
@@ -74,8 +74,11 @@ Supplemental EPIC-014 fix authorized by root; linked historical tickets retain
 all claims and evidence. [[INTK-059]] already has principal storage in current
 code despite its board status. [[TICK-035]] owns current matcher activation;
 implementation must follow its merged/released ownership. Root owns a separate
-one-ticket supplemental run; original218 roster unchanged. Preparation only,
-no take/branch/source edits until root plan review. No queue/schema/framework
+one-ticket supplemental run; original218 roster unchanged. Root approved
+execution after INTK-063 closeout and TICK-085's narrow integrated-source
+handoff. Taken at .worktrees/intk-064 on INTK-064-triage-link-recovery from
+aefe4c32d078ad79c0368666b5666032e6865248; current stop is source-frozen for
+root's focused runtime verification, before commit/push/PR. No queue/schema/framework
 or broad Worker grant absent concrete evidence and root approval.
 
 ## Outcome

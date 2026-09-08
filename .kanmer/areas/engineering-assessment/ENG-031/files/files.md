@@ -15,6 +15,7 @@ Planning only. No path is executable until root approves and ownership clears.
 | src/Pegasus.Infrastructure/Persistence/EfCaseAssetPreparationStore.cs | Retain queries/mapping/PrepareSaveAsync; remove obsolete immediate transactions/replay/history helpers; require every edited exact current confirmed source. No new schema. |
 | src/Pegasus.Infrastructure/DependencyInjection.cs | Remove only obsolete mutation registration; preserve query registration. INTK-064 owns this until handoff. |
 | src/Pegasus.Web/Pages/Cases/Details.cshtml.cs | Global Save binds image edits; existing ClaimLease stages first crop without saving; remove immediate image handlers/dependency; preserve exact submitted versions and refusal values. ENG-029 overlap. |
+| src/Pegasus.Web/Pages/Cases/Shared/_CaseWorkflow.cshtml | Only preserve original submitted expected-version on a refused staged image edit; existing global form/authority remains. ENG-029 overlap. |
 | src/Pegasus.Web/Pages/Cases/Details.cshtml | Render one crop dialog and its pending payload; retain current section/script owners. |
 | src/Pegasus.Web/Pages/Cases/Shared/ReportImagePreparationView.cs | Separate ability to open/stage from held-lease editing; exact authorized image URLs/identity and one canonical form value set. |
 | src/Pegasus.Web/Pages/Cases/Shared/_CaseReportImagePreparation.cshtml | Canonical image controls on eager Report section, associated with case-edit-form; Files view targets the same values; no immediate forms. |
@@ -51,7 +52,6 @@ Planning only. No path is executable until root approves and ownership clears.
 | docs/operator-notes.md | Protected operator truth; no meaning change. |
 | docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Existing generation freeze/readiness/source invalidation authority; no new approval snapshot. |
 | src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Reuse ClaimLeaseAsync/RestoreLeaseState/authority/failure handling without another lease protocol. Not in edit scope. |
-| src/Pegasus.Web/Pages/Cases/Shared/_CaseWorkflow.cshtml | ENG-029's one case-edit-form; no second form or rewrite. |
 | src/Pegasus.Core/Assessment/AssessmentWorkspace.cs | Existing persisted-state read-only policy; no copied state list. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseWorkflowStore.cs | ClaimAsync preserves Case version; correct holder/version/archive/replay authority. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseReportGenerationStore.cs | Existing MarkStale and frozen immutable tuple; no new freeze writer. |
