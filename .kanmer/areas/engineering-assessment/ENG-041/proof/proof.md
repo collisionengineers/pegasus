@@ -234,3 +234,74 @@ both TRXs and the recorded author claim. After confirming the cause, route the
 bounded correction through the existing ticket with a new dev-targeting PR,
 independent review and focused exact-follow-up proof. CASE-049 remains untaken
 until this shared-file owner is released.
+
+
+## Closeout evidence retention — 2026-09-08
+
+The final PASS above remains bound to exact merge
+cc441645b0a62a806e34367ad75e9eaff4df8b11. This is record-keeping, not a
+new test run or a replacement of any failed attempt. The original proof,
+whole report66303a1fa5639466 and review6abcbc32911d7b8b were read in full.
+
+Fresh GitHub read confirms [PR683](https://github.com/collisionengineers/pegasus/pull/683)
+merged to dev at 2026-09-07T23:20:55Z, SHA
+baafa29e0f7002b8235aa43bf333f5d9bb172828, and
+[PR691](https://github.com/collisionengineers/pegasus/pull/691) merged to dev at
+2026-09-08T01:39:46Z, SHA cc441645b0a62a806e34367ad75e9eaff4df8b11.
+After fresh origin/dev fetch, both full merged SHAs pass
+git merge-base --is-ancestor (exit0); origin/dev is the latter exact SHA.
+Ticket commit traceability uses these integrated merges. Original author
+SHAs remain preserved in the report/review as historical author evidence,
+not mislabelled integration ancestry.
+
+Before any Git cleanup, all 14 TRXs found across the three authorized
+worktrees were copied to ignored pegasus_pack/current/proofs/ENG-041/
+with the following relative paths. Every source/copy SHA-256 matched.
+The twelve pre-recorded hashes also match the report/proof exactly; the
+initial focused/correction hashes are newly measured retention evidence,
+not invented historical attestations. Counters were read from each TRX.
+
+| Retained path under ENG-041 | Passed / failed / skipped | SHA-256 |
+| --- | --- | --- |
+| author/tests/Pegasus.IntegrationTests/TestResults/eng-041-review-correction.trx | 10 / 0 / 0 | AC6BBEA97CFF7854B40D48515ABC0D900DCE79C3B5D92C48E97CE2F5046510B2 |
+| author/tests/Pegasus.IntegrationTests/TestResults/eng-041-focused.trx | 153 / 1 / 0 | CB23C3CE09E3344F522280A9624084F3A12D50F74408228367E47DC13557B716 |
+| author/tests/Pegasus.IntegrationTests/TestResults/eng-041-correction.trx | 2 / 0 / 0 | F1220B976D5679AA979E4F5F2DFEF5C9EDEFAAF84E0A98F749BA4D124B613A1D |
+| author/artifacts/verification/eng-041-workflow-version.trx | 5 / 0 / 0 | C3AD73073CD8FC5EBA55F957624C0F08174D33D4A8A0B16EBE96F0711C691FA9 |
+| author/artifacts/verification/eng-041-custody-snapshots.trx | 2 / 0 / 0 | 7F1CD86E6486623820372DB9A48A96049FA72A7686B8AEC8A72A359D0BD5F7C3 |
+| author/artifacts/verification/eng-041-custody-correction.trx | 47 / 1 / 0 | E32170BDAD1A4F74B29E11309C2F96041CCF933AA007378D3BDF9E2CD8994D81 |
+| merged-baafa29e/artifacts/verification/eng-041-merged-integration.trx | 157 / 2 / 0 | 0C07D7F78B1928A9CE2FCD324223298612F7F34FCE7788F0A8C440BF735D2ED5 |
+| merged-baafa29e/artifacts/verification/eng-041-merged-core.trx | 56 / 0 / 0 | 426FB59B3880AC1DDC1967D5047E8CE9C37FECA68591DD8E79BEBE23FC985D54 |
+| merged-cc441645/artifacts/verification/eng-041-merged-snapshots.trx | 1 / 1 / 0 | 342FB3ED27F4FDB91935AC9393AE1944FB7ED8A772FEA0BE0E7682440F24F8B0 |
+| merged-cc441645/artifacts/verification/eng-041-merged-correction.trx | 51 / 0 / 0 | 28718553E2FB3E07ADF7EE966ED15CF629972E15FF5E046A36E7FD6B7621CB55 |
+| merged-cc441645/artifacts/verification/eng-041-final-snapshots.trx | 2 / 0 / 0 | 25779A7788529929AED38AEF7D71F19C723C4BAFC5DFC134A0C8E808CDBC8BC8 |
+| merged-cc441645/artifacts/verification/eng-041-canonical-snapshots.trx | 1 / 1 / 0 | 95169B16CAE8CD4AC7F91B38B19CB7A3ECF849D2AF3C55EF4E5487222F90B052 |
+| merged-cc441645/artifacts/verification/eng-041-canonical-handoff-capture.trx | 1 / 0 / 0 | D5578D04E34F3A493EE6BB7CE6420C436418CA0B007A69FA24F8F21F6B609BD9 |
+| merged-cc441645/artifacts/verification/eng-041-canonical-conflict-capture.trx | 1 / 0 / 0 | B8D1476C566C5D62A5BD14DA4B06622EB545E007170ED30C48DA5F243BE10C3F |
+
+The two proof-named correction capture directories are also retained:
+author/artifacts/eng-041-correction-capture and
+merged-cc441645/artifacts/eng-041-merged-capture. All 104 individual capture
+files were copied and source/destination hashes verified. Full source-path
+mapping, counters and per-file hashes are in
+pegasus_pack/current/proofs/ENG-041/manifest.json.
+Committed normalized snapshots remain in the accepted Git tree; no manual
+visual PASS is inferred from archival.
+
+The original callback failures, wrong-version-helper failure, initial clock
+failure and both exact-merge snapshot-input failures remain FAIL evidence.
+Later focused corrections did not erase or relabel them. Historical absolute
+worktree paths above identify where commands actually ran; the retention
+paths here are their durable local artifact locations after cleanup.
+
+Fresh complete include-archived board census finds only ENG-041 occupying
+its branch/worktree, with no batch. All three authorized roots resolve to
+their explicit repository-contained paths, share the source .git directory,
+have the exact expected author/merged HEADs and clean tracked/untracked
+Git status. First read-only guard attempt exited1 because detached branch
+output was null in PowerShell; normalizing the empty branch string fixed
+only that inspection and its rerun passed. No Git removal was attempted
+on that refusal. Lease renewed by exact CAS to revision19, closeout phase.
+
+No build, test, application edit, cloud/provider/mail action or deployment
+occurred during closeout. Outcome is integrated and accepted on dev, not
+deployed. Git cleanup and claim release are tracked separately below.
