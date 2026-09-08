@@ -1,71 +1,98 @@
-# Research — CASE-031: claimant address extraction and EVA API
+# Research — CASE-031: remaining EVA claimant-address submission
 
 ## Question
 
-How should Pegasus extract a claimant address when source evidence provides
-one, retain its provenance, expose it for staff review, and send the same
-canonical value as EVA ClmAdd without changing the operator ZIP?
+What remains to send the canonical claimant address as EVA ClmAdd, without
+redoing completed intake/Case work or altering the operator ZIP?
 
-## Findings
+## Current findings — 2026-09-08
 
-- QDOS extraction defines Claimant name but no claimant address in
-  QdosInstructionExtractionPolicy.cs. InstructionFieldEngine already owns
-  candidates, conflicts, source labels, normalization and provenance.
-  Extraction should add an explicit provider field definition and must not
-  infer from inspection, repairer, sender, principal or third-party addresses.
-- InstructionDraft and its SQL entity carry claimant name but no address.
-  A nullable bounded draft column and EF migration are required. Nullable is
-  correct because this detail is captured where available and does not gate
-  otherwise safe Case allocation.
-- CaseDataSnapshotFactory.AddExtractedValue is the existing provenance guard
-  for promoting unambiguous intake values into Case data. Claimant address
-  should follow claimant name through this helper.
-- Case data is an existing versioned field-row model. CaseClaimantData is the
-  correct aggregate to extend from Name to Name and Address. The existing Save
-  Case command already supplies lease, version, history and provenance rules.
-  No new table, service or mutation path is needed.
-- Intake review already has one shared instruction-draft partial. The Case
-  overview and editor each render the canonical projection once. These are the
-  existing display/edit surfaces to extend.
-- EVA API submission currently derives its payload from the operator-export
-  mapping, but the user has explicitly excluded changes to the ZIP. The
-  smallest safe seam is:
-  - leave EvaReplayFields, CaseEvaMapping, EvaBundleSchema and the 13-key
-    archive untouched;
-  - read CaseClaimantData.Address from the already-loaded Case projection in
-    EvaSubmissionStore;
-  - pass it separately into CaseEvaApiMapping and EvaInstructionPayload;
-  - serialize exact key ClmAdd in EvaApiTransport.
-  This preserves one canonical Case value without changing archive bytes.
-- EVASubmissionStore must validate claimant address before image loading or
-  transport. Missing, whitespace-only and over-40-character values should
-  return a named blocking reason and make no network call. Truncation would
-  create a different address and is not acceptable.
-- The normalized vendor guide linked by [[DOCS-015]] defines ClmAdd as required
-  with maximum length 40.
-- Controlled test-environment submissions on 2026-08-28 proved null, empty,
-  ordinary/line-break whitespace and U+00A0 receive HTTP 400. Period, hyphen,
-  apostrophe, U+0000 and U+200B produce opaque HTTP 500. No placeholder is
-  safe or allowed.
-- Existing tests provide focused seams for extraction, draft/Case persistence,
-  browser display/edit, API mapping, exact transport JSON and no-network
-  blocking. EVA bundle tests should run unchanged as a non-regression gate.
-- No external research sources are declared for this ticket. Inputs were the
-  linked vendor guide, governing docs, current source and controlled EVA test
-  responses.
+Read-only source base: origin/dev at
+cc441645b0a62a806e34367ad75e9eaff4df8b11. No build, test or provider call ran.
+
+- Claimant address already exists in InstructionDraft
+  (src/Pegasus.Core/Intake/IntakeContracts.cs:583), in QDOS and other
+  supported extraction definitions, and in receipt persistence
+  (EfIntakeReceiptStore.cs:586,735,1003). CaseDataSnapshotFactory.cs:238
+  promotes it through the existing provenance guard; its candidate conflict
+  guard refuses unresolved evidence. TICK-035's separately reviewed canonical
+  provenance correction must be preserved, not replaced here.
+- The canonical Case value is CaseClaimantData.Address. CaseDataContracts.cs:
+  53,62,85 owns accepted status and precedence: Current is Confirmed, then
+  Fact, then Suggestion; only Fact and Confirmed are accepted. EfCaseDataStore
+  projects, saves and replays the address at lines360,583,660. The normal
+  Case-data surface and guarded edits already carry it. No new field, schema,
+  extraction, UI or staff-confirmation path is required.
+- CaseData has no independent Conflict status. An unresolved extraction
+  conflict must not become a Fact; missing/unaccepted projected evidence is
+  blocked at this boundary. A deliberate Confirmed value superseding a Fact
+  is an accepted correction, not a conflict. Do not invent a second conflict
+  classifier or fall back from an invalid current value to an older Fact.
+- EvaInstructionPayload (EvaApiContracts.cs:65) has no claimant address.
+  CaseEvaApiMapping.Map accepts only the 13-field EvaReplayFields plus Case,
+  Principal, settings and files. Its API mapping version is1. Its sole
+  production caller is EvaSubmissionStore.cs:140; known test consumers are
+  EvaApiMappingTests and EvaApiTransportTests. EvaInstructionSerializer
+  (EvaApiTransport.cs:386) emits InsName but no ClmAdd.
+- EvaSubmissionStore.ExecuteAsync already loads canonical Case data and
+  returns known operation replay before mapping/images/transport. After that,
+  it maps the unchanged export fields, calls EvaCaseImageReader (whose
+  ReadVersionsAsync reaches the document-content boundary), then submits and
+  records the attempt. The address guard belongs after known replay and
+  before LoadEligibleImagesAsync and SubmitInstructionAsync. Invalid input
+  returns an existing blocking result, with no submission/history/state
+  mutation. Keep replay, actor/mode/Engineer checks and outcome recording.
+- EvaSubmissionPolicy is the current Core owner for API submission decisions.
+  Extend it to select/validate the existing accepted claimant field. Do not
+  place business validation in the serializer or add a service/result layer.
+- docs/json-extraction-parity/eva-api-docs.md defines ClmAdd as required,
+  max40, and supplies the address example22 Park Avenue. It does not make
+  inspection-location address a claimant address. Preserve the accepted
+  claimant string exactly; no shortening, line flattening or substitution.
+- Reject absent, unaccepted/suggestion-only, whitespace-only, control/format
+  containing and over40 values. Ordinary commas, hyphens and apostrophes
+  inside an address are valid. The old punctuation-only failure probes do
+  not establish a punctuation blacklist or a general postal-validation rule.
+- ADR-0038 removes automatic submission. FRD-07 permits explicit manual send
+  and deliberate re-send, preserves four outcomes and known-operation replay,
+  and distinguishes API transport prerequisites from the fixed13-key ZIP.
+  The current ClmAdd requirement needs a narrow API-only clarification there;
+  it must not add a Case-readiness or ZIP-export gate. TICK-085 shares FRD-07
+  for a separate estimate-import section; root sequences ownership.
+- Existing actual-caller fixture
+  CustodyOutboxIntegrationTests.EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange
+  constructs EvaSubmissionStore at lines1466,1844,1914 and already proves
+  manual/re-send/replay/version-conflict/undelivered outcomes. Reuse its SQL
+  fixture and recording transport. A bounded document-content read counter
+  at the existing IDocumentContentStore seam can prove zero image reads;
+  no new application port or test framework is needed.
+- Core EvaApiMappingTests/EvaSubmissionPolicyTests and Integration
+  EvaApiTransportTests already prove typed mapping, decisions and exact wire
+  JSON. Existing EvaBundleContractTests prove deterministic ZIP keys/order/
+  bytes and remain unchanged. No declared external research sources exist.
+
+## Historical disposition
+
+The earlier research806d0a70e38ca4fd, files4f0d1451d44a4929 and
+plan85d53ae384521aa8 remain historical board versions. Their promises to add
+extraction, draft columns, Case fields and UI are obsolete because those paths
+already exist. Their automatic-submission and once-per-case-only language is
+superseded by ADR-0038 and the current explicit re-send contract.
+
+The prior research records controlled vendor probes on2026-08-28:
+null/empty/whitespace returned400; punctuation-only and invisible-character
+placeholders returned500. These are retained historical observations, not
+fresh calls, live acceptance proof, or authority to ban normal punctuation.
 
 ## Implications
 
-- Extend existing intake and claimant models only.
-- Keep claimant address optional for Case allocation and required only at EVA
-  API submission.
-- Use conservative explicit labels and existing conflict handling.
-- Preserve a bounded canonical Case value; enforce EVA's 40-character boundary
-  locally without truncation.
-- Do not modify the ZIP schema, mapping identity, fixtures or deterministic
-  output.
-- No further live EVA requests are required for implementation proof.
+Five production files, existing focused tests and one bounded FRD-07
+clarification are sufficient. Pass accepted claimant address separately to the
+API mapping; increment only its API mapping version. Leave EvaReplayFields,
+CaseEvaMapping, ZIP schema/fixtures/bytes and all intake/Case-data models
+unchanged. No dependency, migration, UI capture or live EVA call is needed.
 
 ## Open questions
 
-None. The operator explicitly ruled the ZIP out of scope.
+No unresolved product choice. Root must sequence the shared FRD-07 ownership
+before execution; CASE-031 remains Preparing and untaken.

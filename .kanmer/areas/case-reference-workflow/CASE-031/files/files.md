@@ -2,62 +2,55 @@
 
 ## Where the change lands
 
-| Path | Why |
+| Path | Responsibility and risk |
 | --- | --- |
-| src/Pegasus.Core/Intake/IntakeContracts.cs | Add nullable claimant address to InstructionDraft. |
-| src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs | Add explicit field labels and draft mapping. |
-| src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs | Add bounded nullable draft entity property. |
-| src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs | Persist and restore the value across receipt paths. |
-| src/Pegasus.Infrastructure/Persistence/EfIntakeMutationStore.cs | Preserve it during correction/replay and field reconstruction. |
-| src/Pegasus.Infrastructure/Persistence/CaseDataSnapshotFactory.cs | Promote unambiguous evidence through AddExtractedValue. |
-| src/Pegasus.Infrastructure/Persistence/Migrations/new claimant-address migration | Add the nullable draft column and update EF snapshots. |
-| src/Pegasus.Core/Cases/CaseDataContracts.cs | Extend CaseClaimantData and CaseEditableData. |
-| src/Pegasus.Core/Cases/CaseDataOperations.cs | Normalize bounded claimant-address text. |
-| src/Pegasus.Infrastructure/Persistence/CaseDataEntities.cs | Add the one canonical field-name entry. |
-| src/Pegasus.Infrastructure/Persistence/EfCaseDataStore.cs | Save, replay and project with existing provenance/version behavior. |
-| src/Pegasus.Web/Presentation/InstructionDraftFieldsView.cs and Pages/Shared/_InstructionDraftFields.cshtml | Display/edit draft value and provenance once. |
-| src/Pegasus.Web/Pages/Intake/Details.* and Pages/Cases/Create.* | Carry address through correction and Case creation without gating allocation. |
-| src/Pegasus.Web/Pages/Cases/Details.cshtml.cs and CaseMutationPageModel.cs | Bind/save/replay through the guarded Case action. |
-| src/Pegasus.Web/Pages/Cases/Shared/_CaseSummary.cshtml and _CaseWorkflow.cshtml | Display claimant address beside claimant identity and edit it once. |
-| src/Pegasus.Web/Mcp/AssessmentMcpTools.cs | Keep Automation Case read/save parity. |
-| src/Pegasus.Core/Eva/EvaApiContracts.cs and CaseEvaApiMapping.cs | Carry canonical claimant address and version API mapping. |
-| src/Pegasus.Infrastructure/Eva/EvaApiTransport.cs | Serialize exact ClmAdd. |
-| src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs | Validate before image/network work and pass the canonical address. |
-| tests/Pegasus.Core.Tests and tests/Pegasus.IntegrationTests focused intake/Case/browser/EVA tests | Prove positive flow, conflicts, persistence, UI, exact JSON and no-call failures. |
+| src/Pegasus.Core/Eva/EvaApiContracts.cs | Add typed ClaimantAddress to EvaInstructionPayload; update its known constructors only. |
+| src/Pegasus.Core/Eva/CaseEvaApiMapping.cs | Separate canonical address argument and exact payload mapping; API MappingVersion1 to2 only. |
+| src/Pegasus.Core/Eva/EvaSubmissionPolicy.cs | One Core-owned accepted-address selection/validation and blocking reason; preserve other submission decisions. |
+| src/Pegasus.Infrastructure/Eva/EvaApiTransport.cs | Existing EvaInstructionSerializer emits exact ClmAdd; no postal policy or normalization here. |
+| src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs | After known replay, guard before external image read/submission and pass accepted address; no outcome/workflow redesign. |
+| tests/Pegasus.Core.Tests/Qdos/EvaApiMappingTests.cs | Update current Map callers and prove exact address, role separation and API version. |
+| tests/Pegasus.Core.Tests/Qdos/EvaSubmissionPolicyTests.cs | Accepted Fact/Confirmed precedence, unaccepted/missing and value boundaries. |
+| tests/Pegasus.IntegrationTests/EvaApiTransportTests.cs | Update Payload helper and assert ClmAdd in real serialized request without HTTP calls. |
+| tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs | Extend existing real store/SQL fixture and recording boundary fakes for guard, exact payload, no calls/mutations and known replay. |
+| docs/frd/frd-07-eva-and-external-engineering-handoff.md | Root-sequenced direct-API claimant-address prerequisite only; preserve TICK-085 estimate-import section. |
 
 ## Context files
 
-| Path | What it tells the implementer |
+| Path | Constraint |
 | --- | --- |
-| AGENTS.md | Core owns policy; schema and permissions ship together; no fabricated data. |
-| docs/frd/frd-01-case-identity-and-lifecycle.md | Case snapshots and ordinary guarded edits own claimant data. |
-| docs/frd/frd-02-intake-and-source-identity.md | Extraction preserves sources and ambiguity instead of inventing facts. |
-| docs/frd/frd-07-eva-and-external-engineering-handoff.md | API submission is once-per-case and must preserve distinct outcomes. |
-| normalized eva-api-docs.md from [[DOCS-015]] | ClmAdd is required and maximum 40 characters. |
-| src/Pegasus.Core/Intake/InstructionFieldEngine.cs | Reuse candidate/conflict/provenance behavior. |
-| src/Pegasus.Core/Intake/InstructionDraftCompleteness.cs | Do not add claimant address to allocation completeness. |
-| src/Pegasus.Core/Address/InspectionAddressResolution.cs | Inspection address is a separate concept and must not be reused. |
-| src/Pegasus.Core/Eva/CaseEvaMapping.cs and EvaBundleSchema.cs | The ZIP is fixed and explicitly out of scope; these should remain unchanged. |
-| src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs | One local gate covers manual and automatic API callers. |
+| AGENTS.md | Existing Core policy owner, exact claim scope, immutable sources and one heavy verifier. |
+| docs/frd/frd-01-case-identity-and-lifecycle.md | No new Case mutation, completeness gate or handoff semantics. |
+| docs/frd/frd-02-intake-and-source-identity.md | Preserve source provenance and unresolved ambiguity; no extraction reinterpretation. |
+| docs/adr/0038-manual-only-eva-api-submission.md | No automatic EVA path, retry worker or second setting. |
+| docs/json-extraction-parity/eva-api-docs.md | Supplied ClmAdd required/max40 vendor contract. |
+| src/Pegasus.Core/Cases/CaseDataContracts.cs | CaseField.Current and CaseDataValue.IsAccepted are the existing precedence/status owner. |
+| src/Pegasus.Infrastructure/Persistence/CaseDataSnapshotFactory.cs | Existing conflict/provenance promotion; preserve TICK-035 correction. |
+| src/Pegasus.Infrastructure/Persistence/EfCaseDataStore.cs | Already persisted/projected claimant field and guarded correction. |
+| src/Pegasus.Infrastructure/Persistence/EvaCaseImageReader.cs | Existing ReadVersionsAsync boundary whose invocation must be avoided for invalid address. |
+| src/Pegasus.Core/Eva/CaseEvaMapping.cs | Fixed13-field ZIP mapping; not API claimant validation. |
+| src/Pegasus.Core/Eva/EvaBundleSchema.cs | Deterministic ZIP shape remains unchanged. |
+| tests/Pegasus.Core.Tests/Qdos/EvaBundleContractTests.cs | Run existing byte/order tests unchanged as bounded regression evidence. |
 
 ## Ripple effects
 
-- Positional InstructionDraft, CaseEditableData, CaseClaimantData and
-  EvaInstructionPayload constructions require updates.
-- The draft SQL column affects EF snapshots and raw-SQL fixtures. Existing
-  table permissions remain applicable.
-- Web manual and Worker automatic API submission converge on
-  EvaSubmissionStore.
-- Saving the field follows existing Save Case version/history/completeness
-  behavior.
-- EVA bundle contract tests must remain unchanged and green.
+The Map-call census atcc441645 finds one production caller in
+EvaSubmissionStore and two test files above; no other direct
+EvaInstructionPayload constructor was found. Recheck the census on the
+eventual accepted base and update only these known callers. No generated
+artifacts, schema/grants, UI snapshots or deployment files change.
+
+The existing large CustodyOutbox EVA fixture has three store constructions;
+populate accepted claimant data for its unchanged successful-send probes,
+retain every existing outcome/version/lease assertion, and add no new
+fabricated mail/image/instruction. Reuse supplied vendor address evidence for
+the isolated new field and label malformed/length probes as structural tests.
 
 ## Out of scope
 
-- EVA ZIP/operator export fields, mapping versions, fixtures, bytes or hashes.
-- Fabricated/default claimant addresses.
-- Inspection, repairer, sender, principal or third-party address substitution.
-- General postal parsing, geocoding or address-directory work.
-- Case allocation/completeness changes.
-- InstEmail changes, deployment, Principal enablement or further live EVA
-  mutations.
+Intake/extractor/Case-data schema and fields; UI and MCP; Case readiness,
+assignment or handoff behavior; ZIP/export types/mapping/fixtures; new address
+parser/geocoder; inspection/repairer/third-party substitution; InstEmail,
+credentials, Principal activation, delivery configuration, live EVA requests
+and automatic submission. FRD-07 ownership awaits root sequencing with
+TICK-085; no take or source edit is authorized during this preparation.
