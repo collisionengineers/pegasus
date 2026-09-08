@@ -761,7 +761,7 @@
       {
         "state": "default",
         "file": "pages/administration-health--default.html",
-        "branch": "Authorized administration query view.",
+        "branch": "Authorized populated mailbox health with recorded graph_unavailable failure.",
         "scenario": "administration-health--default"
       }
     ]
