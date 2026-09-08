@@ -32,4 +32,4 @@ all implementation items complete, pending independent review. No self-merge.
 - [x] Record reachable merge commit, PR, not-deployed and Outcome.
 - [x] Validate clean exact author/detached roots, common Git, tips and no other claim using either target.
 - [x] Remove only the two validated worktrees and the exact merged local/remote branch; recheck Git registrations.
-- [ ] Release the claim last and verify Done/unclaimed readback.
+- [x] Release the claim last and verify Done/unclaimed readback.
