@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-08T17:48:42.856Z'
 branch: INTK-066-manual-upload-confirmation
 worktree: .worktrees/INTK-066
-claim_expires_at: '2026-09-08T23:46:06.138Z'
+claim_expires_at: '2026-09-08T23:50:41.250Z'
 claim_controller: codex-mcp-client
 lease_id: eef8e3c2-cb07-4588-a7f9-5cb09a3433fc
-lease_revision: 52
+lease_revision: 53
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-066'
 lease_phase: running-command
-lease_heartbeat_at: '2026-09-08T21:46:06.138Z'
+lease_heartbeat_at: '2026-09-08T21:50:41.250Z'
 labels: []
 links:
   - DELIV-056
@@ -45,7 +45,7 @@ capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T21:46:06.138Z'
+updated: '2026-09-08T21:50:41.250Z'
 ---
 
 ## Observation
