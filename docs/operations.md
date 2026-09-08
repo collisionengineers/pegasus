@@ -162,13 +162,41 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 
 Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL Entra, throttling, backup, restore, RPO, or RTO. Azurite does not prove Azure Files, ADLS, Entra/RBAC, managed identity, durability, replication, quotas, networking, scale, or production timing.
 
-A read-only Azure census on 7 September 2026 returned no
-`Microsoft.CognitiveServices/accounts` resources in the current subscription.
-The v1 OCR work did not create a resource, grant access, configure an endpoint
-or deploy the optional Worker adapter. Provider activation and live OCR
-evidence remain absent from this implementation record.
-
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
+
+### Document Intelligence activation
+
+Read-only checks on 7 September 2026 found no Cognitive Services account in
+`rg-pegasus-prod` and no `DocumentIntelligence__Endpoint` on the existing
+Worker. The S0 `FormRecognizer` SKU was available in UK South without listed
+restrictions; the proposed custom subdomain was available. These observations
+are not reservations or provisioning evidence. PLAT-065 adds the declaration
+to the existing Bicep module; no resource, role, endpoint or live OCR call has
+yet been activated by this change.
+
+| Proposed target | Value |
+| --- | --- |
+| Subscription / tenant | `e6076573-23a5-46a8-acef-7e22d264e5db` / `858cf5b3-aa0a-47a6-9b40-4851fd0afa94` |
+| Resource group / region | `rg-pegasus-prod` / `uksouth` |
+| Account / custom subdomain | `pegasus-prod-ocr-252ow37gij` |
+| SKU / model / data API | S0 / `prebuilt-layout` / `2024-11-30` |
+| Worker identity | `pegasus-prod-worker-id-252ow37gij`; principal `4f4d9606-3634-4c21-a1ee-3238351cfc69` |
+| Access | Account-scoped `Cognitive Services User` (`a97b65f3-24c7-4388-baec-2e87135dc908`); local authentication disabled; no Web role |
+
+The [Microsoft pricing page](https://azure.microsoft.com/en-gb/pricing/details/document-intelligence/)
+includes Layout in prebuilt models. The
+[retail price feed](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices)
+returned UK South S0 Pre-built Pages meter
+`ddaa022c-eaf7-542d-8766-d86879934f9a` at USD10 per 1,000 pages on
+7 September 2026. Its GBP7.3624 value is a budgeting reference, not an invoice
+quote. Six selected pages are USD0.06 in OCR page charges; monthly cost depends
+on actual selected pages. No commitment tier, add-on, training or budget
+increase is configured. The existing £75 estate budget is unchanged.
+
+Live acceptance still requires the reviewed exact-SHA release, fresh preview,
+actual Worker canary and retained-result replay, Web identity denial and
+recorded source/operation/model/hash evidence. The canonical Glass's PDF
+import caller belongs to TICK-085; OCR output alone is not an accepted import.
 
 ### Automation MCP is implemented and enabled in production
 
@@ -1619,7 +1647,11 @@ Deferred capabilities must attach to an existing Core port and a real compositio
 | Graph webhooks | Signature, replay, expiry, duplicate-notification contracts | Approved public callback and subscription | Endpoint or subscription |
 | PDF-engine replacement | Frozen cohort/holdout and contract-parity suite | Licence, security, maintenance review, single-path cutover | Parallel permanent engines |
 
-Scan-like PDF OCR remains an unactivated caller gate; its optional Worker adapter does not establish a queued producer or live provider evidence. Provider API caller and deployment evidence are recorded separately in the [capability inventory](capabilities.md) and this document's release history.
+Qualified PDF OCR has a durable producer and optional Worker adapter, but its
+infrastructure declaration does not establish live provider evidence. Current
+activation is recorded [above](#document-intelligence-activation). Provider API
+caller and deployment evidence are recorded separately in the
+[capability inventory](capabilities.md) and this document's release history.
 
 SMS, Teams, a customer portal, redaction, signatures, legal hold, subject-request workflows, and predecessor application/data migration remain exclusions until separately authorised.
 
