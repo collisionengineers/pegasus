@@ -1,18 +1,116 @@
+using System.Diagnostics;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Triage;
 
-public sealed class CreateTriageFromIntake(ITriageStore store) : ICreateTriageFromIntake
+public sealed class CreateTriageFromIntake(ITriageStore store, ITriageCasePairing pairing) : ICreateTriageFromIntake
 {
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
-    public Task<TriageRecord> ExecuteAsync(
+    public async Task<TriageRecord> ExecuteAsync(
         CreateTriageFromIntakeRequest request,
         CancellationToken cancellationToken)
     {
         TriageLifecycleRules.ValidateCreate(request);
-        return _store.CreateAsync(request, cancellationToken);
+        var created = await _store.CreateAsync(request, cancellationToken);
+        var result = await pairing.PairTriageAsync(created.Id, cancellationToken);
+        Activity.Current?.SetTag("triage.pairing_failures", result.Failures);
+        Activity.Current?.SetTag("triage.failure_type", result.FirstFailure);
+        // Creation replay reports its original result, not a later link or state.
+        return created;
     }
+}
+
+public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
+{
+    public const string ActorId = "triage-case-pairing";
+    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Triage");
+
+    public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+        PairAsync(triageId, null, 1, cancellationToken);
+
+    public Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+        PairAsync(null, caseId, 50, cancellationToken);
+
+    public Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
+        PairAsync(null, null, maximumItems, cancellationToken);
+
+    private async Task<TriageCasePairingResult> PairAsync(
+        Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        using var activity = Telemetry.StartActivity("triage_case_pairing");
+        var count = 0;
+        var linked = 0;
+        var failures = 0;
+        string? firstFailure = null;
+        try
+        {
+            var candidates = await store.ListAutomaticLinkCandidatesAsync(
+                triageId, caseId, maximumItems, cancellationToken);
+            count = candidates.Count;
+            foreach (var candidate in candidates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    if (await store.LinkAutomaticallyAsync(
+                            candidate, ActionActor.SystemWorker(ActorId), cancellationToken))
+                    {
+                        linked++;
+                    }
+                }
+                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+                {
+                    failures++;
+                    firstFailure ??= exception.GetType().Name;
+                }
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            failures++;
+            firstFailure ??= exception.GetType().Name;
+        }
+
+        activity?.SetTag("triage.pairing_failures", failures);
+        activity?.SetTag("triage.failure_type", firstFailure);
+        if (failures > 0)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, "triage_pairing_failed");
+        }
+        return new(count, linked, failures, firstFailure);
+    }
+
+    public static async Task<Guid?> MatchAsync(
+        IProviderCaseMatchPolicy policy,
+        ICaseMatchCandidateQueries candidates,
+        string acceptedRegistration,
+        CaseMatchSourceData source,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(source);
+        var suppliedRegistration = policy.DeriveIndexKeys(source).NormalizedVrm;
+        if (!string.IsNullOrWhiteSpace(source.VehicleRegistration)
+            && suppliedRegistration != acceptedRegistration)
+        {
+            return null;
+        }
+
+        var result = await new EvaluateIntakeCaseMatch([policy], candidates).ExecuteDeclaredAsync(
+            policy.WorkProviderCode, source with { VehicleRegistration = acceptedRegistration }, cancellationToken);
+        return result is { Outcome: CaseMatchOutcome.UniqueMatch } ? result.MatchedCaseId : null;
+    }
+
+    public static bool CanLinkTarget(
+        CaseLifecycleState state, bool archived, ActorKind? leaseHolderKind,
+        DateTimeOffset? leaseExpiresAtUtc, DateTimeOffset nowUtc) =>
+        !archived && !CaseLifecycleRules.IsTerminal(state)
+        && !(leaseHolderKind == ActorKind.Staff && leaseExpiresAtUtc > nowUtc);
 }
 
 public sealed class AssignTriage(ITriageStore store) : IAssignTriage

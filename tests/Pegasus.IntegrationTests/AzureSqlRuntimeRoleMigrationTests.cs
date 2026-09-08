@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.IntegrationTests.Support;
@@ -11,6 +14,56 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AzureSqlRuntimeRoleMigrationTests
 {
+    [Fact]
+    public async Task WorkerRuntimeAutomaticallyLinksTriageAndReplaysWithoutFindingsPermission()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-worker-recovery.eml");
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName, email.MediaType, email.Content);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(factory.Services, receiptId);
+        await factory.Database.ExecuteAsync($"""
+            CREATE USER [pegasus_test_triage_pairing_worker] WITHOUT LOGIN;
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_triage_pairing_worker];
+            """);
+        await using var connection = factory.Database.CreateConnection();
+        await connection.OpenAsync();
+        await using var impersonation = connection.CreateCommand();
+        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_triage_pairing_worker';";
+        await impersonation.ExecuteNonQueryAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
+            var store = new EfTriageStore(new ConnectedContextFactory(options),
+                [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())]);
+            var pairing = new TriageCasePairing(store);
+            Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
+            Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
+        }
+        finally
+        {
+            impersonation.CommandText = "REVERT;";
+            await impersonation.ExecuteNonQueryAsync();
+        }
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == receiptId);
+        Assert.Equal(caseId, triage.LinkedCaseId);
+        Assert.Equal("open", triage.State);
+        Assert.Equal(1, triage.Version);
+        Assert.StartsWith("T", triage.Reference, StringComparison.Ordinal);
+        var history = await context.TriageHistory.AsNoTracking().SingleAsync(item =>
+            item.TriageId == triage.Id && item.EventType == "triage_case_linked");
+        Assert.Equal(nameof(ActorKind.SystemWorker), history.ActorKind);
+        Assert.Equal(TriageCasePairing.ActorId, history.Actor);
+        Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == history.EventType));
+        Assert.Equal(1, await context.Cases.CountAsync());
+        Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+    }
+
     private const string PreRuntimeRoleMigration = "20260729175000_CaseEvidenceAndReplacement";
     private const string OriginalRuntimeRoleMigration = "20260729176000_AzureSqlRuntimeLeastPrivilege";
     private const string PreviousMigration = "20260729193000_UniqueTriageResponseEvidenceLink";

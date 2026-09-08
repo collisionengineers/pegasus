@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -135,7 +136,9 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                         acceptanceStore,
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory),
-                        new CommittedWorkPublisherDouble()),
+                        new CommittedWorkPublisherDouble(),
+                        new TriageCasePairing(new EfTriageStore(factory,
+                            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], TimeProvider.System))),
                     new EfCaseDataStore(factory, TimeProvider.System));
             }
             catch
