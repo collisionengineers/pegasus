@@ -429,15 +429,13 @@ public static class DependencyInjection
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
-        // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
-        // the import dialog selects the parser by the chosen source route.
+        // Every retained-source caller uses this same format set. One PDF
+        // container detects Glass's or Audatex from the document itself.
         services.AddSingleton<JsonEstimateParser>();
         services.AddSingleton<IEstimateDocumentParser>(provider =>
             provider.GetRequiredService<JsonEstimateParser>());
         services.AddSingleton<IEstimateDocumentParser, GlassEstimateXmlParser>();
-        // Details still requests the PDF parser singly and JSON by its concrete
-        // type; canonical import consumes all parsers through the collection.
-        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        services.AddSingleton<IEstimateDocumentParser, PdfEstimateDocumentParser>();
         services.AddScoped<EfGlassRepairEstimateSessionStore>();
         services.AddScoped<IGlassRepairEstimateSessionStore>(provider =>
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());

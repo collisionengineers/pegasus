@@ -101,10 +101,12 @@ public sealed class ProductionCompositionTests
         var parsers = provider.GetServices<IEstimateDocumentParser>().ToArray();
 
         Assert.Equal(3, parsers.Length);
-        Assert.IsType<AudatexEstimatePdfParser>(provider.GetRequiredService<IEstimateDocumentParser>());
+        Assert.IsType<PdfEstimateDocumentParser>(provider.GetRequiredService<IEstimateDocumentParser>());
         Assert.Same(provider.GetRequiredService<JsonEstimateParser>(), Assert.Single(parsers.OfType<JsonEstimateParser>()));
         Assert.Single(parsers.OfType<GlassEstimateXmlParser>());
-        Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
+        Assert.Single(parsers.OfType<PdfEstimateDocumentParser>());
+        Assert.Single(parsers, parser => parser.CanParse("estimate.pdf", "application/pdf"));
+        Assert.IsType<ImportRawEstimate>(scope.ServiceProvider.GetRequiredService<IImportRawEstimate>());
         Assert.IsType<EfGlassRepairEstimateSessionStore>(
             scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>());
     }

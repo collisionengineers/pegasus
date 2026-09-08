@@ -91,10 +91,12 @@ internal sealed record EstimateSaveToolResult(
 
 internal sealed record EstimateImportToolResult(
     Guid CaseId,
-    Guid EstimateId,
+    Guid? EstimateId,
     string Name,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    Guid? OcrOperationId,
+    string? OcrState);
 internal sealed record EstimateListToolItem(
     Guid EstimateId,
     int Version,
@@ -197,7 +199,6 @@ internal sealed class AssessmentMcpTools(
         Guid occurrenceId,
         Guid documentVersionId,
         string sha256,
-        string sourceRoute,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
@@ -212,21 +213,15 @@ internal sealed class AssessmentMcpTools(
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(occurrenceId, "document occurrence identifier");
                 AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
-                if (!Enum.TryParse<RepairSpecificationSourceRoute>(sourceRoute, true, out var route)
-                    || !Enum.IsDefined(route)
-                    || !RepairSpecificationPolicy.IsDocumentRoute(route))
-                {
-                    throw new McpException("The estimate source route is not importable.");
-                }
                 var importer = importRawEstimate
                     ?? throw new McpException("Estimate import is unavailable in this runtime.");
-                var estimateId = await importer.ExecuteAsync(
+                var imported = await importer.ExecuteAsync(
                     new(context.Actor, caseId, expectedVersion, editLeaseToken,
-                        occurrenceId, documentVersionId, sha256, route, key, name),
+                        occurrenceId, documentVersionId, sha256, key, name),
                     cancellationToken);
                 return new EstimateImportToolResult(
-                    caseId, estimateId, name.Trim(), key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    caseId, imported.EstimateId, name.Trim(), key,
+                    AutomationMcpAuditor.CorrelationId(context, key), imported.OcrOperationId, imported.OcrState?.ToString());
             }),
             cancellationToken);
     }

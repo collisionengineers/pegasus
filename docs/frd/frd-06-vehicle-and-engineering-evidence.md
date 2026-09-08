@@ -277,6 +277,38 @@ artifact creates the next immutable Draft. The provider and parser are
 auto-detected from the registered types and an ambiguous artifact is refused,
 never guessed.
 
+The command proves the typed actor and current persisted Case version, edit
+lease holder/token and expiry before reading a source-hash replay or starting
+OCR. Both that check and the final save require the existing assessment-editable
+state (Report preparation or Post report); accepted Review alone is insufficient.
+An occurrence must name the exact confirmed, nonremoved document version;
+a correctly paired historical version remains valid retained evidence. A new
+Draft is guarded again in the save transaction. Importing never confirms its
+rows or changes Current, including when an Engineer initiated it. The existing
+Engineer **Use estimate** action confirms and accepts the Draft after its
+source, mapping, rows and calculation basis satisfy the normal acceptance rules.
+
+Glass's calculation PDFs retain ordered Body, Auxiliary and Paint rows,
+included-operation context, source guide codes, unambiguous manufacturer part
+identities, notes and printed amounts. PDF labour hours are already net of
+overlap; they do not reuse XML's gross-time conversion. Parts and position
+appendices provide evidence for existing rows, never additional charges.
+Repeated printed charges and visibly clipped text remain as printed. Whole-row,
+section and document reconciliation is required; missing or ambiguous required
+evidence refuses the whole import. Source rates and VAT do not select a Pegasus
+rate card or determine a repairer's VAT status.
+
+Only positively qualified unusable-text-map pages use the retained OCR path
+in ADR-0040. Pending or unknown work returns its durable operation identity and
+state, not a partial Draft. Completing a retained source reuses that operation
+and freshly submitted Case authority, without uploading or submitting it again.
+Required page/word attribution, coordinates and complete arithmetic must agree;
+confidence alone neither accepts evidence nor supplies a numeric cutoff.
+The Estimate section offers **Complete import** for confirmed retained import
+sources not yet represented by an estimate. Pending custody becomes selectable
+only when its existing confirmation completes. A replay of the original upload
+does not revive its old lease or assume another Case-version increment.
+
 Corrections create a new reasoned version which retains and supersedes the
 earlier accepted version; accepted rows and their evidence are never edited in
 place. A Case with no unambiguous current accepted version fails closed. The

@@ -1,7 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
+using static Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser;
 
 namespace Pegasus.Infrastructure.Assessment;
 
@@ -30,7 +29,7 @@ namespace Pegasus.Infrastructure.Assessment;
 /// disagrees with the calculation is recorded, never dropped and never
 /// allowed to overrule <see cref="EstimateTotals"/>.
 /// </summary>
-public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
+internal static class AudatexEstimatePdfParser
 {
     /// <summary>Titles the Draft an import of this document lands as.</summary>
     public const string ProviderName = "Audatex";
@@ -42,26 +41,8 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
     private const double PageBodyTop = 720;
     private const double PageBodyBottom = 30;
 
-    public RepairSpecificationSourceRoute Route => RepairSpecificationSourceRoute.AudatexPdf;
-
-    public bool CanParse(string fileName, string mediaType) =>
-        string.Equals(Path.GetExtension(fileName), ".pdf", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(mediaType, "application/pdf", StringComparison.OrdinalIgnoreCase);
-
-    public ParsedEstimate Parse(ReadOnlyMemory<byte> content)
+    internal static ParsedEstimate Parse(IReadOnlyList<VisualRow> rows)
     {
-        List<VisualRow> rows;
-        try
-        {
-            using var document = PdfDocument.Open(content.ToArray());
-            rows = CollectRows(document);
-        }
-        catch (Exception exception) when (exception is not EstimateParseRejectedException)
-        {
-            throw new EstimateParseRejectedException(
-                "The file could not be read as a PDF, so nothing was imported.");
-        }
-
         var reader = new ReportReader();
         foreach (var row in rows)
         {
@@ -70,39 +51,6 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
 
         return reader.Complete();
     }
-
-    /// <summary>Words grouped into visual rows by shared baseline, in reading order.</summary>
-    private static List<VisualRow> CollectRows(PdfDocument document)
-    {
-        var rows = new List<VisualRow>();
-        for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
-        {
-            var page = document.GetPage(pageNumber);
-            var grouped = page.GetWords()
-                .GroupBy(word => Math.Round(word.BoundingBox.Bottom, 1))
-                .OrderByDescending(group => group.Key);
-            foreach (var group in grouped)
-            {
-                var words = group.OrderBy(word => word.BoundingBox.Left)
-                    .Select(word => new PlacedWord(word.BoundingBox.Left, word.Text))
-                    .ToArray();
-                rows.Add(new VisualRow(
-                    group.Key,
-                    words,
-                    string.Join(' ', words.Select(word => word.Text))));
-            }
-        }
-
-        return rows;
-    }
-
-    private sealed record PlacedWord(double X, string Text);
-
-    /// <summary>
-    /// One baseline's words in reading order. The joined text is built once at
-    /// collection, because every classification step below reads it again.
-    /// </summary>
-    private sealed record VisualRow(double Y, IReadOnlyList<PlacedWord> Words, string JoinedText);
 
     private enum Section
     {
@@ -257,6 +205,7 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
                 $"{assessmentNumber} {documentVersion}",
                 lines,
                 ProviderName,
+                RepairSpecificationSourceRoute.AudatexPdf,
                 new EstimateSourceTotals(
                     Parts: sections[Section.Parts].PrintedTotal,
                     PanelWorkUnits: sections[Section.Labour].PrintedTotal,

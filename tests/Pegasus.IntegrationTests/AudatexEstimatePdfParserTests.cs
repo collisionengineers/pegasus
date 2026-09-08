@@ -19,7 +19,16 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class AudatexEstimatePdfParserTests
 {
-    private readonly AudatexEstimatePdfParser parser = new();
+    private readonly PdfEstimateDocumentParser parser = new();
+
+    private ParsedEstimate Parse(ReadOnlyMemory<byte> content)
+    {
+        var read = parser.Parse(content);
+        Assert.Empty(read.QualifiedOcrPages);
+        var parsed = Assert.IsType<ParsedEstimate>(read.Estimate);
+        Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, parsed.Route);
+        return parsed;
+    }
 
     [Theory]
     [InlineData("estimate.pdf", "application/octet-stream", true)]
@@ -30,13 +39,9 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal(expected, parser.CanParse(fileName, mediaType));
 
     [Fact]
-    public void TheRouteIsAudatexPdf() =>
-        Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, parser.Route);
-
-    [Fact]
     public void ParsesEveryLineWithItsOwnMoney()
     {
-        var result = parser.Parse(AudatexEstimateFixture.Build());
+        var result = Parse(AudatexEstimateFixture.Build());
 
         Assert.Equal("TEST01 V1/1", result.SourceVersion);
         Assert.Equal(6, result.Lines.Count);
@@ -86,7 +91,7 @@ public sealed class AudatexEstimatePdfParserTests
     [Fact]
     public void TheDocumentNamesItsProviderItsPrintedTotalsAndEachRowsIdentity()
     {
-        var result = parser.Parse(AudatexEstimateFixture.Build());
+        var result = Parse(AudatexEstimateFixture.Build());
 
         Assert.Equal(AudatexEstimatePdfParser.ProviderName, result.ProviderName);
 
@@ -113,7 +118,7 @@ public sealed class AudatexEstimatePdfParserTests
     {
         var bytes = AudatexEstimateFixture.Build(partsSubTotal: "£999.99");
 
-        var rejection = Assert.Throws<EstimateParseRejectedException>(() => parser.Parse(bytes));
+        var rejection = Assert.Throws<EstimateParseRejectedException>(() => Parse(bytes));
         Assert.Contains("parts", rejection.Message, StringComparison.Ordinal);
         Assert.Contains("nothing was imported", rejection.Message, StringComparison.Ordinal);
     }
@@ -123,7 +128,7 @@ public sealed class AudatexEstimatePdfParserTests
     {
         var bytes = AudatexEstimateFixture.Build(labourTotalWorkUnits: "20.0");
 
-        var rejection = Assert.Throws<EstimateParseRejectedException>(() => parser.Parse(bytes));
+        var rejection = Assert.Throws<EstimateParseRejectedException>(() => Parse(bytes));
         Assert.Contains("labour", rejection.Message, StringComparison.Ordinal);
     }
 
@@ -133,7 +138,7 @@ public sealed class AudatexEstimatePdfParserTests
         // A second amount for the same line has no valueless line to pair with.
         var bytes = AudatexEstimateFixture.Build(extraOrphanAmount: true);
 
-        var rejection = Assert.Throws<EstimateParseRejectedException>(() => parser.Parse(bytes));
+        var rejection = Assert.Throws<EstimateParseRejectedException>(() => Parse(bytes));
         Assert.Contains("could not be matched", rejection.Message, StringComparison.Ordinal);
     }
 
@@ -142,7 +147,7 @@ public sealed class AudatexEstimatePdfParserTests
     {
         var bytes = AudatexEstimateFixture.Build(includeIdentity: false);
 
-        var rejection = Assert.Throws<EstimateParseRejectedException>(() => parser.Parse(bytes));
+        var rejection = Assert.Throws<EstimateParseRejectedException>(() => Parse(bytes));
         Assert.Contains("assessment number and version", rejection.Message, StringComparison.Ordinal);
     }
 
@@ -155,15 +160,15 @@ public sealed class AudatexEstimatePdfParserTests
         page.AddText("A letter about something else entirely.", 9, new PdfPoint(20, 400), font);
 
         var rejection = Assert.Throws<EstimateParseRejectedException>(
-            () => parser.Parse(builder.Build()));
-        Assert.Contains("not recognized as an Audatex estimate", rejection.Message, StringComparison.Ordinal);
+            () => Parse(builder.Build()));
+        Assert.Contains("exactly one supported estimate provider", rejection.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void RejectsBytesThatAreNotAPdf()
     {
         var rejection = Assert.Throws<EstimateParseRejectedException>(
-            () => parser.Parse("not a pdf"u8.ToArray()));
+            () => Parse("not a pdf"u8.ToArray()));
         Assert.Contains("could not be read as a PDF", rejection.Message, StringComparison.Ordinal);
     }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Glass;
 
@@ -147,8 +148,6 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     private static readonly byte[] PdfPrefix = "%PDF-"u8.ToArray();
     private static readonly byte[] PdfEndMarker = "%%EOF"u8.ToArray();
 
-    public RepairSpecificationSourceRoute Route => RepairSpecificationSourceRoute.Glasses;
-
     /// <summary>
     /// The export is XML by name or media type. The format itself is proven
     /// by its <c>&lt;Estimation&gt;</c> root inside <see cref="Parse"/>, which
@@ -159,7 +158,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         || string.Equals(mediaType, "application/xml", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mediaType, "text/xml", StringComparison.OrdinalIgnoreCase);
 
-    public ParsedEstimate Parse(ReadOnlyMemory<byte> content) => Read(content).Estimate;
+    public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null) =>
+        new(Read(content).Estimate, []);
 
     /// <summary>
     /// The whole export: the estimate <see cref="Parse"/> returns, the
@@ -195,7 +195,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         }
 
         return new GlassEstimateExport(
-            new ParsedEstimate(SourceVersion(root, calculation), lines, ProviderName, ReadTotals(calculation)),
+            new ParsedEstimate(SourceVersion(root, calculation), lines, ProviderName, RepairSpecificationSourceRoute.Glasses, ReadTotals(calculation)),
             ReadIdentity(root),
             ReadAttachment(root));
     }

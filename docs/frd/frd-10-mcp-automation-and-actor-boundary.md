@@ -118,21 +118,26 @@ refused before any tool runs.
 | `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
-| `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through B's canonical command using its name, Case and document occurrence/version identities, SHA-256, route, typed actor, expected Case version, edit lease and operation key; return the resulting estimate identity or the same structured refusal as the Case caller |
+| `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through the canonical Core command using its name, Case and document occurrence/version identities, SHA-256, typed actor, expected Case version, edit lease and operation key; return the estimate identity, or durable OCR operation identity/state while pending, or the same structured refusal as the Case caller |
 
 `pegasus_estimate_import` and the Assessment page's drop are two callers of
 one shared Core command, not two implementations: the same registered parser
 types, the same fail-closed provider auto-detection, the same
 provider-plus-sequence Draft naming and the same replay rule apply to both
-(D16, 2026-09-01). The v1 implementation is owned by CASE-047 and PLAT-075;
-its existence does not establish live provider acceptance.
+(D16, 2026-09-01). The caller does not select a trusted provider route. Current
+persisted actor/version/lease authority and the exact retained source tuple
+are required even for a source-hash replay. Pending/Unknown OCR is resumed from
+the same retained operation using fresh caller authority; it cannot silently
+resubmit or save partial rows. The resulting raw import remains an unconfirmed
+Draft with no AI-job reference and cannot become Current through MCP. These
+caller contracts do not establish live provider acceptance.
 
 `automation.jobs` is a new scope with its own consent description on the
 Administrator consent page; a token without it cannot see the ledger. The
 estimate tools stay under `automation.assessment` because they write
 assessment values. `pegasus_estimate_save` accepts AI drafts only: an estimate
 saved without a job reference, or naming a job not taken by the calling client,
-is refused. `pegasus_estimate_import` transports a raw PDF or XML artifact for
+is refused. `pegasus_estimate_import` identifies a retained PDF, XML or JSON artifact for
 shared extraction and normalization and requires no AI job reference. The
 existing `automation.mail` scope is granted today without a
 consent description; it must carry one before any connector is consented to

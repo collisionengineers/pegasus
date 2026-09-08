@@ -135,6 +135,7 @@ internal sealed class EfDocumentCustodyStore(
             where occurrence.CaseId == query.CaseId
                 && occurrence.Id == query.OccurrenceId
                 && version.Id == query.VersionId
+                && occurrence.VersionId == version.Id
                 && version.DocumentId == occurrence.DocumentId
                 && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                 && !version.IsLogicallyRemoved

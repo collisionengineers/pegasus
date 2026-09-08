@@ -1,12 +1,18 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
@@ -22,7 +28,170 @@ namespace Pegasus.IntegrationTests;
 public sealed class AutomationAssessmentIngressTests
 {
     [Fact]
-    public async Task EstimateImportInvokesCanonicalTypedBoundaryAndRefusesNonDocumentRoutes()
+    public async Task CanonicalEstimateImportThroughMcpPersistsUnconfirmedSourceBackedRowsAndRejectsForeignOrStaleAuthority()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var bytes = Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var content = new RetainedEstimateContent(bytes);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IReadLogicalDocumentVersion>();
+            services.AddSingleton<IReadLogicalDocumentVersion>(content);
+        }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var documentId = Guid.NewGuid(); var versionId = Guid.NewGuid(); var occurrenceId = Guid.NewGuid();
+        var currentVersionId = Guid.NewGuid(); var currentOccurrenceId = Guid.NewGuid();
+        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            db.AddRange(
+                new CaseDocumentEntity { Id = documentId, CaseId = caseId, Ordinal = 1, SourceOccurrenceIdentity = "estimate-import:mcp-caller" },
+                new DocumentVersionEntity
+                {
+                    Id = versionId, DocumentId = documentId, Version = 1, FileName = "estimate.xml", MediaType = "application/xml",
+                    ContentLength = bytes.Length, Sha256 = hash, CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = DateTimeOffset.UtcNow, CreatedBy = ClientId, IsCurrent = false
+                },
+                new DocumentOccurrenceEntity
+                {
+                    Id = occurrenceId, CaseId = caseId, DocumentId = documentId, VersionId = versionId, Ordinal = 1,
+                    SourceOccurrenceIdentity = "estimate-import:mcp-caller", OperationKey = "mcp-source",
+                    SemanticRole = DocumentSemanticRole.Other, Source = DocumentSource.StaffUpload, RecordedAtUtc = DateTimeOffset.UtcNow
+                },
+                new DocumentVersionEntity
+                {
+                    Id = currentVersionId, DocumentId = documentId, Version = 2, FileName = "estimate.xml", MediaType = "application/xml",
+                    ContentLength = bytes.Length, Sha256 = hash, CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = DateTimeOffset.UtcNow, CreatedBy = ClientId, IsCurrent = true
+                },
+                new DocumentOccurrenceEntity
+                {
+                    Id = currentOccurrenceId, CaseId = caseId, DocumentId = documentId, VersionId = currentVersionId, Ordinal = 2,
+                    SourceOccurrenceIdentity = "estimate-import:mcp-current", OperationKey = "mcp-source-current",
+                    SemanticRole = DocumentSemanticRole.Other, Source = DocumentSource.StaffUpload, RecordedAtUtc = DateTimeOffset.UtcNow
+                });
+            await db.SaveChangesAsync();
+            var metadata = scope.ServiceProvider.GetRequiredService<IGetCaseDocumentMetadata>();
+            var actor = ActionActor.Automation(ClientId);
+            Assert.NotNull(await metadata.ExecuteAsync(new(caseId, occurrenceId, versionId, actor), default));
+            Assert.NotNull(await metadata.ExecuteAsync(new(caseId, currentOccurrenceId, currentVersionId, actor), default));
+            Assert.Null(await metadata.ExecuteAsync(new(caseId, currentOccurrenceId, versionId, actor), default));
+        }
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 80);
+        object Arguments(long version, string leaseToken, Guid occurrence, string sha, string key) => new
+        {
+            caseId, expectedVersion = version, editLeaseToken = leaseToken, operationKey = key,
+            name = "Glass's 1", occurrenceId = occurrence, documentVersionId = versionId, sha256 = sha
+        };
+        using (var wrongScope = await PostMcpAsync(client, await RequestTokenAsync(client, "automation.cases"),
+            ToolCallPayload(81, "pegasus_estimate_import", Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:wrong-scope"))))
+        {
+            using var refusal = await ReadJsonRpcAsync(wrongScope);
+            Assert.Contains("error", refusal.RootElement.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+        using (var beforeHandoff = await PostMcpAsync(client, token, ToolCallPayload(86, "pegasus_estimate_import",
+            Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:before-handoff"))))
+        {
+            using var refusal = await ReadJsonRpcAsync(beforeHandoff);
+            Assert.Contains("read-only", refusal.RootElement.ToString(), StringComparison.Ordinal);
+        }
+        Assert.Equal(0, content.Reads);
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseRepairSpecifications"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM IntakeOcrOperations"));
+        // Exercise the real native handoff; accepted Review alone is not
+        // engineering authority, and a fixture state assignment would hide it.
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var engineerId = Guid.NewGuid();
+            var role = await db.Roles.SingleOrDefaultAsync(row => row.NormalizedName == "ENGINEER");
+            if (role is null)
+            {
+                role = new IdentityRole<Guid> { Id = Guid.NewGuid(), Name = "Engineer", NormalizedName = "ENGINEER" };
+                db.Roles.Add(role);
+            }
+            db.Users.Add(new PegasusIdentityUser
+            {
+                Id = engineerId, UserName = "import-engineer", NormalizedUserName = "IMPORT-ENGINEER",
+                IsEnabled = true, MustChangePassword = false,
+                SecurityStamp = Guid.NewGuid().ToString("N"), ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            });
+            db.UserRoles.Add(new IdentityUserRole<Guid> { UserId = engineerId, RoleId = role.Id });
+            await db.SaveChangesAsync();
+            var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(CaseLifecycleState.Review.ToString(), workflow.State);
+            var handedOff = await scope.ServiceProvider.GetRequiredService<IAssignCaseEngineer>().ExecuteAsync(
+                new(caseId, 0, ActionActor.Automation(workflow.EditLeaseHolder!), "mcp:import-handoff",
+                    "Hand off to Engineer", lease.LeaseToken, engineerId, new(true, true, "accepted-readiness")), default);
+            Assert.Equal(CaseLifecycleState.ReportPreparation, handedOff.State);
+            Assert.Equal(1, handedOff.Version);
+        }
+        lease = await BeginEditAsync(client, token, caseId, 1, rpcId: 87);
+        foreach (var arguments in new[]
+        {
+            Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:stale-import"),
+            Arguments(1, "wrong-lease", occurrenceId, hash, "mcp:wrong-lease"),
+            Arguments(1, lease.LeaseToken, Guid.NewGuid(), hash, "mcp:foreign-source"),
+            Arguments(1, lease.LeaseToken, currentOccurrenceId, hash, "mcp:mismatched-version"),
+            Arguments(1, lease.LeaseToken, occurrenceId, new string('a', 64), "mcp:wrong-hash")
+        })
+        {
+            using var refused = await PostMcpAsync(client, token, ToolCallPayload(82, "pegasus_estimate_import", arguments));
+            using var refusal = await ReadJsonRpcAsync(refused);
+            Assert.Contains("error", refusal.RootElement.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.Equal(0, content.Reads);
+        Guid importedId;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(83, "pegasus_estimate_import",
+            Arguments(1, lease.LeaseToken, occurrenceId, hash, "mcp:canonical-import"))))
+        {
+            importedId = (await ReadStructuredContentAsync(response)).GetProperty("estimateId").GetGuid();
+        }
+        Assert.Equal(1, content.Reads);
+        var replayLease = await BeginEditAsync(client, token, caseId, 2, rpcId: 84);
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(85, "pegasus_estimate_import",
+            Arguments(2, replayLease.LeaseToken, occurrenceId, hash, "mcp:canonical-import-replay"))))
+            Assert.Equal(importedId, (await ReadStructuredContentAsync(response)).GetProperty("estimateId").GetGuid());
+        Assert.Equal(1, content.Reads);
+        await using var readScope = mcpFactory.Services.CreateAsyncScope();
+        var store = readScope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>();
+        var imported = Assert.IsType<RepairSpecificationVersion>(await store.GetVersionAsync(caseId, importedId, default));
+        Assert.False(imported.IsCurrent);
+        Assert.Null(imported.AiJobId);
+        Assert.Equal(RepairerVatStatus.Unknown, imported.Details.VatPolicy.RepairerStatus);
+        Assert.Equal(14, imported.Lines.Count);
+        Assert.All(imported.Lines, line =>
+        {
+            Assert.False(line.IsConfirmed);
+            Assert.Equal(ActorKind.Automation, line.RecordedByKind);
+            Assert.Equal(versionId, line.SourceDocumentVersionId);
+            Assert.Equal(hash, line.SourceDocumentSha256);
+        });
+        Assert.Single(await store.ListEstimatesAsync(caseId, default));
+        await store.RequireImportAuthorityAsync(new(ActionActor.Automation(imported.CreatedBy), caseId, 2, replayLease.LeaseToken,
+            occurrenceId, versionId, hash, "mcp:replay-authority", "Glass's 1"), default);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM ActionHistory WHERE EventKind = N'estimate_created' AND ActorKind = N'Automation'"));
+    }
+
+    private sealed class RetainedEstimateContent(byte[] bytes) : IReadLogicalDocumentVersion
+    {
+        public int Reads { get; private set; }
+        public Task<LogicalDocumentContent> OpenAsync(ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)
+        {
+            Reads++;
+            Assert.Equal(bytes.Length, request.ExpectedContentLength);
+            Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bytes)), request.ExpectedSha256);
+            return Task.FromResult(new LogicalDocumentContent(new MemoryStream(bytes), request.DocumentId,
+                request.VersionId, null, request.ExpectedSha256, bytes.Length, "estimate.xml", "application/xml"));
+        }
+    }
+
+    [Fact]
+    public async Task EstimateImportInvokesCanonicalTypedBoundaryAndSurfacesPendingOcr()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         var importer = new CapturingEstimateImporter();
@@ -49,8 +218,7 @@ public sealed class AutomationAssessmentIngressTests
                 name = "Audatex 1",
                 occurrenceId,
                 documentVersionId = versionId,
-                sha256 = hash,
-                sourceRoute = "AudatexPdf"
+                sha256 = hash
             })))
         {
             var result = await ReadStructuredContentAsync(response);
@@ -63,22 +231,21 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(occurrenceId, request.OccurrenceId);
         Assert.Equal(versionId, request.DocumentVersionId);
         Assert.Equal(hash, request.Sha256);
-        Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, request.Route);
 
-        foreach (var rejectedRoute in new[] { "AiDraft", "999", "Manual" })
-        {
-            using var refused = await PostMcpAsync(client, token, ToolCallPayload(
-                81, "pegasus_estimate_import", new
-                {
-                    caseId, expectedVersion = 7, editLeaseToken = "lease-token",
-                    operationKey = "mcp:estimate-import-rejected", name = "Rejected",
-                    occurrenceId, documentVersionId = versionId, sha256 = hash,
-                    sourceRoute = rejectedRoute
-                }));
-            using var refusal = await ReadJsonRpcAsync(refused);
-            Assert.Contains("not importable", refusal.RootElement.ToString(), StringComparison.Ordinal);
-            Assert.Equal(1, importer.Calls);
-        }
+        var ocrId = Guid.NewGuid();
+        importer.Result = new(null, ocrId, Pegasus.Core.Intake.IntakeOcrState.Unknown);
+        using var pending = await PostMcpAsync(client, token, ToolCallPayload(
+            81, "pegasus_estimate_import", new
+            {
+                caseId, expectedVersion = 7, editLeaseToken = "lease-token",
+                operationKey = "mcp:estimate-import-complete", name = "Audatex 1",
+                occurrenceId, documentVersionId = versionId, sha256 = hash
+            }));
+        var pendingResult = await ReadStructuredContentAsync(pending);
+        Assert.False(pendingResult.TryGetProperty("estimateId", out _));
+        Assert.Equal(ocrId, pendingResult.GetProperty("ocrOperationId").GetGuid());
+        Assert.Equal("Unknown", pendingResult.GetProperty("ocrState").GetString());
+        Assert.Equal(2, importer.Calls);
     }
 
     [Fact]
@@ -762,11 +929,12 @@ public sealed class AutomationAssessmentIngressTests
         public static readonly Guid EstimateId = Guid.Parse("80b99604-d8b3-4028-9bc4-b744f82c297f");
         public ImportRawEstimateRequest? Request { get; private set; }
         public int Calls { get; private set; }
-        public Task<Guid> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        public EstimateImportResult Result { get; set; } = new(EstimateId, null, null);
+        public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Request = request;
             Calls++;
-            return Task.FromResult(EstimateId);
+            return Task.FromResult(Result);
         }
     }
 

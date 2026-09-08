@@ -651,7 +651,6 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(RetainedMediaTypes, harness.Custody.Retained.Select(item => item.MediaType));
 
         var import = Assert.Single(harness.Import.Requests);
-        Assert.Equal(RepairSpecificationSourceRoute.Glasses, import.Route);
         Assert.Equal(harness.CaseId, import.CaseId);
         Assert.Equal(Harness.CaseVersion, import.ExpectedVersion);
         Assert.Equal(Harness.LeaseToken, import.EditLeaseToken);
@@ -1640,10 +1639,11 @@ public sealed class GlassRepairEstimateGatewayTests
 
         public List<ImportRawEstimateRequest> Requests { get; } = [];
 
-        public Task<Guid> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Refusal is null ? Task.FromResult(EstimateId) : Task.FromException<Guid>(Refusal);
+            return Refusal is null ? Task.FromResult(new EstimateImportResult(EstimateId, null, null))
+                : Task.FromException<EstimateImportResult>(Refusal);
         }
     }
 
