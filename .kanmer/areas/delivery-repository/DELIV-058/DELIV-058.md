@@ -15,13 +15,13 @@ stageEntered:
 taken_at: '2026-09-08T15:09:15.962Z'
 branch: DELIV-058-architecture-assertions
 worktree: .worktrees/deliv-058
-claim_expires_at: '2026-09-08T15:48:10.819Z'
+claim_expires_at: '2026-09-08T16:18:25.204Z'
 claim_controller: codex-mcp-client
 lease_id: 238978fe-9448-4810-8709-bb4a4db3b019
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-058'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T15:18:10.819Z'
+lease_phase: verifying
+lease_heartbeat_at: '2026-09-08T15:48:25.204Z'
 labels:
   - corrective
   - ci
@@ -39,7 +39,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T15:47:47.145Z'
+updated: '2026-09-08T15:48:25.204Z'
 ---
 
 ## What

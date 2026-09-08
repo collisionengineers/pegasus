@@ -6,8 +6,8 @@ verdict: pass
 reviewer: "principal_delivery_audit"
 independent: true
 plan_hash: "07f29f3b2342f40f"
-ticket_updated: "2026-09-08T15:12:43.981Z"
-board_sha: "34bbc3e8fe642a76b84cf28ef1d3d17bd4609880"
+ticket_updated: "2026-09-08T15:47:15.850Z"
+board_sha: "e0061213105317c33ac4c49ab5c8721328f8a267"
 expected_reviewers:
   - "principal_delivery_audit"
 threads_snapshot: []
@@ -58,7 +58,7 @@ The prior needs-changes review 5138568230 remains historical evidence on
 f86054c0e7cc73cb6245355dd21c03e58196d582.
 
 At the final gather the ticket remains in Review at review round 1, timestamp
-2026-09-08T15:12:43.981Z and revision rev1:3914d17379791100. The plan version
+2026-09-08T15:47:15.850Z and revision rev1:3f09a02793ddf757. The plan version
 is 07f29f3b2342f40f. Review-stage gates are satisfied. The author worktree is
 clean on ENG-029-case-workspace-editors, and its local head and remote branch
 both equal the attested SHA. The pushed board tip is the board SHA above with
