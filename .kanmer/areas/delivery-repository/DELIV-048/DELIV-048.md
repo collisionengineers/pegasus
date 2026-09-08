@@ -14,14 +14,14 @@ stageEntered:
 taken_at: '2026-09-07T20:58:55.907Z'
 branch: DELIV-048-portable-release
 worktree: .worktrees/deliv-048
-claim_expires_at: '2026-09-08T07:22:07.867Z'
+claim_expires_at: '2026-09-08T07:31:29.370Z'
 claim_controller: principal_delivery_audit
 lease_id: 3c8db85f-4398-4b63-9133-6f8a1b49830a
-lease_revision: 40
+lease_revision: 41
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-048'
 lease_phase: review
-lease_heartbeat_at: '2026-09-08T06:52:07.867Z'
+lease_heartbeat_at: '2026-09-08T07:01:29.370Z'
 labels:
   - ci
   - tests
@@ -41,7 +41,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/701'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-08T06:52:07.867Z'
+updated: '2026-09-08T07:01:29.370Z'
 ---
 
 ## What

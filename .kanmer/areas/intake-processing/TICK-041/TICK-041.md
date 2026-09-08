@@ -14,16 +14,16 @@ stageEntered:
 taken_at: '2026-09-07T22:04:42.073Z'
 branch: TICK-041-qualified-ocr
 worktree: .worktrees/tick-041
-claim_expires_at: '2026-09-08T07:22:07.070Z'
+claim_expires_at: '2026-09-08T07:31:28.710Z'
 claim_controller: codex-v1-remediation-root
 lease_id: 80597482-bbde-49de-afe1-a3a97a0d65c9
-lease_revision: 39
+lease_revision: 40
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: root-ocr
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-041'
 lease_provider: codex
 lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T06:52:07.070Z'
+lease_heartbeat_at: '2026-09-08T07:01:28.710Z'
 labels:
   - capability
   - INT-16
@@ -50,7 +50,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/686'
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-08T06:52:07.070Z'
+updated: '2026-09-08T07:01:28.710Z'
 ---
 
 ## What
