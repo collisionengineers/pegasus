@@ -180,14 +180,15 @@ pwsh -NoProfile -File ./scripts/Test-MigrationGrants.ps1
 git diff --check
 ```
 
-Root sets PEGASUS_TEST_UI_CAPTURE_DIR to an isolated artifact directory and
+Root sets PEGASUS_TEST_UI_CAPTURE_DIR to the absolute path of the ticket's
+artifacts/test-ui-capture directory (the existing script's capture root) and
 PEGASUS_TEST_UI_SCOPE to
 administration-principal-create,administration-principal-settings for that
 same Web-test run; UI mode unset. Then reuse that capture:
 
 ```powershell
-pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -SkipCapture -Scope administration-principal-create,administration-principal-settings
-pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope administration-principal-create,administration-principal-settings
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -SkipCapture -Scope "administration-principal-create,administration-principal-settings"
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope "administration-principal-create,administration-principal-settings"
 pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1
 ```
 
