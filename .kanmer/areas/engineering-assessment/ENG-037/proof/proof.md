@@ -80,3 +80,19 @@ copied without overwrite to pegasus_pack/current/proofs/ENG-037 and their
 SHA256 values exactly match the originals above. MANIFEST.sha256 names both.
 The current ticket records the merged SHA, PR, integrated/dev and not-deployed.
 Owned temporary Git cleanup and release are pending, with artifacts safe.
+
+
+## Closeout completed — 8 September 2026
+
+All two retained TRXs remain hash-identical; MANIFEST.sha256 SHA256 is
+D32AD64065DF409D3D044D8AAB25D4997D18EA54FDF2C27A38513C5AB56EBAC6.
+Fresh MERGED readback and complete694-item ownership census found ENG-037
+alone on the recorded branch/worktree. Both explicit resolved cleanup targets
+were inside the intended .worktrees directory and clean. Normal git worktree
+remove deleted only the SHA-named detached tree and .worktrees/eng-037.
+Normal git branch -d and remote branch deletion succeeded; no force used.
+Fetch/prune passed; worktree prune dry-run found nothing before its no-op run.
+Both directories and local/remote branch are confirmed absent. The source is
+recoverable from merged PR695; retained evidence is outside those directories.
+No unrelated worktree, shared checkout, board Git or corpus was removed.
+The claim is released last after this final record and checklist are read back.
