@@ -94,3 +94,18 @@ No child/session, application build/test/restore, package build, browser/capture
 ## Bounded generation slot — INTK-065
 
 The prior verifier explicitly returned IDLE after DELIV-053 diagnostic attempt 2. /root grants /root/migration_fixture_implementation the sole CEALEX-May25 command slot for INTK-065 generated-source materialization only, using the existing generator's snapshot/canonical_json_bytes/publish helpers in `.worktrees/intk-065` on `INTK-065-principal-evidence-inventory` at base7b6aa189. No competing tests/builds are authorized. Execute the planned bounded five-record/four-ID refresh once; do not regenerate absent historical originals or mutate corpus. Preserve the exact invocation, before/after hashes and any error. No application build/test, other verification script, packaging, browser, cloud write, commit or PR. Generated JSON is an implementation output, not an independent PASS. Record completion and explicit IDLE in this same canonical host record immediately afterward so the independent verifier can run its deterministic/content/test obligations.
+
+## Bounded generation slot — INTK-065 complete — 2026-09-08
+
+Slot owner: `/root/migration_fixture_implementation` on CEALEX-May25. Frozen target: `.worktrees/intk-065`, branch `INTK-065-principal-evidence-inventory`, base `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`. Fresh process census found no dotnet/MSBuild/testhost/vstest process. The pre-write package SHA-256 was `3e043f4fab71c00ecce8c88abd8e4a5a88c35cee5a582f2d5d76daf378227d62`.
+
+One approved materialization command ran exactly once:
+```text
+COMMAND: python artifacts/intk-065-refresh.py
+EXIT: 0
+OUTPUT: status=written before_sha256=3e043f4fab71c00ecce8c88abd8e4a5a88c35cee5a582f2d5d76daf378227d62 after_sha256=b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284 source_snapshots=38
+```
+
+The ignored temporary invocation delegated only to the existing generator's `snapshot`, `canonical_json_bytes`, and `publish` helpers. It replaced the four approved current-source references and rebuilt the five policy snapshots in the tracked JSON; its temporary file was removed after the successful single invocation. Post-write SHA-256 is `b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284` (Git blob `e99e7c54923d8b5326454734dbe15f284408e3bb`). No application build/test, verification script, packaging, browser, cloud operation, commit, PR, corpus/original mutation, or independent PASS claim occurred.
+
+Canonical CEALEX-May25 command slot is now explicitly **IDLE / unassigned**. The independent verifier owns any deterministic/content/test obligations.

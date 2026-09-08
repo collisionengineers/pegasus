@@ -5,3 +5,5 @@ Phase 1 PASS (source/diff inspection only): changed generator and Core expectati
 ## Transitions
 
 - 2026-09-08T13:49:43.351Z lease-phase implementing → running-command (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 2; expires 2026-09-08T14:04:43.342Z)
+
+- 2026-09-08T13:51:06.240Z lease-phase running-command → implementing (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 3; expires 2026-09-08T14:21:06.225Z)
