@@ -276,3 +276,28 @@ runtime/browser/capture or import/provider call was run. Source stays at
 f86054c0e7cc73cb6245355dd21c03e58196d582 plus these two uncommitted files.
 No corrected runtime PASS or finding closure is claimed. Root receives the
 exact two-test filter in scratch/verify and owns the only verification lane.
+
+
+## Remediation round 1 — F-004 verified and frozen
+
+The two authorized fixture adaptations were committed as
+`fef8909e2c256388c4d738ddf78f176e0e1b5cef` and merged with accepted
+`origin/dev` `a1f0bfe260ea05df531df6e0ca3109141e7697da` as exact clean head
+`2cde68831485bfc426e062a83030edea661f976d`. The merge had only the
+recorded FRD/design documentation conflicts; their specific dispositions are
+in `scratch/execution`. No source-code conflict, rebase, force push, new
+worktree, or unrecorded source change occurred.
+
+Root's serialized verifier revalidated this exact merged head. Documentation
+links passed (140 files), Markdown placement over
+`fef8909…2cde688` passed, and the two actual F-004 callers passed 2/2 using
+the existing Release build artifacts; the merged TRX SHA-256 is
+`548339BFEE2D8945366FB063CA602D620C334D65AF73C03A63A0E3B12CBEB077`.
+The earlier failure and correction evidence remains retained in
+`scratch/verify`; this pass does not erase it.
+
+Manual editable/read-only/conflict visual acceptance at 1580/1100/760 remains
+**INCONCLUSIVE** because local-file browser navigation was refused by URL
+security. It is not waived, represented as PASS, or substituted with automated
+checks. It remains required in Verifying before Done. This handoff author
+does not self-review, merge, deploy, or make a Done claim.

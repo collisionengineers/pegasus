@@ -5,3 +5,5 @@ Host verification queue update — 2026-09-08: INTK-065 completed PASS with ever
 Host verification queue update — 2026-09-08: DELIV-057 completed PASS with exact locked restore, Release Integration build, and three focused tests recorded on its scratch/execution. Canonical host state remains ACTIVE; current lane is ENG-029 (3/4). Queue remainder is ENG-029 → DELIV-056.
 
 Host verification queue update — 2026-09-08: ENG-029 bounded F-004 caller lane completed PASS and was recorded without disturbing prior failures or the outstanding manual-visual obligation. Canonical host state remains ACTIVE; current and final lane is DELIV-056 (4/4).
+
+Host verification queue update — 2026-09-08: DELIV-056 completed FAIL with seven genuine failures (plus retained filter-overbreadth evidence); root explicitly authorized only the unrelated merged ENG-029 and DELIV-055 lanes afterward, and both completed PASS. Canonical host state remains ACTIVE for final newly granted lane DELIV-058. After DELIV-058 the slot returns IDLE to root for DELIV-053 runtime acceptance.
