@@ -176,3 +176,30 @@ Root read the complete preparation and cleared the actual file ownership.
 Fresh take/packet precedes edits. Execution stops at code-ready source for
 root's focused checks, then independently reviewable PR after actual root-run
 evidence. No self-review, merge, deployment or next ticket.
+
+
+## Root-authorized fixture correction after attempt 1
+
+The existing EVA caller fixture's literal invalid PDF contains no attached
+work-type tell. The now-required classifier correctly withholds allocation;
+this is stale test preparation, not a non-QDOS profile-guard regression.
+Preserve CaseCreated and all downstream assertions, without a policy override.
+
+Use existing QdosCorpus.Root and QdosMappingCustodyFact conventions for
+qdosmapping/(EREF10) RTA on 14_08_2026  Mr Paul Larcombe (Our Ref AMA_47857_1, Vehicle PG18 BTY).eml.
+Pin original SHA256
+3063FF9ECB31878F582FB439047D999A41A7C6FE5B978CFBEE5C7E7F277553B4.
+Keep its headers/body/33742_1_LtrtoEngineerIn.pdf unchanged; append only the
+same two existing image fixture bytes in memory for the bounded export probe.
+Explicitly call that input derived, not an untouched original. Existing
+GenuineQdosCorpus loader cannot address this supplied qdosmapping directory;
+reuse QdosCorpus resolution and the existing explicit hash-check convention,
+not another loader. Local acceptance must execute, never count a skip as PASS.
+
+The inspected letter supplies ENGINEER NOTIFICATION (REPORT + AUDIT REPORT),
+so accept InspectionAndAudit and assert its actual AMA/47857/1 reference in
+exported JSON. Replace no substantive lifecycle/outcome/ZIP/image assertion.
+Improve setup failure output with receipt reason, route and classification.
+Only CustodyOutboxIntegrationTests.cs changes in this correction; no production
+intake source, parser, schema, image generation or immutable source write.
+Root reruns only the failed actual-caller method after a compiler check.
