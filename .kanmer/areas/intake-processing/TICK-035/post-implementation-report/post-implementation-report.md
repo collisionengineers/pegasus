@@ -439,3 +439,57 @@ frozen for root to build and run only the four separately reported cases with
 FullyQualifiedName~QdosAllocationRecoveryTests.GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions.
 Already-passed53 classifier Core, fifteen-original PDF and Settings captures
 are not requested again. Prior attempts remain intact.
+
+
+## Final genuine-mail run and provenance corrections — 8 September 2026
+
+Root's next Release build PASS, exit0, zero warnings/errors,114.31 seconds.
+The four separately reported genuine-mail cases returned3 PASS (FW, SBL and
+YML report-correspondence negative),1 FAIL (ALS), zero skips,57 seconds.
+The failed line180 dereferenced the retained vehicle candidate's Locator
+after successful ALS typed facts, Case allocation, readiness and origin checks.
+TRX: artifacts/verification/tick-035-genuine-four.trx;
+SHA256:75482A9ACDCDEAB73B744027E237497744C22AA35F2244487CE08F90E90F432D.
+These are root-executed results, not author execution. All earlier failed
+rounds, passed cohorts and separate Settings evidence remain above.
+
+Independent source review confirmed two actual provenance defects. Root
+authorized one final bounded correction batch, and files e36d604170139e60 /
+plan6e4e202f8c1c4d9f were written before the edits:
+
+- EfIntakeReceiptStore's existing candidate JSON mapping serialized only
+  Value/Source/SourceLabel, dropping Core's existing Locator and RawValue.
+  Both directions and the same private record now retain all five members.
+  No schema, JSON-version migration, second serializer or compatibility layer.
+  The exact persisted ALS value-cell assertion remains unchanged. Two direct
+  located/unlocated receipt roundtrip cases in the existing
+  CaseDataCompletenessPersistenceTests assert every field/candidate member,
+  exact record equality and printed SourceValue.
+- SourceStructure indexed table number alone. ALS correctly grouped physical
+  instructions, but flattening them into the one existing field engine meant
+  a second attachment's table1/row4/column2 overwrote the first before conflict
+  handling. The same dictionary now keys by the existing selector's
+  DocumentIdentity plus Table. Original source labels and locators are unchanged.
+  The ALS original's structural negative probe combines its decoded content
+  with a second physical source label and the supplied third-party PX11OJA as
+  a conflicting client value, alongside original K40NLY. This is explicitly
+  a structural probe, not a second genuine envelope. It requires both distinct
+  values and physical sources, identical table/row/column locators, HasConflict,
+  no SuggestedValue and no typed registration. No corpus bytes were changed.
+
+The source is frozen on b47d8cc27aeba391e6cd650db3dc30d382f7e06e plus the seven
+mapped author files; root's Settings snapshot outputs are preserved. Author
+read the final diff and existing structural tests and ran git diff --check
+only, exit0. No author restore/build/test, new PR, push or delivery claim.
+
+Pending root verification: build this final frozen source, rerun only the
+failed ALS theory case in
+QdosAllocationRecoveryTests.GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions
+(principalCode: ALS), and the two new
+CaseDataCompletenessPersistenceTests.IntakeFieldCandidatesRetainProvenanceAcrossReceiptPersistence
+cases. InstructionFieldExtractionTests is the affected existing small Core
+structural-binding cohort (10 cases). Root owns the exact commands and may
+select that cohort to cover the shared dictionary change. Do not repeat already
+passed FW/SBL/YML cases,53 classifier cases, fifteen PDFs or Settings capture
+merely to repeat evidence. Actual outcomes remain pending; stop is source
+review and root checks, then independent exact-head PR review.
