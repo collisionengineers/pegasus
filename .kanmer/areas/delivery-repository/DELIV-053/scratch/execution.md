@@ -1,0 +1,3 @@
+## Host verification ownership — 2026-09-08
+
+Host CEALEX-May25. Coordinator /root owns the verification queue; no tests/builds are authorized until a single named pegasus-verifier worker receives an explicit slot grant here. Current slot: idle/unassigned. Scout, investigator and implementation workers must not launch tests, builds, verification scripts, capture/browser hosts or artifact packaging. Static file/Git inspection is permitted. Current process census found no dotnet/MSBuild/testhost/vstest process; existing operator Chrome and runtime Node/PowerShell processes are foreign and must not be terminated. A fresh process/owner check is required when granting the slot. This is a normal ticket execution record, not a new lease service.
