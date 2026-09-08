@@ -42,11 +42,29 @@ selectors, cloud/mailbox and corpus remain untouched.
 ## Checks and pending exact commands
 
 Author read-only `git diff --check` and catalogue JSON parsing passed, exit 0.
-Four current paths, +22/-4. Git emitted only the existing LF/CRLF checkout
+Initial frozen source had four paths, +22/-4; after the analyzer correction
+it has the same four paths, +23/-5. Git emitted only the existing LF/CRLF checkout
 warnings. No build, test or capture was run by the author. No runtime PASS or
 manual visual claim is made.
 
-Root cwd: `.worktrees/uiimp-017`. One locked restore/Release build as scheduled,
+### Initial root attempt and bounded correction
+
+Root session 61210: locked restore PASS, then the focused Integration Release
+build FAILED after 50.17 seconds solely on CA1859 at
+`TestUiSnapshotTests.cs(19,69)`. No tests or captures ran. This failed build is
+retained; it is not evidence of a product-runtime failure.
+
+The new direct selector regression indexes the private `StateMatches` field;
+its actual and sole initializer is already `Dictionary<string, StateMatch>`.
+Root authorized the analyzer's simplest concrete-type correction: change only
+the field declaration from `IReadOnlyDictionary` to `Dictionary`. Dictionary
+content, selectors, initializer and assertions stay unchanged. No suppression,
+interface, factory or scope expansion. Author `git diff --check` passed again
+with only the existing LF/CRLF warnings. No author build/test/capture.
+Root's incremental rebuild and the exact tests below remain pending.
+
+Root cwd: `.worktrees/uiimp-017`. Locked restore already passed; root schedules
+the incremental Integration Release rebuild,
 then Integration `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build`
 with the exact filter:
 
