@@ -52,3 +52,11 @@ Primary Microsoft documentation was consulted for Container Apps revision health
 ## Commit freeze — 2026-09-08
 
 Corrected the release-skill helper fence and the section-1 route wording. After exact eleven-file scope verification and git diff check with LF-to-CRLF advisories only, committed the frozen implementation locally as bbae334ca33c1f89617dfe458d8d7ac45dff24a0, Document destructive migration runtime shutdown. The recorded branch PLAT-046-destructive-migration-shutdown is clean. No push, PR, host script, test, build, or cloud operation was run. This exact local head is ready for verifier binding.
+
+## Static correction dispositions — 2026-09-08
+
+Independent `/root/agent_config_review` completed bounded delta review at clean commit `bbae334ca33c1f89617dfe458d8d7ac45dff24a0`: PASS, no remaining material findings. All three classes fixed by that commit: mutually-exclusive route selection (including section 1), one fenced exact-name/digest healthy Web readback helper at three provision boundaries with bounded pending and fail-closed unknown handling, and executable fresh pre-SQL Worker Stopped plus old Web inactive/zero replicas/no active revisions containment. Double-hyphen revision name matches Bicep. Root also caught and author fixed missing helper fence before commit. This is preimplementation-handoff static evidence, not a formal Kanmer PR attestation or postmerge proof. Sole verifier is running only the scoped offline queue under DELIV-053/scratch/execution; no live operations.
+
+## Transitions
+
+- 2026-09-08T18:25:47.531Z lease-phase implementing → running-command (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 5; expires 2026-09-08T18:55:47.518Z)
