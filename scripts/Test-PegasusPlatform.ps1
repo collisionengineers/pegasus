@@ -55,9 +55,38 @@ try {
         if ($args -contains '--descriptor') { return (@{ digest = $digest } | ConvertTo-Json -Compress) }
         return (@{ config = @{ digest = $digest } } | ConvertTo-Json -Compress)
     }
+
+    function New-ZipFixture {
+        param(
+            [Parameter(Mandatory)][string] $Source,
+            [Parameter(Mandatory)][string] $Archive
+        )
+
+        if ([IO.File]::Exists($Archive)) {
+            [IO.File]::Delete($Archive)
+        }
+        [IO.Compression.ZipFile]::CreateFromDirectory($Source, $Archive)
+    }
+
+    $webArchiveSource = Join-Path $fixtureRoot 'web-archive'
+    $workerArchiveSource = Join-Path $fixtureRoot 'worker-archive'
+    $missingRootSource = Join-Path $fixtureRoot 'missing-root-archive'
+    New-Item -ItemType Directory -Path (Join-Path $webArchiveSource '.playwright') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $workerArchiveSource '.azurefunctions') -Force | Out-Null
+    New-Item -ItemType Directory -Path $missingRootSource -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $webArchiveSource '.playwright/fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $workerArchiveSource '.azurefunctions/fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $missingRootSource 'fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    $webZipPath = Join-Path $fixtureRoot 'web.zip'
+    $workerZipPath = Join-Path $fixtureRoot 'worker.zip'
+    New-ZipFixture -Source $webArchiveSource -Archive $webZipPath
+    New-ZipFixture -Source $workerArchiveSource -Archive $workerZipPath
+    foreach ($name in @('web-image.tar.gz', $nativeBundle.Name)) {
+        $path = Join-Path $fixtureRoot $name
+        Set-Content -LiteralPath $path -Value 'artifact contract fixture' -Encoding utf8NoBOM
+    }
     $artifacts = @('web.zip', 'web-image.tar.gz', 'worker.zip', $nativeBundle.Name) | ForEach-Object {
         $path = Join-Path $fixtureRoot $_
-        Set-Content -LiteralPath $path -Value 'artifact contract fixture' -Encoding utf8NoBOM
         @{ name = $_; sizeBytes = (Get-Item -LiteralPath $path).Length;
             sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
     }
@@ -90,6 +119,20 @@ try {
     }
 
     Assert-Manifest
+    New-ZipFixture -Source $missingRootSource -Archive $workerZipPath
+    $manifest.artifacts[2].sizeBytes = (Get-Item -LiteralPath $workerZipPath).Length
+    $manifest.artifacts[2].sha256 = (Get-FileHash -LiteralPath $workerZipPath -Algorithm SHA256).Hash
+    Assert-Manifest -ExpectedError 'worker.zip must contain .azurefunctions/'
+    New-ZipFixture -Source $workerArchiveSource -Archive $workerZipPath
+    $manifest.artifacts[2].sizeBytes = (Get-Item -LiteralPath $workerZipPath).Length
+    $manifest.artifacts[2].sha256 = (Get-FileHash -LiteralPath $workerZipPath -Algorithm SHA256).Hash
+    New-ZipFixture -Source $missingRootSource -Archive $webZipPath
+    $manifest.artifacts[0].sizeBytes = (Get-Item -LiteralPath $webZipPath).Length
+    $manifest.artifacts[0].sha256 = (Get-FileHash -LiteralPath $webZipPath -Algorithm SHA256).Hash
+    Assert-Manifest -ExpectedError 'web.zip must contain .playwright/'
+    New-ZipFixture -Source $webArchiveSource -Archive $webZipPath
+    $manifest.artifacts[0].sizeBytes = (Get-Item -LiteralPath $webZipPath).Length
+    $manifest.artifacts[0].sha256 = (Get-FileHash -LiteralPath $webZipPath -Algorithm SHA256).Hash
     foreach ($wrongName in @('../efbundle', 'wrong.exe')) {
         $manifest.migrationBundleName = $wrongName
         Assert-Manifest -ExpectedError 'for this workstation'
