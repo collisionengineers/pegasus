@@ -134,3 +134,13 @@ exact persisted receipt/snapshot hash. All other files remain frozen.
   only existing claimant/vehicle row-start patterns recognize binary DOC's
   double-tab row boundary, preserving first-column and owner/third-party roles.
   Shared Word reader and extraction framework are deliberately unchanged.
+
+
+ALS vehicle refinement stays in the same mapped existing policy file: use
+its existing vehicle binding list and InstructionFieldEngine.SourceStructure
+with the actual labelled cell/value pairs, not double-tab vehicle regexes.
+DocumentIdentity groups physical instructions; cells exclusively own vehicle
+facts when present. The unchanged plain/newline path covers actual non-table
+sources. The same ALS theory case now checks empty client fields, duplicate
+value-cell refusal and missing client header; actual value-cell provenance
+must be column2. No reader/framework/schema or additional fixture file.
