@@ -45,3 +45,15 @@ Original broad verification/publication markers remain unchecked until every
 part is complete. Current approved plan a940dcb4f0bb7d81 explicitly records
 the manual-visual sequencing. Author worktree remains taken; no foreign claim
 was removed, and historical preparation notes above are preserved as history.
+
+## Remediation round 1 — F-004
+
+- [x] Read whole consolidated review e636932136f144cc and preserve all prior
+  local/CI failures; amend current plan/map for only the two missed fixtures.
+- [ ] Adapt the existing browser metadata/current-state fixture and existing
+  SetCurrentEstimate fake's frozen breakdown without weakening assertions.
+- [ ] Freeze for root's two named caller checks, record every result, and
+  publish the correction only to existing PR700 after root authorization.
+- [ ] Independent F-004 delta review after corrected root runtime evidence.
+
+No existing visual or exact-merge proof marker is completed by this re-entry.

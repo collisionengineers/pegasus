@@ -281,3 +281,72 @@ census to root before push/PR. Independent whole-ticket review is owned by
 principal_delivery_audit; root contributed Core/SQL/report tests and is not
 that reviewer. Exact merged-source verification and manual visual acceptance
 remain later gates, with no provider/deployment claim.
+
+## Remediation round 1 — F-004 existing caller fixtures
+
+Independent review e636932136f144cc returned PR700 at exact
+f86054c0e7cc73cb6245355dd21c03e58196d582 to Implementing on
+2026-09-08T07:21:12.133Z. Root approved one two-file correction batch.
+Resume ENG-029-case-workspace-editors in .worktrees/eng-029 through the
+fresh exact recorded packet; no take, new branch/worktree, base merge or PR.
+The initial fresh-take/checkpoint steps above are historical, not re-entry
+instructions. Current accepted dev is26ba4ed408317cccdb354dc1e115b0297f15df94;
+do not merge it into this source during the correction without coordination.
+
+### Expected files for this correction only
+
+- tests/Pegasus.IntegrationTests/Browser/AssessmentReadinessSummaryBrowserTests.cs
+- tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs
+
+The original 27-path PR remains frozen evidence; it does not authorize
+additional edits during this remediation. No production source, Core gate,
+Razor markup, schema, snapshot, shared fake, source manifest, intake fixture
+or unrelated failing CI case changes. Root exclusively runs verification.
+
+### Ordered correction
+
+1. Reuse the existing browser projection fake as ICaseReportSnapshotSource,
+   replacing its obsolete IAssessmentReportProjectionSource registration.
+   Return metadata-only CaseReportFreezeInputs/CaseReportReadinessInput from
+   the same near-empty fixture, with empty photos/preparations and absent
+   accepted estimate/value/signatory. Make Case, assessment/workspace and
+   existing access fake consistently ReportPreparation (post-handoff but
+   report-incomplete). No invented ready facts. Preserve all existing named
+   Not ready, disabled button, no Preview, shell/estimate-empty and axe
+   assertions. Add only a direct metadata-read assertion if useful to prove
+   the actual production port was called; no new host or reader.
+2. In the existing RecordingStores.SetCurrentEstimate implementation only,
+   use EstimateTotals.Compute on the Draft before marking it Accepted and
+   record the same totals/basis as real acceptance. If an already Accepted
+   estimate is selected, retain its frozen breakdown. Keep every existing
+   UseEstimateRecordsTheEngineersAcceptance request, version, lease,
+   no-lease-claim and redirected-message assertion. Do not change the
+   production ForProjection invariant or add a second totals formula.
+3. Freeze exactly those two files for root's incremental Integration build
+   and focused test filter:
+   FullyQualifiedName~AssessmentReadinessSummaryBrowserTests.NotReadyReportDraftControlsStateTheConditionAndTheShellRenders|FullyQualifiedName~AssessmentEstimateImportWebTests.UseEstimateRecordsTheEngineersAcceptance
+   No broad browser/capture/SQL cohort rerun is authorized. Report actual
+   results with all prior failures, then normal commit/push to the same
+   PR700 only after root approval; fresh gates to Review and independent
+   F-004 delta review. Do not self-review or merge.
+
+### Governing contract and ownership
+
+FRD-11 Readiness owns the metadata-only snapshot and existing named Core
+readiness; accepted estimate figures use their stored breakdown. This batch
+updates the two missed test consumers to those unchanged required contracts,
+not the other way round. F-001/F-002/F-003 stay fixed; F-005 manual multi-width
+visual remains INCONCLUSIVE and required in Verifying before Done.
+
+Root's bilateral scratch handoff releases only the Principal paragraph in
+docs/design/README.md and generated docs/design/test-ui/index.html to PLAT-050.
+Preserve ENG-029's committed Case design change through normal integration.
+docs/index.md was never owned by this ticket; root corrected that shorthand.
+No whole-ticket claim release or visual waiver. Source-manifest and unrelated
+intake/browser/SQL CI failures remain separate existing-owner work.
+
+## Current stop condition
+
+Stop with the two mapped fixture corrections source-frozen and exact filter
+sent to root. No author build/test, push/PR update, merge, deployment or Done
+before the next explicitly authorized verification/publication handoff.

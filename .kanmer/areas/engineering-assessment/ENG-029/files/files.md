@@ -76,3 +76,25 @@ the mapped CaseDataCompleteness assertion method after that merge;
 its accepted constructor change remains outside this ticket's edits.
 Fresh isolated packet/worktree/take remain required. Root alone runs heavy
 checks; freeze before publication. ENG-031 and ENG-036 remain excluded.
+
+## Remediation round 1 current edit authority
+
+Independent review e636932136f144cc F-004 and root's explicit approval
+narrow current writes to exactly two existing fixture consumers:
+
+| File | Exact correction |
+| --- | --- |
+| tests/Pegasus.IntegrationTests/Browser/AssessmentReadinessSummaryBrowserTests.cs | Existing fake/registration supplies ICaseReportSnapshotSource metadata; Case/assessment/access consistently ReportPreparation but incomplete; preserve disabled/no-preview/shell/axe assertions. |
+| tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs | RecordingStores.SetCurrentEstimate only: mirror real Draft acceptance with the one EstimateTotals.Compute result and basis, retaining previously accepted totals; preserve all existing acceptance/request/lease assertions. |
+
+The initial 25 source/doc/test paths and two committed snapshots above are
+frozen historical PR scope, not future write permission in this round.
+No shared production/helper/manifest/intake fixture edits; no source merge
+or new branch/take. Exact resume: .worktrees/eng-029 on
+ENG-029-case-workspace-editors at f86054c0e7cc73cb6245355dd21c03e58196d582.
+
+Root releases only design README's Principal paragraph and generated
+Test UI index to PLAT-050; preserve this PR's existing committed Case design
+change during later normal integration. docs/index.md was never mapped here.
+Bilateral scratch handoff is recorded on both tickets. Manual visual/caller
+acceptance and the existing claim remain with ENG-029.

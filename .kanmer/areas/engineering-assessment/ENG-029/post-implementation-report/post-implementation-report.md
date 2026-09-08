@@ -227,3 +227,31 @@ skipped CI is called PASS. No new build or source merge occurred after the
 recorded checkpoint. Manual visual remains required in Verifying. Independent
 reviewer principal_delivery_audit owns the exact-head attestation and any
 permitted merge; neither author self-reviews or self-merges. Source frozen.
+
+## Remediation round 1 — in progress, no corrected runtime claim
+
+Consolidated independent review e636932136f144cc/public5138568230 returned
+exact f86054c0e7cc73cb6245355dd21c03e58196d582 on PR700 to Implementing
+at2026-09-08T07:21:12.133Z. F-001–F-003 remain fixed; F-004 is one missed
+fixture-adaptation class with two actual failures. Browser/Test-UI timeout
+in NotReadyReportDraftControlsStateTheConditionAndTheShellRenders uses the
+old preview-source port and inconsistent pre-handoff fixture state.
+UseEstimateRecordsTheEngineersAcceptance reaches HTTP500 because its fake
+marks a Draft accepted/current without the real store's frozen breakdown.
+
+Root authorizes only those two existing test files. Plan/map amended before
+edits; preserve every disabled/no-preview/shell/axe and request/lease/version/
+acceptance assertion and all production guards. Source-manifest and other
+intake/SQL/browser failures are not absorbed. No new source commit or runtime
+result for this correction yet. F-005 manual visual remains required and
+unchecked in Verifying; no Done/deployment claim.
+
+Completed GitHub CI34196369756 at the reviewed head is FAILURE, not waived by
+an empty required-check set or approved skip-CI intention. Whole independent
+review retains exact jobs/failed-class census: unit1928P/1F/14skip;
+SQL1 672P/5F/1skip; SQL2 616P/29F/3skip; SQL3 620P/15F/0skip;
+browser133P/2F/0skip and Test-UI capture133P/2F/0skip. Browser/capture repeat
+the same two failures, not four defects. Test-UI stopped during capture.
+Reviewer/root own retained job logs; author independently read the settled
+GitHub job statuses but did not rerun/download/replace their evidence.
+All earlier local failed/pass TRXs and report sections remain intact.
