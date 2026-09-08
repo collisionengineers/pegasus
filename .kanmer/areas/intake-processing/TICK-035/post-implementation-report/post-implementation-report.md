@@ -322,3 +322,43 @@ Core CaseContracts/IntakeOcr, PdfOcrQualification and migrations, preserving
 accepted PLAT-072, TICK-041 and PLAT-065. git diff --check exit0; clean worktree;
 origin/dev is an ancestor; no unresolved files. Runtime checks remain pending
 at this combined source, and earlier failures remain above as attempt history.
+
+
+## Combined head verification and final two-source correction
+
+Root verified b47d8cc27aeba391e6cd650db3dc30d382f7e06e: Release build PASS,
+exit0, zero warnings/errors,117.28 seconds; PrincipalMailClassificationPolicyTests
+53 PASS. Integration14 had12 PASS/2 FAIL, retained at
+artifacts/verification/tick-035-combined-integration.trx; matching Core TRX is
+artifacts/verification/tick-035-combined-core.trx. The previous two failing
+Integration rounds and earlier Core failures remain in this report.
+
+The two current failures differ from those earlier causes:
+- YML's genuine HDUK01 original supplied no match keys. Actual read-only calls
+  to the already-built reader/extractor exposed the isolated uppercase issuer
+  letterhead before Dear and the later closing issuer. SignatureRegex's first
+  case-insensitive match took the header, so the existing Fields guard yielded
+  no values. Current time and UnixEpoch both returned empty drafts; matcher
+  clock was not the cause. Older derived Astra text has the header joined to an
+  email-address line and did not expose this real reader shape.
+- ALS now has the actual Case, correct images/completeness and Review state.
+  Its source-hash assertion compared lowercase fixture text with uppercase
+  persisted hexadecimal. ProcessIntake intentionally uses Convert.ToHexString;
+  this is an assertion representation defect, not changed source bytes.
+
+Root-authorized minimal correction (research71d44b8b2b63786e,
+filesf3285c16d57a40cc, plan40c75d5b7720e6e2 amended before edits):
+YmlInstructionExtractionPolicy now locates its closing issuer only after the
+proven Dear boundary. No label/identity parser is duplicated. The same original
+now must satisfy exact labelled YML name/reference/VRM/incident/instruction date;
+a structural probe removing its closing signature still must produce no keys.
+The genuine-email test compares decoded SHA bytes and separately exact
+receipt.SourceHash to snapshot.OriginSourceHash. No production hash change,
+new original, relaxed provenance assertion or additional test infrastructure.
+
+Only three existing files changed after the combined head (24 additions,
+2 removals). git diff --check exit0. No author build/test or external writes.
+Source frozen for root rerun of the two failed genuine-source methods only;
+focused Settings capture/verify/catalogue remains pending. Independent
+read-only correction review of b47d8cc found both prior findings fixed and no
+new material delta finding, but is not a formal exact-PR attestation.
