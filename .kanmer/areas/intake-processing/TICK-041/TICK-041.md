@@ -38,10 +38,7 @@ groups:
 links:
   - PLAT-065
   - TICK-085
-blocks:
-  - INTK-049
-  - PLAT-065
-  - TICK-085
+blocks: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
@@ -53,7 +50,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/686'
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-09-08T01:36:40.797Z'
+updated: '2026-09-08T01:44:56.516Z'
 ---
 
 ## What
@@ -94,3 +91,14 @@ INT-16 was previously allocated only to scan-like instruction pages. The operato
 ## Current authority — 7 September 2026
 
 The operator explicitly authorizes Azure Document Intelligence provisioning and implementation for v1. The old no-live-approval assumption is superseded; exact resource/role/cost details will be recorded by [[PLAT-065]]. ADR-0040 is reserved for this application contract (ADR-0039 belongs to [[DELIV-048]]). Current runtime already has the intake OCR port/provider/Worker/store; extend and wire those, do not rebuild them. [[TICK-085]] retains the deterministic Glass's PDF parser and five-sample acceptance scope.
+
+## Integrated contract and remaining acceptance — 8 September 2026
+
+PR686 is integrated in dev at d367219669ad26d5f2b727bd10b582330febc906.
+The accepted ADR-0040 and existing source-bound OCR/Worker contract are available
+to [[TICK-085]], [[PLAT-065]] and [[INTK-049]]. Their execution no longer waits
+for this ticket to reach Done: that former edge formed a completion cycle
+because this ticket's caller/live acceptance needs TICK-085 and PLAT-065.
+Remove only the obsolete execution-block edges; retain all links, unchecked
+acceptance and Verifying status. This is not live activation or OCR-provider
+success. Exact integrated/caller/provider evidence remains required before Done.
