@@ -60,3 +60,23 @@ Independent `/root/agent_config_review` completed bounded delta review at clean 
 ## Transitions
 
 - 2026-09-08T18:25:47.531Z lease-phase implementing → running-command (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 5; expires 2026-09-08T18:55:47.518Z)
+
+## Sole-host verification attempt — stopped on first failure — 2026-09-08
+
+Canonical grant: DELIV-053 `scratch/execution` version `33c59faa785d673c`.
+Ready PLAT-046 execution packet: ticket revision `rev1:2d08604afca6b66b`; plan `6dc328062a78eda0`; checklist `cde62a0c45158a1f`; files `d8b67e022854fd51`.
+Frozen base/head: `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `bbae334ca33c1f89617dfe458d8d7ac45dff24a0`.
+Recorded worktree/branch: `.worktrees/plat-046` / `PLAT-046-destructive-migration-shutdown`.
+
+Preflight at 2026-09-08T18:25:42.0295735Z exited 0: exact worktree root and common repository, exact branch/head, clean status, base is an ancestor, exactly the packet's eleven changed paths, distinct active-ticket worktree ownership, and zero dotnet/MSBuild/testhost/vstest processes. Lease `f52130e7-d7ab-40ac-aa69-edb643bda825` renewed to revision 5 in `running-command` phase before execution.
+
+Sequential commands:
+
+1. 2026-09-08T18:26:00.2490218Z–2026-09-08T18:26:01.2686877Z — `pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1` — exit 0.
+   Output: `Release workstation and manifest contract passed (win-x64); Windows/Linux mappings checked.` and `Pegasus platform LocalDB state classification passed.`
+2. 2026-09-08T18:26:08.7763664Z–2026-09-08T18:26:09.7411358Z — `pwsh -NoProfile -File ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` — exit 1.
+   Output: `Test-AzureDeploymentPlan.ps1: Cannot bind argument to parameter 'Actual' because it is an empty array.`
+
+Disposition: **FAIL / stopped at the first genuine failure**. No retry, diagnosis, source correction, or inferred PASS. The granted documentation-links, Markdown-placement, and all-PowerShell-fence parse checks were not started. At 2026-09-08T18:26:30.8723382Z the exact HEAD remained clean and zero heavy processes remained.
+
+No dotnet, cloud, Azure, recipe execution, SQL, browser, source edit, commit, push, or live operation occurred. PLAT-046 remains Implementing for primary disposition.
