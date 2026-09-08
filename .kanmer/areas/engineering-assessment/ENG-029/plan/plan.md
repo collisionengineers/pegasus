@@ -222,3 +222,35 @@ methods keep their full lifecycle, recorded-value and read-only assertions;
 no new fixture host or production change. Root separately owns the already
 mapped CaseWorkspacePersistenceTests and AssessmentReportDraftWebTests
 changes while pack_reconcile owns the other Web fixtures and source.
+
+## Unchanged accepted-value provenance correction
+
+Root confirmed the current shared CaseDataFieldWriter.SetConfirmed recreates
+an equal accepted Fact as a staff confirmation and refreshes equal Confirmed
+actor/time when a submitted workspace section carries unshown fields. This
+contradicts this plan's preserved-facts requirement. Add only
+src/Pegasus.Infrastructure/Persistence/EfCaseDataStore.cs to the write map:
+make an exact equal value/type no-op when it matches an existing Confirmed,
+or a Fact when no Confirmed exists. Suggestion is never accepted for this
+comparison. Keep actual changed-value and explicit-clear behavior, source
+metadata for real changes and the existing two callers: workspace save and
+EfCaseDataStore's SaveCase path (including its current MCP caller).
+
+No reader, schema, request flag, additional store or independent writer.
+Root owns the focused existing CaseWorkspacePersistenceTests submitted-
+Overview proof: equal Fact remains Fact with original provenance, equal
+Confirmed retains actor/time, Suggestion-only input is not treated as an
+accepted no-op, and actual changes/clears plus one transaction/replay remain
+covered. Do not claim this SQL proof until root executes it. The author owns
+only the existing writer guard and must freeze it before root verification.
+
+Root also identified the existing assertion consumer
+CaseDataCompletenessPersistenceTests.ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory:
+its equal Jane Example and AB12CDE expectations currently require redundant
+Confirmed rows. Update only those assertions to unchanged original Fact/source
+and no Confirmed, preserving all version/lease/replay/history/identity and
+readiness assertions. Add that exact method to focused verification. Its file
+contains INTK-064's constructor change, so author must wait for that ticket's
+integration and explicit source handoff before editing it; never import an
+unpublished or cherry-picked constructor delta. Root still owns the separate
+submitted-Overview test in CaseWorkspacePersistenceTests.

@@ -19,6 +19,7 @@ Root approved this exact scope and handed off mapped files at 05:17 UTC on
 | src/Pegasus.Core/Assessment/AssessmentContracts.cs | Remove unused SettlementRepairDuration constant and writable definition only; add no vocabulary. |
 | src/Pegasus.Core/Assessment/AssessmentPolicy.cs | Include supported PostReport in existing writable-state owner only. Do not broaden any other lifecycle state or finding authority. |
 | src/Pegasus.Core/Reports/AssessmentReportProjection.cs | Expose the existing settlement calculation as one pure incomplete-input-safe projection reused by Case display and report generation; no duplicate formula/output record or changed report semantics. |
+| src/Pegasus.Infrastructure/Persistence/EfCaseDataStore.cs | Existing CaseDataFieldWriter.SetConfirmed only: exact equal accepted Fact/Confirmed value and type is a no-op, preserving original provenance; never treat Suggestion as accepted. Preserve real change/clear behavior and both current workspace/SaveCase callers. No reader/schema/flag changes. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseWorkspaceStore.cs | Denial message only: remove stale duplicated lifecycle-state list; no guard or query change. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseAssessmentStore.cs | Same directly affected denial-message correction only. |
 | src/Pegasus.Infrastructure/Persistence/EfValuationStore.cs | Same directly affected Engineer value denial-message correction only. |
@@ -33,8 +34,9 @@ Root approved this exact scope and handed off mapped files at 05:17 UTC on
 | tests/Pegasus.Core.Tests/Assessment/AssessmentPolicyTests.cs | Missing PostReport write acceptance with unchanged other-state boundaries; dead path refusal and existing normalization/finding invariants. |
 | tests/Pegasus.Core.Tests/Reports/AssessmentReportProjectionTests.cs | Existing D41 exact values/equity/Estimate repair days reused by both projections, including missing accepted input. |
 | tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs | Update existing recording save caller; all new fields/typed members, old hidden facts, authority/antiforgery, refusal retention, partial-load/no-render side effects. Existing fixture only. |
-| tests/Pegasus.IntegrationTests/CaseEngineerSectionsWebTests.cs | Existing metadata-source fake composition only, preserving the existing lifecycle/read-only/recorded-value assertions. |
+| tests/Pegasus.IntegrationTests/CaseEngineerSectionsWebTests.cs | Existing metadata-source fake composition and required frozen accepted-estimate totals only, preserving the existing lifecycle/read-only/recorded-value assertions. |
 | tests/Pegasus.IntegrationTests/CaseEditModeWebTests.cs | Existing one Save/Discard/form association/current-versus-proposed and keyboard/cross-section intent; no new browser harness. |
+| tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs | Only ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory equal-value expectations: preserve original accepted Fact/source without redundant Confirmed; retain all other assertions. Await INTK-064 integration/source handoff before editing; its constructor change is not this ticket's scope. |
 | tests/Pegasus.IntegrationTests/CaseWorkspacePersistenceTests.cs | Actual SQL combined save/replay/rollback, PostReport and preserved Case facts/completeness/current-report invalidation. |
 | tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs | Actual page metadata-readiness and saved-field-to-preview input parity with existing renderer seam; no external image read on ordinary GET. |
 | docs/design/test-ui/pages/case-details--default.html | Scoped fresh capture/update/verify of changed route. |
