@@ -52,5 +52,6 @@ Intake/extractor/Case-data schema and fields; UI and MCP; Case readiness,
 assignment or handoff behavior; ZIP/export types/mapping/fixtures; new address
 parser/geocoder; inspection/repairer/third-party substitution; InstEmail,
 credentials, Principal activation, delivery configuration, live EVA requests
-and automatic submission. FRD-07 ownership awaits root sequencing with
-TICK-085; no take or source edit is authorized during this preparation.
+and automatic submission. Root checked the actual write maps: TICK-085 does
+not claim FRD-07; its context reference is not a write owner. CASE-031 may
+change only the API paragraph while preserving the separate import section.

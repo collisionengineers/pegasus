@@ -16,8 +16,12 @@ The address already extracts, persists with provenance and supports normal
 Case editing. Only the API payload/map/serializer and local submission guard
 are missing. Old plan 85d53ae384521aa8 is superseded, not another implementation
 track. CASE-031 is Preparing and untaken. No tests ran during preparation.
-Before later take, root must sequence FRD-07 ownership with TICK-085 and select
-fresh accepted dev, preserving TICK-035's canonical provenance changes.
+Root has read this complete plan and approved execution from accepted dev
+56566371a5b80ef59c4f98e377c8e8ff6469b5f7. TICK-035's changed-file census has
+no overlap with this ten-file map. TICK-085's actual write map covers FRD-06
+and FRD-10, not FRD-07: its FRD-07 reference is context only. The claimed-write
+intersection is empty. CASE-031 owns only the direct-API paragraph; preserve
+all estimate-import text and the separately owned intake/Case-data changes.
 
 ## Governing docs
 
@@ -143,8 +147,9 @@ email calls, credentials, InstEmail, Principal activation or deployment work.
 
 ## Commands
 
-Execution is not authorized by this preparation. Once root assigns execution,
-root alone runs heavy commands in the exact ticket worktree (PowerShell 7).
+Root authorizes a fresh isolated take and execution: branch
+CASE-031-eva-claimant-address, worktree .worktrees/case-031, from the exact
+accepted dev SHA above. Root alone runs heavy commands (PowerShell 7).
 Author supplies the frozen source and reads exit-coded evidence.
 
     dotnet restore ./Pegasus.slnx --locked-mode
@@ -167,7 +172,7 @@ or intended behavior just to make a test pass.
 
 ## Stop condition
 
-This preparation ends with research/files/plan/checklist/body read back in
-Preparing, untaken, for root's bounded review and ownership sequence. Later
-assigned execution stops at independently reviewable source plus actual
-root-run evidence; no self-review, merge, deployment or next ticket.
+Root read the complete preparation and cleared the actual file ownership.
+Fresh take/packet precedes edits. Execution stops at code-ready source for
+root's focused checks, then independently reviewable PR after actual root-run
+evidence. No self-review, merge, deployment or next ticket.

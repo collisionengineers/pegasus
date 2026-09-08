@@ -27,7 +27,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-09-08T02:25:46.530Z'
+updated: '2026-09-08T02:29:53.238Z'
 ---
 
 # Send the canonical claimant address in EVA API submissions
@@ -77,7 +77,9 @@ ZIP remain unchanged.
 
 ## Execution boundary
 
-Preparing and untaken. Root's preparation assignment authorizes board documents
-only; execution awaits root sequencing of FRD-07. No product choice is unresolved.
+Root has reviewed the complete preparation and actual write-map intersection.
+CASE-031 may take its fresh isolated branch/worktree from accepted dev
+56566371a5b80ef59c4f98e377c8e8ff6469b5f7. TICK-085 does not write FRD-07;
+only this ticket's API paragraph is authorized. No product choice is unresolved.
 
 ## Outcome
