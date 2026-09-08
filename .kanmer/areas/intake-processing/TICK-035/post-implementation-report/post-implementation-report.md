@@ -362,3 +362,80 @@ Source frozen for root rerun of the two failed genuine-source methods only;
 focused Settings capture/verify/catalogue remains pending. Independent
 read-only correction review of b47d8cc found both prior findings fixed and no
 new material delta finding, but is not a formal exact-PR attestation.
+
+
+## Current-envelope correction and ALS fields — 8 September 2026
+
+Root's next Release correction build PASS: exit0,23.09s, zero warnings/errors.
+Focused five checks: four PASS/one FAIL, recorded in
+artifacts/verification/tick-035-yml-hash-settings.trx. PASS includes the genuine
+fifteen-principal original typed-key test (including corrected YML), QDOS and
+YML Settings, and actual pegasustest Administration default capture. The mail
+loop failed at line68 on YML InstructionDraft, not its accepted sender route.
+ALS reached its successful Case, source-hash and provenance checks first.
+This failure and all prior rounds remain in this report.
+
+Separate Settings evidence from root, without recapture: scoped update2 PASS;
+verify2 PASS (6s); catalogue60 routes/67 prototypes/zero broken, session14491
+exit0. Root-owned snapshot outputs remain in this worktree; author preserved
+them and did not run a capture/build/test.
+
+Read-only inspection of all four exact emails through already-built reader,
+selector, selected-content classifier and typed match extraction proved:
+- ALS, FW and SBL: accepted direct sender, matching selected profile, Inspection
+  request, usable claim key. FW and SBL typed identity is populated.
+- YML HD4021: accepted exact direct sender networkhduk@gmail.com, but current
+  body requests comments on a third-party report. PDFs are fee note/reports;
+  the initial instruction is two messages deep in quoted history. No matching
+  current instruction profile/draft/type is correct, not a routing defect.
+
+Root approved retaining that exact YML email/hash as the negative outcome,
+not manufacturing a positive by reading historical instruction. A bounded
+local .eml text search found no separate YML initial envelope; the pack47
+email inventory and original five HDUK PDFs do not provide one. Genuine YML
+mail allocation is NOT claimed. Its original PDF/profile proof remains PASS.
+Two exploratory diagnostic invocations used an omitted classifier selected-
+content argument or wrong result property; those incomplete observations were
+discarded and corrected. A broad reflection GetTypes probe failed on unloaded
+ASP.NET shared dependencies; it supplied no evidence and changed nothing.
+Only the successful explicit reader/profile/current-content calls support
+the observations above. No author SQL/provider operation or test ran.
+
+Further actual-source gap: ALS binary DOC's table text flattens row markers
+into tabs, hiding claimant/vehicle values from newline-only extraction.
+The old conditional provenance test could pass with null claimant/VRM/make.
+Root approved fixing the existing ALS owner and pinning actual source facts.
+The shared binary reader documents last-paragraph-only cell limitations and
+is unchanged. Claimant's current text boundary accepts the actual paired-
+header row before Name, not the owner's Name across a single adjacent tab.
+Vehicle values instead use existing structured cells: prove one Clients
+Vehicle header beside Third Party Vehicle, bind column1 labels to column2
+values, preserve original value-cell locators, and reuse the existing shared
+field engine. An initial double-tab vehicle-regex proposal was rejected during
+the empty-cell check because adjacent empty cells are ambiguous. No such
+vehicle regex widening remains. Missing/duplicate client cells or missing
+client header do not borrow columns3/4 or fall back to flattened vehicle text.
+
+Plan4ace80f09f19ad4a records this refinement before the structured-source edit;
+filescd54f2533b15aca0 gives its final same-file mapping. Existing four-original
+test is now a ReferencePackTheory with ALS/YML/FW/SBL separately reported.
+Every original still has two distinct occurrences and duplicate replay:
+ALS/FW/SBL each require exactly one Inspection Case, unique association on the
+next occurrence, pinned4/0/0 images and Review/NotReady/NotReady, actual origin
+hash and exact field provenance. Name/reference/VRM/incident/instruction date
+and make are asserted against supplied identities, not nullable draft output.
+ALS model and distinct owner are pinned, vehicle source cells must be column2,
+and empty client values, duplicate client cell and missing header are negative
+probes over the same original's decoded content. YML requires accepted route,
+Unclassified/no draft/no case type/no Case/no allocation on both occurrences
+and after replay; its18 selected images are retained but do not make an
+instruction.
+
+Current source: b47d8cc27aeba391e6cd650db3dc30d382f7e06e plus four author files
+(ALS/YML policies and the two genuine-source integration fixtures), alongside
+root's Settings snapshot outputs. Author git diff --check exit0. No new
+build/test, PR, push, Review or PASS claim for these corrections. Source is
+frozen for root to build and run only the four separately reported cases with
+FullyQualifiedName~QdosAllocationRecoveryTests.GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions.
+Already-passed53 classifier Core, fifteen-original PDF and Settings captures
+are not requested again. Prior attempts remain intact.
