@@ -11,7 +11,7 @@ provider resubmission.
 
 Evidence: research/research.md@d3759f8ba28174b4; files/files.md@5f18ecab1fd5634d.
 Source inspected: origin/dev 783b537f189ead88553f940d03df0d1f9558ef75.
-TICK-041 source contract and ENG-041 merge are execution prerequisites. The
+TICK-041 merged d367219669ad26d5f2b727bd10b582330febc906 and ENG-041 merged baafa29e0f7002b8235aa43bf333f5d9bb172828; their exact contracts are now recorded in open-questions. Execution still waits for CASE-049's native handoff/access change to merge and release overlapping Case Details/assessment fixture ownership. The
 root approved this design in principle and the MCP/current-source-persistence
 dispositions. Ticket remains Preparing, untaken; no source worktree exists.
 Historical ticket descriptions of absent Glass XML/launch and no shared command

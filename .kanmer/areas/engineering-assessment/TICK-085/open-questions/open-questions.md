@@ -23,13 +23,9 @@
 
 ## Before execution
 
-- [ ] TICK-041 must publish its exact BeginDocumentAsync and font-helper
-  signature, accepted ADR-0040 and retained completed-result contract. Root
-  owns that dependency; refresh plan/refs after its source is ready. Do not
-  invent a parallel OCR request or worker from this planning sketch.
-- [ ] ENG-041 must merge before a fresh TICK-085 packet/worktree so its shared
-  Case estimate handler/contracts and runtime fixes are the base, not a
-  competing version. Root owns integration order.
+- [x] TICK-041 merged d367219669ad26d5f2b727bd10b582330febc906 with ADR-0040. Exact API: IntakeOcrOperationKeys.BeginDocumentAsync(IIntakeOcrOperationStore, CaseDocumentMetadata, IReadOnlyList<int>, CancellationToken); normalized pages and source Case/occurrence/version/hash bind its ID and persisted length. Completed IntakeOcrOperation.Result/PageResults are retained neutral evidence. PdfOcrQualification.HasUnusableTextMap(PdfDocument, Page) owns only the positive Type3 text-map fault, not scan policy. No parallel OCR request/worker.
+- [x] ENG-041 merged baafa29e0f7002b8235aa43bf333f5d9bb172828; current integration includes its accepted interruption/replay/authority corrections.
+- [ ] CASE-049 must merge and release its overlapping Case Details/assessment fixture ownership before TICK-085 execution. PLAT-072 merged d442366787d452da22d36719272d4eb79dc1afde and is undergoing exact-merge verification; CASE-049 is next. Root owns this order.
 
 ## Evidence work in the bounded checklist
 
