@@ -294,7 +294,21 @@ if ([regex]::Matches($platformBicep, "resource\s+\w+\s+'Microsoft\.Storage/stora
     throw 'The production template must declare exactly two storage accounts.'
 }
 Assert-TextAbsent $platformBicep 'workerAuthenticationRing' 'Worker access to the Web authentication ring is prohibited.'
-Assert-TextAbsent $combined '(?i)\bdocumentintelligence\b|\bcognitiveservices\b|\bfoundry\b|\bmaps\b|\bvision\b|\bstaticwebapp\b' 'Deferred Azure services are prohibited from the alpha deployment.'
+Assert-TextAbsent $combined '(?i)\bfoundry\b|\bmaps\b|\bvision\b|\bstaticwebapp\b' 'Deferred Azure services are prohibited from the alpha deployment.'
+# ADR-0040 permits one keyless Document Intelligence account, not the other
+# Cognitive Services kinds or an additional account.
+$ocrAccounts = [regex]::Matches(
+    $platformBicep,
+    "(?ms)^resource documentIntelligence 'Microsoft\.CognitiveServices/accounts@2026-05-01' = \{.*?^\}"
+)
+if ($ocrAccounts.Count -ne 1) {
+    throw 'The production template must declare exactly the approved Document Intelligence account.'
+}
+$ocrAccount = $ocrAccounts[0].Value
+Assert-Text $ocrAccount "kind:\s*'FormRecognizer'" 'Only the FormRecognizer Document Intelligence account kind is approved.'
+Assert-Text $ocrAccount "sku:\s*\{\s*name:\s*'S0',\s*tier:\s*'Standard'\s*\}" 'Document Intelligence must use the approved S0 SKU.'
+Assert-Text $ocrAccount 'disableLocalAuth:\s*true' 'Document Intelligence local authentication must remain disabled.'
+Assert-TextAbsent ($combined.Replace($ocrAccount, '')) '(?i)\bcognitiveservices\b' 'Additional Cognitive Services resources are prohibited.'
 
 $bootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-ProductionAdministratorBootstrap.ps1') -Raw
 $databaseBootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-AzureDatabaseBootstrap.ps1') -Raw
