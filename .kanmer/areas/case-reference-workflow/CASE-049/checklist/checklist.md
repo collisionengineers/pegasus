@@ -7,4 +7,4 @@
 
 ## Progress
 
-Waiting for PLAT-072 shared fixture/schema cleanup merge before taking a new branch. Current user directive supplies behavior approval; no live write is involved.
+Author implementation frozen in .worktrees/case-049 at base19e6f523; 26 declared files changed. PLAT-072 is integrated and the current ENG-041 correction scope is disjoint. Native handoff, no-export access, retained read-only projection, focused tests and governing docs are implemented. Root has the exact filters/capture owners in scratch/execution.md and owns runtime verification. Test-bearing checkboxes remain unticked until those checks pass; snapshots and PR are still owed. No author build/test or external write.

@@ -274,3 +274,27 @@ For a document with structured cells, those cells exclusively own vehicle
 reading. No shared binary reader changes. Only claimant Party's existing
 boundary accepts the proved double-tab before the Name paragraph; its adjacent
 owner Name remains excluded. Root approved this refinement before source edits.
+
+
+## Final bounded provenance correction approved by root
+
+Root's four-case run had3 PASS (FW/SBL/YML) and1 FAIL (ALS persisted locator),
+after a114.31s clean build. EfIntakeReceiptStore's current three-member
+PersistedFieldCandidate discards Core Locator and RawValue. Retain these same
+nullable members through its existing JSON mapping and record; keep the
+persisted ALS locator assertion. Add the two located/unlocated serializer
+roundtrip cases in existing CaseDataCompletenessPersistenceTests.
+
+Independent source review also proved multiple physical instruction documents
+sharing table1 collide in SourceStructure's Dictionary<int,...>, overwriting
+one document's cell before field ambiguity handling. Root approved changing
+only that existing key to (DocumentIdentity, Table), reusing the selector's
+physical-document identity function. No table renumbering, new parser, new
+index or new vocabulary. The same ALS genuine test adds a structural conflict
+probe with distinct current supplied VRMs, equal table/row/column numbers and
+distinct physical source labels. Both candidates must survive as conflict and
+no typed registration. Original source files/hashes stay immutable.
+
+Freeze both corrections together for root source review and focused verification;
+no author builds/tests. Preserve previous3 PASS, every prior failure and exact
+TRX identity. No repeated unaffected cohorts or new PR until root results.

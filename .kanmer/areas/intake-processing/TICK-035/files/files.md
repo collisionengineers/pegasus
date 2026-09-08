@@ -144,3 +144,22 @@ facts when present. The unchanged plain/newline path covers actual non-table
 sources. The same ALS theory case now checks empty client fields, duplicate
 value-cell refusal and missing client header; actual value-cell provenance
 must be column2. No reader/framework/schema or additional fixture file.
+
+
+## Persisted provenance and physical-document table identity correction
+
+- src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs: existing
+  persisted candidate JSON record and both mapping directions retain Core's
+  existing Locator and RawValue. No schema/version framework or alternative
+  serialization owner.
+- tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs:
+  direct roundtrip of existing SerializeFields/DeserializeFields with current
+  locator/printed raw value and an ordinary unlocated candidate.
+- src/Pegasus.Core/Intake/InstructionFieldExtraction.cs: SourceStructure's
+  existing table dictionary key includes the existing DocumentIdentity and table
+  number. Preserve original locators; never renumber tables or add an engine.
+- Existing QdosAllocationRecoveryTests.cs ALS genuine case: combine its current
+  client table with a second physical-source table using the supplied third-
+  party VRM as a structural conflicting client value. Keep identical table/row/
+  column numbers but distinct physical source labels. Require both candidate
+  values/source locators, HasConflict and no typed VRM, not last-document wins.

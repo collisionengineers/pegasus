@@ -54,3 +54,5 @@ case-details HTML files plus docs/design/test-ui/index.html.
 Next: root focused verification; preserve every failed attempt, fix only
 reported failures, then author report/commit/PR to dev after root authorization
 and stop for independent review. No self-review or merge.
+
+Standalone lightweight check: `git -c core.safecrlf=false diff --check`, exact .worktrees/case-049, exit0, 0.6166s, no output (8 September author freeze). No builds/tests have run.
