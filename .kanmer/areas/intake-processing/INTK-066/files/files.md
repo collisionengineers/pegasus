@@ -53,7 +53,7 @@
 | docs/frd/frd-04-parties-accounts-and-access.md | Existing staff permissions; no route-only access control. |
 | src/Pegasus.Core/Workflow/CaseEditAuthority.cs | Expected version, live same-actor lease, no theft/bypass. |
 | src/Pegasus.Infrastructure/Persistence/CaseMutationGuard.cs | Transaction-time edit/state/archive enforcement. |
-| src/Pegasus.Core/Intake/Unidentified/UnidentifiedDestinationReconciliation.cs | Locate exact existing reconciler file; U-reference resolution/recovery is not a second workflow. |
+| src/Pegasus.Core/Intake/ReconcileUnidentifiedDestinations.cs | U-reference resolution/recovery is not a second workflow. |
 | src/Pegasus.Core/ImageIntake/ImageIntakeLifecycle.cs | Existing image eligibility/registration/merge policy. |
 | tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs | One genuine intake driver and seed conventions. |
 | scripts/Update-TestUiSnapshots.ps1 | Scoped capture, existing appended focused cohort and retained evidence behavior. |
