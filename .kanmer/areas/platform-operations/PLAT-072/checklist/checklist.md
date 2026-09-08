@@ -10,3 +10,14 @@
 Implementation and focused verification complete. Independent review, exact
 merged proof and final converged release evidence remain; no Done or
 deployment claim.
+
+## Closeout — PLAT-072
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date appended)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; remove only the two exact authorized worktrees
+- [ ] Delete only merged PLAT-072-remove-staff-confirmation local/remote branch
+- [ ] Refresh/prune only owned branch metadata; retain foreign worktrees
+- [ ] `take_ticket action: "release"` last
