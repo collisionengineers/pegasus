@@ -350,15 +350,20 @@ remains visible during review.
 
 The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Web and Worker composition roots.
 
-### QDOS applicability and drafts
+### Principal applicability and drafts
 
-Fifteen principal-specific extraction profiles are implemented and selected by
-their established principal and document-profile identity. QDOS remains the
-only automatic direct-mail route into QDOS policy; a document profile never
-establishes a principal. Extraction is applied only to fully readable input.
+Fifteen principal-specific extraction profiles feed ordinary automatic mail
+intake. `PrincipalMailRoutePolicy` owns the exact sender identity catalog;
+the existing selector matches one current physical document and requires its
+principal to agree. Classifier and match-policy instances derive from the
+same extraction registrations, not a second provider list. Unknown identities
+and conflicting profiles remain Unidentified. Non-QDOS instructions require
+an agreeing profile; QDOS retains its evidenced route-bound body/Triage
+shapes when no competing profile is present. A document alone never
+establishes an automatic principal. Extraction requires fully readable input.
 
 - Positive instruction content is required; QDOS is not a fallback principal.
-- Strong instruction content may outrank a weak transport signal such as a staff-forwarding sender.
+- A staff forward proves the original sender; document content never overrides a conflicting established principal.
 - A QDOS-looking sender or filename alone creates neither a draft nor a principal suggestion.
 - The review surface shows classification evidence, ten field suggestions, missing values, conflicts, page-labelled extracted text, OCR-required state, and failure details.
 - The typed instruction-draft values are read-only on the review surface. They are editable in one place, the create screen; original candidates and provenance stay visible beside every box. A value a person keys becomes a candidate of its own, sourced to the staff correction, so the case records who said it. Review does not withhold a definitive instruction's Case/PO allocation.
@@ -367,7 +372,7 @@ establishes a principal. Extraction is applied only to fully readable input.
 
 Suggestions and typed drafts are neither editable nor approved case records. Receipt and extraction create no case, counter, year-based reference, or external categorisation.
 
-**Definitive authorised intake attempts typed case allocation at processing time.** QDOS classification persists `Inspection`, `Audit`, or `Inspection + Audit` beside its policy version. With no definitive existing-case match, the durable processing path calls the Core `IAllocateIntake` owner for a `CaseCreated` processing decision and consumes only that persisted type and the extracted principal. The case enters `Not ready` with nothing confirmed by a person, because thin ordinary detail is never a reason to withhold the reference. The evaluation-scoped automatic attempt and its outcome are durable and replay-safe. A failed attempt leaves the completed receipt and a bounded operator-safe failure; completed-work replay cannot call acceptance again. Only an authenticated, reasoned staff retry can reuse the frozen failed command.
+**Definitive authorised intake attempts typed case allocation at processing time.** Classification persists the explicitly requested type beside its policy version. With no definitive existing-case match, the durable processing path calls the Core `IAllocateIntake` owner for a `CaseCreated` processing decision and consumes only that persisted type and the extracted principal. A Case remains `Not ready` while ordinary completeness is missing; thin detail does not withhold the reference. The evaluation-scoped attempt is durable and replay-safe. A transient destination/postprocessing failure leaves pending durable work for replay against the same evaluation; a recorded allocation failure remains visible for a reasoned staff retry. Neither replay path allocates a duplicate.
 
 Only an **ambiguous** case match is withheld from automatic allocation. An Audit is definitive only where the retained email contains its instruction and a separate original report carrying one literal outcome, `repairable` or `total loss`; that creates its `a.` or `ap.` reference automatically without a staff confirmation. Missing, conflicting, or unclear standalone Audit evidence withholds the later Audit reference; it does not withhold an otherwise eligible normal Case/PO reference. A missing or disabled Principal is instead a visible recoverable allocation failure on the completed receipt. The create screen (`INT-26`) records detail and settles the inspection address. `EfCaseAcceptanceStore` still applies `IntakeDecisionPolicy.CanBecomeCase` inside the transaction, so eligibility does not depend on which caller asks, while actual success is projected only from the Case intake link.
 
@@ -767,7 +772,7 @@ The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are ser
 | Core intake receipt/query/command use cases | `src/Pegasus.Core/Intake/` |
 | Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs` |
 | QDOS extraction policy | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` |
-| QDOS mail route (`qdos_mail_route` v4), classification, and case-match policies | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` |
+| Evidenced principal mail route, classification, and case-match policies | `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` |
 | Core typed classification-to-operational-destination policy (`mail_operational_destination` v1) | `src/Pegasus.Core/Intake/Classification/MailOperationalDestinationPolicy.cs`; every known detailed classification remains in the result, reasoned Other is reserved for novel classifications, and the pure mapping performs no Outlook mutation |
 | Core case-match evaluator and `CaseMatchIndex` read model | `src/Pegasus.Core/Intake/CaseMatching/`, `src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs` |
 | Core image-intake registration, pairing, and lifecycle use cases | `src/Pegasus.Core/ImageIntake/` |

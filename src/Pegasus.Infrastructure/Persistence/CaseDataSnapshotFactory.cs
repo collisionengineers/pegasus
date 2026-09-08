@@ -196,26 +196,24 @@ internal static class CaseDataSnapshotFactory
         }
 
         var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantName, "Claimant name", CaseDataCodes.Text, draft.ClaimantName);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimNumber, "Claim number", CaseDataCodes.Text, draft.ClaimNumber);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleRegistration, "Vehicle registration", CaseDataCodes.Text, draft.VehicleRegistration);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMake, "Vehicle make", CaseDataCodes.Text, draft.VehicleMake);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleModel, "Vehicle model", CaseDataCodes.Text, draft.VehicleModel);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantName, CaseDataCodes.Text, draft.ClaimantName);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimNumber, CaseDataCodes.Text, draft.ClaimNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, draft.VehicleRegistration);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMake, CaseDataCodes.Text, draft.VehicleMake);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleModel, CaseDataCodes.Text, draft.VehicleModel);
         AddExtractedValue(
             snapshot,
             receipt,
             fields,
             CaseDataFieldNames.VehicleMileage,
-            "Vehicle mileage",
             CaseDataCodes.Integer,
             draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture));
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.AccidentCircumstances, "Accident circumstances", CaseDataCodes.Text, draft.AccidentCircumstances);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.AccidentCircumstances, CaseDataCodes.Text, draft.AccidentCircumstances);
         AddExtractedValue(
             snapshot,
             receipt,
             fields,
             CaseDataFieldNames.IncidentDate,
-            "Date of incident",
             CaseDataCodes.Date,
             Date(draft.DateOfIncident));
         AddExtractedValue(
@@ -223,7 +221,6 @@ internal static class CaseDataSnapshotFactory
             receipt,
             fields,
             CaseDataFieldNames.InstructionDate,
-            "Instruction date",
             CaseDataCodes.Date,
             Date(draft.InstructionDate));
         AddExtractedValue(
@@ -231,29 +228,23 @@ internal static class CaseDataSnapshotFactory
             receipt,
             fields,
             CaseDataFieldNames.InspectionDate,
-            "Inspection date",
             CaseDataCodes.Date,
             Date(draft.InspectionDate));
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantContactNumber, "Claimant contact number", CaseDataCodes.Text, draft.ClaimantContactNumber);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantAddress, "Claimant address", CaseDataCodes.Text, draft.ClaimantAddress);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactName, "Contact name", CaseDataCodes.Text, draft.FileHandlerName);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactEmailAddress, "Contact email", CaseDataCodes.Text, draft.FileHandlerEmailAddress);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactPhoneNumber, "Contact phone", CaseDataCodes.Text, draft.FileHandlerPhoneNumber);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VatStatus, "VAT status", CaseDataCodes.Text, draft.VatStatus);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMileageUnit, "Vehicle mileage unit", CaseDataCodes.Text, draft.VehicleMileageUnit);
-        var suggestedInspectionAddress = fields.SingleOrDefault(
-                field => string.Equals(
-                    field.Name,
-                    "Inspection address",
-                    StringComparison.Ordinal))
-            ?.SuggestedValue
-            ?? draft.InspectionAddress;
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantContactNumber, CaseDataCodes.Text, draft.ClaimantContactNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantAddress, CaseDataCodes.Text, draft.ClaimantAddress);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactName, CaseDataCodes.Text, draft.FileHandlerName);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactEmailAddress, CaseDataCodes.Text, draft.FileHandlerEmailAddress);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactPhoneNumber, CaseDataCodes.Text, draft.FileHandlerPhoneNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VatStatus, CaseDataCodes.Text, draft.VatStatus);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, draft.VehicleMileageUnit);
+        var addressField = fields.SingleOrDefault(
+            field => field.ToCaseDataFieldName() == CaseDataFieldNames.InspectionAddress);
+        var suggestedInspectionAddress = addressField?.SuggestedValue ?? draft.InspectionAddress;
         AddExtractedValue(
             snapshot,
             receipt,
-            fields,
+            addressField,
             CaseDataFieldNames.InspectionAddress,
-            "Inspection address",
             CaseDataCodes.Text,
             suggestedInspectionAddress);
 
@@ -262,9 +253,8 @@ internal static class CaseDataSnapshotFactory
             AddExtractedValue(
                 snapshot,
                 receipt,
-                fields,
+                addressField,
                 CaseDataFieldNames.InspectionMode,
-                "Inspection address",
                 CaseDataCodes.InspectionMode,
                 string.Equals(
                     suggestedInspectionAddress,
@@ -275,7 +265,7 @@ internal static class CaseDataSnapshotFactory
         }
 
         var mileageField = fields.SingleOrDefault(
-            field => string.Equals(field.Name, "Vehicle mileage", StringComparison.Ordinal));
+            field => field.ToCaseDataFieldName() == CaseDataFieldNames.VehicleMileage);
         if (draft.VehicleMileageUnit is null
             && mileageField?.SuggestedValue is { } suggestedMileage
             && HasExplicitMilesUnit(suggestedMileage))
@@ -283,9 +273,8 @@ internal static class CaseDataSnapshotFactory
             AddExtractedValue(
                 snapshot,
                 receipt,
-                fields,
+                mileageField,
                 CaseDataFieldNames.VehicleMileageUnit,
-                "Vehicle mileage",
                 CaseDataCodes.Text,
                 "miles");
         }
@@ -392,7 +381,29 @@ internal static class CaseDataSnapshotFactory
         IntakeReceiptEntity receipt,
         IReadOnlyList<InstructionReviewField> fields,
         string fieldName,
-        string intakeFieldName,
+        string valueType,
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var sources = fields.Where(field => field.ToCaseDataFieldName() == fieldName).ToArray();
+        // PCH's typed draft already chose mobile or home telephone. Attribute
+        // that exact choice, never repeat its priority rule or pick the first
+        // of several fields. Duplicate matching sources still fail closed.
+        var field = sources.Length == 1
+            ? sources[0]
+            : sources.SingleOrDefault(item => string.Equals(item.SuggestedValue, value, StringComparison.Ordinal));
+        AddExtractedValue(snapshot, receipt, field, fieldName, valueType, value);
+    }
+
+    private static void AddExtractedValue(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        InstructionReviewField? field,
+        string fieldName,
         string valueType,
         string? value)
     {
@@ -402,12 +413,10 @@ internal static class CaseDataSnapshotFactory
         }
 
         RequirePolicy(receipt.ExtractionPolicyKey, receipt.ExtractionPolicyVersion, "instruction extraction");
-        var field = fields.SingleOrDefault(
-            item => string.Equals(item.Name, intakeFieldName, StringComparison.Ordinal));
         if (field is null || field.HasConflict || field.Candidates.Count == 0)
         {
             throw new InvalidDataException(
-                $"The accepted intake field '{intakeFieldName}' has no unambiguous source provenance.");
+                $"The accepted intake field '{fieldName}' has no unambiguous source provenance.");
         }
 
         var candidate = field.Candidates.Count == 1
@@ -415,7 +424,7 @@ internal static class CaseDataSnapshotFactory
             : field.Candidates.FirstOrDefault(item =>
                 string.Equals(item.Value, field.SuggestedValue, StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidDataException(
-                    $"The accepted intake field '{intakeFieldName}' has ambiguous source provenance.");
+                    $"The accepted intake field '{fieldName}' has ambiguous source provenance.");
         snapshot.Fields.Add(new()
         {
             CaseId = snapshot.CaseId,

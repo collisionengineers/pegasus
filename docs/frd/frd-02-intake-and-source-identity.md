@@ -136,7 +136,7 @@ The ordinary path records correlated timings for durable receipt, publication,
 queue claim, source reading, identification, classification, extraction,
 association/allocation, case creation, custody hand-off, and terminal state.
 Those timings contain identifiers and bounded outcome data, never source
-content. From durable receipt, ordinary supported QDOS email and manual-upload
+content. From durable receipt, ordinary supported principal email and manual-upload
 work reaches its case destination, or its truthful terminal non-case outcome,
 within five seconds at p95. Case custody confirmation is measured as the final
 best-effort segment and any Box/provider delay is attributed separately. A
@@ -172,6 +172,22 @@ Box case-file custody is a required day-one alpha capability, but it follows Cas
 ### Matching conflicts and reversible association
 
 Matching uses explainable evidence. Message identifiers, provider/domain policy, route identity, accepted reference tokens, VRM, party identity, and operator confirmation may contribute. A weak, ambiguous, or contradictory signal never silently associates material with a case; competing candidate cases and unresolved source-identity conflicts become Unidentified with the corresponding canonical reason.
+
+The fifteen evidenced principal email routes use the existing instruction
+profiles through one route, classification and match policy ownership chain.
+Exact sender identity and selected current document profile must agree;
+document identity alone never allocates a Case. A proved forwarded original
+is current material, not discarded quoted history. Unrelated reports and old
+thread content cannot supply or veto a current instruction's profile.
+The accepted identities, explicit work-type predicates, preserved QDOS
+body/Triage rules and shared fail-closed association procedure are owned by
+[FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
+
+Acceptance joins a profile's typed instruction values to the canonical Case
+field identity, not another principal's printed field labels. The original
+review-field names, candidates and source locators remain unchanged. Missing,
+conflicting or non-unique source attribution still prevents allocation; a
+different label never justifies invented evidence or staff confirmation.
 
 VRM correlation is a suggestion until confirmed by accepted evidence or an authorised operator. Source deduplication is occurrence-aware: exact bytes and transport identifiers support correlation, while each visible placement and chronology entry remains auditable.
 

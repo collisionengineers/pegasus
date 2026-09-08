@@ -13,7 +13,7 @@ public sealed class ProcessIntake(
     IIntakeSourceReader sourceReader,
     IIntakeReceiptStore receiptStore,
     IIntakeArtifactStore artifactStore,
-    IInstructionExtractionPolicy extractionPolicy,
+    InstructionExtractionPolicySelector extractionPolicies,
     IMailRoutePolicy mailRoutePolicy,
     IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
     EvaluateIntakeCaseMatch caseMatchEvaluator,
@@ -767,7 +767,8 @@ public sealed class ProcessIntake(
                 providerMatchDecision);
         }
 
-        var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel);
+        var instructionSelection = extractionPolicies.Select(readResult, InstructionDocumentSignature.InstructionRole);
+        var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel, instructionSelection);
         if (mailRouteDecision is not null
             && mailRouteDecision.Disposition != MailRouteDisposition.Accepted)
         {
@@ -786,12 +787,25 @@ public sealed class ProcessIntake(
         }
 
         var principalContext = EstablishPrincipalContext(mailRouteDecision);
+        var conflictingProfile = instructionSelection.Outcome == InstructionPolicySelectionOutcome.Ambiguous
+            || (instructionSelection.Policy is { } selected
+                && principalContext is not null
+                && !string.Equals(selected.PrincipalCode, principalContext.PrincipalCode, StringComparison.Ordinal));
+        var extractionPolicy = principalContext is null || conflictingProfile ? null
+            : instructionSelection.Policy ?? (principalContext.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
+                ? extractionPolicies.ForPrincipal(principalContext.PrincipalCode) : null);
+        var instructionRead = instructionSelection.InstructionContent.Count > 0
+            ? readResult with { Content = instructionSelection.InstructionContent }
+            : principalContext?.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
+                ? readResult
+                : readResult with { Content = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray() };
         var mailClassificationDecision = EvaluateMailClassification(
             readResult,
-            principalContext?.PrincipalCode);
+            conflictingProfile ? null : principalContext?.PrincipalCode,
+            instructionSelection.InstructionContent);
         var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
-            readResult,
-            mailRouteDecision,
+            instructionRead,
+            conflictingProfile ? null : mailRouteDecision,
             cancellationToken);
         if (principalContext is null)
         {
@@ -829,17 +843,21 @@ public sealed class ProcessIntake(
                 caseMatchDecision);
         }
 
-        if (!string.Equals(
-                extractionPolicy.PrincipalCode,
-                principalContext.PrincipalCode,
-                StringComparison.Ordinal))
+        if (extractionPolicy is null)
         {
-            throw new InvalidOperationException(
-                "The established principal has no matching instruction extraction policy.");
+            return new(
+                readResult.RequiresOcr && !conflictingProfile ? IntakeDecision.OcrRequired : IntakeDecision.NeedsSorting,
+                conflictingProfile
+                    ? "The instruction profile conflicts with the established principal or another instruction."
+                    : "No agreeing instruction profile was identified for the established principal.",
+                readerEvidence, [], null, [],
+                readResult.RequiresOcr && !conflictingProfile ? "ocr_required" : null,
+                readResult.RequiresOcr && !conflictingProfile ? "Scanned instruction content requires OCR." : null,
+                null, null, mailRouteDecision, mailClassificationDecision, caseMatchDecision);
         }
 
         var policyResult = extractionPolicy.Extract(
-            readResult,
+            instructionRead,
             processedAtUtc,
             principalContext);
         EnsureConsistentPolicyResult(policyResult, principalContext);
@@ -868,6 +886,18 @@ public sealed class ProcessIntake(
         {
             decision = IntakeDecision.NeedsSorting;
             reason = "Competing candidate cases match this message; the association requires manual sorting.";
+        }
+        if (decision == IntakeDecision.CaseCreated
+            && mailClassificationDecision is not { CaseType: not null }
+            && mailClassificationDecision is not { IsTriageRequest: true })
+        {
+            decision = readResult.RequiresOcr ? IntakeDecision.OcrRequired : IntakeDecision.NeedsSorting;
+            reason = "The current instruction does not identify one accepted work type.";
+            if (readResult.RequiresOcr)
+            {
+                failureCode = "ocr_required";
+                failureReason = "Scanned instruction content is required to establish the work type.";
+            }
         }
         // A Triage request is pre-case work, and the accepted route policy has
         // already said so. Left as CaseCreated it went to automatic allocation,
@@ -959,7 +989,8 @@ public sealed class ProcessIntake(
     /// </summary>
     private MailClassificationResult? EvaluateMailClassification(
         IntakeSourceReadResult readResult,
-        string? principalCode)
+        string? principalCode,
+        IReadOnlyList<IntakeContentFragment> instructionContent)
     {
         if (principalCode is null)
         {
@@ -976,7 +1007,7 @@ public sealed class ProcessIntake(
             return null;
         }
 
-        var result = policy.Classify(readResult);
+        var result = policy.Classify(readResult, instructionContent);
         EnsureConsistentClassificationResult(result);
         return result;
     }
@@ -1111,7 +1142,8 @@ public sealed class ProcessIntake(
 
     private MailRouteEvaluationResult? EvaluateMailRoute(
         IntakeSourceReadResult readResult,
-        IntakeSourceChannel sourceChannel)
+        IntakeSourceChannel sourceChannel,
+        InstructionPolicySelection instruction)
     {
         // A Provider API submission's route identity is its credential, so
         // the sender of a forwarded message inside it never selects a route.
@@ -1128,7 +1160,7 @@ public sealed class ProcessIntake(
             return null;
         }
 
-        var result = mailRoutePolicy.Evaluate(readResult);
+        var result = mailRoutePolicy.Evaluate(readResult, instruction);
         EnsureConsistentMailRouteResult(result);
         return result;
     }

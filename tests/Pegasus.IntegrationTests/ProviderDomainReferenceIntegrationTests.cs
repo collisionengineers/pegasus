@@ -71,7 +71,7 @@ public sealed class ProviderDomainReferenceIntegrationTests
                 .Select(suffix => suffix.TrimStart('@'))
                 .OrderBy(domain => domain, StringComparer.Ordinal)
                 .ToArray(),
-            QdosMailRoutePolicy.AcceptedDirectDomains
+            PrincipalMailRoutePolicy.AcceptedIdentities["QDOS"]
                 .OrderBy(domain => domain, StringComparer.Ordinal)
                 .ToArray());
     }

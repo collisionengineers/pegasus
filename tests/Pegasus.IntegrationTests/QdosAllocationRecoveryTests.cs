@@ -22,11 +22,127 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class QdosAllocationRecoveryTests
 {
+    [ReferencePackFact]
+    [Trait("Category", "Corpus")]
+    public async Task GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            useIntegrationTestAuthentication: true, initializeDevelopmentOffline: false);
+        var fairway = Top15InstructionCorpusTests.Expectations.First(sample => sample.Profile == "FW");
+        (string Principal, string Path, string Hash, int Images)[] originals =
+        [
+            ("ALS", Path.Combine(QdosCorpus.Root, "New Inspection Instruction.eml"), "46de51472636f9220cd77e2a96d9d9ff72ec95cac8b762fa0006138f4a452c30", 4),
+            ("YML", Path.Combine(QdosCorpus.Root, "FW LETTER OF INSTRUCTION - HD4021.eml"), "0fc086bb3480a614f93b68efb555074d2fdc94b95ea8c5c77f629d05801759d3", 18),
+            ("FW", Path.Combine(Top15InstructionCorpusTests.PackRoot(), fairway.PackRelativePath), fairway.Sha256, 0),
+            ("SBL", Path.Combine(Top15InstructionCorpusTests.PackRoot(), "principal-docs/commercial/C.SBL26174/Engineer Instruction - SBL-B0711442.msg"), "853ad87368bfc718b7cf3aea7ecb6c35baedd83eb5d28bce05a606a9960778a9", 0)
+        ];
+        var expectedCases = 0;
+        foreach (var original in originals)
+        {
+            var bytes = await File.ReadAllBytesAsync(original.Path);
+            Assert.Equal(original.Hash, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+            await using var scope = factory.Services.CreateAsyncScope();
+            var services = scope.ServiceProvider;
+            var clock = services.GetRequiredService<TimeProvider>();
+            var workStore = new RetainingWorkStore(services.GetRequiredService<IIntakeWorkStore>(), factory.Services);
+            var artifacts = services.GetRequiredService<IIntakeArtifactStore>();
+            var receiver = new ReceiveIntake(artifacts, workStore, clock, new CommittedWorkPublisherDouble());
+            var processor = CreateMailAssociationProcessor(services, workStore, artifacts,
+                services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+                services.GetRequiredService<IAllocateIntake>(), clock,
+                services.GetRequiredService<AssociateRetainedMailWithCase>());
+            Guid? firstCase = null;
+            for (var delivery = 0; delivery < 2; delivery++)
+            {
+                var source = new IntakeSource(Path.GetFileName(original.Path), Top15InstructionCorpusTests.MediaType(original.Path),
+                    bytes, clock.GetUtcNow(), "system-worker:approved-inbox-poller",
+                    new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N")));
+                var received = await receiver.ExecuteAsync(source, $"principal-original:{Guid.NewGuid():N}");
+                var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+                    received.StagedReceiptId, clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None));
+                await workStore.MarkDispatchedAsync(dispatch.Id, dispatch.LeaseToken!, clock.GetUtcNow(), CancellationToken.None);
+                await processor.ExecuteAsync(received.StagedReceiptId);
+                var evaluation = Assert.IsType<IntakeEvaluationRevision>(await workStore.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
+                var receipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>().GetAsync(evaluation.ProcessedReceiptId, CancellationToken.None));
+                Assert.Equal(original.Principal, receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode);
+                Assert.Equal(original.Principal, receipt.InstructionDraft?.SuggestedPrincipalCode);
+                Assert.Equal(CaseType.Inspection, receipt.MailClassificationDecision?.CaseType);
+                Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+                var allocation = await services.GetRequiredService<IIntakeAllocationStore>()
+                    .GetCurrentAsync(receipt.Id, CancellationToken.None);
+                Assert.True(receipt.CurrentCaseId.HasValue,
+                    $"{original.Principal}, {Path.GetFileName(original.Path)}, delivery {delivery + 1}: "
+                    + $"no Case; allocation {allocation?.Status}, {allocation?.FailureKind}, {allocation?.SafeReason}");
+                var caseId = receipt.CurrentCaseId.Value;
+                if (firstCase is null)
+                {
+                    firstCase = caseId;
+                    expectedCases++;
+                }
+                else
+                {
+                    Assert.Equal(firstCase, caseId);
+                    Assert.Equal(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision?.Outcome);
+                }
+                await processor.ExecuteAsync(received.StagedReceiptId);
+                Assert.Equal(expectedCases, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+                await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+                var allocated = await context.Cases.Include(item => item.Principal).SingleAsync(item => item.Id == caseId);
+                Assert.Equal(original.Principal, allocated.Principal.Code);
+                Assert.Equal("inspection", allocated.Type);
+                Assert.Equal(original.Images, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
+                var hasImages = original.Images > 0;
+                Assert.Equal(hasImages ? "review" : "not_ready", allocated.InitialState);
+                var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+                Assert.Equal(hasImages ? "Review" : "NotReady", workflow.State);
+                Assert.True(allocated.InstructionComplete);
+                Assert.Equal(hasImages, allocated.ImagesComplete);
+                if (delivery == 0)
+                {
+                    var snapshot = await context.CaseDataSnapshots.Include(item => item.Fields)
+                        .SingleAsync(item => item.CaseId == caseId);
+                    Assert.Equal(receipt.Id, snapshot.OriginIntakeReceiptId);
+                    Assert.Equal(original.Hash, snapshot.OriginSourceHash);
+                    Assert.Equal(receipt.ExtractionPolicyKey, snapshot.ExtractionPolicyKey);
+                    Assert.Equal(receipt.ExtractionPolicyVersion, snapshot.ExtractionPolicyVersion);
+                    var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
+                    AssertExtractedFact(CaseDataFieldNames.ClaimantName, draft.ClaimantName);
+                    AssertExtractedFact(CaseDataFieldNames.ClaimNumber, draft.ClaimNumber);
+                    AssertExtractedFact(CaseDataFieldNames.VehicleRegistration, draft.VehicleRegistration);
+                    AssertExtractedFact(CaseDataFieldNames.VehicleMake, draft.VehicleMake);
+                    AssertExtractedFact(CaseDataFieldNames.IncidentDate,
+                        draft.DateOfIncident?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+
+                    void AssertExtractedFact(string fieldName, string? expectedValue)
+                    {
+                        if (string.IsNullOrWhiteSpace(expectedValue))
+                        {
+                            Assert.DoesNotContain(snapshot.Fields, field => field.FieldName == fieldName);
+                            return;
+                        }
+                        var fact = Assert.Single(snapshot.Fields,
+                            field => field.FieldName == fieldName && field.ValueKind == CaseDataCodes.Fact);
+                        Assert.Equal(expectedValue, fact.Value);
+                        Assert.Equal(CaseDataCodes.IntakeEvidence, fact.SourceKind);
+                        Assert.Equal(receipt.Id.ToString("D"), fact.SourceIdentity);
+                        Assert.Equal(receipt.ExtractionPolicyKey, fact.PolicyKey);
+                        Assert.Equal(receipt.ExtractionPolicyVersion, fact.PolicyVersion);
+                        var field = Assert.Single(receipt.Fields, field => field.ToCaseDataFieldName() == fieldName);
+                        Assert.False(field.HasConflict);
+                        Assert.Contains(field.Candidates,
+                            candidate => fact.SourceLabel == $"{candidate.Source}:{candidate.SourceLabel}");
+                    }
+                }
+            }
+        }
+        Assert.Equal(4, expectedCases);
+    }
+
     [Fact]
     public async Task ClassificationNegativeAndAmbiguityFixturesPersistWithoutInventedCaseTypes()
     {
         using var factory = new IntakeWebApplicationFactory();
-        var policy = new QdosMailClassificationPolicy();
+        var policy = new PrincipalMailClassificationPolicy("QDOS");
         var fixtures = new[]
         {
             (
@@ -87,7 +203,7 @@ public sealed class QdosAllocationRecoveryTests
     public async Task PersistedStaffForwardRetainsOuterTransportAndOriginalQdosIdentity()
     {
         using var factory = new IntakeWebApplicationFactory();
-        var route = new QdosMailRoutePolicy().Evaluate(new(
+        var route = new PrincipalMailRoutePolicy().Evaluate(new(
             IntakeSourceReadStatus.Readable,
             [],
             [
@@ -117,7 +233,7 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(persisted.MailRouteDecision!.TransportIdentities).Address);
         Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(persisted.MailRouteDecision.OriginalIdentities).Address);
         Assert.Equal("instructions@qdosassist.co.uk", persisted.MailRouteDecision.EffectiveSender?.Address);
-        Assert.Equal(QdosMailRoutePolicy.Version, persisted.MailRouteDecision.PolicyVersion);
+        Assert.Equal(PrincipalMailRoutePolicy.Version, persisted.MailRouteDecision.PolicyVersion);
     }
 
     [Fact]
@@ -1636,7 +1752,7 @@ internal static class AllocationTestData
                     [],
                     "Definitive QDOS instruction.",
                     "qdos_mail_classification",
-                    QdosMailClassificationPolicy.Version,
+                    PrincipalMailClassificationPolicy.Version,
                     caseType),
                 CaseMatchDecision: caseMatchDecision),
             CancellationToken.None);
@@ -1786,15 +1902,18 @@ internal static class AllocationTestData
             await using var context = await factory.CreateDbContextAsync();
             await TestMailboxId.EnsureApprovedAsync(
                 context, "allocation-recovery", mailboxAddress, receipt.ReceivedAtUtc.AddDays(-1));
-            context.ApprovedInboxPollStates.Add(new()
+            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == mailboxId))
             {
-                ApprovedMailboxId = mailboxId,
-                MailboxAddress = mailboxAddress,
-                ScopeFingerprint = new string('A', 64),
-                ActivatedAtUtc = receipt.ReceivedAtUtc.AddDays(-1),
-                DueAtUtc = receipt.ReceivedAtUtc,
-                LastCompletedAtUtc = receipt.ReceivedAtUtc
-            });
+                context.ApprovedInboxPollStates.Add(new()
+                {
+                    ApprovedMailboxId = mailboxId,
+                    MailboxAddress = mailboxAddress,
+                    ScopeFingerprint = new string('A', 64),
+                    ActivatedAtUtc = receipt.ReceivedAtUtc.AddDays(-1),
+                    DueAtUtc = receipt.ReceivedAtUtc,
+                    LastCompletedAtUtc = receipt.ReceivedAtUtc
+                });
+            }
             await context.SaveChangesAsync();
         }
 
@@ -1885,7 +2004,9 @@ internal sealed class ConsumerTypedClassificationPolicy : IMailClassificationPol
 
     public int PolicyVersion => 1;
 
-    public MailClassificationResult Classify(IntakeSourceReadResult readResult) =>
+    public MailClassificationResult Classify(
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeContentFragment>? instructionContent = null) =>
         MailClassificationResult.Classified(
             MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
             [],

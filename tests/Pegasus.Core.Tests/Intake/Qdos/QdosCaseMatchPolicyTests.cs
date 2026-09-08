@@ -2,14 +2,31 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
-public sealed class QdosCaseMatchPolicyTests
+public sealed class PrincipalCaseMatchPolicyTests
 {
+    [Theory]
+    [InlineData("FW", "29679-01")]
+    [InlineData("OAK", "TJD/GRAHAM/S486562.001")]
+    [InlineData("BC", "RTA135646.001/NE/Usayd Ibrahim")]
+    public void OtherPrincipalsKeepTheirFullReference(string principal, string reference)
+    {
+        IInstructionExtractionPolicy extractor = principal switch
+        {
+            "FW" => new FwInstructionExtractionPolicy(),
+            "OAK" => new OakInstructionExtractionPolicy(),
+            _ => new BcInstructionExtractionPolicy()
+        };
+        var keys = new PrincipalCaseMatchPolicy(extractor).DeriveIndexKeys(
+            new(reference, null, null, null));
+        Assert.Equal(reference.ToUpperInvariant(), keys.DurableClaimToken);
+    }
+
     [Fact]
     public void PolicyKeyAndVersionAreStable()
     {
-        var sut = new QdosCaseMatchPolicy();
+        var sut = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy());
         Assert.Equal("QDOS", sut.WorkProviderCode);
-        Assert.Equal("qdos_case_match", sut.PolicyKey);
+        Assert.Equal("principal_case_match", sut.PolicyKey);
         Assert.Equal(1, sut.PolicyVersion);
     }
 
@@ -158,7 +175,7 @@ public sealed class QdosCaseMatchPolicyTests
     [Fact]
     public void DeriveIndexKeysUsesTheSameGrammarsAsExtraction()
     {
-        var index = new QdosCaseMatchPolicy().DeriveIndexKeys(new(
+        var index = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy()).DeriveIndexKeys(new(
             "AB/98765/1",
             "EF56 GHJ",
             "Mrs Jane Example",
@@ -190,7 +207,7 @@ public sealed class QdosCaseMatchPolicyTests
             content.Add(new(IntakeEvidenceSource.EmailBody, "message body", body));
         }
 
-        return new QdosCaseMatchPolicy().ExtractMatchKeys(new(
+        return new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy()).ExtractMatchKeys(new(
             IntakeSourceReadStatus.Readable,
             content,
             subject is null ? [] : [new(IntakeEvidenceSource.Subject, subject)],

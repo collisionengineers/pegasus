@@ -28,8 +28,9 @@ public sealed class SettingsModel(
     public PrincipalAdministrationDetails? Customer { get; private set; }
     public PrincipalCredentialRecord? Credential { get; private set; }
     public string? IssuedSecret { get; private set; }
-    public IReadOnlyList<string> AcceptedDomains => Principal?.Code == QdosPrincipal.Code
-        ? QdosMailRoutePolicy.AcceptedDirectDomains
+    public IReadOnlyList<string> AcceptedIdentities => Principal?.Code is { } code
+        && PrincipalMailRoutePolicy.AcceptedIdentities.TryGetValue(code, out var identities)
+        ? identities
         : [];
 
     [BindProperty]

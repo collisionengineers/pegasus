@@ -13,6 +13,73 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseDataCompletenessPersistenceTests
 {
+    [Theory]
+    [InlineData("Claimant mobile telephone", "Claimant home telephone")]
+    [InlineData("Claimant home telephone", "Claimant mobile telephone")]
+    public void TypedPhoneSourceIgnoresConflictOnTheUnusedAlternative(string selectedName, string unusedName)
+    {
+        // Structural provenance tokens: the typed extractor's selected value
+        // is supplied, not a second implementation of PCH's phone priority.
+        var snapshot = PhoneSnapshot([
+            new(selectedName, "selected", [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+            new(unusedName, null,
+                [new("alternative-a", IntakeEvidenceSource.PdfContent, "unused-a"),
+                 new("alternative-b", IntakeEvidenceSource.PdfContent, "unused-b")], false, true)
+        ]);
+        var field = Assert.Single(snapshot.Fields);
+        Assert.Equal(CaseDataFieldNames.ClaimantContactNumber, field.FieldName);
+        Assert.Equal("selected", field.Value);
+        Assert.Equal("PdfContent:selected-source", field.SourceLabel);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, field.SourceKind);
+    }
+
+    [Fact]
+    public void TypedPhoneSourceStillRejectsSelectedConflict()
+    {
+        Assert.Throws<InvalidDataException>(() => PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "conflict")], false, true)
+        ]));
+    }
+
+    [Fact]
+    public void TypedPhoneSourceStillRejectsTwoEqualSourceBindings()
+    {
+        Assert.Throws<InvalidOperationException>(() => PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "mobile")], false, false),
+            new("Claimant home telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "home")], false, false)
+        ]));
+    }
+
+    private static CaseDataSnapshotEntity PhoneSnapshot(IReadOnlyList<InstructionReviewField> fields)
+    {
+        var receiptId = Guid.NewGuid();
+        var receipt = new IntakeReceiptEntity
+        {
+            Id = receiptId, SourceFileName = "provenance-probe", MediaType = "application/pdf",
+            SourceHash = "source-hash", SourceChannel = "manual_upload", ExternalReceiptToken = "provenance-probe",
+            SourceReaderKey = "structural-probe", SourceReaderVersion = "1",
+            ExtractionPolicyKey = PchInstructionExtractionPolicy.Key,
+            ExtractionPolicyVersion = PchInstructionExtractionPolicy.Version,
+            Decision = "case_created", DecisionReason = "provenance-probe",
+            EvidenceJson = "{\"version\":1,\"data\":[]}", OcrCandidatesJson = "{\"version\":1,\"data\":[]}",
+            FieldsJson = EfIntakeReceiptStore.SerializeFields(fields),
+            InstructionDraft = new() { SuggestedPrincipalCode = "PCH", ClaimantContactNumber = "selected" }
+        };
+        var accepted = new CaseEntity
+        {
+            Id = Guid.NewGuid(), OriginIntakeReceiptId = receiptId, Reference = "provenance-probe",
+            Type = "inspection", InitialState = "not_ready", CustodyState = "pending"
+        };
+        return CaseDataSnapshotFactory.Create(accepted, receipt,
+            new(receiptId, 1, ActionActor.SystemWorker("system-worker:intake-processing"),
+                "provenance-probe", "provenance-probe", CaseType.Inspection, "PCH",
+                new(true, false, false, false), new(false, "completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
+            DateTimeOffset.UtcNow);
+    }
+
     [Fact]
     public async Task AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues()
     {

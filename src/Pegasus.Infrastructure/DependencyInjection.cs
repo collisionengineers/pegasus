@@ -168,9 +168,15 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
         services.AddScoped<ReplaySentEmailEvidence>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
-        services.AddSingleton<IMailRoutePolicy, QdosMailRoutePolicy>();
-        services.AddSingleton<IMailClassificationPolicy, QdosMailClassificationPolicy>();
-        services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
+        services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
+        services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
+            provider.GetServices<IInstructionExtractionPolicy>()
+                .Select(policy => (IMailClassificationPolicy)new PrincipalMailClassificationPolicy(policy.PrincipalCode))
+                .ToArray());
+        services.AddSingleton<IEnumerable<IProviderCaseMatchPolicy>>(provider =>
+            provider.GetServices<IInstructionExtractionPolicy>()
+                .Select(policy => (IProviderCaseMatchPolicy)new PrincipalCaseMatchPolicy(policy))
+                .ToArray());
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
         services.AddSingleton<QdosInstructionExtractionPolicy>();
@@ -597,10 +603,7 @@ public static class DependencyInjection
             services.AddScoped<IIntakeSourceReader>(provider =>
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
-            services.AddScoped(provider =>
-                ActivatorUtilities.CreateInstance<ProcessIntake>(
-                    provider,
-                    provider.GetRequiredService<QdosInstructionExtractionPolicy>()));
+            services.AddScoped<ProcessIntake>();
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.
