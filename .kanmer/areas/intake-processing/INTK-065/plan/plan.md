@@ -8,8 +8,8 @@ immutable originals, or the historical v1 review dossier.
 
 ## Starting state
 
-Evidence: research/research.md@updated; approved base is origin/dev
-`7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`. Three obsolete QDOS policy
+Evidence: research/research.md@4807bf2fa58c664d; files/files.md@fa373139387e7e7f.
+Approved base is origin/dev `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`. Three obsolete QDOS policy
 paths were deleted, the shared classification contract bytes changed, and the
 unchanged extraction source is version 8 although its prior inventory ID was
 v7. Full original-input regeneration is unavailable on this host and is not
@@ -50,14 +50,16 @@ compatibility alias.
 
 ## Expected files
 
-- `scripts/reference_data/build_principal_identification_corpus.py`
-- `tests/Pegasus.Core.Tests/ReferenceData/PrincipalIdentificationCorpusTests.cs`
-- `docs/principal-rules-and-mappings/README.md`
-- `docs/principal-rules-and-mappings/qdos.md`
-- `docs/principal-profiles/README.md`
-- `docs/principal-profiles/qdos.md`
-- `docs/index.md`
-- `reference/workproviders-and-repairers/principal-identification-corpus.v1.json` (verifier slot only)
+| Action | Repo-root-relative path | Responsibility |
+| --- | --- | --- |
+| Modify | `scripts/reference_data/build_principal_identification_corpus.py` | Current-source declaration corrections only; no execution in phase 1. |
+| Modify | `tests/Pegasus.Core.Tests/ReferenceData/PrincipalIdentificationCorpusTests.cs` | Matching expectations and diagnostics; no test run in phase 1. |
+| Rename from | `docs/principal-rules-and-mappings/README.md` | Byte-identical source. |
+| Rename from | `docs/principal-rules-and-mappings/qdos.md` | Byte-identical source. |
+| Rename to | `docs/principal-profiles/README.md` | Byte-identical destination. |
+| Rename to | `docs/principal-profiles/qdos.md` | Byte-identical destination. |
+| Modify | `docs/index.md` | Replace only the moved README target. |
+| Modify (verifier slot only) | `reference/workproviders-and-repairers/principal-identification-corpus.v1.json` | Existing-helper output only. |
 
 ## Do not modify
 
@@ -88,6 +90,9 @@ deviation stop.
 - Change: correct the five source declarations/expectations; rename the two docs byte-identically; change only the matching index link.
 - Preserved behavior: all existing test assertions, historical package objects, evaluation/cohort data, runtime source, and original inputs.
 - Forbidden: script/test execution, JSON generation/edit, historical-document rewrite, policy alias, or unapproved path.
+- Commands: none; phase 1 explicitly runs no project script or test command.
+- Negative cases: a stale/missing source declaration, wrong policy ID/version, or changed rename bytes is recorded as a failure, never fixed by an alias or rewritten history.
+- Expected output: seven declared phase-1 paths only; each moved document has identical bytes at its new path; the index has one target replacement.
 - Tests: none; reserved for Step 2.
 - Done when: the seven phase-1 paths are the only worktree changes and byte equality of each documentation rename has been established.
 - Deviation stop: any content change in a relocated document other than its path, any unexpected index diff, or any package/runtime change.
@@ -99,6 +104,9 @@ deviation stop.
 - Change: execute the existing helper to materialize only the approved generated inventory correction; do not manually substitute or recreate inputs.
 - Preserved behavior: historical hashes, evaluation summaries, evidence items, groups/cohorts, crosswalks, criterion states, and the unchanged source snapshots.
 - Forbidden: a new command/tool, full-original regeneration claim, source copy, or broader JSON rewrite.
+- Commands: the existing helper invocation, then only the recorded Python, Core, documentation-link, and deterministic/structural comparison commands.
+- Negative cases: missing original inputs are INCONCLUSIVE rather than a substitute regeneration; stale path/hash/ID, dangling evidence reference, or unexpected historical change must fail.
+- Expected output: the single declared JSON file changes only in approved current-source metadata/references and purpose text, with root-recorded command exits.
 - Tests: existing Python hash-mode tests, focused PrincipalIdentificationCorpusTests, documentation link check, and deterministic/structural package comparison.
 - Done when: root records truthful exits and the JSON diff is limited to current-source metadata/references and approved purpose text.
 - Deviation stop: test failure, unavailable mandatory evidence, unexpected package diff, or missing verifier authorization.
@@ -109,18 +117,21 @@ deviation stop.
 - Files: all Expected files, with no additional path.
 - Change: record the implementation report, commit the bounded result, push the ticket branch, and open the one draft PR.
 - Preserved behavior: no self-review, merge, verification proof, closeout, or deployment claim.
+- Commands: `git diff --check`, commit, push, and draft-PR creation.
+- Negative cases: any undeclared path, failed diff check, or missing Step 2 evidence stops the handoff.
+- Expected output: one bounded commit and draft PR targeting dev, with the ticket's post-implementation report.
 - Tests: `git diff --check`; reuse the Step 2 results.
 - Done when: the ticket is in Review with its draft PR and report.
 - Deviation stop: any untracked/undeclared path or failed check.
 
 ## Acceptance checks
 
-1. The five current source records have correct path, mode, byte count, hash,
-   and policy/version IDs; every relevant evidence reference resolves.
-2. The two relocated documents compare byte-identically old-to-new, and the
-   only index modification points to the new README path.
-3. Historical evaluation summaries, evidence items, cohorts, crosswalks, and
-   criterion states remain unchanged.
+1. Manual: the five current source records have correct path, mode, byte count,
+   hash, and policy/version IDs; every relevant evidence reference resolves.
+2. Manual: the two relocated documents compare byte-identically old-to-new,
+   and the only index modification points to the new README path.
+3. Manual: historical evaluation summaries, evidence items, cohorts,
+   crosswalks, and criterion states remain unchanged.
 4. The verifier slot, if granted, supplies real exits for the named focused
    checks. Full original-input regeneration remains unavailable and is not
    claimed.
