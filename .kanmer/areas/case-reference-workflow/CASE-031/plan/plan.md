@@ -9,12 +9,12 @@ accepted Case claimant address. No new intake, Case-data or ZIP capability.
 
 Read-only research base: origin/dev
 cc441645b0a62a806e34367ad75e9eaff4df8b11.
-Evidence: research/research.md@8d68855c53728ccb and
-files/files.md@d06cd9c47b3a0299.
+Evidence: research/research.md@084f62058746126a and
+files/files.md@623d466dfb5fd003.
 
 The address already extracts, persists with provenance and supports normal
 Case editing. Only the API payload/map/serializer and local submission guard
-are missing. Old plan85d53ae384521aa8 is superseded, not another implementation
+are missing. Old plan 85d53ae384521aa8 is superseded, not another implementation
 track. CASE-031 is Preparing and untaken. No tests ran during preparation.
 Before later take, root must sequence FRD-07 ownership with TICK-085 and select
 fresh accepted dev, preserving TICK-035's canonical provenance changes.
@@ -27,7 +27,7 @@ fresh accepted dev, preserving TICK-035's canonical provenance changes.
   not suggestions or another party/address role.
 - FRD-07 — modifies its direct API paragraph only under the current user
   remediation authority and root's bounded instruction: identify ClmAdd's
-  required accepted claimant value, max40 and local no-call refusal. Keep
+  required accepted claimant value, max 40 and local no-call refusal. Keep
   the thirteen-key ZIP, manual outcomes/re-send and retained attempt rules.
   Root sequences this file against TICK-085's separate import work.
 - ADR-0038 — meets: manual API only; known operation replay stays idempotent.
@@ -44,13 +44,13 @@ to an older Fact. Unresolved extraction conflict has no accepted canonical
 value; do not invent a second conflict model.
 
 Reject absent/whitespace-only values, any control or Unicode format character,
-and length over40. Preserve valid text exactly, including normal commas,
+and length over 40. Preserve valid text exactly, including normal commas,
 hyphens and apostrophes. No truncation, multiline flattening, postal inference,
 punctuation blacklist or inspection-address substitution.
 
 Pass the validated string separately into CaseEvaApiMapping.Map and the typed
 EvaInstructionPayload. Emit exactly ClmAdd from the existing serializer.
-Advance CaseEvaApiMapping.MappingVersion from1 to2; leave the ZIP mapping and
+Advance CaseEvaApiMapping.MappingVersion from 1 to 2; leave the ZIP mapping and
 EvaReplayFields unchanged. Keep one validation owner and the existing
 SubmitCaseToEvaResult blocking-reason shape, not a new wrapper/service.
 
@@ -129,7 +129,7 @@ email calls, credentials, InstEmail, Principal activation or deployment work.
   unresolved evidence fails. An invalid Confirmed value never selects old Fact.
 - Valid canonical address equals payload ClaimantAddress and wire ClmAdd
   exactly, while inspection location remains independently mapped.
-- Exactly40 characters pass; over40, whitespace-only, embedded control and
+- Exactly 40 characters pass; over 40, whitespace-only, embedded control and
   format characters fail locally. Ordinary address punctuation passes.
 - Actual EvaSubmissionStore invalid/replay paths perform zero document-content
   reads and zero new transport calls. Invalid new operation creates no
@@ -138,13 +138,13 @@ email calls, credentials, InstEmail, Principal activation or deployment work.
   explicit re-send, distinct undelivered outcomes and post-delivery conflict
   replay. Known replay returns the original outcome after an address becomes
   invalid, without another attempt.
-- API mapping version is2; existing ZIP schema/keys/order/bytes and mapping
+- API mapping version is 2; existing ZIP schema/keys/order/bytes and mapping
   identity/version are unchanged. No fresh EVA acceptance claim is made.
 
 ## Commands
 
 Execution is not authorized by this preparation. Once root assigns execution,
-root alone runs heavy commands in the exact ticket worktree (PowerShell7).
+root alone runs heavy commands in the exact ticket worktree (PowerShell 7).
 Author supplies the frozen source and reads exit-coded evidence.
 
     dotnet restore ./Pegasus.slnx --locked-mode

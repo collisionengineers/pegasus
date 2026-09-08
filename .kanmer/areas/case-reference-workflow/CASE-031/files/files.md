@@ -5,7 +5,7 @@
 | Path | Responsibility and risk |
 | --- | --- |
 | src/Pegasus.Core/Eva/EvaApiContracts.cs | Add typed ClaimantAddress to EvaInstructionPayload; update its known constructors only. |
-| src/Pegasus.Core/Eva/CaseEvaApiMapping.cs | Separate canonical address argument and exact payload mapping; API MappingVersion1 to2 only. |
+| src/Pegasus.Core/Eva/CaseEvaApiMapping.cs | Separate canonical address argument and exact payload mapping; API MappingVersion 1 to 2 only. |
 | src/Pegasus.Core/Eva/EvaSubmissionPolicy.cs | One Core-owned accepted-address selection/validation and blocking reason; preserve other submission decisions. |
 | src/Pegasus.Infrastructure/Eva/EvaApiTransport.cs | Existing EvaInstructionSerializer emits exact ClmAdd; no postal policy or normalization here. |
 | src/Pegasus.Infrastructure/Persistence/EvaSubmissionStore.cs | After known replay, guard before external image read/submission and pass accepted address; no outcome/workflow redesign. |
@@ -23,18 +23,18 @@
 | docs/frd/frd-01-case-identity-and-lifecycle.md | No new Case mutation, completeness gate or handoff semantics. |
 | docs/frd/frd-02-intake-and-source-identity.md | Preserve source provenance and unresolved ambiguity; no extraction reinterpretation. |
 | docs/adr/0038-manual-only-eva-api-submission.md | No automatic EVA path, retry worker or second setting. |
-| docs/json-extraction-parity/eva-api-docs.md | Supplied ClmAdd required/max40 vendor contract. |
+| docs/json-extraction-parity/eva-api-docs.md | Supplied ClmAdd required/max 40 vendor contract. |
 | src/Pegasus.Core/Cases/CaseDataContracts.cs | CaseField.Current and CaseDataValue.IsAccepted are the existing precedence/status owner. |
 | src/Pegasus.Infrastructure/Persistence/CaseDataSnapshotFactory.cs | Existing conflict/provenance promotion; preserve TICK-035 correction. |
 | src/Pegasus.Infrastructure/Persistence/EfCaseDataStore.cs | Already persisted/projected claimant field and guarded correction. |
 | src/Pegasus.Infrastructure/Persistence/EvaCaseImageReader.cs | Existing ReadVersionsAsync boundary whose invocation must be avoided for invalid address. |
-| src/Pegasus.Core/Eva/CaseEvaMapping.cs | Fixed13-field ZIP mapping; not API claimant validation. |
+| src/Pegasus.Core/Eva/CaseEvaMapping.cs | Fixed 13-field ZIP mapping; not API claimant validation. |
 | src/Pegasus.Core/Eva/EvaBundleSchema.cs | Deterministic ZIP shape remains unchanged. |
 | tests/Pegasus.Core.Tests/Qdos/EvaBundleContractTests.cs | Run existing byte/order tests unchanged as bounded regression evidence. |
 
 ## Ripple effects
 
-The Map-call census atcc441645 finds one production caller in
+The Map-call census at cc441645 finds one production caller in
 EvaSubmissionStore and two test files above; no other direct
 EvaInstructionPayload constructor was found. Recheck the census on the
 eventual accepted base and update only these known callers. No generated

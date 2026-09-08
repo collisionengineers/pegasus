@@ -1,7 +1,7 @@
 ---
 id: CASE-031
 type: ticket
-title: 'Extract, retain, display and submit claimant addresses'
+title: Send the canonical claimant address in EVA API submissions
 status: preparing
 area: case-reference-workflow
 order: 40
@@ -15,8 +15,11 @@ labels:
   - case-data
   - eva
   - api-submission
+groups:
+  - EPIC-014
 links:
   - DOCS-015
+  - TICK-085
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -24,51 +27,57 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-09-01T14:50:16.709Z'
+updated: '2026-09-08T02:25:46.530Z'
 ---
 
-# Extract, retain, display and submit claimant addresses
+# Send the canonical claimant address in EVA API submissions
 
-## Why
+## What and why
 
-EVA requires ClmAdd on POST /Instruction/Inspection, but Pegasus does not
-currently extract, retain or send a claimant address. Where received evidence
-contains one, Pegasus should preserve it through intake and Case storage so
-operators can review it and EVA API submission can use the same canonical
-value. Absence or ambiguity remains explicit; no value is fabricated to satisfy
-EVA.
+EVA requires ClmAdd (maximum 40 characters). Claimant address already extracts,
+retains provenance, persists and supports normal Case display/editing. The
+remaining defect is that the manual API payload does not carry that existing
+canonical value.
 
-## Scope
+## Remaining scope
 
-- Extract claimant-address evidence from supported intake sources where it is
-  explicitly identified.
-- Retain the value and provenance through intake processing and Case
-  persistence.
-- Display and edit claimant address on the existing Case surface under normal
-  concurrency and audit rules.
-- Send the canonical claimant address as EVA ClmAdd.
-- Block EVA API submission locally when the address is absent, ambiguous,
-  whitespace-only or outside the API contract.
-- Do not change the operator ZIP/export format.
+- Select the existing accepted Case claimant address (Confirmed before Fact)
+  through Core's existing status/precedence model.
+- Add typed EvaInstructionPayload.ClaimantAddress, the API-only mapping input
+  and version bump, and exact ClmAdd serialization.
+- Reject missing, unaccepted/suggestion-only, unresolved, whitespace-only,
+  control/format-containing and over-limit values before external images or
+  EVA submission, after returning any known operation replay.
+- Preserve text exactly. No truncation or inspection/other-party substitute;
+  ordinary address commas, hyphens and apostrophes remain valid.
+- Prove the existing manual store caller, exact JSON, zero calls/mutations on
+  refusal and known replay, with existing focused fixtures.
+- Clarify only the direct-API prerequisite in FRD-07 after root sequences its
+  shared ownership with [[TICK-085]].
+
+## Exclusions and historical disposition
+
+No schema, extractor, Case-data or UI overhaul. No change to the 13-field
+EvaReplayFields/operator ZIP, its bytes or mapping. No automatic EVA path
+(ADR-0038), new readiness policy, credentials/InstEmail/Principal activation,
+deployment or live EVA request.
+
+The prior broader research/plan remain historical board versions; their
+already-implemented work and automatic/once-only submission promises are not
+current instructions. [[DOCS-015]] supplies the vendor guide. Historical
+punctuation-only failure probes are not a ban on ordinary address punctuation.
 
 ## Acceptance
 
-- A supported fixture with an unambiguous claimant address proves extraction,
-  provenance and durable storage.
-- The Case surface displays the stored value and audited edits use existing
-  Case rules.
-- API contract tests prove the canonical value is emitted as ClmAdd.
-- Missing, conflicting, whitespace-only and over-limit values produce no
-  fabricated substitute and no EVA network request.
-- Regression tests prove intake absence, normalization, persistence, display
-  and API mapping.
-- The existing EVA ZIP remains byte-for-byte and schema compatible.
+Accepted canonical value reaches ClmAdd unchanged; invalid input performs no
+external image read, transport call, attempt/history write or Case mutation.
+Known replay remains the original outcome even when current address is now
+unusable. Manual outcomes/re-send/lease/version behavior and the deterministic
+ZIP remain unchanged.
 
-## Evidence context
+## Execution boundary
 
-Controlled EVA test-environment requests on 2026-08-28 confirmed ClmAdd is
-required. Null, empty and whitespace values receive HTTP 400; punctuation and
-invisible control/format characters produce opaque HTTP 500 and are not
-acceptable placeholders. See [[DOCS-015]] for the normalized vendor guide.
+Preparing and untaken. Root's preparation assignment authorizes board documents
+only; execution awaits root sequencing of FRD-07. No product choice is unresolved.
 
 ## Outcome

@@ -20,7 +20,7 @@ cc441645b0a62a806e34367ad75e9eaff4df8b11. No build, test or provider call ran.
 - The canonical Case value is CaseClaimantData.Address. CaseDataContracts.cs:
   53,62,85 owns accepted status and precedence: Current is Confirmed, then
   Fact, then Suggestion; only Fact and Confirmed are accepted. EfCaseDataStore
-  projects, saves and replays the address at lines360,583,660. The normal
+  projects, saves and replays the address at lines 360,583,660. The normal
   Case-data surface and guarded edits already carry it. No new field, schema,
   extraction, UI or staff-confirmation path is required.
 - CaseData has no independent Conflict status. An unresolved extraction
@@ -30,7 +30,7 @@ cc441645b0a62a806e34367ad75e9eaff4df8b11. No build, test or provider call ran.
   classifier or fall back from an invalid current value to an older Fact.
 - EvaInstructionPayload (EvaApiContracts.cs:65) has no claimant address.
   CaseEvaApiMapping.Map accepts only the 13-field EvaReplayFields plus Case,
-  Principal, settings and files. Its API mapping version is1. Its sole
+  Principal, settings and files. Its API mapping version is 1. Its sole
   production caller is EvaSubmissionStore.cs:140; known test consumers are
   EvaApiMappingTests and EvaApiTransportTests. EvaInstructionSerializer
   (EvaApiTransport.cs:386) emits InsName but no ClmAdd.
@@ -46,22 +46,22 @@ cc441645b0a62a806e34367ad75e9eaff4df8b11. No build, test or provider call ran.
   Extend it to select/validate the existing accepted claimant field. Do not
   place business validation in the serializer or add a service/result layer.
 - docs/json-extraction-parity/eva-api-docs.md defines ClmAdd as required,
-  max40, and supplies the address example22 Park Avenue. It does not make
+  max 40, and supplies the address example 22 Park Avenue. It does not make
   inspection-location address a claimant address. Preserve the accepted
   claimant string exactly; no shortening, line flattening or substitution.
 - Reject absent, unaccepted/suggestion-only, whitespace-only, control/format
-  containing and over40 values. Ordinary commas, hyphens and apostrophes
+  containing and over 40 values. Ordinary commas, hyphens and apostrophes
   inside an address are valid. The old punctuation-only failure probes do
   not establish a punctuation blacklist or a general postal-validation rule.
 - ADR-0038 removes automatic submission. FRD-07 permits explicit manual send
   and deliberate re-send, preserves four outcomes and known-operation replay,
-  and distinguishes API transport prerequisites from the fixed13-key ZIP.
+  and distinguishes API transport prerequisites from the fixed 13-key ZIP.
   The current ClmAdd requirement needs a narrow API-only clarification there;
   it must not add a Case-readiness or ZIP-export gate. TICK-085 shares FRD-07
   for a separate estimate-import section; root sequences ownership.
 - Existing actual-caller fixture
   CustodyOutboxIntegrationTests.EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange
-  constructs EvaSubmissionStore at lines1466,1844,1914 and already proves
+  constructs EvaSubmissionStore at lines 1466,1844,1914 and already proves
   manual/re-send/replay/version-conflict/undelivered outcomes. Reuse its SQL
   fixture and recording transport. A bounded document-content read counter
   at the existing IDocumentContentStore seam can prove zero image reads;
@@ -73,15 +73,15 @@ cc441645b0a62a806e34367ad75e9eaff4df8b11. No build, test or provider call ran.
 
 ## Historical disposition
 
-The earlier research806d0a70e38ca4fd, files4f0d1451d44a4929 and
-plan85d53ae384521aa8 remain historical board versions. Their promises to add
+The earlier research 806d0a70e38ca4fd, files 4f0d1451d44a4929 and
+plan 85d53ae384521aa8 remain historical board versions. Their promises to add
 extraction, draft columns, Case fields and UI are obsolete because those paths
 already exist. Their automatic-submission and once-per-case-only language is
 superseded by ADR-0038 and the current explicit re-send contract.
 
-The prior research records controlled vendor probes on2026-08-28:
-null/empty/whitespace returned400; punctuation-only and invisible-character
-placeholders returned500. These are retained historical observations, not
+The prior research records controlled vendor probes on 2026-08-28:
+null/empty/whitespace returned 400; punctuation-only and invisible-character
+placeholders returned 500. These are retained historical observations, not
 fresh calls, live acceptance proof, or authority to ban normal punctuation.
 
 ## Implications

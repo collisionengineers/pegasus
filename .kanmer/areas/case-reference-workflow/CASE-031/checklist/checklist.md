@@ -1,6 +1,6 @@
 # Checklist — CASE-031
 
-- [ ] Extend the existing Core API payload/mapping and one submission policy for accepted canonical claimant address, with focused status/precedence/value tests and API-only mapping version2.
+- [ ] Extend the existing Core API payload/mapping and one submission policy for accepted canonical claimant address, with focused status/precedence/value tests and API-only mapping version 2.
 - [ ] Wire exact ClmAdd and the actual EvaSubmissionStore guard after known replay, before image/transport work; prove no calls/mutations for invalid values and replay while retaining manual outcome/version/lease tests.
 - [ ] After root clears FRD-07 ownership, document only the API prerequisite and complete the bounded source/consumer/ZIP-unchanged review.
 - [ ] Freeze for root's exact focused commands; retain every failure/pass, complete the post-implementation report and stop for independent review.
