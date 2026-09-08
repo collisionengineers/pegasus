@@ -911,6 +911,88 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
 
+    [Fact]
+    public async Task ImportedDocumentStorePreservesAuthorityOnReplayAndRequiresEngineerAcceptance()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("import-store-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-store-lease");
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser()
+            .Parse(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml())).Estimate!;
+        var hash = Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml())));
+        var source = new RepairSpecificationSource(RepairSpecificationSourceRoute.Glasses,
+            "estimate-import:store-contract", parsed.SourceVersion, hash);
+        // Chosen VAT/rate are existing Engineer header inputs, not inferred
+        // from source VAT. The canonical caller separately proves Unknown VAT.
+        var request = new SaveEstimateRequest(caseId, 0, engineer, "import-store-save", ImportRawEstimate.ImportReason,
+            lease.Token, null, new("Glass's 1", null, 40m, null, null, 20m, null,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), parsed.Lines, source);
+        var authority = new ImportRawEstimateRequest(engineer, caseId, 0, lease.Token,
+            Guid.NewGuid(), Guid.NewGuid(), hash, request.OperationKey, request.Details.Name);
+        foreach (var state in new[] { CaseLifecycleState.Review, CaseLifecycleState.NotReady, CaseLifecycleState.Held })
+        {
+            await using var setup = await harness.Factory.CreateDbContextAsync();
+            var workflow = await setup.CaseWorkflows.SingleAsync(row => row.CaseId == caseId);
+            workflow.State = state.ToString();
+            await setup.SaveChangesAsync();
+            var authorityRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.RepairSpecifications.RequireImportAuthorityAsync(authority, default));
+            Assert.Contains("read-only", authorityRefusal.Message, StringComparison.Ordinal);
+            var saveRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.RepairSpecifications.SaveImportedEstimateAsync(request, default));
+            Assert.Contains("read-only", saveRefusal.Message, StringComparison.Ordinal);
+            Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
+            Assert.Equal(0, (await setup.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
+            Assert.False(await setup.ActionHistory.AnyAsync(row => row.CorrelationId == request.OperationKey));
+        }
+        await SetReportPreparationAsync(harness.Factory, caseId);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE USER [estimate_import_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_import_web];");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_import_web';");
+        RepairSpecificationVersion imported;
+        try
+        {
+            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
+            var store = new EfRepairSpecificationStore(runtimeFactory, harness.Clock);
+            await store.RequireImportAuthorityAsync(authority, default);
+            await store.RequireImportAuthorityAsync(authority, default);
+            imported = await store.SaveImportedEstimateAsync(request, default);
+            Assert.Equal(RepairSpecificationState.Draft, imported.State);
+            Assert.False(imported.IsCurrent);
+            Assert.All(imported.Lines, line => Assert.False(line.IsConfirmed));
+            Assert.Null(await store.GetCurrentAcceptedAsync(caseId, default));
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.RequireImportAuthorityAsync(authority, default));
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.SaveImportedEstimateAsync(request, default));
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+        var live = await harness.AcquireLeaseAsync(caseId, 1, engineer, "import-store-replay-lease");
+        var replay = await harness.RepairSpecifications.SaveImportedEstimateAsync(request with
+        {
+            ExpectedVersion = 1, EditLeaseToken = live.Token, OperationKey = "import-store-second-completion"
+        }, default);
+        Assert.Equal(imported.SpecificationId, replay.SpecificationId);
+        await harness.RepairSpecifications.RequireImportAuthorityAsync(authority with
+        {
+            ExpectedVersion = 1, EditLeaseToken = live.Token
+        }, default);
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var use = new SetCurrentEstimate(harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
+        var useRequest = new SetCurrentEstimateRequest(caseId, 1, engineer, "import-store-use", "Use estimate.", live.Token, imported.SpecificationId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => use.ExecuteAsync(useRequest with { Actor = harness.AutomationActor }, default));
+        var accepted = await use.ExecuteAsync(useRequest, default);
+        Assert.True(accepted.IsCurrent);
+        Assert.All(accepted.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
+        Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
+        Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
+    }
+
     /// <summary>
     /// B04: the whole canonical estimate model survives the round trip. The
     /// header keeps its four discounts, the repairer's VAT position and the
