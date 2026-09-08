@@ -13,19 +13,6 @@ stageEntered:
   review: '2026-09-07T23:54:46.238Z'
   verifying: '2026-09-07T23:59:13.701Z'
   done: '2026-09-08T00:10:39.568Z'
-taken_at: '2026-09-07T23:30:33.773Z'
-branch: PLAT-072-remove-staff-confirmation
-worktree: .worktrees/plat-072
-claim_expires_at: '2026-09-08T00:21:56.078Z'
-claim_controller: codex-v1-remediation-root
-lease_id: 9f035aab-2144-4995-800a-8cf6494c077c
-lease_revision: 4
-lease_controller_run: 20260907T200500Z-v1-remediation
-lease_worker_run: principal-delivery-plat072
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-072'
-lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-07T23:51:56.078Z'
 labels:
   - case-workspace-v2
   - d44
@@ -49,7 +36,7 @@ delivery_sha: d442366787d452da22d36719272d4eb79dc1afde
 delivery_recorded_at: '2026-09-08T00:13:01.265Z'
 archived: false
 created: '2026-09-03T16:29:07.376Z'
-updated: '2026-09-08T00:13:01.265Z'
+updated: '2026-09-08T00:14:59.327Z'
 ---
 
 ## What
