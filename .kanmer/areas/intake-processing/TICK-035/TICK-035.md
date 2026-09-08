@@ -2,7 +2,7 @@
 id: TICK-035
 type: ticket
 title: Activate evidenced principal routes through automatic intake
-status: verifying
+status: done
 area: intake-processing
 order: 910
 assignee: codex-mcp-client
@@ -12,6 +12,7 @@ stageEntered:
   review: '2026-09-08T01:41:18.011Z'
   implementing: '2026-09-08T01:48:12.223Z'
   verifying: '2026-09-08T02:21:10.573Z'
+  done: '2026-09-08T02:34:38.664Z'
 taken_at: '2026-09-07T22:43:36.690Z'
 branch: TICK-035-principal-routes
 worktree: .worktrees/tick-035
@@ -41,7 +42,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/692'
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T02:21:10.634Z'
+updated: '2026-09-08T02:34:38.664Z'
 ---
 
 ## What
