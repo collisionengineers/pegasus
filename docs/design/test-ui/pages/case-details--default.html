@@ -180,6 +180,10 @@
     </div>
 </header>
 
+    <div class="notice notice--success mb-2" role="status" data-confirmation>
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>Edit mode is active.</span>
+    </div>
 
 <article class="record">
     <div class="case-sticky" data-case-sticky>
@@ -412,10 +416,6 @@
                         <label for="edit-circumstances">Accident circumstances</label>
                         <textarea id="edit-circumstances" name="accidentCircumstances" maxlength="2000" rows="4">Rear impact</textarea>
                     </div>
-                        <div class="notice notice--warning">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>Saving returns the case to Not ready.</span>
-                        </div>
                     <div class="button-row">
                         <button type="submit" class="btn btn--primary">
                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
@@ -597,6 +597,7 @@
             <dl><dt>Mileage source</dt><dd>Staff</dd></dl>
             <dl><dt>MOT mileage</dt><dd>Not recorded</dd></dl>
         </div>
+            <dl class="detail-list"><div><dt>Vehicle history</dt><dd>Not recorded</dd></div></dl>
     </div>
 </section>
 
@@ -677,11 +678,36 @@
 <section class="panel" aria-labelledby="section-settlement-title">
     <div class="panel-head"><h2 id="section-settlement-title">Settlement</h2></div>
     <div class="panel-body">
+        <div class="grid grid-2">
+                    <dl class="detail-list"><div><dt>Outcome</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage category</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage value</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Excess</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Betterment</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Claimant VAT registered</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Reserve</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Repair delays</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Report delay</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Hire start</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Hire daily cost</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Diminution</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage location</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage agent</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage agent reference</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage moved</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Owner retains salvage</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage value agreed</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Salvage settled</dt><dd>Not recorded</dd></div></dl>
+                <dl class="detail-list">
+                    <div><dt>Storage per day</dt><dd>Not recorded</dd></div>
+                    <div><dt>Recovery charge</dt><dd>Not recorded</dd></div>
+                </dl>
+        </div>
         <dl class="detail-list">
-            <div><dt>Outcome</dt><dd>Not recorded</dd></div>
-            <div><dt>Salvage category</dt><dd>Not recorded</dd></div>
-            <div><dt>Salvage value</dt><dd>Not recorded</dd></div>
-            <div><dt>Recovery charge</dt><dd>Not recorded</dd></div>
+            <div><dt>Repair total</dt><dd>Not recorded</dd></div>
+            <div><dt>Repair days</dt><dd>Not recorded</dd></div>
+            <div><dt>Engineer's Value</dt><dd>Not recorded</dd></div>
+            <div><dt>Equity</dt><dd>Not recorded</dd></div>
             <div><dt>Storage charge</dt><dd>Not recorded</dd></div>
             <div><dt>Repairer VAT registered</dt><dd>Not recorded</dd></div>
         </dl>
@@ -696,11 +722,20 @@
         <h2 id="section-report-title">Report</h2>
     </div>
     <div class="panel-body stack">
+        <div class="grid grid-2">
+                    <dl class="detail-list"><div><dt>Engineer&#x27;s comments</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Agreed fee</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Fee description</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Disclose guide source</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Valuation commentary</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Include unrelated damage</dt><dd>Not recorded</dd></div></dl>
+                    <dl class="detail-list"><div><dt>Override report date</dt><dd>Not recorded</dd></div></dl>
+                <dl class="detail-list">
+                    <div><dt>Sign-off Engineer</dt><dd>Unassigned</dd></div>
+                    <div><dt>Report date</dt><dd>Not recorded</dd></div>
+                </dl>
+        </div>
         <dl class="detail-list">
-            <div><dt>Engineer&#x27;s comments</dt><dd>Not recorded</dd></div>
-            <div><dt>History check</dt><dd>Not recorded</dd></div>
-            <div><dt>Agreed fee</dt><dd>Not recorded</dd></div>
-            <div><dt>Fee description</dt><dd>Not recorded</dd></div>
             <div><dt>Statement of truth</dt><dd>Not recorded</dd></div>
         </dl>
     </div>

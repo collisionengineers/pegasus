@@ -4,6 +4,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Harness = Pegasus.IntegrationTests.CaseDataCompletenessPersistenceTests.CaseDataHarness;
@@ -37,7 +38,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Overview = Overview("Jane Example"),
                 Inspection = Inspection(
                     CaseReportAddressTreatment.PhysicalVehicleLocation,
-                    "5 Repairer Way, Leeds"),
+                    "5 Repairer Way, Leeds") with { StoragePerDay = 20m, RecoveryCharge = 120m },
                 Vehicle = new(
                     "AB12 CDE",
                     "Ford",
@@ -45,7 +46,8 @@ public sealed class CaseWorkspacePersistenceTests
                     new(72_850, CaseOdometerUnit.Miles, "repairer", CaseOdometerUnit.Kilometres),
                     new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
-                        [AssessmentVocabulary.VehicleCondition] = "good"
+                        [AssessmentVocabulary.VehicleCondition] = "good",
+                        [AssessmentVocabulary.HistoryCheck] = "History clear"
                     }),
                 Damage = new([new("left_front_wing", "light", "Scuffed")], null),
                 Completeness = new(true, true)
@@ -57,8 +59,12 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(historyBefore + 1, await harness.HistoryCountAsync());
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
 
-        Assert.Equal("Jane Example", result.Data.Claimant.Name.Confirmed?.Value);
-        Assert.Equal("AB12CDE", result.Data.Vehicle.Registration.Confirmed?.Value);
+        Assert.Equal("Jane Example", result.Data.Claimant.Name.Fact?.Value);
+        Assert.Equal(initial.Claimant.Name.Fact, result.Data.Claimant.Name.Fact);
+        Assert.Null(result.Data.Claimant.Name.Confirmed);
+        Assert.Equal("AB12CDE", result.Data.Vehicle.Registration.Fact?.Value);
+        Assert.Equal(initial.Vehicle.Registration.Fact, result.Data.Vehicle.Registration.Fact);
+        Assert.Null(result.Data.Vehicle.Registration.Confirmed);
         Assert.Equal(72_850, result.Data.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("5 Repairer Way, Leeds", result.Data.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
@@ -72,6 +78,9 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(
             "good",
             result.Assessment.Fields.Single(field => field.Path == AssessmentVocabulary.VehicleCondition).Value);
+        Assert.Equal("History clear", result.Assessment.Field(AssessmentVocabulary.HistoryCheck)?.Value);
+        Assert.Equal("20.00", result.Assessment.Field(AssessmentVocabulary.SettlementStoragePerDay)?.Value);
+        Assert.Equal("120.00", result.Assessment.Field(AssessmentVocabulary.CostRecoveryCharge)?.Value);
         // The headline impact location is derived from the impacts, never
         // written directly, and a detailed region rolls up to its parent.
         Assert.Equal(
@@ -144,6 +153,102 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(CaseLifecycleState.Review, result.Data.State);
     }
 
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    [InlineData(CaseLifecycleState.PostReport)]
+    public async Task SettlementAndReportSaveTogetherPreservingUnsubmittedFactsAndInvalidatingTheReport(
+        CaseLifecycleState state)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var engineer = Engineer(harness);
+        var signOffEngineerId = Guid.Parse(engineer.SubjectId);
+        var generationId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {state.ToString()}, AssignedEngineerId = {signOffEngineerId} WHERE CaseId = {harness.CaseId}");
+            context.Add(new CaseReportGenerationEntity
+            {
+                Id = generationId,
+                CaseId = harness.CaseId,
+                CaseVersion = 0,
+                SnapshotHash = new string('2', 64),
+                SnapshotJson = "{\"operationKey\":\"seed-generation-current\"}",
+                TemplateVersion = "assessment-report/v1",
+                RendererVersion = "playwright/v1",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = harness.TimeProvider.GetUtcNow(),
+                Version = 1
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-report-editors");
+        var historyBefore = await harness.HistoryCountAsync();
+        var request = Request(harness, initial.Version, lease.Token, "workspace-report-editors", engineer) with
+        {
+            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = "repairable",
+                [AssessmentVocabulary.SettlementExcess] = "250.00",
+                [AssessmentVocabulary.SettlementBetterment] = "0.00",
+                [AssessmentVocabulary.SettlementClaimantVatRegistered] = "false",
+                [AssessmentVocabulary.SettlementRepairDelays] = "",
+                [AssessmentVocabulary.SettlementHireStart] = "2031-05-20"
+            }),
+            Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.EngineersComments] = "Scuffed",
+                [AssessmentVocabulary.AgreedFee] = "120.00",
+                [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
+                [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
+                [AssessmentVocabulary.ReportValuationCommentary] = "false",
+                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false",
+                [AssessmentVocabulary.ReportDateOverride] = "false"
+            }, signOffEngineerId, new DateOnly(2031, 5, 20))
+        };
+
+        var saved = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+        Assert.False(saved.WasReplay);
+        Assert.Equal(initial.Version + 1, saved.Version);
+        Assert.Equal(state, saved.Data.State);
+        Assert.Equal(initial.Origin, saved.Data.Origin);
+        Assert.Equal(initial.Claimant.Name.Fact, saved.Data.Claimant.Name.Fact);
+        Assert.Null(saved.Data.Claimant.Name.Confirmed);
+        Assert.Equal(initial.Inspection.Address.Confirmed, saved.Data.Inspection.Address.Confirmed);
+        Assert.Equal(initial.Vehicle.Registration.Fact, saved.Data.Vehicle.Registration.Fact);
+        Assert.Equal(initial.Workspace, saved.Data.Workspace);
+        Assert.Equal(initial.Completeness, saved.Completeness);
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+        // One workspace event and one report-invalidation event, not one save per section.
+        Assert.Equal(historyBefore + 2, await harness.HistoryCountAsync());
+        Assert.Equal("250.00", saved.Assessment.Field(AssessmentVocabulary.SettlementExcess)?.Value);
+        Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.SettlementClaimantVatRegistered)?.Value);
+        Assert.Null(saved.Assessment.Field(AssessmentVocabulary.SettlementRepairDelays)?.Value);
+        Assert.Equal("Scuffed", saved.Assessment.Field(AssessmentVocabulary.EngineersComments)?.Value);
+        Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
+        Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
+        Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.ReportDateOverride)?.Value);
+        Assert.All(saved.Assessment.Fields, field => Assert.True(field.IsConfirmed));
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == harness.CaseId);
+            Assert.Equal(signOffEngineerId, workflow.SignOffEngineerId);
+            var generation = await context.Set<CaseReportGenerationEntity>().AsNoTracking().SingleAsync(row => row.Id == generationId);
+            Assert.Equal(nameof(CaseReportGenerationState.Stale), generation.State);
+        }
+
+        var replay = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+        Assert.True(replay.WasReplay);
+        Assert.Equal(saved.Version, replay.Version);
+        Assert.Equal(historyBefore + 2, await harness.HistoryCountAsync());
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() => harness.WorkspaceStore.SaveAsync(
+            request with { Report = request.Report! with { ReportDate = new DateOnly(2031, 5, 21) } },
+            CancellationToken.None));
+        Assert.Equal(saved.Version, (await harness.GetRequiredDataAsync()).Version);
+    }
+
     [Fact]
     public async Task AStaleExpectedVersionRefusesTheWholeWorkspaceWithoutPartialWrites()
     {
@@ -169,6 +274,78 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("Jane Example", after.Claimant.Name.Current?.Value);
         Assert.Equal(historyBefore, await harness.HistoryCountAsync());
         Assert.Equal(0, await AssessmentFieldCountAsync(harness));
+    }
+
+    [Fact]
+    public async Task SubmittedOverviewPreservesAcceptedProvenanceAndDoesNotConfirmAnUnpostedSuggestion()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var source = await context.CaseDataFields.AsNoTracking().SingleAsync(row =>
+                row.CaseId == harness.CaseId && row.FieldName == CaseDataFieldNames.InspectionAddress
+                && row.ValueKind == CaseDataCodes.Fact);
+            context.CaseDataFields.Add(new CaseDataFieldEntity
+            {
+                CaseId = harness.CaseId,
+                FieldName = CaseDataFieldNames.ClaimantAddress,
+                ValueKind = CaseDataCodes.Suggestion,
+                ValueType = source.ValueType,
+                Value = source.Value,
+                SourceKind = source.SourceKind,
+                SourceIdentity = source.SourceIdentity,
+                SourceLabel = source.SourceLabel,
+                PolicyKey = source.PolicyKey,
+                PolicyVersion = source.PolicyVersion
+            });
+            await context.SaveChangesAsync();
+        }
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.NotNull(initial.Claimant.Name.Fact);
+        Assert.Null(initial.Claimant.Name.Confirmed);
+        Assert.NotNull(initial.Claimant.Address.Suggestion);
+        Assert.Null(initial.Claimant.Address.Fact);
+        Assert.NotNull(initial.Inspection.Address.Confirmed);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var lease = await harness.AcquireLeaseAsync(initial.Version, actor, "lease-preserve-provenance");
+        var overview = Overview(initial.Claimant.Name.Fact.Value) with { ContactName = "Jane Corrected" };
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-preserve-provenance", actor) with
+            {
+                Overview = overview
+            }, CancellationToken.None);
+
+        Assert.Equal(initial.Claimant.Name.Fact, saved.Data.Claimant.Name.Fact);
+        Assert.Null(saved.Data.Claimant.Name.Confirmed);
+        Assert.Equal(initial.Claim.Number.Fact, saved.Data.Claim.Number.Fact);
+        Assert.Null(saved.Data.Claim.Number.Confirmed);
+        Assert.Equal(initial.Claimant.Address.Suggestion, saved.Data.Claimant.Address.Suggestion);
+        Assert.Null(saved.Data.Claimant.Address.Confirmed);
+        Assert.Equal(initial.Inspection.Address.Confirmed, saved.Data.Inspection.Address.Confirmed);
+        Assert.Equal("Jane Corrected", saved.Data.Contact.Name.Confirmed?.Value);
+        Assert.Equal(actor.SubjectId, saved.Data.Contact.Name.Confirmed?.ConfirmedByActor);
+
+        var correctionLease = await harness.AcquireLeaseAsync(saved.Version, actor, "lease-genuine-correction");
+        var corrected = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, saved.Version, correctionLease.Token, "workspace-genuine-correction", actor) with
+            {
+                Overview = overview with
+                {
+                    ClaimantName = "Jane Corrected",
+                    ClaimantAddress = initial.Claimant.Address.Suggestion.Value
+                }
+            }, CancellationToken.None);
+        Assert.Equal("Jane Corrected", corrected.Data.Claimant.Name.Confirmed?.Value);
+        Assert.Equal(initial.Claimant.Name.Fact, corrected.Data.Claimant.Name.Fact);
+        Assert.Equal(actor.SubjectId, corrected.Data.Claimant.Name.Confirmed?.ConfirmedByActor);
+        // An explicitly supplied suggestion is a real confirmation, unlike an
+        // unchanged accepted Fact or a suggestion that the form did not submit.
+        Assert.Equal(initial.Claimant.Address.Suggestion.Value, corrected.Data.Claimant.Address.Confirmed?.Value);
+        Assert.Equal(actor.SubjectId, corrected.Data.Claimant.Address.Confirmed?.ConfirmedByActor);
+        Assert.Equal(initial.Claimant.Address.Suggestion, corrected.Data.Claimant.Address.Suggestion);
+        Assert.Equal(saved.Data.Contact.Name.Confirmed, corrected.Data.Contact.Name.Confirmed);
+        Assert.Equal(initial.Inspection.Address.Confirmed, corrected.Data.Inspection.Address.Confirmed);
     }
 
     [Fact]
@@ -279,6 +456,15 @@ public sealed class CaseWorkspacePersistenceTests
                         {
                             [AssessmentVocabulary.VehicleCondition] = "poor"
                         }),
+                    Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        [AssessmentVocabulary.SettlementExcess] = "250.00"
+                    }),
+                    Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        [AssessmentVocabulary.EngineersComments] = "Never written",
+                        [AssessmentVocabulary.AgreedFee] = "120.00"
+                    }, null, new DateOnly(2031, 5, 20)),
                     Estimate = new(null, null, [])
                 },
                 CancellationToken.None));

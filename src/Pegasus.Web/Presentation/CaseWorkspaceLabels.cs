@@ -15,6 +15,67 @@ public static class CaseWorkspaceLabels
 {
     public const string HandToEngineer = "Hand to Engineer";
 
+    // Presentation membership only; types, allowed codes and authority remain
+    // owned by AssessmentVocabulary and the workspace command.
+    public static class Editors
+    {
+        public static IReadOnlyDictionary<string, string> Settlement { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.Outcome] = "Outcome",
+            [AssessmentVocabulary.SalvageCategory] = "Salvage category",
+            [AssessmentVocabulary.SalvageValue] = "Salvage value",
+            [AssessmentVocabulary.SettlementExcess] = "Excess",
+            [AssessmentVocabulary.SettlementBetterment] = "Betterment",
+            [AssessmentVocabulary.SettlementClaimantVatRegistered] = "Claimant VAT registered",
+            [AssessmentVocabulary.SettlementReserve] = "Reserve",
+            [AssessmentVocabulary.SettlementRepairDelays] = "Repair delays",
+            [AssessmentVocabulary.SettlementReportDelay] = "Report delay",
+            [AssessmentVocabulary.SettlementHireStart] = "Hire start",
+            [AssessmentVocabulary.SettlementHireDailyCost] = "Hire daily cost",
+            [AssessmentVocabulary.SettlementDiminution] = "Diminution",
+            [AssessmentVocabulary.SettlementSalvageAt] = "Salvage location",
+            [AssessmentVocabulary.SettlementSalvageAgent] = "Salvage agent",
+            [AssessmentVocabulary.SettlementSalvageAgentReference] = "Salvage agent reference",
+            [AssessmentVocabulary.SettlementSalvageMoved] = "Salvage moved",
+            [AssessmentVocabulary.SettlementSalvageOwnerRetains] = "Owner retains salvage",
+            [AssessmentVocabulary.SettlementSalvageValueAgreed] = "Salvage value agreed",
+            [AssessmentVocabulary.SettlementSalvageSettled] = "Salvage settled"
+        };
+
+        public static IReadOnlyDictionary<string, string> Report { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.EngineersComments] = "Engineer's comments",
+            [AssessmentVocabulary.AgreedFee] = "Agreed fee",
+            [AssessmentVocabulary.FeeDescriptionLines] = "Fee description",
+            [AssessmentVocabulary.ReportDiscloseGuideSource] = "Disclose guide source",
+            [AssessmentVocabulary.ReportValuationCommentary] = "Valuation commentary",
+            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage",
+            [AssessmentVocabulary.ReportDateOverride] = "Override report date"
+        };
+
+        public static string FormName(string path) => $"assessmentFields[{path}]";
+
+        public static string? Label(string field)
+        {
+            if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
+            foreach (var entry in Settlement.Concat(Report))
+            {
+                if (field == FormName(entry.Key)) return entry.Value;
+            }
+            return field switch
+            {
+                "storagePerDay" => "Storage per day",
+                "recoveryCharge" => "Recovery charge",
+                "signOffEngineerId" => "Sign-off Engineer",
+                "reportDate" => "Report date",
+                _ => null
+            };
+        }
+
+        public static bool IsAssessmentField(string path) =>
+            Settlement.ContainsKey(path) || Report.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck;
+    }
+
     public static class EstimateImport
     {
         public const string Complete = "Complete import";

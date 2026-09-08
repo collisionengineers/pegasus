@@ -436,6 +436,85 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
+    public void CaseSettlementAndReportUseTheSameFiguresAndEstimateRepairDays()
+    {
+        var input = ReadyInput();
+        var currentEstimate = input.CurrentEstimate!;
+        input = input with
+        {
+            CurrentEstimate = currentEstimate with
+            {
+                Details = currentEstimate.Details with { RepairDays = 3 },
+            },
+            Assessment = input.Assessment with
+            {
+                Fields = [.. input.Assessment.Fields, Field(AssessmentVocabulary.SalvageValue, "500.00")],
+            },
+        };
+
+        var settlement = AssessmentReportProjection.BuildSettlement(input.Assessment, input.CurrentEstimate);
+        var report = AssessmentReportProjection.Project(input);
+
+        Assert.NotNull(settlement);
+        Assert.Equal(4_330m, settlement.Equity);
+        Assert.Equal(3, settlement.RepairDays);
+        Assert.Equal(report.Snapshot!.Settlement, settlement);
+    }
+
+    [Fact]
+    public void MissingCurrentEstimateWithholdsSettlementInsteadOfAssumingZeroRepairCost()
+    {
+        Assert.Null(AssessmentReportProjection.BuildSettlement(ReadyInput().Assessment, null));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-money")]
+    public void MissingOrUnusableEngineerValueWithholdsSettlement(string? value)
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Where(field => field.Path != AssessmentVocabulary.ValueEngineer)
+            .ToList();
+        if (value is not null)
+        {
+            fields.Add(Field(AssessmentVocabulary.ValueEngineer, value));
+        }
+
+        Assert.Null(AssessmentReportProjection.BuildSettlement(
+            input.Assessment with { Fields = fields }, input.CurrentEstimate));
+    }
+
+    [Theory]
+    [InlineData(AssessmentVocabulary.ValueEngineer)]
+    [InlineData(AssessmentVocabulary.SettlementBetterment)]
+    [InlineData(AssessmentVocabulary.SalvageValue)]
+    public void UnconfirmedCalculationInputsDoNotBecomeAcceptedSettlementMoney(string path)
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields.Where(field => field.Path != path)
+            .Append(Field(path, "500.00") with { ConfirmedBy = null, ConfirmedAtUtc = null })
+            .ToArray();
+
+        Assert.Null(AssessmentReportProjection.BuildSettlement(
+            input.Assessment with { Fields = fields }, input.CurrentEstimate));
+    }
+
+    [Theory]
+    [InlineData(RepairSpecificationState.Draft, true)]
+    [InlineData(RepairSpecificationState.Accepted, false)]
+    [InlineData(RepairSpecificationState.Superseded, false)]
+    public void OnlyTheCurrentAcceptedEstimateCanSupplySettlementMoney(
+        RepairSpecificationState state, bool isCurrent)
+    {
+        var input = ReadyInput();
+
+        Assert.Null(AssessmentReportProjection.BuildSettlement(
+            input.Assessment, input.CurrentEstimate! with { State = state, IsCurrent = isCurrent }));
+    }
+
+    [Fact]
     public void ACurrentEstimateWithoutALabourRateIsNotReady()
     {
         var estimate = CurrentEstimate(new("Repairer", null, null, null, null, 20m, null));

@@ -94,7 +94,7 @@ public sealed class EfCaseAssessmentStore(
             || !AssessmentPolicy.IsWritableState(state))
         {
             throw new InvalidOperationException(
-                "The assessment can be saved only on a Not ready, Review, or Report preparation case.");
+                "The assessment cannot be saved in its current state.");
         }
 
         if (request.AiWorkRequestId is { } workRequestId)

@@ -152,11 +152,65 @@
             <partial name="Cases/Shared/_CaseReportImagePreparation"
                      model="ReportImagePreparationView.Report(Model)" />
         }
+        <div class="grid grid-2">
+            @foreach (var field in CaseWorkspaceLabels.Editors.Report)
+            {
+                var definition = AssessmentVocabulary.Definitions[field.Key];
+                var value = Model.AssessmentEditorValue(field.Key);
+                var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
+                if (Model.CanEditAssessmentField(field.Key))
+                {
+                    <div class="field">
+                        <label for="edit-@field.Key">@field.Value</label>
+                        @if (definition.Type == AssessmentFieldType.Flag)
+                        {
+                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
+                                <option value="" selected="@(value is null)"></option>
+                                <option value="true" selected="@(value == "true")">Yes</option>
+                                <option value="false" selected="@(value == "false")">No</option>
+                            </select>
+                        }
+                        else if (definition.Type == AssessmentFieldType.Money)
+                        {
+                            <input type="number" step="0.01" id="edit-@field.Key" name="@name" value="@value" form="case-edit-form" />
+                        }
+                        else
+                        {
+                            <textarea id="edit-@field.Key" name="@name" form="case-edit-form" rows="4" maxlength="@definition.MaximumLength">@value</textarea>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <dl class="detail-list"><div><dt>@field.Value</dt><dd>@Model.AssessmentValue(field.Key)</dd></div></dl>
+                }
+            }
+            @if (Model.CanEditEngineering)
+            {
+                <div class="field">
+                    <label for="edit-sign-off-engineer">Sign-off Engineer</label>
+                    <select id="edit-sign-off-engineer" name="signOffEngineerId" form="case-edit-form">
+                        <option value="" disabled selected="@(Model.SelectedSignOffEngineerId is null)"></option>
+                        @foreach (var engineer in Model.EligibleSignOffEngineers)
+                        {
+                            <option value="@engineer.StaffId" selected="@(engineer.StaffId == Model.SelectedSignOffEngineerId)">@engineer.PrintedName</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="edit-report-date">Report date</label>
+                    <input type="date" id="edit-report-date" name="reportDate" form="case-edit-form" value="@Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate)" />
+                </div>
+            }
+            else
+            {
+                <dl class="detail-list">
+                    <div><dt>Sign-off Engineer</dt><dd>@Model.SignOffEngineerDisplayName</dd></div>
+                    <div><dt>Report date</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ReportDate)</dd></div>
+                </dl>
+            }
+        </div>
         <dl class="detail-list">
-            <div><dt>@EngineerLabels.EngineersComments</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.EngineersComments)</dd></div>
-            <div><dt>@EngineerLabels.HistoryCheck</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</dd></div>
-            <div><dt>@EngineerLabels.AgreedFee</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.AgreedFee)</dd></div>
-            <div><dt>@EngineerLabels.FeeDescription</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.FeeDescriptionLines)</dd></div>
             <div><dt>@EngineerLabels.StatementOfTruth</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.StatementOfTruth)</dd></div>
         </dl>
     </div>

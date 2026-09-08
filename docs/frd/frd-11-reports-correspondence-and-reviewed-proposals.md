@@ -132,6 +132,15 @@ description. It does not replace retained report generation or create a new
 report family. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and does not gate report readiness.
 
+Settlement and Report editors use the Case's one workspace Save and share its
+reason, expected version, and edit lease. Report records Engineer comments,
+agreed fee, description lines, an eligible Sign-off Engineer, the existing
+content switches, and report-date override. Vehicle History is edited once in
+Vehicle. Unsubmitted accepted values remain unchanged; explicit clears and
+false values are submitted values. Switching off the date override does not
+clear an unsubmitted recorded date. Validation and concurrency refusals retain
+bounded current-versus-proposed values.
+
 Engineer sections remain viewable in other states, with edits governed by
 FRD-01. Report readiness adds only genuine post-Review requirements: required
 sign-off content and accepted estimate figures. It does not ask staff to

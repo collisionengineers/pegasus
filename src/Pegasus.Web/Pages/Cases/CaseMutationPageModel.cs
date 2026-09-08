@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
+using EditorLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -47,6 +48,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     private static readonly FrozenSet<string> RetainableFormFields = new[]
     {
         "claimantName",
+        "claimantContactNumber",
+        "claimantAddress",
         "claimNumber",
         "vehicleRegistration",
         "vehicleMake",
@@ -367,6 +370,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         catch (StaffAuthorizationException)
         {
             ClearLeaseState();
+            RetainProposedValues(id);
             return Forbid();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -446,7 +450,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         var wasShortened = false;
         var submitted = Request.Form
-            .Where(field => RetainableFormFields.Contains(field.Key))
+            .Where(field => RetainableFormFields.Contains(field.Key) || EditorLabels.Label(field.Key) is not null)
             .Select(field => new
             {
                 field.Key,
@@ -456,8 +460,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
                     ? field.Value.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty
                     : string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
             })
-            .Where(field => !string.IsNullOrWhiteSpace(field.Value)
-                && !Guid.TryParse(field.Value, out _))
+            .Where(field => field.Key == "signOffEngineerId" || !Guid.TryParse(field.Value, out _))
             .Select(field =>
             {
                 if (field.Value.Length <= MaximumRetainedProposedValueCharacters)

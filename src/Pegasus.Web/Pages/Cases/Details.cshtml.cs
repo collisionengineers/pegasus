@@ -25,6 +25,7 @@ using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateV
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
+using EditorLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -35,6 +36,7 @@ public sealed partial class DetailsModel(
     IGetCase getCase,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
+    ICaseReportSnapshotSource reportSnapshotSource,
     ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
@@ -59,7 +61,7 @@ public sealed partial class DetailsModel(
     IHeartbeatCaseEditLease heartbeatLease,
     IReleaseCaseEditLease releaseLease,
     IConfirmCompleteness confirmCompleteness,
-    ISaveCase saveCase,
+    ISaveCaseWorkspace saveCaseWorkspace,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
@@ -386,6 +388,22 @@ public sealed partial class DetailsModel(
             ? value
             : Labels.CaseWorkspace.AbsentValue;
 
+    public bool CanEditEngineering => AssessmentCanOpen && !AssessmentIsReadOnly
+        && !string.IsNullOrWhiteSpace(LeaseToken) && Case?.Workflow.Archive is null;
+
+    public bool CanEditAssessmentField(string path) => CanEditEngineering
+        && (!AssessmentVocabulary.Definitions[path].IsFinding || ActorIsEngineer);
+
+    public string? AssessmentEditorValue(string path) =>
+        Assessment?.Field(path) is { IsConfirmed: true } field ? field.Value : null;
+
+    public ReportSettlement? Settlement => Assessment is null ? null
+        : AssessmentReportProjection.BuildSettlement(Assessment, AcceptedSpecification);
+
+    public IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers { get; private set; } = [];
+
+    public Guid? SelectedSignOffEngineerId { get; private set; }
+
     public string? ImportCondition =>
         !AssessmentCanOpen
             ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
@@ -610,9 +628,17 @@ public sealed partial class DetailsModel(
         AcceptedSpecification = workspace.AcceptedSpecification;
         Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
         ApplyEstimateSelection(estimate);
-        ReportDraftPreparation = AssessmentReportProjection.Prepare(
-            Assessment,
-            currentEstimate: AcceptedSpecification);
+        if (AssessmentCanOpen)
+        {
+            var inputs = await reportSnapshotSource.GetAsync(id, actor, cancellationToken);
+            if (inputs is not null)
+            {
+                var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
+                ReportDraftPreparation = new(readiness.Reasons);
+                EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
+                SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
+            }
+        }
         CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, cancellationToken);
         CurrentDeliveryPreparation = CurrentReportGeneration is null
             ? null
@@ -964,50 +990,131 @@ public sealed partial class DetailsModel(
         DateOnly? inspectionDeadline,
         string? inspectionAddress,
         CaseInspectionMode? inspectionMode,
-        // CASE-027: SaveCase writes every one of CaseEditableData's members, so
-        // a value this handler does not bind is written as null and clears the
-        // confirmed field. These two were omitted, and every Overview save
-        // silently discarded the claimant's contact number and address.
         string? claimantContactNumber,
         string? claimantAddress,
         string? storageLocation,
+        [FromForm(Name = "assessmentFields")] Dictionary<string, string?>? assessmentFields,
+        decimal? storagePerDay,
+        decimal? recoveryCharge,
+        Guid? signOffEngineerId,
+        DateOnly? reportDate,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
             editLeaseToken,
             "save_case",
-            actor => saveCase.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    new(
-                        claimantName,
-                        claimNumber,
-                        vehicleRegistration,
-                        vehicleMake,
-                        vehicleModel,
-                        vehicleMileage,
-                        vehicleMileageUnit,
-                        accidentCircumstances,
-                        incidentDate,
-                        contactName,
-                        contactEmailAddress,
-                        contactPhoneNumber,
-                        instructionDate,
-                        vatStatus,
-                        inspectionDate,
-                        inspectionDeadline,
-                        inspectionAddress,
-                        CaseDataPolicy.InferInspectionMode(inspectionAddress),
-                        claimantContactNumber,
-                        claimantAddress,
-                        storageLocation)),
-                cancellationToken),
-            "Case data was saved. The case is Not ready until completeness is confirmed again.");
+            async actor =>
+            {
+                if (!ModelState.IsValid)
+                {
+                    throw new InvalidOperationException("A submitted Case field is invalid.");
+                }
+
+                assessmentFields ??= [];
+                if (assessmentFields.Keys.Any(path => !EditorLabels.IsAssessmentField(path)))
+                {
+                    throw new InvalidOperationException("This field is not part of the Case editor.");
+                }
+                var engineeringSubmitted = assessmentFields.Count > 0
+                    || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
+                    || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
+                var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
+                    ?? throw new KeyNotFoundException("The Case is unavailable.");
+                var data = current.Data
+                    ?? throw new InvalidOperationException("The Case data is unavailable.");
+                // This read supplies unshown values, never new write authority.
+                // The transaction still receives the submitted version and lease.
+                if (engineeringSubmitted
+                    && AssessmentAccessPolicy.IsReadOnly(new(current.Workflow.State)))
+                {
+                    throw new InvalidOperationException("Engineering fields are read-only in this Case state.");
+                }
+                var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+                var assessment = workspace?.Assessment;
+                string? Recorded(string path) => assessment?.Field(path) is { IsConfirmed: true } field
+                    ? field.Value : null;
+                decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
+                    CultureInfo.InvariantCulture, out var value) ? value : null;
+                var persisted = data.Workspace;
+                var address = Submitted(nameof(inspectionAddress), inspectionAddress, Accepted(data.Inspection.Address)?.Value);
+                var treatment = !Posted(nameof(inspectionAddress)) && persisted?.InspectionAddressTreatment is { } recordedTreatment
+                    ? recordedTreatment
+                    : CaseDataPolicy.InferInspectionMode(address) switch
+                    {
+                        CaseInspectionMode.ImageBasedAssessment => CaseReportAddressTreatment.ImageBasedAssessment,
+                        CaseInspectionMode.PhysicalAddress => CaseReportAddressTreatment.PhysicalVehicleLocation,
+                        _ => CaseReportAddressTreatment.Undetermined
+                    };
+                var mileageUnit = Submitted(nameof(vehicleMileageUnit), vehicleMileageUnit, Accepted(data.Vehicle.MileageUnit)?.Value);
+                CaseOdometerUnit? originalUnit = null;
+                if (!string.IsNullOrWhiteSpace(mileageUnit))
+                {
+                    if (!CaseOdometer.TryParseUnit(mileageUnit, out var parsedUnit))
+                        throw new InvalidOperationException("The mileage unit is invalid.");
+                    originalUnit = parsedUnit;
+                }
+                var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
+                    .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
+                var settlementFields = assessmentFields.Where(field => EditorLabels.Settlement.ContainsKey(field.Key))
+                    .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
+                var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
+                var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
+                    nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
+                    nameof(incidentDate), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus) }.Any(Posted);
+                var inspectionSubmitted = new[] { nameof(inspectionAddress), nameof(storageLocation), nameof(inspectionDate),
+                    nameof(inspectionDeadline), nameof(storagePerDay), nameof(recoveryCharge) }.Any(Posted);
+                var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
+                    nameof(vehicleMileage), nameof(vehicleMileageUnit) }.Any(Posted)
+                    || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck);
+                var recordedDate = DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
+                await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
+                {
+                    Overview = !overviewSubmitted ? null : new(
+                        Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
+                        Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
+                        Submitted(nameof(claimantAddress), claimantAddress, Accepted(data.Claimant.Address)?.Value),
+                        Submitted(nameof(claimNumber), claimNumber, Accepted(data.Claim.Number)?.Value),
+                        Submitted(nameof(contactName), contactName, Accepted(data.Contact.Name)?.Value),
+                        Submitted(nameof(contactEmailAddress), contactEmailAddress, Accepted(data.Contact.EmailAddress)?.Value),
+                        Submitted(nameof(contactPhoneNumber), contactPhoneNumber, Accepted(data.Contact.PhoneNumber)?.Value),
+                        Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
+                        Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
+                        Submitted(nameof(instructionDate), instructionDate, Accepted(data.Instruction.InstructionDate)?.Value),
+                        Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
+                        Accepted(data.Inspection.RepairerAddress)?.Value, persisted?.ClaimSource),
+                    Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
+                        Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
+                        persisted?.StorageBusiness,
+                        Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
+                        Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
+                        persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
+                        persisted?.InspectionContactName, persisted?.InspectionContactTelephone,
+                        persisted?.InspectionContactEmailAddress, persisted?.InspectionNotes,
+                        Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
+                        Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
+                    Vehicle = !vehicleSubmitted ? null : new(
+                        Submitted(nameof(vehicleRegistration), vehicleRegistration, Accepted(data.Vehicle.Registration)?.Value),
+                        Submitted(nameof(vehicleMake), vehicleMake, Accepted(data.Vehicle.Make)?.Value),
+                        Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
+                        new(Submitted(nameof(vehicleMileage), vehicleMileage, Accepted(data.Vehicle.Mileage)?.Value),
+                            originalUnit, Recorded(AssessmentVocabulary.VehicleMileageSource), persisted?.VehicleMileageDisplayUnit),
+                        assessmentFields.TryGetValue(AssessmentVocabulary.HistoryCheck, out var history)
+                            ? new Dictionary<string, string?> { [AssessmentVocabulary.HistoryCheck] = history } : null),
+                    Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
+                    Report = !reportSubmitted ? null : new(reportFields,
+                        Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
+                        Submitted(nameof(reportDate), reportDate, recordedDate))
+                }, cancellationToken);
+            },
+            "Case saved.");
+
+    private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
+
+    private T Submitted<T>(string field, T submitted, T recorded) => Posted(field) ? submitted : recorded;
+
+    public static CaseDataValue<T>? Accepted<T>(CaseField<T>? field) where T : notnull =>
+        field?.Confirmed ?? field?.Fact;
 
     public async Task<IActionResult> OnPostGenerateReportDraftAsync(
         Guid id,
@@ -2695,7 +2802,8 @@ public sealed partial class DetailsModel(
             EngineerDisplayName = account?.UserName ?? ActorDisplayNames.UnknownStaff;
         }
 
-        var profiles = await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+        var profiles = AssessmentCanOpen ? EligibleSignOffEngineers
+            : await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
@@ -2787,15 +2895,33 @@ public sealed partial class DetailsModel(
     /// Renders a proposed checkbox value in the same words as the current one, so the two columns
     /// compare rather than reading "true" beside "Yes".
     /// </summary>
-    private static string DisplayValue(string field, string value) =>
-        BooleanFormFields.Contains(field)
-            ? YesOrNo(string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
-            : value;
+    private string DisplayValue(string field, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return Labels.CaseWorkspace.AbsentValue;
+        if (field == "signOffEngineerId")
+        {
+            return Guid.TryParse(value, out var id)
+                ? EligibleSignOffEngineers.FirstOrDefault(engineer => engineer.StaffId == id)?.PrintedName
+                    ?? "Unavailable sign-off Engineer"
+                : "Unavailable sign-off Engineer";
+        }
+        return BooleanFormFields.Contains(field) || (EditorLabels.Label(field) is not null && bool.TryParse(value, out _))
+            ? YesOrNo(string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)) : value;
+    }
 
     private static string YesOrNo(bool value) => value ? "Yes" : "No";
 
     private string? CurrentValue(string field)
     {
+        if (field.StartsWith("assessmentFields[", StringComparison.Ordinal) && field.EndsWith(']'))
+        {
+            var value = AssessmentEditorValue(field[17..^1]);
+            return DisplayValue(field, value ?? string.Empty);
+        }
+        if (field == "signOffEngineerId") return SignOffEngineerDisplayName;
+        if (field == "storagePerDay") return AssessmentValue(AssessmentVocabulary.SettlementStoragePerDay);
+        if (field == "recoveryCharge") return AssessmentValue(AssessmentVocabulary.CostRecoveryCharge);
+        if (field == "reportDate") return AssessmentValue(AssessmentVocabulary.ReportDate);
         if (Case?.Data is not { } data)
         {
             return null;
@@ -2803,35 +2929,35 @@ public sealed partial class DetailsModel(
 
         return field switch
         {
-            "claimantName" => data.Claimant.Name.Confirmed?.Value,
-            "claimNumber" => data.Claim.Number.Confirmed?.Value,
-            "vehicleRegistration" => data.Vehicle.Registration.Confirmed?.Value,
-            "vehicleMake" => data.Vehicle.Make.Confirmed?.Value,
-            "vehicleModel" => data.Vehicle.Model.Confirmed?.Value,
-            "vehicleMileage" => data.Vehicle.Mileage.Confirmed?.Value.ToString(
+            "claimantName" => Accepted(data.Claimant.Name)?.Value,
+            "claimNumber" => Accepted(data.Claim.Number)?.Value,
+            "vehicleRegistration" => Accepted(data.Vehicle.Registration)?.Value,
+            "vehicleMake" => Accepted(data.Vehicle.Make)?.Value,
+            "vehicleModel" => Accepted(data.Vehicle.Model)?.Value,
+            "vehicleMileage" => Accepted(data.Vehicle.Mileage)?.Value.ToString(
                 CultureInfo.InvariantCulture),
-            "vehicleMileageUnit" => data.Vehicle.MileageUnit.Confirmed?.Value,
-            "accidentCircumstances" => data.Accident.Circumstances.Confirmed?.Value,
-            "incidentDate" => data.Accident.IncidentDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            "contactName" => data.Contact.Name.Confirmed?.Value,
-            "contactEmailAddress" => data.Contact.EmailAddress.Confirmed?.Value,
-            "contactPhoneNumber" => data.Contact.PhoneNumber.Confirmed?.Value,
-            "instructionDate" => data.Instruction.InstructionDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            "vatStatus" => data.Instruction.VatStatus.Confirmed?.Value,
-            "inspectionDate" => data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            "inspectionDeadline" => data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            "inspectionAddress" => data.Inspection.Address.Confirmed?.Value,
-            "inspectionMode" => data.Inspection.Mode.Confirmed?.Value.ToString(),
-            "storageLocation" => data.Inspection.StorageLocation?.Confirmed?.Value,
+            "vehicleMileageUnit" => Accepted(data.Vehicle.MileageUnit)?.Value,
+            "accidentCircumstances" => Accepted(data.Accident.Circumstances)?.Value,
+            "incidentDate" => Accepted(data.Accident.IncidentDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "contactName" => Accepted(data.Contact.Name)?.Value,
+            "contactEmailAddress" => Accepted(data.Contact.EmailAddress)?.Value,
+            "contactPhoneNumber" => Accepted(data.Contact.PhoneNumber)?.Value,
+            "instructionDate" => Accepted(data.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "vatStatus" => Accepted(data.Instruction.VatStatus)?.Value,
+            "inspectionDate" => Accepted(data.Inspection.InspectionDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "inspectionDeadline" => Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "inspectionAddress" => Accepted(data.Inspection.Address)?.Value,
+            "inspectionMode" => Accepted(data.Inspection.Mode)?.Value.ToString(),
+            "storageLocation" => Accepted(data.Inspection.StorageLocation)?.Value,
 
             // The corrected-vehicle-suggestion form posts unprefixed names against the same case
             // fields, so the case's confirmed vehicle values are what it is compared with.
-            "registration" => data.Vehicle.Registration.Confirmed?.Value,
-            "make" => data.Vehicle.Make.Confirmed?.Value,
-            "model" => data.Vehicle.Model.Confirmed?.Value,
-            "mileage" => data.Vehicle.Mileage.Confirmed?.Value.ToString(
+            "registration" => Accepted(data.Vehicle.Registration)?.Value,
+            "make" => Accepted(data.Vehicle.Make)?.Value,
+            "model" => Accepted(data.Vehicle.Model)?.Value,
+            "mileage" => Accepted(data.Vehicle.Mileage)?.Value.ToString(
                 CultureInfo.InvariantCulture),
-            "mileageUnit" => data.Vehicle.MileageUnit.Confirmed?.Value,
+            "mileageUnit" => Accepted(data.Vehicle.MileageUnit)?.Value,
 
             // Two handlers name the same completeness flags differently; both compare against the
             // one projected value.
@@ -2842,7 +2968,7 @@ public sealed partial class DetailsModel(
         };
     }
 
-    private static string FieldLabel(string field) => field switch
+    private static string FieldLabel(string field) => EditorLabels.Label(field) ?? (field switch
     {
         "claimantName" => "Claimant",
         "claimNumber" => "Claim number",
@@ -2869,7 +2995,7 @@ public sealed partial class DetailsModel(
         "instructionComplete" or "instructionsComplete" => "Instructions complete",
         "imagesComplete" => "Images complete",
         _ => Humanize(field)
-    };
+    });
 
     private static string Humanize(string field)
     {

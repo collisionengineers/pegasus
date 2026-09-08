@@ -106,7 +106,6 @@ public static class AssessmentVocabulary
     public const string SettlementBetterment = "settlement.betterment";
     public const string SettlementClaimantVatRegistered = "settlement.claimant_vat_registered";
     public const string SettlementReserve = "settlement.reserve";
-    public const string SettlementRepairDuration = "settlement.repair_duration";
     public const string SettlementRepairDelays = "settlement.repair_delays";
     public const string SettlementReportDelay = "settlement.report_delay";
     public const string SettlementStoragePerDay = "settlement.storage_per_day";
@@ -282,7 +281,6 @@ public static class AssessmentVocabulary
         new(SettlementBetterment, AssessmentFieldType.Money, 20, IsFinding: false),
         new(SettlementClaimantVatRegistered, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(SettlementReserve, AssessmentFieldType.Money, 20, IsFinding: false),
-        new(SettlementRepairDuration, AssessmentFieldType.WholeNumber, 10, IsFinding: false),
         new(SettlementRepairDelays, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(SettlementReportDelay, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(SettlementStoragePerDay, AssessmentFieldType.Money, 20, IsFinding: false),

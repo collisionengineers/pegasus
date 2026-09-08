@@ -1580,7 +1580,17 @@ public sealed partial class AssessmentEstimateImportWebTests
             CancellationToken cancellationToken = default)
         {
             SetCurrentRequests.Add(request);
-            var madeCurrent = (CurrentDraft ?? CurrentAccepted ?? DraftSpecification(caseId)) with
+            var candidate = CurrentDraft ?? CurrentAccepted ?? DraftSpecification(caseId);
+            if (candidate.State == RepairSpecificationState.Draft)
+            {
+                var totals = EstimateTotals.Compute(candidate);
+                candidate = candidate with
+                {
+                    CalculationBasis = EstimatePolicy.BasisFor(totals),
+                    RecordedTotals = totals,
+                };
+            }
+            var madeCurrent = candidate with
             {
                 State = RepairSpecificationState.Accepted,
                 IsCurrent = true,
