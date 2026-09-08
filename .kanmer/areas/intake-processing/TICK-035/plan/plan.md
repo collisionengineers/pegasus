@@ -197,3 +197,25 @@ repeat of unchanged 224 passing Core tests is needed.
    new geometry/provenance probes, affected QDOS classifier cases and existing
    unreadable-source boundary. Preserve all previous results; no repeated
    unchanged224 Core cohort or live OCR call.
+
+
+## Starting state — accepted dev integration before next verification
+
+Root authorized committing the current frozen source as an unverified author
+checkpoint, then a normal no-edit merge from freshly fetched origin/dev into
+the same recorded TICK-035-principal-routes branch. This is not a PASS, PR,
+Review move, release or permission to absorb other tickets.
+
+Original author parent: 522e67f270ab4d6086d9fba04095988db3598888.
+Fetched integration input: 19e6f523bf6760cab39104b4dca3674b0ac8a512,
+including PLAT-072 d442366787d452da22d36719272d4eb79dc1afde and current
+PLAT-065 keyless Worker OCR infrastructure. Workspace/branch/common Git
+identity matches the lease. Board/worktree census shows this sole TICK-035
+workspace; historical foreign claims and merged/verifying peers are preserved.
+
+Retain accepted dev source through normal merge. Resolve only mechanically
+clear overlap and change new completeness fixture constructors to the accepted
+two-fact shape. Stop and report ambiguous conflicts or unplanned scope. No
+rebase/reset/force, no foreign workspace edit, no heavy command. Record author
+checkpoint and resulting merge parents after Git completes; root tests once
+on the combined frozen source, retaining all earlier failure evidence.
