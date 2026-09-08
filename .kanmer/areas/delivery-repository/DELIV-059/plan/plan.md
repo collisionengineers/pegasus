@@ -2,10 +2,10 @@
 
 ## Objective
 
-Restore one qualified, dated release-39 historical record in
-`docs/operations.md`, so PR #676 can later be disposed with its unique
-operational provenance preserved without treating the record as a fresh
-deployment observation.
+Restore a qualified, dated release-39 historical record and the minimal
+Retained evidence index correction in `docs/operations.md`, so PR #676 can
+later be disposed with its unique operational provenance preserved without
+treating the record as a fresh deployment observation.
 
 ## Starting state
 
@@ -33,6 +33,10 @@ the baseline ledger it links lacks the release-39 record.
 Add one compact dated historical release-39 section to
 `docs/operations.md` for the operator/support audience.
 
+- Correct the Retained evidence section so it no longer calls the older baseline
+  ledger the complete prior release ledger: it must index that earlier record
+  together with the new current-file release-39 historical entry, without
+  duplicating the ledger or claiming a fresh observation.
 - Attribute the release source, image/manifest identifiers, migration head,
   failed original Worker ZIP, replacement Worker package/provenance difference,
   partial migration/reset and smoke/telemetry statements to the retained
@@ -58,7 +62,7 @@ Add one compact dated historical release-39 section to
 
 | Action | Repo-root-relative path | Responsibility |
 |---|---|---|
-| Modify | `docs/operations.md` | Add the qualified dated historical release-39 record only; no generated artifact. |
+| Modify | `docs/operations.md` | Add the qualified dated historical release-39 record and minimally correct its Retained evidence index; no generated artifact. |
 
 ## Do not modify
 
@@ -104,7 +108,9 @@ Add one compact dated historical release-39 section to
 - Symbols: None; this is a dated Markdown operational-record insertion.
 - Change: add the single historical release-39 entry with its precise
   provenance/limits, all D1-required failed-package, replacement-provenance,
-  partial-migration and authorised-reset facts, and the CI discrepancy.
+  partial-migration and authorised-reset facts, and the CI discrepancy; amend
+  Retained evidence so it indexes the new entry plus the earlier baseline rather
+  than falsely describing the baseline alone as complete.
 - Preserved behaviour: the 6 September release-38 read remains a dated
   observation; Operations remains the single deployment/support owner;
   Architecture and current release procedure remain unchanged.
@@ -155,8 +161,10 @@ Add one compact dated historical release-39 section to
 - The only intended production-facing caller is the Operations documentation
   reader; no application caller, artifact or schema changes apply.
 - `docs/operations.md` holds the dated release-39 history and D1-required
-  failure/provenance/reset material, but no statement upgrades unverified PR
-  claims to fresh D59 evidence.
+  failure/provenance/reset material, and its Retained evidence section indexes
+  the new entry with the earlier baseline rather than asserting the baseline
+  alone is complete; no statement upgrades unverified PR claims to fresh D59
+  evidence.
 - The source SHA and CI `test-ui` result are traceable; the browser-success
   contradiction and missing waiver receipt are explicit.
 - Current architecture, release/runbook procedure and all application/build
