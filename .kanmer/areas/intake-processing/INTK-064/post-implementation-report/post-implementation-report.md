@@ -66,7 +66,7 @@ boundary. Reference/state/findings/no-extra-Case assertions remain. The
 pre-existing Triage arrangement remains explicitly an arrangement, not a
 claim that the formal instruction itself was classified as Triage.
 
-Existing structural persisted-state fixtures prove changed current index,
+Existing structural persisted-state fixtures are authored to exercise changed current index,
 new competitor, cross-principal replacement reached through FindByCaseId,
 stale Case version, live lease, cancellation, manual unlink and replay.
 A later matching Triage is selected after older unknown/contradictory rows;
@@ -86,8 +86,20 @@ corrected an undefined clock in the direct Provider API fixture before freeze.
 
 No restore, build, test, provider call, capture or CI has been run by the
 author. Runtime acceptance is NOT YET RUN, not PASS. Root must append every
-actual attempt, failure, correction and exit before publication; none exists
-yet for this INTK-064 implementation. This is not merged proof.
+actual attempt, failure, correction and exit before publication. This is not
+merged proof.
+
+### Root attempt 1 — retained FAIL
+
+2026-09-08 UTC, root session 72700: locked restore of all seven projects
+PASS. Solution Release build FAIL, exit 1 after 15.92 seconds, zero warnings
+and one CS8602 at src/Pegasus.Core/Triage/TriageLifecycle.cs:106. No tests ran.
+ExecuteDeclaredAsync deliberately returns a nullable result for an absent
+policy. The new caller now uses a non-null UniqueMatch property pattern,
+returning null for a missing/non-unique decision rather than dereferencing or
+suppressing nullability. Only that source expression changed; no assertion,
+matcher contract, policy or file scope was altered. Author diff --check PASS
+exit 0 after the correction. Fresh source freeze; root owns the retry.
 
 ## Root verification handoff
 
