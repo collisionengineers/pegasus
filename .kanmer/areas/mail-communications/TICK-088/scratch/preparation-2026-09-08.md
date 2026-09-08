@@ -1,0 +1,3 @@
+## Preparation pause — 2026-09-08, intake_audit
+
+Root requested priority read-only diagnosis of PR700's stale tracked principal-corpus source manifest. TICK-088 remains Preparing and untaken; no source, branch, tests, captures or messages. Current residual research whole-readback is 628186b12f9d5665 (historical prefix preserved). Proposed files/plan are not yet published or approved. Existing-row local drafts, mailbox signature configuration and final saved-version confirmation are the recommended reuse; MAIL-030 default sender and exact shared Case/schema/generated ownership remain unresolved before execution. Resume bounded preparation after the priority diagnosis; no execution authority is inferred.
