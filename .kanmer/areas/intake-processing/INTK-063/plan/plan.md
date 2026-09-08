@@ -4,8 +4,9 @@
 
 Recover the already-required image-to-formal Case association, in both arrival
 orders, with current identity and no lost retry. Current read-only baseline is
-accepted dev 19e6f523bf6760cab39104b4dca3674b0ac8a512; execution takes fresh
-dev only after TICK-035 ownership clears and root approves this plan. Root owns
+accepted dev cdaa02584c38ecc27d3bd24784f59da189138bc1. TICK-035 is verified
+Done/closed and its claim released; root has read this entire plan and cleared
+execution from that exact accepted base. Root owns
 a frozen one-ticket supplemental run; do not expand the original 218 roster.
 
 ## Governing documents
@@ -39,6 +40,25 @@ and current operator brief. Historical owners remain linked, not absorbed.
    pending custody dispatch. Report recoverable failures and continue unrelated
    rows, leaving durable eligible state for the next existing sweep.
 5. Update canonical FRD/as-built statements and extend existing fixtures only.
+   Preserve the actual timer test's complete result assertions and add the
+   registered-image recovery result; adapt its explicit constructor.
+
+## Composition and file ownership
+
+Root checked accepted source: DependencyInjection already registers the same
+IImageIntakeCasePairing, image store/candidates and publisher. Extend that
+existing interface/owner and inject it into StagedArtifactReconciliationFunction;
+no registration change is needed. DependencyInjection.cs is read-only context,
+not this ticket's write scope. No new recovery service or registration merely
+for a timer method. This removes the only planned write overlap with TICK-085;
+its existing PDF parser/composition work may run independently. INTK-064 still
+shares acceptance/matching/timer/docs and waits for this ticket's release.
+
+Recheck and adapt the existing interface consumers, especially
+ImageIntakeLifecycleTests and StagedArtifactReconciliationFunctionIntegrationTests,
+without a compatibility default implementation or new test host. The existing
+actual timer fixture must prove this named scheduled caller. No tests/builds
+are run by the author.
 
 ## Verification
 
@@ -56,5 +76,7 @@ No new test host, soak, full corpus or live email/provider call.
 Case-currentness must be checked in the write transaction, not inferred from a
 pre-query or only target version. Permission/schema changes require concrete
 evidence and root approval. Preserve original foreign claims/corpus. Preparation
-stops here for root plan review: no take/branch/worktree/source edits. Execution
-later stops at frozen focused checks, then independent review.
+is complete and root authorizes a fresh isolated take: branch
+INTK-063-image-link-recovery, worktree .worktrees/intk-063, from the exact
+accepted SHA above. Execution stops at code-ready frozen source for root's
+focused checks, then independent review; no self-review/merge/deployment.
