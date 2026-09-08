@@ -225,3 +225,7 @@ Acceptance: no browser tests or capture code/assets/jobs/modes remain locally or
 ## Runtime installer affected callers
 
 Additional exact allowed files: `scripts/Initialize-LocalDevelopment.ps1` and `scripts/Invoke-Doctor.ps1`. Point the Chromium installer at src/Pegasus.Infrastructure/bin because PDF generation is a production dependency, not a test dependency. Remove browser-test-only certificate commentary. Preserve actual runtime installation and checks.
+
+## Final direct-reference cleanup
+
+Additional exact allowed file `scripts/PegasusPlatform.ps1`: replace the stale browser-evidence-lane phrase in the Linux certificate-trust repair hint with interactive browser clients. This is a text-only hint correction; retain the repair command and all certificate/runtime behavior. Validate the existing platform script check at final head; no second application suite required for this string.
