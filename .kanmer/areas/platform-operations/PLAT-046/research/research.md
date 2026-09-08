@@ -143,3 +143,46 @@ its own exact Azure alert target and write authorization.
 No live inventory, Azure/alert operation, release command, build, test, or
 verification command was run. No plan, checklist, ticket body, acceptance
 criteria, or implementation files were changed.
+
+## Settled operator policy and corrected containment — 8 September 2026
+
+The operator chose temporary shutdown of BOTH old Web and Worker for destructive
+migrations, accepting a short outage. Identify destruction during planning.
+After actual release, schedule this outside typical usage hours, with a concrete
+approved window; do not invent fixed hours. This supersedes the pending decision,
+transient-old-runtime-error alternative and obsolete per-tick schema-check proposal
+above. It is repository procedure authorization, not permission to stop live apps.
+
+Additional source inspection at dev 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c:
+- Functions Disabled=true ignores triggers but a master-key REST call may still
+  invoke a disabled function. Setting changes restart the host. Therefore the
+  full existing WorkerOnly smoke must first prove the exact disabled census,
+  then az functionapp stop and read-back Stopped must establish whole-host
+  containment. ActivationOnly intentionally skips the exact census and is not
+  acceptable containment proof. [Microsoft Functions disabling documentation](https://learn.microsoft.com/en-us/azure/azure-functions/disable-function).
+- Deactivating a Container App revision initiates shutdown, not instantaneous
+  process absence. Require fresh Single mode/exactly one active revision, deactivate
+  only the inventoried target, then bounded read-back of inactive and zero replicas
+  before SQL. A timeout, malformed result or unexpected revision blocks migration.
+  [Lifecycle](https://learn.microsoft.com/en-us/azure/container-apps/application-lifecycle-management)
+  and [replica list](https://learn.microsoft.com/en-us/cli/azure/containerapp/replica?view=azure-cli-latest).
+- Retain disabled settings through provisioning and exact Worker ZIP deployment;
+  do not assume a prior Stopped host state survives deployment/configuration changes.
+  Explicitly verify host state and disabled census after deployment and only enable
+  approved new bytes on migrated schema. No old-package restart after destructive
+  migration begins; failures remain contained and recovery rolls forward.
+- PreProvision already supports desired disabled/observed disabled, followed by
+  desired approved-live-worker/observed disabled. No new Bicep switch or runtime
+  readiness service is necessary. Do not pre-migration provision or use the Web
+  resource-creation activation condition as a shutdown operation.
+- Both script consumers already dot-source or can dot-source PegasusPlatform.ps1.
+  One canonical producer of existing Worker Disabled setting names removes three
+  list copies (validator, smoke, future procedure) while Bicep remains settings owner.
+- ADR-0046 will supersede ADR-0030's accepted transient old-runtime fault window,
+  retain relevant forward-only recovery, and state current unreleased-development
+  and actual post-release scheduling policy. Historical operations observations
+  remain untouched. No blanket legacy/compatibility infrastructure is introduced.
+
+No live state or shutdown behavior was experimentally tested. The verification
+claim is bounded source/procedure consistency and local contract tests, not a
+completed migration or an observed outage-free deployment.

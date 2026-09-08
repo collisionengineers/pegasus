@@ -2,12 +2,22 @@
 id: INTK-066
 type: ticket
 title: Confirm viable Case destinations directly from manual upload
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-09-08T17:32:00.155Z'
+taken_at: '2026-09-08T17:48:42.856Z'
+branch: INTK-066-manual-upload-confirmation
+worktree: .worktrees/INTK-066
+claim_expires_at: '2026-09-08T18:18:42.856Z'
+claim_controller: codex-mcp-client
+lease_id: eef8e3c2-cb07-4588-a7f9-5cb09a3433fc
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-066'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T17:48:42.856Z'
 labels: []
 links:
   - DELIV-056
@@ -26,7 +36,7 @@ capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T17:32:00.155Z'
+updated: '2026-09-08T17:48:42.856Z'
 ---
 
 ## Observation
