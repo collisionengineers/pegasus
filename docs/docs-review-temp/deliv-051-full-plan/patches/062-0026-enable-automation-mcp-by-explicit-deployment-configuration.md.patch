@@ -1,0 +1,13 @@
+--- a/docs/adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md
++++ b/docs/adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md
+@@ -14,6 +14,10 @@
+ ## Status
+ 
+ Accepted.
++
++## Current applicability
++
++This owns explicit deployment activation, not the full current authorization contract. FRD-10 owns current scopes and grant behavior; persistent certificate operation is specified separately from the initial activation decision.
+ 
+ ## Context
+ 

@@ -3,13 +3,13 @@ using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
-public sealed class QdosMailClassificationPolicyTests
+public sealed class PrincipalMailClassificationPolicyTests
 {
     [Fact]
     public void PolicyKeyAndVersionAreStable()
     {
-        Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(5, QdosMailClassificationPolicy.Version);
+        Assert.Equal("principal_mail_classification", PrincipalMailClassificationPolicy.Key);
+        Assert.Equal(1, PrincipalMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -83,6 +83,103 @@ public sealed class QdosMailClassificationPolicyTests
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    [Fact]
+    public void DuplicatePdfAndDocumentTriageLettersAreOneCategoryCandidate()
+    {
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage.pdf, page 1", TriageLetter()),
+                new(IntakeEvidenceSource.DocumentContent, "message, attachment 2, triage.doc", TriageLetter())
+            ],
+            [new(IntakeEvidenceSource.Subject, "EREF - RTA")],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
+        Assert.True(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
+    }
+
+    [Fact]
+    public void CrLfTriageLetterClassifiesAsOneCategoryCandidate()
+    {
+        var result = Classify(document: TriageLetter().Replace("\n", "\r\n", StringComparison.Ordinal));
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal(MailCategory.TriageRequestSubtype, Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    [Fact]
+    public void DistinctTriageLettersRemainAmbiguousCandidates()
+    {
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage-one.pdf", TriageLetter()),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 2, triage-two.doc",
+                    TriageLetter().Replace("47939/1", "48120/1", StringComparison.Ordinal)
+                        .Replace("AB12 CDE", "XY34 ZZZ", StringComparison.Ordinal))
+            ],
+            [new(IntakeEvidenceSource.Subject, "EREF - RTA")],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Null(result.Category);
+        Assert.Equal(2, result.AmbiguousCandidates.Count);
+        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-one.pdf", StringComparison.Ordinal));
+        Assert.Contains(result.AmbiguousCandidates, item => item.Contains("triage-two.doc", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void UnrelatedDocumentMentionOfTriageTitleDoesNotClassify()
+    {
+        var result = Classify(document:
+            "Our Ref: 47939/1\nOur Client: Example\nRegistration: AB12 CDE\n"
+            + "The earlier attachment was called Triage Only Request.");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.False(result.Predicates.Single(item => item.Key == "attachment.triage-only-request").Matched);
+    }
+
+    [Theory]
+    [InlineData("Please provide an initial assessment of whether the vehicle is not roadworthy and repairable.\nAn official inspection instruction will follow.")]
+    [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nAn official inspection instruction will not follow.")]
+    [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nNo official inspection instruction will follow.")]
+    [InlineData("Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\nWe cannot confirm whether an official inspection instruction will follow.")]
+    [InlineData("It may be possible to provide an initial assessment of whether the vehicle is roadworthy and repairable.\nAn official inspection instruction will follow.")]
+    public void NegatedAssessmentOrFollowOnInstructionDoesNotClassify(string request)
+    {
+        var result = Classify(document:
+            "Triage Only Request\nOur Ref: 47939/1\nOur Client: Mrs Example\n"
+            + "Registration: AB12 CDE\n" + request);
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+    }
+
+    [Fact]
+    public void PlainAndCombinedEngineerLettersRemainAmbiguous()
+    {
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.PdfContent, "message, attachment 1, plain.pdf", "ENGINEER NOTIFICATION"),
+                new(IntakeEvidenceSource.DocumentContent, "message, attachment 2, combined.doc", "ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Null(result.CaseType);
+        Assert.Equal(2, result.AmbiguousCandidates.Count);
+        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/Inspection", StringComparison.Ordinal));
+        Assert.Contains(result.AmbiguousCandidates, item => item.EndsWith("/InspectionAndAudit", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -161,7 +258,7 @@ public sealed class QdosMailClassificationPolicyTests
         string reportText,
         AuditAssessment expectedAssessment)
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -186,7 +283,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void AuditInstructionWithoutASeparateOriginalReportCannotProduceAnAssessment()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -205,7 +302,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void OriginalReportWithBothOutcomesCannotProduceAnAssessment()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -230,7 +327,7 @@ public sealed class QdosMailClassificationPolicyTests
     [InlineData("The vehicle is not a total loss.")]
     public void NegatedOrSubwordOutcomeCannotProduceAnAssessment(string reportText)
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -395,7 +492,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         // A chaser that carries the original instruction email as an
         // attachment must classify on its own content, not the original's.
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -420,10 +517,49 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Null(result.CaseType);
     }
 
+    [Theory]
+    [InlineData(true, "ENGINEER NOTIFICATION", CaseType.Inspection)]
+    [InlineData(true, "AUDIT REPORT NOTIFICATION", CaseType.Audit)]
+    [InlineData(false, "ENGINEER NOTIFICATION", null)]
+    public void QdosClassificationUsesOnlyTheProvedAttachedOriginal(
+        bool staffForward, string title, CaseType? expected)
+    {
+        // Structural envelope evidence over the existing generated tells;
+        // this is not represented as another genuine corpus email.
+        var read = new IntakeSourceReadResult(IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent,
+                "message, attached email 1, attachment 1: instruction.pdf, page 1", title),
+             new(IntakeEvidenceSource.PdfContent,
+                "message, attached email 1, attachment 2: original-report.pdf, page 1", "Repairable")],
+            [
+                new(IntakeEvidenceSource.Sender,
+                    staffForward ? "digital@collisionengineers.co.uk" : "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport, "message"),
+                new(IntakeEvidenceSource.Sender, "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal, "message, attached email 1")
+            ], [], false);
+        var policy = new PrincipalMailClassificationPolicy("QDOS");
+        var classification = policy.Classify(read);
+        Assert.Equal(expected, classification.CaseType);
+        if (expected == CaseType.Audit)
+        {
+            Assert.NotNull(classification.StandaloneAuditReport);
+        }
+        else
+        {
+            Assert.Null(classification.StandaloneAuditReport);
+        }
+        Assert.Null(policy.Classify(read with
+        {
+            Content = [read.Content[0] with
+                { SourceLabel = "message, attached email 1, attached email 2, attachment 1: instruction.pdf" }]
+        }).CaseType);
+    }
+
     [Fact]
     public void CombinedMarkerInADifferentDocumentDoesNotUpgradeInspection()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.DocumentContent, "instruction letter", "ENGINEER NOTIFICATION\nOur Ref: 23456/1"),
@@ -439,7 +575,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void CombinedMarkerInsideNestedEmailDoesNotUpgradeInspection()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.DocumentContent, "instruction letter", "ENGINEER NOTIFICATION\nOur Ref: 23456/1"),
@@ -464,7 +600,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void SimultaneousAuditAndEngineerTitlesAreAmbiguousWithoutACaseType()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.DocumentContent, "audit instruction", "AUDIT REPORT NOTIFICATION"),
@@ -485,7 +621,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(6, result.Predicates.Count);
+        Assert.Equal(7, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());
@@ -508,11 +644,17 @@ public sealed class QdosMailClassificationPolicyTests
             content.Add(new(IntakeEvidenceSource.DocumentContent, "attached letter", document));
         }
 
-        return new QdosMailClassificationPolicy().Classify(new(
+        return new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             content,
             subject is null ? [] : [new(IntakeEvidenceSource.Subject, subject)],
             [],
             false));
     }
+
+    private static string TriageLetter() =>
+        "Triage Only Request\nOur Ref: 47939/1\nOur Client: Mrs Example\n"
+        + "Our Client's Vehicle: Ford Focus\nRegistration: AB12 CDE\n"
+        + "Please provide an initial assessment of whether the vehicle is roadworthy and repairable.\n"
+        + "An official inspection instruction will follow.";
 }

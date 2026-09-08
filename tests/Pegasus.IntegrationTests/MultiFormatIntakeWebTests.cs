@@ -279,6 +279,11 @@ public sealed partial class MultiFormatIntakeWebTests
         var candidate = Assert.Single(receipt.ScannedPdfPages);
         Assert.Equal(1, candidate.PageNumber);
         Assert.Equal("uploaded full-page-scan.pdf", candidate.SourceLabel);
+        var source = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.Source);
+        Assert.Equal(source.Id, await factory.Database.ScalarAsync<Guid>(
+            "SELECT IntakeAssetId FROM IntakeOcrOperations"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
         var image = Assert.Single(
             receipt.AssetRecords,
             asset => asset.Kind == IntakeAssetKind.EmbeddedImage);

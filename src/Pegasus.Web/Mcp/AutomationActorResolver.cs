@@ -8,6 +8,7 @@ namespace Pegasus.Web.Mcp;
 internal sealed record AutomationActorContext(
     ActionActor Actor,
     string ClientId,
+    string GrantId,
     string TraceIdentifier);
 
 /// <summary>
@@ -65,10 +66,16 @@ internal sealed class AutomationActorResolver(
             throw new McpException(
                 $"The '{requiredScope}' scope is required for this tool.");
         }
+        var grantId = principal.FindFirstValue(AutomationMcp.GrantIdentityClaim);
+        if (string.IsNullOrWhiteSpace(grantId))
+        {
+            throw new McpException("The automation grant identity is missing.");
+        }
 
         return new(
-            ActionActor.Automation(clientId),
+            ActionActor.Automation(grantId),
             clientId,
+            grantId,
             httpContext.TraceIdentifier);
     }
 

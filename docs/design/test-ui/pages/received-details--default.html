@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Received review · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -211,6 +212,20 @@
                         <li>Inspection address</li>
                         <li>Inspection date</li>
                         <li>Vehicle description</li>
+                        <li>Damage area</li>
+                        <li>Pre-existing damage</li>
+                        <li>Vehicle status</li>
+                        <li>Third-party vehicle</li>
+                        <li>Third-party registration</li>
+                        <li>Third-party representative</li>
+                        <li>Claimant address</li>
+                        <li>Repairer details</li>
+                        <li>Requested work</li>
+                        <li>Claimant home telephone</li>
+                        <li>Claimant work telephone</li>
+                        <li>Claimant mobile telephone</li>
+                        <li>Repairer telephone</li>
+                        <li>Repairer email</li>
                 </ul>
             </div>
         </section>
@@ -225,7 +240,7 @@
         <div class="panel-head"><h2 id="intake-resolution-title">Resolution</h2></div>
         <div class="panel-body stack">
 
-            <form method="post" class="stack" action="received-details--default.html">
+            <form method="post" class="stack" action="#">
                 <input type="hidden" name="expectedVersion" value="0" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <div class="field">
@@ -237,7 +252,7 @@
                 </div>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
 
-            <form method="post" class="stack" action="received-details--default.html">
+            <form method="post" class="stack" action="#">
                 <input type="hidden" name="expectedVersion" value="0" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <div class="field">
@@ -264,7 +279,7 @@
         </div>
 
 
-            <form method="post" class="stack" action="received-details--default.html">
+            <form method="post" class="stack" action="#">
                     <div class="field">
                         <label class="req" for="association-case-id">Case identifier</label>
                         <input id="association-case-id" name="caseId" required autocomplete="off" />
@@ -323,6 +338,23 @@
     </section>
 
 
+<section class="panel section-gap" aria-labelledby="retained-analysis-title">
+    <div class="panel-head"><h2 id="retained-analysis-title">Retained instruction analysis</h2></div>
+    <div class="panel-body stack">
+            <p class="muted">This retained instruction has not been analysed.</p>
+
+            <form method="post" class="stack" action="#">
+                <input type="hidden" name="expectedVersion" value="0" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <div class="actions">
+                    <button type="submit" class="btn">
+                        Analyse the retained instruction
+                    </button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
+</section>
+
     <section class="panel section-gap" aria-labelledby="fields-title">
         <div class="panel-head"><h2 id="fields-title">Suggested fields</h2></div>
         <div class="panel-body">
@@ -332,11 +364,11 @@
                     </li>
                     <li class="blocker">
                         <strong>Claim number: PROTOCOL-INVALID</strong>
-                            <small>uploaded controlled-invalid-values.eml, email body: PROTOCOL-INVALID</small>
+                            <small>uploaded controlled-invalid-values.eml, message body: PROTOCOL-INVALID</small>
                     </li>
                     <li class="blocker">
                         <strong>Vehicle registration: AB12 CDE</strong>
-                            <small>uploaded controlled-invalid-values.eml, email body: AB12 CDE</small>
+                            <small>uploaded controlled-invalid-values.eml, message body: AB12 CDE</small>
                     </li>
                     <li class="blocker">
                         <strong>Vehicle make: Not found</strong>
@@ -346,15 +378,15 @@
                     </li>
                     <li class="blocker">
                         <strong>Vehicle mileage: awaiting confirmation</strong>
-                            <small>uploaded controlled-invalid-values.eml, email body: awaiting confirmation</small>
+                            <small>uploaded controlled-invalid-values.eml, message body: awaiting confirmation</small>
                     </li>
                     <li class="blocker">
                         <strong>Accident circumstances: Not found</strong>
                     </li>
                     <li class="blocker">
                         <strong>Date of incident: Conflicting suggestions</strong>
-                            <small>uploaded controlled-invalid-values.eml, email body: 04/03/2031</small>
-                            <small>uploaded controlled-invalid-values.eml, email body: 05/03/2031</small>
+                            <small>uploaded controlled-invalid-values.eml, message body: 04/03/2031</small>
+                            <small>uploaded controlled-invalid-values.eml, message body: 05/03/2031</small>
                     </li>
                     <li class="blocker">
                         <strong>Instruction date: 2031-05-06</strong>
@@ -369,6 +401,48 @@
                     </li>
                     <li class="blocker">
                         <strong>Vehicle description: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Damage area: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Pre-existing damage: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Vehicle status: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Third-party vehicle: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Third-party registration: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Third-party representative: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Claimant address: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Repairer details: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Requested work: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Claimant home telephone: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Claimant work telephone: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Claimant mobile telephone: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Repairer telephone: Not found</strong>
+                    </li>
+                    <li class="blocker">
+                        <strong>Repairer email: Not found</strong>
                     </li>
             </ul>
         </div>
@@ -388,11 +462,11 @@
                     </div>
                     <div class="timeline-item">
                         <div class="timeline-title">EmailBody</div>
-                        <div class="timeline-text">Claim number was suggested from uploaded controlled-invalid-values.eml, email body.</div>
+                        <div class="timeline-text">Claim number was suggested from uploaded controlled-invalid-values.eml, message body.</div>
                     </div>
                     <div class="timeline-item">
                         <div class="timeline-title">EmailBody</div>
-                        <div class="timeline-text">Vehicle registration was suggested from uploaded controlled-invalid-values.eml, email body.</div>
+                        <div class="timeline-text">Vehicle registration was suggested from uploaded controlled-invalid-values.eml, message body.</div>
                     </div>
                     <div class="timeline-item">
                         <div class="timeline-title">SystemDefault</div>
@@ -404,7 +478,7 @@
                     </div>
                     <div class="timeline-item">
                         <div class="timeline-title">EmailBody</div>
-                        <div class="timeline-text">Vehicle mileage was suggested from uploaded controlled-invalid-values.eml, email body.</div>
+                        <div class="timeline-text">Vehicle mileage was suggested from uploaded controlled-invalid-values.eml, message body.</div>
                     </div>
                     <div class="timeline-item">
                         <div class="timeline-title">SystemDefault</div>
@@ -538,10 +612,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

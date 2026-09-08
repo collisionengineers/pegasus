@@ -12,6 +12,11 @@ internal sealed class ApprovedMailboxEntity
     public required string Address { get; set; }
     public bool AllowInboundIntake { get; set; }
     public bool AllowSentEvidence { get; set; }
+    public bool AllowStaffSend { get; set; }
+    public long MailboxGeneration { get; set; }
+    public long? VerifiedEncodedMessageSizeLimit { get; set; }
+    public DateTimeOffset? SendLimitVerifiedAtUtc { get; set; }
+    public string? SendLimitVerifiedBy { get; set; }
     public required string State { get; set; }
 
     /// <summary>
@@ -44,6 +49,7 @@ internal sealed class ApprovedMailboxSubscriptionEntity
     public required string Resource { get; set; }
     public DateTimeOffset ExpiresAtUtc { get; set; }
     public required string LifecycleState { get; set; }
+    public long Generation { get; set; }
     public DateTimeOffset? LastMaintainedAtUtc { get; set; }
     public string? LastMaintenanceFailureCode { get; set; }
 }

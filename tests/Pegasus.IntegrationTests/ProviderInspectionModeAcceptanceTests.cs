@@ -4,6 +4,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -185,9 +186,9 @@ public sealed class ProviderInspectionModeAcceptanceTests
             "Accepted image-based provider case",
             CaseType.Inspection,
             "QDOS",
-            new(true, true, false, false),
+            new(true, true),
             CaseCompletenessPolicy.Evaluate(
-                new(true, true, false, false),
+                new(true, true),
                 await new FixedConfiguration().GetCurrentAsync(CancellationToken.None)),
             CaseInspectionMode.PhysicalAddress,
             AcceptedInspectionDeadline: FixtureInspectionDate);
@@ -256,7 +257,9 @@ public sealed class ProviderInspectionModeAcceptanceTests
                     acceptanceStore,
                     new FixedConfiguration(),
                     new EfProviderInspectionModeStore(factory),
-                    new CommittedWorkPublisherDouble());
+                    new CommittedWorkPublisherDouble(),
+                    new TriageCasePairing(new EfTriageStore(factory,
+                        [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
                 var dataStore = new EfCaseDataStore(factory, timeProvider);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
                 return new(
@@ -288,7 +291,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             "Accepted image-based provider case",
             CaseType.Inspection,
             "QDOS",
-            new(true, true, false, false),
+            new(true, true),
             AcceptedInspectionDeadline: FixtureInspectionDate);
 
         public Task<CaseAcceptanceOutcome> AcceptAsync(
@@ -331,20 +334,15 @@ public sealed class ProviderInspectionModeAcceptanceTests
             Guid receiptId)
         {
             await using var context = await factory.CreateDbContextAsync();
-            var organizationId = Guid.NewGuid();
-            var lineageId = Guid.NewGuid();
-            var principalId = Guid.NewGuid();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var organizationId = principal.OrganizationId;
+            var lineageId = principal.SequenceLineageId;
+            var principalId = principal.Id;
             var sourceHash = new string('b', 64);
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"QDOS image-based provider"}, {0L})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, InspectionMode, Version) VALUES ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {"image_based_assessment"}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"mailbox-item-image-based-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(

@@ -36,6 +36,46 @@ ordinary operational Core-action inventory with its own authentication,
 identity, and permanent history; it has no Administrator, configuration,
 credential, cloud, release, deletion, or other management authority.
 
+Connector grants have distinct durable identities. History retains the grant
+identity, shared client ID and human approver separately; an approved scope
+never grants Engineer authority. Code exchange and refresh preserve the grant,
+and revoked, expired or wrong-audience/scope credentials fail before a tool
+runs. Production signing and encryption use separate persistent certificate
+purposes and retain configured rotation overlap so restart or replica changes
+do not invalidate otherwise valid tokens. Missing production keys fail closed.
+
+Lists use stable `(sort value, immutable ID)` continuations, default 50 and
+maximum 100. Continuations are bound to the caller and filters; malformed,
+oversize or foreign cursors fail. Case detail returns bounded summaries with
+document, history and estimate continuations rather than silent truncation.
+
+Case search and per-Case document, history and estimate lists use
+`CursorPage<T>` continuations. Protected tokens bind actor, filters and order;
+the default is 50 and the maximum is 100. Raw-estimate import is one canonical
+`IImportRawEstimate` command after custody retention, shared by the Case page
+and MCP rather than separate import paths.
+
+Document permission and immutable metadata are checked before content is read.
+The existing small embedded response stays bounded. Larger files return their
+logical identity, size, media type, hash and authenticated
+`/automation/documents/{id}/versions/{version}` URL. That endpoint requires the
+same bearer audience and Documents scope, rechecks Case/source authorization,
+and supports exact-version ETag and ranges. Metadata-only requests fetch zero
+content bytes. There are no public signed links or arbitrary URL fetches.
+
+Document exports accept at most 32 exact occurrence/version selections. Small
+archives use the bounded inline response; larger archives return a five-minute,
+grant-bound `/automation/document-exports` URL. It requires the Documents scope
+again and preserves the original lease, version and operation identity. ZIP
+output streams sequentially without ranges. Invalid, expired or foreign export
+tickets return the same non-disclosing unavailable response.
+
+Generic assessment updates reject valuation, estimate, signatory and accepted
+finding fields. Named Core commands own those changes with the same actor,
+lease, version and replay checks as the Case UI. Wire responses use
+`unidentified`; no obsolete `needs_sorting` alias remains. The tool inventory
+contains no autonomous Send or Glass's credential/session exposure.
+
 An externally scheduled automation client may scan an approved network-drive
 scope and submit immutable source occurrences through its approved MCP
 document-action inventory. Claude Desktop may provide the initial accepted
@@ -73,25 +113,31 @@ refused before any tool runs.
 | `pegasus_ai_job_create` | `automation.jobs` | Create a job of a catalogued kind for a named record; the only route by which an external scheduler starts an Unidentified-queue pass |
 | `pegasus_ai_job_take` | `automation.jobs` | Claim one queued job under a bounded lease held by the client's name; refused when the job is not queued or the kill switch is on |
 | `pegasus_ai_job_progress` | `automation.jobs` | Renew the lease and record a short progress note; refused after cancellation or lease expiry |
-| `pegasus_ai_job_complete` | `automation.jobs` | Mark the job `Draft ready`, naming the draft or proposal it produced |
+| `pegasus_ai_job_complete` | `automation.jobs` | Complete MarketResearch after its retained Case files are attached; other proposal kinds become `Draft ready`, naming their result |
 | `pegasus_ai_job_fail` | `automation.jobs` | Mark the job `Failed` with a reason |
 | `pegasus_ai_job_release` | `automation.jobs` | Return a taken job to `Queued` before the lease ends |
 | `pegasus_estimate_save` | `automation.assessment` | Save an AI-draft estimate on a Case; must cite the Estimate job it fulfils and always lands as `Draft` |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
-| `pegasus_estimate_import` | `automation.assessment` | Import one raw estimate artifact on a Case through the same Core command as the Assessment page drop (D16): takes `case_id`, `expected_version`, `edit_lease_token`, `operation_key`, `file_name`, `media_type` and base64 bytes, and returns the Draft identity, name and status, the replay state, the source hash, the detected parser/provider and structured blockers or errors |
+| `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through the canonical Core command using its name, Case and document occurrence/version identities, SHA-256, typed actor, expected Case version, edit lease and operation key; return the estimate identity, or durable OCR operation identity/state while pending, or the same structured refusal as the Case caller |
 
 `pegasus_estimate_import` and the Assessment page's drop are two callers of
 one shared Core command, not two implementations: the same registered parser
 types, the same fail-closed provider auto-detection, the same
 provider-plus-sequence Draft naming and the same replay rule apply to both
-(D16, 2026-09-01). Allocated to [[ENG-033]] and [[AUTO-016]]; not delivered.
+(D16, 2026-09-01). The caller does not select a trusted provider route. Current
+persisted actor/version/lease authority and the exact retained source tuple
+are required even for a source-hash replay. Pending/Unknown OCR is resumed from
+the same retained operation using fresh caller authority; it cannot silently
+resubmit or save partial rows. The resulting raw import remains an unconfirmed
+Draft with no AI-job reference and cannot become Current through MCP. These
+caller contracts do not establish live provider acceptance.
 
 `automation.jobs` is a new scope with its own consent description on the
 Administrator consent page; a token without it cannot see the ledger. The
 estimate tools stay under `automation.assessment` because they write
 assessment values. `pegasus_estimate_save` accepts AI drafts only: an estimate
 saved without a job reference, or naming a job not taken by the calling client,
-is refused. `pegasus_estimate_import` transports a raw PDF or XML artifact for
+is refused. `pegasus_estimate_import` identifies a retained PDF, XML or JSON artifact for
 shared extraction and normalization and requires no AI job reference. The
 existing `automation.mail` scope is granted today without a
 consent description; it must carry one before any connector is consented to

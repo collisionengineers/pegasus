@@ -1,0 +1,1719 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pegasus documentation audit — dev — 8 September 2026</title><style>
+:root{--ink:#162535;--muted:#546575;--line:#dbe3e9;--accent:#165a78;--soft:#edf4f7;--nav:#f5f8fa;--paper:#ffffff}
+*{box-sizing:border-box}html{scroll-padding-top:24px}body{margin:0;color:var(--ink);background:var(--paper);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}.layout{display:grid;grid-template-columns:280px minmax(0,1fr);max-width:1660px;margin:auto}.sidebar{height:100vh;position:sticky;top:0;overflow:auto;background:var(--nav);padding:28px 22px;border-right:1px solid var(--line)}.brand{font-weight:800;font-size:19px;letter-spacing:.02em}.strap{font-size:12px;color:var(--muted);margin:4px 0 20px}.sidebar nav a{display:block;text-decoration:none;font-size:12px;line-height:1.45;margin:0;padding:7px 8px;border-radius:5px}.sidebar nav a:hover{background:var(--soft)}.sidebar nav .level-h1{font-weight:750;font-size:13px;padding-top:18px;border-top:1px solid var(--line);margin-top:8px}.sidebar nav .level-h2{padding-left:16px}.sidebar code{font-size:10px;word-break:break-all}
+main{padding:44px 48px 80px;min-width:0}.kicker{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px}.chip{font-size:11px;font-weight:700;background:var(--soft);border:1px solid var(--line);padding:3px 9px;border-radius:20px}h1{font-size:34px;line-height:1.18;letter-spacing:-.035em;margin:18px 0 24px}h2{font-size:24px;line-height:1.3;letter-spacing:-.02em;margin:44px 0 17px;padding-top:16px;border-top:1px solid var(--line)}h3{font-size:19px;line-height:1.4;margin:28px 0 12px}p,ul,ol,blockquote{max-width:86ch}p{margin:0 0 16px}li{margin:6px 0}strong{font-weight:720}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.88em;overflow-wrap:anywhere;background:#f1f4f6;border-radius:3px;padding:.1em .25em}pre{padding:16px 18px;background:#f1f4f6;border:1px solid var(--line);border-radius:7px;overflow:auto;white-space:pre-wrap;line-height:1.5}pre code{padding:0;background:none}blockquote{margin:20px 0;padding:16px 22px;border-left:4px solid var(--accent);background:var(--soft)}blockquote p:last-child{margin-bottom:0}.table-scroll{overflow:auto;margin:18px 0 25px;border:1px solid var(--line);border-radius:7px}table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.55}th{background:var(--soft);text-align:left;font-weight:750;white-space:normal}td,th{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}tbody tr:nth-child(even){background:#fafcfd}td:first-child{font-weight:650;min-width:105px}table code{font-size:.93em}.document+.document{margin-top:85px;padding-top:30px;border-top:4px solid var(--accent)}footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+@media(max-width:1000px){.layout{grid-template-columns:220px minmax(0,1fr)}main{padding:30px 25px}.sidebar{padding:24px 14px}h1{font-size:30px}}
+@media(max-width:740px){.layout{display:block}.sidebar{position:static;height:auto;padding:18px;border-right:0;border-bottom:1px solid var(--line)}.sidebar nav{max-height:180px;overflow:auto}.sidebar nav .level-h2{display:none}main{padding:22px 16px}h1{font-size:28px}h2{font-size:22px}table{min-width:670px}body{font-size:15px}}
+@media print{.layout{display:block}.sidebar,.chips,.kicker{display:none}main{padding:0}body{font:10pt/1.4 sans-serif}h1{font-size:23pt}h2{font-size:16pt;break-after:avoid}h3{font-size:12pt;break-after:avoid}table{font-size:8.5pt}.table-scroll{overflow:visible}thead{display:table-header-group}tr{break-inside:avoid}pre{white-space:pre-wrap}.document+.document{break-before:page}a{color:inherit}}
+</style></head><body><div class="layout"><aside class="sidebar"><div class="brand">PEGASUS</div><div class="strap">Documentation audit · 8 September 2026</div><code>26ba4ed408317cccdb354dc1e115b0297f15df94</code><nav aria-label="Report contents"><a class="level-h1" href="#p1-s1">Pegasus documentation audit</a><a class="level-h2" href="#p1-s2">1. Verdict</a><a class="level-h2" href="#p1-s5">2. Highest-priority findings</a><a class="level-h2" href="#p1-s6">3. Recommended ownership model</a><a class="level-h2" href="#p1-s8">4. AGENTS.md: exact recommendations</a><a class="level-h2" href="#p1-s13">5. engineering.md and documentation governance</a><a class="level-h2" href="#p1-s14">6. open-decisions.md: disposition map</a><a class="level-h2" href="#p1-s15">7. Retiring operator-notes.md without losing requirements</a><a class="level-h2" href="#p1-s16">8. capabilities.md and boundaries.md</a><a class="level-h2" href="#p1-s20">9. runbook.md: procedures versus policy</a><a class="level-h2" href="#p1-s23">10. operations.md versus current-architecture.md</a><a class="level-h2" href="#p1-s24">11. ADR audit and missing technical records</a><a class="level-h2" href="#p1-s26">12. FRD audit and coverage gaps</a><a class="level-h2" href="#p1-s29">13. PRD audit</a><a class="level-h2" href="#p1-s30">14. Results of comparing the former reviews</a><a class="level-h2" href="#p1-s31">15. Delivery plan for the documentation improvement</a><a class="level-h2" href="#p1-s33">16. External guidance research record</a><a class="level-h1" href="#p2-s1">ADR, FRD and PRD audit register</a><a class="level-h2" href="#p2-s2">1. ADR-by-ADR register</a><a class="level-h2" href="#p2-s4">2. Exact ADR file index</a><a class="level-h2" href="#p2-s5">3. FRD-by-FRD register</a><a class="level-h2" href="#p2-s18">4. PRD register</a><a class="level-h2" href="#p2-s19">5. Decisions versus missing evidence</a><a class="level-h1" href="#p3-s1">Previous-review reconciliation</a></nav></aside><main><div class="kicker">Repository documentation review</div><div class="chips"><span class="chip">DEV BRANCH</span><span class="chip">READ-ONLY AUDIT</span><span class="chip">39 ADRs · 12 FRDs</span><span class="chip">101 prior observations reconciled</span></div><section class="document" aria-label="Audit and migration plan"><h1 id="p1-s1">Pegasus documentation audit</h1>
+<p><strong>Audit date:</strong> 8 September 2026<br/>
+<strong>Repository:</strong> <code>collisionengineers/pegasus</code><br/>
+<strong>Reviewed branch:</strong> <code>dev</code>, not <code>main</code><br/>
+<strong>Pinned revision:</strong> <code>26ba4ed408317cccdb354dc1e115b0297f15df94</code><br/>
+<strong>Head commit:</strong> PR #701, Windows ORAS release-repair guidance; 8 September 2026, 07:11:28 UTC. The final branch recheck returned the same revision.<br/>
+<strong>Disposition:</strong> documentation needs substantive reconciliation before a structural cleanup. No repository, board, cloud, mailbox or Box state was changed.</p>
+<h2 id="p1-s2">1. Verdict</h2>
+<p>The main problem is not that Pegasus lacks documentation. It is that several documents answer the same question, and a newer paragraph is often appended without removing or explicitly retiring the incompatible older rule. The result is a repository in which an agent can follow a plausible, apparently authoritative instruction and still implement the wrong behavior.</p>
+<p>There are three separate jobs:</p>
+<ol>
+<li>Reconcile current requirements, especially Audit allocation, native reports, readiness, upload limits, account administration and EVA re-sends.</li>
+<li>Give each kind of information one owner: product requirement, functional rule, technical decision, engineering policy, procedure, delivery state, or observed runtime state.</li>
+<li>Shorten the automatically loaded agent instructions and move task-specific procedures behind explicit, discoverable entry points.</li>
+</ol>
+<p>Do these in that order. Moving contradictory text into skills would merely make the contradictions harder to discover. Deleting history indiscriminately would lose evidence and would not establish a correct current rule.</p>
+<h3 id="p1-s3">What was examined</h3>
+<p>The audit examined the requested root and top-level documentation, the PRD and its index, all twelve FRDs, all 39 issued ADRs through ADR-0040, their index and supersession relationships, the QDOS mapping companion, workspace retirement guidance, the historical Stitch guide, the two earlier session plans, selected Kanmer skills/templates and the existing release skill. Repository trees and blob identities were read from GitHub at the pinned revision. Selected executable consumers were read, particularly CI change routing and the QDOS acceptance script.</p>
+<p>The supplied archive was extracted. Its four files include a structured 5 September audit with <strong>29 groups and 71 individual observations</strong>, a corresponding Markdown report, a path list, and an undated earlier review containing <strong>30 observations</strong>. The accompanying crosswalk accounts for each observation separately.</p>
+<p>Eight of the twelve standalone uploads match the corresponding <code>dev</code> blobs after line-ending normalization. <code>AGENTS.md</code>, <code>docs/engineering.md</code>, <code>docs/index.md</code> and <code>docs/runbook.md</code> differ. Current GitHub content was consulted for those differences; the runbook's current build section was fetched directly, while the supplied full runbook also informs the procedural extraction map. That map is a migration proposal, not a certification that every copied command is executable at the pinned SHA.</p>
+<h3 id="p1-s4">Evidence limits</h3>
+<p>This is a source and documentation audit, not a live acceptance test. No .NET build, browser workflow, Azure query, external integration call or Kanmer stage change was performed. No complete repository checkout was available for a whole-tree link-check execution. The substantive requested governing documents were read; this is not a claim that every generated HTML snapshot, raw vendor reference, principal example, historical changelog line or application implementation was independently verified. Findings about runtime state are explicitly based on the repository's dated observations, not fresh observations by this audit.</p>
+<p>All repository path references below mean the pinned revision unless explicitly identified as an uploaded historical review. A path plus section is the evidence locator. Repository source permalinks use this prefix:</p>
+<pre><code class="language-text">https://github.com/collisionengineers/pegasus/blob/26ba4ed408317cccdb354dc1e115b0297f15df94/
+</code></pre>
+<h2 id="p1-s5">2. Highest-priority findings</h2>
+<p>Priority P1 means a documentation conflict can change implementation, approval or acceptance behavior. P2 means a misleading owner, status or technical description. P3 means a maintenance or navigation defect. These priorities do not assert an observed production incident.</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Audit ID</th>
+<th>Priority</th>
+<th>Finding</th>
+<th>Required correction and evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AUD-01</td>
+<td>P1</td>
+<td>Standalone Audit allocation still has two incompatible contracts.</td>
+<td>FRD-01, PRD, CONTEXT and the QDOS companion allocate normal Case/PO before the later Audit reference. FRD-02 <strong>Mandatory pre-case gates</strong> still makes the original report and literal outcome prerequisites to allocation. Correct FRD-02, capability INT-25 and current-architecture's old descriptions to the accepted contract.</td>
+</tr>
+<tr>
+<td>AUD-02</td>
+<td>P1</td>
+<td>Final, retained report generation coexists with a draft-only, save-nothing action description.</td>
+<td>FRD-11 <strong>Initial renderer activation</strong> now specifies immutable generated artifacts and custody, but <strong>Report-draft entry point</strong> says “Generate report draft” and nothing is saved. Separate preview, generation, approval and sending precisely; use the accepted Generate report label.</td>
+</tr>
+<tr>
+<td>AUD-03</td>
+<td>P1</td>
+<td>Native engineering/report scope is still constrained by earlier mandatory-EVA statements.</td>
+<td>The PRD and 6 September decisions make EVA optional. Operator-notes <strong>Report readiness after Review</strong>, architecture's EVA section and capability narratives preserve older dependencies. Replace those current-facing constraints; keep dated deployed limitations separately.</td>
+</tr>
+<tr>
+<td>AUD-04</td>
+<td>P1</td>
+<td>Accepted source upload limits disagree across normative files.</td>
+<td>Open-decisions records 100 MiB/file, 20 files and 200 MiB aggregate plus 64 KiB multipart overhead. FRD-02, FRD-05, FRD-12 and engineering/capability descriptions retain 10 MiB or pending-research wording. Move the settled contract to FRD-02 and reference it elsewhere. Do not change the distinct Provider API envelope or historical release-37 limits.</td>
+</tr>
+<tr>
+<td>AUD-05</td>
+<td>P1</td>
+<td><code>capabilities.md</code> is executable acceptance input, despite describing itself as allocation-only.</td>
+<td><code>scripts/Invoke-QdosAlphaAcceptance.ps1</code> parses its six-column table and treats every alpha-targeted row as required evidence. Structural edits must update this consumer/tests. Allocation is not a sufficient acceptance-scope predicate.</td>
+</tr>
+<tr>
+<td>AUD-06</td>
+<td>P1</td>
+<td>A legacy acceptance runner can resurrect expressly deferred evidence work.</td>
+<td>The same script requires an approved dataset of exactly 2,000 cases, while the current programme excludes that cohort/soak run and OPS-09 gates no release. Identify the runner as an optional legacy/evidence profile or revise its scope deliberately; it is not proof that current CI already blocks all v1 work.</td>
+</tr>
+<tr>
+<td>AUD-07</td>
+<td>P1</td>
+<td>Password-reset and account-review requirements conflict.</td>
+<td>FRD-04's generated temporary-password workflow conflicts with FRD-12/capability wording about an Administrator-entered password. FRD-12/older operator role text retain account-review actions after periodic reviews were removed. Reconcile the functional and UI contracts together.</td>
+</tr>
+<tr>
+<td>AUD-08</td>
+<td>P1</td>
+<td>Current readiness rules are contradicted by blanket “any save returns Not ready” prose.</td>
+<td>FRD-01's D44 rules distinguish actual relevant changes from unchanged/unrelated saves. FRD-07 and architecture retain broader invalidation statements. Describe exactly which changes invalidate which gate, not an unconditional reset.</td>
+</tr>
+<tr>
+<td>AUD-09</td>
+<td>P1</td>
+<td>EVA re-send rules remain contradictory.</td>
+<td>ADR-0038 selects manual-only submission, including explicit re-send. The resolved EVA entry in open-decisions and older runbook/capability prose retain at-most-once or automatic-submission language. Retain unknown-outcome protection without prohibiting the separately confirmed re-send.</td>
+</tr>
+<tr>
+<td>AUD-10</td>
+<td>P1</td>
+<td>Persistent OAuth keys and grant attribution lack a reconciled active technical decision.</td>
+<td>ADR-0027 describes ephemeral keys and restart invalidation, while FRD-10/runbook specify persistent certificate material and distinct grant attribution. Write the technical successor and update its consumers.</td>
+</tr>
+<tr>
+<td>AUD-11</td>
+<td>P1</td>
+<td>Mail occurrence identity differs between the technical decision and functional contract.</td>
+<td>ADR-0024's immutable Graph-item-based occurrence identity differs from FRD-08's mailbox/RFC Message-ID duplicate boundary. Record the intended identities and exactly where each deduplicates; do not conflate transport identity, arrival occurrence and thread identity.</td>
+</tr>
+<tr>
+<td>AUD-12</td>
+<td>P1</td>
+<td>Image-reference Box custody contradicts ADR-0029's exclusions.</td>
+<td>FRD-05 specifies a dedicated image-reference folder and merge behavior, whereas ADR-0029 explicitly withholds that folder pending another decision. Record the custody successor; do not erase either identity's history.</td>
+</tr>
+<tr>
+<td>AUD-13</td>
+<td>P1</td>
+<td>The durable staff-send operation journal is not reconciled with the outbound-mail ADR.</td>
+<td>FRD-08 describes durable draft/upload/submission recovery. ADR-0036 says no new store/second outbound record. Explain the journal as operational state, separate from authoritative observed Sent evidence, and record the changed persistence choice.</td>
+</tr>
+<tr>
+<td>AUD-14</td>
+<td>P1</td>
+<td>A mutable, derived <code>operator-notes.md</code> is still treated as absolute upstream truth.</td>
+<td>The document combines original statements, interpretations, future scope and implementation claims. Retire it through a statement-preservation map; do not simply move it to another umbrella “business truth” file.</td>
+</tr>
+<tr>
+<td>AUD-15</td>
+<td>P1</td>
+<td>The allowed-document rule prevents the intended cleanup.</td>
+<td>AGENTS/index permit only new PRDs, FRDs and technical ADRs. Explicitly permit scoped engineering/reference/procedure and skill-support files in named locations while keeping ticket plans/reviews/proof on Kanmer.</td>
+</tr>
+<tr>
+<td>AUD-16</td>
+<td>P2</td>
+<td>AGENTS makes a whole-solution build the gate for every delivery.</td>
+<td>Current AGENTS <strong>Commands/Verification</strong> and runbook <strong>Locked restore, build, and test</strong> conflict with path-routed CI, focused evidence and the one-heavy-verifier policy. Adopt the change-sensitive policy in section 4.</td>
+</tr>
+<tr>
+<td>AUD-17</td>
+<td>P2</td>
+<td>Startup context is close to the default Codex instruction-byte budget.</td>
+<td>Current AGENTS is 31,557 bytes, not the uploaded 27 KB version. Under an unchanged 32 KiB project-instruction cap that leaves only 1,211 bytes. This is a configurable combined budget, not a universal per-file hard maximum.</td>
+</tr>
+<tr>
+<td>AUD-18</td>
+<td>P2</td>
+<td>The authority ladder makes schedule outrank technical decisions and hides question-specific ownership.</td>
+<td>Replace the linear chain in docs/index.md with the owner matrix in section 3. Code can establish as-built behavior; passing tests cannot establish that the required behavior is correct or accepted.</td>
+</tr>
+<tr>
+<td>AUD-19</td>
+<td>P2</td>
+<td><code>open-decisions.md</code> is mainly a mixture of policy, history and evidence work.</td>
+<td>Remove settled decisions after moving any unique content; retain only an actual unanswered question, its decision owner and the precise work it blocks. See section 6.</td>
+</tr>
+<tr>
+<td>AUD-20</td>
+<td>P2</td>
+<td>Capability totals and release identities are internally inconsistent.</td>
+<td>The current table has 244 unique IDs, 215 planned and 29 Not planned. Actual horizons are 154/26/35/29; two targets are <code>v1</code>, contrary to the exact-SemVer rule. See section 8 and metrics.json.</td>
+</tr>
+<tr>
+<td>AUD-21</td>
+<td>P2</td>
+<td><code>boundaries.md</code> uses deferred work and approvals as product exclusions.</td>
+<td>Provider API endpoints, OCR composition, vehicle lookup and production deployment are not permanently absent. Classify product exclusions, technical constraints, allocation and exact-target authorization separately.</td>
+</tr>
+<tr>
+<td>AUD-22</td>
+<td>P2</td>
+<td>Architecture mixes dev assembly, deployed state and historical narrative.</td>
+<td>Replace the old three-stream pending assembly and legacy “not deployed” statements with a pinned source snapshot, and link to dated operations evidence. Do not infer deployment from the integrated source.</td>
+</tr>
+<tr>
+<td>AUD-23</td>
+<td>P2</td>
+<td>Operations mixes current observations, old releases, procedures and product boundaries.</td>
+<td>Keep a small dated current-state record. Preserve release failures and evidence in immutable history/owned release records, move procedures to their owners and remove its deferred-seam policy table.</td>
+</tr>
+<tr>
+<td>AUD-24</td>
+<td>P2</td>
+<td>The documentation-update instruction itself creates duplicate state.</td>
+<td>The release skill tells maintainers to put SHA, manifest, digest, revision and migration in both architecture and operations. Change that instruction: operational identities belong in operations; architecture changes only for changed source structure.</td>
+</tr>
+<tr>
+<td>AUD-25</td>
+<td>P2</td>
+<td>The release-trigger rule is incorrectly limited to changes under <code>src/</code>.</td>
+<td>Operations says a source revision is a release claim only if <code>src/</code> changed. The existing release skill correctly includes deployable infrastructure, dependencies, migration and runtime configuration. Use the broader deployable-input rule.</td>
+</tr>
+<tr>
+<td>AUD-26</td>
+<td>P2</td>
+<td>Several accepted ADRs are only partly current, without a usable active-clause map.</td>
+<td>ADR-0002/0005/0006/0007/0008/0018/0026 need precise successor relationships; ADR-0013/0029 overstate full supersession. Preserve IDs and original decision meaning.</td>
+</tr>
+<tr>
+<td>AUD-27</td>
+<td>P2</td>
+<td>Some FRDs contain implementation-stage and ticket-plan prose.</td>
+<td>Remove expired stream A/B/C contracts, “not delivered” notes and ticket dates from normative behavior after preserving evidence. A source signature is not a second functional requirement.</td>
+</tr>
+<tr>
+<td>AUD-28</td>
+<td>P2</td>
+<td>Some UI requirements disagree with their own domain rules.</td>
+<td>FRD-12 retains holder-expiry displays, Not-ready image rows, internal intake labels and an overbroad disabled-control ban. Align it with FRD-01, CONTEXT and the specific accepted interactions.</td>
+</tr>
+<tr>
+<td>AUD-29</td>
+<td>P2</td>
+<td>Valuation adjustments are both specified and deferred.</td>
+<td>FRD-06 defines the accepted calculation/application behavior, while its later scope text, boundaries and capability narratives still defer adjustments. Preserve the approved calculation order and remove only superseded deferral language.</td>
+</tr>
+<tr>
+<td>AUD-30</td>
+<td>P2</td>
+<td>Genuine unresolved coverage gaps are obscured by false open questions.</td>
+<td>Non-email Triage completion, MarketResearch job completion/acceptance, API Triage result representation and Audit report activation need precise clauses or bounded decisions. See the FRD coverage appendix.</td>
+</tr>
+<tr>
+<td>AUD-31</td>
+<td>P2</td>
+<td>Kanmer's documentation skill still carries foreign-repository assumptions.</td>
+<td>Its current text says “this one” uses docs/product/prd etc. and cites FRD-014 R2/R8b history. Correct the upstream target-neutral asset and reconcile the three installed mirrors.</td>
+</tr>
+<tr>
+<td>AUD-32</td>
+<td>P2</td>
+<td>Proof templates do not supply the verifier's required frontmatter.</td>
+<td>All three now use the configured integration branch, but still omit the canonical YAML <code>kind</code>, <code>merged_sha</code>, <code>environment</code>, <code>verified_at</code>, <code>result</code>, <code>attempts</code> record. Update templates, not the verifier into a second format.</td>
+</tr>
+<tr>
+<td>AUD-33</td>
+<td>P3</td>
+<td>Markdown conventions have more than one owner and do not cleanly admit metadata.</td>
+<td>Keep formatting rules once in engineering; AGENTS routes to them. Permit YAML frontmatter and the managed preamble before the first H1. Do not make every author duplicate table/wrapping rules.</td>
+</tr>
+<tr>
+<td>AUD-34</td>
+<td>P3</td>
+<td>Stale protocol counts and signatures invite drift.</td>
+<td>Tool inventories, Worker function counts, source signatures and capability recounts should be derived from their actual owners or tied to a dated exact revision, not manually repeated across guides.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="p1-s6">3. Recommended ownership model</h2>
+<p>An <strong>owner</strong> here means the one document or executable source that defines a particular kind of fact. A summary or index may link to that fact without restating the rule.</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Canonical owner</th>
+<th>Must not own</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What must an agent know before choosing work?</td>
+<td>Short AGENTS.md; managed Kanmer block for generic workflow</td>
+<td>Full product rules, release commands, implementation status, old incidents</td>
+</tr>
+<tr>
+<td>Which document answers this question?</td>
+<td>docs/index.md</td>
+<td>A second copy of every rule or a universal precedence ladder</td>
+</tr>
+<tr>
+<td>What do business and interface terms mean?</td>
+<td>CONTEXT.md, linking to normative FRD clauses</td>
+<td>Delivery status, calculations or procedures</td>
+</tr>
+<tr>
+<td>Why does the product exist, and what outcomes/boundaries matter?</td>
+<td>PRD</td>
+<td>Detailed transport schemas or current deployment state</td>
+</tr>
+<tr>
+<td>Exactly how does a capability behave?</td>
+<td>Owning FRD</td>
+<td>Ticket progress or broad architecture alternatives</td>
+</tr>
+<tr>
+<td>Why was a durable technical choice made?</td>
+<td>ADR</td>
+<td>Product scheduling, generic Markdown governance or a deployment diary</td>
+</tr>
+<tr>
+<td>How should code and evidence be engineered?</td>
+<td>engineering.md</td>
+<td>Ticket stages or the full commands for every task</td>
+</tr>
+<tr>
+<td>How do I perform a specific operation safely?</td>
+<td>One repository skill and its human-readable reference procedure</td>
+<td>New product policy or standing production-write permission</td>
+</tr>
+<tr>
+<td>What source structure exists at a known revision?</td>
+<td>current-architecture.md</td>
+<td>What is currently deployed unless tied to separate evidence</td>
+</tr>
+<tr>
+<td>What was observed in an environment, and when?</td>
+<td>operations.md plus immutable release/evidence records</td>
+<td>Future product requirements or unqualified current claims from old observations</td>
+</tr>
+<tr>
+<td>Which stable capability ID points to which requirement?</td>
+<td>capabilities.md, or a generated registry view</td>
+<td>Hand-maintained ticket status or independent acceptance gates</td>
+</tr>
+<tr>
+<td>What is planned, blocked, assigned, reviewed or done?</td>
+<td>Kanmer</td>
+<td>A replacement for durable requirement ownership</td>
+</tr>
+<tr>
+<td>What genuinely remains undecided?</td>
+<td>open-decisions.md</td>
+<td>Already-settled rules or a list of tests nobody has run</td>
+</tr>
+<tr>
+<td>Where did a requirement come from?</td>
+<td>A provenance pointer attached to the owning PRD/FRD/ADR</td>
+<td>A second mutable omnibus requirements authority</td>
+</tr>
+</tbody>
+</table></div>
+<p>The current approved task can change intended requirements; the durable owner must then be updated explicitly. Code and tests establish observed implementation, not permission to replace an approved business rule. A disagreement should be resolved against the relevant authority, or recorded as a narrowly bounded question, not resolved by whichever file appears earlier in a chain.</p>
+<h3 id="p1-s7">Proposed end state</h3>
+<p>Keep <code>README.md</code>, <code>CONTEXT.md</code>, <code>AGENTS.md</code>, <code>docs/index.md</code>, the PRD/FRD/ADR directories, a narrower engineering guide, a source architecture snapshot, a dated operations summary and a capability registry. Retire <code>operator-notes.md</code> after complete transfer. Reduce <code>runbook.md</code> to a procedure directory. Either retire <code>boundaries.md</code> after moving its few unique constraints or retain only a concise boundary index; it must not remain another roadmap.</p>
+<p>Do not introduce a replacement 80 KB “documentation governance” file. The placement model should be a short table in the index, with the authoring conventions in engineering and the generic workflow in Kanmer.</p>
+<h2 id="p1-s8">4. AGENTS.md: exact recommendations</h2>
+<h3 id="p1-s9">4.1 Testing and delivery</h3>
+<p>The current root file tells agents to run restore/build/test “before delivery” and separately calls those commands “the delivery gate.” The runbook repeats it. In contrast, <code>.github/workflows/ci.yml</code> and <code>scripts/Get-CiChangeFlags.ps1</code> already distinguish build-relevant and infrastructure-relevant changes. That is the right starting point for the wording.</p>
+<p><strong>Suggested replacement policy, not yet applied:</strong></p>
+<blockquote>
+<p>Select verification from the changed behavior and affected executable inputs. Read-only analysis and isolated document deliverables do not require a .NET build. Prose-only repository changes require the relevant documentation checks. Changes to application code, build inputs, scripts, infrastructure or machine-consumed documentation require the checks that exercise those inputs. Use focused checks while implementing; reuse applicable successful CI evidence for the exact candidate and covered scope. Whole-solution verification and release packaging run only when the task's evidence contract requires them, under the named heavy-verification owner. Never treat unavailable or omitted evidence as passing.</p>
+</blockquote>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Change class</th>
+<th>Evidence to require</th>
+<th>Do not require automatically</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Read-only review or isolated audit output</td>
+<td>Correct source revision, evidence citations, explicit coverage limits</td>
+<td>Restore, .NET build, application tests, ticket/worktree creation</td>
+</tr>
+<tr>
+<td>Prose-only repository edits</td>
+<td>Relevant link/placement checks, reviewed semantic diff, no lost authoritative statements</td>
+<td>Full application suite</td>
+</tr>
+<tr>
+<td>Machine-consumed Markdown, templates or scripts</td>
+<td>Their parser/consumer tests and applicable path-routed CI</td>
+<td>A prose-only classification just because the suffix is .md</td>
+</tr>
+<tr>
+<td>Application changes</td>
+<td>Focused owning-project tests, relevant integration/caller evidence and required CI</td>
+<td>Multiple agents independently rebuilding the entire solution</td>
+</tr>
+<tr>
+<td>Razor/UI changes</td>
+<td>Affected capture cohort, current generated snapshots, catalogue and appropriate browser checks</td>
+<td>Every unrelated browser workflow on every edit</td>
+</tr>
+<tr>
+<td>Release, schema or runtime configuration</td>
+<td>Exact candidate artifacts, migration/grant/approval evidence and targeted smoke required by the release</td>
+<td>Treating a green code-only build as deployment acceptance</td>
+</tr>
+</tbody>
+</table></div>
+<p>The canonical full commands can remain in the verification procedure. In particular, <code>--no-build</code> is valid only for matching compiled inputs; it must not be used to manufacture an inexpensive but stale result. Exact-SHA CI reuse must name its environment and covered checks. A pre-merge head result is not automatically equivalent to a later merged candidate with different inputs.</p>
+<p>The existing documentation lane runs placement regression, documentation links and the UI catalogue. Some Markdown under <code>docs/design/test-ui/</code> is build-relevant. The acceptance runner also reads <code>capabilities.md</code>. Neither should be hidden behind a blanket “Markdown never needs tests” exception.</p>
+<h3 id="p1-s10">4.2 Triage wording</h3>
+<p>Remove “Triage is the only current term” from the unqualified sentence. It creates a false impression that Audit and Blocked intake have ceased to exist.</p>
+<p><strong>Suggested replacement:</strong></p>
+<blockquote>
+<p>Audit, Triage, Blocked intake, Unidentified and Image Intake are distinct domain concepts. Triage names only the separate pre-Case assessment workflow; it is not generic inbox sorting. Unidentified replaces the former Needs sorting destination for safely retained material that cannot yet be identified or routed. That rename does not change Audit, Triage, Blocked intake or Image Intake. CONTEXT.md owns the domain-to-interface vocabulary.</p>
+</blockquote>
+<p>The detail of the six Unidentified reasons and lifecycle belongs in FRD-02, not in startup instructions. The operator-facing ban on the word intake is a presentation rule, not a ban on internal type names.</p>
+<h3 id="p1-s11">4.3 Size: what is verified and what is not</h3>
+<p>The current Git blob is <strong>31,557 bytes</strong>. The supplied attachment is 27,390 raw bytes and 27,190 after normalization, so it is not the version to optimize blindly.</p>
+<p>The current official OpenAI instruction-discovery documentation describes a configurable <code>project_doc_max_bytes</code> limit of <strong>32 KiB by default</strong>. It is a combined instruction-discovery budget, not a universal 32 KB per-file format maximum. At the unchanged default, 32,768 − 31,557 = <strong>1,211 bytes</strong> of nominal space remain beyond this root file. This audit did not inspect Alex's effective Codex configuration or prove that instructions were truncated.</p>
+<p>The requested research window was <strong>1 June 2026 onward</strong>. I could not verify an official OpenAI or Anthropic publication in that window establishing a universal <strong>ten-line AGENTS.md limit</strong>. Search results from community gists and articles are not official guidance. A living manual being crawled recently does not prove when a recommendation was published.</p>
+<p>For the same reason, the following are separated as current manual facts rather than passed off as dated post-June guidance: Anthropic's current Claude Code guide says to keep startup instructions short and move task-specific material to skills; its skill-authoring guide places the <strong>under-500-line recommendation on the SKILL.md body</strong>, not on all AGENTS.md or CLAUDE.md files. A short example is not a mandatory line limit.</p>
+<p><strong>Project-specific recommendation:</strong> aim initially for roughly 60–100 human-owned lines of high-value routing and safety instructions, plus the upstream-managed Kanmer block. Treat a substantially smaller byte budget as a design target, not a new hard gate. Reducing the entire file to ten lines would first require redesigning Kanmer's managed preamble, which is already longer than that. Do not replace readable prose with enormous one-line bullets just to meet a line count.</p>
+<p>Always-loaded instructions should retain only universal, non-obvious constraints and the trigger for reading the correct owner. A skill is a task recipe loaded when relevant; this keeps a release or mailbox procedure out of the context of a simple UI edit. The procedure itself may remain detailed and human-readable.</p>
+<h3 id="p1-s12">4.4 What moves out</h3>
+<p>Move full command sequences and release inputs to procedure owners; ADR templates and placement detail to the documentation model; product invariants to the PRD/FRDs with short stop-condition pointers; dated v1 remediation permissions and host coordination to their owning Kanmer execution record; implementation signatures to code/as-built architecture; generic ticket lifecycle to the managed Kanmer layer. Preserve exact-target write restrictions and corpus immutability as concise global guardrails.</p>
+<p><code>CLAUDE.md</code> is a tracked symlink to <code>AGENTS.md</code>. Preserve that single-source arrangement rather than producing a second manually maintained guide. A correct symlink is not itself a size solution.</p>
+<h2 id="p1-s13">5. engineering.md and documentation governance</h2>
+<p>Keep the engineering-specific material: dependency direction, shared policy ownership, failure semantics, test evidence classes, source/protocol fixture distinctions, and proportionality of verification. Separate those rules from ticket lifecycle and step-by-step operational commands.</p>
+<p>The Markdown convention belongs naturally here. The defect is its repetition in AGENTS and competing placement descriptions, not the mere fact that engineering mentions Markdown. AGENTS should point to the convention only when documentation is being changed. Kanmer should govern how a ticket links its durable owner, not become a second Pegasus formatting authority.</p>
+<p>Change the heading rule to permit supported YAML frontmatter and managed preambles before the first H1. The current absolute “H1 on line 1” instruction conflicts with ADR metadata and the actual root file. Formatting should not force metadata removal.</p>
+<p>Remove or explicitly retire the one-off DELIV transition/history notes and the v1 shared-Foundation checkpoint after checking their retained ticket evidence. Current requirements do not belong in an “incomplete development checkpoint” table once the source assembly has been integrated. Preserve any still-relevant architectural boundary in the owning ADR/architecture section, not in a ticket-specific C# signature table.</p>
+<p>Fix the evidence ladder's stale 10 MiB upload figure and avoid repeating every product acceptance clause. The ladder explains <em>what a kind of test proves</em>; the FRD explains <em>which behavior is required</em>. The correct order is affected policy, adapter, persistence and real-caller evidence as appropriate—not twelve universal gates for every change.</p>
+<h2 id="p1-s14">6. open-decisions.md: disposition map</h2>
+<p>The file's stated rule is correct: accepted decisions move to a durable owner, and delivery status does not belong in the register. Apply that rule to the existing content rather than adding another explanatory disclaimer.</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Existing section or item</th>
+<th>Disposition</th>
+<th>Destination / remaining question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Historical QDOS-alpha release sequencing</td>
+<td>Remove from active register; preserve dated provenance</td>
+<td>Historical release/decision evidence. Current v1 acceptance belongs in PRD/FRDs and the release's Kanmer record. Its “three PRs remain unmerged” statement is obsolete.</td>
+</tr>
+<tr>
+<td>Accepted Box case-folder layout</td>
+<td>Move any unique rule, then remove</td>
+<td>FRD-05 behavior; operations records actual roots; procedure owns exact-target checks.</td>
+</tr>
+<tr>
+<td>Future AI Operations catalogue/lifecycle</td>
+<td>Close settled question</td>
+<td>ADR-0035 and FRD-11 own the ledger; client round-trip and activation evidence are ticket work.</td>
+</tr>
+<tr>
+<td>INT-31 limits and fixed submission session</td>
+<td>Move settled policy, then remove</td>
+<td>FRD-02/05; technical token/rate-limit mechanisms only need ADR treatment where they are an enduring architectural choice.</td>
+</tr>
+<tr>
+<td>External credential ownership</td>
+<td>Split</td>
+<td>Named owner/rotate/revoke/emergency operation in operations and credential procedure. Retain only a specific unassigned ownership decision, not a generic task list.</td>
+</tr>
+<tr>
+<td>QDOS extractor field acceptance thresholds</td>
+<td>Retain, narrowly</td>
+<td>Exact field criteria, ground-truth representation and the reviewed cohort/holdout authority remain genuine decisions/evidence prerequisites. Expand by route only when a route is being accepted.</td>
+</tr>
+<tr>
+<td>Telemetry sampling/cap and budget history</td>
+<td>Split</td>
+<td>Dated settings/cost observations in operations; measured workload in its ticket. A genuinely proposed increase needs a bounded decision. No new monthly spending ceiling is inferred.</td>
+</tr>
+<tr>
+<td>Performance dataset ownership</td>
+<td>Move out of current v1 blockers</td>
+<td>Optional deferred capacity evidence. Retain the accepted target in PRD without claiming the excluded 2,000-case run passed.</td>
+</tr>
+<tr>
+<td>Closed QDOS automatic Triage predicates</td>
+<td>Remove after fixing inbound links</td>
+<td>FRD-03/09; retain original acceptance provenance.</td>
+</tr>
+<tr>
+<td>Mailbox precedence/confidence/governance questions</td>
+<td>Retain only unresolved subsets</td>
+<td>Do not reopen the known route taxonomy or invent a confidence score. Name the exact route, conflicting predicates and decision owner.</td>
+</tr>
+<tr>
+<td>EVA thirteen-key mapping and manual import acceptance</td>
+<td>Split</td>
+<td>FRD-07 owns mapping; actual import acceptance is evidence work. A genuinely unknown mapping remains a precise question.</td>
+</tr>
+<tr>
+<td>Resolved EVA API activation</td>
+<td>Remove after correcting obsolete rule</td>
+<td>FRD-07 and ADR-0038 own current manual/re-send behavior; credentials and first live acceptance have separate tasks.</td>
+</tr>
+<tr>
+<td>Glass's repair-estimate selection</td>
+<td>Close selection question</td>
+<td>Selection is settled; operator-owned live acceptance remains work. Do not treat selection of repair estimates as selection of Glass's valuation.</td>
+</tr>
+<tr>
+<td>Provider API contract</td>
+<td>Close already-specified wire questions</td>
+<td>FRD-09 API-01. Retain only new client/tenant choices not settled there; issuing credentials is an operation.</td>
+</tr>
+<tr>
+<td>DVLA/DVSA selection and activation</td>
+<td>Rewrite into precise residual</td>
+<td>Already-selected source contract versus credential/live-response acceptance. Remove the blanket keep-disabled directive unless a current accepted rule requires it.</td>
+</tr>
+<tr>
+<td>Post-report query/dispute lifecycle</td>
+<td>Retain</td>
+<td>Exact states, actors, reply evidence, reopening and closure are a real behavior gap.</td>
+</tr>
+<tr>
+<td>Missing report wording</td>
+<td>Retain</td>
+<td>Identify the unsupported report family/paragraph and the person who must supply accepted wording. Do not infer legal or engineering text.</td>
+</tr>
+<tr>
+<td>Fee/valuation markup ambiguities</td>
+<td>Close settled portions</td>
+<td>FRD-06/11 already own much of placement and storage; uncontracted vendor data remains a separate question.</td>
+</tr>
+<tr>
+<td>External AI round-trip run</td>
+<td>Move</td>
+<td>Test/evidence ticket. AiWork push and AiJobs pull must not be collapsed merely to remove an entry.</td>
+</tr>
+<tr>
+<td>Resolved Case layout and signatory</td>
+<td>Remove</td>
+<td>FRD-12 and FRD-01/04/11; preserve source references.</td>
+</tr>
+<tr>
+<td>Resolved 15-minute mail freshness/no backfill</td>
+<td>Remove after repairing architecture anchor</td>
+<td>FRD-08. Keeping a resolved section solely because it is linked is not a reason to keep it open.</td>
+</tr>
+<tr>
+<td>Manual upload in deployed environment</td>
+<td>Reframe investigation, not historical prohibition</td>
+<td>Determine the current composed custody path and intended condition. ADR-0003's old local-storage description cannot prove that every later deployment still writes locally. No production enable/disable action is authorized by this audit.</td>
+</tr>
+<tr>
+<td>Generic Azure ownership/retirement questions</td>
+<td>Remove from standing register</td>
+<td>Exact-target approval procedure. Open a concrete decision only for a named proposed ownership/retirement change.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A remaining entry should fit a short schema: <strong>question; why the current owners do not answer it; decision owner; exact affected capability; evidence/options; blocked action; safe interim behavior</strong>. A release not yet tested is not an unresolved product decision.</p>
+<h2 id="p1-s15">7. Retiring operator-notes.md without losing requirements</h2>
+<p>The current file's claims that every statement is authoritative conflict with its inclusion of dated implementation claims and derived paraphrases. I did not reconstruct the full authorship history, so this audit does not assert who overwrote which original wording. The current content is sufficient to show that it is no longer simply a notebook of verbatim operator statements.</p>
+<p>Retirement must preserve meaning and provenance, not every obsolete sentence as a current rule.</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Current content</th>
+<th>Durable destination</th>
+<th>Preservation rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Current v1 product outcomes, native reports, optional EVA, Glass's estimate scope</td>
+<td>PRD, then relevant FRD clauses</td>
+<td>State the current scope directly. Do not make readers chase a later override to understand earlier text.</td>
+</tr>
+<tr>
+<td>Three-stream execution, replacement PRs, subsequent remediation authority</td>
+<td>Owning Kanmer records</td>
+<td>Preserve exact dates/targets and ended exceptions. Do not turn a past authorization into permanent repository permission.</td>
+</tr>
+<tr>
+<td>Triage, Unidentified, image-origin and Case identity</td>
+<td>FRD-01/02/03; glossary pointers in CONTEXT</td>
+<td>Preserve separate references, no reuse, source history and reasoned reassociation.</td>
+</tr>
+<tr>
+<td>Completeness, review, chasing and lifecycle</td>
+<td>FRD-01; mail behavior in FRD-08</td>
+<td>Reconcile the current handoff and no-autonomous-send rules before transfer.</td>
+</tr>
+<tr>
+<td>Required instruction fields and routing</td>
+<td>FRD-02/09</td>
+<td>Preserve issuer, sender, intermediary and Principal as distinct facts.</td>
+</tr>
+<tr>
+<td>Inspection method/location and Principal defaults</td>
+<td>FRD-06; reusable party/default behavior in FRD-04</td>
+<td>Preserve that a location is report data and is not evidence of physical attendance.</td>
+</tr>
+<tr>
+<td>Engineering findings, estimates, valuation and reports</td>
+<td>FRD-06/11</td>
+<td>Preserve approved calculations and literal operator statements; resolve stronger derived prohibitions separately.</td>
+</tr>
+<tr>
+<td>Staff roles, access removal, sign-off identity</td>
+<td>FRD-04 with FRD-01/11 references</td>
+<td>Remove obsolete periodic-review requirements; preserve historical actors and printed tuples.</td>
+</tr>
+<tr>
+<td>CAP-001 through CAP-022 identifiers</td>
+<td>Capability crosswalk into current stable registry</td>
+<td>Do not silently discard identifiers used by old requirements; preserve aliases/provenance without a second capability table.</td>
+</tr>
+<tr>
+<td>UI language and layout</td>
+<td>CONTEXT, design and FRD-12</td>
+<td>Separate universal display language from the Case record's specific scrolling-layout exception.</td>
+</tr>
+<tr>
+<td>Tool/development/corpus restrictions</td>
+<td>engineering; concise AGENTS guardrail</td>
+<td>Distinguish authorized local development use from external-service activation and egress permissions.</td>
+</tr>
+<tr>
+<td>External-system descriptions</td>
+<td>Relevant FRD/ADR plus dated operations observations</td>
+<td>Mark old EVA/vendor availability claims historical; do not promote them into current limits.</td>
+</tr>
+<tr>
+<td>Secondary Audit Box folder nesting</td>
+<td>FRD-05</td>
+<td>Preserve its exact parent-child relationship.</td>
+</tr>
+<tr>
+<td>Continuous intake and out-of-hours availability</td>
+<td>PRD quality/availability</td>
+<td>Preserve operating expectations without inventing a new uptime SLA.</td>
+</tr>
+<tr>
+<td>Alex as first-line support; alert recipients; staffed/out-of-hours response; emergency access</td>
+<td>operations plus incident-response procedure</td>
+<td>Preserve the actual support contract and configuration-based recipient extension.</td>
+</tr>
+<tr>
+<td>Lowest practical cloud tiers; no fixed monthly ceiling; reuse existing accounts; commercial/API entitlement</td>
+<td>PRD constraints and integration activation policy</td>
+<td>The £75 alert is not an invented absolute budget. Keep entitlement requirements separate from unsupported new development bureaucracy.</td>
+</tr>
+<tr>
+<td>UK South as a chosen default rather than mandatory UK residency</td>
+<td>ADR-0015/PRD constraint clarification</td>
+<td>Do not silently convert a chosen deployment region into a business requirement.</td>
+</tr>
+<tr>
+<td>Original source labels and direct quotations</td>
+<td>Provenance pointers attached to their destinations; original Git history</td>
+<td>A current requirement may supersede a quotation, but its original meaning and provenance must remain recoverable.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Create a migration ledger in the documentation-change ticket: original section/statement ID, original blob or commit, destination clause, disposition (preserved, explicitly superseded, duplicate, or unresolved) and reviewer. Only delete the file after every material statement has a disposition and all active inbound links have been repaired. A temporary retirement stub may route old links during the same migration; do not leave it as a second binding authority indefinitely.</p>
+<h2 id="p1-s16">8. capabilities.md and boundaries.md</h2>
+<h3 id="p1-s17">8.1 Recount</h3>
+<p>The normalized uploaded capability file is byte-identical to the <code>dev</code> blob, so this recount applies to the pinned branch.</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Measure</th>
+<th>Current document claim</th>
+<th>Computed from the table</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total / unique capability IDs</td>
+<td>244 / 244</td>
+<td>244 / 244 — correct</td>
+</tr>
+<tr>
+<td>Planned capabilities</td>
+<td>205 in the introductory text</td>
+<td><strong>215</strong></td>
+</tr>
+<tr>
+<td>Now</td>
+<td>153</td>
+<td><strong>154</strong></td>
+</tr>
+<tr>
+<td>Next</td>
+<td>27</td>
+<td><strong>26</strong></td>
+</tr>
+<tr>
+<td>Later</td>
+<td>35</td>
+<td>35</td>
+</tr>
+<tr>
+<td>Not planned</td>
+<td>29</td>
+<td>29</td>
+</tr>
+<tr>
+<td>Target 0.1.0-alpha.1</td>
+<td>153</td>
+<td><strong>152</strong></td>
+</tr>
+<tr>
+<td>Target 0.2.0</td>
+<td>5</td>
+<td><strong>4</strong></td>
+</tr>
+<tr>
+<td>Non-SemVer <code>v1</code> targets</td>
+<td>Not part of declared release scheme</td>
+<td><strong>2: INT-16 and EXT-12</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>The complete row-level recount is in <code>metrics.json</code>. The old 233-versus-234 finding has been repaired; the current arithmetic errors are new or surviving errors of the same class. Do not restore old counts from the September 5 review.</p>
+<h3 id="p1-s18">8.2 What the registry should contain</h3>
+<p>Keep stable ID, concise durable outcome and canonical owner, plus retired-ID/alias provenance where necessary. Keep allocation in one place. If Kanmer owns delivery scheduling, produce any documentation roadmap as a derived view rather than another hand-edited schedule. If a product-level target remains deliberately in the capability register, Kanmer must reference that allocation rather than maintain a contradictory copy.</p>
+<p>Remove implementation narratives such as “not delivered,” “on stream B,” “caller-proved locally,” “released in release 6,” and “pending current composition binding.” Those statements belong to source evidence, release records or ticket status. Do not erase the underlying evidence; move its ownership.</p>
+<p>The acceptance script means a six-to-three-column rewrite is <strong>not</strong> a harmless prose-only change. First change or replace the consumer's acceptance-scope contract and test it against the intended roster. A Markdown allocation table should not silently decide which independently deferred features block release.</p>
+<p>Avoid a blind search-and-replace of all <code>v1</code> values with <code>1.0.0</code>. The desired release identity has to be selected consistently with the product's version scheme; this audit identifies the inconsistency but does not allocate a new release on the user's behalf.</p>
+<h3 id="p1-s19">8.3 Boundary classification</h3>
+<p>A boundary says what must not cross a line—for example, an AI tool cannot confirm a professional finding, an external caller cannot act as another Principal, or a reference cannot be reused. A capability scheduled later is not automatically such a boundary.</p>
+<p>Classify each existing row as one of: permanent product exclusion, enduring technical constraint, currently deferred capability, activation/approval condition, or dated implementation state. The first belongs in the PRD, the second in an ADR/FRD, the third on the delivery plan, the fourth in the governing behavior/procedure, and the fifth in evidence.</p>
+<p>Specific rows needing correction are the allegedly absent provider endpoint, OCR service/flag, vehicle lookup, blanket AI direct-mutation exclusion, production deployment and the capacity-cohort run. Direct, attributable unconfirmed working-data writes are not the same thing as an AI approving a finding or sending a report. Glass's estimates are not Glass's valuation. Internal AutoTrader scraping remains excluded even though external market-research results may return through an AI job.</p>
+<p>Retain the unique current exclusions—no standalone Images list, no runtime template editor, no Case Scroll/Tabs switch—under their actual behavior/design owners. They do not need a second mini-PRD here.</p>
+<h2 id="p1-s20">9. runbook.md: procedures versus policy</h2>
+<p>The supplied runbook is 1,433 text lines and approximately 85 KB normalized; the current Git blob is 84,970 bytes. It is not exclusively a runbook. It contains domain rules, platform comparisons, configuration/reference material, evidence standards, source-state claims, release history, and repeated acceptance checklists alongside procedures.</p>
+<p>Do not turn the entire file into one enormous skill. Keep a short human-readable runbook index that answers “what operation am I performing?” and links to exactly one procedure. The procedures can be the same Markdown reference files that agent skills load. Human recovery instructions must remain usable without a functioning AI client.</p>
+<h3 id="p1-s21">Extraction map</h3>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Existing content</th>
+<th>Destination</th>
+<th>Implementation note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unidentified queue definition</td>
+<td>FRD-02</td>
+<td>A definition is not a troubleshooting procedure. Link to it from the relevant operations recipe.</td>
+</tr>
+<tr>
+<td>Supported platform, tool contract and offline prerequisites</td>
+<td>engineering reference plus local-development procedure</td>
+<td>Remove dated vendor-support/capability essays from the command path. Read pinned versions from their actual configuration where feasible.</td>
+</tr>
+<tr>
+<td>Offline setup; Local setup and run; Status/Smoke/Stop/Reset</td>
+<td>Proposed <code>pegasus-local-development</code> skill/reference</td>
+<td>Consolidate the two setup sequences and call existing lifecycle scripts. Do not introduce another local runner.</td>
+</tr>
+<tr>
+<td>Locked restore/build/test; test-database troubleshooting</td>
+<td>Proposed focused verification procedure</td>
+<td>Share the policy from section 4; keep the actual platform variables and safe test-database ownership checks.</td>
+</tr>
+<tr>
+<td>Test UI capture</td>
+<td>Existing Razor UI skill family plus one verification reference</td>
+<td>Reuse scoped capture/cohort controls. Do not duplicate the catalogue or maintain hand-written replacement snapshots.</td>
+</tr>
+<tr>
+<td>Azure SQL runtime bootstrap; release artifacts; Worker activation</td>
+<td><strong>Existing <code>pegasus-release</code> skill and references</strong></td>
+<td>Merge duplicate procedure bodies and make the exact approved script/manifest the function-census owner.</td>
+</tr>
+<tr>
+<td>Intake-data wipe</td>
+<td><strong>Existing <code>pegasus-wipe-intake-data</code> skill</strong></td>
+<td>Preserve exact-target approval, Worker-stopped maintenance, dry-run, recovery evidence, reference preservation and the receive-time cutoff. Its presence is not standing authorization to run it.</td>
+</tr>
+<tr>
+<td>Provider-domain and principal-identification corpus authoring</td>
+<td>Proposed reference-data-authoring skill/reference</td>
+<td>Call the existing generators; preserve immutable inputs, normalized text versus raw evidence hashes, and no unintended route activation.</td>
+</tr>
+<tr>
+<td>Principal inspection-mode change</td>
+<td>Administration procedure</td>
+<td>Remove the standing raw SQL UPDATE recipe where the accepted Administrator action exists. Distinguish dev source behavior from a deployment that does not yet contain that action.</td>
+</tr>
+<tr>
+<td>Mailbox onboarding/disable/re-enable</td>
+<td>Proposed mailbox-operations skill/reference</td>
+<td>Preserve tenant setup versus application onboarding, approved scopes, generation/cutoff semantics and truthful Submitted/Sent distinction.</td>
+</tr>
+<tr>
+<td>OAuth certificate operation</td>
+<td>Proposed credential/certificate-operations skill/reference</td>
+<td>Preserve exact secret versions/scopes, overlapping key rotation, token lifetime and emergency revocation.</td>
+</tr>
+<tr>
+<td>Configuration reference</td>
+<td>Architecture/engineering reference</td>
+<td>Separate setting meaning from observed production values and actual mutation steps.</td>
+</tr>
+<tr>
+<td>QDOS OfflineCandidate runner</td>
+<td>Explicit optional/legacy evidence procedure</td>
+<td>Do not let its 2,000-case prerequisite become a current v1 release gate through documentation.</td>
+</tr>
+<tr>
+<td>Release dependency order</td>
+<td>Kanmer dependencies, with durable constraints in ADR/FRD</td>
+<td>Remove the historical alpha spine as a universal current schedule.</td>
+</tr>
+<tr>
+<td>Release validation rules</td>
+<td>Owning FRD acceptance clauses plus links from verification</td>
+<td>Do not copy the complete product rulebook into the release procedure.</td>
+</tr>
+<tr>
+<td>Monitoring and diagnosis</td>
+<td>Incident/diagnostics reference, linked from release/operations</td>
+<td>Keep evidence queries and failure isolation, not a duplicate monitoring requirement or outdated approval rule.</td>
+</tr>
+<tr>
+<td>Production recovery</td>
+<td>Existing release references or one recovery reference</td>
+<td>Preserve forward-schema and previous-artifact constraints; no destructive down-migration is inferred.</td>
+</tr>
+<tr>
+<td>Repository Git workflow</td>
+<td>Kanmer</td>
+<td>Do not create a second repository pipeline inside the runbook.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="p1-s22">Correct before moving</h3>
+<p>The current build section is still unconditional. Its prose says Browser/SQL evidence is separate even though the shown non-corpus default selection includes those traits where available. Clarify selected tests versus separately unexercised acceptance; do not imply the same test was both included and omitted.</p>
+<p>Other problematic sections include the old MCP-local-only dependency rule, the mix of seven and nine Worker function counts, the broad reset/readiness checklist, and source-state statements treating the Worker/outbox as future work. The current release skill already says the scripts at the released SHA own the exact Worker census; use that instead of another numeral in a guide.</p>
+<p>Cloud read permission is inconsistent between the general approval matrix and the monitoring paragraph requiring separate authorization for every refresh. Retain exact target identification and explicitly authorized writes, but do not invent per-read approval when the repository policy permits read-only inventory.</p>
+<p>A skill's description should explain its trigger and whether it is read-only, local-state-changing, or requires exact external-write approval. Each recipe needs prerequisites, target/ownership checks, steps, expected outcomes, stop conditions and evidence limits. No skill may treat its own discovery or invocation as authorization to send mail, mutate Box, rotate credentials or deploy.</p>
+<h2 id="p1-s23">10. operations.md versus current-architecture.md</h2>
+<p>These should remain two documents because they answer different questions. They should not both be “everything known about Pegasus.”</p>
+<p><strong>Architecture:</strong> source revision, four-project shape, data ownership, business-policy boundaries, composition/entry points, important flows and technical decision links. It may say an adapter exists or is conditionally registered; that does not prove the currently running environment uses it.</p>
+<p><strong>Operations:</strong> last observed deployed source/image/revision/migration, enabled ingress and Worker/mailbox state, exact environment identities, known current incidents, retained rollback basis, monitoring/recovery evidence and links to release records. Every observation has a timestamp and a stated coverage limit.</p>
+<p>The current operations record reports release 38 and a read-only observation on 6 September. This audit did not query Azure. Therefore the defensible phrase is <strong>last recorded production observation</strong>, not “production definitely runs release 38 right now.” The integrated <code>dev</code> source and that older recorded deployment are not contradictory merely because they differ.</p>
+<p>Correct the old three-stream assembly and “B binding pending” descriptions in architecture against the integrated source. Do not automatically mark the corresponding deployment or external-client acceptance complete. Replace the architecture diagram's ambiguous target arrows with structural edges and explicit composition labels; link live activation to operations.</p>
+<p>Move long release narratives out of the main operations reading path without losing failed attempts, exact hashes, rollback artifacts and observed limitations. A compact current summary should link to their immutable records. Do not delete the public-upload incident merely because its source fix is now integrated; a source fix is not proof of a deployed repair.</p>
+<p>Remove operations' stale deferred-implementation table, including absent EVA/VRM/DOC/MSG/webhook claims. Remove the broad statement that production release relevance depends only on <code>src/</code>: infrastructure or runtime configuration can change what is deployed too. Separate dated cost and soft-delete observations from active tasks requiring fresh inventory.</p>
+<p>Finally, change the <strong>producer instructions</strong> in AGENTS/release skill. Requiring both documents to repeat exact deployed SHA/digest/migration values ensures future duplication. A release updates operations; a source architectural change updates architecture; a release affecting both updates each within its own scope.</p>
+<h2 id="p1-s24">11. ADR audit and missing technical records</h2>
+<p>An ADR is a durable explanation of a technical decision, not a backlog ticket. All <strong>39 issued records</strong> were read. ADR-0017 is unissued; the numeric gap is not evidence of a missing decision. The full per-record disposition is in <code>adr-and-frd-register.md</code>.</p>
+<p>Important repairs are not limited to changing <code>status: accepted</code> into <code>superseded</code>. Mixed ADRs need a clear current-clause view. ADR-0002, for example, contains foundational choices that survive alongside hosting/environment and scheduling assumptions that do not. Keep the old rationale and stable ID; explicitly identify replaced clauses and the current successor. Follow transitive chains such as ADR-0032 → ADR-0033 and ADR-0037 → ADR-0039.</p>
+<p>The converse error also exists: ADR-0013 is marked fully superseded by ADR-0029 even though the latter changes the image-origin boundary, not every login, renderer and QDOS clause in the former. Current architecture still cites its login-throttling clause. That surviving decision needs an active owner; a broad superseded badge is not a valid substitute for deciding which clauses remain in force.</p>
+<h3 id="p1-s25">Strongly justified new or successor records</h3>
+<p>The current documented choices require explicit reconciliation for persistent OAuth certificates/per-grant attribution, mailbox occurrence/deduplication identity, image-reference Box custody, and the durable staff-send journal. These are concrete technical contracts that conflict with accepted ADR wording, not speculative extra paperwork.</p>
+<p>Additional record candidates are the shared non-Case Box holding/logical-content/24-hour cache boundary and the per-Engineer Glass's credential/session integration boundary. First establish whether an existing decision already covers the actual technical choice. Add a record only for a durable new ownership/security/recovery decision; ordinary fields or every provider profile do not each need an ADR.</p>
+<p>The Web minimum-replica setting also needs an explicit disposition against ADR-0015's original scale-to-zero trade-off. ADR-0033 warms the Worker; it must not be cited as though it independently decides the Web setting. A dated operational override with valid authority may be sufficient depending on what the accepted hosting decision actually constrains.</p>
+<p>Do <strong>not</strong> create ADRs merely to approve Markdown formatting, moving a paragraph, generating a register, or creating a PRD/FRD. Those are governance decisions with the wrong document type.</p>
+<h2 id="p1-s26">12. FRD audit and coverage gaps</h2>
+<p>Twelve FRDs is not inherently too few. The question is whether every accepted behavior has one coherent contract—not whether there is one document per capability ID. All twelve were read; the detailed register gives each a disposition.</p>
+<p>The strongest conflicts are already in the P1 register: Audit allocation in FRD-02; report generation in FRD-11; reset/review administration in FRD-04/12; upload limits; readiness invalidation; EVA resend; and valuation-adjustment deferrals. The older no-VRM Triage wording and FRD-09's undefined API contract have been corrected. Do not repeat those September 5 observations as if unchanged.</p>
+<h3 id="p1-s27">Requirements that need a clause, not automatically another FRD</h3>
+<p><strong>Non-email Triage completion.</strong> Triage may originate outside retained email, but completion requires exact reply-chain Sent evidence in its normal workflow. Define whether those origins are supported for completed Triage, what evidence is applicable, and what is deliberately unsupported. The PRD's “where applicable” does not provide an executable rule.</p>
+<p><strong>MarketResearch job completion.</strong> A job can return a findings document and valuation proposal, while other job text routes completion through named draft-estimate acceptance. Define the research-specific terminal and review behavior without pretending a valuation proposal is a repair estimate.</p>
+<p><strong>Provider API Triage results.</strong> Clarify what the result/status contract returns for accepted Triage, including its reference and absence of Case/PO. A contract that permits Triage but exposes only a Case-style result leaves clients guessing.</p>
+<p><strong>Audit reports in v1.</strong> FRD-11 still calls Audit parity future activation and excludes Audit from the initial renderer, while v1 includes native final reports. State exactly which Audit journeys are accepted for v1, their existing caller, and any genuinely outstanding acceptance. Do not claim runtime support merely by deleting the exclusion.</p>
+<p><strong>Non-Case holding and cache behavior.</strong> Strengthen FRD-05's functional contract for retained non-Case sources, logical reads, authorization, custody-pending failures, cache miss/integrity behavior, idle expiry and re-evaluation after staging deletion. Architectural placement and a 24-hour number alone do not specify recovery behavior.</p>
+<p><strong>Engineering access versus mandatory global checks.</strong> Reconcile the requirement for market valuation before Engineer eligibility with where valuation can actually be supplied/accepted in the current workflow. Define permitted explicit exceptions and their actors; do not invent an automatic bypass or leave a cyclic readiness requirement.</p>
+<p><strong>Source evidence adoption.</strong> Make the common rule explicit for third-party reports and estimating imports: issuer is not necessarily Principal; original observation is not CE acceptance; accepted fields retain document/version/hash/locator and require the proper actor/version/lease. Parts exist already in the v1 contract material and should be consolidated rather than re-invented.</p>
+<p>Unknown repairer VAT is <strong>not wholly missing</strong>: current v1/FRD report material already requires explicit status/category before accepting totals. Preserve and cross-link that requirement. Signatory qualification optionality and targeted lease-clearance behavior are also recorded; their problem is inconsistent consumers, not absence everywhere.</p>
+<h3 id="p1-s28">Sensible optional splits</h3>
+<p>FRD-06 spans source observations, inspection location, image advisories, damage, valuation, estimates and settlement. FRD-11 spans reporting, correspondence and several AI-job families. Separate an estimating/import contract and a valuation contract only if that creates independent, cohesive rule owners with clear cross-links. Do not split automatically at an arbitrary line count or create 244 thin documents for 244 IDs. Fix contradictory clauses before changing filenames.</p>
+<h2 id="p1-s29">13. PRD audit</h2>
+<p>The current PRD correctly records native engineering/final reports, optional EVA, staff-initiated sends and Glass's repair estimates rather than Glass's valuation. Its normal Case/PO versus later Audit reference distinction is also correct. Those newer clauses are the intended-state baseline for the conflicting documents identified above.</p>
+<p>It still needs these improvements:</p>
+<ul>
+<li>Make the current v1 outcome complete in the PRD itself rather than relying on an operator-notes override. Clearly distinguish the original QDOS alpha from the current multi-principal v1 scope.</li>
+<li>Remove a requirement for independently buildable <strong>current</strong> source workspaces when the imports are retired. Retain only the rules for any future deliberately admitted import.</li>
+<li>Place permanent product exclusions here and link capability IDs to them; avoid a circular definition in which the PRD says capabilities owns every boundary while capabilities points back to the PRD.</li>
+<li>Retain workload, five-second p95 and cost objectives as targets with measurement scope, not passing claims. Do not resurrect the excluded capacity/soak run or deferred OPS-09 as a universal release gate.</li>
+<li>Preserve the distinction between local development permission and accepted terms/data handling for an external flow. An instruction not to invent new development bureaucracy does not mean an external operation is authorized merely because a tool exists.</li>
+<li>Consolidate support, operating-hours and commercial constraints transferred from operator-notes. Do not invent an uptime SLA, UK-only residency rule or absolute £75 monthly budget.</li>
+</ul>
+<p>A second omnibus PRD is not required. A coherent current product document with an explicit acceptance model and linked behavioral owners is preferable to another top-level authority.</p>
+<h2 id="p1-s30">14. Results of comparing the former reviews</h2>
+<p>The September 5 review is useful evidence, but not a repair script for today's tree. Its 71 observations divide as follows in the accompanying detailed reconciliation:</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Disposition</th>
+<th style="text-align:right">Observations</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Resolved wording</td>
+<td style="text-align:right">36</td>
+<td>The specific earlier documentation conflict is repaired; no fresh runtime acceptance is implied.</td>
+</tr>
+<tr>
+<td>Partially resolved</td>
+<td style="text-align:right">15</td>
+<td>Some cited wording is fixed, while a related or remaining part still needs work.</td>
+</tr>
+<tr>
+<td>Still outstanding</td>
+<td style="text-align:right">20</td>
+<td>The original material conflict remains.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Examples of repaired findings include the Unidentified glossary, the exact FRD-01/QDOS Audit pair, workspace retirement in README/index, the missing-registration Triage wording, several ADR supersession headers, historical-only markings on Stitch and session plans, integration-branch proof wording, and non-PASS retirement remaining outside Done.</p>
+<p>Examples not repaired include AI Proposal versus direct working data, parts of the architecture diagram/current-state narrative, the old EVA at-most-once rule, operator-notes' conflicting rules, some UI requirements, foreign repository assumptions in the Kanmer docs skill and missing proof frontmatter.</p>
+<p>The undated review references retired paths such as <code>docs/architecture.md</code>, <code>docs/requirements.md</code>, <code>NOW.md</code> and removed workspaces. Its findings are separately disposed as resolved, obsolete-in-current-scope, partial or not fully reverified. The crosswalk does not pretend that an unnamed assertion or a historical worktree execution failure can be proven from the fragment alone.</p>
+<h2 id="p1-s31">15. Delivery plan for the documentation improvement</h2>
+<p>Keep this a bounded documentation programme, not another prolonged governance project.</p>
+<p><strong>First change: authoritative behavior reconciliation.</strong> Fix the P1 contradictions in their existing owners, preserving source statements and tests that assert the intended behavior. Include Audit identity, report generation, native handoff/readiness, upload ceilings, account reset/reviews and EVA resends. Record unresolved choices explicitly; do not silently pick whichever current implementation is easiest.</p>
+<p><strong>Second change: ownership and relocation.</strong> Adopt the question-specific owner matrix, transfer operator statements with a complete ledger, reduce capabilities/open-decisions/boundaries, and repair all inbound references. Retire operator-notes only when its ledger is complete. Change the rule that currently forbids legitimate procedure/support files.</p>
+<p><strong>Third change: agent/procedure packaging.</strong> Shorten human-owned AGENTS, reconcile upstream Kanmer assets and mirrors, reuse the release/wipe/UI skills, and extract the remaining procedures into a small number of named recipes. Update the producer instructions so later releases do not recreate duplicated content.</p>
+<p><strong>Coupled executable change, where needed:</strong> acceptance-roster parsing and any documentation path/format consumer. Treat these as code/script changes with focused regression evidence, not as editorial cleanup. The exact implementation can share a reviewed PR with its contract change if that avoids an intermediate broken tree.</p>
+<p>A few cohesive PRs or one carefully staged documentation branch are preferable to dozens of one-line governance tickets. Kanmer should retain the actual execution plan and evidence; this audit remains the requested review artifact, not another live status ledger committed into the product tree.</p>
+<h3 id="p1-s32">Acceptance of the cleanup</h3>
+<p>The cleanup is complete when each material transferred statement has one current owner or an explicit supersession; the active owners agree on the tested scenarios; settled questions are absent from open-decisions; delivery status is not duplicated in the capability registry; procedures have one executable owner; the changed paths/anchors and any machine consumers pass their relevant checks; and the reduced instruction chain routes representative tasks correctly.</p>
+<p>Use representative documentation scenarios: a read-only review does not start a build; a prose edit selects documentation checks; a Razor edit finds its capture procedure; a schema change finds migration/grant evidence; a release finds exact-target permission and the real release recipe; an Audit instruction finds normal Case/PO allocation; missing Audit evidence withholds only the later Audit reference; native engineering does not require EVA; a changed upload contract reaches its parser/consumer tests; and no historical plan is treated as standing authority to merge, send or wipe.</p>
+<p>No new blanket whole-solution run is justified merely by moving prose. Conversely, a changed script, consumer or generated UI contract must receive the evidence its executable effect requires.</p>
+<h2 id="p1-s33">16. External guidance research record</h2>
+<p>The user requested official OpenAI/Anthropic guidance published from 1 June 2026 onward. No qualifying dated official source was verified for the universal ten-line claim. These currently served official manuals were consulted separately for present mechanics and scope, without treating crawl dates as publication dates:</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>Source</th>
+<th>What it supports</th>
+<th>Date qualification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenAI, Custom instructions with AGENTS.md</td>
+<td>Layered instruction discovery; configurable 32 KiB default combined budget</td>
+<td>Living manual; publication date for this specific advice not established</td>
+</tr>
+<tr>
+<td>Anthropic, Best practices for Claude Code</td>
+<td>Short, broadly relevant startup instructions; task-specific material in skills</td>
+<td>Living manual; not certified as post-June guidance</td>
+</tr>
+<tr>
+<td>Anthropic, Skill authoring best practices</td>
+<td>Under-500-line guidance is for SKILL.md body; supporting detail can be loaded as needed</td>
+<td>Living manual; not a universal AGENTS.md rule or dated post-June recommendation</td>
+</tr>
+</tbody>
+</table></div>
+<pre><code class="language-text">https://learn.chatgpt.com/docs/agent-configuration/agents-md
+https://code.claude.com/docs/en/best-practices
+https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+</code></pre>
+<p>Community line-count suggestions were not adopted as vendor policy. The proposed Pegasus size and ownership targets in this audit are recommendations based on the observed repository, not an assertion that either vendor requires those exact numbers.</p>
+</section><section class="document" aria-label="All ADRs, FRDs and PRD"><h1 id="p2-s1">ADR, FRD and PRD audit register</h1>
+<p><strong>Baseline:</strong> <code>collisionengineers/pegasus</code>, <code>dev</code> at <code>26ba4ed408317cccdb354dc1e115b0297f15df94</code>, 8 September 2026.</p>
+<p>All 39 issued ADR bodies and all twelve FRDs were read. Findings below concern documented contracts and source ownership; a “retain” verdict is not a fresh implementation, vendor, deployment or acceptance certification. The current PRD is reviewed separately at the end. Use <code>audit.md</code> for priorities, migration maps and the proposed ownership model.</p>
+<h2 id="p2-s2">1. ADR-by-ADR register</h2>
+<p>The metadata status column reports the document's current designation. “Partly replaced” describes substantive scope and is not a proposed new status enum. Correct reciprocal metadata and the current-decision view without deleting stable IDs or rewriting the original technical rationale as though it had always said something else.</p>
+<div aria-label="Audit table" class="table-scroll" role="region" tabindex="0"><table>
+<thead>
+<tr>
+<th>ADR</th>
+<th>Current designation</th>
+<th>Verdict</th>
+<th>Required action / surviving decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ADR-0001 — Hybrid PDF extraction</td>
+<td>Superseded</td>
+<td>Keep history</td>
+<td>ADR-0040 now owns qualified OCR. Repair active links that still present 0001 as the current selection. Its experimental/hybrid context remains evidence, not an active fallback requirement.</td>
+</tr>
+<tr>
+<td>ADR-0002 — .NET modular monolith on Azure</td>
+<td>Accepted; partly replaced</td>
+<td>Reconcile active clauses</td>
+<td>Retain the surviving stack, policy ownership and core topology. Its older App Service/environment/MCP/activation/cost assumptions have later owners. Map individual clauses through ADR-0004/0007/0014/0015/0024/0030/0033 and other relevant successors. Follow 0032 through 0033; a historical link is not a current-decision endpoint.</td>
+</tr>
+<tr>
+<td>ADR-0003 — PdfPig for the first QDOS slice</td>
+<td>Accepted</td>
+<td>Retain engine choice; qualify historical slice</td>
+<td>Its restriction on deployed manual upload is conditional on authentication and durable custody, not an eternal ban. Do not treat its old local-storage observation as proof of current production composition. Keep PdfPig ownership and route current custody behavior to FRD-02/05. Resolve obsolete benchmark/source references through exact historical revisions rather than inventing current files.</td>
+</tr>
+<tr>
+<td>ADR-0004 — Provider API and staff MCP authentication</td>
+<td>Accepted; MCP portion superseded</td>
+<td>Prior header defect repaired</td>
+<td>ADR-0011 replaces staff impersonation/per-staff MCP with the Automation Actor. Preserve the distinct Provider API boundary. The accepted-set view must not expose the old staff-MCP clause as active merely because the whole record is not superseded.</td>
+</tr>
+<tr>
+<td>ADR-0005 — Multiformat intake assets</td>
+<td>Accepted; partly replaced</td>
+<td>Add clause-level successors</td>
+<td>Its initial caller ownership changes under ADR-0006; DOC/MSG integration under ADR-0025; VRM recognition under ADR-0019; OCR under ADR-0040. Historical format deferrals and initial implementation limitations must not become current bans. The source-occurrence and evidence-preservation decisions that survive should remain clear.</td>
+</tr>
+<tr>
+<td>ADR-0006 — Provider-neutral intake with contained QDOS policy</td>
+<td>Accepted</td>
+<td>Retain core decision; repair relationships</td>
+<td>The body explicitly changes part of ADR-0005 but its relationship metadata does not fully represent that change. ADR-0008 and the current principal-wide FRD-09 ownership refine route selection. Retain one shared intake implementation rather than a special second QDOS engine.</td>
+</tr>
+<tr>
+<td>ADR-0007 — Direct-terminal Azure deployment</td>
+<td>Accepted; partly replaced</td>
+<td>Header partly repaired; recovery scope remains</td>
+<td>Environment choice is replaced by 0014 and hosting/artifact choice by 0015; workstation policy now reaches 0039 through 0037. Retain exact-SHA terminal deployment and approval boundaries. Resolve its old alpha recovery-gate implication against the current PRD's non-blocking OPS-09. Do not replay a historical environment or artifact route.</td>
+</tr>
+<tr>
+<td>ADR-0008 — Separate direct-provider and intermediary policies</td>
+<td>Accepted</td>
+<td>Retain; complete metadata</td>
+<td>The durable separation is still relevant. Record the relationship to the portions of 0006 it changes. Adding evidence for a principal does not require an entirely new architecture ADR per profile. Current route predicates and ambiguity behavior belong in FRD-09.</td>
+</tr>
+<tr>
+<td>ADR-0009 — Adopt monorepo workspaces</td>
+<td>Accepted; refined by 0025</td>
+<td>Retain admission rules, not fictitious active imports</td>
+<td>A retired import does not invalidate the future admission boundary. ADR-0025 integrated selected slices into Infrastructure. State that there are no current independent workspace build units; preserve original import hashes and the contract for a future deliberately admitted import.</td>
+</tr>
+<tr>
+<td>ADR-0010 — Single CONTEXT domain documentation</td>
+<td>Superseded</td>
+<td>Keep tombstone/history</td>
+<td>Governance has moved to the documentation model and index. Do not revive this as a technical architecture requirement or delete its stable citation key.</td>
+</tr>
+<tr>
+<td>ADR-0011 — Restrict MCP to Automation Actor</td>
+<td>Accepted</td>
+<td>Retain; prior metadata defect repaired</td>
+<td>The successor relationship to 0004 is now recorded. Keep non-human actor identity separate from staff identity, and read current action rights through 0031/FRD-10 rather than an older static tool count.</td>
+</tr>
+<tr>
+<td>ADR-0012 — Conservative MOT mileage estimation</td>
+<td>Superseded</td>
+<td>Keep history; repair active inbound ownership</td>
+<td>Current behavior belongs in FRD-06. Active requirements should cite that owner; an old technical citation must not become a second calculation authority. No new mileage method is selected by this audit.</td>
+</tr>
+<tr>
+<td>ADR-0013 — QDOS alpha implementation contract</td>
+<td>Superseded</td>
+<td>Supersession is too broad</td>
+<td>ADR-0029 changes the image-origin boundary, not every clause of this large implementation contract. Current architecture still relies on its authentication-throttling clause. Identify each surviving decision and its active owner; either mark the actual partial scope or provide appropriate successor records. Avoid hiding live rules behind a wholly superseded badge.</td>
+</tr>
+<tr>
+<td>ADR-0014 — Local-to-production deployment</td>
+<td>Accepted</td>
+<td>Retain; prior metadata defect repaired</td>
+<td>Local development and production only remain the intended environment model. The successor relationship to the old deployment environment rule is now present. This decision does not by itself authorize an actual production write.</td>
+</tr>
+<tr>
+<td>ADR-0015 — Container Apps Consumption Web hosting</td>
+<td>Accepted; refined</td>
+<td>Reconcile scale-to-zero trade-off</td>
+<td>Retain the selected host and OCI approach; renderer packaging is refined by 0028. Its original minimum-zero/cold-start choice differs from the recorded always-warm Web deployment. Record an accepted operational override or technical successor as appropriate. ADR-0033 warms the Worker and is not automatically the Web decision.</td>
+</tr>
+<tr>
+<td>ADR-0016 — Standalone desktop email evaluator</td>
+<td>Accepted</td>
+<td>Retain separation</td>
+<td>The evaluator is independently owned and outside the Web caller/runtime. Its source evaluation may support evidence, but its allocation and existence must not make it a hidden QDOS/v1 acceptance gate through the capability table.</td>
+</tr>
+<tr>
+<td>ADR-0018 — Provider inspection-mode database setting</td>
+<td>Accepted</td>
+<td>Retain persistence choice; retire old procedure deferral</td>
+<td>Current FRD-04 includes Administrator control, whereas Decision 5 treats changing existing values as a manual SQL operation until a UI is justified. Keep the provider default and provenance rules; route current operation to the supported Administrator action. Do not let the old SQL recipe bypass history/version behavior.</td>
+</tr>
+<tr>
+<td>ADR-0019 — In-process ONNX VRM recognition</td>
+<td>Accepted</td>
+<td>Retain engine; make automation exception explicit</td>
+<td>The original suggestion/staff-confirmation wording must be read with the accepted 0.80 automatic registration/association exception. Keep source-image evidence, abstention and no ordinary-image egress. Do not generalize the specific accepted match permission into blanket autonomous fact confirmation.</td>
+</tr>
+<tr>
+<td>ADR-0020 — Accepted QDOS association predicates</td>
+<td>Superseded</td>
+<td>Keep historical acceptance; fix active owners</td>
+<td>Current behavior and principal-wide policy references belong in FRD-09. The old policy versions are historical; do not update current documents to the September 5 review's now-obsolete v4/v5 target.</td>
+</tr>
+<tr>
+<td>ADR-0021 — Automation direct-write assessment contract</td>
+<td>Superseded</td>
+<td>Clarify what 0031 now owns</td>
+<td>The current contract is 0031/FRD-10. Statements that the old record is wholly superseded yet “other clauses stand” create ambiguous active authority. Preserve old rationale, but identify the one current rights/tool contract.</td>
+</tr>
+<tr>
+<td>ADR-0022 — Approved mailbox identity and enablement</td>
+<td>Superseded</td>
+<td>Keep history</td>
+<td>ADR-0024 owns the later stable approved-mailbox/fresh-start boundary. Repair links that still cite 0022 as the complete current contract, particularly in operational configuration explanations.</td>
+</tr>
+<tr>
+<td>ADR-0023 — Documentation/reference restructuring</td>
+<td>Superseded</td>
+<td>Keep tombstone/history</td>
+<td>This is retired governance, not a reason to require another technical ADR for every documentation move. Current placement authority must explicitly allow the proposed procedure/skill support files.</td>
+</tr>
+<tr>
+<td>ADR-0024 — Stable mailbox identity and explicit baseline</td>
+<td>Accepted</td>
+<td>Technical successor needed for identity reconciliation</td>
+<td>Preserve stable ApprovedMailbox identity, activation cutoffs and fresh starts. Reconcile its immutable Graph-item occurrence/deduplication contract with FRD-08's mailbox/RFC Message-ID boundary. Specify separate identities, collisions, missing/contradictory evidence and replay behavior rather than simply renaming a field.</td>
+</tr>
+<tr>
+<td>ADR-0025 — Integrate renderer and extractor into application</td>
+<td>Accepted</td>
+<td>Retain; improve traceability</td>
+<td>The integration into Infrastructure and retirement of unused imports are current. It refines the workspace-admission boundary, not a blanket prohibition on all future imports. Ensure DOC/MSG capability links identify this owner and remove active-doc claims that the old workspaces must still be built independently.</td>
+</tr>
+<tr>
+<td>ADR-0026 — Enable Automation MCP by deployment configuration</td>
+<td>Accepted</td>
+<td>Retain activation decision; update relationships</td>
+<td>The explicit production gate is current and matches dated ingress evidence. Its references to the older 0021 contract should lead readers to 0031 for current rights. It does not decide the new persistent-certificate/grant model by itself.</td>
+</tr>
+<tr>
+<td>ADR-0027 — Authorization code for external MCP connectors</td>
+<td>Accepted</td>
+<td>Technical successor needed</td>
+<td>Keep the authorization-code/PKCE and consent rationale. Ephemeral-key restart invalidation and client-only attribution conflict with the new persistent signing/encryption certificate and per-grant model in FRD-10. Record the changed lifetime, rotation and attribution boundary.</td>
+</tr>
+<tr>
+<td>ADR-0028 — Integrated renderer in existing Web container</td>
+<td>Accepted</td>
+<td>Retain</td>
+<td>Browser/fonts/native runtime packaging in the existing Web boundary remains coherent. It refines 0015/0025; it is not a new rendering service. Actual packaged browser execution and operator acceptance remain separate evidence.</td>
+</tr>
+<tr>
+<td>ADR-0029 — Image-initiated Case projection</td>
+<td>Accepted</td>
+<td>Preserve projection; record new custody choice</td>
+<td>The separate image-origin reference remains valid. Its explicit exclusion of a dedicated image-reference Box folder conflicts with FRD-05. Also correct its overbroad supersession of 0013. New custody/merge behavior requires a clear technical record while preserving both original identities and evidence.</td>
+</tr>
+<tr>
+<td>ADR-0030 — Non-additive schema before cutover</td>
+<td>Accepted</td>
+<td>Repair expiry/activation owner</td>
+<td>The exception is bounded by pre-cutover disposable data, not standing permission to rewrite production history. Its expiry reference leads to the old QDOS/EVA release sequence in open-decisions. Name the current cutover/consumer criterion durably, with compatible rollback/recovery evidence.</td>
+</tr>
+<tr>
+<td>ADR-0031 — Automation without EVA export tools</td>
+<td>Accepted</td>
+<td>Retain current authority</td>
+<td>Direct, attributed unconfirmed working-data writes are permitted; Engineer confirmation and outward dispatch are not. Do not preserve boundaries.md's blanket direct-mutation ban. Its AiWork push channel can coexist with the later AiJobs pull ledger.</td>
+</tr>
+<tr>
+<td>ADR-0032 — Near-real-time durable intake triggering</td>
+<td>Superseded</td>
+<td>Keep history</td>
+<td>ADR-0033 is the current scheduling successor. Fix current-decision views that stop at this intermediate record; keep historical links where they explain the actual sequence.</td>
+</tr>
+<tr>
+<td>ADR-0033 — Warm unified queue for five-second intake</td>
+<td>Accepted</td>
+<td>Retain; separate source from live evidence</td>
+<td>The shared queue, warm Worker and recovery design are documented technical choices. Do not infer deployed function settings or measured p95 from the record alone. Keep the distinction between normal notification work and recovery timers.</td>
+</tr>
+<tr>
+<td>ADR-0034 — Per-Principal EVA API submission settings</td>
+<td>Superseded</td>
+<td>Keep history</td>
+<td>ADR-0038 replaces the automatic-submission design. Old reconciliation/autosend controls must not be reintroduced from this historical record.</td>
+</tr>
+<tr>
+<td>ADR-0035 — AI job ledger</td>
+<td>Accepted</td>
+<td>Retain both workflow boundaries</td>
+<td>AiJobs is a pull-based job ledger, deliberately distinct from AiWork's push handoff. There is no Worker AI polling owner and the ledger itself does not mutate Case data. A broad “duplicate AI engine” finding would be unsupported. Define job-family-specific result acceptance in FRD-11.</td>
+</tr>
+<tr>
+<td>ADR-0036 — Outbound mail through approved mailbox</td>
+<td>Accepted</td>
+<td>Refine persistence contract</td>
+<td>Preserve staff initiation, approved-mailbox scope and observed Sent evidence. Reconcile the “no new store/second outbound record” statement with FRD-08's durable operation journal. The journal can own attempts/recovery without becoming a second authority for sent mail.</td>
+</tr>
+<tr>
+<td>ADR-0037 — Linux authorized release workstation</td>
+<td>Superseded</td>
+<td>Keep history</td>
+<td>ADR-0039 now supports Windows and Linux. Do not enforce the superseded Linux-only workstation rule.</td>
+</tr>
+<tr>
+<td>ADR-0038 — Manual-only EVA API submission</td>
+<td>Accepted</td>
+<td>Retain; update old consumers</td>
+<td>This addresses the former automatic-submission design and supports the explicit staff Review send/With Engineer re-send. Update open-decisions, runbook, capabilities and old tails accordingly. Manual re-send is not automatic retry of an uncertain provider outcome.</td>
+</tr>
+<tr>
+<td>ADR-0039 — Windows and Linux release workstations</td>
+<td>Accepted</td>
+<td>Retain</td>
+<td>The same exact SHA produces Linux Web/Worker artifacts and a workstation-matching migration bundle; schema-3 platform identity is coherent. Update old 0037/Windows-only procedure pointers without inventing Windows containers or an extra deployment platform.</td>
+</tr>
+<tr>
+<td>ADR-0040 — Qualified Document Intelligence OCR</td>
+<td>Accepted</td>
+<td>Retain; propagate qualified scope</td>
+<td>Supersedes the earlier OCR selection. PdfPig remains first; qualified scan-like and unusable-text-map PDF pages use the bounded Worker adapter and durable source identity. Include the estimate-import behavior owner in traceability. Infrastructure declarations and a selected service are not provisioning/live acceptance evidence.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>ADR-0017 is not an issued record in the reviewed tree. Do not fill the number merely to make the sequence look complete.</strong></p>
+<h3 id="p2-s3">Relationship repair rules</h3>
+<p>An active-decision view should not rely on <code>status: accepted</code> alone when the body says individual clauses are replaced. At minimum, each materially replaced clause needs an explicit successor pointer, reciprocal relationship data where supported, and a current owner whose meaning is unambiguous. A schema for partial relationships is a proposal, not permission to change existing metadata consumers without testing them.</p>
+<p>ADRs record why a technical choice was made. They need not be continually rewritten with the latest package version, retail price, date, deployment count or operation command. Keep observed operational values and executable procedures in their own owners.</p>
+<h2 id="p2-s4">2. Exact ADR file index</h2>
+<p>All paths below are under <code>docs/adr/</code> at the pinned revision. This index makes each row above reproducible without relying on a mutable branch URL.</p>
+<pre><code class="language-text">0001-hybrid-pdf-extraction.md
+0002-dotnet-modular-monolith-on-azure.md
+0003-pdfpig-for-first-qdos-slice.md
+0004-provider-api-and-staff-mcp-authentication.md
+0005-multiformat-intake-assets.md
+0006-provider-neutral-intake-with-contained-qdos-policy.md
+0007-direct-terminal-azure-deployment.md
+0008-separate-direct-provider-and-intermediary-email-policies.md
+0009-adopt-pegasus-monorepo-workspaces.md
+0010-adopt-single-context-domain-documentation.md
+0011-restrict-mcp-to-automation-actor.md
+0012-conservative-mot-mileage-estimation.md
+0013-qdos-alpha-implementation-contract.md
+0014-local-to-production-deployment.md
+0015-host-web-on-container-apps-consumption.md
+0016-standalone-desktop-email-evaluator.md
+0018-provider-inspection-mode-database-setting.md
+0019-in-process-onnx-vrm-recognition.md
+0020-accepted-qdos-case-association-predicates.md
+0021-automation-actor-direct-write-assessment-contract.md
+0022-approved-mailbox-identity-and-enablement-database-setting.md
+0023-restructure-repository-documentation-and-reference-evidence.md
+0024-stable-approved-mailbox-identity-and-explicit-baseline.md
+0025-integrate-renderer-and-extractor-into-the-application.md
+0026-enable-automation-mcp-by-explicit-deployment-configuration.md
+0027-authorization-code-for-external-mcp-connectors.md
+0028-run-integrated-renderer-in-web-container-app.md
+0029-image-initiated-case-projection.md
+0030-non-additive-schema-changes-before-cutover.md
+0031-automation-actor-contract-without-eva-export-tools.md
+0032-near-real-time-durable-intake-triggering.md
+0033-warm-unified-work-queue-for-five-second-intake.md
+0034-per-principal-eva-api-submission-settings.md
+0035-ai-job-ledger.md
+0036-outbound-mail-via-approved-mailbox.md
+0037-linux-authorised-release-workstation.md
+0038-manual-only-eva-api-submission.md
+0039-windows-and-linux-release-workstations.md
+0040-qualified-document-intelligence-ocr.md
+</code></pre>
+<h2 id="p2-s5">3. FRD-by-FRD register</h2>
+<h3 id="p2-s6">FRD-01 — Case identity and lifecycle</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-01-case-identity-and-lifecycle.md</code></p>
+<p><strong>Keep:</strong> normal Case/PO allocation distinct from the later Audit reference; immutable references and wrong-Principal replacement; native handoff independent of EVA; current D44 readiness rules; separate sign-off Engineer; attributed notes; targeted Administrator lease clearance; global Triage identity linked to, not substituted for, a formal Case.</p>
+<p><strong>Correct/consolidate:</strong> remove remaining blanket/legacy EVA-dependent explanations and copy current readiness rules into their actual consumers rather than creating another owner. Keep already-calculated chase dates distinct from the policy for future calculations: capability text implying automatic recalculation of all open work conflicts with this contract. Clarify how Inspection + Audit relates to the normal native report path rather than preserving the old EVA-only explanation.</p>
+<p><strong>Coverage action:</strong> explicit cross-references for inspection method/location and historical directory snapshots, and a clear list of changes that invalidate completeness versus report generation. Do not reintroduce the original Audit allocation gate to match FRD-02.</p>
+<h3 id="p2-s7">FRD-02 — Intake and source identity</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-02-intake-and-source-identity.md</code></p>
+<p><strong>Keep:</strong> durable source/dispatch identities, shared allocator, grouped images, Unidentified U-references, idempotent processing, distinct transient and terminal outcomes, accepted principal/profile agreement and source-labelled correction.</p>
+<p><strong>P1 corrections:</strong> Mandatory pre-case gates still treats an Audit's original report/outcome as identity-critical to normal allocation. This conflicts with FRD-01/PRD/CONTEXT and the current QDOS companion. Request-scoped links still say 10 MiB and pending INTK-052 research despite the settled 100 MiB/20-file/200 MiB source policy. Move those settled limits from open-decisions into this owner.</p>
+<p><strong>Further clauses:</strong> “token never in message content” conflicts with sending the functional upload link in a chaser unless the security restriction distinguishes necessary recipient delivery from logs, history and unintended disclosure. Token generation/at-rest representation are called open implementation choices while other current documents record a settled hashed 256-bit token; reconcile the actual chosen security contract. Review global pre-Engineer check requirements for a cyclic market-valuation dependency. Do not merge Provider API envelope ceilings with the staff/public upload ceiling.</p>
+<h3 id="p2-s8">FRD-03 — Triage</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-03-triage.md</code></p>
+<p><strong>Keep:</strong> separate pre-Case workflow, immutable global T-reference, independently optional findings with at least one required, reasoned superseding findings, exact reply-chain evidence where supported, cancellation and reasoned reopening. The old Needs sorting clause is repaired.</p>
+<p><strong>Clarify:</strong> wording that loosely calls Triage a Case should identify the distinct record rather than a formal Case/PO. More importantly, manual/API Triage origins must have an explicit completion-evidence contract. The email completion rule cannot simply be applied to an origin with no reply chain. Either restrict the supported origin/completion combination or define the accepted evidence; do not invent a manual “sent” proxy.</p>
+<h3 id="p2-s9">FRD-04 — Parties, accounts and access</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-04-parties-accounts-and-access.md</code></p>
+<p><strong>Keep:</strong> roles as data rather than named-user hardcoding; access deletion/disable, forced logout/reset and targeted lease clearance; history-preserving actor and signatory records; per-Engineer Glass's credentials; Principal defaults and reusable/case party distinctions.</p>
+<p><strong>P1 correction:</strong> generated, one-time-visible temporary password here conflicts with Administrator-entered password in FRD-12/capability ACC-15. Decide and express one workflow including recovery, forced change and secret handling. Periodic account reviews have been removed; old role/UI actions must follow that change.</p>
+<p><strong>Coverage/action:</strong> preserve the new optional-qualifications rule for printed signatories instead of enforcing an old mandatory tuple everywhere. Credential encryption, session attribution and recovery belong in an appropriate technical decision, not solely a functional paragraph or stream A signature table.</p>
+<h3 id="p2-s10">FRD-05 — Documents, extraction and custody</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-05-documents-extraction-and-custody.md</code></p>
+<p><strong>Keep:</strong> Box as durable custody, source/version identity, retained visible occurrences, original evidence preservation, closed-case restrictions and explicit custody outcomes. Qualified OCR retains document/page/source identity.</p>
+<p><strong>Correct:</strong> stale upload ceilings; current references to superseded OCR selection; dedicated image-reference Box custody versus ADR-0029's exclusion. The image-origin folder, merge and any permitted empty-folder cleanup must have an accepted exact contract, not be inferred from a broad no-delete statement or a generic provider operation.</p>
+<p><strong>Coverage:</strong> consolidate non-Case holding, logical-content reads, 24-hour idle cache, cache integrity/miss handling, failed/pending retention and re-evaluation after staging deletion. These rules are partly spread through architecture/operator notes rather than fully owned here. Do not treat a logical-content response as current acceptance when its source association or hash is inconsistent.</p>
+<h3 id="p2-s11">FRD-06 — Vehicle and engineering evidence</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-06-vehicle-and-engineering-evidence.md</code></p>
+<p><strong>Keep:</strong> source-labelled supplied/observed/derived values; MOT mileage method; inspection location without implied attendance; image advisories distinct from lifecycle validity; independent professional findings and correction; accepted damage, valuation, estimate and settlement rules.</p>
+<p><strong>Correct:</strong> current 23-zone severity/note damage model versus old Type/region descriptions in the capability registry; defined valuation adjustments versus later deferred-adjustment wording; selected DVLA/DVSA adapters versus blanket pre-selection language. Preserve the accepted VAT/prior-total-loss/additions/condition order and rounding rules; do not derive engineering policy from a UI mockup or stale capability prose.</p>
+<p><strong>Ownership:</strong> estimate/import behavior is currently spread across this FRD, FRD-07 and FRD-11. Keep one Core calculation/import contract and route other workflows to it. Raw imported observations are not automatically accepted CE findings. Optional separation into cohesive estimate and valuation FRDs is justified only if it reduces this overlap.</p>
+<h3 id="p2-s12">FRD-07 — EVA and external engineering handoff</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-07-eva-and-external-engineering-handoff.md</code></p>
+<p><strong>Keep:</strong> shared mapping/image selection, exact manual export schema, truthful export versus receipt evidence, explicit API outcomes, shared native Case state and staff-initiated handoff. The earlier state-unchanged wording has been corrected toward Review-to-With Engineer behavior.</p>
+<p><strong>Correct:</strong> any-save-invalidates-readiness blanket wording; old tail statements that the API awaits a usable contract; historical automatic/at-most-once wording in consumers. Native Hand to Engineer is not merely an EVA operation, so opening wording must not imply that the two EVA routes are the only engineering entry paths. Explicit re-send is intentional new work and must remain distinct from safe handling of an unknown attempt.</p>
+<p><strong>Scope:</strong> move general Glass's/Audatex raw estimate-import rules to the estimating owner; EVA is an optional adapter, not the owner of all native engineering mechanics. No first live vendor acceptance is inferred by this audit.</p>
+<h3 id="p2-s13">FRD-08 — Email, mailbox and background processing</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-08-email-mailbox-and-background-processing.md</code></p>
+<p><strong>Keep:</strong> the confirmed taxonomy and reply rules, classification/destination separation, source evidence, mailbox generations and fresh-start boundaries, 15-minute freshness/no backfill, staff initiation and exact Submitted-versus-Sent evidence.</p>
+<p><strong>P1 decisions:</strong> reconcile mailbox/RFC Message-ID deduplication with ADR-0024's Graph immutable identity; reconcile durable send-operation journal/recovery with ADR-0036. Distinguish retained arrival facts from later provider coordinates and authoritative Sent evidence.</p>
+<p><strong>Clarify:</strong> system-wide VRM/thread association descriptions versus the principal-route matcher contract need a precise policy-selection/ownership explanation. This is a documentation conflict to inspect against the real selected policy, not proof that two business implementations exist. Keep old unavailable transport composition distinct from newly accepted staff sending.</p>
+<h3 id="p2-s14">FRD-09 — Provider and intermediary routes</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-09-provider-and-intermediary-routes.md</code></p>
+<p><strong>Keep:</strong> the current principal-wide policy owners and evidence agreement, separate sender/issuer/intermediary/Principal roles, conservative ambiguity outcomes, principal-scoped API authorization and the defined API-01 contract. The former undefined-wire-contract and old-QDOS-version findings are repaired.</p>
+<p><strong>Coverage:</strong> make accepted Triage status/result representation explicit instead of only describing a Case-style result. Confirm the source and version of every activated profile's accepted predicates without treating a reference corpus or sender domain alone as route activation.</p>
+<p><strong>Do not change:</strong> the API's own decoded/encoded envelopes and per-attachment limits merely because manual/public uploads now allow larger files. They are different admission boundaries. An undefined historical provider_domain_key is not automatically a migration requirement.</p>
+<h3 id="p2-s15">FRD-10 — MCP automation and actor boundary</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-10-mcp-automation-and-actor-boundary.md</code></p>
+<p><strong>Keep:</strong> actor identity, exact scopes/rights, shared Core use cases and guards, direct unconfirmed working-data writes, no finding confirmation or outward sending, metadata authorization before content and proper versioned streaming. AI jobs and estimate import are explicit tool families.</p>
+<p><strong>Correct/record:</strong> persistent keys and per-grant/human approval attribution need the technical successor to ADR-0027. Update architecture/operations scope inventories so automation.jobs is not omitted from a current description; preserve historical inventories with dates. Do not let a discovered tool or a registered adapter count as combined caller validation.</p>
+<p><strong>Ownership:</strong> keep AiWork channel handoff distinct from AiJobs pull workflow, as ADR-0035 intends. They need not be consolidated to satisfy a superficial duplication rule.</p>
+<h3 id="p2-s16">FRD-11 — Reports, correspondence and reviewed proposals</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md</code></p>
+<p><strong>Keep:</strong> Core-owned outcomes/calculations, immutable source-labelled generation snapshot, signatory/estimate/document/image identities, stale-generation detection, separate report/fee-note artifacts, native generation independent of EVA and staff-only dispatch.</p>
+<p><strong>P1 correction:</strong> the Report-draft entry point says Generate report draft and saves nothing, while the same FRD specifies retained generations, custody and a ready history event. Define preview as non-persisting, Generate report as the retained generation action, and approval/sending as distinct operations according to current accepted requirements. Do not describe final production generation as a draft because an old renderer slice was once draft-only.</p>
+<p><strong>Coverage:</strong> current text excludes Audit from initial activation and calls Audit parity future behavior. Reconcile with the intended v1 native Audit report scope and its actual acceptance evidence. Define MarketResearch result acceptance/terminal behavior separately from estimate-draft acceptance. Unknown repairer VAT is already an explicit requirement and must not be reported as wholly unrecorded. Signatory qualifications are optional; name/signature remain the required content specified here.</p>
+<h3 id="p2-s17">FRD-12 — Operator experience</h3>
+<p><strong>Path:</strong> <code>docs/frd/frd-12-operator-experience.md</code></p>
+<p><strong>Keep:</strong> the integrated shell, single-scroll Case record, named sections, stage-bound actions, service health in Administration, scoped real data and no invented metrics.</p>
+<p><strong>Correct:</strong> holder-expiry display versus renewable edit authority; image-origin rows in Not ready versus Awaiting instruction; internal intake labels in display examples; old account-review controls; Administrator-entered reset password versus FRD-04; obsolete manual-upload ceilings; and the universal disabled-control ban versus required real disabled actions.</p>
+<p>An inert integration preview is different from an implemented control disabled because the current record is ineligible. State both cases explicitly. Do not turn a project-specific accepted interaction exception into an invented universal accessibility prohibition or requirement; in particular, preserve the recorded D16 scope until deliberately changed by its authority.</p>
+<p>Remove ticket delivery status and retain the behavior itself. Design owns visual/component rules; this FRD owns route/page interactions. Neither should silently overrule the other by an unexplained general hierarchy.</p>
+<h2 id="p2-s18">4. PRD register</h2>
+<p><strong>Files:</strong> <code>docs/prd/README.md</code>; <code>docs/prd/pegasus-product.md</code>.</p>
+<p><strong>Current strengths:</strong> native v1 engineering/final reports, optional EVA, staff-initiated sends, Glass's repair-estimate scope, normal Case/PO followed by the later Audit reference, permanent identity/history protection and distinct evidence/acceptance states are explicitly stated.</p>
+<p><strong>Repairs:</strong> consolidate current multi-principal v1 scope rather than relying on a later operator-notes override; remove the requirement for active independently buildable imported workspaces; own permanent boundaries rather than defining them circularly through capabilities; preserve performance/cost/recovery targets as targets with scope and deferred evidence clearly identified; transfer unique support/operating-hours/commercial statements from operator-notes without inventing an SLA, absolute budget or regional-residency requirement.</p>
+<p>No additional omnibus PRD is needed. The missing work is coherent current scope, provenance transfer and cross-document consistency, not a larger count of requirement documents.</p>
+<h2 id="p2-s19">5. Decisions versus missing evidence</h2>
+<p>A selected adapter without a completed live test needs an evidence task, not another selection ADR. A contradictory identity or persistence contract needs a technical decision, not merely a green unit test. A settled UI choice needs its FRD/design owner updated, not an open-decision entry saying it is not yet delivered. A valid historical record needs a date and proper authority boundary, not deletion solely because it differs from today's implementation.</p>
+</section><section class="document" aria-label="Earlier-review dispositions"><h1 id="p3-s1">Previous-review reconciliation</h1>
+<p>Current baseline: <code>26ba4ed408317cccdb354dc1e115b0297f15df94</code> (<code>dev</code>, 8 September 2026).</p>
+<p>All <strong>71 observations in 29 groups</strong> from the supplied 5 September audit are accounted for below. “Resolved wording” means the identified documentation defect is repaired at this revision; it is not a fresh production or behavioral test. “Partially resolved” identifies both the repair and the residue. An old path, date, policy version or retired instruction must not be reintroduced to satisfy a historical review.</p>
+<p>Disposition counts: 36 resolved wording, 15 partially resolved, 20 still outstanding.</p>
+<h2 id="p3-s2">A01 — Conflicting live agent instructions</h2>
+<h3 id="p3-s3">A01.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The managed block requires .worktrees/&lt;id&gt; and &lt;id&gt;-&lt;slug&gt;, while Repository task workflow requires ../pegasus-worktrees/&lt;slug&gt; and task/&lt;slug&gt; based on origin/dev.</p>
+<p><strong>Current assessment:</strong> The current managed/workflow instructions use recorded ticket worktrees and configured integration delivery. Do not replay the old ../pegasus-worktrees versus task/&lt;slug&gt; instruction as the normal ticket convention.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>AGENTS.md — Kanmer operating instructions; Repository task workflow</code>.</p>
+<h3 id="p3-s4">A01.2 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The managed block says proof is written on merged main, but task PRs target dev and the newer kanmer-verify skill binds verification to the exact PR merge SHA, not the moving main checkout.</p>
+<p><strong>Current assessment:</strong> Proof now names the configured integration branch; kanmer-verify binds execution to the exact merged PR SHA in a detached worktree. This is not a claim that every historical proof was repaired.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>AGENTS.md — Verification; .agents/skills/kanmer-verify/SKILL.md</code>.</p>
+<h3 id="p3-s5">A01.3 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Agent conduct forbids merging one's own PR, while Allowed operations permits merging one's independently reviewed, green PR into dev. The responsible implementation/review/merge roles are not reconciled.</p>
+<p><strong>Current assessment:</strong> The current workflow separates implementer handoff from independent review/merge and forbids author self-merge. Remaining generic conduct duplication is a different issue.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>AGENTS.md — Repository task workflow</code>.</p>
+<h3 id="p3-s6">A01.4 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Workflow step 6 says to remove the worktree/branch and move to the final stage after merge. The newer verification/closeout contract retains the implementation worktree through verification and owns final cleanup separately.</p>
+<p><strong>Current assessment:</strong> Current verification/closeout wording preserves the implementation worktree while disposing the verification worktree separately.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>AGENTS.md — Repository task workflow; .agents/skills/kanmer-verify/SKILL.md</code>.</p>
+<h3 id="p3-s7">A01.5 — Partially resolved</h3>
+<p><strong>Original observation:</strong> Two Agent conduct blocks have diverged: the first rule 22 includes obsolete-after-change dispositions, the superseding commit and root-cause grouping; the second retains the older shorter rule. Board/runtime conventions are duplicated too.</p>
+<p><strong>Current assessment:</strong> The managed conduct text contains the newer disposition/root-cause rule. AGENTS still repeats workflow and evidence policy outside the managed block; consolidate the owners rather than preserving two rule sets.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>AGENTS.md — Kanmer operating instructions; Pegasus repository instructions</code>.</p>
+<h3 id="p3-s8">A01.6 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Product invariants still describe workspaces as containing buildable imports, although both imports have been retired.</p>
+<p><strong>Current assessment:</strong> AGENTS now identifies workspaces as provenance for retired imports, not active build units.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>AGENTS.md — Architecture map</code>.</p>
+<h3 id="p3-s9">A01.7 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The Audit invariant says missing or ambiguous standalone Audit evidence withholds only the later Audit reference. FRD-01 instead withholds Case creation/reference allocation when the required original report or its literal verdict is unresolved.</p>
+<p><strong>Current assessment:</strong> The specific AGENTS/FRD-01 disagreement is repaired: normal Case/PO allocation precedes the evidence-dependent Audit reference. The same old gate survives in FRD-02 and INT-25; see AUD-01.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-01-case-identity-and-lifecycle.md; docs/frd/frd-02-intake-and-source-identity.md — Mandatory pre-case gates</code>.</p>
+<h2 id="p3-s10">A02 — Stale domain glossary</h2>
+<h3 id="p3-s11">A02.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Needs sorting is still defined as the destination for unclassifiable email and Triage requests awaiting a registration; the current Unidentified/U-reference meaning is missing from the glossary.</p>
+<p><strong>Current assessment:</strong> CONTEXT now defines Unidentified and its distinction from Triage and Blocked intake.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>CONTEXT.md — Unidentified; Blocked intake</code>.</p>
+<h3 id="p3-s12">A02.2 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Audit says a definitive instruction creates the normal Case/PO first and the a./ap. reference is derived later, contrary to FRD-01's original-report/verdict allocation gate.</p>
+<p><strong>Current assessment:</strong> CONTEXT and current FRD-01 now agree on normal Case/PO followed by the later Audit reference. FRD-02 remains contradictory.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>CONTEXT.md — Audit; docs/frd/frd-01-case-identity-and-lifecycle.md</code>.</p>
+<h3 id="p3-s13">A02.3 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The repair-estimate AI Proposal definition describes a separate immutable proposal pending application to the Case; current assessment requirements instead describe attributed working-data writes and named draft estimates. The glossary does not distinguish that current estimate route from genuinely proposal-based future features.</p>
+<p><strong>Current assessment:</strong> The glossary still needs to distinguish an immutable AI Proposal from direct, unconfirmed working-data writes and named draft estimates. Do not remove future proposal semantics indiscriminately.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>CONTEXT.md — AI Proposal; Send to AI; docs/frd/frd-10-mcp-automation-and-actor-boundary.md</code>.</p>
+<h2 id="p3-s14">A03 — Stale repository overview</h2>
+<h3 id="p3-s15">A03.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Describes workspaces/ as containing independently maintained and buildable source imports, despite retirement of both imports.</p>
+<p><strong>Current assessment:</strong> The closing README passage now explicitly calls both imports retired and not active projects or deployment units.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>README.md — workspaces paragraph</code>.</p>
+<h2 id="p3-s16">A04 — Internally conflicting workspace index</h2>
+<h3 id="p3-s17">A04.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The opening calls the directories buildable source imports; the conclusion says both are retired and no live workspace exists.</p>
+<p><strong>Current assessment:</strong> The current workspace index opens with retirement and states that no live workspace exists. Its future import-admission rules do not reactivate an import.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>workspaces/README.md — opening; Source provenance</code>.</p>
+<h2 id="p3-s18">A05 — Stale engineering procedure</h2>
+<h3 id="p3-s19">A05.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Still refers to NOW.md claim-line maintenance although the current claim mechanism is a taken Kanmer ticket and NOW.md is absent from the reviewed tree.</p>
+<p><strong>Current assessment:</strong> The reviewed engineering guide no longer requires NOW.md claim-line maintenance. Claims are on Kanmer. Expired DELIV transition instructions remain a separate cleanup.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/engineering.md — Branches and delivery</code>.</p>
+<h3 id="p3-s20">A05.2 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The evidence ladder describes DOC/MSG as later approved formats even though FRD-05 and the integrated extractor decision now include them.</p>
+<p><strong>Current assessment:</strong> The evidence ladder now explicitly includes EML/PDF/DOCX/DOC/MSG.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/engineering.md — Required evidence tiers</code>.</p>
+<h2 id="p3-s21">A06 — Unreconciled competing design guide</h2>
+<h3 id="p3-s22">A06.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Presents old navigation and optional shell directions as current guidance rather than deferring to the selected integrated workspace.</p>
+<p><strong>Current assessment:</strong> The Stitch guide now has a historical-comparison warning and points to current design authority.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.stitch/DESIGN.md — opening status</code>.</p>
+<h3 id="p3-s23">A06.2 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Its blanket bans/prescriptions, including no gradients and old compact record layout guidance, have not been reconciled with the selected design and D29/D30 scrolling Case record.</p>
+<p><strong>Current assessment:</strong> The new status warning explicitly subordinates conflicting layout to the accepted v3 design and later decisions. Do not rewrite its historical body into a second active guide.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.stitch/DESIGN.md — opening status</code>.</p>
+<h3 id="p3-s24">A06.3 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Its explanatory hints and disabled-action guidance conflict with newer no-explanatory-copy/component rules. Some of the old record-layout guidance is also still in operator-notes, so this is a cross-document authority conflict, not merely a reason to ignore the operator.</p>
+<p><strong>Current assessment:</strong> The historic guide is no longer presented as binding. Current operator-notes/FRD copy and layout conflicts remain separate active findings.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.stitch/DESIGN.md — opening status; docs/operator-notes.md — Interface language</code>.</p>
+<h2 id="p3-s25">B01 — Stale as-built architecture</h2>
+<h3 id="p3-s26">B01.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The absent-callers list says automated DOC/MSG extraction is absent, while the integrated extraction contract and later architecture material include it.</p>
+<p><strong>Current assessment:</strong> The absent-callers section now says DOC/MSG readers are implemented.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — Implemented production targets and absent callers</code>.</p>
+<h3 id="p3-s27">B01.2 — Partially resolved</h3>
+<p><strong>Original observation:</strong> The same list calls Provider API deferred and the Operations caller paragraph calls it separately planned. Operations records its endpoint mounted in production from release 37.</p>
+<p><strong>Current assessment:</strong> The production-target paragraph acknowledges Provider API ingress activation, but another caller paragraph still calls it planned. Remove the remaining mixed-time description.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — Staff Web callers; Implemented production targets and absent callers</code>.</p>
+<h3 id="p3-s28">B01.3 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The same list says Automation MCP is gated off outside DevelopmentOffline; Operations records production activation from release 9.</p>
+<p><strong>Current assessment:</strong> The relevant architecture production-target paragraph now acknowledges the enabled ingress flags. Other files still contain the old local-only claim.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — Implemented production targets and absent callers</code>.</p>
+<h3 id="p3-s29">B01.4 — Partially resolved</h3>
+<p><strong>Original observation:</strong> The stated 33-tool MCP inventory and scope list omit the newer AI-job tools and automation.jobs scope present in code and FRD-10.</p>
+<p><strong>Current assessment:</strong> The old 33-tool figure has been replaced by a 43-plus-import development-assembly claim, but the scope/inventory narrative still needs reconciliation with automation.jobs and the integrated candidate. A fresh executable inventory was not run in this audit.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — v1 development assembly; Provider API and Automation MCP; docs/frd/frd-10-mcp-automation-and-actor-boundary.md</code>.</p>
+<h3 id="p3-s30">B01.5 — Partially resolved</h3>
+<p><strong>Original observation:</strong> Manual upload is described as a one-file path, with old request/redirect assumptions. UploadModel accepts a file array and routes multi-member submissions to UploadGroupStatus; the shared maximum batch count is 20.</p>
+<p><strong>Current assessment:</strong> Accepted local inputs now state 20 files, 100 MiB per file and 200 MiB aggregate. Exact current group-status redirect behavior was not re-executed; do not certify all entry-point prose from the corrected limit table alone.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — Accepted local inputs; Local development procedure</code>.</p>
+<h3 id="p3-s31">B01.6 — Partially resolved</h3>
+<p><strong>Original observation:</strong> The workspace inventory continues to describe two live imports despite their retirement.</p>
+<p><strong>Current assessment:</strong> The workspace list says the imports are retired, but remaining statements about independent builds/current imports still need removal or explicit future-only scope.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — Workspaces; Source and generated-material roles</code>.</p>
+<h3 id="p3-s32">B01.7 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The diagram labels Graph, Blob/queues, Box and DVLA/DVSA as target connections, despite the same document identifying deployed adapters. Local SQL is also labelled only LocalDB despite the documented Linux container route.</p>
+<p><strong>Current assessment:</strong> The diagram still uses target edges for integrations that later prose describes as deployed, and its local database label omits Linux SQL Server containers.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/current-architecture.md — System shape diagram</code>.</p>
+<h2 id="p3-s33">B02 — Stale operational inventory and activation wording</h2>
+<h3 id="p3-s34">B02.1 — Partially resolved</h3>
+<p><strong>Original observation:</strong> The Automation MCP narrative still says 33 tools and omits automation.jobs from the scopes it enumerates.</p>
+<p><strong>Current assessment:</strong> The operational narrative still enumerates scopes without automation.jobs and mixes historical tool counts with current-sounding descriptions. Preserve the release-9 fifteen-tool observation as dated evidence; do not overwrite it with a dev inventory.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operations.md — Automation MCP is implemented and enabled in production</code>.</p>
+<h3 id="p3-s35">B02.2 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The Automation MCP evidence table lists separately approved activation as outstanding without distinguishing the already-completed ingress activation from genuinely outstanding external-client/transport evidence.</p>
+<p><strong>Current assessment:</strong> Separate the already-observed ingress activation from still-unproved external-client acceptance and v1 certificate rollout. Generic activation-pending wording remains misleading.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operations.md — Local and live evidence boundaries</code>.</p>
+<h3 id="p3-s36">B02.3 — Resolved wording</h3>
+<p><strong>Original observation:</strong> StorageWorker still says to activate only with the first real storage adapter and Worker trigger, although those adapters and trigger callers already exist.</p>
+<p><strong>Current assessment:</strong> The StorageWorker profile now describes exercising the existing adapters and triggers.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operations.md — Evidence profiles</code>.</p>
+<h2 id="p3-s37">B03 — Incorrect runtime prerequisite guidance</h2>
+<h3 id="p3-s38">B03.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Says Playwright browser binaries are a browser-acceptance prerequisite, not an application-runtime dependency. The report renderer actually creates Playwright and launches Chromium, and the production Web image carries Chromium for that purpose.</p>
+<p><strong>Current assessment:</strong> The runbook now explicitly states that integrated report rendering needs pinned Chromium at application runtime. Package presence is still distinct from browser execution.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/runbook.md — Offline development profile</code>.</p>
+<h2 id="p3-s39">B04 — Contradictory inventory totals</h2>
+<h3 id="p3-s40">B04.1 — Partially resolved</h3>
+<p><strong>Original observation:</strong> The introductory active-ID total is 233 while the summary total is 234. They cannot both describe the same inventory.</p>
+<p><strong>Current assessment:</strong> The exact 233/234 discrepancy is gone: there are 244 unique rows. New internal errors remain: 205 versus 215 planned, 153/27 versus 154/26 horizons, and two v1 targets inconsistent with the exact-SemVer rule. See metrics.json.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/capabilities.md — Historical allocation provenance; Allocation summary; INT-16; EXT-12</code>.</p>
+<h2 id="p3-s41">B05 — Settled or changed questions still recorded as open</h2>
+<h3 id="p3-s42">B05.1 — Partially resolved</h3>
+<p><strong>Original observation:</strong> Provider API tenancy/wire-contract row still says to keep the API absent and asks for routes, headers, encoding, limits and administration that FRD-09 now specifies.</p>
+<p><strong>Current assessment:</strong> The row now acknowledges API-01, but still asks a broadly already-settled wire-contract question. Retain only genuinely new tenancy/client choices; move issuance and live proof to delivery work.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — External data, submission, and report contracts; docs/frd/frd-09-provider-and-intermediary-routes.md</code>.</p>
+<h3 id="p3-s43">B05.2 — Still outstanding</h3>
+<p><strong>Original observation:</strong> DVLA/DVSA row still directs keeping live lookup disabled and treats provider/caller selection as unresolved, despite the deployed adapter record.</p>
+<p><strong>Current assessment:</strong> Keep-live-disabled wording remains, even while the question concedes the adapters are selected and composed. Distinguish source contract, credentials, last observed deployment and new acceptance evidence.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — DVLA/DVSA vehicle and MOT lookup</code>.</p>
+<h3 id="p3-s44">B05.3 — Partially resolved</h3>
+<p><strong>Original observation:</strong> AI-job catalogue/lifecycle questions have not been reconciled with ADR-0035, the FRD-11 job model and implemented MCP job tools.</p>
+<p><strong>Current assessment:</strong> The opening now says the catalogue/lifecycle are settled by ADR-0035. Implementation and real-client evidence still reside in this decision register and should move out.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — Future AI Operations boundary</code>.</p>
+<h3 id="p3-s45">B05.4 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The interim telemetry cap remains 0.1 GB/day in this register, whereas the current architecture records release 35 raising both component and workspace caps to 0.5 GB.</p>
+<p><strong>Current assessment:</strong> The register now records the 0.5 GB/day deployed setting. A full-day workload and any further increase remain separate evidence/decision questions.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — QDOS alpha activation details; App Insights daily cap</code>.</p>
+<h3 id="p3-s46">B05.5 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The resolved EVA API section retains an unqualified at-most-once submission rule; D36 now permits explicit manual re-send while keeping automatic submission at most once.</p>
+<p><strong>Current assessment:</strong> The resolved section still says at-most-once. ADR-0038 and FRD-07 now retain only staff-initiated sends and permit an explicit With Engineer re-send; do not preserve the older automatic-send rationale as current.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — EVA API activation; docs/adr/0038-manual-only-eva-api-submission.md</code>.</p>
+<h3 id="p3-s47">B05.6 — Partially resolved</h3>
+<p><strong>Original observation:</strong> The assessment-markup questions retain fee placement and valuation storage questions after the later Report-section and valuation requirements settled at least those portions.</p>
+<p><strong>Current assessment:</strong> Split the old broad question into already-specified fee/valuation placement and any genuinely uncontracted vendor-field semantics. The former is not an open decision.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — Send-to-AI transport and assessment toolset; docs/frd/frd-06-vehicle-and-engineering-evidence.md; docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md</code>.</p>
+<h3 id="p3-s48">B05.7 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Upload-link one-time-versus-reuse remains listed as open, although FRD-02 D20 now specifies a fixed 15-minute add/replace session beginning with the first accepted file.</p>
+<p><strong>Current assessment:</strong> The session question is settled; the register now also records the v1 100 MiB/20-file/200 MiB limits. Move this accepted policy to the FRD and repair its surviving 10 MiB clause.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/open-decisions.md — INT-31 upload-link limits; docs/frd/frd-02-intake-and-source-identity.md — Request-scoped upload links</code>.</p>
+<h2 id="p3-s49">C01 — Unreconciled operator-authority text</h2>
+<h3 id="p3-s50">C01.1 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The active interface-language section still requires one-record screens with tabs rather than stacked sections and core content visible without scrolling. FRD-12 D29/D30 explicitly requires an eleven-section scrolling Case record.</p>
+<p><strong>Current assessment:</strong> The old tabs/no-scroll rule remains in the alleged binding authority beneath a newer v1 override. Migrate current Case layout to FRD-12/design and preserve the old statement as dated provenance only.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operator-notes.md — Interface language; Current v1 decisions</code>.</p>
+<h3 id="p3-s51">C01.2 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The interface-language definition limits Unidentified to unmatched email, while the earlier Unidentified received material section covers retained documents, images, messages and groups.</p>
+<p><strong>Current assessment:</strong> Its interface section still narrows Unidentified to email despite its earlier all-material definition.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operator-notes.md — Unidentified received material; Interface language</code>.</p>
+<h3 id="p3-s52">C01.3 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The August 19 estimate commentary says none of the external/AI/drop routes is built. The code now exposes pegasus_estimate_save and the FRDs specify the AI-draft estimate route.</p>
+<p><strong>Current assessment:</strong> The August estimate passage still says no routes exist. Label the observation historical rather than allowing it to define current source status.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operator-notes.md — Repair estimates</code>.</p>
+<h3 id="p3-s53">C01.4 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The absolute statement that repair-cost figures are not entered by hand conflicts with the later manual line-entry estimate requirements. The quoted operator statement itself says generally imported; the blanket derived prohibition needs an explicit reconciliation.</p>
+<p><strong>Current assessment:</strong> Preserve the original generally-imported statement and distinguish it from the stronger derived prohibition. Reconcile the allowed manual estimate interactions in the owning FRD; do not silently rewrite the quotation.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operator-notes.md — Repair estimates; docs/frd/frd-06-vehicle-and-engineering-evidence.md</code>.</p>
+<h3 id="p3-s54">C01.5 — Still outstanding</h3>
+<p><strong>Original observation:</strong> CAP-010 and the EVA system row still say the API path is non-functional while waiting on EVA developers. FRD-07 records a built contract and distinguishes the outstanding first Pegasus-to-EVA call and live-credential change.</p>
+<p><strong>Current assessment:</strong> The vendor-waiting claims remain in CAP-010 and the EVA row. Current FRD-07 already specifies the API contract; lack of a first accepted live call is a different fact.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/operator-notes.md — Required product capabilities; External systems</code>.</p>
+<h2 id="p3-s55">C02 — Internal Triage destination conflict</h2>
+<h3 id="p3-s56">C02.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The opening and automatic-creation paragraph send a Triage request with no registration to Unidentified; the normal-workflow paragraph still says it remains Needs sorting.</p>
+<p><strong>Current assessment:</strong> The normal Triage workflow now uses Unidentified. Remaining non-email completion semantics are a separate coverage question.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-03-triage.md — Normal workflow and completion evidence</code>.</p>
+<h2 id="p3-s57">C03 — Obsolete vehicle-lookup activation limitation</h2>
+<h3 id="p3-s58">C03.1 — Partially resolved</h3>
+<p><strong>Original observation:</strong> Still says no approved source selects the live DVLA/DVSA provider/API, response fields, credentials, limits, target or caller proof. That blanket pre-selection state is incompatible with the documented deployed adapters.</p>
+<p><strong>Current assessment:</strong> The broader problem remains the conflation of selected adapters with outstanding live credentials/response acceptance. Do not describe the provider as unselected where current source and operational records select it. The exact live service was not queried by this audit.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-06-vehicle-and-engineering-evidence.md — Vehicle data and MOT enrichment; docs/operations.md — Local and live evidence boundaries</code>.</p>
+<h2 id="p3-s59">C04 — Conflicting EVA workflow requirements</h2>
+<h3 id="p3-s60">C04.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Export and API-submission paragraphs say the Case state/version do not change. FRD-01 and FRD-12 D44 say Send to EVA is the implicit Review action that moves the Case to With Engineer.</p>
+<p><strong>Current assessment:</strong> The current FRD-07 acknowledges the Review-to-With Engineer handoff.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-07-eva-and-external-engineering-handoff.md — Focused EVA manual handoff</code>.</p>
+<h3 id="p3-s61">C04.2 — Still outstanding</h3>
+<p><strong>Original observation:</strong> Saving Case data is said to invalidate the prior completeness confirmation and return the Case to Not ready; this is not reconciled with D44 removing staff-review flags and FRD-01 prohibiting unchanged/unrelated saves from resetting readiness or lifecycle.</p>
+<p><strong>Current assessment:</strong> The blanket save-invalidates-readiness claim still conflicts with the D44 distinction for unchanged/unrelated saves. Replace it with the authoritative affected-field/state rule.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-07-eva-and-external-engineering-handoff.md; docs/frd/frd-01-case-identity-and-lifecycle.md</code>.</p>
+<h3 id="p3-s62">C04.3 — Still outstanding</h3>
+<p><strong>Original observation:</strong> External boundary still describes the EVA API route as awaiting a usable contract, although the same file documents the built August 27 contract.</p>
+<p><strong>Current assessment:</strong> The external-boundary tail still retains future/unaccepted-contract descriptions after the same document specifies the accepted API.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-07-eva-and-external-engineering-handoff.md — External boundary</code>.</p>
+<h2 id="p3-s63">C05 — Internally stale Provider API and QDOS contract</h2>
+<h3 id="p3-s64">C05.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The Source limitation paragraph says routes, headers, schema, encoding, limits and administration are undefined; the Accepted API-01 submission contract immediately below defines them.</p>
+<p><strong>Current assessment:</strong> API-01 now supplies the named contract rather than leaving the former generic undefined-contract sentence as the governing limitation.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-09-provider-and-intermediary-routes.md — Provider API principal and contract boundary</code>.</p>
+<h3 id="p3-s65">C05.2 — Resolved wording</h3>
+<p><strong>Original observation:</strong> The QDOS route policy is labelled v3 and the Triage classification contract v4, whereas the reviewed code constants are route v4 and classification v5.</p>
+<p><strong>Current assessment:</strong> The document now uses the principal-wide version-1 policy owners. Do not update it mechanically to the old review’s v4/v5 target: that target is itself historical.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-09-provider-and-intermediary-routes.md; docs/principal-rules-and-mappings/qdos.md</code>.</p>
+<h2 id="p3-s66">C06 — Internally conflicting operator-experience contract</h2>
+<h3 id="p3-s67">C06.1 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The Case workspace says another editor's holder and expiry are shown. FRD-01 says non-holders are never given a time because the holder can keep renewing the lease.</p>
+<p><strong>Current assessment:</strong> Expiry-display wording still conflicts with a continuously renewed edit session for which non-holders receive no reliable availability time.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-12-operator-experience.md — Case workspace; docs/frd/frd-01-case-identity-and-lifecycle.md — Case edit authority and recovery</code>.</p>
+<h3 id="p3-s68">C06.2 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The route description still sends users to image records from Not-ready Image-initiated rows. Its own later D38 rule puts those rows in Awaiting instruction and reserves Not ready for formal instructed Cases.</p>
+<p><strong>Current assessment:</strong> The old Not-ready Image-initiated route wording remains inconsistent with Awaiting instruction and formal-Case-only Not ready.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-12-operator-experience.md — Shell and routes; Cases queues</code>.</p>
+<h3 id="p3-s69">C06.3 — Still outstanding</h3>
+<p><strong>Original observation:</strong> Explicit display examples include Image intake registered and Blocked intake chips, contrary to the operator-facing ban on intake and the Blocked display mapping.</p>
+<p><strong>Current assessment:</strong> Internal intake labels remain in staff-facing examples despite CONTEXT and design mappings.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-12-operator-experience.md — display examples; CONTEXT.md — Interface vocabulary</code>.</p>
+<h3 id="p3-s70">C06.4 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The blanket rule permits disabled controls only for ticketed integration seams, while the same FRD requires disabled real actions for missing Engineer's Value, absent address values and per-Principal API permission. Operator-notes also requires visible disabled future-permitted actions.</p>
+<p><strong>Current assessment:</strong> Separate an unfinished integration preview from an implemented action disabled for eligibility, permission or missing values. The blanket sentence conflicts with its own required real controls.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/frd/frd-12-operator-experience.md — disabled-control rule</code>.</p>
+<h2 id="p3-s71">C07 — Cross-document Audit allocation conflict</h2>
+<h3 id="p3-s72">C07.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Says missing/ambiguous standalone Audit evidence withholds only the later Audit reference, referring to CLAUDE.md. FRD-01 requires the original report and determinable verdict before that email-route Audit can allocate a Case/reference.</p>
+<p><strong>Current assessment:</strong> The QDOS companion and FRD-01 now both allocate the normal Case/PO before the evidence-dependent Audit reference. FRD-02 is the remaining conflicting owner, not this old pair.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/principal-rules-and-mappings/qdos.md — Case type; docs/frd/frd-01-case-identity-and-lifecycle.md</code>.</p>
+<h2 id="p3-s73">D01 — Incomplete partial-supersession index</h2>
+<h3 id="p3-s74">D01.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Defines current architecture as the accepted set, but lists ADR-0004 staff-MCP authentication and ADR-0007 deployment without their later partial supersession.</p>
+<p><strong>Current assessment:</strong> The index now identifies partial supersession for ADR-0004 and ADR-0007.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/README.md</code>.</p>
+<h3 id="p3-s75">D01.2 — Partially resolved</h3>
+<p><strong>Original observation:</strong> ADR-0002's table entry points to ADR-0032, although the same index marks 0032 superseded by 0033.</p>
+<p><strong>Current assessment:</strong> The ADR-0002 pointer still requires a current transitive view through ADR-0032 to ADR-0033, not a claim that the intermediate record is active.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/README.md; docs/adr/0002-dotnet-modular-monolith-on-azure.md</code>.</p>
+<h2 id="p3-s76">D02 — Partially superseded ADR with misleading current scope</h2>
+<h3 id="p3-s77">D02.1 — Still outstanding</h3>
+<p><strong>Original observation:</strong> Remains accepted with original App Service, environment, MCP and activation assumptions that subsequent decisions changed; existing partial-supersession guidance does not map all changed clauses to the current decisions.</p>
+<p><strong>Current assessment:</strong> ADR-0002 is still a mixed bundle. Its active clauses must be distinguishable from replaced hosting/environment/identity/scheduling assumptions without rewriting its historical rationale.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0002-dotnet-modular-monolith-on-azure.md — Status; Decisions</code>.</p>
+<h3 id="p3-s78">D02.2 — Still outstanding</h3>
+<p><strong>Original observation:</strong> The trigger/polling supersession pointer stops at ADR-0032 rather than its replacement ADR-0033.</p>
+<p><strong>Current assessment:</strong> Follow the scheduling successor chain through ADR-0033 in the current-decision view. A historical link to ADR-0032 may remain as provenance.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0002-dotnet-modular-monolith-on-azure.md; docs/adr/0033-warm-unified-work-queue-for-five-second-intake.md</code>.</p>
+<h2 id="p3-s79">D03 — Unmarked partial supersession of staff MCP</h2>
+<h3 id="p3-s80">D03.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Still presents the per-staff MCP authentication model as an accepted current decision with no superseding metadata, despite ADR-0011 explicitly replacing that boundary with the Automation Actor.</p>
+<p><strong>Current assessment:</strong> ADR-0004 now marks the staff-MCP boundary as superseded by ADR-0011. Its separate Provider API decision survives.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0004-provider-api-and-staff-mcp-authentication.md</code>.</p>
+<h2 id="p3-s81">D04 — Unmarked partial supersession of deployment model</h2>
+<h3 id="p3-s82">D04.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Retains the three-environment development/test/production model even though ADR-0014 selects local development plus production.</p>
+<p><strong>Current assessment:</strong> The current partial-supersession note identifies ADR-0014 as the environment successor.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0007-direct-terminal-azure-deployment.md</code>.</p>
+<h3 id="p3-s83">D04.2 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Retains App Service/F1-B1/Web ZIP assumptions replaced by the Container Apps/OCI Web-host decision.</p>
+<p><strong>Current assessment:</strong> The partial-supersession note identifies the Container Apps/OCI successor. Release workstation policy subsequently reaches ADR-0039 through ADR-0037.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0007-direct-terminal-azure-deployment.md; docs/adr/0039-windows-and-linux-release-workstations.md</code>.</p>
+<h3 id="p3-s84">D04.3 — Still outstanding</h3>
+<p><strong>Original observation:</strong> Its original alpha recovery-proof requirement is not reconciled with the current PRD marking OPS-09 deferred and not a release gate.</p>
+<p><strong>Current assessment:</strong> The surviving recovery/alpha-gate implication must be scoped against the current PRD’s explicitly non-blocking OPS-09. Do not resurrect it through a legacy acceptance runner.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0007-direct-terminal-azure-deployment.md; docs/prd/pegasus-product.md — Quality; scripts/Invoke-QdosAlphaAcceptance.ps1</code>.</p>
+<h2 id="p3-s85">D05 — Supersession metadata disagrees with decision prose</h2>
+<h3 id="p3-s86">D05.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> ADR-0011 declares that it replaces the earlier staff-MCP boundary, ADR-0014 changes the earlier environment policy, and ADR-0015 changes the earlier Web hosting/deployment policy; their supersedes arrays remain empty.</p>
+<p><strong>Current assessment:</strong> The three successor records now populate their supersedes relationships. Other missing or overbroad relationships remain elsewhere in the ADR graph.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>docs/adr/0011-restrict-mcp-to-automation-actor.md; docs/adr/0014-local-to-production-deployment.md; docs/adr/0015-host-web-on-container-apps-consumption.md</code>.</p>
+<h2 id="p3-s87">E01 — Obsolete executable session plan</h2>
+<h3 id="p3-s88">E01.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Still queues PR #592 as unmerged work. GitHub records that PR as merged on 2026-08-28, so the plan cannot be used as a current resume instruction. Its old branch/board snapshot has no clear historical-only status.</p>
+<p><strong>Current assessment:</strong> The resume plan now explicitly says historical session evidence, retired from execution, and forbids replaying its worktrees/merges as authority.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.zcode/plans/plan-sess_18294ee2-592f-4647-910c-54c5a5e0a0ab.md — opening</code>.</p>
+<h2 id="p3-s89">E02 — Completed fix still presented as a plan</h2>
+<h3 id="p3-s90">E02.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Proposes changing Kanmer's cwd to .worktrees/kanmer, but the reviewed .zcode/config.json already contains that corrected configuration. The plan has no completed/historical disposition.</p>
+<p><strong>Current assessment:</strong> The configuration plan now has the same explicit retirement warning. It correctly does not claim a fresh process restart was verified.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.zcode/plans/plan-sess_485ec446-cbcd-46a2-bb5a-511a9255e9c5.md — opening</code>.</p>
+<h2 id="p3-s91">F01 — Copied Kanmer skill contains foreign repository assumptions</h2>
+<h3 id="p3-s92">F01.1 — Still outstanding</h3>
+<p><strong>Original observation:</strong> Says this repository uses docs/product/prd/<strong>, docs/functional/frd/</strong> and docs/architecture/adr/**, while Pegasus uses docs/prd/, docs/frd/ and docs/adr/.</p>
+<p><strong>Current assessment:</strong> The copied skill still says this repository uses the Kanmer-source product/functional/architecture subtrees. Keep only resolved target-board globs and Pegasus navigation.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-docs/SKILL.md — Where the documents live</code>.</p>
+<h3 id="p3-s93">F01.2 — Partially resolved</h3>
+<p><strong>Original observation:</strong> Refers to this project's FRD-014 R2/R8b shaping history and to docs/contributing/doc-structure.md as present, importing Kanmer-source context into the Pegasus consumer.</p>
+<p><strong>Current assessment:</strong> The FRD-014 R2/R8b foreign-project example remains. The doc-structure asset is now target-neutral; do not mistake its generation template for an assertion that the target file already exists.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-docs/SKILL.md — Granularity test; .agents/skills/kanmer-docs/assets/doc-structure.md</code>.</p>
+<h3 id="p3-s94">F01.3 — Partially resolved</h3>
+<p><strong>Original observation:</strong> States a fixed leaving-Backlog link-or-create gate without qualifying it by the current profile-resolved model; also calls board.yml the source of truth where the managed instructions specifically warn that its profiles block is not the effective requirement set.</p>
+<p><strong>Current assessment:</strong> The main requirements paragraph is profile-resolved, but the description and Backlog workflow still imply every ticket must link/create a document. Remove that residue upstream and reconcile mirrors.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-docs/SKILL.md — description; Workflow; Governing-document requirements</code>.</p>
+<h2 id="p3-s95">F02 — Copied documentation template retains wrong proof target</h2>
+<h3 id="p3-s96">F02.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Describes proof as evidence gathered on merged main, contradicting exact-PR-merge-SHA verification on the configured integration target.</p>
+<p><strong>Current assessment:</strong> The proof row now uses the exact configured integration-branch SHA after review and merge.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-docs/assets/doc-structure.md — Ticket documents</code>.</p>
+<h2 id="p3-s97">F03 — Obsolete proof templates</h2>
+<h3 id="p3-s98">F03.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> All three proof templates say merged main rather than the reviewed PR's exact merge SHA.</p>
+<p><strong>Current assessment:</strong> All three templates now use the configured integration branch rather than requiring main.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-execute/assets/proof-template.md; proof-test-template.md; proof-visual-template.md</code>.</p>
+<h3 id="p3-s99">F03.2 — Partially resolved</h3>
+<p><strong>Original observation:</strong> They omit the versioned proof-record frontmatter and attempt history required by the current verification skill: kind, merged_sha, environment, verified_at, result and attempts.</p>
+<p><strong>Current assessment:</strong> All three now add identity and attempt instructions in prose, but none provides the required versioned proof-record YAML frontmatter. Align them with kanmer-verify without creating a second format.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-execute/assets/proof-*.md; .agents/skills/kanmer-verify/SKILL.md — Whole-file proof record</code>.</p>
+<h2 id="p3-s100">F04 — Inconsistent verification-waiver wording</h2>
+<h3 id="p3-s101">F04.1 — Resolved wording</h3>
+<p><strong>Original observation:</strong> Some clauses allow only PASS to reach Done and say never move a non-PASS ticket to Done. Other clauses and the handoff explicitly permit the operator-only WAIVED_BY_OPERATOR outcome to reach Done.</p>
+<p><strong>Current assessment:</strong> WAIVED_BY_OPERATOR is now explicitly a non-PASS human disposition; terminal retirement stays Verifying and is archived. Only PASS reaches Done.</p>
+<p><strong>Evidence at the pinned revision:</strong> <code>.agents/skills/kanmer-verify/SKILL.md — Whole-file proof record; Terminal retirement; final handoff</code>.</p>
+<h2 id="p3-s102">Undated earlier review — 30 observations</h2>
+<p>The undated review contains terse and sometimes incomplete observations against an older tree. The following dispositions preserve that limitation rather than inventing missing assertions.</p>
+<h3 id="p3-s103">U01 — Partially resolved</h3>
+<p><strong>Original:</strong> Production is both “not deployed” and deployed. /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:41, but later says the production route ran on 2026-08-02. /C:/Users/PC/Documents/GitHub/pegasus/ docs/architecture.md:454 The same stale section says no production trigger/provider call ran, conflicting with /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:813 and /C:/Users/PC/Documents/ GitHub/pegasus/.azure/deployment-plan.md:82.</p>
+<p><strong>Assessment:</strong> Old docs/architecture.md is not the current owner. Current architecture acknowledges deployment but still mixes historical and source snapshots; retain the scope-qualified findings in the new audit.</p>
+<h3 id="p3-s104">U02 — Resolved wording</h3>
+<p><strong>Original:</strong> The Box folder is simultaneously a production custody root and a disposable test-only target. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:234 and again records it as production custody, while its own approval matrix confines it to /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:651. NOW and open decisions agree it is not approved for real cases: /C:/Users/PC/Documents/GitHub/pegasus/ NOW.md:7, /C:/Users/PC/Documents/GitHub/pegasus/docs/open-decisions.md:41.</p>
+<p><strong>Assessment:</strong> The current operations file separates production root 405543781910 from controlled test boundary 392761581105; neither is standing write authority.</p>
+<h3 id="p3-s105">U03 — Resolved wording</h3>
+<p><strong>Original:</strong> The active Box decision requires a superseded mechanism. Requirements say the in-house upload route /C:/Users/PC/Documents/GitHub/pegasus/docs/requirements.md:154, but the open decision and NOW still require a “Box File Request template.” The current Web UI also still offers /C:/Users/PC/Documents/GitHub/pegasus/src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml:142.</p>
+<p><strong>Assessment:</strong> The current FRD-02 and architecture retire Box File Requests in favor of the bounded in-house upload route. No live UI execution was performed here.</p>
+<h3 id="p3-s106">U04 — Partially resolved</h3>
+<p><strong>Original:</strong> Alpha acceptance gates disagree. NOW says only OPS-23/OPS-25 close alpha and calls MCP-01–04 and MAIL-14/16 non-blocking, while the capability inventory makes /C:/Users/PC/Documents/GitHub/pegasus/docs/ capabilities.md:114 and /C:/Users/PC/Documents/GitHub/pegasus/docs/capabilities.md:178 required before alpha acceptance.</p>
+<p><strong>Assessment:</strong> The old NOW.md comparison is obsolete; the current acceptance script still equates alpha allocation with mandatory evidence and requires 2,000 cases. That is a fresh, concrete coupling to fix.</p>
+<h3 id="p3-s107">U05 — Partially resolved</h3>
+<p><strong>Original:</strong> Current authentication state is contradictory. Architecture and design describe authenticated Intake actions, but /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:330 and /C:/Users/PC/Documents/ GitHub/pegasus/design/README.md:324. Current source supports the authenticated description.</p>
+<p><strong>Assessment:</strong> Old paths are retired and current docs describe authenticated intake. This audit did not rerun access-control tests; conflicting historical manual-upload custody reasoning remains in open-decisions.</p>
+<h3 id="p3-s108">U06 — Resolved wording</h3>
+<p><strong>Original:</strong> The approval matrix bans the documented production release route. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:653, despite the same document recording only local plus production environments and an executed production release.</p>
+<p><strong>Assessment:</strong> The current approval matrix explicitly permits separately authorized production deployment under the local/production-only model.</p>
+<h3 id="p3-s109">U07 — Resolved wording</h3>
+<p><strong>Original:</strong> Azure SQL bootstrap both did and did not run. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:258; the /C:/Users/PC/Documents/GitHub/pegasus/.azure/deployment-plan.md:53.</p>
+<p><strong>Assessment:</strong> Current operations contains dated bootstrap execution records; retain those observations rather than treating an earlier implementation-only statement as current.</p>
+<h3 id="p3-s110">U08 — Partially resolved</h3>
+<p><strong>Original:</strong> Telemetry is both absent and live/correlated. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:771, while its production section and deployment plan claim live monitoring and /C:/Users/PC/ Documents/GitHub/pegasus/.azure/deployment-plan.md:46. The documented deployed Web revision has no corresponding Web telemetry registration.</p>
+<p><strong>Assessment:</strong> Operations records Web telemetry activation at release 19. Full-working-day retention remains unproved; this is not the old missing-exporter defect.</p>
+<h3 id="p3-s111">U09 — Not fully reverified</h3>
+<p><strong>Original:</strong> The “current” deployment validator cannot execute. Operations names it as a release validator, but /C:/Users/PC/Documents/GitHub/pegasus/scripts/Test-AzureDeploymentPlan.ps1:22 and retired scripts. This is documentation-to-current-worktree drift.</p>
+<p><strong>Assessment:</strong> The deployment validator was not executed in this audit. Its old worktree-specific failure cannot be certified fixed or reproduced from a dated review; current CI references the validator.</p>
+<h3 id="p3-s112">U10 — Partially resolved</h3>
+<p><strong>Original:</strong> Repository process directly conflicts with itself. /C:/Users/PC/Documents/GitHub/pegasus/AGENTS.md:14, while Operations prescribes a full /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:957. The deployment plan also says /C:/Users/PC/Documents/GitHub/pegasus/.azure/deployment-plan.md:76 release work.</p>
+<p><strong>Assessment:</strong> The old NOW/process snapshot is obsolete, but AGENTS, engineering and release skills still duplicate procedure and authority. Current recommendations address those remaining owners.</p>
+<h3 id="p3-s113">U11 — Partially resolved</h3>
+<p><strong>Original:</strong> A deferred AI capability is specified as alpha UI behavior. /C:/Users/PC/Documents/GitHub/pegasus/design/product/ui-spec.md:112 in the alpha Case flow, but /C:/Users/PC/Documents/GitHub/pegasus/design/ product/traceability-matrix.md:195, explicitly with no alpha surface.</p>
+<p><strong>Assessment:</strong> Old design/product paths are no longer the active UI contract. Current AI job behavior is governed by FRD-10/11 and ADR-0035; unfinished activation is not the same as an excluded product capability.</p>
+<h3 id="p3-s114">U12 — Resolved wording</h3>
+<p><strong>Original:</strong> /C:/Users/PC/Documents/GitHub/pegasus/docs/open-decisions.md:63 still assumes isolated Azure Development and Production targets; /C:/Users/PC/Documents/GitHub/pegasus/docs/adr/0014-local-to-production- deployment.md:13 prohibits Azure development/test environments.</p>
+<p><strong>Assessment:</strong> The current runbook and ADR-0014 use isolated local development and production only.</p>
+<h3 id="p3-s115">U13 — Not fully reverified</h3>
+<p><strong>Original:</strong> /C:/Users/PC/Documents/GitHub/pegasus/docs/adr/0002-dotnet-modular-monolith-on-azure.md:275, while /C:/Users/PC/Documents/GitHub/pegasus/docs/adr/0013-qdos-alpha-implementation-contract.md:22.</p>
+<p><strong>Assessment:</strong> The original bullet gives only two locations and omits the actual disputed assertion. ADR-0002/0013 were reviewed, but a specific unnamed historical discrepancy cannot be independently reconstructed from this bullet.</p>
+<h3 id="p3-s116">U14 — Partially resolved</h3>
+<p><strong>Original:</strong> /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:282, then says Linux uses a SQL Server container. /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:480</p>
+<p><strong>Assessment:</strong> Current architecture describes Linux SQL Server containers in prose; its system diagram still labels only LocalDB for local SQL.</p>
+<h3 id="p3-s117">U15 — Resolved wording</h3>
+<p><strong>Original:</strong> /C:/Users/PC/Documents/GitHub/pegasus/CONTEXT.md:71, but requirements make it reversible. /C:/Users/PC/Documents/GitHub/pegasus/docs/requirements.md:204</p>
+<p><strong>Assessment:</strong> CONTEXT now makes prereport association reversible with a reason and preserved history.</p>
+<h3 id="p3-s118">U16 — Not fully reverified</h3>
+<p><strong>Original:</strong> Design’s logo, icon, and colour-token records each disagree internally: /C:/Users/PC/Documents/GitHub/pegasus/design/README.md:159, /C:/Users/PC/Documents/GitHub/pegasus/design/README.md:193, and /C:/ Users/PC/Documents/GitHub/pegasus/design/README.md:84 versus the /C:/Users/PC/Documents/GitHub/pegasus/design/product/traceability-matrix.md:20.</p>
+<p><strong>Assessment:</strong> A fresh visual/token audit of every design asset was not performed. Current authority is docs/design/README.md and FRD-12, not the old comparison paths.</p>
+<h3 id="p3-s119">U17 — Resolved wording</h3>
+<p><strong>Original:</strong> NOW refers to “two failing integration tests above,” but its Next list names only a Linux architecture-test fix. /C:/Users/PC/Documents/GitHub/pegasus/NOW.md:21</p>
+<p><strong>Assessment:</strong> NOW.md is not the current work queue or claim owner; do not recreate its expired next-work list.</p>
+<h3 id="p3-s120">U18 — Resolved wording</h3>
+<p><strong>Original:</strong> Document-extraction architecture says CFB traversal is pending, while its own /C:/Users/PC/Documents/GitHub/pegasus/workspaces/document-extraction/docs/compatibility/feature-matrix.md:15 marks traversal locally verified. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/document-extraction/docs/architecture.md:121</p>
+<p><strong>Assessment:</strong> The document-extraction workspace is retired. Its historical implementation matrix is not a current application requirement; preserve import provenance.</p>
+<h3 id="p3-s121">U19 — Resolved wording</h3>
+<p><strong>Original:</strong> That workspace also calls retired /Intake/Upload the current Pegasus path. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/document-extraction/docs/architecture.md:71</p>
+<p><strong>Assessment:</strong> The workspace’s old route guidance is retired with the import. Current manual upload is routed through the application docs and scripts.</p>
+<h3 id="p3-s122">U20 — Not fully reverified</h3>
+<p><strong>Original:</strong> Renderer templates claim GIF support, but its architecture and validator permit PNG/JPEG/WebP only. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/report-renderer/docs/TEMPLATES.md:381</p>
+<p><strong>Assessment:</strong> The standalone renderer workspace is retired, making this an obsolete workspace instruction. Current supported renderer media types were not re-executed; no new GIF-support claim is made.</p>
+<h3 id="p3-s123">U21 — Resolved wording</h3>
+<p><strong>Original:</strong> AI Centre’s Collision Brain operations doc calls 2026-07-29 the latest evidence while /C:/Users/PC/Documents/GitHub/pegasus/workspaces/ai-centre/services/collision-brain/docs/provider-evaluation.md:3.</p>
+<p><strong>Assessment:</strong> The old AI-centre workspace is not a current application owner. Retain dated research as evidence rather than refreshing its historical latest statement into current authority.</p>
+<h3 id="p3-s124">U22 — Not fully reverified</h3>
+<p><strong>Original:</strong> Protected skill packages claim a self-contained set but require a missing vehicle-valuation package. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/ai-centre/skills/README.md:22, /C:/Users/PC/Documents/ GitHub/pegasus/workspaces/ai-centre/skills/vehicle-history-check/SKILL.md:20</p>
+<p><strong>Assessment:</strong> The old protected AI-centre package set is not an active Pegasus workspace. No independent package-completeness verification of that retired set was performed.</p>
+<h3 id="p3-s125">U23 — Not fully reverified</h3>
+<p><strong>Original:</strong> vehicle-history-check directs output to a renderer, then says it performs no PDF rendering. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/ai-centre/skills/vehicle-history-check/SKILL.md:83, /C:/Users/ PC/Documents/GitHub/pegasus/workspaces/ai-centre/skills/vehicle-history-check/SKILL.md:88</p>
+<p><strong>Assessment:</strong> This concerns a retired AI-centre skill, not an active renderer owner; no fresh runtime test of that skill was performed.</p>
+<h3 id="p3-s126">U24 — Partially resolved</h3>
+<p><strong>Original:</strong> EVA handoff report says no serializer/export/caller exists; the current worktree has the deterministic handoff path. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/eva-api-preference-and- focused-qdos-alpha-json-handoff.md:47</p>
+<p><strong>Assessment:</strong> Treat the reference report as dated provenance, not a current no-caller assertion. Current FRD-07 owns the supported handoff; the reference corpus was not exhaustively rewritten or link-validated.</p>
+<h3 id="p3-s127">U25 — Partially resolved</h3>
+<p><strong>Original:</strong> Raw EVA notes tell readers to treat a full vendor API as the current specification, contrary to the manual-handoff/permission boundary. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/eva_information/ eva_information.md:15</p>
+<p><strong>Assessment:</strong> A vendor schema is source evidence, not operation authority. Current FRD-07/ADR-0038 specify the narrow staff action; retain the raw vendor note without importing its broader claims.</p>
+<h3 id="p3-s128">U26 — Partially resolved</h3>
+<p><strong>Original:</strong> Chaser and several intake/case/Triage reports still claim absent or unsettled callers that now exist. The affected reports include /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/manual- chaser-action-history-and-channel-boundaries.md:19, /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/parser-boundary-and-version-provenance.md:20, and /C:/Users/PC/Documents/GitHub/pegasus/ docs/reference/reports/ui-required-fields-options-and-settings.md:5.</p>
+<p><strong>Assessment:</strong> Historical reports should not become active status owners. Current FRDs now define these workflows; their residual contradictions are listed separately in this audit.</p>
+<h3 id="p3-s129">U27 — Partially resolved</h3>
+<p><strong>Original:</strong> Two reference reports permit image-led Case/Principal allocation or Blocked intake, conflicting with the settled pre-Case Image Intake model. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/ historical-correspondence-without-case-reconstruction.md:13</p>
+<p><strong>Assessment:</strong> Current PRD/FRD-01/02 own image-origin and allocation semantics. Quarantine older report interpretations behind explicit provenance; do not edit source evidence into a new requirement.</p>
+<h3 id="p3-s130">U28 — Partially resolved</h3>
+<p><strong>Original:</strong> Reference UI labels conflict with current names such as Post-report complete and New cases today. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/ui-required-fields-options-and-settings.md:35</p>
+<p><strong>Assessment:</strong> Current UI labels are routed through CONTEXT, design and FRD-12. Repair current internal-label examples, not every historical label in supplied references.</p>
+<h3 id="p3-s131">U29 — Partially resolved</h3>
+<p><strong>Original:</strong> A reference report authorises raw-image submission to a multimodal assistant, conflicting with the explicit approval/corpus-egress rules. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/ repository-data-authority.md:10</p>
+<p><strong>Assessment:</strong> A reference report cannot authorize corpus egress. Keep explicit source-data and exact-target approval boundaries in the engineering/operation owner.</p>
+<h3 id="p3-s132">U30 — Not fully reverified</h3>
+<p><strong>Original:</strong> /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/workproviders-and-repairers/emailevalsaddresses.md:1 says it is “not committed,” but it is tracked.</p>
+<p><strong>Assessment:</strong> The historic not-committed claim was not reverified at its migrated reference location. A tracked raw note may retain that original statement as historical evidence; an active inventory may not repeat it.</p>
+</section><footer>Source-pinned audit. No .NET build, live-service execution, repository mutation or deployment was performed. Original Markdown, machine-readable review dispositions and recount data accompany this HTML in the audit bundle.</footer></main></div></body></html>

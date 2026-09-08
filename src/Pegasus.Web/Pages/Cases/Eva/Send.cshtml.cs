@@ -135,7 +135,7 @@ public sealed partial class SendModel(
         try
         {
             var result = await submitCaseToEva.ExecuteAsync(
-                new(caseId, actor, RequireOperationKey(operationKey), EvaSubmissionTrigger.Manual),
+                new(caseId, actor, RequireOperationKey(operationKey)),
                 cancellationToken);
             if (result is null)
             {

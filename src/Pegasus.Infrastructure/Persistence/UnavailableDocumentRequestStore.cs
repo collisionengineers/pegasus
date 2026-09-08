@@ -37,6 +37,13 @@ internal sealed class UnavailableDocumentRequestStore :
             new UploadToRequestResult(RequestUploadDecision.Unavailable, null, false));
     }
 
+    public Task<FinalizeRequestUploadResult> FinalizeAsync(
+        string token,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new FinalizeRequestUploadResult(
+            RequestUploadDecision.Unavailable,
+            false));
+
     public Task<RequestUploadPublicView?> ExecuteAsync(
         string token,
         CancellationToken cancellationToken = default) =>

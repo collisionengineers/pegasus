@@ -1,8 +1,10 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.IntegrationTests;
 
@@ -102,6 +104,23 @@ public sealed class AutomationDocumentIngressTests
                 "exceeds the inline limit",
                 structured.GetProperty("notice").GetString(),
                 StringComparison.Ordinal);
+            var contentUrl = structured.GetProperty("contentUrl").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(contentUrl));
+            using var streamRequest = new HttpRequestMessage(HttpMethod.Get, contentUrl);
+            streamRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            streamRequest.Headers.Range = new RangeHeaderValue(0, 2);
+            using var streamed = await client.SendAsync(streamRequest);
+            Assert.Equal(HttpStatusCode.PartialContent, streamed.StatusCode);
+            Assert.Equal(content[..3], await streamed.Content.ReadAsByteArrayAsync());
+
+            using var unauthenticated = await client.GetAsync(contentUrl);
+            Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
+            var wrongScopeToken = await AutomationMcpTestSupport.RequestTokenAsync(
+                client, AutomationMcp.CasesScope);
+            using var wrongScopeRequest = new HttpRequestMessage(HttpMethod.Get, contentUrl);
+            wrongScopeRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", wrongScopeToken);
+            using var wrongScope = await client.SendAsync(wrongScopeRequest);
+            Assert.Equal(HttpStatusCode.Forbidden, wrongScope.StatusCode);
         }
 
         Assert.Equal(2, await factory.Database.ScalarAsync<int>(
@@ -121,7 +140,7 @@ public sealed class AutomationDocumentIngressTests
         using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
         var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(
             mcpFactory,
-            new CaseCompleteness(false, false, false, false));
+            new CaseCompleteness(false, false));
         using var client = mcpFactory.CreateClient();
         var token = await AutomationMcpTestSupport.RequestTokenAsync(
             client,

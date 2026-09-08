@@ -1,0 +1,185 @@
+{
+  "basis": "Undated supplied pegasus-docs-review.md; no exact source revision was provided in the review. Retired-path findings are not equivalent to fresh code verification.",
+  "observations": [
+    {
+      "id": "U01",
+      "original_observation": "Production is both “not deployed” and deployed. /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:41, but later says the production route ran on 2026-08-02. /C:/Users/PC/Documents/GitHub/pegasus/ docs/architecture.md:454 The same stale section says no production trigger/provider call ran, conflicting with /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:813 and /C:/Users/PC/Documents/ GitHub/pegasus/.azure/deployment-plan.md:82.",
+      "disposition": "Partially resolved",
+      "assessment": "Old docs/architecture.md is not the current owner. Current architecture acknowledges deployment but still mixes historical and source snapshots; retain the scope-qualified findings in the new audit."
+    },
+    {
+      "id": "U02",
+      "original_observation": "The Box folder is simultaneously a production custody root and a disposable test-only target. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:234 and again records it as production custody, while its own approval matrix confines it to /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:651. NOW and open decisions agree it is not approved for real cases: /C:/Users/PC/Documents/GitHub/pegasus/ NOW.md:7, /C:/Users/PC/Documents/GitHub/pegasus/docs/open-decisions.md:41.",
+      "disposition": "Resolved wording",
+      "assessment": "The current operations file separates production root 405543781910 from controlled test boundary 392761581105; neither is standing write authority."
+    },
+    {
+      "id": "U03",
+      "original_observation": "The active Box decision requires a superseded mechanism. Requirements say the in-house upload route /C:/Users/PC/Documents/GitHub/pegasus/docs/requirements.md:154, but the open decision and NOW still require a “Box File Request template.” The current Web UI also still offers /C:/Users/PC/Documents/GitHub/pegasus/src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml:142.",
+      "disposition": "Resolved wording",
+      "assessment": "The current FRD-02 and architecture retire Box File Requests in favor of the bounded in-house upload route. No live UI execution was performed here."
+    },
+    {
+      "id": "U04",
+      "original_observation": "Alpha acceptance gates disagree. NOW says only OPS-23/OPS-25 close alpha and calls MCP-01–04 and MAIL-14/16 non-blocking, while the capability inventory makes /C:/Users/PC/Documents/GitHub/pegasus/docs/ capabilities.md:114 and /C:/Users/PC/Documents/GitHub/pegasus/docs/capabilities.md:178 required before alpha acceptance.",
+      "disposition": "Partially resolved",
+      "assessment": "The old NOW.md comparison is obsolete; the current acceptance script still equates alpha allocation with mandatory evidence and requires 2,000 cases. That is a fresh, concrete coupling to fix."
+    },
+    {
+      "id": "U05",
+      "original_observation": "Current authentication state is contradictory. Architecture and design describe authenticated Intake actions, but /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:330 and /C:/Users/PC/Documents/ GitHub/pegasus/design/README.md:324. Current source supports the authenticated description.",
+      "disposition": "Partially resolved",
+      "assessment": "Old paths are retired and current docs describe authenticated intake. This audit did not rerun access-control tests; conflicting historical manual-upload custody reasoning remains in open-decisions."
+    },
+    {
+      "id": "U06",
+      "original_observation": "The approval matrix bans the documented production release route. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:653, despite the same document recording only local plus production environments and an executed production release.",
+      "disposition": "Resolved wording",
+      "assessment": "The current approval matrix explicitly permits separately authorized production deployment under the local/production-only model."
+    },
+    {
+      "id": "U07",
+      "original_observation": "Azure SQL bootstrap both did and did not run. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:258; the /C:/Users/PC/Documents/GitHub/pegasus/.azure/deployment-plan.md:53.",
+      "disposition": "Resolved wording",
+      "assessment": "Current operations contains dated bootstrap execution records; retain those observations rather than treating an earlier implementation-only statement as current."
+    },
+    {
+      "id": "U08",
+      "original_observation": "Telemetry is both absent and live/correlated. /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:771, while its production section and deployment plan claim live monitoring and /C:/Users/PC/ Documents/GitHub/pegasus/.azure/deployment-plan.md:46. The documented deployed Web revision has no corresponding Web telemetry registration.",
+      "disposition": "Partially resolved",
+      "assessment": "Operations records Web telemetry activation at release 19. Full-working-day retention remains unproved; this is not the old missing-exporter defect."
+    },
+    {
+      "id": "U09",
+      "original_observation": "The “current” deployment validator cannot execute. Operations names it as a release validator, but /C:/Users/PC/Documents/GitHub/pegasus/scripts/Test-AzureDeploymentPlan.ps1:22 and retired scripts. This is documentation-to-current-worktree drift.",
+      "disposition": "Not fully reverified",
+      "assessment": "The deployment validator was not executed in this audit. Its old worktree-specific failure cannot be certified fixed or reproduced from a dated review; current CI references the validator."
+    },
+    {
+      "id": "U10",
+      "original_observation": "Repository process directly conflicts with itself. /C:/Users/PC/Documents/GitHub/pegasus/AGENTS.md:14, while Operations prescribes a full /C:/Users/PC/Documents/GitHub/pegasus/docs/operations.md:957. The deployment plan also says /C:/Users/PC/Documents/GitHub/pegasus/.azure/deployment-plan.md:76 release work.",
+      "disposition": "Partially resolved",
+      "assessment": "The old NOW/process snapshot is obsolete, but AGENTS, engineering and release skills still duplicate procedure and authority. Current recommendations address those remaining owners."
+    },
+    {
+      "id": "U11",
+      "original_observation": "A deferred AI capability is specified as alpha UI behavior. /C:/Users/PC/Documents/GitHub/pegasus/design/product/ui-spec.md:112 in the alpha Case flow, but /C:/Users/PC/Documents/GitHub/pegasus/design/ product/traceability-matrix.md:195, explicitly with no alpha surface.",
+      "disposition": "Partially resolved",
+      "assessment": "Old design/product paths are no longer the active UI contract. Current AI job behavior is governed by FRD-10/11 and ADR-0035; unfinished activation is not the same as an excluded product capability."
+    },
+    {
+      "id": "U12",
+      "original_observation": "/C:/Users/PC/Documents/GitHub/pegasus/docs/open-decisions.md:63 still assumes isolated Azure Development and Production targets; /C:/Users/PC/Documents/GitHub/pegasus/docs/adr/0014-local-to-production- deployment.md:13 prohibits Azure development/test environments.",
+      "disposition": "Resolved wording",
+      "assessment": "The current runbook and ADR-0014 use isolated local development and production only."
+    },
+    {
+      "id": "U13",
+      "original_observation": "/C:/Users/PC/Documents/GitHub/pegasus/docs/adr/0002-dotnet-modular-monolith-on-azure.md:275, while /C:/Users/PC/Documents/GitHub/pegasus/docs/adr/0013-qdos-alpha-implementation-contract.md:22.",
+      "disposition": "Not fully reverified",
+      "assessment": "The original bullet gives only two locations and omits the actual disputed assertion. ADR-0002/0013 were reviewed, but a specific unnamed historical discrepancy cannot be independently reconstructed from this bullet."
+    },
+    {
+      "id": "U14",
+      "original_observation": "/C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:282, then says Linux uses a SQL Server container. /C:/Users/PC/Documents/GitHub/pegasus/docs/architecture.md:480",
+      "disposition": "Partially resolved",
+      "assessment": "Current architecture describes Linux SQL Server containers in prose; its system diagram still labels only LocalDB for local SQL."
+    },
+    {
+      "id": "U15",
+      "original_observation": "/C:/Users/PC/Documents/GitHub/pegasus/CONTEXT.md:71, but requirements make it reversible. /C:/Users/PC/Documents/GitHub/pegasus/docs/requirements.md:204",
+      "disposition": "Resolved wording",
+      "assessment": "CONTEXT now makes prereport association reversible with a reason and preserved history."
+    },
+    {
+      "id": "U16",
+      "original_observation": "Design’s logo, icon, and colour-token records each disagree internally: /C:/Users/PC/Documents/GitHub/pegasus/design/README.md:159, /C:/Users/PC/Documents/GitHub/pegasus/design/README.md:193, and /C:/ Users/PC/Documents/GitHub/pegasus/design/README.md:84 versus the /C:/Users/PC/Documents/GitHub/pegasus/design/product/traceability-matrix.md:20.",
+      "disposition": "Not fully reverified",
+      "assessment": "A fresh visual/token audit of every design asset was not performed. Current authority is docs/design/README.md and FRD-12, not the old comparison paths."
+    },
+    {
+      "id": "U17",
+      "original_observation": "NOW refers to “two failing integration tests above,” but its Next list names only a Linux architecture-test fix. /C:/Users/PC/Documents/GitHub/pegasus/NOW.md:21",
+      "disposition": "Resolved wording",
+      "assessment": "NOW.md is not the current work queue or claim owner; do not recreate its expired next-work list."
+    },
+    {
+      "id": "U18",
+      "original_observation": "Document-extraction architecture says CFB traversal is pending, while its own /C:/Users/PC/Documents/GitHub/pegasus/workspaces/document-extraction/docs/compatibility/feature-matrix.md:15 marks traversal locally verified. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/document-extraction/docs/architecture.md:121",
+      "disposition": "Resolved wording",
+      "assessment": "The document-extraction workspace is retired. Its historical implementation matrix is not a current application requirement; preserve import provenance."
+    },
+    {
+      "id": "U19",
+      "original_observation": "That workspace also calls retired /Intake/Upload the current Pegasus path. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/document-extraction/docs/architecture.md:71",
+      "disposition": "Resolved wording",
+      "assessment": "The workspace’s old route guidance is retired with the import. Current manual upload is routed through the application docs and scripts."
+    },
+    {
+      "id": "U20",
+      "original_observation": "Renderer templates claim GIF support, but its architecture and validator permit PNG/JPEG/WebP only. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/report-renderer/docs/TEMPLATES.md:381",
+      "disposition": "Not fully reverified",
+      "assessment": "The standalone renderer workspace is retired, making this an obsolete workspace instruction. Current supported renderer media types were not re-executed; no new GIF-support claim is made."
+    },
+    {
+      "id": "U21",
+      "original_observation": "AI Centre’s Collision Brain operations doc calls 2026-07-29 the latest evidence while /C:/Users/PC/Documents/GitHub/pegasus/workspaces/ai-centre/services/collision-brain/docs/provider-evaluation.md:3.",
+      "disposition": "Resolved wording",
+      "assessment": "The old AI-centre workspace is not a current application owner. Retain dated research as evidence rather than refreshing its historical latest statement into current authority."
+    },
+    {
+      "id": "U22",
+      "original_observation": "Protected skill packages claim a self-contained set but require a missing vehicle-valuation package. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/ai-centre/skills/README.md:22, /C:/Users/PC/Documents/ GitHub/pegasus/workspaces/ai-centre/skills/vehicle-history-check/SKILL.md:20",
+      "disposition": "Not fully reverified",
+      "assessment": "The old protected AI-centre package set is not an active Pegasus workspace. No independent package-completeness verification of that retired set was performed."
+    },
+    {
+      "id": "U23",
+      "original_observation": "vehicle-history-check directs output to a renderer, then says it performs no PDF rendering. /C:/Users/PC/Documents/GitHub/pegasus/workspaces/ai-centre/skills/vehicle-history-check/SKILL.md:83, /C:/Users/ PC/Documents/GitHub/pegasus/workspaces/ai-centre/skills/vehicle-history-check/SKILL.md:88",
+      "disposition": "Not fully reverified",
+      "assessment": "This concerns a retired AI-centre skill, not an active renderer owner; no fresh runtime test of that skill was performed."
+    },
+    {
+      "id": "U24",
+      "original_observation": "EVA handoff report says no serializer/export/caller exists; the current worktree has the deterministic handoff path. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/eva-api-preference-and- focused-qdos-alpha-json-handoff.md:47",
+      "disposition": "Partially resolved",
+      "assessment": "Treat the reference report as dated provenance, not a current no-caller assertion. Current FRD-07 owns the supported handoff; the reference corpus was not exhaustively rewritten or link-validated."
+    },
+    {
+      "id": "U25",
+      "original_observation": "Raw EVA notes tell readers to treat a full vendor API as the current specification, contrary to the manual-handoff/permission boundary. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/eva_information/ eva_information.md:15",
+      "disposition": "Partially resolved",
+      "assessment": "A vendor schema is source evidence, not operation authority. Current FRD-07/ADR-0038 specify the narrow staff action; retain the raw vendor note without importing its broader claims."
+    },
+    {
+      "id": "U26",
+      "original_observation": "Chaser and several intake/case/Triage reports still claim absent or unsettled callers that now exist. The affected reports include /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/manual- chaser-action-history-and-channel-boundaries.md:19, /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/parser-boundary-and-version-provenance.md:20, and /C:/Users/PC/Documents/GitHub/pegasus/ docs/reference/reports/ui-required-fields-options-and-settings.md:5.",
+      "disposition": "Partially resolved",
+      "assessment": "Historical reports should not become active status owners. Current FRDs now define these workflows; their residual contradictions are listed separately in this audit."
+    },
+    {
+      "id": "U27",
+      "original_observation": "Two reference reports permit image-led Case/Principal allocation or Blocked intake, conflicting with the settled pre-Case Image Intake model. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/ historical-correspondence-without-case-reconstruction.md:13",
+      "disposition": "Partially resolved",
+      "assessment": "Current PRD/FRD-01/02 own image-origin and allocation semantics. Quarantine older report interpretations behind explicit provenance; do not edit source evidence into a new requirement."
+    },
+    {
+      "id": "U28",
+      "original_observation": "Reference UI labels conflict with current names such as Post-report complete and New cases today. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/ui-required-fields-options-and-settings.md:35",
+      "disposition": "Partially resolved",
+      "assessment": "Current UI labels are routed through CONTEXT, design and FRD-12. Repair current internal-label examples, not every historical label in supplied references."
+    },
+    {
+      "id": "U29",
+      "original_observation": "A reference report authorises raw-image submission to a multimodal assistant, conflicting with the explicit approval/corpus-egress rules. /C:/Users/PC/Documents/GitHub/pegasus/docs/reference/reports/ repository-data-authority.md:10",
+      "disposition": "Partially resolved",
+      "assessment": "A reference report cannot authorize corpus egress. Keep explicit source-data and exact-target approval boundaries in the engineering/operation owner."
+    },
+    {
+      "id": "U30",
+      "original_observation": "/C:/Users/PC/Documents/GitHub/pegasus/docs/reference/workproviders-and-repairers/emailevalsaddresses.md:1 says it is “not committed,” but it is tracked.",
+      "disposition": "Not fully reverified",
+      "assessment": "The historic not-committed claim was not reverified at its migrated reference location. A tracked raw note may retain that original statement as historical evidence; an active inventory may not repeat it."
+    }
+  ]
+}

@@ -1,12 +1,11 @@
-# FRD-11: Reports, correspondence, and reviewed proposals
+﻿# FRD-11: Reports, correspondence, and reviewed proposals
 > Owner capabilities: RPT, AI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Reports, correspondence, and reviewed proposals
 
 Reports are produced from accepted case facts and source-labelled evidence
-through the approved renderer boundary. Renderer source workspaces remain
-independent source imports until an accepted integration contract and real
-application caller exist.
+through the integrated renderer boundary defined by ADR-0025 and ADR-0028.
+The current source owner is Infrastructure; the retired imports are not callers.
 
 ### Assessment-report outcomes
 
@@ -37,7 +36,9 @@ where it affects the document, including category and salvage for total loss
 and the accepted raw cost components from which Core computes the contract-repair
 cap.
 
-Supplied template, schema, wording, design, and sample material is evidence for
+The operator has already supplied the report and correspondence templates.
+Use those retained assets; there is no outstanding request to invent or supply
+template wording. Supplied template, schema, wording, design, and sample material is evidence for
 this contract, not a second policy owner. Any category treatment, recovery or
 storage paragraph, statement-of-truth wording, qualification, signature, or
 other document wording that has not been accepted remains unavailable; the
@@ -45,7 +46,7 @@ renderer must not substitute placeholder or inferred content.
 
 ### Audit report parity
 
-When RPT-03 is activated by its own accepted caller, an Audit report uses the
+Audit and Inspection + Audit are active and in scope. An Audit report uses the
 same approved Inspection report contract, template, wording, layout, and
 renderer presentation as the equivalent Inspection report. Audit is distinct
 only in its accepted workflow provenance and immutable internal reference: the
@@ -57,15 +58,14 @@ or create a separate physical report family.
 Missing, conflicting, ambiguous, stale, or cross-case Audit outcome or
 reference evidence fails closed before rendering. Audit must not introduce a
 second template, wording, layout, report model, conservative/maximised
-specification pair, or monetary or percentage uplift. This future behaviour
-does not open the current renderer surface or supply a caller; the closed
-activation boundary below remains in force.
+specification pair, or monetary or percentage uplift. Inspection and Audit use
+the same governed renderer boundary with their own evidence and references.
 
 ### Initial renderer activation
 
-The first active renderer surface is closed to the `rendererref1` assessment
-and its fee note. Audit, diminution, addendum, valuation-evidence, generic
-letter, and every other former workspace catalogue family are unavailable;
+The active renderer uses the `rendererref1` assessment and fee note for
+Inspection, Audit and Inspection + Audit. Diminution, addendum,
+valuation-evidence and generic-letter families are not activated by this contract;
 there is no caller-selectable template or density setting. Core accepts an
 immutable, source-labelled snapshot, validates readiness and the supplied
 sign-off tuple, computes the figures once, and selects one of the four
@@ -97,92 +97,54 @@ issue, sending, external receipt, durable report-reference allocation, or
 correction custody. Human approval remains required before issue; the durable
 trigger, immutable reference/version and custody workflow is separately owned.
 
-### Report-draft entry point
+A generation freezes an immutable snapshot of the Case version, signatory
+account and signature digest, Current estimate identity/version and breakdown,
+accepted Engineer value and applied valuation identity, content switches,
+report date or override, narrative, fee, source documents with Box identities,
+and prepared-image role, order, rotation and crop. Report and fee note are
+separately addressable generated artifacts through custody. Relevant accepted
+fact changes mark a generation stale; notes and recipient edits do not. A
+ready generation records ActionHistory `case_report_generation_ready`.
+Preview creates neither an artifact nor Sent evidence.
 
-The renderer boundary above is reachable from one operator action (DELIV-012):
-a "Generate report draft" control on the Report section of the Case record
-(`/Cases/{id}?section=report`; `/Cases/{id}/Assessment` is a permanent
-redirect, D30), open to the same staff roles as the rest of that
-record (Administrator, Engineer, User). It projects the case's already-saved,
-confirmed assessment record into the accepted snapshot, renders it, and
-returns the assessment PDF to the operator's browser. Nothing is saved,
-approved, or sent by this action — it is strictly the draft-generation step
-the renderer boundary above already defines; approval and issue remain the
-separately owned human acts described below.
+Snapshot assembly captures the Case version before reading its components and
+refuses a changed version before freezing; the resolved signatory tuple is
+rechecked in the freeze transaction. Confirming or removing source evidence,
+or changing the effective signatory's eligibility, name, qualifications or
+signature, invalidates affected current generations in the same transaction.
+Report outputs identified by their generated-artifact operation identity are
+not report inputs and do not invalidate their own generation. Other retained
+artifacts remain source evidence regardless of their transport's source label.
+Stale generations cannot be prepared or sent; notes and recipient edits alone
+do not require regeneration. A delivery preparation still requires current
+addressing. Default report dates and displayed report times use Europe/London.
 
-The Engineer sections of the Case record — Damage, Valuation, Estimate,
-Settlement, Report — are always viewable (D30, 2026-09-02). They are editable
-in `Report preparation` and `Post report` (displayed "With Engineer") under
-the Case edit lease, and read-only in `Post-report complete` and the other
-terminal outcomes; the former D11 access rule is now this read-only rule.
-Report generation still requires the Case to have entered `Report
-preparation` with a successful EVA export or submission for the current
-Review cycle; returning to Review for corrected case data starts a new cycle
-and requires a fresh export before generation is offered again.
+### Report generation entry point
 
-**Fee note preview.** The Report section renders a fee note preview from the
-agreed fee and the description lines recorded on the Case (D42, 2026-09-02).
-It is a preview of the fee-note artifact the renderer emits; sending stays
-`MAIL-17`.
+The Report section of the Case record exposes **Generate report** to the
+authorized staff roles under the existing state, version and lease gates.
+It uses the accepted saved facts and the immutable snapshot defined above.
+Generation retains versioned report/fee-note artifacts, their custody outcome
+and generation history. A generated artifact is not approval, sending or receipt.
 
-**Readiness.** A single readiness rail decides whether the control is enabled:
-`AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
-post-Review list) plus only requirements first introduced after the case
-entered `Review`: the Case's sign-off Engineer tuple and the accepted estimate
-figures (below). Requirements already enforced by the transition into `Review` are not
-recalculated as report readiness. The saved case identity, instruction,
-inspection and custody facts are consumed when the draft is generated; if one
-is unexpectedly absent, generation fails as an invalid case state rather than
-presenting the operator with a duplicate readiness task. A case missing a true
-post-Review requirement leaves the control disabled and states that outstanding
-reason by name; nothing is guessed to make the control available.
+A fee-note preview is non-persisting presentation of the recorded fee and
+description. It does not replace retained report generation or create a new
+report family. Native Hand to Engineer opens engineering work without an EVA
+export; EVA is optional and does not gate report readiness.
 
-**Photographs and source evidence.** `Photos` are the case's custody-confirmed
-`Image`-role documents (current, not logically removed, custody status
-Confirmed) — the same confirmation gate the EVA hand-off bundle already uses
-for its own image evidence. `Sources` are every other custody-confirmed case
-document, reported by its own file name, version and hash. Both are real
-custody facts: every confirmed image on the case is offered to curation, and
-nothing is filtered out before the Engineer sees it. Their absence after entry
-to `Review` is an invalid case state, not another report-readiness
-classification.
-
-Curation itself is decided (D19, 2026-09-01) and no longer deferred with the
-rest of the UI-15 workbench: preparation is non-destructive, a report requires
-distinct `Close-up` and `Overview` images in that order, optional supporting
-images follow in explicit operator order, crop and ordering data are
-normalized, versioned, attributable and protected by expected-version and
-edit-lease rules, and an issued report retains its exact curation snapshot and
-source hashes
-([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)).
-Allocated to [[ENG-031]]; not delivered.
-
-**Repair-cost figures.** The accepted derivation is D17 (2026-09-01):
-non-paint labour is the estimate version's normalized non-paint hours
-multiplied by the rate held on the labour-rate card that version selected;
-paint labour, paint materials, parts and other costs are explicit amounts on
-the version; the version's own VAT percentage applies to the whole subtotal.
-Multiple global, versioned labour-rate cards exist as Administrator-managed
-configuration (id, name, non-paint hourly rate, enabled state, actor,
-timestamps); staff select one card for every new or amended estimate version,
-and a report version records the card version it used. Disabling a card blocks
-future selection without changing history. Normalized imported and manual
-estimates are directly editable under the ordinary expected-version and
-edit-lease rules. Their retained source artifacts and hashes remain immutable;
-every change records actor, time, reason and before/after values, and may move
-the estimate through Draft, Accepted and Current. No original-versus-assessed
-comparison figure and no savings figure exists, in the editor or on the
-report. A case whose current estimate version has no selected card names that
-card as the outstanding readiness reason; nothing is fabricated. The rate-card
-aggregate itself is allocated to `TICK-082` and is not yet delivered.
+Engineer sections remain viewable in other states, with edits governed by
+FRD-01. Report readiness adds only genuine post-Review requirements: required
+sign-off content and accepted estimate figures. It does not ask staff to
+reconfirm unchanged requirements already satisfied for Review. Unexpectedly
+missing accepted state fails generation rather than inventing values.
 
 ### Report correction, finality, and post-report work
 
 **Accepted report boundary:** an issued report has an immutable artifact/version identity and hash. A
 correction or addendum creates a new reasoned version and retains every earlier
 artifact, accepted fact, actor, time, and source; it never silently overwrites
-the issued report. A closed case must be reasonedly reopened before its report
-or evidence is revised.
+the issued report. Further report changes follow FRD-01
+and retain the previous artifact and its correction history.
 
 The report-sent business event is the exact approved-mailbox Sent-item evidence
 specified in [FRD-08 § Outbound correspondence evidence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)
@@ -194,12 +156,11 @@ staff assertion alone proves neither sending nor external receipt.
 
 Post-report queries, disputes, amendment requests, and replies remain
 case-owned correspondence with source/reply-chain identity and permanent
-history. Collision Engineers' Engineer responds to them, but the exact
-CASE-23 states, transitions, correction/reopen interaction, due/chaser
-interaction, and closure rules remain `Next`/unallocated and unresolved; no
-mailbox adapter may invent them or create a new case/reference. See [external
-data, submission, and report
-contracts](../open-decisions.md#external-data-submission-and-report-contracts).
+history. The Engineer responds to them. FRD-01 owns the reversible
+Completed → Query → Completed cycle: query receipt or attachment enters Query,
+and replying completes that work. Further engineering changes use a reasoned
+return to engineering and normal edit authority. A mailbox adapter invokes the
+shared transition; it does not allocate a new Case/reference.
 
 Requirements:
 
@@ -261,9 +222,11 @@ creation.
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
-| MarketResearch | The Case record's Valuation section (D35) | The Case. The research runs outside Pegasus: the operator's Claude Cowork connector polls the job ledger through the Automation Actor, searches AutoTrader, and completes the job with a findings document plus retail and trade figures | The findings document retained as Case evidence and a valuation entry of source `AI market research` with the retail and trade figures ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#valuation-sources)) | None on the job — the entry is a proposal on the Case and never becomes the Engineer's Value by itself; no scraping or AutoTrader integration exists inside Pegasus |
+| MarketResearch | Select Market Research on the Case Valuation screen | The Case and its valuation context; external Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment; no staff completion gate and no automatic adoption as the Engineer's Value |
 
-**States.** `Queued` → `Taken` → `Draft ready` → `Completed`, with `Failed`,
+**States.** Reviewed proposals follow `Queued` → `Taken` → `Draft ready` →
+`Completed`. MarketResearch follows `Queued` → `Taken` → `Completed` after
+retention of its files. All kinds also have `Failed`,
 `Cancelled` and `Expired` as the other terminal states.
 
 - `Queued`: created and claimable. Creation records the kind, the target
@@ -273,9 +236,11 @@ creation.
   expired claim; a client may release a job back to `Queued` before then.
 - `Draft ready`: the client has written its result and named it on the job;
   the job waits for staff.
-- `Completed`: the staff act that consumes the result has been recorded, or
-  staff completed the job by hand for a kind whose result needs no separate
-  act (Query response, Unidentified-queue pass).
+- `Completed`: the staff consumption act has been recorded for a reviewed
+  proposal, or staff completed a Query response/Unidentified-queue pass. For
+  MarketResearch, the Automation Actor completes the taken job after the
+  connector attaches its research files to the Case; it does not wait for a
+  staff act or imply acceptance of an Engineer's Value.
 - `Failed`: the client reported failure with a reason; the job is not
   re-queued automatically.
 - `Cancelled`: staff cancelled with a reason; a taken job is cancelled at
@@ -304,25 +269,24 @@ so stopping automation also stops the ledger.
 
 ### Estimate VAT on the rendered report
 
-Each estimate carries its own VAT percentage, entered freely on the estimate
-(D9). For the rendered assessment report, the Current estimate's VAT
-percentage replaces the built-in repairer-VAT-registered rule; that rule
-applies only when no Current estimate exists. The figures are computed once
-by `Pegasus.Core`:
+Each estimate has its own VAT percentage, defaulting to 20, and selected VAT
+categories. `Unknown` repairer VAT blocks Use as Current until staff record an
+explicit status or explicit categories. For a rendered report, VAT is
+`Taxable × VatPercent / 100`, where Taxable is the selected discounted Labour,
+Parts, Materials and Specialist categories. `Pegasus.Core` computes each
+printed component independently; printed Net is their sum and printed Gross is
+printed Net plus printed VAT. No residual penny moves between components.
 
 | Figure | Rule |
 | --- | --- |
 | Parts | Explicit part prices × quantity |
-| Labour | Normalized non-paint hours × the non-paint hourly rate of the labour-rate card the estimate version selected (D17) |
-| Paint | Explicit paint labour plus explicit paint materials |
-| Other | Explicit other costs |
-| Subtotal | Parts + Labour + Paint + Other |
-| VAT | Subtotal × VAT % |
-| Total | Subtotal + VAT |
+| Labour | Panel and paint hours × the selected labour-rate-card rate |
+| Parts, materials and specialist | Explicit estimate amounts, discounted where selected |
+| Taxable | Selected discounted Labour, Parts, Materials and Specialist categories |
+| VAT | Taxable × VAT % |
+| Net / Gross | Sum of independently rounded printed components / Net + printed VAT |
 
-The labour-rate card prices non-paint labour only; paint labour, paint
-materials, parts and other costs are explicit amounts carried on the estimate
-version by whichever route supplied it, and are never derived from the card. No comparison figure between an imported provider version and
+No comparison figure between an imported provider version and
 an assessed version, and no savings figure, is computed or rendered (D17).
 Normalized provider and manual estimates are editable records; their retained
 raw source evidence and hashes are immutable. Every direct change follows the

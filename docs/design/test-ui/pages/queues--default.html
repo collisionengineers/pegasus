@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cases · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -274,7 +275,7 @@
             </div>
         </div>
         <div class="pane-body pane-scroll" data-row-list>
-                <a class="row-button" href="received-details--default.html" aria-current="true">
+                <a class="row-button" href="#" aria-current="true">
                     <span class="row-top">
                         <span class="row-title">blocked-file.msg</span>
                             <span class="status status--red">Blocked intake</span>
@@ -310,7 +311,7 @@
                                 </dl>
                         </div>
                         <div class="button-row section-gap">
-                            <a class="btn btn--dark" href="received-details--default.html">
+                            <a class="btn btn--dark" href="#">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
                                 <span>Open received item</span>
                             </a>
@@ -392,10 +393,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

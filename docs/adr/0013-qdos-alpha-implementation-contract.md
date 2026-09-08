@@ -1,6 +1,6 @@
 ---
 id: ADR-0013
-status: superseded
+status: accepted
 date: 2026-07-30
 supersedes: []
 superseded_by: [ADR-0029]
@@ -10,13 +10,22 @@ tags: [qdos, contract]
 ---
 # ADR-0013: QDOS alpha implementation contract
 
+## Current applicability
+
+Accepted for clause 12: transient login throttling without persistent Identity
+account lockout. Clause 10 routes to ADR-0011/0031; clause 11’s current action
+and automation rights are owned by FRD-10/11 and the glossary. Clause 14’s old
+unresolved estate list is historical; operations holds dated identities and the
+runbook holds current operation authorization. Functional clauses are owned by
+the FRDs listed below. ADR-0029 replaces image-origin clauses only.
+
 ## Context
 
 The reviewed QDOS alpha plan exposed contradictions between retained proposals,
 current product requirements, and the intended implementation boundary. This ADR
 now retains only the durable technical decisions from that settlement; the
 functional feature rules it originally carried have moved to their owning FRDs
-(see [Functional behaviour](#functional-behaviour)). It does not accept the
+(see [Functional behaviour](0013-qdos-alpha-implementation-contract.md#functional-behaviour)). It does not accept the
 delivery plan as a whole, prove implementation, authorize an Azure or other
 external operation, or weaken any caller, evaluation, security, or
 operator-acceptance gate.
@@ -25,7 +34,7 @@ operator-acceptance gate.
 
 Clause numbers are stable and externally cited, so they are preserved; the
 removed functional clauses (1–9 and 13) are mapped to their owning FRDs in
-[Functional behaviour](#functional-behaviour).
+[Functional behaviour](0013-qdos-alpha-implementation-contract.md#functional-behaviour).
 
 10. **MCP actor boundary.** MCP is a management/development-controlled ingress
     for one named, vendor-neutral Automation Actor, owned by

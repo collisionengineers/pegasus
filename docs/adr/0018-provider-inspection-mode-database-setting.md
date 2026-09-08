@@ -17,6 +17,10 @@ tags: [intake, config]
   for one provider attribute; ADR-0008's route-selection predicates remain
   code-owned and unaffected
 
+## Current applicability
+
+The persisted Principal inspection-mode setting remains the technical choice. Current Administrator behavior is owned by FRD-04; the former manual-SQL-until-UI procedure is no longer the operational owner.
+
 ## Context
 
 The inspection mode — the physical vehicle/repairer address versus the exact

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
@@ -22,12 +22,12 @@ public sealed class QdosExtractionCoverageTests(ITestOutputHelper output)
     public async Task RealInstructionEmailsExtractTheCoreFieldSet()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
-        var routePolicy = new QdosMailRoutePolicy();
+        var routePolicy = new PrincipalMailRoutePolicy();
         var extraction = new QdosInstructionExtractionPolicy();
         var context = new EstablishedPrincipalContext(
             QdosInstructionExtractionPolicy.SupportedPrincipalCode,
-            QdosMailRoutePolicy.Key,
-            QdosMailRoutePolicy.Version);
+            PrincipalMailRoutePolicy.Key,
+            PrincipalMailRoutePolicy.Version);
 
         var fieldCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var conflictCounts = new Dictionary<string, int>(StringComparer.Ordinal);

@@ -1,0 +1,22 @@
+--- a/docs/adr/0006-provider-neutral-intake-with-contained-qdos-policy.md
++++ b/docs/adr/0006-provider-neutral-intake-with-contained-qdos-policy.md
+@@ -3,7 +3,7 @@
+ status: accepted
+ date: 2026-07-24
+ supersedes: []
+-superseded_by: []
++superseded_by: [ADR-0008]
+ related_capabilities: []
+ related_frd: [frd-02]
+ tags: [intake, policy]
+@@ -14,6 +14,10 @@
+ - Date: 2026-07-24
+ - Owners: Alex and the Pegasus development team
+ - Supersedes: ADR-0005 decision 1 only
++
++## Current applicability
++
++Provider-neutral policy ownership survives. ADR-0008 refines provider/intermediary separation. Initial QDOS-only, SQLite and Development-only statements are slice context, not permanent requirements.
+ 
+ ## Context
+ 

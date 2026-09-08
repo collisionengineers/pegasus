@@ -1,8 +1,11 @@
 using System.Net;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -10,11 +13,61 @@ namespace Pegasus.IntegrationTests;
 /// The operator's Stage 0 rule, end to end through the real intake pipeline —
 /// no stub extraction policy, no injected evidence. A QDOS Triage request opens
 /// a Triage when a vehicle registration is known and waits in Unidentified when
-/// it is not, and it never becomes a case either way (INTK-033).
+/// it is not; neither outcome allocates a formal Case/PO (INTK-033).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class TriageFromIntakeIntegrationTests
 {
+    [Fact]
+    public async Task PendingTriageSelectionSkipsUnknownAndContradictoryOriginsWithoutPermanentlyExcludingThem()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-recovery-order.eml");
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName, email.MediaType, email.Content);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var queries = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await queries.GetAsync(IntakeWebDriver.ReceiptId(upload), CancellationToken.None));
+        var first = Assert.Single(await services.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+        var store = services.GetRequiredService<ITriageStore>();
+        var copies = new List<TriageRecord>();
+        // Persisted-state probes reuse the original's evidence and typed values;
+        // these are distinct test occurrences, not invented inbound messages.
+        for (var index = 0; index < 2; index++)
+        {
+            var identity = new IntakeSourceIdentity(original.SourceIdentity.Channel, $"triage-recovery-copy:{index}");
+            var copy = await services.GetRequiredService<IIntakeReceiptStore>().StoreAsync(new(
+                original.SourceFileName, original.MediaType, original.SourceLength, original.SourceHash, identity,
+                original.ReceivedAtUtc, original.ProcessedAtUtc, "triage-recovery-fixture", original.Decision,
+                original.DecisionReason, original.Evidence, original.Fields, original.InstructionDraft,
+                original.MissingFields, original.FailureCode, original.FailureReason, original.SourceReaderKey,
+                original.SourceReaderVersion, original.ExtractionPolicyKey, original.ExtractionPolicyVersion), CancellationToken.None);
+            var evaluation = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(services, copy.Id);
+            copies.Add(await store.CreateAsync(new(new(copy.Id, identity, copy.SourceHash, evaluation),
+                "VO75DFJ", Assert.Single(copy.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch),
+                ActionActor.SystemWorker("triage-recovery-fixture"), $"triage-recovery-create:{index}"), CancellationToken.None));
+        }
+        var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(services, copies[1].Origin.ReceiptId);
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var originalPrincipal = (await context.Triage.AsNoTracking().SingleAsync(item => item.Id == first.Id)).PrincipalId;
+        await context.Triage.Where(item => item.Id == first.Id)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalId, (Guid?)null));
+        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == copies[0].Origin.ReceiptId)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.VehicleRegistration, "PG18BTY"));
+        var eligible = Assert.Single(await store.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
+        Assert.Equal(copies[1].Id, eligible.TriageId);
+        Assert.Equal(caseId, eligible.CaseId);
+        var pairing = services.GetRequiredService<ITriageCasePairing>();
+        Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
+        Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
+        await context.Triage.Where(item => item.Id == first.Id)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalId, originalPrincipal));
+        Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
+        Assert.Null((await context.Triage.AsNoTracking().SingleAsync(item => item.Id == copies[0].Id)).LinkedCaseId);
+        Assert.Equal(1, await context.Cases.CountAsync());
+    }
+
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task ASubjectTemplateTriageRequestOpensATriageAndNoUnidentifiedItem()
@@ -24,11 +77,7 @@ public sealed class TriageFromIntakeIntegrationTests
         // forwarded and watched disappear.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "engineer-triage.eml",
-            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is "
-            + "repairable or a total loss. We have noted the vehicle as roadworthy.",
-            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("engineer-triage.eml");
 
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, email.FileName, email.MediaType, email.Content);
@@ -53,10 +102,16 @@ public sealed class TriageFromIntakeIntegrationTests
         Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
         Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
+        var created = Assert.Single(detail.History, item => item.EventType == "triage_created");
         Assert.Contains(
-            QdosMailClassificationPolicy.Key,
-            Assert.Single(detail.History, item => item.EventType == "triage_created").Reason,
+            PrincipalMailClassificationPolicy.Key,
+            created.Reason,
             StringComparison.Ordinal);
+        // The intake pipeline opened this Triage, so the history says so in the
+        // one place that can be trusted: the recorded actor kind, not a prefix
+        // read back out of the subject.
+        Assert.Equal(nameof(ActorKind.SystemWorker), created.ActorKind);
+        Assert.Equal("intake-processing", created.Actor);
 
         // The registration is known, so this is not Unidentified material.
         Assert.Null(

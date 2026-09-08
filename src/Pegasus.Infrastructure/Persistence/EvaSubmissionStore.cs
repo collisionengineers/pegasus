@@ -28,9 +28,8 @@ namespace Pegasus.Infrastructure.Persistence;
 ///    photograph of a case would block casework for as long as EVA is slow.
 ///    So the case is read and gated, the call is made, and the result is
 ///    recorded after the fact.
-/// 2. **Manual re-sends are distinct handoffs.** Automatic work remains
-///    once-only, while every explicit operator operation key retains its own
-///    outcome and EVA identifiers.
+/// 2. **Manual re-sends are distinct handoffs.** Every explicit operator
+///    operation key retains its own outcome and EVA identifiers.
 /// </summary>
 public sealed class EvaSubmissionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -58,7 +57,7 @@ public sealed class EvaSubmissionStore(
 
         StaffAuthorization.Require(
             request.Actor,
-            EvaSubmissionPolicy.RequiredRight(request.Trigger));
+            EvaSubmissionPolicy.RequiredRight);
         var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
         if (caseData is null)
         {
@@ -67,7 +66,7 @@ public sealed class EvaSubmissionStore(
         var modes = await modeStore.GetForPrincipalAsync(
             caseData.Identity.PrincipalCode,
             cancellationToken);
-        if (!EvaSubmissionPolicy.Allows(modes, request.Trigger))
+        if (!EvaSubmissionPolicy.Allows(modes))
         {
             throw new EvaSubmissionNotEnabledException(request.CaseId);
         }
@@ -84,7 +83,7 @@ public sealed class EvaSubmissionStore(
             })
             .SingleAsync(cancellationToken);
         var initialState = Enum.Parse<CaseLifecycleState>(workflow.State);
-        var initialResultingState = EvaSubmissionPolicy.StateAfterSend(initialState, request.Trigger);
+        var initialResultingState = EvaSubmissionPolicy.StateAfterSend(initialState);
         var profiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken);
         var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
@@ -109,26 +108,21 @@ public sealed class EvaSubmissionStore(
             return new(replay, [], []);
         }
 
-        var hasDeliveredSubmission = await context.EvaSubmissions
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.CaseId == request.CaseId && item.IsDelivered,
-                cancellationToken);
-        EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
-            request.Trigger,
-            hasDeliveredSubmission);
-
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var export = CaseEvaMapping.MapForOperatorExport(
             EvaCaseEvidenceReader.Build(caseData, vehicle),
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime));
 
+        var claimantAddress = EvaSubmissionPolicy.AcceptedClaimantAddress(caseData.Claimant.Address);
+        if (claimantAddress is null)
+        {
+            return new(null, export.UnrecordedFields, [EvaSubmissionPolicy.InvalidClaimantAddressReason]);
+        }
+
         // Reading a case's photographs goes to Box, so a transport failure is
         // an ordinary way for this to fail. It is translated here rather than
-        // left to escape: the queued worker that drives automatic submission
-        // lives in Core, and Core may not name an HTTP exception type. An
-        // unreachable document store is an I/O failure, which is what the
-        // caller needs in order to decide whether to retry.
+        // left to escape as a provider-shaped exception. An unreachable
+        // document store is an I/O failure distinct from EVA's own outcome.
         List<EvaBundleImage> images;
         try
         {
@@ -153,6 +147,7 @@ public sealed class EvaSubmissionStore(
             export.Source.Fields,
             caseData.Identity.Reference,
             caseData.Identity.PrincipalCode,
+            claimantAddress,
             instructionSettings,
             images.Select(ToInstructionFile).ToArray());
 
@@ -219,10 +214,9 @@ public sealed class EvaSubmissionStore(
             return null;
         }
 
-        // Keyed on the operation, not on recency. A manual send landing after
-        // an automatic attempt has its own key and its own row; answering a
-        // replay of one with the outcome of the other would report a result
-        // that never belonged to it.
+        // Keyed on the operation, not on recency. Each explicit manual send
+        // has its own key and row; answering a replay with another operation's
+        // outcome would report a result that never belonged to it.
         var row = await context.EvaSubmissions
             .AsNoTracking()
             .Where(item => item.CaseId == request.CaseId
@@ -281,12 +275,11 @@ public sealed class EvaSubmissionStore(
         Exception? transitionFailure = null;
         try
         {
-            // Gated on delivery (CASE-040 review), not on state and trigger
-            // alone: a Rejected or Unknown outcome never reached EVA, so it
+            // Gated on delivery (CASE-040 review), not on state alone: a
+            // Rejected or Unknown outcome never reached EVA, so it
             // is not a handoff and must not move the case out of Review.
             resultingState = EvaSubmissionPolicy.StateAfterSend(
                 currentState,
-                request.Trigger,
                 result.IsDelivered);
             if (resultingState != currentState)
             {
@@ -358,7 +351,6 @@ public sealed class EvaSubmissionStore(
                 CaseVersion = resultingVersion,
                 AssignedEngineerId = workflow.AssignedEngineerId,
                 SignOffEngineerId = submittedSignOffEngineerId,
-                Trigger = request.Trigger.ToString(),
                 Outcome = result.Outcome.ToString(),
                 result.EvaId,
                 result.FileReference,

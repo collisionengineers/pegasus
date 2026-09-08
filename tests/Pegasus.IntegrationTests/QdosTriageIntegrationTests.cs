@@ -15,21 +15,15 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class QdosTriageIntegrationTests
 {
-    private const string AcceptedMatcherKey = "integration-test-accepted-triage-matcher";
     private const long SeededCaseEntityVersion = 37;
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AcceptedTriageMatchEvidenceCreatesOneReplaySafeTriage()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-request.eml",
-            "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-request.eml");
         const string replayToken = "77777777777777777777777777777777";
 
         var first = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
@@ -57,14 +51,14 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(1, evaluation.Revision);
         Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
         Assert.Equal(evaluation.Id, detail.Record.Origin.EvaluationRevisionId);
-        Assert.Equal("AB12CDE", detail.Record.NormalizedVehicleRegistration);
+        Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
         Assert.Null(detail.Record.LinkedCaseId);
         Assert.Empty(detail.Findings);
         Assert.Empty(detail.ResponseEvidence);
         var created = Assert.Single(detail.History);
         Assert.Equal("triage_created", created.EventType);
-        Assert.Contains(AcceptedMatcherKey, created.Reason, StringComparison.Ordinal);
+        Assert.Contains(PrincipalMailClassificationPolicy.Key, created.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,37 +89,6 @@ public sealed partial class QdosTriageIntegrationTests
             evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
         Assert.Empty(await triageQueries.ListAsync(null, CancellationToken.None));
         Assert.Single(await GetEvaluationRevisionsAsync(factory.Database, receiptId));
-    }
-
-    [Fact]
-    [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task MultipleAcceptedTriageMatchesFailClosedWithoutCreatingTriage()
-    {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy(matchCount: 2));
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "ambiguous-triage-request.eml",
-            "QDOS instruction\r\nClaimant Name: Ambiguous Claimant\r\nClaim Number: AMBIGUOUS-001\r\nVehicle Registration: AB12 CDE");
-
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var receipt = Assert.IsType<IntakeReceipt>(
-            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                .GetAsync(receiptId, CancellationToken.None));
-        Assert.Equal(
-            2,
-            receipt.Evidence.Count(
-                evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch));
-        Assert.Empty(
-            await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                .ListAsync(null, CancellationToken.None));
     }
 
     [Fact]
@@ -182,14 +145,9 @@ public sealed partial class QdosTriageIntegrationTests
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AuthenticatedTriagePageExecutesLifecycleWithVersionsAndPermanentHistory()
     {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            extractionPolicy: new AcceptedTriageMatchPolicy());
+        using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
-            "triage-lifecycle.eml",
-            "QDOS instruction\r\nClaimant Name: Lifecycle Claimant\r\nClaim Number: TRIAGE-LIFECYCLE\r\nVehicle Registration: XY12 ZZZ");
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-lifecycle.eml");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
         email.MediaType,
         email.Content);
@@ -231,7 +189,12 @@ public sealed partial class QdosTriageIntegrationTests
             antiforgeryToken,
             0,
             "assign",
-            "Claimed by the reviewing operator");
+            "Claimed by the reviewing operator",
+            // The engineer is named explicitly now; nothing defaults to the
+            // signed-in staff member.
+            KeyValuePair.Create(
+                "assigneeId",
+                DevelopmentOfflineIdentity.AdministratorId.ToString("D")));
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(1, triage.Record.Version);
         Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, triage.Record.AssigneeId);
@@ -469,12 +432,23 @@ public sealed partial class QdosTriageIntegrationTests
             item => Assert.Equal("triage_state_open", item.EventType));
         Assert.All(
             triage.History.Skip(1),
-            item => Assert.Equal(actor, item.Actor));
+            item =>
+            {
+                Assert.Equal(actor, item.Actor);
+                Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.Staff), item.ActorKind);
+            });
+        Assert.Equal(
+            nameof(Pegasus.Core.Identity.ActorKind.SystemWorker),
+            triage.History[0].ActorKind);
 
         using var finalResponse = await client.GetAsync($"/Triage/{triageId:D}");
         var finalHtml = await finalResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, finalResponse.StatusCode);
-        Assert.Contains("Permanent history", finalHtml, StringComparison.Ordinal);
+        // The panel is named "Notes"; its entries are still the one permanent,
+        // attributed history, and nothing offers to assign to whoever is
+        // signed in.
+        Assert.Contains(">Notes</h2>", finalHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assign to me", finalHtml, StringComparison.Ordinal);
         Assert.Contains("Case unlinked", finalHtml, StringComparison.Ordinal);
 
     }
@@ -557,7 +531,7 @@ public sealed partial class QdosTriageIntegrationTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"TRIAGE"}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {"TRIAGE31001"}, {"inspection"}, {"not_ready"}, {"pending"}, {receiptId}, {true}, {true}, {true}, {true}, {now}, {SeededCaseEntityVersion}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {"TRIAGE31001"}, {"inspection"}, {"not_ready"}, {"pending"}, {receiptId}, {true}, {true}, {now}, {SeededCaseEntityVersion}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.Review)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
@@ -592,41 +566,5 @@ public sealed partial class QdosTriageIntegrationTests
 
         return evaluations;
     }
-
-
-    private sealed class AcceptedTriageMatchPolicy(int matchCount = 1) : IInstructionExtractionPolicy
-    {
-        private readonly QdosInstructionExtractionPolicy inner = new();
-
-        public string PrincipalCode => inner.PrincipalCode;
-
-        public InstructionExtractionResult Extract(
-            IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
-            EstablishedPrincipalContext principalContext)
-        {
-            var result = inner.Extract(readResult, processedAtUtc, principalContext);
-            if (result.Applicability != InstructionPolicyApplicability.Applicable)
-            {
-                return result;
-            }
-
-            var acceptedMatches = Enumerable.Range(1, matchCount)
-                .Select(index => new IntakeEvidence(
-                    IntakeEvidenceSource.EmailBody,
-                    IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.AcceptedTriageMatch,
-                    $"accepted-triage-request-{index}",
-                    "The test fixture represents an independently accepted Triage matcher result.",
-                    AcceptedMatcherKey,
-                    1))
-                .ToArray();
-            return result with
-            {
-                Evidence = [.. result.Evidence, .. acceptedMatches]
-            };
-        }
-    }
-
     private sealed record EvaluationRevision(Guid Id, int Revision);
 }

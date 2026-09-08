@@ -3,8 +3,9 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Replace principal · Pegasus</title>
+    <title>Replace code · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -157,76 +158,42 @@
                   data-workspace-label="">
                 <div class="content">
 
-<a class="back-link" href="administration-principals--default.html">
+<a class="back-link" href="#">
     <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Principals
+    Back to Settings
 </a>
 
     <div class="page-heading">
-        <div>
-            <h1>Replace WEBP</h1>
-        </div>
-        <div class="page-heading-actions">
-            <span class="status status--navy">Active</span>
+        <h1>Replace WEBP</h1>
+        <span class="status status--navy">Active</span>
 
-        </div>
     </div>
-    <div class="split-main">
-        <section aria-labelledby="predecessor-heading">
-            <h2 id="predecessor-heading" class="section-label">Predecessor</h2>
-            <div class="panel">
-                <dl class="detail-list">
-                    <div>
-                        <dt>Organization</dt>
-                        <dd>Web Caller Provider</dd>
-                    </div>
-                    <div>
-                        <dt>Status</dt>
-                        <dd>Active</dd>
-                    </div>
-                    <div>
-                        <dt>Allocated cases</dt>
-                        <dd class="tabular">0</dd>
-                    </div>
-                </dl>
-            </div>
-        </section>
+    <dl class="detail-list">
+        <div><dt>Name</dt><dd>pegasustest</dd></div>
+        <div><dt>Allocated cases</dt><dd class="tabular">0</dd></div>
+    </dl>
+        <div class="panel form-panel">
+            <form method="post" action="#">
 
-        <section aria-labelledby="successor-heading">
-            <h2 id="successor-heading" class="section-label">Successor</h2>
-                <div class="panel form-panel form-panel--wide">
-                    <form method="post" action="administration-principal-replace--default.html">
-
-                        <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="1" />
-                        <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
-                        <div>
-                            <label for="SuccessorOrganizationId">Successor Work Provider organization</label>
-                            <select data-val="true" data-val-required="The SuccessorOrganizationId field is required." id="SuccessorOrganizationId" name="SuccessorOrganizationId">
-                                <option value="">Select an organization</option>
-                                    <option value="test-ui-guid-3">QDOS development fixture</option>
-                                    <option value="test-ui-guid-1" selected="selected">Web Caller Provider</option>
-                            </select>
-                            <span class="field-validation-valid" data-valmsg-for="SuccessorOrganizationId" data-valmsg-replace="true"></span>
-                        </div>
-                        <div>
-                            <label for="SuccessorCode">Successor principal code</label>
-                            <input autocomplete="off" type="text" data-val="true" data-val-length="The field SuccessorCode must be a string with a maximum length of 20." data-val-length-max="20" data-val-required="The SuccessorCode field is required." id="SuccessorCode" maxlength="20" name="SuccessorCode" value="" />
-                            <span class="field-validation-valid" data-valmsg-for="SuccessorCode" data-valmsg-replace="true"></span>
-                        </div>
-                        <div>
-                            <label for="Reason">Reason for replacement</label>
-                            <textarea rows="3" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 500." data-val-length-max="500" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" maxlength="500" name="Reason">
-</textarea>
-                            <span class="field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
-                        </div>
-                        <p class="field-hint">The existing code, principal row, cases, references, and reference ownership will not be edited. This disables the predecessor, links a new active successor, and continues the same sequence lineage.</p>
-                        <div class="button-row">
-                            <button type="submit" class="primary-action">Disable predecessor and create successor</button>
-                        </div>
-                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="1" />
+                <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
+                <div>
+                    <label for="SuccessorCode">New principal code</label>
+                    <input autocomplete="off" type="text" data-val="true" data-val-length="The field SuccessorCode must be a string with a maximum length of 20." data-val-length-max="20" data-val-required="The SuccessorCode field is required." id="SuccessorCode" maxlength="20" name="SuccessorCode" value="" />
+                    <span class="field-validation-valid" data-valmsg-for="SuccessorCode" data-valmsg-replace="true"></span>
                 </div>
-        </section>
-    </div>
+                <div>
+                    <label for="Reason">Reason</label>
+                    <textarea rows="3" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 500." data-val-length-max="500" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" maxlength="500" name="Reason">
+</textarea>
+                    <span class="field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
+                </div>
+                <p>The old code is disabled; existing cases and references stay unchanged, and the new code continues the same numbering.</p>
+                <div class="button-row">
+                    <button type="submit" class="primary-action">Replace code</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </div>
 
                 </div>
             </main>
@@ -300,10 +267,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

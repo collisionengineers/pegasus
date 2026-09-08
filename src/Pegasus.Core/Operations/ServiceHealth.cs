@@ -66,7 +66,8 @@ public sealed record ServiceHealthRow(
     ServiceHealthState State,
     DateTimeOffset? LatestEvidenceAtUtc,
     ServiceHealthDependency Dependency,
-    ServiceHealthRetryTarget? RetryTarget = null);
+    ServiceHealthRetryTarget? RetryTarget = null,
+    string? FailureCode = null);
 
 /// <summary>
 /// <see cref="ExternalWorkLimitReached"/> is the Operations projection's own
@@ -211,11 +212,6 @@ public static class ServiceHealthPolicy
         {
             return ServiceHealthState.ReviewRequired;
         }
-        if (activity.PendingWorkCount > 0)
-        {
-            return ServiceHealthState.Running;
-        }
-
         return activity.LatestSubmittedAtUtc is null
             ? ServiceHealthState.Configured
             : ServiceHealthState.Current;
@@ -259,7 +255,6 @@ public static class ServiceHealthPolicy
                 or ExternalWorkKinds.CreateAuditReferenceCustody
                 or ExternalWorkKinds.CreateImageCaseCustody
                 or ExternalWorkKinds.MergeImageCaseCustody => ServiceHealthDependency.Box,
-            ExternalWorkKinds.SubmitCaseToEva => ServiceHealthDependency.EvaApi,
             _ => ServiceHealthDependency.Worker
         };
 
@@ -356,7 +351,8 @@ public sealed class GetServiceHealth(
                 poll.MailboxAddress,
                 ServiceHealthPolicy.PollState(poll.LastCompletedAtUtc, poll.LastFailureCode, nowUtc),
                 poll.LastCompletedAtUtc,
-                ServiceHealthDependency.MicrosoftGraph));
+                ServiceHealthDependency.MicrosoftGraph,
+                FailureCode: poll.LastFailureCode));
         }
 
         foreach (var poll in await healthQueries.ListSentEvidencePollStatusAsync(cancellationToken))
@@ -366,7 +362,8 @@ public sealed class GetServiceHealth(
                 $"{ServiceHealthPolicy.SentEvidenceService} · {poll.MailboxAddress}",
                 ServiceHealthPolicy.PollState(poll.LastCompletedAtUtc, poll.LastFailureCode, nowUtc),
                 poll.LastCompletedAtUtc,
-                ServiceHealthDependency.MicrosoftGraph));
+                ServiceHealthDependency.MicrosoftGraph,
+                FailureCode: poll.LastFailureCode));
         }
 
         var dispatch = await healthQueries.GetIntakeDispatchHealthAsync(cancellationToken);

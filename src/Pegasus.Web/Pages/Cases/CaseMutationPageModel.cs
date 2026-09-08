@@ -74,7 +74,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "note",
         "description",
         "channel",
-        "targetPartyOrAddress",
+        "recipient",
+        "content",
         "outcome",
         "assessment",
         "evidenceReference",
@@ -82,7 +83,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "replacementPrincipalCode",
         "semanticRole",
         "expiresAtUtc",
-        "attemptedAtUtc",
         "instructionComplete",
         "imagesComplete",
         "instructionsComplete"

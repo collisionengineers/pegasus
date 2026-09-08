@@ -30,19 +30,16 @@ internal sealed class EvaSubmissionEntity
     /// The Pegasus case reference sent as EVA's <c>ExternalRef</c>. EVA
     /// enforces no uniqueness on it — the same value submitted twice creates
     /// two claims — so it is recorded here as evidence of what was sent.
-    /// Once-only automatic submission is guarded by
-    /// <see cref="Pegasus.Core.Eva.EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission"/>
-    /// and the durable <c>ExternalWorkItems</c> row (D36), not by a unique
-    /// index here — the database deliberately permits an explicit manual
-    /// re-send of an already-delivered case.
+    /// The database permits an explicit manual re-send of an already-delivered
+    /// case; the operation key keeps a replay of one explicit act idempotent.
     /// </summary>
     public string ExternalRef { get; set; } = string.Empty;
 
     /// <summary>
     /// The operation key this attempt ran under, so a replay can be answered
     /// with the outcome that actually belongs to it. A case can carry attempts
-    /// from more than one key - an automatic sweep and a later manual send -
-    /// and recency alone would confuse the two.
+    /// from more than one explicit manual operation key, and recency alone
+    /// would confuse them.
     /// </summary>
     public string OperationKey { get; set; } = string.Empty;
 

@@ -6,10 +6,14 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using MimeKit;
+using System.Globalization;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.AcroForms;
+using UglyToad.PdfPig.AcroForms.Fields;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Exceptions;
+using UglyToad.PdfPig.Geometry;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Pegasus.Infrastructure.Intake;
@@ -29,6 +33,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     private const int MaximumMimeEntities = 128;
     private const long MaximumDecodedMimeBytes = 25L * 1024 * 1024;
     private const int MaximumDocxPackageEntries = 512;
+    private const int MaximumDocxTableCells = 4096;
+    private const int MaximumPdfFormFields = 1024;
     private const long MaximumDocxUncompressedBytes = 50L * 1024 * 1024;
     private const long MaximumDocxXmlPartBytes = 10L * 1024 * 1024;
     private const long MaximumDocxImageBytes = 25L * 1024 * 1024;
@@ -179,7 +185,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 result.Content.Add(new(
                     IntakeEvidenceSource.PdfContent,
                     $"{sourceLabel}, page {page.Number}",
-                    page.Text));
+                    page.Text,
+                    IntakeSourceLocator.ForPage(page.Number)));
             }
 
             if (page.RequiresOcr)
@@ -199,7 +206,88 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             }
         }
 
+        // A filled form field is the one place a PDF states a field's identity
+        // itself. Each becomes its own fragment so extraction binds by the
+        // field's name rather than by whatever text happens to be printed beside
+        // it once the page is flattened.
+        foreach (var field in pdf.FormFields)
+        {
+            result.Content.Add(new(
+                IntakeEvidenceSource.PdfContent,
+                $"{sourceLabel}, form field {field.Name}",
+                field.Value,
+                IntakeSourceLocator.ForFormField(field.Name, field.Page, field.Region)));
+        }
+
         return ReadOutcome.Readable;
+    }
+
+    /// <summary>
+    /// The filled text-bearing form fields of a PDF, in the order the form
+    /// declares them. A field with no name has no identity to bind to and is
+    /// skipped rather than numbered into one.
+    /// </summary>
+    private static List<PdfFormFieldResult> ExtractPdfFormFields(
+        PdfDocument document,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        var fields = new List<PdfFormFieldResult>();
+        AcroForm? form;
+        try
+        {
+            if (!document.TryGetForm(out form) || form is null)
+            {
+                return fields;
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            result.Issues.Add(new(
+                "pdf-form-read-failure",
+                $"{sourceLabel} declares an interactive form that could not be read.",
+                IntakeEvidenceSource.PdfContent));
+            return fields;
+        }
+
+        foreach (var field in form.GetFields())
+        {
+            if (fields.Count >= MaximumPdfFormFields)
+            {
+                result.IsIncomplete = true;
+                result.Issues.Add(new(
+                    "intake_limit_exceeded",
+                    $"{sourceLabel} declares more than {MaximumPdfFormFields} form fields; the rest were not read.",
+                    IntakeEvidenceSource.PdfContent));
+                break;
+            }
+
+            var name = field.Information.PartialName ?? field.Information.AlternateName;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            // Text fields only. A checkbox or a radio group states a choice, not
+            // a printed value, and deciding what a tick MEANS is a provider
+            // policy question rather than a reader one.
+            if (field is not AcroTextField { Value: { } value } || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            fields.Add(new(
+                name.Trim(),
+                value,
+                field.PageNumber,
+                field.Bounds is { } bounds
+                    ? string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"{bounds.Left:F2},{bounds.Bottom:F2},{bounds.Right:F2},{bounds.Top:F2}")
+                    : null));
+        }
+
+        return fields;
     }
 
     private static PdfResult ExtractPdf(
@@ -239,7 +327,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
             limits.AddImageObjects(images.Length);
 
-            var hasDominantRaster = images.Any(image => Coverage(image, page) >= ScannedPageImageCoverage);
+            var hasDominantRaster = images.Any(image => Coverage(
+                image.BoundingBox, page.CropBox.GetVisibleBounds(page.Rotation)) >= ScannedPageImageCoverage);
             var hasInsufficientText = readableCharacters < MinimumReadablePdfCharacters;
 
             var imageNumber = 0;
@@ -298,24 +387,22 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             limits.ThrowIfProcessingDeadlineExceeded();
         }
 
-        return new(pages);
+        return new(pages, ExtractPdfFormFields(document, sourceLabel, result));
     }
 
-    private static double Coverage(IPdfImage image, Page page)
+    internal static double Coverage(PdfRectangle imageBounds, PdfRectangle visiblePage)
     {
-        var visiblePage = page.CropBox.Bounds;
-        var pageArea = Math.Abs(visiblePage.Width * visiblePage.Height);
+        var pageArea = visiblePage.Area;
         if (pageArea <= 0)
         {
             return 0;
         }
 
-        var left = Math.Max(image.BoundingBox.Left, visiblePage.Left);
-        var right = Math.Min(image.BoundingBox.Right, visiblePage.Right);
-        var bottom = Math.Max(image.BoundingBox.Bottom, visiblePage.Bottom);
-        var top = Math.Min(image.BoundingBox.Top, visiblePage.Top);
-        var imageArea = Math.Max(0, right - left) * Math.Max(0, top - bottom);
-        return imageArea / pageArea;
+        // PdfPig renders images into rotated display space; CropBox.Bounds
+        // remains unrotated. Rectangle edge properties are also undefined for
+        // a rotated rectangle, so normalize before clipping to visible space.
+        var intersection = imageBounds.Normalise().Intersect(visiblePage);
+        return (intersection?.Area ?? 0) / pageArea;
     }
 
     private static bool TryReadPdfImage(
@@ -402,6 +489,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 result.Content.Add(new(IntakeEvidenceSource.DocumentContent, sourceLabel, text));
             }
 
+            AddDocxTableCells(contentRoots, sourceLabel, result);
+
             long totalImageBytes = 0;
             var imageContentByPart = new Dictionary<Uri, byte[]>();
             foreach (var placement in EnumerateImagePlacements(contentRoots))
@@ -477,6 +566,69 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 $"{sourceLabel} is corrupt or otherwise unreadable.",
                 IntakeEvidenceSource.DocumentContent));
             return ReadOutcome.Readable;
+        }
+    }
+
+    /// <summary>
+    /// Every table cell of the document, each as its own fragment carrying its
+    /// table, row and column. The flattened paragraph text above stays exactly
+    /// as it was — this adds the layout the flattening loses, so a label in one
+    /// cell can be bound to the value in the cell beside or beneath it instead
+    /// of to whatever text follows it on a flattened line.
+    /// </summary>
+    private static void AddDocxTableCells(
+        IReadOnlyList<DocxContentRoot> contentRoots,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        var tableNumber = 0;
+        var cellCount = 0;
+        foreach (var contentRoot in contentRoots)
+        {
+            // Top-level tables only: a nested table is read as part of the cell
+            // that contains it, which is where its own layout is meaningful.
+            foreach (var table in contentRoot.Root.Descendants<Table>()
+                .Where(table => table.Ancestors<Table>().Any() == false))
+            {
+                tableNumber++;
+                var rowNumber = 0;
+                foreach (var row in table.Elements<TableRow>())
+                {
+                    rowNumber++;
+                    var columnNumber = 0;
+                    foreach (var cell in row.Elements<TableCell>())
+                    {
+                        columnNumber++;
+                        if (cellCount >= MaximumDocxTableCells)
+                        {
+                            result.IsIncomplete = true;
+                            result.Issues.Add(new(
+                                "intake_limit_exceeded",
+                                $"{sourceLabel} contains more than {MaximumDocxTableCells} table cells; the rest were not read as cells.",
+                                IntakeEvidenceSource.DocumentContent));
+                            return;
+                        }
+
+                        cellCount++;
+                        var cellText = string.Join(
+                            Environment.NewLine,
+                            cell.Descendants<Paragraph>()
+                                .Select(paragraph => string.Concat(
+                                    paragraph.Descendants<Text>().Select(item => item.Text)))
+                                .Where(value => !string.IsNullOrWhiteSpace(value)));
+                        if (string.IsNullOrWhiteSpace(cellText))
+                        {
+                            continue;
+                        }
+
+                        result.Content.Add(new(
+                            IntakeEvidenceSource.DocumentContent,
+                            $"{sourceLabel}, table {tableNumber} row {rowNumber} column {columnNumber}",
+                            cellText,
+                            IntakeSourceLocator.ForCell(tableNumber, rowNumber, columnNumber)));
+                    }
+                }
+            }
         }
     }
 
@@ -647,7 +799,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         if (!string.IsNullOrWhiteSpace(body))
         {
-            result.Content.Add(new(IntakeEvidenceSource.EmailBody, $"{sourceLabel}, email body", body));
+            // The retained body is kept whole and first, exactly as it was: it
+            // is the evidence, and bounding it here would change what every
+            // existing reading of it sees. What is added is the boundary — the
+            // current message is the region above the first quoted header, and
+            // the history beneath it becomes its own fragment. An operator, and
+            // a profile, can then tell what this sender wrote from what an
+            // earlier sender wrote.
+            AddMessageBodyFragments(body, sourceLabel, result);
 
             if (senderIdentityKind == IntakeSenderIdentityKind.Transport
                 && HasSingleStaffTransportSender(message)
@@ -671,6 +830,44 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 nestedDepth,
                 senderIdentityKind == IntakeSenderIdentityKind.Transport,
                 cancellationToken);
+        }
+    }
+
+    private static void AddMessageBodyFragments(
+        string body,
+        string sourceLabel,
+        ReadAccumulator result)
+    {
+        var quotedAt = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(body);
+        var hasQuotedHistory = quotedAt.Success && quotedAt.Index > 0;
+        var quotedStart = quotedAt.Index;
+        while (hasQuotedHistory
+            && quotedStart < body.Length
+            && (body[quotedStart] == '\r' || body[quotedStart] == '\n'))
+        {
+            quotedStart++;
+        }
+
+        result.Content.Add(new(
+            IntakeEvidenceSource.EmailBody,
+            $"{sourceLabel}, message body",
+            hasQuotedHistory ? body[..quotedAt.Index] : body,
+            IntakeSourceLocator.ForMessagePart(
+                IntakeMessagePart.CurrentBody,
+                hasQuotedHistory
+                    ? string.Create(CultureInfo.InvariantCulture, $"chars 0-{quotedAt.Index}")
+                    : null)));
+        if (hasQuotedHistory)
+        {
+            result.Content.Add(new(
+                IntakeEvidenceSource.EmailBody,
+                $"{sourceLabel}, quoted history",
+                body[quotedStart..],
+                IntakeSourceLocator.ForMessagePart(
+                    IntakeMessagePart.QuotedHistory,
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"chars {quotedStart}-{body.Length}"))));
         }
     }
 
@@ -1139,7 +1336,15 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         }
     }
 
-    private sealed record PdfResult(IReadOnlyList<PdfPageResult> Pages);
+    private sealed record PdfResult(
+        IReadOnlyList<PdfPageResult> Pages,
+        IReadOnlyList<PdfFormFieldResult> FormFields);
+
+    private sealed record PdfFormFieldResult(
+        string Name,
+        string Value,
+        int? Page,
+        string? Region);
 
     private sealed record PdfPageResult(
         int Number,

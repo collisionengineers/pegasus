@@ -323,5 +323,7 @@ public interface IMailClassificationPolicy
     string WorkProviderCode { get; }
     string PolicyKey { get; }
     int PolicyVersion { get; }
-    MailClassificationResult Classify(IntakeSourceReadResult readResult);
+    MailClassificationResult Classify(
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeContentFragment>? instructionContent = null);
 }

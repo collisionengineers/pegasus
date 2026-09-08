@@ -168,7 +168,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             DateTimeOffset.UtcNow,
             workflow.Version,
             workflow.State,
-            new(new(true, true, true, true), new(true, "test", 1)),
+            new(new(true, true), new(true, "test", 1)),
             new(Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),

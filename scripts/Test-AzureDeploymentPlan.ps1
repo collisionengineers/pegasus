@@ -22,6 +22,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 $mainBicepPath = Join-Path $repositoryRoot 'infra/main.bicep'
 $platformBicepPath = Join-Path $repositoryRoot 'infra/modules/platform.bicep'
 $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
@@ -117,11 +118,12 @@ function Test-ArtifactManifest {
     }
 
     $manifestDirectory = Split-Path -Parent $resolvedManifest
-    if ($manifest.migrationRuntimeIdentifier -ne 'linux-x64' -or
-        $manifest.migrationBundleName -ne 'efbundle') {
-        throw 'The release manifest must carry the Linux x64 efbundle.'
+    $migrationBundle = Get-PegasusMigrationBundle
+    if ($manifest.migrationRuntimeIdentifier -cne $migrationBundle.RuntimeIdentifier -or
+        $manifest.migrationBundleName -cne $migrationBundle.Name) {
+        throw "The release manifest must carry $($migrationBundle.RuntimeIdentifier)/$($migrationBundle.Name) for this workstation."
     }
-    $migrationBundleName = 'efbundle'
+    $migrationBundleName = $migrationBundle.Name
     $requiredNames = @('web.zip', 'web-image.tar.gz', 'worker.zip', $migrationBundleName)
     foreach ($name in $requiredNames) {
         $entry = @($manifest.artifacts | Where-Object name -eq $name)
@@ -139,10 +141,12 @@ function Test-ArtifactManifest {
         }
     }
 
-    $migrationBundlePath = Join-Path $manifestDirectory $migrationBundleName
-    $migrationBundleMode = [IO.File]::GetUnixFileMode($migrationBundlePath)
-    if (($migrationBundleMode -band [IO.UnixFileMode]::UserExecute) -eq 0) {
-        throw 'The Linux x64 migration bundle must be executable by its owner.'
+    if ($migrationBundle.IsLinux) {
+        $migrationBundlePath = Join-Path $manifestDirectory $migrationBundleName
+        $migrationBundleMode = [IO.File]::GetUnixFileMode($migrationBundlePath)
+        if (($migrationBundleMode -band [IO.UnixFileMode]::UserExecute) -eq 0) {
+            throw 'The Linux x64 migration bundle must be executable by its owner.'
+        }
     }
 
     if (
@@ -177,12 +181,12 @@ $productionSmoke = Get-Content -LiteralPath $productionSmokePath -Raw
 $releaseArtifactScript = Get-Content -LiteralPath $releaseArtifactPath -Raw
 $combined = "$mainBicep`n$platformBicep`n$parameters`n$azureYaml"
 
-Assert-Text $releaseArtifactScript "Get-PegasusPlatform[\s\S]*?IsLinux" 'Release artifact construction must require the Linux platform helper.'
-Assert-Text $releaseArtifactScript "OSArchitecture[\s\S]*?Architecture\]::X64" 'Release artifact construction must require x64.'
-Assert-Text $releaseArtifactScript "migrationRuntimeIdentifier\s*=\s*'linux-x64'" 'Release artifact construction must fix the migration runtime to linux-x64.'
-Assert-Text $releaseArtifactScript "migrationBundleName\s*=\s*'efbundle'" 'Release artifact construction must fix the migration bundle name to efbundle.'
+Assert-Text $releaseArtifactScript 'Get-PegasusMigrationBundle' 'Release artifact construction must use the shared workstation bundle identity.'
+Assert-Text $releaseArtifactScript 'migrationRuntimeIdentifier\s*=\s*\$migrationBundle\.RuntimeIdentifier' 'Release artifact construction must use the workstation migration runtime.'
+Assert-Text $releaseArtifactScript 'migrationBundleName\s*=\s*\$migrationBundle\.Name' 'Release artifact construction must use the workstation migration bundle name.'
 Assert-Text $releaseArtifactScript 'schemaVersion\s*=\s*3' 'Release artifact construction must emit manifest schema 3.'
-Assert-TextAbsent $releaseArtifactScript 'win-x64|efbundle\.exe' 'The active release artifact route must not retain a Windows bundle path.'
+Assert-Text $releaseArtifactScript 'Pegasus.Web.csproj -c Release -r linux-x64' 'The deployed Web artifact must target Linux x64.'
+Assert-Text $releaseArtifactScript 'Pegasus.Worker.csproj -c Release -r linux-x64' 'The deployed Worker artifact must target Linux x64.'
 
 Assert-Text $mainBicep "@allowed\(\[\s*'prod'\s*\]\)" 'infra/main.bicep must accept production only.'
 Assert-Text $mainBicep "deploymentMode\s*==\s*'approved-live-deployment'" 'Bicep must fail closed unless approved-live-deployment is supplied.'
@@ -290,7 +294,21 @@ if ([regex]::Matches($platformBicep, "resource\s+\w+\s+'Microsoft\.Storage/stora
     throw 'The production template must declare exactly two storage accounts.'
 }
 Assert-TextAbsent $platformBicep 'workerAuthenticationRing' 'Worker access to the Web authentication ring is prohibited.'
-Assert-TextAbsent $combined '(?i)\bdocumentintelligence\b|\bcognitiveservices\b|\bfoundry\b|\bmaps\b|\bvision\b|\bstaticwebapp\b' 'Deferred Azure services are prohibited from the alpha deployment.'
+Assert-TextAbsent $combined '(?i)\bfoundry\b|\bmaps\b|\bvision\b|\bstaticwebapp\b' 'Deferred Azure services are prohibited from the alpha deployment.'
+# ADR-0040 permits one keyless Document Intelligence account, not the other
+# Cognitive Services kinds or an additional account.
+$ocrAccounts = [regex]::Matches(
+    $platformBicep,
+    "(?ms)^resource documentIntelligence 'Microsoft\.CognitiveServices/accounts@2026-05-01' = \{.*?^\}"
+)
+if ($ocrAccounts.Count -ne 1) {
+    throw 'The production template must declare exactly the approved Document Intelligence account.'
+}
+$ocrAccount = $ocrAccounts[0].Value
+Assert-Text $ocrAccount "kind:\s*'FormRecognizer'" 'Only the FormRecognizer Document Intelligence account kind is approved.'
+Assert-Text $ocrAccount "sku:\s*\{\s*name:\s*'S0',\s*tier:\s*'Standard'\s*\}" 'Document Intelligence must use the approved S0 SKU.'
+Assert-Text $ocrAccount 'disableLocalAuth:\s*true' 'Document Intelligence local authentication must remain disabled.'
+Assert-TextAbsent ($combined.Replace($ocrAccount, '')) '(?i)\bcognitiveservices\b' 'Additional Cognitive Services resources are prohibited.'
 
 $bootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-ProductionAdministratorBootstrap.ps1') -Raw
 $databaseBootstrapScript = Get-Content -LiteralPath (Join-Path $repositoryRoot 'scripts/Invoke-AzureDatabaseBootstrap.ps1') -Raw
@@ -436,13 +454,44 @@ if ($Mode -eq 'PreProvision') {
         'AZURE_TENANT_ID',
         'AZURE_RESOURCE_GROUP',
         'WORKER_APP_NAME',
-        'PEGASUS_WORKER_ACTIVATION'
+        'PEGASUS_WORKER_ACTIVATION',
+        'BOX_HOLDING_FOLDER_ID',
+        'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
     )
     foreach ($key in $required) {
         if (-not $environmentValues.ContainsKey($key) -or
             [string]::IsNullOrWhiteSpace([string]$environmentValues[$key])) {
             throw "azd environment $Environment is missing $key."
         }
+    }
+    $certificateVaultHost = $null
+    foreach ($key in @('AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS')) {
+        foreach ($value in ([string]$environmentValues[$key]).Split(',')) {
+            $certificateUri = $null
+            if (-not [Uri]::TryCreate($value.Trim(), [UriKind]::Absolute, [ref]$certificateUri) -or
+                $certificateUri.Scheme -ne 'https' -or
+                -not $certificateUri.Host.EndsWith('.vault.azure.net', [StringComparison]::OrdinalIgnoreCase) -or
+                -not $certificateUri.IsDefaultPort -or
+                $certificateUri.UserInfo.Length -ne 0 -or
+                $certificateUri.Query.Length -ne 0 -or
+                $certificateUri.Fragment.Length -ne 0 -or
+                $certificateUri.AbsolutePath -cnotmatch '^/secrets/[^/]+/[^/]+/?$') {
+                throw "$key must contain comma-separated versioned Azure Key Vault HTTPS secret URIs."
+            }
+            if ($null -ne $certificateVaultHost -and
+                -not $certificateVaultHost.Equals($certificateUri.Host, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'Automation MCP signing and encryption certificates must belong to the same Azure Key Vault.'
+            }
+            $certificateVaultHost = $certificateUri.Host
+        }
+    }
+    if ($environmentValues.ContainsKey('AZURE_KEY_VAULT_NAME') -and
+        -not [string]::IsNullOrWhiteSpace([string]$environmentValues['AZURE_KEY_VAULT_NAME']) -and
+        -not $certificateVaultHost.Equals(
+            "$($environmentValues['AZURE_KEY_VAULT_NAME']).vault.azure.net", [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Automation MCP certificates must belong to the deployment environment Azure Key Vault.'
     }
     if (
         $environmentValues['AZURE_SUBSCRIPTION_ID'] -ne 'e6076573-23a5-46a8-acef-7e22d264e5db' -or

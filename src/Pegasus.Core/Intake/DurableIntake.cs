@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
@@ -43,7 +44,8 @@ public sealed record IntakeWorkItem(
     DateTimeOffset? LeaseExpiresAtUtc,
     Guid? ProcessedReceiptId,
     string? FailureCode,
-    bool IsReevaluation = false);
+    bool IsReevaluation = false,
+    bool HasPendingEvaluation = false);
 
 public enum StagedArtifactAuthorityState
 {
@@ -209,10 +211,17 @@ public interface IIntakeWorkStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
-    Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+    Task<IntakeEvaluationRevision> RecordEvaluationAsync(
         Guid workItemId,
         string leaseToken,
         Guid processedReceiptId,
+        DateTimeOffset completedAtUtc,
+        bool isReevaluation,
+        CancellationToken cancellationToken);
+
+    Task CompleteProcessingAsync(
+        Guid workItemId,
+        string leaseToken,
         DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken);
 
@@ -316,7 +325,10 @@ public sealed class ReceiveIntake(
         }
 
         // A received message and an uploaded file do not share a size bound:
-        // the form takes one file, a mailbox message carries the whole job.
+        // the form takes one file, a mailbox message carries the whole job, and
+        // a Provider API submission is bounded by the request body that carries
+        // it inline. One switch, one constant per channel, all of them owned by
+        // IntakeEnvelopeLimits (C07 item 5, residual INTK-052).
         var maximumContentLength = source.SourceIdentity.Channel switch
         {
             IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
@@ -540,6 +552,8 @@ public sealed class ProcessQueuedIntake(
     IAutomaticCaseAssociationStore caseAssociationStore,
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
+    IReadLogicalDocumentVersion retainedContentReader,
+    IIntakeOcrOperationStore ocrOperations,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
@@ -547,6 +561,16 @@ public sealed class ProcessQueuedIntake(
     SubmitMailboxImageIntake? mailboxImageIntake = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
+
+    /// <summary>
+    /// The same intake system worker as <see cref="SystemActor"/>, typed, for the
+    /// commands that carry an <see cref="ActionActor"/>. Triage records the actor
+    /// kind, so the subject is the bare worker identity and the kind is carried
+    /// rather than spelled into a prefix.
+    /// </summary>
+    private static readonly ActionActor SystemWorkerActor =
+        ActionActor.SystemWorker("intake-processing");
+
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan[] RetryDelays =
@@ -603,13 +627,7 @@ public sealed class ProcessQueuedIntake(
                     cancellationToken) ?? completedReceipt;
             }
 
-            // Re-drive automatic allocation on replay. The live path allocates
-            // after CompleteProcessingAsync and outside its try/catch, so a
-            // recoverable throw (e.g. a serializable begin failing transiently)
-            // after completion would otherwise strand a definitive receipt with
-            // no case. AttemptAutomaticAsync is idempotent: it no-ops once a case
-            // exists and suppresses a duplicate automatic attempt, so replaying
-            // it either mints the missing case or does nothing.
+            // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
                 completedReceipt.Id,
                 completedEvaluation.Id,
@@ -642,14 +660,9 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt,
                 replayTriage,
                 replayMailboxImagesHandled,
+                replayImageOutcome.UnidentifiedGroup,
                 cancellationToken);
-            // A failed attempt is deliberately not registered as Unidentified,
-            // so reporting a finished pass here would leave an accepted request
-            // in neither queue. Defer instead, exactly as a pending image group
-            // does above (INTK-033 review).
-            return replayTriage == TriageCreationOutcome.Failed
-                ? QueuedIntakeProcessingOutcome.RetryScheduled
-                : QueuedIntakeProcessingOutcome.NoOp;
+            return QueuedIntakeProcessingOutcome.NoOp;
         }
 
         var (workItem, stagedReceipt) = claimed.Value;
@@ -661,57 +674,126 @@ public sealed class ProcessQueuedIntake(
         IntakeReceipt processed;
         IntakeEvaluationRevision evaluation;
         var mailboxImagesHandled = false;
+        var groupPending = false;
         try
         {
-            ReadOnlyMemory<byte> content;
-            string durableStorageKey;
-            using (StartStage("artifact_read_and_retain"))
+            if (workItem.HasPendingEvaluation)
             {
-                content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
-                    ?? throw new IntakeArtifactIntegrityException();
-                var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-                if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
+                processed = await receiptQueries.GetAsync(workItem.ProcessedReceiptId!.Value, cancellationToken)
+                    ?? throw new InvalidDataException("The pending evaluation receipt is missing.");
+            }
+            else
+            {
+                ReadOnlyMemory<byte> content;
+                string durableStorageKey;
+                using (StartStage("artifact_read_and_retain"))
                 {
-                    throw new IntakeArtifactIntegrityException();
-                }
+                    if (workItem.IsReevaluation)
+                    {
+                        (content, durableStorageKey) = await ReadRetainedSourceAsync(
+                            workItem,
+                            stagedReceipt,
+                            cancellationToken);
+                    }
+                    else
+                    {
+                        content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
+                            ?? throw new IntakeArtifactIntegrityException();
+                        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
+                        if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
+                        {
+                            throw new IntakeArtifactIntegrityException();
+                        }
 
-                durableStorageKey = await artifactStore.StoreAsync(
-                    stagedReceipt.SourceHash,
-                    content,
-                    cancellationToken);
+                        durableStorageKey = await artifactStore.StoreAsync(
+                            stagedReceipt.SourceHash,
+                            content,
+                            cancellationToken);
+                    }
+                }
+                // Mirrors the terminal check below: once this attempt is the last
+                // one the retry schedule allows, a transient reader fault must be
+                // recorded as a terminal technical-failure receipt (and registered
+                // Unidentified) here rather than deferred to a retry that will
+                // never happen.
+                var isFinalAttempt = workItem.AttemptCount >= RetryDelays.Length;
+                using (StartStage("source_read_and_process"))
+                {
+                    processed = await processIntake.ExecuteRetainedAsync(
+                        new(
+                            stagedReceipt.SourceFileName,
+                            stagedReceipt.MediaType,
+                            content,
+                            stagedReceipt.ReceivedAtUtc,
+                            stagedReceipt.Actor,
+                            stagedReceipt.SourceIdentity),
+                        durableStorageKey,
+                        workItem.IsReevaluation,
+                        isFinalAttempt,
+                        cancellationToken);
+                }
             }
-            // Mirrors the terminal check below: once this attempt is the last
-            // one the retry schedule allows, a transient reader fault must be
-            // recorded as a terminal technical-failure receipt (and registered
-            // Unidentified) here rather than deferred to a retry that will
-            // never happen.
-            var isFinalAttempt = workItem.AttemptCount >= RetryDelays.Length;
-            using (StartStage("source_read_and_process"))
-            {
-                processed = await processIntake.ExecuteRetainedAsync(
-                    new(
-                        stagedReceipt.SourceFileName,
-                        stagedReceipt.MediaType,
-                        content,
-                        stagedReceipt.ReceivedAtUtc,
-                        stagedReceipt.Actor,
-                        stagedReceipt.SourceIdentity),
-                    durableStorageKey,
-                    workItem.IsReevaluation,
-                    isFinalAttempt,
-                    cancellationToken);
-            }
+            await BeginOcrOperationsAsync(processed, cancellationToken);
             if (mailboxImageIntake is not null)
             {
                 mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
                     processed,
-                    isFinalAttempt,
+                    workItem.AttemptCount >= RetryDelays.Length,
                     cancellationToken);
             }
-            evaluation = await workStore.CompleteProcessingAsync(
+            evaluation = await workStore.RecordEvaluationAsync(
                 workItem.Id,
                 workItem.LeaseToken,
                 processed.Id,
+                timeProvider.GetUtcNow(),
+                workItem.IsReevaluation,
+                cancellationToken);
+
+            TriageCreationOutcome triage;
+            using (StartStage("association_and_allocation"))
+            {
+                var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
+                if (associated)
+                {
+                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                }
+                if (await AssociateRetainedMailAsync(processed, cancellationToken))
+                {
+                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                }
+
+                var allocation = await allocateIntake.AttemptAutomaticAsync(
+                    processed.Id,
+                    evaluation.Id,
+                    cancellationToken);
+                var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
+                triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+                if (allocated)
+                {
+                    // Allocation wrote CurrentCaseId durably; image automation must
+                    // see the associated state rather than attempt a conflicting link.
+                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                }
+            }
+
+            var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+            groupPending = imageOutcome.GroupPending;
+            processed = imageOutcome.Receipt;
+            if (!imageOutcome.GroupPending)
+            {
+                await SynchronizeUnidentifiedAsync(
+                    processed,
+                    triage,
+                    mailboxImagesHandled,
+                    imageOutcome.UnidentifiedGroup,
+                    cancellationToken);
+            }
+
+            // A pending image group has its own durable group reconciliation owner.
+            // All writes for this evaluation must succeed before acknowledging work.
+            await workStore.CompleteProcessingAsync(
+                workItem.Id,
+                workItem.LeaseToken,
                 timeProvider.GetUtcNow(),
                 cancellationToken);
         }
@@ -723,75 +805,110 @@ public sealed class ProcessQueuedIntake(
         catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
         {
             var terminal = workItem.AttemptCount >= RetryDelays.Length;
-            await FailProcessingAsync(
-                workItem,
-                terminal,
-                TransientFailureCode(exception),
-                cancellationToken);
-            return terminal
-                ? QueuedIntakeProcessingOutcome.Failed
-                : QueuedIntakeProcessingOutcome.RetryScheduled;
+            await FailProcessingAsync(workItem, terminal, TransientFailureCode(exception), cancellationToken);
+            return terminal ? QueuedIntakeProcessingOutcome.Failed : QueuedIntakeProcessingOutcome.RetryScheduled;
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            // Anything else is a defect, not a condition to retry. The item is
-            // failed durably so staff see it, then the fault goes to the host
-            // unchanged: it is logged there in full, and the redelivery that
-            // follows finds the work failed and does nothing.
-            await FailProcessingAsync(
-                workItem,
-                terminal: true,
-                "unexpected_intake_processing_failure",
-                cancellationToken);
+            await FailProcessingAsync(workItem, terminal: true, "unexpected_intake_processing_failure", cancellationToken);
             throw;
         }
 
         await TryDeleteCompletedStagingAsync(
             stagedReceipt.StorageKey,
             cancellationToken);
+        return groupPending ? QueuedIntakeProcessingOutcome.RetryScheduled : QueuedIntakeProcessingOutcome.Completed;
+    }
 
-        TriageCreationOutcome triage;
-        using (StartStage("association_and_allocation"))
+    private async Task BeginOcrOperationsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        foreach (var candidates in receipt.ScannedPdfPages
+                     .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
         {
-            var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
-            if (associated)
+            // The reader labels a top-level PDF by its upload name; retention
+            // labels that same asset "uploaded source". Attachments already
+            // carry the reader's qualified label.
+            var isUploadedPdf = string.Equals(
+                candidates.Key,
+                $"uploaded {Path.GetFileName(receipt.SourceFileName)}",
+                StringComparison.Ordinal);
+            var asset = receipt.AssetRecords.SingleOrDefault(item =>
+                isUploadedPdf
+                    ? item.Kind == IntakeAssetKind.Source
+                        && item.Disposition == IntakeAssetDisposition.Source
+                    : string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
+            if (asset is null)
             {
-                processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
-            }
-            if (await AssociateRetainedMailAsync(processed, cancellationToken))
-            {
-                processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                throw new InvalidDataException(
+                    "An OCR-qualified source does not identify its retained asset.");
             }
 
-            var allocation = await allocateIntake.AttemptAutomaticAsync(
-                processed.Id,
-                evaluation.Id,
+            await IntakeOcrOperations.BeginAsync(
+                ocrOperations,
+                receipt.Id,
+                asset,
+                candidates.Select(candidate => candidate.PageNumber).ToArray(),
                 cancellationToken);
-            var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-            triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
-            if (allocated)
-            {
-                // Allocation wrote CurrentCaseId durably; image automation must
-                // see the associated state rather than attempt a conflicting link.
-                processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
-            }
         }
+    }
 
-        var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
-        processed = imageOutcome.Receipt;
-        if (imageOutcome.GroupPending)
+    private async Task<(ReadOnlyMemory<byte> Content, string StorageKey)> ReadRetainedSourceAsync(
+        IntakeWorkItem workItem,
+        IntakeStagedReceipt stagedReceipt,
+        CancellationToken cancellationToken)
+    {
+        if (workItem.ProcessedReceiptId is not { } receiptId)
         {
-            return QueuedIntakeProcessingOutcome.RetryScheduled;
+            throw new IntakeArtifactIntegrityException();
         }
 
-        await SynchronizeUnidentifiedAsync(
-            processed,
-            triage,
-            mailboxImagesHandled,
-            cancellationToken);
-        return triage == TriageCreationOutcome.Failed
-            ? QueuedIntakeProcessingOutcome.RetryScheduled
-            : QueuedIntakeProcessingOutcome.Completed;
+        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken)
+            ?? throw new IntakeArtifactIntegrityException();
+        var sources = receipt.AssetRecords
+            .Where(asset => asset.Kind == IntakeAssetKind.Source
+                && asset.Disposition == IntakeAssetDisposition.Source)
+            .Take(2)
+            .ToArray();
+        if (sources.Length != 1)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var source = sources[0];
+        if (source.ContentLength != receipt.SourceLength
+            || source.ContentLength != stagedReceipt.SourceLength
+            || !string.Equals(source.ContentHash, receipt.SourceHash, StringComparison.Ordinal)
+            || !string.Equals(source.ContentHash, stagedReceipt.SourceHash, StringComparison.Ordinal)
+            || source.ContentLength > int.MaxValue)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        try
+        {
+            await using var logical = await retainedContentReader.OpenAsync(
+                new(
+                    SystemWorkerActor,
+                    DocumentId: null,
+                    VersionId: null,
+                    IntakeAssetId: source.Id,
+                    CaseId: receipt.CurrentCaseId,
+                    IntakeReceiptId: receipt.Id,
+                    ExpectedSha256: source.ContentHash,
+                    ExpectedContentLength: source.ContentLength),
+                cancellationToken);
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)source.ContentLength));
+            await logical.Content.ReadExactlyAsync(bytes, cancellationToken);
+            return (bytes, source.StorageKey);
+        }
+        catch (Exception exception) when (exception is FileNotFoundException
+            or InvalidDataException
+            or UnauthorizedAccessException)
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
     }
 
     private static Activity? StartStage(string stage)
@@ -802,33 +919,10 @@ public sealed class ProcessQueuedIntake(
     }
 
     /// <summary>
-    /// Image-intake automation runs after the evaluation revision is durably
-    /// recorded (registration binds to that revision) and is advisory and
-    /// non-blocking: the persisted receipt stands regardless of any
-    /// automation failure, and every operation key is receipt-scoped so a
-    /// reprocessed receipt replays instead of duplicating.
+    /// Runs destination automation after its evaluation is recorded. Write failures
+    /// remain owned by the intake work item; a pending group is owned by the
+    /// bounded grouped-image reconciliation sweep.
     /// </summary>
-    /// <remarks>
-    /// A returned <c>GroupPending</c> says this receipt's own group outcome
-    /// did not complete this pass (its group is waiting on sibling
-    /// members/recognition, or its own registration attempt lost a transient
-    /// concurrency race). The caller then defers this pass's Unidentified
-    /// fallback instead of letting the receipt fall through to the
-    /// instruction-fallback path while the group could still resolve.
-    /// Deferral deliberately does not touch the durable work item: by that
-    /// point its evaluation is already <c>Completed</c> and its staged
-    /// artifact deleted (<see cref="TryDeleteCompletedStagingAsync"/> already
-    /// ran), so moving it back to <c>Pending</c> would force a future
-    /// re-claim through the artifact-reading path and fail with a
-    /// staged-artifact-integrity error. A completed work item is cheap and
-    /// safe to revisit instead: a later <see cref="ExecuteAsync"/> for the
-    /// same staged receipt finds nothing to claim and takes the replay
-    /// branch, which re-runs this automation without touching staging.
-    /// <see cref="ReconcileGroupedImageIntake"/> is that later call — the
-    /// durable, bounded retry this receipt gets, with registering
-    /// Unidentified as its poison-path escape once a receipt has been
-    /// pending long enough.
-    /// </remarks>
     private async Task<Pegasus.Core.ImageIntake.ImageIntakeAutomationOutcome> ApplyImageIntakeAutomationAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
@@ -838,62 +932,35 @@ public sealed class ProcessQueuedIntake(
             return new(receipt);
         }
 
-        try
-        {
-            return await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            // Non-blocking by design; suggestions and receipt state carry the
-            // visible outcome.
-            return new(receipt);
-        }
+        return await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
     }
 
     /// <summary>
-    /// Keeps the Unidentified queue in step with a receipt's outcome after
-    /// image automation has had its chance, advisory and non-blocking like
-    /// that automation itself:
-    /// - Image-only material still at <see cref="IntakeDecision.NeedsSorting"/>
-    ///   (below the confidence bar, or no automation configured) was
-    ///   deliberately skipped by <c>ProcessIntake</c> so automation could
-    ///   resolve it first; register it now so it is never silently absent
-    ///   from both the Image Intake and Unidentified queues.
-    /// - A Triage request that did not qualify for a Triage was skipped by
-    ///   <c>ProcessIntake</c> for the same reason; it did not qualify because
-    ///   no vehicle registration is known yet, which is exactly the operator's
-    ///   condition for holding it in Unidentified. A request that qualified
-    ///   and whose attempt failed is deliberately NOT registered: it is not
-    ///   unidentified material. The pass then reports itself unfinished so a
-    ///   redelivery opens its Triage, rather than acknowledging work that
-    ///   reached neither queue (INTK-033).
-    /// - A receipt that already carries an open Unidentified item but now
-    ///   has a different, resolved outcome (a Case now exists, or image
-    ///   automation registered an Image Intake) is stale in the open queue;
-    ///   resolve it to the destination that now exists.
+    /// Persists the one holding outcome after destination automation, or resolves
+    /// an existing receipt holding item to its now-established destination.
     /// </summary>
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
         TriageCreationOutcome triage,
         bool mailboxImagesHandled,
+        RegisterUnidentifiedRequest? unidentifiedGroup,
         CancellationToken cancellationToken)
     {
+        if (unidentifiedGroup is not null && registerUnidentified is not null)
+        {
+            await registerUnidentified.ExecuteAsync(unidentifiedGroup, cancellationToken);
+            return;
+        }
+
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
             && !mailboxImagesHandled
             && !(ProcessIntake.IsTriageRequest(receipt)
                 && triage is not TriageCreationOutcome.NotQualifying))
         {
-            try
-            {
-                await registerUnidentified.ExecuteAsync(
-                    ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
-                    cancellationToken);
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                // Advisory registration; the receipt's own outcome stands regardless.
-            }
+            await registerUnidentified.ExecuteAsync(
+                ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
+                cancellationToken);
 
             return;
         }
@@ -903,25 +970,12 @@ public sealed class ProcessQueuedIntake(
             return;
         }
 
-        try
-        {
-            // One owner for the supersession rule: the same component the
-            // reconciliation sweep uses resolves the receipt's stale open
-            // item to the destination that now exists.
-            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            // Advisory reconciliation; the receipt's own outcome stands regardless.
-        }
+        await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
     }
 
     /// <summary>
-    /// Advisory and non-blocking, like image automation: the evaluation and
-    /// its case-match decision are already durable, staff can always link
-    /// manually from the recorded decision, and a redelivered receipt replays
-    /// through the operation key — so a failed association write is never
-    /// allowed to fail the completed receipt.
+    /// Applies the recorded unique match. Persistence failures propagate to the
+    /// durable processing retry owner, never to the new-case allocation branch.
     /// </summary>
     private async Task<bool> AssociateCaseIfUnambiguousAsync(
         IntakeReceipt receipt,
@@ -939,31 +993,18 @@ public sealed class ProcessQueuedIntake(
             return false;
         }
 
-        try
-        {
-            var outcome = await caseAssociationStore.AssociateFromMatchAsync(
-                new(
-                    receipt.Id,
-                    matchedCaseId,
-                    decision.PolicyKey,
-                    decision.PolicyVersion,
-                    SystemActor,
-                    $"case-match-association:{evaluation.Id:N}",
-                    $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
-                timeProvider.GetUtcNow(),
-                cancellationToken);
-            return outcome == AutomaticCaseAssociationOutcome.Associated;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            // A vanished case, an archived case, or a live staff edit lease
-            // yields; the recorded decision stays visible for a staff link.
-            return false;
-        }
+        var outcome = await caseAssociationStore.AssociateFromMatchAsync(
+            new(
+                receipt.Id,
+                matchedCaseId,
+                decision.PolicyKey,
+                decision.PolicyVersion,
+                SystemActor,
+                $"case-match-association:{evaluation.Id:N}",
+                $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }
 
     private async Task<bool> AssociateRetainedMailAsync(
@@ -975,22 +1016,10 @@ public sealed class ProcessQueuedIntake(
             return false;
         }
 
-        try
-        {
-            var outcome = await automaticMailCaseAssociation.ExecuteAsync(
-                receipt.Id,
-                cancellationToken);
-            return outcome == AutomaticCaseAssociationOutcome.Associated;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            // Advisory: changed/ambiguous evidence yields to the staff link path.
-            return false;
-        }
+        var outcome = await automaticMailCaseAssociation.ExecuteAsync(
+            receipt.Id,
+            cancellationToken);
+        return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }
 
     private async Task TryDeleteCompletedStagingAsync(
@@ -1061,6 +1090,10 @@ public sealed class ProcessQueuedIntake(
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
         InvalidDataException => "invalid_intake_data",
         IntakeSourceIdentityConflictException => "source_identity_conflict",
+        // API-01's existing-Case rejection is a property of the submitted
+        // facts, not a fault: a redelivery would reach the same conclusion, so
+        // it fails on the first attempt under its own code with no backoff.
+        ProviderExistingCaseMatchException => ProviderExistingCaseMatchException.FailureCode,
         _ => null
     };
 
@@ -1070,27 +1103,9 @@ public sealed class ProcessQueuedIntake(
             : "intake_processing_failure";
 
     /// <summary>
-    /// Opens the Triage when the accepted route classified the message as a
-    /// Triage request and a vehicle registration is known, and reports whether
-    /// one now exists. The caller needs that answer: a Triage request with no
-    /// registration is the operator's Unidentified branch.
+    /// Opens qualifying Triage work under its evaluation identity. A missing
+    /// registration is Unidentified; a failed Triage write is a processing failure.
     /// </summary>
-    /// <remarks>
-    /// Advisory and non-blocking, like every other step after
-    /// <c>CompleteProcessingAsync</c>. This one had no fault handling while
-    /// its gate could never pass, so the omission was invisible; now that it
-    /// fires, an escaping fault would leave the receipt Completed, throw to
-    /// the host, and throw again identically on every redelivery — a poison
-    /// loop rather than a settled outcome.
-    ///
-    /// The outcome is three-valued rather than a boolean, because "did not
-    /// qualify" and "qualified and failed" need opposite answers from the
-    /// caller. A message with no known registration is Unidentified material
-    /// by the operator's rule; a message with one is not, whatever this
-    /// attempt did, and registering it would mint a U-reference for material
-    /// whose Triage the next redelivery opens — leaving both open, with
-    /// nothing able to close either.
-    /// </remarks>
     private async Task<TriageCreationOutcome> CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
@@ -1110,39 +1125,29 @@ public sealed class ProcessQueuedIntake(
             return TriageCreationOutcome.NotQualifying;
         }
 
-        try
-        {
-            await createTriage.ExecuteAsync(
+        await createTriage.ExecuteAsync(
+            new(
                 new(
-                    new(
-                        receipt.Id,
-                        receipt.SourceIdentity,
-                        receipt.SourceHash,
-                        evaluation.Id),
-                    registration,
-                    acceptedMatches[0],
-                    SystemActor,
-                    $"triage-from-intake-evaluation:{evaluation.Id:N}"),
-                cancellationToken);
-            return TriageCreationOutcome.Created;
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            return TriageCreationOutcome.Failed;
-        }
+                    receipt.Id,
+                    receipt.SourceIdentity,
+                    receipt.SourceHash,
+                    evaluation.Id),
+                registration,
+                acceptedMatches[0],
+                SystemWorkerActor,
+                $"triage-from-intake-evaluation:{evaluation.Id:N}"),
+            cancellationToken);
+        return TriageCreationOutcome.Created;
     }
 }
 
 /// <summary>
-/// What one Triage-creation attempt did, for a caller that must tell "this is
-/// not Triage material" apart from "this is Triage material and the attempt
-/// did not stick". Only the first is Unidentified.
+/// Whether the receipt qualified for Triage. Write failures propagate.
 /// </summary>
 internal enum TriageCreationOutcome
 {
     NotQualifying,
-    Created,
-    Failed
+    Created
 }
 
 public sealed class ReconcilePoisonedIntakeWork(
@@ -1348,22 +1353,14 @@ public sealed class LinkIntake(
             request.EditLeaseToken);
         await store.LinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
 
-        // A manually linked receipt whose image-only material already
-        // registered an Image intake must move that Image-initiated Case out
-        // of Awaiting instruction too — the one lifecycle transition owner
-        // also used by the automatic pairing paths. Advisory: the manual
-        // link itself has already committed, so a sync failure here is
-        // retried the next time this receipt is linked or a case is accepted.
-        try
+        // The reasoned link committed. The same observable owner completes
+        // untouched group members and merge, or leaves durable timer recovery.
+        var pairing = await casePairing.PairRegisteredReceiptAsync(request.ReceiptId, cancellationToken);
+        Activity.Current?.SetTag("image_intake.pairing_failures", pairing.Failures);
+        Activity.Current?.SetTag("image_intake.failure_type", pairing.FirstFailure);
+        if (pairing.Failures > 0)
         {
-            await casePairing.SyncMergeAfterLinkAsync(
-                request.ReceiptId,
-                request.CaseId,
-                request.Actor,
-                cancellationToken);
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
         }
     }
 }

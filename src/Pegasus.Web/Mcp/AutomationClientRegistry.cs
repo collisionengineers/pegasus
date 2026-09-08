@@ -233,6 +233,7 @@ public sealed class AutomationClientRegistry(
     /// </summary>
     public Task RecordConnectorDecisionAsync(
         ActionActor actor,
+        string grantId,
         Uri redirectUri,
         IReadOnlyCollection<string> scopes,
         bool approved,
@@ -240,13 +241,14 @@ public sealed class AutomationClientRegistry(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(grantId);
         ArgumentNullException.ThrowIfNull(redirectUri);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         return actionHistory.AppendAsync(
             new ActionHistoryEntry(
                 Guid.NewGuid(),
                 "automation_client",
-                options.ClientId,
+                grantId,
                 approved ? "automation_connector_authorized" : "automation_connector_denied",
                 actor,
                 timeProvider.GetUtcNow(),

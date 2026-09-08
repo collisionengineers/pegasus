@@ -2,8 +2,10 @@
 param(
     [switch]$Verify,
     [switch]$SkipCapture,
+    [ValidateSet(0, 1)]
+    [int]$MaxParallelThreads = 0,
     [string]$Scope,
-    [string]$CaptureFilter = 'FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests'
+    [string]$CaptureFilter = 'FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~QdosTriageIntegrationTests.AuthenticatedTriagePageExecutesLifecycleWithVersionsAndPermanentHistory|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,11 +71,12 @@ try {
         Invoke-TestUiPhase `
             -Name 'Capture browser responses' `
             -Filter "$effectiveCaptureFilter&Category!=Corpus&Category=Browser" `
-            -MaxParallelThreads 2
+            -MaxParallelThreads $(if ($MaxParallelThreads -gt 0) { $MaxParallelThreads } else { 2 })
         Invoke-TestUiPhase `
             -Name 'Capture non-browser responses' `
             -Filter "$effectiveCaptureFilter&Category!=Corpus&Category!=Browser" `
-            -NoBuild
+            -NoBuild `
+            -MaxParallelThreads $MaxParallelThreads
     }
 
     $env:PEGASUS_TEST_UI_MODE = $mode

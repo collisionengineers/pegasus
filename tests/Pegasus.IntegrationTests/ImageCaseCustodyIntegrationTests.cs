@@ -142,6 +142,21 @@ public sealed class ImageCaseCustodyIntegrationTests
         }
 
         var store = services.GetRequiredService<IImageIntakeStore>();
+        var mutations = services.GetRequiredService<IIntakeMutationStore>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
+        foreach (var receiptId in memberReceiptIds)
+        {
+            var workflow = await workflows.GetAsync(caseId, CancellationToken.None);
+            var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new(caseId, workflow!.Version, StaffActor(), $"image-custody-link-lease:{receiptId:N}"),
+                CancellationToken.None);
+            var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
+            await mutations.LinkAsync(new(receiptId, caseId, receipt!.Version, workflow.Version,
+                lease.Token, StaffActor(), $"image-custody-link:{receiptId:N}",
+                "Staff confirmed this image belongs to the instruction Case."),
+                DateTimeOffset.UtcNow, CancellationToken.None);
+        }
         var detail = await store.GetAsync(record.Id, CancellationToken.None);
         await store.MergeAsync(
             new(
@@ -150,7 +165,8 @@ public sealed class ImageCaseCustodyIntegrationTests
                 StaffActor(),
                 $"image-intake-merge:{record.Origin.ReceiptId:N}",
                 "The Image-initiated case was merged into the linked formal Case.",
-                detail!.LifecycleVersion),
+                detail!.LifecycleVersion,
+                ExpectedStaffOriginAssociationVersion: 0),
             CancellationToken.None);
 
         Guid mergeWorkId;
@@ -360,7 +376,7 @@ public sealed class ImageCaseCustodyIntegrationTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         return caseId;

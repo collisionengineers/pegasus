@@ -205,7 +205,10 @@ internal sealed class EfQueuedCustodyProcessor(
                         casePayload.SourceLength,
                         casePayload.SourceHash,
                         DocumentSemanticRole.OriginalSource,
-                        $"{casePayload.OperationKey}:source")
+                        $"{casePayload.OperationKey}:source",
+                        version.RemoteId,
+                        version.BoxVersionId,
+                        casePayload.SourceAssetId)
                 };
                 retainedFiles.AddRange(await RetainInstructionAttachmentsAsync(
                     root, casePayload, leaseGuard, cancellationToken));
@@ -283,7 +286,7 @@ internal sealed class EfQueuedCustodyProcessor(
         for (var index = 0; index < attachments.Count; index++)
         {
             var attachment = attachments[index];
-            await caseCustody.RetainAcceptedIntakeAttachmentAsync(
+            var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
                 root,
                 new(
                     casePayload.IntakeReceiptId,
@@ -311,7 +314,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 InstructionEvidenceImages.IsImage(attachment.MediaType)
                     ? DocumentSemanticRole.Image
                     : DocumentSemanticRole.Instruction,
-                $"{casePayload.OperationKey}:attachment:{attachment.Id:N}"));
+                $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
+                version.RemoteId,
+                version.BoxVersionId,
+                attachment.Id));
         }
 
         // DOCS-006: photographs embedded in the instruction's documents land
@@ -325,7 +331,7 @@ internal sealed class EfQueuedCustodyProcessor(
         for (var index = 0; index < photographs.Length; index++)
         {
             var photograph = photographs[index];
-            await caseCustody.RetainAcceptedIntakeAttachmentAsync(
+            var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
                 root,
                 new(
                     casePayload.IntakeReceiptId,
@@ -346,7 +352,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 photograph.ContentLength,
                 photograph.ContentHash,
                 DocumentSemanticRole.Image,
-                $"{casePayload.OperationKey}:embedded:{photograph.Id:N}"));
+                $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
+                version.RemoteId,
+                version.BoxVersionId,
+                photograph.Id));
         }
 
         return retained;
@@ -385,6 +394,7 @@ internal sealed class EfQueuedCustodyProcessor(
             .Select(occurrence => occurrence.OperationKey)
             .ToListAsync(cancellationToken);
         var recorded = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
+        var added = false;
 
         foreach (var file in retainedFiles)
         {
@@ -409,6 +419,8 @@ internal sealed class EfQueuedCustodyProcessor(
                 MediaType = file.MediaType,
                 ContentLength = file.ContentLength,
                 Sha256 = file.ContentHash,
+                BoxFileId = file.BoxFileId,
+                BoxVersionId = file.BoxVersionId,
                 CustodyStatus = DocumentCustodyStatus.Confirmed,
                 CreatedAtUtc = now,
                 CreatedBy = "system:custody",
@@ -416,6 +428,15 @@ internal sealed class EfQueuedCustodyProcessor(
             };
             context.Add(document);
             context.Add(version);
+            added = true;
+            if (file.IntakeAssetId is { } intakeAssetId)
+            {
+                var asset = await context.Set<IntakeAssetEntity>()
+                    .SingleAsync(value => value.Id == intakeAssetId, cancellationToken);
+                asset.BoxFileId = file.BoxFileId;
+                asset.BoxVersionId = file.BoxVersionId;
+                asset.CustodyStatus = "confirmed";
+            }
             context.Add(new DocumentOccurrenceEntity
             {
                 Id = Guid.NewGuid(),
@@ -429,6 +450,12 @@ internal sealed class EfQueuedCustodyProcessor(
                 RecordedAtUtc = now,
                 OperationKey = file.OperationKey
             });
+        }
+        if (added)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, caseId, Pegasus.Core.Reports.CaseReportStaleReasons.SourceDocumentsChanged,
+                now, cancellationToken);
         }
     }
 
@@ -444,7 +471,10 @@ internal sealed class EfQueuedCustodyProcessor(
         long ContentLength,
         string ContentHash,
         DocumentSemanticRole SemanticRole,
-        string OperationKey);
+        string OperationKey,
+        string BoxFileId,
+        string? BoxVersionId,
+        Guid? IntakeAssetId);
 
     private static async Task<WorkPayload> LoadPayloadAsync(
         PegasusDbContext context,
@@ -468,6 +498,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 && value.Kind == "source"
                 && value.Disposition == "source")
             .Select(value => new SourcePayload(
+                value.Id,
                 value.FileName,
                 value.MediaType,
                 value.ContentLength,
@@ -505,6 +536,7 @@ internal sealed class EfQueuedCustodyProcessor(
             receipt.SourceHash,
             source.StorageKey,
             source.ContentLength,
+            source.IntakeAssetId,
             operationKey,
             caseRootCreationToken,
             auditFolderCreationToken);
@@ -580,18 +612,12 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
             caseEntity.AuditCustodyConfirmedAtUtc = now;
         }
-        // CASE-013: this used to restate the readiness rule, and the copy was
-        // stricter than the one in Core — it required staff confirmation that
-        // CaseCompleteness.IsReadyForReview waives for an automatically
-        // definitive intake. Core's rule had no caller at all, which is how
-        // the two came to disagree. It has one now.
+        // Use the same factual completeness rule as intake acceptance.
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
-            caseEntity.ImagesComplete,
-            caseEntity.InstructionConfirmedByStaff,
-            caseEntity.ImagesConfirmedByStaff);
+            caseEntity.ImagesComplete);
         if (workflow.State == CaseLifecycleState.NotReady.ToString()
-            && completeness.IsReadyForReview(automaticallyDefinitive: false))
+            && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
         }
@@ -817,6 +843,7 @@ internal sealed class EfQueuedCustodyProcessor(
             {
                 asset.IntakeReceiptId,
                 Payload = new SourcePayload(
+                    asset.Id,
                     asset.FileName,
                     asset.MediaType,
                     asset.ContentLength,
@@ -1121,11 +1148,13 @@ internal sealed class EfQueuedCustodyProcessor(
         string SourceHash,
         string SourceObjectKey,
         long SourceLength,
+        Guid SourceAssetId,
         string OperationKey,
         string? CaseRootCreationToken,
         string? AuditFolderCreationToken) : CustodyWorkPayload;
 
     private sealed record SourcePayload(
+        Guid IntakeAssetId,
         string SourceFileName,
         string MediaType,
         long ContentLength,

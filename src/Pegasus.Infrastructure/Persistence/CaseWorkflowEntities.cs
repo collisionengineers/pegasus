@@ -24,6 +24,7 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public string? ArchivedByRolesJson { get; set; }
     public string? ArchiveReason { get; set; }
     public long Version { get; set; }
+    public long EditLeaseGeneration { get; set; }
     // Server-only, short-lived replay recovery material; never project, log, or copy to history.
     public string? EditLeaseToken { get; set; }
     public string? EditLeaseTokenHash { get; set; }

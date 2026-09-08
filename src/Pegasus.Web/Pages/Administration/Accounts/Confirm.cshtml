@@ -13,17 +13,22 @@
         <h2 id="account-action-title">@Model.Heading</h2>
     </div>
     <div class="panel-body">
-        @if (Model.IsDisable)
+        <dl class="detail-list"><div><dt>Account</dt><dd>@Model.Account!.UserName</dd></div></dl>
+        @if (Model.Operation is "Disable" or "Delete")
         {
             <div class="notice notice--warning">
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                <span>@OperatorLabels.StaffAccounts.DisableConsequence</span>
+                <span>@(Model.Operation == "Disable" ? OperatorLabels.StaffAccounts.DisableConsequence : "This permanently removes the account.")</span>
             </div>
         }
         <form method="post" asp-page="/Administration/Accounts/Index"
               asp-page-handler="@Model.HandlerName" class="stack">
             <input type="hidden" name="staffId" value="@Model.StaffId" />
             <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+            @if (Model.Operation == "ClearLease")
+            {
+                <input type="hidden" name="caseId" value="@Model.CaseId" />
+                <input type="hidden" name="expectedLeaseGeneration" value="@Model.LeaseGeneration" />
+            }
             <div class="field field--narrow">
                 <label class="req" for="confirm-reason">@OperatorLabels.StaffAccounts.Reason</label>
                 <textarea id="confirm-reason" name="reason" rows="3" required
@@ -38,3 +43,16 @@
         </form>
     </div>
 </section>
+
+@if (Model.Operation != "ClearLease" && Model.Leases.Count > 0)
+{
+    <section class="panel" aria-labelledby="held-case-edits-title">
+        <div class="panel-head"><h2 id="held-case-edits-title">Open case edits</h2></div>
+        <div class="panel-body"><ul class="accepted-list">
+        @foreach (var lease in Model.Leases)
+        {
+            <li>@lease.CaseReference <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ClearLease" asp-route-staffId="@Model.StaffId" asp-route-caseId="@lease.CaseId" asp-route-leaseGeneration="@lease.LeaseGeneration">Clear</a></li>
+        }
+        </ul></div>
+    </section>
+}

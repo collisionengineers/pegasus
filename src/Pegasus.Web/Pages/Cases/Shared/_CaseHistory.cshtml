@@ -70,18 +70,17 @@
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <input type="hidden" name="attemptedAtUtc" value="@Model.ManualChaseAttemptedAtUtc.ToString("O")" />
                 <div class="grid grid-2">
+                    <div class="field"><label class="req" for="chase-recipient">@CaseWorkspaceLabels.Chase.Recipient</label><input id="chase-recipient" name="recipient" required maxlength="500" /></div>
                     <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" name="channel" required maxlength="100" /></div>
-                    <div class="field"><label class="req" for="chase-target">Target party or address</label><input id="chase-target" name="targetPartyOrAddress" required maxlength="500" /></div>
+                    <div class="field"><label for="chase-content">@CaseWorkspaceLabels.Chase.Content</label><input id="chase-content" name="content" maxlength="1000" /></div>
                     <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" name="outcome" required maxlength="500" /></div>
-                    <div class="field"><label for="chase-note">Note</label><input id="chase-note" name="note" maxlength="1000" /></div>
                     <div class="field"><label class="req" for="chase-reason">Reason</label><input id="chase-reason" name="reason" required maxlength="500" /></div>
                 </div>
                 <div class="button-row">
                     <button type="submit" class="btn">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                        <span>Record chase</span>
+                        <span>@CaseWorkspaceLabels.Chase.RecordChase</span>
                     </button>
                 </div>
             </form>

@@ -9,9 +9,9 @@ internal sealed record FixturePiece(uint CpStart, uint CpEnd, uint FileOffset, b
 
 internal static class WordBinaryFixture
 {
-    internal static byte[] CreateRawCfb(IReadOnlyList<FixturePiece> pieces)
+    internal static byte[] CreateRawCfb(IReadOnlyList<FixturePiece> pieces, uint[]? storyLengths = null)
     {
-        CompoundFile logical = Create(pieces);
+        CompoundFile logical = Create(pieces, storyLengths);
         byte[] word = logical.DirectoryEntries.Single(static entry => entry.Name == "WordDocument").Content.ToArray();
         byte[] table = logical.DirectoryEntries.Single(static entry => entry.Name == "0Table").Content.ToArray();
         const int sectorSize = 512;
@@ -82,6 +82,7 @@ internal static class WordBinaryFixture
         bool includeSelectedTable = true,
         bool malformedReservedFc = false,
         bool addUnprocessedRange = false,
+        bool complex = true,
         Action<byte[], byte[]>? configureStreams = null,
         IReadOnlyList<CompoundFileDirectoryEntry>? additionalEntries = null)
     {
@@ -108,7 +109,7 @@ internal static class WordBinaryFixture
         byte[] table = BuildTable(pieces, malformedReservedFc);
         WriteFib(wordDocument, storyLengths, useOneTable, encrypted, obfuscated, hasPictures,
             identifier, version, effectiveVersion, nextFibPage, characterSet,
-            checked((uint)(12 * pieces.Count + 9)), addUnprocessedRange);
+            checked((uint)(12 * pieces.Count + 9)), addUnprocessedRange, complex);
         configureStreams?.Invoke(wordDocument, table);
 
         var entries = ImmutableArray.CreateBuilder<CompoundFileDirectoryEntry>();
@@ -185,13 +186,17 @@ internal static class WordBinaryFixture
         short nextFibPage,
         ushort characterSet,
         uint clxLength,
-        bool addUnprocessedRange)
+        bool addUnprocessedRange,
+        bool complex)
     {
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(0), identifier);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), version);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), 0x0409);
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8), nextFibPage);
-        ushort flags = 0x0004;
+        ushort flags = 0;
+        // fComplex: fast-saved (incremental) status. Real Word writes a CLX
+        // piece table with this flag UNSET on a clean single save.
+        if (complex) flags |= 0x0004;
         if (oneTable) flags |= 0x0200;
         if (encrypted) flags |= 0x0100;
         if (obfuscated) flags |= 0x8000;

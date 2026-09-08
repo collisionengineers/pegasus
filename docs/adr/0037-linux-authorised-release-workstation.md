@@ -1,9 +1,9 @@
 ---
 id: ADR-0037
-status: accepted
+status: superseded
 date: 2026-09-04
-supersedes: []
-superseded_by: []
+supersedes: [ADR-0007]
+superseded_by: [ADR-0039]
 related_capabilities: [OPS-10, OPS-24]
 related_frd: []
 tags: [deployment, linux, release]
@@ -13,7 +13,9 @@ tags: [deployment, linux, release]
 
 ## Status
 
-Accepted 2026-09-04 by the Collision Engineers operator through DELIV-047.
+Superseded 2026-09-07 by [ADR-0039](0039-windows-and-linux-release-workstations.md)
+on the operator's explicit Windows and Linux requirement. The decision below
+records the historical Linux-only choice, accepted 2026-09-04 through DELIV-047.
 Production promotion and Azure or database writes remain separately approved
 operations.
 
@@ -64,4 +66,4 @@ only; it does not grant promotion or Azure/database write authority.
 - Direct terminal and release order:
   [ADR-0007](0007-direct-terminal-azure-deployment.md).
 - Environment boundary: [ADR-0014](0014-local-to-production-deployment.md).
-- Procedure: [Deployment and release](../runbook.md#deployment-and-release).
+- Procedure: [Deployment and release](../../.agents/skills/pegasus-release/SKILL.md).

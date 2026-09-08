@@ -12,10 +12,8 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-027: Staff accounts, staff roles and the access review are one
-/// administration area. These tests pin the fold itself — that the single
-/// page still reaches every Core use case the three superseded pages reached,
-/// and that no capability was dropped on the way.
+/// Staff account and role administration reaches the current Core actions
+/// through one administration area, including session and credential changes.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed partial class StaffAccountsAndRolesWebTests
@@ -23,7 +21,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
     private const string AreaRoute = "/Administration/Accounts";
 
     [Fact]
-    public async Task ConsolidatedAreaCarriesAccountsRolesAndAccessReview()
+    public async Task ConsolidatedAreaCarriesAccountActionsAndRoles()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -36,7 +34,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
         // One area, drawn as the design contract draws it.
         Assert.Contains("Staff accounts &amp; roles", html, StringComparison.Ordinal);
         Assert.Contains("class=\"admin-layout\"", html, StringComparison.Ordinal);
-        foreach (var column in new[] { "Username", "Role", "State", "Last reviewed", "Save", "Account" })
+        foreach (var column in new[] { "Username", "Role", "State", "Save", "Account" })
         {
             Assert.Contains($"<th scope=\"col\">{column}</th>", html, StringComparison.Ordinal);
         }
@@ -84,17 +82,16 @@ public sealed partial class StaffAccountsAndRolesWebTests
         var created = await FindAccountAsync(factory, "plat027-web-caller");
         Assert.Equal(new[] { StaffRole.User }, created.Roles);
         Assert.True(created.IsEnabled);
-        Assert.Null(created.LastAccessReviewAtUtc);
 
         using var createdLanding = await client.GetAsync(AreaRoute);
         var createdHtml = await createdLanding.Content.ReadAsStringAsync();
         createdLanding.EnsureSuccessStatusCode();
         Assert.Contains(
-            $"data-dialog-open=\"disable-{created.Id:D}\"",
+            $"/Administration/Accounts/Confirm/Disable/{created.Id:D}",
             createdHtml,
             StringComparison.Ordinal);
         Assert.Contains(
-            $"data-dialog-open=\"review-{created.Id:D}\"",
+            $"/Administration/Accounts/Confirm/ResetPassword/{created.Id:D}",
             createdHtml,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -102,31 +99,19 @@ public sealed partial class StaffAccountsAndRolesWebTests
             createdHtml,
             StringComparison.Ordinal);
         Assert.Contains(
-            $"id=\"disable-{created.Id:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
-            createdHtml,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"id=\"review-{created.Id:D}_reason\" name=\"Reason\" rows=\"3\" required maxlength=\"{StaffAccountAdministrationPolicy.MaximumReasonLength}\"",
-            createdHtml,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Disabling revokes existing browser sessions; the account is retained permanently.",
-            createdHtml,
-            StringComparison.Ordinal);
-        Assert.Contains(
             $"href=\"/Administration/Accounts/Confirm/Disable/{created.Id:D}\"",
             createdHtml,
             StringComparison.Ordinal);
         Assert.Contains(
-            $"href=\"/Administration/Accounts/Confirm/Review/{created.Id:D}\"",
+            $"href=\"/Administration/Accounts/Confirm/ResetPassword/{created.Id:D}\"",
             createdHtml,
             StringComparison.Ordinal);
         using var scriptOffConfirm = await client.GetAsync(
-            $"/Administration/Accounts/Confirm/Review/{created.Id:D}");
+            $"/Administration/Accounts/Confirm/ResetPassword/{created.Id:D}");
         var scriptOffConfirmHtml = await scriptOffConfirm.Content.ReadAsStringAsync();
         scriptOffConfirm.EnsureSuccessStatusCode();
         Assert.Contains("method=\"post\"", scriptOffConfirmHtml, StringComparison.Ordinal);
-        Assert.Contains("handler=Review", scriptOffConfirmHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=ResetPassword", scriptOffConfirmHtml, StringComparison.Ordinal);
 
         // The Disable branch of the same page, which is the one that carries
         // the consequence notice; both branches are Test UI catalogue states.
@@ -256,20 +241,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
             await missingNamePost.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
 
-        // Access review — the capability the separate Access page carried.
-        using var reviewPost = await client.PostAsync(
-            $"{AreaRoute}?handler=Review",
-            Form(
-                ("__RequestVerificationToken", token),
-                ("operationKey", Guid.NewGuid().ToString("N")),
-                ("staffId", created.Id.ToString("D")),
-                ("reason", new string('R', StaffAccountAdministrationPolicy.MaximumReasonLength))));
-        Assert.Equal(HttpStatusCode.Redirect, reviewPost.StatusCode);
-
-        var afterReview = await FindAccountAsync(factory, "plat027-web-caller");
-        Assert.NotNull(afterReview.LastAccessReviewAtUtc);
-
-        // Account disable — the capability the separate Edit page carried.
+        // Account disable remains an explicit, reasoned action.
         using var disablePost = await client.PostAsync(
             $"{AreaRoute}?handler=Disable",
             Form(
@@ -282,64 +254,61 @@ public sealed partial class StaffAccountsAndRolesWebTests
         var afterDisable = await FindAccountAsync(factory, "plat027-web-caller");
         Assert.False(afterDisable.IsEnabled);
 
-        // The readout the fold had to keep: a reviewed account shows when, and
-        // the account state chip follows the disable.
         using var settled = await client.GetAsync(AreaRoute);
         var settledHtml = await settled.Content.ReadAsStringAsync();
         settled.EnsureSuccessStatusCode();
-        // Razor encodes the round-trip stamp's "+" as &#x2B;, so the attribute
-        // is compared decoded rather than byte for byte.
-        var renderedTimes = TimeStampRegex().Matches(settledHtml)
-            .Select(match => WebUtility.HtmlDecode(match.Groups["value"].Value))
-            .ToArray();
-        Assert.Contains(afterReview.LastAccessReviewAtUtc!.Value.ToString("O"), renderedTimes);
         Assert.Contains(">Disabled</span>", settledHtml, StringComparison.Ordinal);
-        // A disabled account keeps its Review action and loses only Disable.
-        Assert.DoesNotContain(
-            $"data-dialog-open=\"disable-{afterDisable.Id:D}\"",
-            settledHtml,
-            StringComparison.Ordinal);
         Assert.Contains(
-            $"data-dialog-open=\"review-{afterDisable.Id:D}\"",
+            $"/Administration/Accounts/Confirm/Enable/{afterDisable.Id:D}",
             settledHtml,
             StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task OutstandingAccessReviewIsShownForAnAccountCoreCallsDue()
+    public async Task SupersededStaffAccessRoutesAreAbsent()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        // The seeded administrator has never been reviewed and is enabled, so
-        // Core's ReviewIsOutstanding is true for it.
-        var administrator = await FindAccountAsync(factory, DevelopmentOfflineIdentity.UserName);
-        Assert.Null(administrator.LastAccessReviewAtUtc);
-
-        using var landing = await client.GetAsync(AreaRoute);
-        var html = await landing.Content.ReadAsStringAsync();
-        landing.EnsureSuccessStatusCode();
-        Assert.Contains(">Due</span>", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task SupersededStaffAccessRoutesStillAnswerUntilTheRemovalTicket()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        // PLAT-027 builds the replacement; UIIMP-009 deletes these. Until then
-        // they must not 404 — and they must not be linked from the area rail.
-        foreach (var route in new[] { "/Administration/Roles", "/Administration/Access" })
+        foreach (var route in new[] { "/Administration/Access", "/Administration/Accounts/Edit/00000000-0000-0000-0000-000000000000" })
         {
             using var response = await client.GetAsync(route);
-            response.EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
 
         using var landing = await client.GetAsync(AreaRoute);
         var html = await landing.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("/Administration/Roles", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/Administration/Access", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PasswordResetReturnsTheTemporaryPasswordOnlyOnItsPostResponse()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var creationScope = factory.Services.CreateAsyncScope();
+        var created = await CreateEngineerAsync(
+            creationScope.ServiceProvider,
+            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+            "a01-reset-password");
+
+        using var confirmation = await client.GetAsync(
+            $"/Administration/Accounts/Confirm/ResetPassword/{created.Id:D}");
+        var confirmationHtml = await confirmation.Content.ReadAsStringAsync();
+        confirmation.EnsureSuccessStatusCode();
+        Assert.DoesNotContain("Temporary password</h2>", confirmationHtml, StringComparison.Ordinal);
+
+        using var reset = await client.PostAsync(
+            $"{AreaRoute}?handler=ResetPassword",
+            Form(
+                ("__RequestVerificationToken", InputValue(confirmationHtml, "__RequestVerificationToken")),
+                ("operationKey", InputValue(confirmationHtml, "operationKey")),
+                ("staffId", created.Id.ToString("D")),
+                ("reason", "A01 reset password proof")));
+        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        var resetHtml = await reset.Content.ReadAsStringAsync();
+        Assert.Contains("Temporary password</h2>", resetHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Temporary-Password-1", resetHtml, StringComparison.Ordinal);
     }
 
     [Fact]

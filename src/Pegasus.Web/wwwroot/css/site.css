@@ -789,7 +789,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .nav-link:hover{transform:none}.nav-link .icon{width:26px;height:26px}
   .nav-link[aria-current="page"]{border-left:0;border-bottom-color:var(--red)}
   .utility-bar{top:0}
-  .admin-nav{position:static;display:flex;gap:2px;overflow-x:auto;margin-bottom:9px}
+  .admin-nav{position:static;display:flex;flex-wrap:wrap;gap:2px;overflow:visible;margin-bottom:9px}
   .admin-nav a{flex:0 0 auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
   .admin-nav a[aria-current="page"]{border-bottom-color:var(--red)}
   .admin-nav a .icon{width:25px;height:25px}

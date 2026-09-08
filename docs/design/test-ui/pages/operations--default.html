@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Operations · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -177,8 +178,6 @@
 </header>
 
 
-
-
 <div class="stack section-gap">
     <section class="panel" aria-labelledby="ai-jobs-title">
         <div class="panel-head">
@@ -215,7 +214,7 @@
                     <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
                     <tbody>
                         <tr>
-                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><a href="#">QD31001</a></td>
                             <td>Vehicle lookup</td>
                             <td class="tabular">5</td>
                             <td>The retry policy was exhausted.</td>
@@ -246,7 +245,7 @@
                     <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
                     <tbody>
                         <tr>
-                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><a href="#">QD31001</a></td>
                             <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
                             <td>
                                     <span>under 0.1 MB of 50.0 MB</span>
@@ -275,7 +274,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><a href="#">QD31001</a></td>
                             <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
                             <td>
                                     <span>under 0.1 MB of 50.0 MB</span>
@@ -288,7 +287,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><a href="#">QD31001</a></td>
                             <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
                             <td>
                                     <span>under 0.1 MB of 50.0 MB</span>
@@ -301,7 +300,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td><a href="case-details--default.html">QD31001</a></td>
+                            <td><a href="#">QD31001</a></td>
                             <td><time datetime="2031-05-06T10:30:00.0000000&#x2B;00:00">06 May 2031 11:30</time></td>
                             <td>
                                     <span>under 0.1 MB of 50.0 MB</span>
@@ -391,10 +390,16 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
+                <div class="pane-body pane-scroll" data-row-list>
+                        <a class="work-item" href="operations--default.html">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">External work · QD31001</span>
+                                    <h3>Vehicle lookup</h3>
+                                </span>
+                            </span>
+                        </a>
+                </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

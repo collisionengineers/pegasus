@@ -15,6 +15,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -172,11 +173,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
 
-        // The four sections that have a body below the fold are served as
-        // fragments; every other host, including the four Engineer shells,
+        // The five sections that have a body below the fold are served as
+        // fragments; every other host, including the Engineer shells,
         // renders with the page.
         Assert.Equal(
-            ["engineer-notes", "vehicle", "files", "notes"],
+            ["engineer-notes", "vehicle", "valuation", "files", "notes"],
             DeferredSections(html));
     }
 
@@ -310,6 +311,154 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// PR 670 port (B01): an upload request names who it was sent to and why,
+    /// read from the request's own record; a request recorded before those
+    /// facts existed shows the absent marker rather than an empty cell.
+    /// </summary>
+    [Fact]
+    public async Task UploadRequestsListRecipientAndReasonFromTheRecord()
+    {
+        var createdAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
+        {
+            RequestUploadLinks =
+            [
+                new(
+                    Guid.NewGuid(),
+                    RequestUploadStatus.Active,
+                    createdAtUtc,
+                    createdAtUtc.AddDays(7),
+                    null,
+                    0,
+                    0,
+                    1,
+                    "Provider claims team",
+                    "Missing photographs of the rear damage"),
+                new(
+                    Guid.NewGuid(),
+                    RequestUploadStatus.Expired,
+                    createdAtUtc.AddDays(-14),
+                    createdAtUtc.AddDays(-7),
+                    null,
+                    2,
+                    4_096,
+                    3)
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+        var panel = Section(html, "case-upload-requests-title");
+        var visible = WebUtility.HtmlDecode(VisibleText(panel));
+
+        foreach (var heading in new[] { "Recipient", "Reason", "State", "Created", "Expires", "Accepted" })
+        {
+            Assert.Contains(heading, visible, StringComparison.Ordinal);
+        }
+        Assert.Contains("Provider claims team", visible, StringComparison.Ordinal);
+        Assert.Contains("Missing photographs of the rear damage", visible, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(visible, Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue));
+        Assert.DoesNotContain("id=\"create-upload-request\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PR 670 port (B01), the write side over the shared G17 contract: the
+    /// create dialog requires a recipient and offers a reason; the handler
+    /// forwards both unchanged, and an omitted reason reaches Core as null.
+    /// </summary>
+    [Fact]
+    public async Task CreateUploadRequestDialogPostsRecipientAndReasonToTheCommand()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICreateRequestUploadLink>(services, store));
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+        var dialog = html[html.IndexOf("id=\"create-upload-request\"", StringComparison.Ordinal)..];
+        dialog = dialog[..dialog.IndexOf("</dialog>", StringComparison.Ordinal)];
+
+        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=CreateRequestUploadLink", dialog, StringComparison.Ordinal);
+        Assert.Matches("<input[^>]*name=\"recipient\"[^>]*required", dialog);
+        Assert.Contains("name=\"reason\"", dialog, StringComparison.Ordinal);
+
+        using var withReason = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            workspace.MutationForm(
+                "create-request-link-1",
+                "  Please send the rear photographs  ",
+                ("recipient", "Provider claims team")));
+        using var withoutReason = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "create-request-link-2"),
+                ("editLeaseToken", store.LeaseToken),
+                ("recipient", "Claimant"),
+                ("reason", "")));
+
+        AssertPrg(withReason, store.CaseId);
+        AssertPrg(withoutReason, store.CaseId);
+        Assert.Equal(2, store.RequestLinkCreations.Count);
+        var first = store.RequestLinkCreations[0];
+        AssertClaimant(workspace, first.Actor);
+        Assert.Equal(store.CaseVersion, first.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, first.EditLeaseToken);
+        Assert.Equal("create-request-link-1", first.OperationKey);
+        Assert.Equal("Provider claims team", first.Recipient);
+        Assert.Equal("  Please send the rear photographs  ", first.Reason);
+        var second = store.RequestLinkCreations[1];
+        Assert.Equal("Claimant", second.Recipient);
+        Assert.Null(second.Reason);
+    }
+
+    /// <summary>
+    /// The create action requires the recipient server-side as well: a post
+    /// without one, or with only whitespace, is refused before the command
+    /// port is reached, and the editor keeps edit mode to correct it.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateUploadRequestWithoutARecipientNeverReachesTheCommand(string? recipient)
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICreateRequestUploadLink>(services, store));
+        var fields = new List<(string Name, string Value)>
+        {
+            ("id", store.CaseId.ToString("D")),
+            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            ("operationKey", "create-request-link-blank"),
+            ("editLeaseToken", store.LeaseToken),
+            ("reason", "Photographs of the rear damage")
+        };
+        if (recipient is not null)
+        {
+            fields.Add(("recipient", recipient));
+        }
+
+        using var refused = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            Form(workspace.AntiforgeryToken, [.. fields]));
+
+        AssertPrg(refused, store.CaseId);
+        Assert.Empty(store.RequestLinkCreations);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+    }
+
+    /// <summary>
     /// The frame's fragment handler answers with one section body and nothing
     /// of the record around it, so a mounted section cannot replace the frame
     /// or another section.
@@ -319,6 +468,7 @@ public sealed partial class CaseDetailsWebTests
     [InlineData("engineer-notes")]
     [InlineData("notes")]
     [InlineData("vehicle")]
+    [InlineData("valuation")]
     public async Task TheSectionFragmentReturnsOnlyThatSectionBody(string key)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -349,7 +499,6 @@ public sealed partial class CaseDetailsWebTests
     [Theory]
     [InlineData("overview")]
     [InlineData("inspection")]
-    [InlineData("valuation")]
     [InlineData("case-files")]
     [InlineData("nonsense")]
     public async Task TheSectionFragmentRefusesKeysItDoesNotServe(string key)
@@ -612,8 +761,8 @@ public sealed partial class CaseDetailsWebTests
     public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        // The EVA control is a Review act (FRD-07): the workspace offers the
-        // handoff only in Review, so the store stands there.
+        // Capture Review with an eligible native handoff and optional EVA
+        // delivery. No external action is required to assign the Engineer.
         var store = new RecordingCaseDetailsStore
         {
             ExposeCustody = true,
@@ -626,6 +775,8 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<IStaffAccountQueries>(services,
+                    new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -708,7 +859,7 @@ public sealed partial class CaseDetailsWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
-        var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true, Automatic: false));
+        var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -746,7 +897,11 @@ public sealed partial class CaseDetailsWebTests
     [Fact]
     public async Task ManualChasePostUsesAntiforgeryServerActorLiveLeaseVersionAndReplayKey()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
+        // The attempt time is the server's clock at the post, never a value
+        // the form carried (PR 670 port), so the host's clock is pinned here.
+        var attemptedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        using var baseFactory = new IntakeWebApplicationFactory(
+            new CaseWorkflowPersistenceTests.MutableTimeProvider(attemptedAtUtc));
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -807,18 +962,21 @@ public sealed partial class CaseDetailsWebTests
         // The Record chase control lives on the Notes section and renders in
         // edit context while a chase is scheduled.
         Assert.Contains("Record chase", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"recipient\"", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"content\"", leasedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"attemptedAtUtc\"", leasedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"targetPartyOrAddress\"", leasedHtml, StringComparison.Ordinal);
         var operationKey = "manual-chase-replay";
-        var attemptedAtUtc = InputValue(leasedHtml, "attemptedAtUtc");
         using var firstResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
-            ManualChaseForm(AntiforgeryValue(leasedHtml), store, operationKey, attemptedAtUtc));
+            ManualChaseForm(AntiforgeryValue(leasedHtml), store, operationKey));
         AssertPrg(firstResponse, store.CaseId);
 
         var currentHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
         using var replayResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
-            ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey, attemptedAtUtc));
+            ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey));
         AssertPrg(replayResponse, store.CaseId);
 
         Assert.Equal(2, store.ManualChases.Count);
@@ -833,9 +991,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(store.LeaseToken, command.EditLeaseToken);
         Assert.Equal(operationKey, command.OperationKey);
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
-        Assert.Equal(
-            DateTimeOffset.Parse(attemptedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-            command.AttemptedAtUtc);
+        Assert.Equal(attemptedAtUtc, command.AttemptedAtUtc);
         Assert.NotEmpty(command.Actor.Roles);
         Assert.Equal("Telephone", command.Channel);
         Assert.Equal("Provider claims team", command.TargetPartyOrAddress);
@@ -845,7 +1001,7 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task LifecyclePostsBindHoldReleaseAndReportPreparationToAuthenticatedLease()
+    public async Task LifecyclePostsBindHoldReleaseAndNativeHandoffToAuthenticatedLease()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -857,11 +1013,13 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IHoldCase>();
                 services.RemoveAll<IReleaseCase>();
                 services.RemoveAll<ITransitionCase>();
+                services.RemoveAll<IAssignCaseEngineer>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IHoldCase>(store);
                 services.AddSingleton<IReleaseCase>(store);
                 services.AddSingleton<ITransitionCase>(store);
+                services.AddSingleton<IAssignCaseEngineer>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -892,30 +1050,41 @@ public sealed partial class CaseDetailsWebTests
         using var releaseResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Workflow?handler=ReleaseHold",
             LifecycleForm(antiforgeryToken, store, "release-case", "Provider replied"));
-        using var startResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}/Workflow?handler=StartWork",
-            LifecycleForm(antiforgeryToken, store, "start-report-preparation", "Engineer work started"));
+        var engineerId = Guid.NewGuid();
+        using var handoffResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Workflow?handler=AssignEngineer",
+            Form(antiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "native-handoff"),
+                ("editLeaseToken", store.LeaseToken),
+                ("engineerId", engineerId.ToString("D")),
+                ("instructionsComplete", "true"),
+                ("imagesComplete", "true"),
+                ("evidenceReference", "case-completeness-projection")));
 
         AssertPrg(holdResponse, store.CaseId);
         AssertPrg(releaseResponse, store.CaseId);
-        AssertPrg(startResponse, store.CaseId);
+        AssertPrg(handoffResponse, store.CaseId);
         var actorSubjectId = Assert.Single(store.Claims).Actor.SubjectId;
         var hold = Assert.Single(store.Holds);
         var release = Assert.Single(store.Releases);
-        var transition = Assert.Single(store.Transitions);
+        var handoff = Assert.Single(store.EngineerAssignments);
         Assert.Equal(actorSubjectId, hold.Actor.SubjectId);
         Assert.Equal(actorSubjectId, release.Actor.SubjectId);
-        Assert.Equal(actorSubjectId, transition.Actor.SubjectId);
+        Assert.Equal(actorSubjectId, handoff.Actor.SubjectId);
         Assert.Equal(store.CaseVersion, hold.ExpectedVersion);
         Assert.Equal(store.CaseVersion, release.ExpectedVersion);
-        Assert.Equal(store.CaseVersion, transition.ExpectedVersion);
+        Assert.Equal(store.CaseVersion, handoff.ExpectedVersion);
         Assert.Equal(store.LeaseToken, hold.EditLeaseToken);
         Assert.Equal(store.LeaseToken, release.EditLeaseToken);
-        Assert.Equal(store.LeaseToken, transition.EditLeaseToken);
+        Assert.Equal(store.LeaseToken, handoff.EditLeaseToken);
         Assert.Equal("hold-case", hold.OperationKey);
         Assert.Equal("release-case", release.OperationKey);
-        Assert.Equal("start-report-preparation", transition.OperationKey);
-        Assert.Equal(CaseTransitionDestination.ReportPreparation, transition.Destination);
+        Assert.Equal("native-handoff", handoff.OperationKey);
+        Assert.Equal("Hand to Engineer", handoff.Reason);
+        Assert.Equal(engineerId, handoff.EngineerId);
+        Assert.Empty(store.Transitions);
     }
 
     [Fact]
@@ -972,19 +1141,17 @@ public sealed partial class CaseDetailsWebTests
     private static FormUrlEncodedContent ManualChaseForm(
         string antiforgeryToken,
         RecordingCaseDetailsStore store,
-        string operationKey,
-        string attemptedAtUtc) => Form(
+        string operationKey) => Form(
             antiforgeryToken,
             ("id", store.CaseId.ToString("D")),
             ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             ("operationKey", operationKey),
             ("editLeaseToken", store.LeaseToken),
             ("reason", "Missing evidence follow-up"),
-            ("attemptedAtUtc", attemptedAtUtc),
             ("channel", "Telephone"),
-            ("targetPartyOrAddress", "Provider claims team"),
+            ("recipient", "Provider claims team"),
             ("outcome", "Awaiting requested photographs"),
-            ("note", "Asked provider for missing images"));
+            ("content", "Asked provider for missing images"));
 
     /// <summary>
     /// What every case mutation posts from the leased workspace — the case id, its version, the
@@ -1217,9 +1384,7 @@ public sealed partial class CaseDetailsWebTests
                 ("reason", "Images turned out to be incomplete"),
                 ("instructionComplete", "true"),
                 ("instructionComplete", "false"),
-                ("imagesComplete", "false"),
-                ("instructionConfirmedByStaff", "false"),
-                ("imagesConfirmedByStaff", "false")));
+                ("imagesComplete", "false")));
         AssertPrg(response, store.CaseId);
 
         // The command really did receive false, so the panel must not claim otherwise.
@@ -1841,7 +2006,7 @@ public sealed partial class CaseDetailsWebTests
             Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
 
         Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
-            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(0, null));
+            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(null));
 
         Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
             string principalCode,
@@ -1867,10 +2032,11 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
-    private sealed class StubStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
+    private sealed class StubStaffAccounts(Guid staffId, string userName, StaffRole role = StaffRole.User)
+        : IStaffAccountQueries, IStaffHeldCaseEditLeaseQueries
     {
         private readonly StaffAccountSummary account =
-            new(staffId, userName, true, false, [StaffRole.User], null);
+            new(staffId, userName, true, false, [role]);
 
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
@@ -1882,6 +2048,11 @@ public sealed partial class CaseDetailsWebTests
             Guid requestedStaffId,
             CancellationToken cancellationToken) =>
             Task.FromResult<StaffAccountSummary?>(requestedStaffId == staffId ? account : null);
+
+        public Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
+            Guid requestedStaffId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffHeldCaseEditLease>>([]);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
@@ -2115,21 +2286,12 @@ public sealed partial class CaseDetailsWebTests
                 new(
                     new(
                         InstructionComplete: true,
-                        ImagesComplete: true,
-                        InstructionConfirmedByStaff: false,
-                        ImagesConfirmedByStaff: false),
+                        ImagesComplete: true),
                     new(false, "case-completeness", 1)),
                 new(Confirmed("QDOS")),
                 new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),
                 new(Confirmed("CLM-42")),
-                OmitVehicleValues
-                    ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
-                    : new(
-                        Confirmed("AB12CDE"),
-                        Confirmed("Ford"),
-                        Confirmed("Transit"),
-                        Confirmed(42_000L),
-                        Confirmed("miles")),
+                VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(Empty<DateOnly>(), Confirmed("Standard")),
@@ -2140,6 +2302,58 @@ public sealed partial class CaseDetailsWebTests
                     Confirmed(CaseInspectionMode.PhysicalAddress),
                     Confirmed("14 Storage Lane"),
                     Empty<string>()));
+
+        /// <summary>
+        /// The vehicle as the case holds it. With
+        /// <see cref="IncludeVehicleSuggestions"/> the latest answered lookup
+        /// also suggests a different make, model and mileage, each cited to
+        /// that observation, which is the shape the section's per-field
+        /// acceptance controls render from (PR 670 port).
+        /// </summary>
+        private CaseVehicleData VehicleFields()
+        {
+            if (OmitVehicleValues)
+            {
+                return new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>());
+            }
+            if (!IncludeVehicleSuggestions)
+            {
+                return new(
+                    Confirmed("AB12CDE"),
+                    Confirmed("Ford"),
+                    Confirmed("Transit"),
+                    Confirmed(42_000L),
+                    Confirmed("miles"));
+            }
+
+            var lookup = VehicleLookupEvidence?.LatestObservation
+                ?? throw new InvalidOperationException(
+                    "Vehicle suggestions cite a recorded lookup observation; supply VehicleLookupEvidence.");
+            return new(
+                Confirmed("AB12CDE"),
+                WithSuggestion(Confirmed("Ford"), "Ford Motor Company", lookup),
+                WithSuggestion(Confirmed("Transit"), "Transit Custom", lookup),
+                WithSuggestion(Confirmed(42_000L), 43_210L, lookup),
+                WithSuggestion(Confirmed("miles"), "miles", lookup));
+        }
+
+        private static CaseField<T> WithSuggestion<T>(
+            CaseField<T> field,
+            T suggested,
+            VehicleLookupObservation lookup)
+            where T : notnull =>
+            field with
+            {
+                Suggestion = new(
+                    suggested,
+                    CaseDataValueKind.Suggestion,
+                    new(
+                        CaseDataSourceKind.VehicleLookup,
+                        lookup.Id.ToString("D"),
+                        "DVLA lookup",
+                        "vehicle-lookup",
+                        1))
+            };
 
         private static readonly CaseDataSource StaffCorrection =
             new(CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);

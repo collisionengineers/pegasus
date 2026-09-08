@@ -2,84 +2,35 @@
 @model Pegasus.Web.Pages.Administration.Principals.CreateModel
 @using Pegasus.Core.Cases
 @{
-    ViewData["Title"] = "Create principal";
-    ViewData["Eyebrow"] = "Administration";
-    var workProviders = Model.Organizations.Organizations
-        .Where(organization => organization.Roles.Contains(OrganizationRole.WorkProvider))
-        .ToArray();
+    ViewData["Title"] = OperatorLabels.PrincipalAdministration.Create;
 }
-
-<a class="back-link" asp-page="Index">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Principals
-</a>
-
+<a class="back-link" asp-page="Index">@OperatorLabels.PrincipalAdministration.Back</a>
 <partial name="Shared/_PageHeader" />
-
-@if (workProviders.Length == 0)
-{
-    <div class="status-card status-card--attention" role="status">
-        <p>No Work Provider organization is available. Create or update an organization before creating a principal.</p>
-        <div class="button-row">
-            <a class="secondary-action" asp-page="/Administration/Organizations/Index">Go to Organizations</a>
+<div class="panel form-panel">
+    <form method="post" asp-page-handler="Create" class="stack">
+        <div asp-validation-summary="ModelOnly"></div>
+        <input asp-for="OperationKey" type="hidden" />
+        <div class="field">
+            <label asp-for="Name">@OperatorLabels.PrincipalAdministration.Name</label>
+            <input asp-for="Name" autocomplete="organization" />
+            <span asp-validation-for="Name"></span>
         </div>
-    </div>
-}
-else
-{
-    <div class="panel form-panel">
-        <form method="post" asp-page-handler="Create">
-            <div asp-validation-summary="ModelOnly"></div>
-            <input asp-for="OperationKey" type="hidden" />
-            <div>
-                <label asp-for="OrganizationId">Work Provider organization</label>
-                <select asp-for="OrganizationId">
-                    <option value="">Select an organization</option>
-                    @foreach (var organization in workProviders)
-                    {
-                        <option value="@organization.Id">@organization.Name</option>
-                    }
-                </select>
-                <span asp-validation-for="OrganizationId"></span>
-            </div>
-            <div>
-                <label asp-for="Code">Principal code</label>
-                <input asp-for="Code" autocomplete="off" />
-                <span asp-validation-for="Code"></span>
-                <small class="empty-state">Letters and numbers only. The code is normalized to uppercase and cannot be edited.</small>
-            </div>
-            <div>
-                <label asp-for="InspectionMode">Inspection mode</label>
-                <select asp-for="InspectionMode">
-                    <option value="@CaseInspectionMode.PhysicalAddress">Physical address</option>
-                    <option value="@CaseInspectionMode.ImageBasedAssessment">Image Based Assessment</option>
-                </select>
-                <span asp-validation-for="InspectionMode"></span>
-                <small class="empty-state">Image Based Assessment autofills the inspection address on every new case for this principal; staff may override it on a specific case with a reason.</small>
-            </div>
-            @* EXT-04: two independent settings, so both are checkboxes
-               rather than one mode. A principal may submit automatically and
-               offer no button, which is legal and deliberate. *@
-            <div>
-                <label>
-                    <input asp-for="EvaManualSubmission" type="checkbox" />
-                    Manual API submission
-                </label>
-            </div>
-            <div>
-                <label>
-                    <input asp-for="EvaAutomaticSubmission" type="checkbox" />
-                    Automatic API submission
-                </label>
-            </div>
-            <div class="button-row">
-                <button type="submit" class="primary-action">Create principal</button>
-            </div>
-        </form>
-    </div>
-}
-
-@if (Model.Organizations.HasMoreOrganizations)
-{
-    <p class="empty-state">Not every organization is listed; use the Organizations workspace to find one that isn't shown.</p>
-}
+        <div class="field">
+            <label asp-for="Code">@OperatorLabels.PrincipalAdministration.Code</label>
+            <input asp-for="Code" autocomplete="off" />
+            <span asp-validation-for="Code"></span>
+        </div>
+        <div class="field">
+            <label asp-for="InspectionMode">Inspection mode</label>
+            <select asp-for="InspectionMode">
+                <option value="@CaseInspectionMode.PhysicalAddress">Physical address</option>
+                <option value="@CaseInspectionMode.ImageBasedAssessment">Image Based Assessment</option>
+            </select>
+            <span asp-validation-for="InspectionMode"></span>
+        </div>
+        <label class="choice"><input asp-for="EvaManualSubmission" /> Manual EVA API submission</label>
+        <div class="button-row">
+            <button type="submit" class="btn btn--primary">@OperatorLabels.PrincipalAdministration.Create</button>
+        </div>
+    </form>
+</div>

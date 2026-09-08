@@ -234,6 +234,14 @@ public interface IAiJobQueries
     /// <summary>Every non-terminal job, oldest first.</summary>
     Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken);
 
+    Task<AiJobQueryPage> ListOpenPageAsync(
+        AiJobKind? kind,
+        string grantId,
+        DateTimeOffset? afterCreatedAtUtc,
+        Guid? afterJobId,
+        int limit,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
         Guid subjectId,
         CancellationToken cancellationToken);
@@ -243,6 +251,10 @@ public interface IAiJobQueries
 
     Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken);
 }
+
+public sealed record AiJobQueryPage(
+    IReadOnlyList<AiJobRecord> Jobs,
+    bool HasMore);
 
 public interface ICreateAiJob
 {

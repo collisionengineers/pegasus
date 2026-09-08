@@ -3,7 +3,9 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -487,6 +489,43 @@ internal sealed class EfIntakeMutationStore(
                 "The intake receipt already has a case-association history; later changes are staff decisions.");
         }
 
+        var imageIntake = await EfImageIntakeStore.FindForReceiptAsync(
+            context, request.ReceiptId, cancellationToken)
+            ?? throw new IntakeAssociationConflictException("Automatic image association requires a registered Image intake.");
+        ImageIntakeLifecycleRules.RequireTransitionable(
+            EfImageIntakeStore.ParseState(imageIntake.LifecycleState));
+        var memberCount = await EfImageIntakeStore.GroupExpectedMemberCountAsync(
+            context, imageIntake.SubmissionGroupId, cancellationToken);
+        var originAssociation = imageIntake.SubmissionGroupId is null ? null
+            : await context.IntakeManualAssociations.AsNoTracking().SingleOrDefaultAsync(
+                item => item.IntakeReceiptId == imageIntake.OriginReceiptId, cancellationToken);
+        if (originAssociation is not null
+            && (!originAssociation.IsActive || originAssociation.CaseId != request.CaseId))
+        {
+            throw new IntakeAssociationConflictException("The group origin has a different current association decision.");
+        }
+        var staffGroupOrigin = memberCount > 1
+            && originAssociation is not null
+            && originAssociation.ActorKind == nameof(ActorKind.Staff)
+            && !string.IsNullOrWhiteSpace(originAssociation.Reason)
+                ? originAssociation : null;
+        if (request.ExpectedStaffOriginAssociationVersion != staffGroupOrigin?.Version)
+        {
+            throw new IntakeAssociationConflictException("The originating staff group decision changed before completion.");
+        }
+        if (staffGroupOrigin is null)
+        {
+            var candidates = await EfImageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
+                context, imageIntake.NormalizedVehicleRegistration, cancellationToken);
+            var currentTarget = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
+                imageIntake.NormalizedVehicleRegistration, imageIntake.PrincipalId, memberCount);
+            if (currentTarget?.CaseId != request.CaseId)
+            {
+                throw new IntakeAssociationConflictException(
+                    "The current Image intake identity does not identify one eligible Case unambiguously.");
+            }
+        }
+
         var caseWorkflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
@@ -549,6 +588,24 @@ internal sealed class EfIntakeMutationStore(
         };
         receipt.Version++;
         CaseMutationGuard.Complete(caseWorkflow);
+        var afterJson = Snapshot(receipt);
+        if (staffGroupOrigin is not null)
+        {
+            var evidence = JsonNode.Parse(afterJson)!.AsObject();
+            evidence["StaffGroupDecision"] = JsonSerializer.SerializeToNode(new
+            {
+                imageIntake.SubmissionGroupId,
+                OriginReceiptId = staffGroupOrigin.IntakeReceiptId,
+                staffGroupOrigin.CaseId,
+                staffGroupOrigin.Version,
+                staffGroupOrigin.ActorKind,
+                staffGroupOrigin.ActorSubjectId,
+                staffGroupOrigin.ActorRolesJson,
+                staffGroupOrigin.Reason,
+                staffGroupOrigin.LastOperationKey
+            });
+            afterJson = evidence.ToJsonString();
+        }
         context.CaseWorkflowEvents.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -564,7 +621,7 @@ internal sealed class EfIntakeMutationStore(
             OccurredAtUtc = occurredAtUtc,
             BeforeVersion = beforeCaseVersion,
             AfterVersion = caseWorkflow.Version,
-            ResultJson = Snapshot(receipt)
+            ResultJson = afterJson
         });
         context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
         {
@@ -588,7 +645,7 @@ internal sealed class EfIntakeMutationStore(
             BeforeCaseVersion = beforeCaseVersion,
             AfterCaseVersion = caseWorkflow.Version,
             BeforeJson = beforeJson,
-            AfterJson = Snapshot(receipt)
+            AfterJson = afterJson
         });
 
         try
@@ -1134,7 +1191,8 @@ internal sealed class EfIntakeMutationStore(
             Actor = ActorMaterial(request.Actor),
             request.OperationKey,
             request.Reason
-        }));
+        }) + (request.ExpectedStaffOriginAssociationVersion is { } version
+            ? $"|staff-origin:{version.ToString(CultureInfo.InvariantCulture)}" : string.Empty));
 
     private static string RequestHash(string eventType, LinkIntakeRequest request) =>
         Hash(JsonSerializer.Serialize(new

@@ -5,7 +5,7 @@
 
 ### Focused EVA manual handoff
 
-There are two send-to-Engineer routes. The export downloads one package for
+There are two optional EVA handoff routes. Native Hand to Engineer is owned by FRD-01 and does not require either route. The export downloads one package for
 staff to import into EVA; that import is the operational handoff to
 engineering, although Pegasus cannot prove EVA receipt or a named-Engineer
 assignment. The API submission (EXT-04) sends the same case to EVA directly and
@@ -20,9 +20,9 @@ Export is first available while the case is in `Review`, and again from
 business readiness decision: reaching it requires complete instructions and
 at least one eligible case image. Staff-review flags cannot override missing
 completeness. The export does not repeat a second field, evidence-status, Case
-custody, or Audit custody readiness policy. Saving case data invalidates the
-previous completeness confirmation, returns the case to `Not ready`, and tells
-the operator that completeness must be confirmed again.
+custody, or Audit custody readiness policy. Completeness invalidation follows FRD-01: an actual relevant change invalidates
+the affected confirmation. Unchanged or unrelated saves do not reset readiness;
+EVA does not define a second completeness policy.
 
 Pressing Export confirms the values currently populated on the reviewed case.
 A populated suggestion is therefore exportable and keeps its `Suggested`
@@ -30,7 +30,7 @@ provenance. VAT and mileage are optional. Mileage and mileage unit must be
 saved together when mileage is present. If Inspection Date is blank, the
 export date is emitted as the named system default. Export has no separate EVA
 activation or mapping-acceptance switch; the API submission does, and it is
-per principal — see [Direct EVA API submission](#direct-eva-api-submission).
+per principal — see [Direct EVA API submission](frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission).
 
 The package contains deterministic UTF-8 JSON in this exact key order and every
 eligible retained Case-vehicle image:
@@ -72,37 +72,28 @@ EXT-04. Pegasus submits a case to EVA over its API, carrying the same mapped
 values and the same eligible images the export carries. The route was built
 against EVA's test credentials on 2026-08-27 by operator direction.
 
-**Pegasus has not yet called EVA.** The contract below is proved against the
-vendor's own recorded traffic and against its published request model; no
-submission has been made to any EVA environment, so nothing here establishes
-that EVA accepts this payload, that images land, or what it returns. That is a
-deliberate deferral (operator decision, 2026-08-27), not an oversight, and it
-is why every Principal setting defaults to off. Live credentials are a further,
-separately gated change.
+The API also sends the canonical accepted claimant address as `ClmAdd`,
+required by EVA with a maximum of 40 characters. The current Confirmed value
+takes precedence over Fact; a suggestion or unresolved value is not accepted.
+Missing, whitespace-only, over-limit or control/format-containing values block
+a new submission before image retrieval or the EVA call, without recording an
+attempt or changing the Case. Known-operation replay returns the prior outcome
+first. Valid text, including ordinary address punctuation, is sent unchanged;
+Pegasus never truncates it or substitutes an inspection or other party's
+address. This is an API request prerequisite, not another Case-readiness or ZIP
+export gate; the thirteen-field package remains unchanged.
 
-Each Principal carries two independent settings, both off by default:
+Vendor schema and recorded traffic establish contract evidence, not acceptance
+of an actual Pegasus submission. Dated deployment and external-call evidence
+belongs in operations. The per-Principal API setting remains off by default;
+credentials, enabling it and a live acceptance run are separately authorized.
 
-- **Manual API submission** — an operator may submit a case in `Review` from
-  the Send to EVA dialog, and re-send it from `With Engineer` (D36).
-- **Automatic API submission** — a case reaching `Review` is submitted without
-  operator action.
-
-They are independent, so a Principal may submit automatically and offer no
-button. Such a Principal has no case-page recovery from a failed submission:
-the reconciliation sweep does not re-arm a case that already carries a
-submission work row, so a submission that exhausted its retries is recovered
-from the Operations external-work retry surface, which every queued kind
-shares. A replacement Principal inherits its predecessor's settings.
-
-**A case is submitted automatically at most once.** EVA has no idempotency: a
-second accepted instruction creates a second claim with its own File
-Reference, and no API call can withdraw it; EVA's update endpoints are not
-suitable for this product's use case (operator decision, 2026-08-27). So
-automatic submission fires once, on reaching `Review`, the reconciliation
-sweep never re-arms a case that carries a submission work row, and a case
-retracted from `Review`, reworked and returned is not resubmitted
-automatically. Reaching EVA means a `Succeeded` **or** a `Partial` outcome: an
-acceptance that returned no identifier still created the claim.
+Each Principal carries one manual API-submission setting, off by default. When
+enabled, an operator may submit a case in `Review` from the Send to EVA dialog
+and re-send it from `With Engineer` (D36). A replacement Principal inherits
+this setting. A disabled Principal's setting is frozen as part of its
+historical record. Pegasus never submits a case to EVA merely because the case
+reaches `Review`.
 
 The consequence must be stated plainly: **once a case has been submitted,
 later changes to it reach EVA only through an explicit re-send.** The earlier
@@ -121,10 +112,12 @@ Every submission records its outcome, and the four outcomes stay distinct:
 | Succeeded | EVA accepted the instruction and returned its identifiers | no |
 | Rejected | EVA refused it and said why | no — the same payload will be refused again |
 | Partial | EVA accepted it but returned no identifier | no — the case did reach EVA |
-| Unknown | delivery could not be determined | yes, with backoff, to an attempt cap |
+| Unknown | delivery could not be determined | no automatic retry; retain uncertainty and require explicit staff re-send |
 
-Only `Unknown` is retried, because it is the only outcome where the case may
-not have reached EVA. Both EVA identifiers are retained: the response
+An `Unknown` result may already have reached EVA and is never retried without
+operator action. It is terminal; staff review the retained attempt before an
+explicit re-send.
+Both EVA identifiers are retained: the response
 identifier and the File Reference EVA embeds in its message text, which is what
 an operator quotes.
 
@@ -145,8 +138,10 @@ accepted the instruction — a state change or version conflict found on the
 post-delivery re-check — still records the submission and its action
 history, since the delivery already happened and must not be lost, but
 likewise leaves the Case in `Review`. A re-send from `With Engineer` does not
-change state or version. Automatic submission remains a once-only `Review`
-action.
+change state or version. There is no automatic submission action. D47's first
+manual Send via API transition remains one route into report preparation;
+explicit Start Case Work or assignment is the other route, and neither requires
+EVA delivery.
 
 Values EVA's instruction model has no field for — the inspection date and the
 mileage — are sent as labelled lines in the instruction's note rather than
@@ -157,28 +152,12 @@ the instruction arrives.
 
 ### External boundary
 
-Three routes are planned:
+The manual EVA package and direct EVA API are optional external handoff routes.
+Native estimates, imported provider estimates and accepted AI estimates remain
+Pegasus-owned engineering behavior. Read [FRD-06](frd-06-vehicle-and-engineering-evidence.md#retained-pdf-estimate-import)
+for estimate imports; this adapter does not define another calculation policy.
 
-1. the current manual package import into EVA;
-2. the EVA API when EVA supplies a usable contract; and
-3. direct integrations with estimating systems such as Audatex and Glass's,
-   replacing EVA.
-
-Some AI-generated estimates remain in Pegasus for Engineer review and report
-generation. That is a distinct Pegasus-owned route, not a reason to redefine
-the EVA export as something other than sending to an Engineer.
-
-Direct estimating integrations remain deferred until their actual contracts,
-authentication, idempotency, failure/recovery behaviour, current-version
-handling, real callers, and operator acceptance exist. A supplied vendor schema
-is reference evidence, not proof that an API works and not authorization to
-infer an operation. External success, rejection, partial or unknown outcomes
-must remain distinct when those routes are implemented.
-
-The EVA API route was built on 2026-08-27 by operator direction, with its
-contract, authentication, failure behaviour, callers and outcome model recorded
-above, and Pegasus owns the idempotency EVA does not provide. It has made no
-call: the route is proved against recorded vendor traffic only, and no
-submission to a live or test EVA environment forms part of its evidence. Both
-that first submission and the live-credential swap remain separately gated on
-the operator.
+A vendor schema is evidence, not a real-call acceptance result or permission to
+perform an operation. Keep external success, rejection, partial and unknown
+outcomes distinct. Explicit staff re-send is new confirmed work; it does not
+authorize blind retry of an uncertain submission.

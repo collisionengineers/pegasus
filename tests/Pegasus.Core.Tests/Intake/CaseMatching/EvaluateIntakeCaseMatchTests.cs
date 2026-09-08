@@ -1,4 +1,4 @@
-using Pegasus.Core.Intake;
+﻿using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Intake.CaseMatching;
@@ -8,6 +8,92 @@ public sealed class EvaluateIntakeCaseMatchTests
     private static readonly Guid CaseA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid CaseB = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid CaseC = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+    /// <summary>
+    /// H10: the DECLARED path normalizes the Principal's raw values through the
+    /// provider's own DeriveIndexKeys — the same grammar the write side indexes
+    /// cases with — before the shared eliminator sees them. No second grammar
+    /// and no second decision procedure exist.
+    /// </summary>
+    [Fact]
+    public async Task DeclaredIdentityUsesTheProvidersExistingNormalizationAndEliminator()
+    {
+        var derived = new CaseMatchIndexKeys("12345/1", "AB12CDE", "SMITH", "J", null);
+        var policy = new StubPolicy(Keys()) { DerivedKeys = derived };
+        var sut = new EvaluateIntakeCaseMatch(
+            [policy],
+            new StubQueries([Candidate(CaseA, claim: "12345/1", vrm: "AB12CDE")]));
+
+        var result = await sut.ExecuteDeclaredAsync(
+            "QDOS",
+            new("AB/12345/1", "AB12 CDE", "Jane Smith", null),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
+        Assert.Equal(CaseA, result.MatchedCaseId);
+        Assert.Equal(derived.DurableClaimToken, result.Keys.DurableClaimToken);
+        Assert.Equal(derived.NormalizedVrm, result.Keys.NormalizedVrm);
+        Assert.Equal("qdos_case_match", result.PolicyKey);
+
+        // The RAW declared values are what the policy is handed; the widening
+        // happens after normalization, never before it.
+        Assert.Equal(
+            new CaseMatchSourceData("AB/12345/1", "AB12 CDE", "Jane Smith", null),
+            policy.ObservedSourceData);
+    }
+
+    [Fact]
+    public async Task DeclaredIdentityMatchingSeveralCasesIsAmbiguousNotUnique()
+    {
+        var policy = new StubPolicy(Keys())
+        {
+            DerivedKeys = new(null, "AB12CDE", null, null, null)
+        };
+        var sut = new EvaluateIntakeCaseMatch(
+            [policy],
+            new StubQueries(
+            [
+                Candidate(CaseA, vrm: "AB12CDE"),
+                Candidate(CaseB, vrm: "AB12CDE")
+            ]));
+
+        var result = await sut.ExecuteDeclaredAsync(
+            "QDOS",
+            new(null, "AB12 CDE", null, null),
+            CancellationToken.None);
+
+        Assert.Equal(CaseMatchOutcome.Ambiguous, result!.Outcome);
+        Assert.Null(result.MatchedCaseId);
+    }
+
+    [Fact]
+    public async Task DeclaredIdentityWithNoKeysIsNoKeysAndNeverBlocksCreation()
+    {
+        var sut = new EvaluateIntakeCaseMatch(
+            [new StubPolicy(Keys())],
+            new StubQueries([Candidate(CaseA, vrm: "AB12CDE")]));
+
+        var result = await sut.ExecuteDeclaredAsync(
+            "QDOS",
+            new(null, null, null, null),
+            CancellationToken.None);
+
+        Assert.Equal(CaseMatchOutcome.NoKeys, result!.Outcome);
+    }
+
+    [Fact]
+    public async Task APrincipalWithNoCaseMatchPolicyProducesNoDeclaredDecision()
+    {
+        var sut = new EvaluateIntakeCaseMatch(
+            [new StubPolicy(Keys()) { Provider = "PCH" }],
+            new StubQueries([]));
+
+        Assert.Null(await sut.ExecuteDeclaredAsync(
+            "QDOS",
+            new("AB/12345/1", null, null, null),
+            CancellationToken.None));
+    }
 
     [Fact]
     public async Task NonAcceptedRouteProducesNoDecision()
@@ -401,9 +487,14 @@ public sealed class EvaluateIntakeCaseMatchTests
         public string WorkProviderCode => Provider;
         public string PolicyKey => "qdos_case_match";
         public int PolicyVersion => 1;
+        public CaseMatchIndexKeys DerivedKeys { get; init; } = new(null, null, null, null, null);
+        public CaseMatchSourceData? ObservedSourceData { get; private set; }
         public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult) => keys;
-        public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData) =>
-            new(null, null, null, null, null);
+        public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData)
+        {
+            ObservedSourceData = caseData;
+            return DerivedKeys;
+        }
     }
 
     private sealed class StubQueries(

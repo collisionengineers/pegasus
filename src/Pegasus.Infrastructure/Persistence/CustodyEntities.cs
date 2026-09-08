@@ -19,6 +19,9 @@ internal sealed class DocumentVersionEntity
     public string MediaType { get; set; } = string.Empty;
     public long ContentLength { get; set; }
     public string Sha256 { get; set; } = string.Empty;
+    public string? BoxFileId { get; set; }
+    public string? BoxVersionId { get; set; }
+    public string? PendingContentStorageKey { get; set; }
     public DocumentCustodyStatus CustodyStatus { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
@@ -43,6 +46,16 @@ internal sealed class DocumentOccurrenceEntity
     public DateTimeOffset? ThirdPartyVehicleConfirmedAtUtc { get; set; }
     public string? ThirdPartyVehicleConfirmationReason { get; set; }
     public string? ThirdPartyVehicleConfirmationOperationKey { get; set; }
+    public string? PreparationRole { get; set; }
+    public int? SupportingOrder { get; set; }
+    public short RotationDegrees { get; set; }
+    public decimal? CropLeft { get; set; }
+    public decimal? CropTop { get; set; }
+    public decimal? CropWidth { get; set; }
+    public decimal? CropHeight { get; set; }
+    public long PreparationVersion { get; set; }
+    public string? PreparedBy { get; set; }
+    public DateTimeOffset? PreparedAtUtc { get; set; }
 }
 
 internal sealed class RequestUploadLinkEntity
@@ -57,6 +70,8 @@ internal sealed class RequestUploadLinkEntity
     public int AcceptedFileCount { get; set; }
     public long AcceptedByteCount { get; set; }
     public string LimitsVersion { get; set; } = string.Empty;
+    public string? Recipient { get; set; }
+    public string? Reason { get; set; }
     public long Version { get; set; }
     public string CreateOperationKey { get; set; } = string.Empty;
     public string? RevokeOperationKey { get; set; }

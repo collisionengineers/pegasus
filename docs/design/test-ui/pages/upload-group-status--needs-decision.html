@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Upload received · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -94,7 +95,7 @@
                 <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="1 outstanding">1</span>
+                        <span class="nav-count" aria-label="2 outstanding">2</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -172,6 +173,60 @@
 
 
 <div class="stack">
+        <section class="panel" aria-labelledby="group-decision-title" data-refresh-hold>
+            <div class="panel-head">
+                <h2 id="group-decision-title">This submission</h2>
+            </div>
+            <div class="panel-body stack">
+                    <form method="post" class="stack" action="#">
+                        <div class="field">
+                            <label for="group-registration">Vehicle registration</label>
+                            <input id="group-registration"
+                                   name="vehicleRegistration"
+                                   type="text"
+                                   maxlength="20"
+                                   required
+                                   autocomplete="off"
+                                   spellcheck="false" />
+                        </div>
+                        <div class="field">
+                            <label for="group-registration-reason">Reason</label>
+                            <input id="group-registration-reason" name="reason" maxlength="500" required />
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">Create a vehicle-image case</button>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                <details class="upload-attach" data-refresh-hold>
+                    <summary class="btn">Add to an existing case</summary>
+                    <form method="post" class="upload-attach__form" data-case-search action="#">
+                        <input type="hidden" name="caseId" value="" data-case-search-value />
+                        <div class="field">
+                            <label for="group-attach-input">Case</label>
+                            <input id="group-attach-input"
+                                   name="reference"
+                                   type="text"
+                                   maxlength="60"
+                                   required
+                                   autocomplete="off"
+                                   spellcheck="false"
+                                   data-case-search-input />
+                            <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                        </div>
+                        <div class="field">
+                            <label for="group-attach-reason">Reason</label>
+                            <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn">Add the submission to this case</button>
+                        </div>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+                </details>
+                <div class="button-row">
+                    <a class="btn btn--ghost" href="upload--default.html">Cancel</a>
+                </div>
+            </div>
+        </section>
     <section class="panel"
              aria-labelledby="group-status-title">
         <div class="panel-head">
@@ -181,13 +236,18 @@
             <div class="file-list section-gap">
                     <div class="file-row">
                         <span>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                                <a class="upload-thumb" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" target="_blank">
+                                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                                         loading="lazy"
+                                         alt="overview.png" />
+                                </a>
                         </span>
                         <span>
                                 <strong>overview.png</strong>
                                 <div class="upload-outcome">
-        <span class="muted">Processing</span>
-    <p>The submission is being processed.</p>
+        <span class="status status--amber">Unidentified</span>
+
+    <p>This could not be matched automatically and needs a staff decision.</p>
 </div>
 
                         </span>
@@ -196,44 +256,18 @@
                     </div>
                     <div class="file-row">
                         <span>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                                <a class="upload-thumb" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" target="_blank">
+                                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                                         loading="lazy"
+                                         alt="close-up.png" />
+                                </a>
                         </span>
                         <span>
                                 <strong>close-up.png</strong>
                                 <div class="upload-outcome">
         <span class="status status--amber">Unidentified</span>
 
-    <p>This needs a staff decision.</p>
-        <div class="button-row">
-                <a class="btn btn--primary btn--small" href="unidentified-details--default.html">Review</a>
-                <a class="btn btn--small" href="upload--default.html">Cancel</a>
-        </div>
-        <details class="upload-attach" data-refresh-hold>
-            <summary class="btn btn--small">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search action="upload-group-status--default.html">
-                <input type="hidden" name="receiptId" value="test-ui-guid-3" />
-                <input type="hidden" name="caseId" value="" data-case-search-value />
-                <div class="field">
-                    <label for="case-attach-test-ui-guid-4-input">Case</label>
-                    <input id="case-attach-test-ui-guid-4-input"
-                           name="reference"
-                           type="text"
-                           maxlength="60"
-                           required
-                           autocomplete="off"
-                           spellcheck="false"
-                           data-case-search-input />
-                    <ul id="case-attach-test-ui-guid-4-list" class="case-search-list" hidden data-case-search-list></ul>
-                </div>
-                <div class="field">
-                    <label for="case-attach-test-ui-guid-4-reason">Reason for adding to this case</label>
-                    <textarea id="case-attach-test-ui-guid-4-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                </div>
-                <div class="button-row">
-                    <button type="submit" class="btn btn--primary btn--small">Add to this case</button>
-                </div>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        </details>
+    <p>This could not be matched automatically and needs a staff decision.</p>
 </div>
 
                         </span>
@@ -317,10 +351,24 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
+                <div class="pane-body pane-scroll" data-row-list>
+                        <a class="work-item" href="#">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">Mail · U1</span>
+                                    <h3>close-up.png</h3>
+                                </span>
+                            </span>
+                        </a>
+                        <a class="work-item" href="#">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">Mail · U2</span>
+                                    <h3>overview.png</h3>
+                                </span>
+                            </span>
+                        </a>
+                </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

@@ -1,3 +1,4 @@
+﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -28,7 +29,8 @@ public sealed record ImageIntakeRecord(
     DateTimeOffset? ClosedAtUtc = null,
     long LifecycleVersion = 0,
     Guid? SubmissionGroupId = null,
-    Guid? PendingExternalWorkId = null);
+    Guid? PendingExternalWorkId = null,
+    Guid? PrincipalId = null);
 
 public enum ImageInitiatedCaseState
 {
@@ -117,7 +119,10 @@ public sealed record ImageIntakeSummary(
     ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
     string? ClosureReason = null,
     int ImageCount = 0,
-    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload);
+    IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload,
+    string? PrincipalCode = null,
+    Guid? PrincipalId = null,
+    int GroupExpectedMemberCount = 1);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,
@@ -145,7 +150,10 @@ public sealed record ImageIntakeDetail(
     DateTimeOffset RegisteredAtUtc,
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
-    ImageCustodyState? Custody = null)
+    ImageCustodyState? Custody = null,
+    string? PrincipalCode = null,
+    int GroupExpectedMemberCount = 1,
+    long? AssociatedCaseVersion = null)
 {
     public ImageInitiatedCaseState State => Record.State;
 
@@ -172,13 +180,28 @@ public sealed record MergeImageInitiatedCaseRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    long ExpectedVersion);
+    long ExpectedVersion,
+    long? ExpectedStaffOriginAssociationVersion = null);
 
 public sealed record CloseImageInitiatedCaseRequest(
     Guid ImageIntakeId,
     ActionActor Actor,
     string OperationKey,
     string Reason,
+    long ExpectedVersion);
+
+/// <summary>
+/// Records, replaces or clears the optional known principal on an Image
+/// Intake. A null <see cref="PrincipalId"/> is the `Not known` state — a
+/// legitimate value staff may return to, not an error. There is no operation
+/// key: the value is replaceable and clearable, so a replay probe returning
+/// the current record (which is only correct for a terminal transition) would
+/// be wrong here; <see cref="ExpectedVersion"/> alone guards the write.
+/// </summary>
+public sealed record SetImageIntakePrincipalRequest(
+    Guid ImageIntakeId,
+    Guid? PrincipalId,
+    ActionActor Actor,
     long ExpectedVersion);
 
 /// <summary>
@@ -199,8 +222,9 @@ public interface IImageIntakeQueries
 
     /// <summary>
     /// The registered image receipts this Image intake covers — its origin
-    /// plus, for a group registration, every registered image-only member —
-    /// ordered by the submission ordinal and restricted to image media.
+    /// plus, for a group registration, every durable image-only member —
+    /// ordered by the submission ordinal and restricted to image media. A
+    /// later queue decision never removes a member from association guards.
     /// </summary>
     Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
         Guid imageIntakeId,
@@ -228,6 +252,19 @@ public interface IImageIntakeQueries
     Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
         string normalizedVehicleRegistration,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The active principals a staff member may record against an Image
+    /// Intake, ordered by code. The organisation administration query is
+    /// paginated and gated behind `ManageOrganizationsAndPrincipals`, so it
+    /// cannot serve this page. The default fails closed rather than returning
+    /// an empty option list that would silently look like `no principals
+    /// exist` when an implementation is missing.
+    /// </summary>
+    Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<Principal>>(
+            new NotSupportedException("Active principal options are not available."));
 }
 
 /// <summary>
@@ -246,10 +283,17 @@ public sealed record ImageIntakeOperationReplay(ImageIntakeRecord Result);
 /// transaction. Registration identity is immutable after creation — only the
 /// Image-initiated lifecycle columns change, and only through
 /// <see cref="MergeAsync"/>/<see cref="CloseAsync"/>; case association lives
-/// exclusively on the origin receipt.
+/// exclusively on the origin receipt. The optional known principal is the one
+/// exception: it is not registration identity and is recorded, replaced or
+/// cleared through <see cref="SetPrincipalAsync"/> alone.
 /// </summary>
 public interface IImageIntakeStore : IImageIntakeQueries
 {
+    Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
+        int maximumItems,
+        Guid? caseId,
+        CancellationToken cancellationToken);
+
     Task<ImageIntakeOperationReplay?> ProbeRegisterReplayAsync(
         RegisterImageIntakeRequest request,
         CancellationToken cancellationToken);
@@ -278,6 +322,18 @@ public interface IImageIntakeStore : IImageIntakeQueries
         CloseImageInitiatedCaseRequest request,
         CancellationToken cancellationToken) =>
         Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    /// <summary>
+    /// Records, replaces or clears the optional known principal. This is not a
+    /// lifecycle transition: it writes no lifecycle event, infers nothing from
+    /// a registration match or a linked Case, and a same-value re-submission
+    /// is a no-op that leaves the version alone.
+    /// </summary>
+    Task<ImageIntakeRecord> SetPrincipalAsync(
+        SetImageIntakePrincipalRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(
+            new NotSupportedException("Image Intake principal assignment is not available."));
 
     Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,
@@ -316,4 +372,5 @@ public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
     long CaseVersion,
-    string ConfirmedRegistration);
+    string ConfirmedRegistration,
+    Guid? PrincipalId = null);

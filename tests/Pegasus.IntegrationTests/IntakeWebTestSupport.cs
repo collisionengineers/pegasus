@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -10,12 +10,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -36,6 +38,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly IMailClassificationPolicy? mailClassificationPolicy;
     private readonly IVrmRecognitionEngine? recognitionEngine;
     private readonly IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver;
+    private readonly DbCommandInterceptor? commandInterceptor;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase database;
@@ -73,7 +76,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         bool initializeDevelopmentOffline = true,
         IVrmRecognitionEngine? recognitionEngine = null,
         IMailClassificationPolicy? mailClassificationPolicy = null,
-        IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver = null)
+        IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver = null,
+        DbCommandInterceptor? commandInterceptor = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
@@ -83,6 +87,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.recognitionEngine = recognitionEngine;
         this.mailClassificationPolicy = mailClassificationPolicy;
         this.approvedMailboxIdentityResolver = approvedMailboxIdentityResolver;
+        this.commandInterceptor = commandInterceptor;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
         // Restored from the per-run template rather than migrated here: this
@@ -145,6 +150,12 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         });
         builder.ConfigureServices(services =>
         {
+            if (commandInterceptor is not null)
+            {
+                services.ConfigureDbContext<PegasusDbContext>(
+                    options => options.AddInterceptors(commandInterceptor),
+                    ServiceLifetime.Singleton);
+            }
             // Program.cs configures data protection only on the Production
             // branch, so a Development host would otherwise fall back to the
             // machine-global key ring under
@@ -193,12 +204,17 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             if (mailClassificationPolicy is not null)
             {
                 services.RemoveAll<IMailClassificationPolicy>();
+                services.RemoveAll<IEnumerable<IMailClassificationPolicy>>();
                 services.AddSingleton(mailClassificationPolicy);
             }
             if (approvedMailboxIdentityResolver is not null)
             {
                 services.RemoveAll<IResolveApprovedMailboxIdentity>();
+                services.RemoveAll<ICheckApprovedMailboxAccess>();
                 services.AddSingleton(approvedMailboxIdentityResolver);
+                services.AddSingleton<ICheckApprovedMailboxAccess>(provider =>
+                    (ICheckApprovedMailboxAccess)provider
+                        .GetRequiredService<IResolveApprovedMailboxIdentity>());
             }
         });
     }
@@ -691,9 +707,25 @@ internal static partial class IntakeWebDriver
     /// <summary>
     /// The Worker's processor, built by hand because the Web host deliberately
     /// does not register it: tests that need to drain work must say so.
+    ///
+    /// Processing now requires <see cref="IReadLogicalDocumentVersion"/> to
+    /// re-read a retained source after its staged copy is deleted. A04's
+    /// concrete readers are Stream A's and are supplied by the combined host,
+    /// so where a host composes one it is used; where none is composed — which
+    /// is every standalone C host — the processor is built on a double that
+    /// refuses, so a pass that unexpectedly re-reads fails by name instead of
+    /// on an unresolved service. A test whose scenario does re-read registers
+    /// the reader it means to exercise and gets that one.
     /// </summary>
-    internal static ProcessQueuedIntake CreateProcessor(IServiceProvider services) =>
-        ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+    internal static ProcessQueuedIntake CreateProcessor(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return services.GetService<IReadLogicalDocumentVersion>() is null
+            ? ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(
+                services,
+                RecordingLogicalDocumentVersionReader.Refusing())
+            : ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+    }
 
     /// <summary>
     /// Runs the Worker's grouped-image reconcile sweep once, standing in for
@@ -723,33 +755,64 @@ internal static partial class IntakeWebDriver
         CancellationToken cancellationToken = default)
     {
         var workStore = services.GetRequiredService<IIntakeWorkStore>();
-        var dispatcher = new DispatchPendingIntakeWork(
-            workStore,
-            new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
-            services.GetRequiredService<TimeProvider>());
         var evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         while (evaluation is null)
         {
-            var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
-            if (dispatched == 0)
-            {
-                // A recoverable failure under load reschedules the item with
-                // a retry backoff the frozen test clock never reaches.
-                // Dispatch once from a clock past any backoff so the retry
-                // runs now — the worker timer would have done the same.
-                var lateDispatcher = new DispatchPendingIntakeWork(
-                    workStore,
-                    new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
-                    new OffsetTimeProvider(
-                        services.GetRequiredService<TimeProvider>(),
-                        TimeSpan.FromMinutes(10)));
-                dispatched = await lateDispatcher.ExecuteAsync(1, cancellationToken);
-            }
-            Assert.Equal(1, dispatched);
+            Assert.Equal(1, await DispatchNextAsync(services, workStore, cancellationToken));
             evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         }
 
         return evaluation;
+    }
+
+    internal static async Task<(QueuedIntakeStatus Status, IntakeEvaluationRevision? Evaluation)>
+        DrainStagedToTerminalAsync(
+            IServiceProvider services,
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default)
+    {
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var statusQueries = services.GetRequiredService<IQueuedIntakeStatusQueries>();
+        var status = await statusQueries.GetAsync(stagedReceiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The staged receipt has no processing status.");
+        while (status.Status is not QueuedIntakeStatusKind.Complete
+               and not QueuedIntakeStatusKind.Failed)
+        {
+            Assert.Equal(1, await DispatchNextAsync(services, workStore, cancellationToken));
+            status = await statusQueries.GetAsync(stagedReceiptId, cancellationToken)
+                ?? throw new InvalidOperationException("The staged receipt lost its processing status.");
+        }
+
+        return (
+            status,
+            await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken));
+    }
+
+    private static async Task<int> DispatchNextAsync(
+        IServiceProvider services,
+        IIntakeWorkStore workStore,
+        CancellationToken cancellationToken)
+    {
+        var dispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
+            services.GetRequiredService<TimeProvider>());
+        var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
+        if (dispatched != 0)
+        {
+            return dispatched;
+        }
+
+        // A recoverable failure under load reschedules the item with a retry
+        // backoff the frozen test clock never reaches. Dispatch once from a
+        // clock past any backoff so the retry runs now, as the Worker timer does.
+        var lateDispatcher = new DispatchPendingIntakeWork(
+            workStore,
+            new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
+            new OffsetTimeProvider(
+                services.GetRequiredService<TimeProvider>(),
+                TimeSpan.FromMinutes(10)));
+        return await lateDispatcher.ExecuteAsync(1, cancellationToken);
     }
 
     private sealed class OffsetTimeProvider(TimeProvider inner, TimeSpan offset) : TimeProvider
@@ -810,6 +873,19 @@ internal sealed record UploadFormTokens(string AntiforgeryToken, string External
 
 internal static class IntakeTestEvidence
 {
+    // The retained QDOS Engineer Triage request shape. It is classified by the
+    // real mail-classification policy, which is the sole owner of Triage
+    // eligibility (INTK-033).
+    public static TestEmail CreateEngineerTriageRequest(
+        string fileName,
+        IReadOnlyList<(string FileName, string MediaType, byte[] Content)>? attachments = null) =>
+        CreateEmail(
+            fileName,
+            "Good morning\r\n\r\nPlease see the attached images to determine if the vehicle is "
+            + "repairable or a total loss. We have noted the vehicle as roadworthy.",
+            subject: "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
+            attachments: attachments);
+
     public static TestEmail CreateEmail(
         string fileName,
         string body,
@@ -899,21 +975,8 @@ internal static class GenuineQdosCorpus
     }
 
     private static string CorpusRoot => Path.Combine(
-        FindRepositoryRoot(),
-        "corpus",
-        "emailevals",
+        QdosCorpus.Root,
         "qdos-email-corpus");
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-    }
 }
 
 internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
@@ -922,7 +985,7 @@ internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
     {
         if (!GenuineQdosCorpus.IsPresent)
         {
-            Skip = "The ignored local corpus/emailevals/qdos-email-corpus is absent; genuine-input evidence was not run.";
+            Skip = "The ignored local qdos-email-corpus is absent under the configured corpus root; genuine-input evidence was not run.";
             return;
         }
 

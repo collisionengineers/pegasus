@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 
@@ -23,10 +24,8 @@ internal sealed record CaseSearchToolItem(
 
 internal sealed record CaseSearchToolResult(
     IReadOnlyList<CaseSearchToolItem> Items,
-    int Page,
-    int PageSize,
-    bool HasPreviousPage,
-    bool HasNextPage,
+    string? NextCursor,
+    int Limit,
     string CorrelationId);
 
 internal sealed record CaseEditLeaseToolSnapshot(
@@ -60,9 +59,9 @@ internal sealed record CaseGetToolResult(
     Guid? AssignedEngineerId,
     CaseEditLeaseToolSnapshot? ActiveEditLease,
     IReadOnlyList<CaseDocumentToolItem> Documents,
-    int DocumentEntryCount,
+    string? NextDocumentCursor,
     IReadOnlyList<CaseHistoryToolItem> RecentHistory,
-    int HistoryEntryCount,
+    string? NextHistoryCursor,
     string CorrelationId);
 
 internal sealed record CaseEditLeaseToolResult(
@@ -90,18 +89,16 @@ internal sealed record CaseEditReleaseToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class CaseMcpTools(
-    ISearchCases searchCases,
-    IGetCase getCase,
+    ISearchCasesByCursor searchCases,
+    IGetCaseHeader getCaseHeader,
+    IListCaseDocumentsByCursor listDocuments,
+    IListCaseHistoryByCursor listHistory,
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IReleaseCaseEditLease releaseLease,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    private const int MaximumSearchPageSize = 50;
-    private const int MaximumDocumentEntries = 200;
-    private const int MaximumHistoryEntries = 20;
-
     [McpServerTool(
         Name = "pegasus_case_search",
         Title = "Search cases",
@@ -110,7 +107,7 @@ internal sealed class CaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Searches cases by free text, reference, registration, claimant, claim number, principal, and lifecycle state. Results are paginated; page size is capped at 50 to respect client result-size limits.")]
+    [Description("Searches cases by free text, reference, registration, claimant, claim number, principal, and lifecycle state. Returns a bounded page and an opaque continuation cursor.")]
     public async Task<CaseSearchToolResult> SearchAsync(
         [Description("Free-text query over reference, registration, claimant, and claim number.")] string? query = null,
         [Description("Exact or partial case reference filter.")] string? caseReference = null,
@@ -119,8 +116,8 @@ internal sealed class CaseMcpTools(
         [Description("Claim number filter.")] string? claimNumber = null,
         [Description("Principal code filter.")] string? principal = null,
         [Description("Lifecycle state filter using the CaseLifecycleState name.")] string? state = null,
-        [Description("1-based page number.")] int page = 1,
-        [Description("Page size between 1 and 50; 0 selects the default of 25.")] int pageSize = 0,
+        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
+        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -143,13 +140,7 @@ internal sealed class CaseMcpTools(
                     stateFilter = parsed;
                 }
 
-                var effectivePage = page == 0 ? 1 : page;
-                var effectivePageSize = pageSize == 0 ? 25 : pageSize;
-                if (effectivePageSize is < 1 or > MaximumSearchPageSize)
-                {
-                    throw new McpException(
-                        $"The page size must be between 1 and {MaximumSearchPageSize}.");
-                }
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
 
                 var result = await searchCases.ExecuteAsync(
                     new(
@@ -162,15 +153,13 @@ internal sealed class CaseMcpTools(
                             Principal: principal,
                             State: stateFilter,
                             Query: query),
-                        effectivePage,
-                        effectivePageSize),
+                        Cursor: cursor,
+                        Limit: effectiveLimit),
                     cancellationToken);
                 return new CaseSearchToolResult(
                     result.Items.Select(Map).ToArray(),
-                    result.Page,
-                    result.PageSize,
-                    result.HasPreviousPage,
-                    result.HasNextPage,
+                    result.NextCursor,
+                    effectiveLimit,
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -184,9 +173,12 @@ internal sealed class CaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns one case as a bounded projection: summary, current version, active edit lease, document inventory (capped at 200 entries), and the most recent history entries. Document content is retrieved with pegasus_document_download.")]
+    [Description("Returns one case as a bounded projection with independently paged document inventory and history. Document content is retrieved with pegasus_document_download.")]
     public async Task<CaseGetToolResult> GetAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("Opaque document cursor returned by the previous response.")] string? documentCursor = null,
+        [Description("Opaque history cursor returned by the previous response.")] string? historyCursor = null,
+        [Description("Maximum documents and history entries per page, 1 to 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
@@ -198,15 +190,20 @@ internal sealed class CaseMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var details = await getCase.ExecuteAsync(
+                var header = await getCaseHeader.ExecuteAsync(
                     new(caseId, context.Actor),
                     cancellationToken)
                     ?? throw new McpException("The case was not found.");
-                var documents = details.Documents
-                    .SelectMany(document => document.Occurrences.Select(occurrence =>
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
+                var documentPage = await listDocuments.ExecuteAsync(
+                    new(context.Actor, caseId, documentCursor, effectiveLimit), cancellationToken);
+                var historyPage = await listHistory.ExecuteAsync(
+                    new(context.Actor, caseId, historyCursor, effectiveLimit), cancellationToken);
+                var documents = documentPage.Items
+                    .Select(document =>
                     {
-                        var version = document.Versions.Single(
-                            value => value.Id == occurrence.VersionId);
+                        var occurrence = document.Occurrence;
+                        var version = document.Version;
                         return new CaseDocumentToolItem(
                             occurrence.Id,
                             version.Id,
@@ -218,9 +215,9 @@ internal sealed class CaseMcpTools(
                             occurrence.RecordedAtUtc,
                             version.IsCurrent,
                             version.IsLogicallyRemoved);
-                    }))
+                    })
                     .ToArray();
-                var history = details.History
+                var history = historyPage.Items
                     .Select(entry => new CaseHistoryToolItem(
                         entry.EventType,
                         entry.Actor,
@@ -231,16 +228,16 @@ internal sealed class CaseMcpTools(
                         entry.AfterVersion))
                     .ToArray();
                 return new CaseGetToolResult(
-                    Map(details.Summary),
-                    details.Workflow.Version,
-                    details.Workflow.AssignedEngineerId,
-                    details.ActiveEditLease is { } lease
+                    Map(header.Summary),
+                    header.Workflow.Version,
+                    header.Workflow.AssignedEngineerId,
+                    header.ActiveEditLease is { } lease
                         ? new(lease.Holder, lease.ExpiresAtUtc)
                         : null,
-                    documents.Take(MaximumDocumentEntries).ToArray(),
-                    documents.Length,
-                    history.Take(MaximumHistoryEntries).ToArray(),
-                    history.Length,
+                    documents,
+                    documentPage.NextCursor,
+                    history,
+                    historyPage.NextCursor,
                     context.TraceIdentifier);
             }),
             cancellationToken);

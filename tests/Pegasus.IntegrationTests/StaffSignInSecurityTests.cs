@@ -1,9 +1,12 @@
 using System.Net;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -18,6 +21,7 @@ public sealed partial class StaffSignInSecurityTests
     public async Task DeniedAttemptIsRetainedAndSuccessfulCookieSignInWritesOneSuccessEvent()
     {
         await using var testDatabase = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        using var userLookupCounter = new UserLookupCommandCounter(testDatabase.DatabaseName);
         var subjectId = Guid.NewGuid();
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -100,6 +104,30 @@ public sealed partial class StaffSignInSecurityTests
                 subjectId,
                 outcome: "Succeeded",
                 reasonCode: null));
+
+        userLookupCounter.Reset();
+        using var authenticatedRequest = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.OK, authenticatedRequest.StatusCode);
+        Assert.Equal(1, userLookupCounter.ExecutedUserLookupCommands);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IForceStaffLogout>().ExecuteAsync(
+                new(
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    subjectId,
+                    "Security recovery",
+                    "force-logout-next-request"),
+                default);
+        }
+
+        userLookupCounter.Reset();
+        using var rejectedOldCookie = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.Redirect, rejectedOldCookie.StatusCode);
+        var signInRedirect = new Uri(client.BaseAddress!, rejectedOldCookie.Headers.Location!);
+        Assert.Equal(client.BaseAddress!.Authority, signInRedirect.Authority);
+        Assert.Equal("/Account/SignIn", signInRedirect.AbsolutePath);
+        Assert.Equal(1, userLookupCounter.ExecutedUserLookupCommands);
     }
 
     private static FormUrlEncodedContent CreateSignInForm(
@@ -148,4 +176,67 @@ public sealed partial class StaffSignInSecurityTests
 
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex InputValueRegex();
+
+    private sealed class UserLookupCommandCounter :
+        IObserver<DiagnosticListener>,
+        IObserver<KeyValuePair<string, object?>>, IDisposable
+    {
+        private readonly string databaseName;
+        private readonly IDisposable allListenersSubscription;
+        private readonly List<IDisposable> listenerSubscriptions = [];
+        private int executedUserLookupCommands;
+
+        public UserLookupCommandCounter(string databaseName)
+        {
+            this.databaseName = databaseName;
+            allListenersSubscription = DiagnosticListener.AllListeners.Subscribe(this);
+        }
+
+        public int ExecutedUserLookupCommands =>
+            Volatile.Read(ref executedUserLookupCommands);
+
+        public void Reset() => Interlocked.Exchange(ref executedUserLookupCommands, 0);
+
+        public void OnNext(DiagnosticListener listener)
+        {
+            if (listener.Name == DbLoggerCategory.Name)
+            {
+                listenerSubscriptions.Add(listener.Subscribe(
+                    this,
+                    eventName => eventName == RelationalEventId.CommandExecuted.Name));
+            }
+        }
+
+        public void OnNext(KeyValuePair<string, object?> value)
+        {
+            if (value.Value is CommandExecutedEventData eventData
+                && string.Equals(
+                    eventData.Command.Connection?.Database,
+                    databaseName,
+                    StringComparison.Ordinal)
+                && eventData.Command.CommandText.Contains(
+                    "[AspNetUsers]",
+                    StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref executedUserLookupCommands);
+            }
+        }
+
+        public void OnCompleted()
+        {
+        }
+
+        public void OnError(Exception error)
+        {
+        }
+
+        public void Dispose()
+        {
+            allListenersSubscription.Dispose();
+            foreach (var subscription in listenerSubscriptions)
+            {
+                subscription.Dispose();
+            }
+        }
+    }
 }

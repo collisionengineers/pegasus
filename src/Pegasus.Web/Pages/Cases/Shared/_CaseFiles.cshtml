@@ -1,5 +1,7 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
+@using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
 @{
     var details = Model.Case!;
     var summary = details.Summary;
@@ -66,6 +68,24 @@
                     .ToArray();
             }
             <partial name="Shared/_ImageGallery" model="evidenceGallery" />
+        </section>
+    }
+
+    @* B06: how each image occurrence is prepared for the report — role,
+       order, rotation and crop — below the gallery the images themselves are
+       shown in. The Report section renders the same cards from the same
+       partial and the same loaded set, so the two sections can never state
+       different preparation, or offer different controls, for one image. *@
+    @if (Model.AssetPreparations.Count > 0)
+    {
+        <section class="panel" aria-labelledby="report-images-title">
+            <div class="panel-head">
+                <h2 id="report-images-title">@ReportImageLabels.SectionTitle</h2>
+            </div>
+            <div class="panel-body">
+                <partial name="Cases/Shared/_CaseReportImagePreparation"
+                         model="ReportImagePreparationView.Files(Model)" />
+            </div>
         </section>
     }
 

@@ -3,13 +3,13 @@
 How Pegasus identifies, classifies, types, associates, and extracts QDOS
 email. Derived from the operator-approved QDOS mapping methodology
 (2026-08-21, built on the real instruction corpus) and the code that owns each
-rule. Policy versions below are the deployed criteria; the cited files are
-authoritative.
+rule. Policy versions below describe current source composition, not a
+deployment claim. FRD-09 owns accepted behavior; these cited files implement it.
 
 ## 1. Route identification — "this is QDOS mail"
 
-Owner: `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`
-(`qdos_mail_route`, Version 4).
+Owner: `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs`
+(`principal_mail_route`, Version 1).
 
 - Intake only reads **approved mailboxes** (mailbox estate:
   `docs/runbook.md#approved-mailbox-estate`); route identity is then proved
@@ -32,8 +32,8 @@ context, no desk noise) is owned by the Mail pages and
 ## 2. Message-type classification
 
 Owner:
-`src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`
-(`qdos_mail_classification`, Version 5).
+`src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`
+(`principal_mail_classification`, Version 1).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -122,12 +122,13 @@ Mapping proved on the corpus: `ENGINEER NOTIFICATION` → Inspection;
 attached to the email — operator-confirmed on EREF10);
 `AUDIT REPORT NOTIFICATION` → Audit. Missing or ambiguous standalone Audit
 evidence withholds only the later Audit reference (product invariant,
-`CLAUDE.md`).
+`AGENTS.md`). Once normal processing and principal gates pass, normal Case/PO
+allocation proceeds; the separate Audit reference still waits for its evidence.
 
 ## 4. Case association — linking mail to an existing case
 
-Owner: `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs`
-(`qdos_case_match`, Version 1), the accepted predicates of
+Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
+(`principal_case_match`, Version 1), the accepted predicates of
 `docs/adr/0020-accepted-qdos-case-association-predicates.md`.
 
 - **Label-anchored with a required separator** — free text is never scraped
@@ -234,9 +235,9 @@ render on the case Evidence tab and are retained in Box.
 
 | Question | File |
 | --- | --- |
-| Is this mail on the QDOS route / who is the effective sender? | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs` |
-| What type of message is it? | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs` |
-| Which case does it belong to? | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` + `docs/adr/0020-accepted-qdos-case-association-predicates.md` |
+| Is this mail on the QDOS route / who is the effective sender? | `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs` |
+| What type of message is it? | `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs` |
+| Which case does it belong to? | `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` + `docs/adr/0020-accepted-qdos-case-association-predicates.md` |
 | What case type is allocated? | `src/Pegasus.Core/Intake/IntakeAllocation.cs` (from the classification decision) |
 | What fields are extracted, and how? | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` + `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` |
 | What does the operator see? | `src/Pegasus.Web/Presentation/OperatorLabels.cs`, `MailClassificationSelection.cs`, `MailBodyPresentation.cs`, `src/Pegasus.Core/Intake/StaffForwardBodyCleaner.cs` |

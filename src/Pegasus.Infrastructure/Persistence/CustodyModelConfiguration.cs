@@ -28,6 +28,9 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.FileName).HasMaxLength(255).IsRequired();
             entity.Property(value => value.MediaType).HasMaxLength(128).IsRequired();
             entity.Property(value => value.Sha256).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(value => value.BoxFileId).HasMaxLength(200);
+            entity.Property(value => value.BoxVersionId).HasMaxLength(200);
+            entity.Property(value => value.PendingContentStorageKey).HasMaxLength(200);
             entity.Property(value => value.CustodyStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(value => value.CreatedBy).HasMaxLength(256).IsRequired();
             entity.Property(value => value.RemovalReason).HasMaxLength(2000);
@@ -38,7 +41,11 @@ internal static class CustodyModelConfiguration
 
         modelBuilder.Entity<DocumentOccurrenceEntity>(entity =>
         {
-            entity.ToTable("DocumentOccurrences");
+            entity.ToTable("DocumentOccurrences", table =>
+            {
+                table.HasCheckConstraint("CK_DocumentOccurrences_Rotation", "[RotationDegrees] IN (0, 90, 180, 270)");
+                table.HasCheckConstraint("CK_DocumentOccurrences_Crop", "([CropLeft] IS NULL AND [CropTop] IS NULL AND [CropWidth] IS NULL AND [CropHeight] IS NULL) OR ([CropLeft] BETWEEN 0 AND 1 AND [CropTop] BETWEEN 0 AND 1 AND [CropWidth] > 0 AND [CropWidth] <= 1 AND [CropHeight] > 0 AND [CropHeight] <= 1 AND [CropLeft] + [CropWidth] <= 1 AND [CropTop] + [CropHeight] <= 1)");
+            });
             entity.HasKey(value => value.Id);
             entity.Property(value => value.SemanticRole).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(value => value.Source).HasConversion<string>().HasMaxLength(32).IsRequired();
@@ -47,6 +54,12 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.Ordinal).IsRequired();
             entity.Property(value => value.ThirdPartyVehicleConfirmationReason).HasMaxLength(500);
             entity.Property(value => value.ThirdPartyVehicleConfirmationOperationKey).HasMaxLength(100);
+            entity.Property(value => value.PreparationRole).HasMaxLength(20);
+            entity.Property(value => value.CropLeft).HasPrecision(8, 7);
+            entity.Property(value => value.CropTop).HasPrecision(8, 7);
+            entity.Property(value => value.CropWidth).HasPrecision(8, 7);
+            entity.Property(value => value.CropHeight).HasPrecision(8, 7);
+            entity.Property(value => value.PreparedBy).HasMaxLength(200);
             entity.HasIndex(value => new { value.CaseId, value.OperationKey }).IsUnique();
             entity.HasIndex(value => new { value.CaseId, value.ThirdPartyVehicleConfirmedAtUtc });
             entity.HasIndex(value => new { value.CaseId, value.DocumentId });
@@ -66,6 +79,8 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.TokenDigest).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(value => value.LimitsVersion).HasMaxLength(64).IsRequired();
+            entity.Property(value => value.Recipient).HasMaxLength(500);
+            entity.Property(value => value.Reason).HasMaxLength(1000);
             entity.Property(value => value.CreateOperationKey).HasMaxLength(256).IsRequired();
             entity.Property(value => value.RevokeOperationKey).HasMaxLength(256);
             entity.Property(value => value.Version).IsConcurrencyToken();

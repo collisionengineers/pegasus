@@ -3,7 +3,7 @@ id: ADR-0002
 status: accepted
 date: 2026-07-23
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032]
 related_capabilities: []
 related_frd: []
 tags: [architecture, stack, hosting]
@@ -13,6 +13,17 @@ tags: [architecture, stack, hosting]
 - Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004, deployment mechanism partially superseded by ADR-0007, the expand-and-contract schema clause superseded by ADR-0030 for pre-cutover releases only, and polling/timer-first intake triggering partially superseded by ADR-0032
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
+
+
+## Current applicability
+
+The modular-monolith decision remains accepted. ADR-0043 partially supersedes
+the reusable-vendor-secret clause only for per-Engineer credentials and their
+protected session state in existing SQL. Other secret ownership is unchanged.
+
+## Current applicability
+
+The modular-monolith and Core ownership choices survive. Hosting follows ADR-0015, environment shape ADR-0014, and current intake scheduling ADR-0033. Schema compatibility is bounded by the actual supported data/consumer contract; ADR-0030’s historical alpha milestone is not a new development-data obligation.
 
 ## Context
 

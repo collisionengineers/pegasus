@@ -23,6 +23,7 @@ public sealed record LocalEmailDisplay(
     string Subject,
     string Body,
     IReadOnlyList<string> AttachmentNames,
+    IReadOnlyList<string> ReplyToAddresses,
     string? SenderAddress = null,
     string? SenderDisplayName = null,
     IReadOnlyList<string>? ToAddresses = null,
@@ -75,6 +76,8 @@ public static partial class LocalEmailDisplayReader
         body = StaffForwardBodyCleaner.Clean(body ?? string.Empty, isStaffForward);
 
         var sender = message.From.Mailboxes.FirstOrDefault();
+        var hasReplyToHeader = message.Headers.Contains(HeaderId.ReplyTo);
+        var replyToAddresses = Addresses(hasReplyToHeader ? message.ReplyTo : message.From);
         var attachments = Attachments(message);
         return new LocalEmailDisplay(
             message.From.ToString(),
@@ -84,6 +87,7 @@ public static partial class LocalEmailDisplayReader
             message.Subject ?? string.Empty,
             body ?? string.Empty,
             attachments.Select(item => item.FileName).ToArray(),
+            replyToAddresses,
             sender?.Address,
             string.IsNullOrWhiteSpace(sender?.Name) ? null : sender!.Name,
             Addresses(message.To),

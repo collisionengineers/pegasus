@@ -43,6 +43,16 @@ internal sealed class CaseEstimateLineEntity
     public DateTimeOffset RecordedAtUtc { get; set; }
     public string? ConfirmedBy { get; set; }
     public DateTimeOffset? ConfirmedAtUtc { get; set; }
+    public string? Operation { get; set; }
+    public decimal? Materials { get; set; }
+    public string? OriginalValuesJson { get; set; }
+    public string? CurrentValuesJson { get; set; }
+    public string? SourceDocumentIdentity { get; set; }
+    public Guid? SourceDocumentVersionId { get; set; }
+    public string? SourceDocumentSha256 { get; set; }
+    public string? SourceRowIdentity { get; set; }
+    public string? AmendedBy { get; set; }
+    public DateTimeOffset? AmendedAtUtc { get; set; }
     public Guid? RepairSpecificationId { get; set; }
     public CaseRepairSpecificationEntity? RepairSpecification { get; set; }
 }
@@ -79,9 +89,21 @@ internal sealed class CaseRepairSpecificationEntity
     public required string Name { get; set; }
     public int? RepairDays { get; set; }
     public decimal? LabourRate { get; set; }
-    public decimal? PaintLabourRate { get; set; }
     public decimal? PaintMaterials { get; set; }
     public decimal? OtherCosts { get; set; }
+    public Guid? RateCardId { get; set; }
+    public long? RateCardVersion { get; set; }
+    public decimal? PartsDiscountPercent { get; set; }
+    public decimal? MaterialsDiscountPercent { get; set; }
+    public decimal? SpecialistDiscountPercent { get; set; }
+    public decimal? OverallDiscountPercent { get; set; }
+    public bool? LabourVatApplicable { get; set; }
+    public bool? PartsVatApplicable { get; set; }
+    public bool? MaterialsVatApplicable { get; set; }
+    public bool? SpecialistVatApplicable { get; set; }
+    public string RepairerVatStatus { get; set; } = "Unknown";
+    public string? VatOverrideReason { get; set; }
+    public string? CalculationBreakdownJson { get; set; }
     public decimal VatPercent { get; set; }
     public string? Notes { get; set; }
     public bool IsCurrent { get; set; }
@@ -101,6 +123,7 @@ internal sealed class CaseValuationEntity
     public required string Source { get; set; }
     public DateOnly Date { get; set; }
     public TimeOnly Time { get; set; }
+    public DateOnly? GuideMonth { get; set; }
     public long Mileage { get; set; }
     public decimal RetailValue { get; set; }
     public decimal TradeValue { get; set; }

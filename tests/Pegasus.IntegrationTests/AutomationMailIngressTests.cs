@@ -63,8 +63,6 @@ public sealed class AutomationMailIngressTests
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var structured = await ReadStructuredContentAsync(response);
-            Assert.Equal(2, structured.GetProperty("totalCount").GetInt32());
-            Assert.Equal(25, structured.GetProperty("pageSize").GetInt32());
             var items = structured.GetProperty("items").EnumerateArray().ToArray();
             Assert.Equal(2, items.Length);
             Assert.Equal(ids[0], items[0].GetProperty("id").GetGuid());
@@ -81,6 +79,36 @@ public sealed class AutomationMailIngressTests
             Assert.Equal(
                 "current",
                 structured.GetProperty("freshness").GetProperty("state").GetString());
+        }
+
+        Guid firstPageId;
+        string continuation;
+        using (var firstPage = await PostMcpAsync(client, token,
+            ToolCallPayload(20, "pegasus_mail_list", new { pageSize = 1 })))
+        {
+            var structured = await ReadStructuredContentAsync(firstPage);
+            firstPageId = Assert.Single(structured.GetProperty("items").EnumerateArray())
+                .GetProperty("id").GetGuid();
+            continuation = structured.GetProperty("continuation").GetString()!;
+            Assert.False(string.IsNullOrWhiteSpace(continuation));
+        }
+        using (var secondPage = await PostMcpAsync(client, token,
+            ToolCallPayload(21, "pegasus_mail_list", new { pageSize = 1, continuation })))
+        {
+            var structured = await ReadStructuredContentAsync(secondPage);
+            var secondId = Assert.Single(structured.GetProperty("items").EnumerateArray())
+                .GetProperty("id").GetGuid();
+            Assert.NotEqual(firstPageId, secondId);
+            Assert.True(!structured.TryGetProperty("continuation", out var terminal)
+                || terminal.ValueKind == System.Text.Json.JsonValueKind.Null);
+        }
+        using (var foreignFilter = await PostMcpAsync(client, token,
+            ToolCallPayload(22, "pegasus_mail_list", new { folder = "sent", continuation })))
+        {
+            using var document = await ReadJsonRpcAsync(foreignFilter);
+            Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("The cursor is invalid or no longer applies to this query.",
+                document.RootElement.ToString(), StringComparison.Ordinal);
         }
 
         // A mailbox scope outside the supported range is a content-safe
@@ -140,7 +168,7 @@ public sealed class AutomationMailIngressTests
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -387,6 +415,7 @@ public sealed class AutomationMailIngressTests
                         "sender@example.invalid",
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],
+                        [],
                         [],
                         $"Message {index} from {MailboxId}",
                         "Please inspect the vehicle at the address supplied.",

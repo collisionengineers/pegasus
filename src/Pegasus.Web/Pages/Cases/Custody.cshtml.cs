@@ -121,17 +121,36 @@ public sealed class CustodyModel(
         long expectedVersion,
         string operationKey,
         string editLeaseToken,
+        string? recipient,
+        string? reason,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
+        // The shared contract keeps the recipient optional; this create action
+        // requires one, so a missing or blank recipient never reaches Core.
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            RetainProposedValues(id);
+            TempData["CaseError"] = "The upload request needs a recipient.";
+            return RedirectToDetails(id);
+        }
 
         try
         {
+            // An omitted reason is null before Core; supplied text, blank
+            // included, is Core's to trim, bound or refuse.
             var result = await createRequestUploadLink.ExecuteAsync(
-                new(id, actor, operationKey, expectedVersion, editLeaseToken),
+                new(
+                    id,
+                    actor,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken,
+                    recipient,
+                    string.IsNullOrEmpty(reason) ? null : reason),
                 cancellationToken);
             ClearLeaseState();
             if (result.Secret is null)

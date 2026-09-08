@@ -1,4 +1,5 @@
-﻿using Pegasus.Core.Cases;
+﻿using Pegasus.Core.Address;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Cases;
@@ -9,48 +10,20 @@ public sealed class OrganizationAdministrationTests
         ActionActor.Staff(Guid.Parse("63f98d69-5368-48b8-b25d-a61ec91f6905"), [StaffRole.Administrator]);
 
     [Fact]
-    public async Task CreateOrganizationNormalizesInputBeforeCallingPersistencePort()
-    {
-        var store = new RecordingStore();
-        var command = new CreateOrganization(store);
-
-        await command.ExecuteAsync(
-            new(
-                "  QDOS Services  ",
-                [
-                    OrganizationRole.InstructionIntermediary,
-                    OrganizationRole.WorkProvider,
-                    OrganizationRole.WorkProvider
-                ],
-                Administrator,
-                "  create-qdos  "),
-            default);
-
-        var request = Assert.Single(store.OrganizationCreates);
-        Assert.Equal("QDOS Services", request.Name);
-        Assert.Equal(
-            [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-            request.Roles);
-        Assert.Equal("create-qdos", request.OperationKey);
-    }
-
-    [Fact]
     public async Task PrincipalCommandsNormalizeCodesAndRequiredChangeReasons()
     {
         var store = new RecordingStore();
         var create = new CreatePrincipal(store);
         var replace = new ReplacePrincipal(store);
-        var organizationId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
 
         await create.ExecuteAsync(
-            new(organizationId, " qdos2 ", Administrator, " create-principal "),
+            new("  QDOS Services  ", " qdos2 ", Administrator, " create-principal "),
             default);
         await replace.ExecuteAsync(
             new(
                 principalId,
                 4,
-                organizationId,
                 " qdos3 ",
                 Administrator,
                 " replace-principal ",
@@ -58,24 +31,10 @@ public sealed class OrganizationAdministrationTests
             default);
 
         Assert.Equal("QDOS2", Assert.Single(store.PrincipalCreates).Code);
+        Assert.Equal("QDOS Services", Assert.Single(store.PrincipalCreates).Name);
         var replacement = Assert.Single(store.PrincipalReplacements);
         Assert.Equal("QDOS3", replacement.SuccessorCode);
         Assert.Equal("successor required", replacement.Reason);
-    }
-
-    [Fact]
-    public async Task EmptyRolesFailBeforePersistence()
-    {
-        var store = new RecordingStore();
-        var create = new CreateOrganization(store);
-
-        var exception = await Assert.ThrowsAsync<OrganizationAdministrationException>(
-            () => create.ExecuteAsync(
-                new("No roles", [], Administrator, "empty-roles"),
-                default));
-
-        Assert.Equal(OrganizationAdministrationError.EmptyOrganizationRoles, exception.Error);
-        Assert.Empty(store.OrganizationCreates);
     }
 
     [Fact]
@@ -87,31 +46,47 @@ public sealed class OrganizationAdministrationTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new CreatePrincipal(store).ExecuteAsync(
-                new(Guid.NewGuid(), "DENIED", actor, "denied-create"),
+                new("QDOS Services", "DENIED", actor, "denied-create"),
                 default));
+
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new ListOrganizations(queries).ExecuteAsync(new(actor), default));
+            new ListPrincipals(queries).ExecuteAsync(actor, 1, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new GetPrincipal(queries).ExecuteAsync(actor, Guid.NewGuid(), default));
 
         Assert.Empty(store.PrincipalCreates);
         Assert.Equal(0, queries.ListCalls);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("QDOS\u0001")]
+    public async Task InvalidCustomerNameFailsBeforePersistence(string name)
+    {
+        var store = new RecordingStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new CreatePrincipal(store).ExecuteAsync(
+                new(name, "QDOS2", Administrator, "invalid-name"), default));
+        Assert.Empty(store.PrincipalCreates);
+    }
+
     [Fact]
-    public async Task ListOrganizationsAuthorizesAndBoundsTheProjectionPort()
+    public async Task PrincipalListBoundsTheFlatProjection()
     {
         var queries = new RecordingQueries();
-        var query = new ListOrganizations(queries);
+        var query = new ListPrincipals(queries);
 
-        var page = await query.ExecuteAsync(new(Administrator, 3, 10), default);
+        var page = await query.ExecuteAsync(Administrator, 3, default);
 
-        Assert.Equal(20, queries.Offset);
-        Assert.Equal(10, queries.Limit);
-        Assert.True(page.HasPreviousPage);
-        Assert.True(page.HasMoreOrganizations);
+        Assert.Equal(50, queries.Offset);
+        Assert.Equal(26, queries.Limit);
+        Assert.Equal(3, page.PageNumber);
+        Assert.False(page.HasMore);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            query.ExecuteAsync(
-                new(Administrator, 1, ListOrganizations.MaximumPageSize + 1),
-                default));
+            query.ExecuteAsync(Administrator, 0, default));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            query.ExecuteAsync(Administrator, int.MaxValue, default));
     }
 
     [Fact]
@@ -122,7 +97,6 @@ public sealed class OrganizationAdministrationTests
         var request = new ReplacePrincipalRequest(
             Guid.NewGuid(),
             -1,
-            Guid.NewGuid(),
             "NEXT",
             Administrator,
             "replace",
@@ -135,51 +109,165 @@ public sealed class OrganizationAdministrationTests
         Assert.Empty(store.PrincipalReplacements);
     }
 
+    // C06 review R-4: item 6 (the principal's default inspection location)
+    // had a recording store but nothing exercised
+    // OrganizationAdministrationPolicy.Normalize(UpdatePrincipalDefaultInspectionLocationRequest)
+    // or captured the values UpdatePrincipalDefaultInspectionLocation sends
+    // to the store.
+
     [Fact]
-    public void RoleUpdatePolicyOwnsVersionAndActivePrincipalGuard()
+    public void NormalizeDefaultInspectionLocationClearsAddressFieldsForImageBasedAssessment()
     {
-        var current = new Organization(
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
             Guid.NewGuid(),
-            "Provider",
-            [OrganizationRole.WorkProvider],
-            7);
+            3,
+            "  op-key  ",
+            "  because reasons  ",
+            InspectionAddressEvidenceKind.ImageBasedAssessment,
+            Label: "Should be cleared",
+            Address: "Should be cleared",
+            Postcode: "Should be cleared",
+            SourceKind: "directory",
+            SourceRecordId: Guid.NewGuid(),
+            SourceVersion: 5);
 
-        var guard = Assert.Throws<OrganizationAdministrationException>(() =>
-            OrganizationAdministrationPolicy.PlanRoleUpdate(
-                current,
-                7,
-                [OrganizationRole.InstructionIntermediary],
-                hasActivePrincipals: true));
-        Assert.Equal(
-            OrganizationAdministrationError.ActivePrincipalsRequireWorkProvider,
-            guard.Error);
+        var normalized = OrganizationAdministrationPolicy.Normalize(request);
 
-        var updated = OrganizationAdministrationPolicy.PlanRoleUpdate(
-            current,
-            7,
-            [
-                OrganizationRole.WorkProvider,
-                OrganizationRole.InstructionIntermediary
-            ],
-            hasActivePrincipals: true);
-        Assert.Equal(8, updated.Version);
-        Assert.Equal(
-            [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-            updated.Roles);
-        var unchanged = OrganizationAdministrationPolicy.PlanRoleUpdate(
-            updated,
-            8,
-            updated.Roles,
-            hasActivePrincipals: true);
-        Assert.Equal(8, unchanged.Version);
+        Assert.Equal("op-key", normalized.OperationKey);
+        Assert.Equal("because reasons", normalized.Reason);
+        Assert.Null(normalized.Label);
+        Assert.Null(normalized.Address);
+        Assert.Null(normalized.Postcode);
+        Assert.Null(normalized.SourceKind);
+        Assert.Null(normalized.SourceRecordId);
+        Assert.Null(normalized.SourceVersion);
+    }
 
-        var stale = Assert.Throws<OrganizationAdministrationException>(() =>
-            OrganizationAdministrationPolicy.PlanRoleUpdate(
-                current,
-                6,
-                [OrganizationRole.WorkProvider],
-                hasActivePrincipals: false));
-        Assert.Equal(OrganizationAdministrationError.StaleVersion, stale.Error);
+    [Fact]
+    public void NormalizeDefaultInspectionLocationTrimsAPhysicalAddressAndPostcode()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "reason",
+            InspectionAddressEvidenceKind.PhysicalAddress,
+            Label: "Yard",
+            Address: "  1 Test Street  ",
+            Postcode: "  TE1 1ST  ",
+            SourceKind: "manual",
+            SourceRecordId: null,
+            SourceVersion: null);
+
+        var normalized = OrganizationAdministrationPolicy.Normalize(request);
+
+        Assert.Equal("1 Test Street", normalized.Address);
+        Assert.Equal("TE1 1ST", normalized.Postcode);
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationRequiresAnAddressForAPhysicalChoice()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "reason",
+            InspectionAddressEvidenceKind.PhysicalAddress,
+            Label: null,
+            Address: "   ",
+            Postcode: null,
+            SourceKind: null,
+            SourceRecordId: null,
+            SourceVersion: null);
+
+        Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationRequiresAReason()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "   ",
+            InspectionAddressEvidenceKind.ImageBasedAssessment,
+            null, null, null, null, null, null);
+
+        Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
+    }
+
+    [Fact]
+    public void NormalizeDefaultInspectionLocationRejectsAnUndefinedKind()
+    {
+        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
+            Administrator,
+            Guid.NewGuid(),
+            0,
+            "op-key",
+            "reason",
+            (InspectionAddressEvidenceKind)99,
+            null, null, null, null, null, null);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => OrganizationAdministrationPolicy.Normalize(request));
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalDefaultInspectionLocationDeniesNonAdministratorBeforePersistence()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalDefaultInspectionLocation(store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            command.ExecuteAsync(
+                new(
+                    actor,
+                    Guid.NewGuid(),
+                    0,
+                    "op-key",
+                    "reason",
+                    InspectionAddressEvidenceKind.ImageBasedAssessment,
+                    null, null, null, null, null, null),
+                default));
+
+        Assert.Empty(store.DefaultInspectionLocationUpdates);
+    }
+
+    [Fact]
+    public async Task UpdatePrincipalDefaultInspectionLocationNormalizesInputBeforeCallingPersistencePort()
+    {
+        var store = new RecordingStore();
+        var command = new UpdatePrincipalDefaultInspectionLocation(store);
+        var principalId = Guid.NewGuid();
+
+        await command.ExecuteAsync(
+            new(
+                Administrator,
+                principalId,
+                2,
+                "  op-key  ",
+                "  physical override reason  ",
+                InspectionAddressEvidenceKind.PhysicalAddress,
+                "Yard",
+                "  1 Test Street  ",
+                "  TE1 1ST  ",
+                "manual",
+                null,
+                null),
+            default);
+
+        var request = Assert.Single(store.DefaultInspectionLocationUpdates);
+        Assert.Equal(principalId, request.PrincipalId);
+        Assert.Equal("op-key", request.OperationKey);
+        Assert.Equal("physical override reason", request.Reason);
+        Assert.Equal("1 Test Street", request.Address);
+        Assert.Equal("TE1 1ST", request.Postcode);
     }
 
     [Fact]
@@ -194,17 +282,11 @@ public sealed class OrganizationAdministrationTests
             null,
             true,
             3);
-        var successorOrganization = new Organization(
-            Guid.NewGuid(),
-            "Successor provider",
-            [OrganizationRole.WorkProvider],
-            2);
         var successorId = Guid.NewGuid();
 
         var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
             predecessor,
             3,
-            successorOrganization,
             successorId,
             " next ",
             codeAlreadyExists: false);
@@ -216,7 +298,7 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(successorId, replacement.Predecessor.SuccessorId);
         Assert.Equal(4, replacement.Predecessor.Version);
         Assert.Equal("NEXT", replacement.Successor.Code);
-        Assert.Equal(successorOrganization.Id, replacement.Successor.OrganizationId);
+        Assert.Equal(predecessor.OrganizationId, replacement.Successor.OrganizationId);
         Assert.Equal(predecessor.SequenceLineageId, replacement.Successor.SequenceLineageId);
         Assert.Equal(predecessor.Id, replacement.Successor.PredecessorId);
         Assert.True(replacement.Successor.IsActive);
@@ -224,8 +306,8 @@ public sealed class OrganizationAdministrationTests
     }
 
     /// <summary>
-    /// EXT-04. The settings change in place and nothing else does — the code,
-    /// the organization and the lineage are what a replacement is for.
+    /// EXT-04. The manual setting changes in place and nothing else does — the
+    /// code, the organization and the lineage are what a replacement is for.
     /// </summary>
     [Fact]
     public void EvaSubmissionSettingsChangeInPlaceAndMoveTheVersion()
@@ -235,11 +317,9 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
             current,
             expectedVersion: 3,
-            evaManualSubmission: true,
-            evaAutomaticSubmission: true);
+            evaManualSubmission: true);
 
         Assert.True(updated.EvaManualSubmission);
-        Assert.True(updated.EvaAutomaticSubmission);
         Assert.Equal(4, updated.Version);
         Assert.Equal(current.Id, updated.Id);
         Assert.Equal(current.Code, updated.Code);
@@ -259,8 +339,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
             current,
             expectedVersion: 3,
-            evaManualSubmission: true,
-            evaAutomaticSubmission: false);
+            evaManualSubmission: true);
 
         Assert.Equal(3, updated.Version);
     }
@@ -272,8 +351,7 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
                 Principal(version: 4),
                 expectedVersion: 3,
-                evaManualSubmission: true,
-                evaAutomaticSubmission: false));
+                evaManualSubmission: true));
 
         Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
     }
@@ -289,8 +367,7 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
-                evaManualSubmission: true,
-                evaAutomaticSubmission: false));
+                evaManualSubmission: true));
 
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
@@ -307,35 +384,9 @@ public sealed class OrganizationAdministrationTests
 
     private sealed class RecordingStore : IOrganizationAdministrationStore
     {
-        public List<CreateOrganizationRequest> OrganizationCreates { get; } = [];
-        public List<UpdateOrganizationRolesRequest> OrganizationUpdates { get; } = [];
         public List<CreatePrincipalRequest> PrincipalCreates { get; } = [];
         public List<ReplacePrincipalRequest> PrincipalReplacements { get; } = [];
         public List<UpdatePrincipalEvaSubmissionRequest> EvaSubmissionUpdates { get; } = [];
-
-        public Task<Organization> CreateOrganizationAsync(
-            CreateOrganizationRequest request,
-            CancellationToken cancellationToken)
-        {
-            OrganizationCreates.Add(request);
-            return Task.FromResult(new Organization(
-                Guid.NewGuid(),
-                request.Name,
-                request.Roles,
-                0));
-        }
-
-        public Task<Organization> UpdateOrganizationRolesAsync(
-            UpdateOrganizationRolesRequest request,
-            CancellationToken cancellationToken)
-        {
-            OrganizationUpdates.Add(request);
-            return Task.FromResult(new Organization(
-                request.OrganizationId,
-                "Organization",
-                request.Roles,
-                request.ExpectedVersion + 1));
-        }
 
         public Task<Principal> UpdatePrincipalEvaSubmissionAsync(
             UpdatePrincipalEvaSubmissionRequest request,
@@ -352,8 +403,35 @@ public sealed class OrganizationAdministrationTests
                 true,
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
-                request.EvaManualSubmission,
-                request.EvaAutomaticSubmission));
+                request.EvaManualSubmission));
+        }
+
+        public List<UpdatePrincipalDefaultInspectionLocationRequest> DefaultInspectionLocationUpdates
+        { get; } = [];
+
+        public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
+            UpdatePrincipalDefaultInspectionLocationRequest request,
+            CancellationToken cancellationToken)
+        {
+            DefaultInspectionLocationUpdates.Add(request);
+            return Task.FromResult(new PrincipalAdministrationSummary(
+                request.PrincipalId,
+                Guid.NewGuid(),
+                "QDOS",
+                Guid.NewGuid(),
+                null,
+                null,
+                true,
+                request.ExpectedVersion + 1,
+                0,
+                CaseInspectionMode.PhysicalAddress,
+                EvaManualSubmission: false,
+                request.Label,
+                request.Address,
+                request.Postcode,
+                request.SourceKind,
+                request.SourceRecordId,
+                request.SourceVersion));
         }
 
         public Task<Principal> CreatePrincipalAsync(
@@ -363,7 +441,7 @@ public sealed class OrganizationAdministrationTests
             PrincipalCreates.Add(request);
             return Task.FromResult(new Principal(
                 Guid.NewGuid(),
-                request.OrganizationId,
+                Guid.NewGuid(),
                 request.Code,
                 Guid.NewGuid(),
                 null,
@@ -379,7 +457,7 @@ public sealed class OrganizationAdministrationTests
             PrincipalReplacements.Add(request);
             return Task.FromResult(new Principal(
                 Guid.NewGuid(),
-                request.SuccessorOrganizationId,
+                Guid.NewGuid(),
                 request.SuccessorCode,
                 Guid.NewGuid(),
                 request.PrincipalId,
@@ -395,22 +473,18 @@ public sealed class OrganizationAdministrationTests
         public int Offset { get; private set; }
         public int Limit { get; private set; }
 
-        public Task<OrganizationQuerySlice> ListAsync(
-            int offset,
-            int limit,
-            CancellationToken cancellationToken)
+        public Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalsAsync(
+            int offset, int limit, CancellationToken cancellationToken)
         {
             ListCalls++;
             Offset = offset;
             Limit = limit;
-            return Task.FromResult(new OrganizationQuerySlice([], true));
+            return Task.FromResult<IReadOnlyList<PrincipalAdministrationDetails>>([]);
         }
 
-        public Task<OrganizationDetails?> GetAsync(
-            Guid organizationId,
-            int principalLimit,
-            Guid? requiredPrincipalId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<OrganizationDetails?>(null);
+        public Task<PrincipalAdministrationDetails?> GetPrincipalAsync(
+            Guid principalId, CancellationToken cancellationToken) =>
+            Task.FromResult<PrincipalAdministrationDetails?>(null);
+
     }
 }

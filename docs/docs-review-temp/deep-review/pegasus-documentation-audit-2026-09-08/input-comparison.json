@@ -1,0 +1,110 @@
+[
+  {
+    "file": "CONTEXT.md",
+    "uploaded_bytes": 9078,
+    "normalized_bytes": 8929,
+    "lines": 149,
+    "local_blob": "115f8bf5379df94a9cff6384c6fa481d2dc9de13",
+    "dev_blob": "115f8bf5379df94a9cff6384c6fa481d2dc9de13",
+    "equal": true
+  },
+  {
+    "file": "README(5).md",
+    "uploaded_bytes": 4318,
+    "normalized_bytes": 4236,
+    "lines": 82,
+    "local_blob": "6f78d42648f6674efb6e1063761608da0f585042",
+    "dev_blob": "6f78d42648f6674efb6e1063761608da0f585042",
+    "equal": true
+  },
+  {
+    "file": "AGENTS.md",
+    "uploaded_bytes": 27390,
+    "normalized_bytes": 27190,
+    "lines": 409,
+    "local_blob": "9eeb03c7eaaf50f8b0f794085c3b8c549a645867",
+    "dev_blob": "a8d33548c9e336a4a6a1e3eb3e0e0c30f1cbcc73",
+    "equal": false
+  },
+  {
+    "file": "boundaries.md",
+    "uploaded_bytes": 7061,
+    "normalized_bytes": 7022,
+    "lines": 39,
+    "local_blob": "e5b4ba629329c9de7219849f82a586eaaf55f7fe",
+    "dev_blob": "e5b4ba629329c9de7219849f82a586eaaf55f7fe",
+    "equal": true
+  },
+  {
+    "file": "capabilities.md",
+    "uploaded_bytes": 109344,
+    "normalized_bytes": 108922,
+    "lines": 422,
+    "local_blob": "2de73a03ffd0c12703c23096baa149e94eeb2256",
+    "dev_blob": "2de73a03ffd0c12703c23096baa149e94eeb2256",
+    "equal": true
+  },
+  {
+    "file": "current-architecture.md",
+    "uploaded_bytes": 78091,
+    "normalized_bytes": 77223,
+    "lines": 868,
+    "local_blob": "dfbb2a2ee3f71b58a92634b5d96f5eaf9ae3e725",
+    "dev_blob": "dfbb2a2ee3f71b58a92634b5d96f5eaf9ae3e725",
+    "equal": true
+  },
+  {
+    "file": "engineering.md",
+    "uploaded_bytes": 20037,
+    "normalized_bytes": 19756,
+    "lines": 281,
+    "local_blob": "2fb32da41b44c021121c8dc72e56f82b59cbb95f",
+    "dev_blob": "a044c0ab6fcf51e0638d9bf54bdf9006e000c501",
+    "equal": false
+  },
+  {
+    "file": "index.md",
+    "uploaded_bytes": 3918,
+    "normalized_bytes": 3867,
+    "lines": 51,
+    "local_blob": "b712f41682dc0d09661a9526c9c8d5caef03feff",
+    "dev_blob": "b6313f8aa44d7a9106dd7036027c58cf2cfea3de",
+    "equal": false
+  },
+  {
+    "file": "open-decisions.md",
+    "uploaded_bytes": 41536,
+    "normalized_bytes": 41086,
+    "lines": 450,
+    "local_blob": "b6a9116254a6ba8192aa57aee32963d5f0574eb5",
+    "dev_blob": "b6a9116254a6ba8192aa57aee32963d5f0574eb5",
+    "equal": true
+  },
+  {
+    "file": "operations.md",
+    "uploaded_bytes": 126097,
+    "normalized_bytes": 124429,
+    "lines": 1668,
+    "local_blob": "ba018f445fa973fb6be7d82c4a51ce26d3cf5be4",
+    "dev_blob": "ba018f445fa973fb6be7d82c4a51ce26d3cf5be4",
+    "equal": true
+  },
+  {
+    "file": "operator-notes.md",
+    "uploaded_bytes": 49712,
+    "normalized_bytes": 49047,
+    "lines": 665,
+    "local_blob": "8c1b1a961dd2cf5158411449a432ee1a6cfc36d1",
+    "dev_blob": "8c1b1a961dd2cf5158411449a432ee1a6cfc36d1",
+    "equal": true
+  },
+  {
+    "file": "runbook.md",
+    "uploaded_bytes": 86465,
+    "normalized_bytes": 85032,
+    "lines": 1433,
+    "local_blob": "9bb8438175d59f7cc6f8b4f95d52fc4ac15b45ae",
+    "dev_blob": "f754e619f25515f43c8174a3706ac3e130704488",
+    "equal": false
+  }
+]

@@ -39,19 +39,12 @@ is the attributable action actor. Cross-principal query or result disclosure
 fails closed. The transport channel alone never changes extraction, instruction
 eligibility, or automatic allocation: a definitive provider-API instruction
 for its authenticated principal follows the same case-creation path as an
-equally definitive email instruction.
+equally definitive email instruction. API-01 is create-only: it never associates
+material with or mutates an existing Case.
 
-**Source limitation:** the accepted sources do not define an external tenant
-model, exact routes, headers, schema, attachment encoding, request limits,
-throttling policy, administration UI, or a Pegasus identity/field named
-`provider_domain_key`. No allowed source proves an owner or current/predecessor
-consumer for that name. Pegasus therefore does not create, migrate, map, alias,
-or retire it. Any later proposal must first establish authoritative source and
-consumer evidence, stable-principal/route/provenance mapping, collision and
-unknown handling, cutover, rollback, retention, and explicit retirement proof
-through the separate [open
-decision](../open-decisions.md#external-data-submission-and-report-contracts);
-none may be inferred from provider-domain evidence.
+API-01 owns the supported routes, schemas, limits and Principal credential
+contract. Additional tenancy or identity fields require a concrete accepted
+consumer requirement; supplied provider-domain evidence does not invent one.
 
 No provider route is active until its exact capability allocation, accepted
 contract, credentials/scopes, failure and recovery proof, real caller, and
@@ -137,6 +130,13 @@ HTTP already holds the fields, and states them.
   vehicle registration — are the only ones that withhold a reference; ordinary
   detail missing from a declaration leaves the case `Not ready`, exactly as it
   does for an e-mail.
+- **Existing-Case rejection.** The existing Case-match policy is applied to the
+  declared claim number, vehicle registration, claimant and incident date. A
+  unique or ambiguous existing-Case match fails with
+  `provider_existing_case_match`; Pegasus allocates no Case or PO and neither
+  associates material with nor mutates an existing Case. With no match, the
+  submission follows the ordinary creation path. Provider updates remain a
+  separate deferred capability under AUTO-017.
 - **Pause.** A paused credential is refused for submission before Pegasus reads
   the request body (403, recorded) and still reads its own receipts and results;
   a revoked one is refused everywhere.
@@ -150,27 +150,71 @@ HTTP already holds the fields, and states them.
   sorting rather than allocated. Custody failure is 503 and the caller retries
   with the same key.
 
-### Accepted QDOS automatic case-association predicates
+### Accepted principal email routes and automatic association
 
-> Owner capability: route association (QDOS direct). Relocated from ADR-0020 (2026-08-03). Instantiates the route-policy association frame for the QDOS direct route and supersedes the earlier single-domain QDOS sender identity with the operator-accepted three-domain set. General multi-rule precedence and confidence questions remain open in [open decisions](../open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display).
+The operator's September 2026 v1 scope activates the fifteen existing
+instruction profiles through the ordinary email path (TICK-035). This
+supersedes the historical QDOS-only activation boundary. Provider API
+credentials and mailbox onboarding remain separate capabilities.
 
-For mail on the accepted QDOS direct route only:
+`PrincipalMailRoutePolicy.AcceptedIdentities` is the single runtime catalog
+of evidenced exact domains and mailboxes, also displayed by Principal
+Settings. It covers ALS, AX, BC, BLACK, DFD, FW, KBS, MP, OAK, PCH, QCL,
+QDOS, RJS, SBL and YML. YML accepts only its evidenced mailbox, never the
+shared Gmail domain. HDUK-branded instructions in the supplied YML samples
+belong to the confirmed YML route. Retain HDUK as document issuer separately
+from the instructing Principal; branding does not establish a new Principal
+or widen an accepted sender. No suffix or subdomain widening is permitted.
+The supplied export and original-header evidence is attributed in TICK-035.
 
-1. **Route identity.** QDOS direct sender identity is exact whole-domain equality against `qdosassist.co.uk`, `qdoslaw.co.uk`, or `qdosassists.co.uk` (`qdos_mail_route` v3) — no suffix or subdomain widening. An accepted domain alone still classifies nothing and associates nothing.
-2. **Match keys** (`qdos_case_match` v1), extracted label-anchored with a required separator, never scraped from free text: the claim reference normalized to its durable token (the `NNNNN/N` tail for `qdosassist` references, full or bare; the letters grammar for `qdoslaw` references), the client-vehicle registration compacted to `[A-Z0-9]` (TP-prefixed labels are never harvested), and the claimant name as title-stripped surname plus first initial. Multiple distinct values for one key withdraw that key. The incident date (labelled fields plus the generated subject `on DD/MM/YYYY`) is never a positive key.
-3. **Eliminator procedure.** Candidates are every QDOS case matching ANY key, in every lifecycle state (the operator confirmed staff do not archive; a post-report case is post-report stage). A candidate contradicted by the message's incident date or by another identity key present on both sides is eliminated. Exactly one survivor is an automatic association; zero is no match (instructions proceed to the normal creation gates); several fail closed as the recorded Ambiguous outcome, forcing `Needs sorting` with the competing candidates visible. A `Created in error` survivor redirects to its linked replacement case and is never associated itself. `NoKeys` remains distinguishable from `NoMatch`. No numeric confidence score, threshold, or display exists anywhere.
+Exactly one consistent transport sender is required. A Collision Engineers
+staff forward additionally proves one external original sender. PCH mail
+from the evidenced Connexus or Ensurance intermediary requires one agreeing
+PCH instruction profile; an intermediary is not a direct PCH identity.
+An accepted sender alone classifies and allocates nothing.
+
+Selection requires a profile's signals within one physical current document,
+not assembled across attachments. Separate reports cannot disqualify an
+instruction. A proved forwarded original remains current; arbitrary nested
+messages and historical quoted material do not. A conflicting or ambiguous
+profile fails closed. Non-QDOS automatic instruction extraction requires one
+profile agreeing with the sender. Existing QDOS route-bound body/Triage
+shapes remain accepted when no competing profile matches.
+
+The one `PrincipalMailClassificationPolicy` implementation is bound to each
+existing extraction registration. QDOS retains its generated Inspection,
+Audit, combined and Triage tells below. Other profiles require the evidenced
+explicit inspect/examine request or DFD/FW instruction template. PCH's
+explicit Audit request takes precedence over its generic inspection footer;
+a separate credit-repair inspection request remains distinct. Replies,
+unknown work and competing work types cannot allocate a new Case. Missing
+ordinary fields do not withhold an otherwise definitive Case's reference.
+
+`PrincipalCaseMatchPolicy` is likewise bound to each existing extraction
+registration. Its non-QDOS keys come from that profile's typed role-labelled
+fields and preserve the full principal reference, including Fairway's `-01`
+suffix. QDOS alone uses its settled claim-tail grammar. Conflicted fields
+withdraw their key. Read and Case-index writes share the same normalization.
+
+The preserved QDOS grammar and shared association rules are:
+
+1. **Route identity.** QDOS direct sender identity retains its three accepted domains in the shared catalog (`principal_mail_route` v1).
+2. **QDOS match keys** (`principal_case_match` v1), extracted label-anchored with a required separator, never scraped from free text: the claim reference normalized to its durable token (the `NNNNN/N` tail for `qdosassist` references, full or bare; the letters grammar for `qdoslaw` references), the client-vehicle registration compacted to `[A-Z0-9]` (TP-prefixed labels are never harvested), and the claimant name as title-stripped surname plus first initial. Multiple distinct values for one key withdraw that key. The incident date (labelled fields plus the generated subject `on DD/MM/YYYY`) is never a positive key.
+3. **Shared eliminator procedure.** Candidates are every case for the established principal matching ANY key, in every lifecycle state. A candidate contradicted by the message's incident date or by another identity key present on both sides is eliminated. Exactly one survivor is an automatic association; zero is no match (instructions proceed to the normal creation gates); several fail closed as the recorded Ambiguous outcome, forcing `Unidentified` with the competing candidates visible. A `Created in error` survivor redirects to its linked replacement case and is never associated itself. `NoKeys` remains distinguishable from `NoMatch`. No numeric confidence score, threshold, or display exists anywhere.
 4. **Recording and reversal.** Every evaluation persists a decision record (keys, per-candidate hits and eliminations with reasons, outcome, policy key and version) one-to-one with the intake receipt. An automatic association is written idempotently by the system-worker identity with the match policy stamped, no-ops when any active association exists, and is reversible through the ordinary staff unlink with full history.
 
-This pulls the QDOS-direct subset of MAIL-09 forward to `Now / 0.1.0-alpha.1`. General multi-provider association, the classified-email workspace, and every other route's matchers remain allocated `Next / 0.3.0`.
-
-Consequences: the predicates are Core-owned, code-versioned policy (`QdosCaseMatchPolicy`, the shared eliminator in `EvaluateIntakeCaseMatch`); a behaviour change is a version bump, never a silent redefinition, and any normalization change requires an explicit rebuild of the derived match index. The match index is a read model of accepted case data maintained in the same transaction by every case-data writer — case acceptance, staff case-data save, vehicle-suggestion confirmation, and Created in error replacement creation — all through one shared projector. The predecessor's false-registration shapes (`AND2`, `OCTOBER`, postcode outward codes, `X5 NOW`) are pinned as negative tests. No generic rule engine, rule table, or admin editor is introduced; a second provider's matcher needs its own operator-accepted predicates and policy.
+The Core policies are code-versioned. The derived match index is maintained
+in the same transaction by all existing Case-data writers through one shared
+projector. No new rule engine, rule table, admin editor or parallel matcher is
+introduced. Additional identities require genuine evidence and an agreeing
+supported extraction profile, not guessed company domains.
 
 ### Accepted QDOS automatic Triage predicates
 
 > Owner capability: TRI-01/TRI-02 (QDOS direct). Operator decision 2026-08-23 (INTK-033). Behaviour is owned by [FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence); this records which predicates were accepted and what they may not do.
 
 QDOS sends Triage requests in two disjoint generated templates, and both are accepted
-tells of the same one category (`qdos_mail_classification` v4): the body phrase
+tells of the same one category (`principal_mail_classification` v1): the body phrase
 `Triage Only Request`, and a subject opening with `Engineer Triage` past any forward or
 reply prefix. Both are matched case-exactly, because the casing is part of the generated
 tell — a human sentence mentioning either is not the tell. Two tells feed **one** triage
@@ -188,3 +232,21 @@ The registration that decides FRD-03's branch is read by the ordinary label-anch
 extraction: from the letter's `Registration:` line in the body template, and from the
 subject's `Vehicle Registration` label in the subject template, which states it nowhere
 else.
+
+
+## Triage result contract
+
+A Provider API Triage submission exposes the same result shape and
+Principal-scoped access as a regular Case submission, using the Triage
+`T-` reference in place of the normal Case/PO reference. It does not allocate a
+formal Case merely to populate that result. Receipt and processing state retain
+their ordinary meaning; a result is not proof of an emailed response.
+
+## Non-overlapping route rules
+
+Accepted route predicates must be mutually exclusive for their intended input.
+A concrete audit request is not a generic footer match; make that distinction
+in the predicates rather than add a precedence score. There is no open policy
+question asking staff to choose a winning rule. An unexpected overlap fails
+closed with visible evidence and is a defect to correct, not a supported
+ambiguous routing mode or permission to guess.

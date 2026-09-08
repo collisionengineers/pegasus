@@ -1,9 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -17,113 +20,90 @@ public sealed class OrganizationAdministrationPersistenceTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task CreateReplayConflictDuplicateAndBoundedProjectionsUseCoreAndEf()
+    public async Task PrincipalCreationIsAtomicReplaySafeAndProjectsOneCustomer()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
-        var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
-        var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
-        var listOrganizations = scope.ServiceProvider.GetRequiredService<IListOrganizations>();
-        var getOrganization = scope.ServiceProvider.GetRequiredService<IGetOrganization>();
-        var organizationRequest = new CreateOrganizationRequest(
-            "Alpha Provider",
-            [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-            Administrator,
-            "organization:create:alpha");
+        var create = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
+        var list = scope.ServiceProvider.GetRequiredService<IListPrincipals>();
+        var get = scope.ServiceProvider.GetRequiredService<IGetPrincipal>();
+        var request = new CreatePrincipalRequest(
+            "  pegasustest  ", "pegasustest", Administrator, "principal:create:pegasustest");
 
-        var organization = await createOrganization.ExecuteAsync(organizationRequest, default);
-        var organizationReplay = await createOrganization.ExecuteAsync(organizationRequest, default);
-
-        AssertOrganizationEquivalent(organization, organizationReplay);
-        var operationConflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            createOrganization.ExecuteAsync(
-                organizationRequest with { Name = "Different Provider" },
-                default));
-        Assert.Equal(OrganizationAdministrationError.OperationConflict, operationConflict.Error);
-        var duplicateName = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            createOrganization.ExecuteAsync(
-                organizationRequest with
-                {
-                    Name = "alpha provider",
-                    OperationKey = "organization:create:duplicate"
-                },
-                default));
-        Assert.Equal(OrganizationAdministrationError.DuplicateOrganizationName, duplicateName.Error);
-
-        var principalRequest = new CreatePrincipalRequest(
-            organization.Id,
-            "qdos",
-            Administrator,
-            "principal:create:qdos");
-        var principal = await createPrincipal.ExecuteAsync(principalRequest, default);
-        var principalReplay = await createPrincipal.ExecuteAsync(principalRequest, default);
-
-        Assert.Equal("QDOS", principal.Code);
-        Assert.Equal(principal, principalReplay);
-        var duplicateCode = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            createPrincipal.ExecuteAsync(
-                principalRequest with { OperationKey = "principal:create:qdos-duplicate" },
-                default));
-        Assert.Equal(OrganizationAdministrationError.DuplicatePrincipalCode, duplicateCode.Error);
-        var principalConflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            createPrincipal.ExecuteAsync(
-                principalRequest with { Code = "OTHER" },
-                default));
-        Assert.Equal(OrganizationAdministrationError.OperationConflict, principalConflict.Error);
-        _ = await createOrganization.ExecuteAsync(
-            new(
-                "Beta Provider",
-                [OrganizationRole.WorkProvider],
-                Administrator,
-                "organization:create:beta"),
-            default);
-
-        var page = await listOrganizations.ExecuteAsync(
-            new(Administrator, 1, 1),
-            default);
-        var listedOrganization = Assert.Single(page.Organizations);
-        Assert.Equal(organization.Id, listedOrganization.Id);
-        Assert.Equal(
-            [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-            listedOrganization.Roles);
-        Assert.Equal(principal.Id, Assert.Single(listedOrganization.Principals).Id);
-        Assert.True(page.HasMoreOrganizations);
-
-        var details = await getOrganization.ExecuteAsync(
-            new(Administrator, organization.Id),
-            default);
+        var principal = await create.ExecuteAsync(request, default);
+        var replay = await create.ExecuteAsync(request, default);
+        Assert.Equal(principal, replay);
+        Assert.Equal("PEGASUSTEST", principal.Code);
+        var details = await get.ExecuteAsync(Administrator, principal.Id, default);
         Assert.NotNull(details);
-        Assert.Equal(organization.Name, details.Name);
-        Assert.Equal(principal.SequenceLineageId, Assert.Single(details.Principals).SequenceLineageId);
-        Assert.False(details.HasMorePrincipals);
+        Assert.Equal("pegasustest", details.Name);
+        Assert.Equal(principal.OrganizationId, details.Principal.OrganizationId);
+        Assert.Equal(principal.SequenceLineageId, details.Principal.SequenceLineageId);
+        Assert.Equal(0, details.Principal.AllocatedCaseCount);
 
-        Assert.Equal(
-            3,
-            await factory.Database.ScalarAsync<int>(
-                "SELECT COUNT(*) FROM OrganizationAdministrationOperations;"));
-        Assert.Equal(
-            3,
-            await factory.Database.ScalarAsync<int>(
-                "SELECT COUNT(*) FROM ActionHistory WHERE AggregateType IN ('organization', 'principal');"));
+        var duplicateName = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            create.ExecuteAsync(request with
+            {
+                Name = "PEGASUSTEST", Code = "NEXT", OperationKey = "principal:duplicate-name"
+            }, default));
+        Assert.Equal(OrganizationAdministrationError.DuplicateOrganizationName, duplicateName.Error);
+        var duplicateCode = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            create.ExecuteAsync(request with
+            {
+                Name = "Other Provider", OperationKey = "principal:duplicate-code"
+            }, default));
+        Assert.Equal(OrganizationAdministrationError.DuplicatePrincipalCode, duplicateCode.Error);
+        var conflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            create.ExecuteAsync(request with { Name = "Other Provider" }, default));
+        Assert.Equal(OrganizationAdministrationError.OperationConflict, conflict.Error);
+
+        // A separate directory entry is not a customer and never appears on the Principal list.
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            context.Organizations.Add(new OrganizationEntity
+            {
+                Id = Guid.NewGuid(), Name = "Intermediary Only", Version = 0
+            });
+            await context.SaveChangesAsync();
+        }
+        var page = await list.ExecuteAsync(Administrator, 1, default);
+        Assert.Equal(principal.Id, Assert.Single(page.Principals, item => item.Name == "pegasustest").Principal.Id);
+        Assert.DoesNotContain(page.Principals, item => item.Name == "Intermediary Only");
+        Assert.False(page.HasMore);
+        Assert.Empty((await list.ExecuteAsync(Administrator, 2, default)).Principals);
+        Assert.Null(await get.ExecuteAsync(Administrator, Guid.NewGuid(), default));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations WHERE Name = 'pegasustest';"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations WHERE Name = 'Other Provider';"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM OrganizationRoles WHERE OrganizationId = '{principal.OrganizationId:D}' AND Role = 'work_provider';"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:create:pegasustest';"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:create:pegasustest';"));
     }
 
     [Fact]
-    public async Task ConcurrentExactReplayCommitsOneOrganizationAndAuditEntry()
+    public async Task ConcurrentExactReplayCommitsOneCustomerPrincipalAndAuditEntry()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
-        var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
-        var request = new CreateOrganizationRequest(
+        var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
+        var request = new CreatePrincipalRequest(
             "Concurrent Provider",
-            [OrganizationRole.WorkProvider],
+            "CONCURRENT",
             Administrator,
-            "organization:create:concurrent");
+            "principal:create:concurrent");
 
         var results = await Task.WhenAll(
-            createOrganization.ExecuteAsync(request, default),
-            createOrganization.ExecuteAsync(request, default));
+            createPrincipal.ExecuteAsync(request, default),
+            createPrincipal.ExecuteAsync(request, default));
 
-        AssertOrganizationEquivalent(results[0], results[1]);
+        Assert.Equal(results[0], results[1]);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Principals WHERE Code = 'CONCURRENT';"));
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
@@ -131,93 +111,11 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'organization:create:concurrent';"));
+                "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:create:concurrent';"));
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'organization:create:concurrent';"));
-    }
-
-    [Fact]
-    public async Task RoleUpdatesAreVersionedAndProtectActiveWorkProviderPrincipals()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-        var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
-        var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
-        var updateRoles = scope.ServiceProvider.GetRequiredService<IUpdateOrganizationRoles>();
-        var intermediaryOnly = await createOrganization.ExecuteAsync(
-            new(
-                "Intermediary Only",
-                [OrganizationRole.InstructionIntermediary],
-                Administrator,
-                "organization:create:intermediary-only"),
-            default);
-        var principalRoleGuard = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            createPrincipal.ExecuteAsync(
-                new(
-                    intermediaryOnly.Id,
-                    "INVALIDOWNER",
-                    Administrator,
-                    "principal:create:invalid-owner"),
-                default));
-        Assert.Equal(
-            OrganizationAdministrationError.OrganizationCannotOwnPrincipals,
-            principalRoleGuard.Error);
-        var organization = await createOrganization.ExecuteAsync(
-            new(
-                "Role Guard Provider",
-                [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-                Administrator,
-                "organization:create:role-guard"),
-            default);
-        _ = await createPrincipal.ExecuteAsync(
-            new(
-                organization.Id,
-                "GUARD",
-                Administrator,
-                "principal:create:role-guard"),
-            default);
-
-        var workProviderOnlyRequest = new UpdateOrganizationRolesRequest(
-            organization.Id,
-            organization.Version,
-            [OrganizationRole.WorkProvider],
-            Administrator,
-            "organization:roles:remove-intermediary",
-            "No longer routes intermediary instructions");
-        var workProviderOnly = await updateRoles.ExecuteAsync(workProviderOnlyRequest, default);
-        var replay = await updateRoles.ExecuteAsync(workProviderOnlyRequest, default);
-
-        AssertOrganizationEquivalent(workProviderOnly, replay);
-        Assert.Equal(1, workProviderOnly.Version);
-        Assert.Equal([OrganizationRole.WorkProvider], workProviderOnly.Roles);
-
-        var activePrincipalGuard = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            updateRoles.ExecuteAsync(
-                new(
-                    organization.Id,
-                    workProviderOnly.Version,
-                    [OrganizationRole.InstructionIntermediary],
-                    Administrator,
-                    "organization:roles:remove-provider",
-                    "Attempt to remove provider role"),
-                default));
-        Assert.Equal(
-            OrganizationAdministrationError.ActivePrincipalsRequireWorkProvider,
-            activePrincipalGuard.Error);
-
-        var stale = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
-            updateRoles.ExecuteAsync(
-                new(
-                    organization.Id,
-                    0,
-                    [OrganizationRole.WorkProvider, OrganizationRole.InstructionIntermediary],
-                    Administrator,
-                    "organization:roles:stale",
-                    "Stale update"),
-                default));
-        Assert.Equal(OrganizationAdministrationError.StaleVersion, stale.Error);
+                "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:create:concurrent';"));
     }
 
     [Fact]
@@ -225,25 +123,29 @@ public sealed class OrganizationAdministrationPersistenceTests
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
-        var createOrganization = scope.ServiceProvider.GetRequiredService<ICreateOrganization>();
-        var createPrincipal = scope.ServiceProvider.GetRequiredService<ICreatePrincipal>();
         var replacePrincipal = scope.ServiceProvider.GetRequiredService<IReplacePrincipal>();
-        var getOrganization = scope.ServiceProvider.GetRequiredService<IGetOrganization>();
+        var getPrincipal = scope.ServiceProvider.GetRequiredService<IGetPrincipal>();
         var acceptIntake = scope.ServiceProvider.GetRequiredService<IAcceptIntake>();
-        var organization = await createOrganization.ExecuteAsync(
-            new(
-                "Replacement Provider",
-                [OrganizationRole.WorkProvider],
-                Administrator,
-                "organization:create:replacement"),
-            default);
-        var predecessor = await createPrincipal.ExecuteAsync(
-            new(
-                organization.Id,
-                QdosPrincipal.Code,
-                Administrator,
-                "principal:create:replacement"),
-            default);
+
+        // The foundation migration (C-F05) already seeds the QDOS principal
+        // and its owning work-provider organization exactly once; a fresh
+        // create with the same principal code would collide with it
+        // globally (Principal.Code has no per-organization scope), so the
+        // predecessor here is the seeded row itself, replaced within its
+        // own already-seeded, already-eligible organization.
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var seedContext = await contextFactory.CreateDbContextAsync();
+        var predecessor = await seedContext.Principals.AsNoTracking()
+            .SingleAsync(item => item.Code == QdosPrincipal.Code);
+        var configuredLocation = await scope.ServiceProvider
+            .GetRequiredService<IUpdatePrincipalDefaultInspectionLocation>()
+            .ExecuteAsync(new(
+                Administrator, predecessor.Id, predecessor.Version,
+                "principal:default-location:replacement", "Keep the customer default across code replacement",
+                InspectionAddressEvidenceKind.PhysicalAddress,
+                "Directory Web Caller Yard", "1 Directory Way, DW1 2EF", "DW1 2EF",
+                "manual", null, null), default);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
         var receiptVersion = await factory.Database.ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
@@ -256,13 +158,12 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "Confirmed intake before principal replacement testing.",
                 CaseType.Inspection,
                 predecessor.Code,
-                new(true, true, true, true)),
+                new(true, true)),
             default);
         var originalReference = accepted.Identity.Reference;
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
-            predecessor.Version,
-            organization.Id,
+            configuredLocation.Version,
             "QDOSNEXT",
             Administrator,
             "principal:replace:qdos",
@@ -275,16 +176,27 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(predecessor.SequenceLineageId, successor.SequenceLineageId);
         Assert.Equal(predecessor.Id, successor.PredecessorId);
         Assert.True(successor.IsActive);
-        var details = await getOrganization.ExecuteAsync(
-            new(Administrator, organization.Id),
-            default);
-        Assert.NotNull(details);
-        var persistedPredecessor = Assert.Single(
-            details.Principals,
-            principal => principal.Id == predecessor.Id);
-        var persistedSuccessor = Assert.Single(
-            details.Principals,
-            principal => principal.Id == successor.Id);
+        var predecessorDetails = await getPrincipal.ExecuteAsync(Administrator, predecessor.Id, default);
+        var successorDetails = await getPrincipal.ExecuteAsync(Administrator, successor.Id, default);
+        Assert.NotNull(predecessorDetails);
+        Assert.NotNull(successorDetails);
+        var persistedPredecessor = predecessorDetails.Principal;
+        var persistedSuccessor = successorDetails.Principal;
+        Assert.Equal(predecessorDetails.Name, successorDetails.Name);
+        Assert.Equal(persistedPredecessor.OrganizationId, persistedSuccessor.OrganizationId);
+        Assert.Equal(
+            (configuredLocation.DefaultInspectionLocationLabel,
+                configuredLocation.DefaultInspectionAddress,
+                configuredLocation.DefaultInspectionPostcode,
+                configuredLocation.DefaultInspectionSourceKind,
+                configuredLocation.DefaultInspectionSourceRecordId,
+                configuredLocation.DefaultInspectionSourceVersion),
+            (persistedSuccessor.DefaultInspectionLocationLabel,
+                persistedSuccessor.DefaultInspectionAddress,
+                persistedSuccessor.DefaultInspectionPostcode,
+                persistedSuccessor.DefaultInspectionSourceKind,
+                persistedSuccessor.DefaultInspectionSourceRecordId,
+                persistedSuccessor.DefaultInspectionSourceVersion));
         Assert.False(persistedPredecessor.IsActive);
         Assert.Equal(successor.Id, persistedPredecessor.SuccessorId);
         Assert.Equal("QDOS", persistedPredecessor.Code);
@@ -322,16 +234,6 @@ public sealed class OrganizationAdministrationPersistenceTests
                 },
                 default));
         Assert.Equal(OrganizationAdministrationError.StaleVersion, stale.Error);
-    }
-
-    private static void AssertOrganizationEquivalent(
-        Organization expected,
-        Organization actual)
-    {
-        Assert.Equal(expected.Id, actual.Id);
-        Assert.Equal(expected.Name, actual.Name);
-        Assert.Equal(expected.Roles.ToArray(), actual.Roles.ToArray());
-        Assert.Equal(expected.Version, actual.Version);
     }
 
     private static async Task<IntakeReceipt> CreateReadyReceiptAsync(IServiceProvider services)
@@ -420,5 +322,64 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "replacement_test_policy",
                 1),
             default);
+    }
+
+    /// <summary>
+    /// C-F05/EXT-18 item 1: the fresh-database migration seeds the current
+    /// top-15 principal identities exactly once, by the exact code/GUID the
+    /// foundation handoff froze — and YML (the confirmed HDUK-branded route)
+    /// stays a distinct principal role rather than merging with a document
+    /// issuer or any other principal.
+    /// </summary>
+    [Fact]
+    public async Task FreshDatabaseSeedsExactlyTheFifteenFrozenPrincipalsOnce()
+    {
+        var expected = new (string Code, Guid PrincipalId)[]
+        {
+            ("QDOS", Guid.Parse("00000000-0000-4000-8000-00000000c001")),
+            ("PCH", Guid.Parse("00000000-0000-4000-8000-00000000c002")),
+            ("AX", Guid.Parse("00000000-0000-4000-8000-00000000c003")),
+            ("FW", Guid.Parse("00000000-0000-4000-8000-00000000c004")),
+            ("QCL", Guid.Parse("00000000-0000-4000-8000-00000000c005")),
+            ("OAK", Guid.Parse("00000000-0000-4000-8000-00000000c006")),
+            ("SBL", Guid.Parse("00000000-0000-4000-8000-00000000c007")),
+            ("BLACK", Guid.Parse("00000000-0000-4000-8000-00000000c008")),
+            ("RJS", Guid.Parse("00000000-0000-4000-8000-00000000c009")),
+            ("DFD", Guid.Parse("00000000-0000-4000-8000-00000000c00a")),
+            ("KBS", Guid.Parse("00000000-0000-4000-8000-00000000c00b")),
+            ("MP", Guid.Parse("00000000-0000-4000-8000-00000000c00c")),
+            ("YML", Guid.Parse("00000000-0000-4000-8000-00000000c00d")),
+            ("ALS", Guid.Parse("00000000-0000-4000-8000-00000000c00e")),
+            ("BC", Guid.Parse("00000000-0000-4000-8000-00000000c00f"))
+        };
+
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        var seeded = await context.Principals
+            .AsNoTracking()
+            .Select(principal => new { principal.Id, principal.Code })
+            .ToListAsync();
+
+        Assert.Equal(15, seeded.Count);
+        foreach (var (code, principalId) in expected)
+        {
+            var matches = seeded.Where(row => row.Id == principalId).ToArray();
+            Assert.True(
+                matches.Length == 1,
+                $"Expected exactly one seeded principal with id {principalId}, found {matches.Length}.");
+            Assert.Equal(code, matches[0].Code);
+        }
+
+        // YML is the confirmed HDUK-branded route, but HDUK itself is a
+        // document issuer, never a second principal identity: no seeded
+        // principal may carry that code, and every seeded code above is
+        // unique.
+        Assert.DoesNotContain(seeded, row => row.Code == "HDUK");
+        Assert.Equal(seeded.Count, seeded.Select(row => row.Code).Distinct().Count());
+        Assert.Equal(seeded.Count, seeded.Select(row => row.Id).Distinct().Count());
     }
 }

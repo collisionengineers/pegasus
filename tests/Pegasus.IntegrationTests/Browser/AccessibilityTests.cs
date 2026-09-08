@@ -29,8 +29,6 @@ public sealed class AccessibilityTests
         "/Administration",
         "/Administration/Accounts",
         "/Administration/Roles",
-        "/Administration/Access",
-        "/Administration/Organizations",
         "/Administration/Principals",
         "/Administration/Principals/Create",
         "/Administration/Configuration",

@@ -17,9 +17,6 @@
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
 
-        @* Accounts, roles and the access review are one table: the role set,
-           the account state and the review verdict are three readings of the
-           same staff account, and every action here acts on that one row. *@
         <section class="panel" aria-labelledby="staff-accounts-title">
             <div class="panel-head">
                 <h2 id="staff-accounts-title">Accounts</h2>
@@ -35,14 +32,13 @@
             {
                 <div class="table-wrap no-border">
                     <table>
-                        <caption class="sr-only">Staff accounts with their roles, state and last recorded access review</caption>
+                        <caption class="sr-only">Staff accounts with their roles and state</caption>
                         <thead>
                             <tr>
                                 <th scope="col">Username</th>
                                 <th scope="col">Role</th>
                                 <th scope="col">State</th>
                                 <th scope="col">@OperatorLabels.StaffAccounts.SignOffEngineer</th>
-                                <th scope="col">Last reviewed</th>
                                 <th scope="col">Save</th>
                                 <th scope="col">Account</th>
                             </tr>
@@ -83,20 +79,6 @@
                                 </td>
                                 <td>@OperatorLabels.StaffAccounts.SignOffState(account)</td>
                                 <td>
-                                    @if (account.LastAccessReviewAtUtc is { } reviewedAtUtc)
-                                    {
-                                        <time datetime="@reviewedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(reviewedAtUtc)</time>
-                                    }
-                                    else if (row.ReviewIsOutstanding)
-                                    {
-                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.ReviewDue" />
-                                    }
-                                    else
-                                    {
-                                        <span class="muted">—</span>
-                                    }
-                                </td>
-                                <td>
                                     <form id="@roleForm" method="post" asp-page-handler="Roles" class="field">
                                         <input type="hidden" name="staffId" value="@staffId" />
                                         <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
@@ -113,27 +95,24 @@
                                 <td>
                                     @if (account.Roles.Contains(StaffRole.Engineer))
                                     {
+                                        <a asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" class="btn">Glass's</a>
                                         <button type="button" class="btn" data-dialog-open="sign-off-@staffId">
                                             <span>@OperatorLabels.StaffAccounts.Settings</span>
                                         </button>
                                     }
-                                    @if (!row.IsCurrentOperator && account.IsEnabled)
-                                    {
-                                        <a asp-page="/Administration/Accounts/Confirm"
-                                           asp-route-operation="Disable" asp-route-staffId="@account.Id"
-                                           class="btn btn--danger" data-dialog-open="disable-@staffId">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-                                            <span>@OperatorLabels.StaffAccounts.Disable</span>
-                                        </a>
-                                    }
                                     @if (!row.IsCurrentOperator)
                                     {
-                                        <a asp-page="/Administration/Accounts/Confirm"
-                                           asp-route-operation="Review" asp-route-staffId="@account.Id"
-                                           class="btn" data-dialog-open="review-@staffId">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
-                                            <span>@OperatorLabels.StaffAccounts.Review</span>
-                                        </a>
+                                        @if (account.IsEnabled)
+                                        {
+                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Disable" asp-route-staffId="@account.Id" class="btn btn--danger">Disable</a>
+                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ForceLogout" asp-route-staffId="@account.Id" class="btn">Force logout</a>
+                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ResetPassword" asp-route-staffId="@account.Id" class="btn">Reset password</a>
+                                        }
+                                        else
+                                        {
+                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Enable" asp-route-staffId="@account.Id" class="btn">Enable</a>
+                                        }
+                                        <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Delete" asp-route-staffId="@account.Id" class="btn btn--danger">Delete</a>
                                     }
                                 </td>
                             </tr>
@@ -178,6 +157,14 @@
         </section>
     </div>
 </div>
+
+@if (Model.ResetTemporaryPassword is { } temporaryPassword)
+{
+    <section class="panel" aria-labelledby="temporary-password-title">
+        <div class="panel-head"><h2 id="temporary-password-title">Temporary password</h2></div>
+        <div class="panel-body"><output>@temporaryPassword</output></div>
+    </section>
+}
 
 @* The row dialogs live outside the scrolling table so the fixed backdrop is
    never a child of an overflow container. *@
@@ -260,38 +247,5 @@
                 </form>
             </section>
         </div>
-    }
-    if (!row.IsCurrentOperator && account.IsEnabled)
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "disable-" + staffId,
-            ["DialogTitle"] = OperatorLabels.StaffAccounts.Disable + " " + account.UserName,
-            ["DialogConsequence"] = OperatorLabels.StaffAccounts.DisableConsequence,
-            ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Disable"),
-            ["DialogReasonMaxLength"] = reasonLimit,
-            ["DialogReason"] = Model.AccountActionStaffId == account.Id ? Model.AccountActionReason : string.Empty,
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
-            {
-                ["staffId"] = staffId,
-                ["operationKey"] = IndexModel.NewOperationKey()
-            }
-        })" />
-    }
-    @if (!row.IsCurrentOperator)
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "review-" + staffId,
-            ["DialogTitle"] = OperatorLabels.StaffAccounts.Review + " access review for " + account.UserName,
-            ["DialogActionUrl"] = Url.Page("/Administration/Accounts/Index", "Review"),
-            ["DialogReasonMaxLength"] = reasonLimit,
-            ["DialogReason"] = Model.AccountActionStaffId == account.Id ? Model.AccountActionReason : string.Empty,
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
-            {
-                ["staffId"] = staffId,
-                ["operationKey"] = IndexModel.NewOperationKey()
-            }
-        })" />
     }
 }

@@ -1,4 +1,4 @@
-# FRD-12: Operator experience
+﻿# FRD-12: Operator experience
 
 > Owner capabilities: UI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [docs/design/README.md](../design/README.md)
 
@@ -16,7 +16,7 @@ records no technical decision.
 
 The shell described here is the Integrated Operations Workspace (`UI-16`).
 It completes the design route that
-[open decisions — later operator UI capabilities](../open-decisions.md#later-operator-ui-capabilities)
+[open decisions — later operator UI capabilities](../open-decisions.md)
 requires for the routes it activates; the design authority is
 [design § Authenticated shell](../design/README.md#authenticated-shell).
 
@@ -67,7 +67,7 @@ Pegasus; no decorative or generated replacement icon is used.
 
 Every drawn control maps to a named handler. A disabled control is permitted
 only for a named, ticketed integration seam whose capability row in
-[capabilities](../capabilities.md#capabilities) records it as a disabled
+[capabilities](../capabilities.md) records it as a disabled
 seam; an inert control is never rendered. Labels, values and controls carry
 no explanatory copy
 ([design § No explanatory copy](../design/README.md#no-explanatory-copy-and-page-economy)).
@@ -80,7 +80,7 @@ order, **Work Centre** (`/`), **Inbox** (`/Inbox`), **Upload** (`/Upload`),
 **Cases** (`/Cases`), **Search** (`/Search`), **Operations**
 (`/Operations`) and — for administrators only — **Administration**
 (`/Admin`). Inbox, Cases and Operations carry a count; the Cases count is the
-sum of Not ready, Review, With Engineer, Held, Triage and Unidentified. A
+sum of Not ready, Review, With Engineer, Query, Held, Triage and Unidentified. A
 count is a page-queried figure: an absent count renders nothing, never `0`.
 The current route is marked by more than colour. The rail foot shows the
 freshness line and the signed-in account (name, role, account dialog with
@@ -89,6 +89,9 @@ session start, idle lock, sign out).
 The utility bar carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), the **Add** action (Upload
 files, Create Case, Create upload request, Review Inbox) and notifications.
+A notification-query failure must not block the page unless it represents
+cancellation or failed authorization. The dialog shows `Notifications
+unavailable.` without placeholder or stale rows, and the failure is logged.
 **Create Case** takes the required identity and the attached or recorded
 instruction, records an attributable intake receipt, and then runs the normal
 principal and Case/PO allocation policy — never a second allocation path (D26,
@@ -107,14 +110,14 @@ dialog traps focus and inerts the page behind it.
 | `/Search` | Advanced search (`UI-07`) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}` | Triage and Unidentified detail | — |
 | `/Operations` | AI jobs, attention, upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
-| `/Admin`, `/Admin/{area}` | Administration areas | Administration index, Organisations, Access review, Roles, Automation Activity |
+| `/Admin`, `/Admin/{area}` | Administration areas | Administration index, Organisations, Staff accounts, Roles, Automation Activity |
 
 `/Triage` and `/Unidentified` are permanent redirects to `/Cases?tab=triage`
 and `/Cases?tab=unidentified`, kept for existing links and bookmarks rather
 than left dead. The `/VehicleImages` list route is removed; the vehicle-image
-detail page remains the image record and is reached from Not-ready
+detail page remains the image record and is reached from Awaiting-instruction
 Image-initiated rows, the Case Files section and upload outcomes. There is no
-separate top-level Unidentified, Organisations, Access review, Roles or
+separate top-level Unidentified, Organisations, Staff accounts, Roles or
 Automation Activity entry. `/Cases/{id}/Assessment` is a permanent redirect
 to `/Cases/{id}?section=estimate` (D30): the Engineer workbench is a set of
 sections on the Case record, not a page of its own.
@@ -155,7 +158,7 @@ interface wording for the `Blocked intake` boundary and remains pre-case.
 
 | Group | Queues |
 | --- | --- |
-| Workflow | Not ready, Review, With Engineer, Complete |
+| Workflow | Not ready, Review, With Engineer, Completed, Query |
 | Pre-Case work | Triage, Awaiting instruction |
 | Exceptions | Held, Unidentified |
 
@@ -185,8 +188,8 @@ projection still awaiting an instruction is listed under Awaiting instruction
 (D38) with its origin visible. Unidentified media kind (`Images` or
 `E-mails`) is
 derived from the retained receipt's source channel and content type, not a
-separate stored field. Terminal Cases other than Complete are excluded from
-the Cases rail and appear in Search as `Closed · <outcome>`.
+separate stored field. Completed and Query are reversible workflow states. Cancellation, rejection
+and Created in error are recorded dispositions, not terminally Closed Cases.
 
 Unidentified detail shows the kind/received/reason facts, the retained file
 or message by its operator-meaningful handle, one link to the underlying
@@ -206,7 +209,10 @@ the source facts, a `History` view that merges durable events with append-only
 attributable notes in chronological order, and a `Files` view of the retained
 sources, their attachments and the linked vehicle images with view and download
 (D25). A correction is a new note; there is no note edit, no note delete and no
-upload action on Triage. The existing server-side transitions remain
+upload action on Triage. Completion records the decided outcome. Optional
+**Reply with outcome** opens the email feature with an editable preset template;
+the sent correspondence attaches to the Triage and is never a completion gate.
+The existing server-side transitions remain
 reachable where a handler exists ([FRD-03](frd-03-triage.md)).
 
 ### Search
@@ -235,31 +241,37 @@ lazily; there is no layout switch. The sections, in order, are **Overview**,
 **Estimate**, **Settlement**, **Report**, **Files**, **Notes** (D30). Every
 section is always viewable; the Engineer sections — Damage, Valuation,
 Estimate, Settlement, Report — are editable in With Engineer and read-only
-once Complete (D30; the former D11 access rule is now this read-only rule).
+in every other state (D30; the former D11 access rule is now this read-only
+rule).
 The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 
 The action bar offers only actions the Core use cases permit for the current
-state: Edit Case / Finish editing / Renew editing, or the holder and expiry
+state: Edit Case / Finish editing / Renew editing, or the holder
 when another account holds the lease ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery));
-Place on Hold / Release Hold; Create upload link; **Send to EVA** in Review
-as the implicit review action, moving the Case to With Engineer, and again in
-With Engineer as a re-send (D36, D44) — the dialog holds Engineer,
+Place on Hold / Release Hold; Create upload link; **Hand to Engineer** in
+Review while editing — its dialog selects an eligible Engineer and the one
+handoff assigns them and enters With Engineer. Handoff is review; there is
+no reviewed checkbox or separate Start report preparation action.
+**Send to EVA** remains optional in Review and With Engineer as a re-send
+(D36, D44); its dialog shows the Engineer and holds
 Sign-off Engineer and Download ZIP / Send via API, with Send via API disabled
 unless the Principal enables it ([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
-there is no separate Download EVA package action;
+there is no separate Download EVA package action and EVA never gates native
+engineering;
 **Report sent** in With Engineer, which confirms detected or linked Sent
 evidence and enters post-report work — it never completes the Case and
 never records a manual assertion ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
-**Return to Engineer** in Complete; Close Case when not Complete; Reopen
-Case when closed. There is no Open Assessment action (D30). Every
-hold, release, close and reopen takes a reason. Editing shows a sticky bar
+**Return to Engineer** in Completed or Query when engineering changes are needed.
+Query receipt or attachment moves Completed to Query; replying returns it to
+Completed without a separate reopen. There is no terminal Close Case action.
+Holds, releases, corrections and a return to engineering record a reason. Editing shows a sticky bar
 with the lease text, an unsaved marker, Discard and Save; saving in Review
 warns first; a stale version shows the current and proposed values as a
 non-destructive conflict.
 
 - Overview: the workflow position (Not ready → Review → With Engineer →
-  Complete, with Held as an exception badge), outstanding requirements — the
+  Completed ⇄ Query, with Held as an exception badge), outstanding requirements — the
   named unmet items of the versioned instruction- and image-completeness sets,
   each with title, source, reason and resolve action, and never a percentage
   (D23) — the edit form (claimant, provider reference, registration, make,
@@ -285,9 +297,9 @@ non-destructive conflict.
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)).
 - Valuation: each entry with source, date, time, mileage, retail and trade
   values, plus guide month per entry (`CASE-029`), and Add valuation
-  (`EXT-10`); sources are Glass's valuation, Cazana
-  (disabled seam), Engineer's Value and AI market research (D40); requesting
-  AI market research creates a `MarketResearch` job (D35,
+  (`EXT-10`); sources are Glass's valuation, Brego and Super CAP manual entries,
+  Cazana (disabled seam), Engineer's Value and AI market research (automation
+  only) (D40); requesting AI market research creates a `MarketResearch` job (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
 - Estimate: the estimate set and raw estimate import (§ Assessment).
 - Settlement: outcome, category, salvage value, excess, betterment, claimant
@@ -298,7 +310,7 @@ non-destructive conflict.
 - Report: report-image preparation (D19, `ENG-031`), the readiness list of
   named outstanding items, the agreed fee and description lines with the fee
   note preview (D42), and Generate / Preview report draft
-  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point));
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point));
   the report renders the sign-off Engineer tuple (D31) and the marked damage
   diagram (D39).
 - Files: documents with custody state, preview and save-as; the
@@ -327,24 +339,25 @@ Close control.
 The Engineer workbench is the Damage, Valuation, Estimate, Settlement and
 Report sections of the Case record (D30); `/Cases/{id}/Assessment` is a
 permanent redirect to `/Cases/{id}?section=estimate`. The sections are
-always viewable and read-only once Complete. Report-image preparation lives
+always viewable and read-only in Completed. Report-image preparation lives
 on the Report section: distinct `Close-up` first and `Overview` second,
 optional supporting images in explicit order, and non-destructive crops that
 leave the retained source and its hash untouched (D19). The Estimate section
-carries the estimate set (`EXT-09`: named estimates
-with source, repair days, the selected labour-rate card, explicit paint
-labour, paint materials and other costs, a free VAT percentage, lines and
-totals; one estimate is Current and drives the report). Each version selects
-one of the global versioned labour-rate cards, which prices non-paint labour
-only; the version's own VAT percentage applies to the whole subtotal (D9,
-D17); no comparison or savings figure is shown. It also carries Send to Claude
+carries the estimate set (`EXT-09`: named estimates with source, repair
+days, the selected labour-rate-card snapshot, VAT categories, lines and
+totals; one estimate is Current and drives the report). Each version's card
+prices both panel and paint hours. Its own VAT percentage defaults to 20 and
+applies to selected discounted Labour, Parts, Materials and Specialist
+categories. Unknown repairer VAT blocks Use as Current until staff record an
+explicit status or categories (D9, D17); no comparison or savings figure is
+shown. It also carries Send to Claude
 (`AI-09`, disabled without an Engineer's Value); the report-draft
 generation and preview sit on the Report section
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point)).
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 
-Raw estimate import (`EXT-12`) has no control and no dialog. One file dropped
-anywhere on the Case record is imported immediately, with no confirmation
-step and no visible file picker (D16, 2026-09-01). Only currently registered
+Raw estimate import (`EXT-12`) is a whole-page drop surface. One file is
+imported immediately, with no confirmation step and no visible file picker
+(D16, 2026-09-01). Only currently registered
 parser types are accepted; the provider and parser are auto-detected and an
 ambiguous artifact is refused rather than guessed. The resulting Draft is named
 by provider plus sequence, and the filename, source hash, provider/parser,
@@ -385,10 +398,12 @@ with search, area, actor, result and date filters) and **Reports** (the Engineer
 `MI-01`: per Engineer and period, queries received and reports). Every
 consequential change — role, account state, principal credential, automation
 stop/start — takes a reason and enters permanent history. The **Staff accounts
-& roles** area carries a **Reset password** action beside Disable and Review:
-the Administrator enters and confirms a temporary password, the existing policy
-and hashing apply, the forced-change state is set, and the secret is never
-emailed or shown again (D28,
+& roles** area carries a **Reset password** action beside the other account actions:
+Pegasus generates a temporary password and visibly reveals it to the Administrator
+in the protected confirmation UI (FRD-04 D15). The Administrator can convey it
+to the user; staff accounts are not email-bound and no automatic email is sent.
+The existing policy and non-reversible hashing apply and forced change is set
+for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
 
 **Workflow configuration** holds the versioned instruction- and
@@ -398,10 +413,14 @@ default 7, Europe/London), where `Held` preserves the remaining time (D23).
 It has no staff instruction-review or image-review settings; where only the
 workflow policy identity applies, the page shows its current version read-only
 (D44, 2026-09-03). It also holds labour-rate-card administration: the
-global versioned cards (name, non-paint hourly rate, enabled state) that every
-estimate version selects from, with disabling blocking future selection
+global versioned cards (name, panel-and-paint hourly rate, enabled state) that
+every estimate version selects from, with disabling blocking future selection
 without changing history (D17). It stays inside that area; no ninth area is
 added.
+
+Review-gated transitions calculate completeness from persisted facts inside
+the transaction. A submitted readiness claim or staff-confirmation checkbox is
+not authority; those checkboxes are retired (CASE-046, PLAT-072).
 
 ### Workspace tabs, command palette and keyboard
 
@@ -442,16 +461,14 @@ No required evidence or action is hidden at any width or at 200% zoom.
 
 ### Display labels
 
-Case states show their display labels; the Core lifecycle enum is
-untouched. `ReportPreparation` and `PostReport` display as **With
-Engineer**, `PostReportComplete` as **Complete**, and every other terminal
-state as `Closed · <outcome>` in Search. The mapping is owned by
-[FRD-01](frd-01-case-identity-and-lifecycle.md). `Audit`, `Triage`,
+Case states and transition meanings are owned by
+[FRD-01](frd-01-case-identity-and-lifecycle.md). Completed and Query are
+reversible work states; no terminal Closed presentation is permitted. `Audit`, `Triage`,
 `Blocked intake` and `Unidentified` keep their settled meanings.
 
 ### Upload
 
-Manual upload currently remains bounded at 10 MiB per file. Future intake
+Manual upload currently remains bounded at 100 MiB per file. Future intake
 bounds require `INTK-052` research and an operator decision; the Provider API
 envelope stays 30 MB and is owned by
 [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
@@ -506,7 +523,7 @@ responsible actor, source/version, before/after values, time, and reason
 where required.
 
 `New cases today` counts every instructed Case created in the current
-Europe/London calendar day, including a Case later closed that day. It
+Europe/London calendar day, including a Case later completed or given a cancellation/rejection disposition that day. It
 excludes Image-initiated Cases, Triage, Unidentified, and `Blocked intake`.
 The Unidentified count is the exact count of open Unidentified items and
 links to that queue. These are separate from `Due today`, `Sent to
@@ -533,7 +550,7 @@ current state and account.
   control.
 - An integration without a composed caller shows its named disabled seam
   and nothing else; when the seam has no ticket the control is absent.
-- A lost or expired edit lease surfaces the holder and expiry and disables
+- A lost or expired edit lease surfaces the holder and disables
   Save; a stale version is a non-destructive conflict.
 - Tabs and palette history that cannot be read are treated as empty; the
   page renders correctly with none.
@@ -544,7 +561,7 @@ current state and account.
 Authenticated Web and real-browser tests prove: every rail route and its
 count, both redirects, the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
-`/Cases/{id}/Assessment` redirect and the read-only rule once Complete
+`/Cases/{id}/Assessment` redirect and the read-only rule in Completed
 (D30), the eleven Case record sections and the `?section=` jump (D29), the
 tab limit and eviction, axe accessibility, focus behaviour and no document
 overflow at 1580, 1100 and 760px. The Case record whole-page drop remains
@@ -560,7 +577,7 @@ acceptance remain separate evidence tiers
 - Capabilities: `UI-01`–`UI-09`, `UI-11`, `UI-13`, `UI-16`–`UI-19`, `UI-07`
   (Search), `AI-10`, `AI-11`, `CASE-32`–`CASE-34`, `ENG-03`, `ENG-04`,
   `EXT-09`, `EXT-10`, `RPT-06`, `MI-01` in
-  [capabilities](../capabilities.md#capabilities).
+  [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
