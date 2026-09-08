@@ -25,6 +25,20 @@ PACKAGE_RELATIVE_PATH = Path(
     "reference/workproviders-and-repairers/principal-identification-corpus.v1.json"
 )
 
+PEGASUS_POLICY_SNAPSHOTS = (
+    ("principal-mail-route-v1", "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
+    (
+        "principal-mail-classification-v1",
+        "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs",
+    ),
+    ("principal-case-match-v1", "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
+    (
+        "qdos-extraction-policy-v8",
+        "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs",
+    ),
+    ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
+)
+
 ACCEPTED_BASELINE = ("QDOS",)
 APPROVED_DOMAIN_CANDIDATES = (
     "AX", "BLACK", "DFD", "FW", "KBS", "MP", "OAK", "PCH", "QCL", "RJS"
@@ -678,7 +692,7 @@ def qdos_accepted_rules() -> list[dict[str, Any]]:
             "signal": signal,
             "taxonomyTarget": target,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["qdos-runtime-policy-v5"],
+            "evidenceRefs": ["principal-mail-classification-v1"],
         }
         for rule_id, source_role, signal, target in QDOS_ACCEPTED_CLASSIFICATION
     ]
@@ -751,7 +765,7 @@ def dossier(
                 "evidenceRefs": ["initial-domain-observations", "approved-provider-domain-package"],
             }
             if code == "QDOS":
-                criterion["evidenceRefs"].append("qdos-route-policy-v4")
+                criterion["evidenceRefs"].append("principal-mail-route-v1")
             if support is None:
                 direct_sender_identities.append(criterion)
             else:
@@ -833,7 +847,7 @@ def dossier(
         {
             "description": value,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["qdos-case-match-policy-v1"],
+            "evidenceRefs": ["principal-case-match-v1"],
         }
         for value in QDOS_ASSOCIATION_KEYS
     ] if code == "QDOS" else []
@@ -843,7 +857,7 @@ def dossier(
             "observedMethod": "label-anchored",
             "observedConfiguration": value,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["qdos-extraction-policy-v7"],
+            "evidenceRefs": ["qdos-extraction-policy-v8"],
         }
         for value in QDOS_EXTRACTION_LABELS
     ] if code == "QDOS" else observed_extraction
@@ -860,10 +874,10 @@ def dossier(
     if code == "QDOS":
         evidence_refs.update(
             {
-                "qdos-route-policy-v4",
-                "qdos-runtime-policy-v5",
-                "qdos-case-match-policy-v1",
-                "qdos-extraction-policy-v7",
+                "principal-mail-route-v1",
+                "principal-mail-classification-v1",
+                "principal-case-match-v1",
+                "qdos-extraction-policy-v8",
                 "qdos-local-email-evidence",
                 "qdos-policy-v5-volume-evaluation",
             }
@@ -1266,13 +1280,7 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
 
     source_snapshots.extend(
         snapshot(source_id, "pegasus", repository_root, path, "source-code", hash_mode="normalized-lf")
-        for source_id, path in [
-            ("qdos-route-policy-v4", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs"),
-            ("qdos-runtime-policy-v5", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs"),
-            ("qdos-case-match-policy-v1", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs"),
-            ("qdos-extraction-policy-v7", "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs"),
-            ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
-        ]
+        for source_id, path in PEGASUS_POLICY_SNAPSHOTS
     )
 
     evidence = evidence_files(collision_root, corpus_root)
@@ -1323,7 +1331,12 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
     return {
         "schemaVersion": SCHEMA_VERSION,
         "version": VERSION,
-        "purpose": "Review evidence and criteria for fail-closed principal identification and shared email categorization.",
+        "purpose": (
+            "Historical review evidence and criteria for fail-closed principal identification "
+            "and shared email categorization. Current source snapshots track current Core "
+            "policy bytes and references; they do not reclassify the historical QDOS v5 "
+            "evaluation or activate runtime behavior."
+        ),
         "runtimeContract": {
             "loadedByRuntime": False,
             "policyOwner": "Pegasus.Core explicit versioned policies",
