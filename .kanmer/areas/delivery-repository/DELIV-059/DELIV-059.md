@@ -12,13 +12,13 @@ stageEntered:
 taken_at: '2026-09-08T16:18:57.206Z'
 branch: DELIV-059-restore-release-39-history
 worktree: .worktrees/deliv-059
-claim_expires_at: '2026-09-08T17:08:27.785Z'
+claim_expires_at: '2026-09-08T17:09:26.005Z'
 claim_controller: codex-mcp-client
 lease_id: a406b4c8-fa2f-4fe1-8339-b1e2d0de03d3
-lease_revision: 3
+lease_revision: 4
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-059'
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-08T16:38:27.785Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T16:39:26.005Z'
 labels:
   - documentation
   - release-evidence
@@ -38,7 +38,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-08T16:07:49.662Z'
-updated: '2026-09-08T16:39:10.872Z'
+updated: '2026-09-08T16:39:26.005Z'
 ---
 
 ## What
