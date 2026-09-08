@@ -20,7 +20,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-09-08T07:15:35.565Z'
-updated: '2026-09-08T07:15:57.942Z'
+updated: '2026-09-08T07:27:39.781Z'
 ---
 
 ## What
@@ -40,7 +40,7 @@ PR700's unit lane exposes source inventory drift inherited from [[TICK-035]]: th
 
 ## Verification
 
-- [ ] Existing generation then `-Verify` agree, every tracked source path/hash/byte count resolves, and historical sections/original hashes remain unchanged.
+- [ ] Existing-helper affected-inventory regeneration is deterministic; every tracked source path/hash/byte count resolves, all evidenceRefs resolve, and historical sections/original hashes remain unchanged. Full original-input regeneration is unavailable on this host, not PASS; root approval of this evidence boundary is required.
 - [ ] Focused PrincipalIdentificationCorpusTests pass without dropped coverage, exclusions or fabricated old paths; root owns build/test execution.
 
 ## Outcome
