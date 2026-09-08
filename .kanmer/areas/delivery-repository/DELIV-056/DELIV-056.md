@@ -2,7 +2,7 @@
 id: DELIV-056
 type: ticket
 title: Align intake regression fixtures with definitive instruction evidence
-status: verifying
+status: done
 area: delivery-repository
 order: 0
 assignee: codex-mcp-client
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-09-08T13:34:43.025Z'
   review: '2026-09-08T16:09:58.194Z'
   verifying: '2026-09-08T16:33:51.708Z'
+  done: '2026-09-08T16:50:49.801Z'
 taken_at: '2026-09-08T13:35:14.533Z'
 branch: >-
   DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/709'
 archived: false
 created: '2026-09-08T13:28:13.915Z'
-updated: '2026-09-08T16:36:15.734Z'
+updated: '2026-09-08T16:50:49.801Z'
 ---
 
 ## What
