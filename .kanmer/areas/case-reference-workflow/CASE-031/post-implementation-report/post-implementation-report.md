@@ -2,8 +2,9 @@
 
 ## Status
 
-Code-ready, frozen for root verification on 2026-09-08. Not yet a runtime
-PASS, PR, integration or deployment claim. No author build/test/live call ran.
+Root attempt 1 has one failing intake fixture setup; correction investigation
+is active. No overall PASS, PR, integration or deployment claim. No author
+build/test/live call ran.
 
 ## Starting state and scope
 
@@ -75,6 +76,24 @@ unchanged until corrected. These were not build or test failures.
 Two read-only path searches used nonexistent filenames/globs and returned
 exit1; corrected source discovery supplied the actual files. No missing source
 was assumed to be absent behavior.
+
+
+
+### Root attempt 1 — 2026-09-08, session 3667
+
+Locked restore PASS for all seven projects (maximum reported 1.48s).
+Solution Release build PASS, 127.88s, zero warnings/errors. Core command PASS:
+57/57, 127ms. Integration command FAIL, exit1: 12 PASS/1 FAIL, 35s.
+The failing existing EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange
+stopped at line1412: expected CaseCreated, actual NeedsSorting, before address
+probes. No downstream store/ZIP/address runtime claim is made for this attempt.
+
+Artifacts retained unmodified under artifacts/verification:
+- case-031-core.trx: F0859E4685461865D0376F0562F33F2F3E146345E4F187A9B3F60133B0D9DC2A.
+- case-031-integration.trx: E2AC1683BA4DDFEA610B7F808148CC89AE8886DB19FDB6555E5D88AE21CCEF94.
+
+Author read the TRX counters/failure and computed both SHA256 values. Root
+supplied actual command exits/build durations. Original failure is retained.
 
 ## Commands for root
 
