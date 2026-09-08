@@ -1,9 +1,9 @@
 # Files — ENG-029
 
-Preparation against dev 498144b0bb55b68fd53b9a31ffc89ef90622c73a.
+Execution baseline: accepted dev aefe4c32d078ad79c0368666b5666032e6865248.
 This current map replaces af87e92a3c8c7d0a; historical versions remain.
-No file is claimed or editable until root approves the whole plan and releases
-overlapping active/historical ownership. No new source file is planned.
+Root approved this exact scope and handed off mapped files at 05:20 UTC on
+2026-09-08 (scratch/execution.md). No new source file is planned.
 
 ## Exact intended production and documentation edits
 
@@ -55,11 +55,13 @@ before editing. In particular, do not alter typed-section contracts to hide
 incomplete Web mapping, widen a store's lifecycle permissions, or silently
 change report generation behavior.
 
-## Ownership stop
+## Current ownership handoff
 
-TICK-085 currently overlaps Details.cshtml.cs, CaseWorkspaceLabels.cs,
-FRD-06 and generated Case snapshots/index. ENG-034, CASE-040 and CASE-047
-retain historical taken records over related Case/report areas. Their
-integrated code is evidence, not permission to erase their claims.
-Await explicit root sequencing/clearance. ENG-031 image preparation and
-ENG-036 damage diagram are excluded. No take/worktree/source write occurred.
+Root's 2026-09-08 05:20 UTC handoff on ENG-029/TICK-085/ENG-034/CASE-040/
+CASE-047 releases only this mapped source scope for ENG-029 execution.
+TICK-085 PR698 is integrated at aefe4c32d078ad79c0368666b5666032e6865248;
+preserve its import/Glass changes and coordinate any later shared correction.
+Preserve DOCS-019's signature row. Historical claims/status/proof debts remain;
+do not release or clean them. INTK-064 has no approved-map overlap.
+Fresh isolated packet/worktree/take remain required. Root alone runs heavy
+checks; freeze before publication. ENG-031 and ENG-036 remain excluded.

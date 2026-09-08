@@ -2,10 +2,14 @@
 
 ## Decision and starting state
 
-Preparation only, audited accepted dev
-498144b0bb55b68fd53b9a31ffc89ef90622c73a. No take, branch, source change or
-runtime test is authorized by this document yet. Root must read the complete
-plan/map, resolve ownership, then provide a fresh ready execution packet.
+Root approved bounded author execution after whole plan/map read and the
+2026-09-08 05:20 UTC source handoff recorded in scratch/execution.md.
+Current accepted baseline: aefe4c32d078ad79c0368666b5666032e6865248.
+TICK-085 PR698 and DOCS-019 are integrated; preserve their changes. The earlier
+preparation baseline was 498144b0bb55b68fd53b9a31ffc89ef90622c73a.
+Current file map: 2ecd5b509751b500; behavior/scope unchanged.
+Fresh ready whole-ticket packet and exact isolated worktree/take are required.
+No author build/test; root owns heavy verification and publication follows PASS.
 
 This replaces current instructions in plan fd4c8f09cc5eb6ec and checklist
 4315a6e0b2bfc2d1. Their earlier eight review-finding dispositions and research
@@ -13,7 +17,7 @@ remain available in board history; nothing here reclassifies historical
 verification as current PASS. Current user scope, FRD-06/11, current Case
 design and root's explicit v1 decisions supersede section-specific POSTs,
 missing-vocabulary/schema work, a second repair-duration field and Vehicle
-History in Report. Synchronize the obsolete ticket body before execution.
+History in Report. Root synchronized the ticket body before this handoff.
 
 ## Outcome and exclusions
 
@@ -188,9 +192,13 @@ Live feature gates require research/files/plan/checklist and resolved questions.
 ENG-035 vocabulary and PLAT-068 sign-off have integrated Done work; the old
 blocking edges are not fresh missing implementations. ENG-034 hosting is
 integrated but its historical taken record remains; do not call it Done here.
-TICK-085 actively owns Details, labels, FRD-06 and Case captures/index.
+TICK-085's integrated Details, labels, FRD-06 and Case captures/index are
+preserved under root's exact mapped source handoff. Any later correction to
+those files must coordinate with this lane. Historical ENG-034/CASE-040/
+CASE-047 claims remain unchanged; only the obsolete ENG-034 blocking edge
+was removed because PR674's host is integrated.
 
-This plan is a root-review proposal, not take authority. Stop after whole-doc
-readback and send versions to root. The next authorized skill is
-kanmer-execute only after root approval, body synchronization and exact
-ownership clearance. Keep this ticket Preparing/untaken in the meantime.
+The ready packet authorizes only this exact map and the implementation
+sequence above. Freeze for root's focused runtime/capture verification before
+publication. After root PASS, report/push one dev PR and stop for independent
+review; no self-review/merge, live/provider action, new schema or deployment.
