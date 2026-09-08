@@ -18,7 +18,8 @@ PASS.
 Root approved a narrow supplemental EPIC-014 handoff: phase 1 may edit the
 generator and Core test, relocate both documents preserving their starting
 bytes, add the narrow planned historical-versus-current clarification to README,
-and repair the index. The generated package and every command remain
+repair the index, and extend the existing Markdown-placement matcher and
+its regression for the canonical destination. The generated package and every command remain
 for the root-held verifier slot. INTK-060 and historical A/Foundation, Closed,
 and C/Domain records remain untouched.
 
@@ -61,6 +62,9 @@ compatibility alias.
 | Rename to and clarify | `docs/principal-profiles/README.md` | Preserve moved bytes, then add only the planned historical-v1/current-source clarification. |
 | Rename to | `docs/principal-profiles/qdos.md` | Byte-identical destination. |
 | Modify | `docs/index.md` | Replace only the moved README target. |
+| Modify | `scripts/Test-MarkdownPlacement.ps1` | Permit the canonical `docs/principal-profiles/**` destination in the existing matcher only. |
+| Modify | `scripts/Test-TestMarkdownPlacement.ps1` | Assert that the canonical destination passes the existing fixture. |
+| Modify | `AGENTS.md` | State the current canonical documentation-placement/gate convention. |
 | Modify (verifier slot only) | `reference/workproviders-and-repairers/principal-identification-corpus.v1.json` | Existing-helper output only. |
 
 ## Do not modify
@@ -72,6 +76,7 @@ compatibility alias.
 - `.github/**`
 - `docs/operator-notes.md`
 - `scripts/Build-PrincipalIdentificationCorpus.ps1`
+- `docs/docs-review-temp/**`
 - any original, historical-evaluation, ticket, claim, or cloud resource
 
 ## Constraints
@@ -99,7 +104,21 @@ deviation stop.
 - Done when: the seven phase-1 paths are the only worktree changes and byte equality of each documentation rename has been established.
 - Deviation stop: any content change in a relocated document other than its path, any unexpected index diff, or any package/runtime change.
 
-### Step 2 — Materialize and verify under root-held slot
+### Step 2 — Admit the canonical documentation destination
+
+- Preconditions: the existing base..head placement gate rejects the approved renamed destination; root authorized only the necessary matcher/regression/convention correction.
+- Files: `scripts/Test-MarkdownPlacement.ps1`, `scripts/Test-TestMarkdownPlacement.ps1`, `AGENTS.md`.
+- Change: add only `principal-profiles` to the existing docs allow-list; add that canonical path to the existing allowed fixture; add the minimal AGENTS routing/gate convention required by rule 24.
+- Preserved behavior: every other allow-list entry and rejection remains unchanged; old paths in `docs/docs-review-temp/**` remain historical audit references.
+- Forbidden: aliases, broad `docs/**` admission, new documentation framework, historic-reference rewrite, or command execution.
+- Commands: none; the D53 verifier queue owns the existing placement test.
+- Negative cases: an arbitrary docs subtree or old-path alias must remain unadmitted; scope beyond the three named files stops work.
+- Expected output: the approved new canonical destination is admitted and fixture-covered without broadening any other placement.
+- Tests: none in this lane; the existing regression is deferred to D53.
+- Done when: only the three declared support files differ and the final source diff is frozen for the verifier queue.
+- Deviation stop: any broad allow-list change, old-path rewrite, or unapproved file.
+
+### Step 3 — Materialize and verify under root-held slot
 
 - Preconditions: root expressly grants its verifier slot after reading the frozen phase-1 diff.
 - Files: `reference/workproviders-and-repairers/principal-identification-corpus.v1.json`.
@@ -113,10 +132,10 @@ deviation stop.
 - Done when: root records truthful exits and the JSON diff is limited to current-source metadata/references and approved purpose text.
 - Deviation stop: test failure, unavailable mandatory evidence, unexpected package diff, or missing verifier authorization.
 
-### Step 3 — Commit and hand off
+### Step 4 — Commit and hand off
 
 - Preconditions: Step 2 is complete with recorded evidence.
-- Files: all Expected files, with no additional path.
+- Files: each declared Expected file, with no additional path.
 - Change: record the implementation report, commit the bounded result, push the ticket branch, and open the one draft PR.
 - Preserved behavior: no self-review, merge, verification proof, closeout, or deployment claim.
 - Commands: `git diff --check`, commit, push, and draft-PR creation.
@@ -159,7 +178,8 @@ precedes the final clarification and is retained as superseded, not accepted.
 
 Stop rather than weaken coverage, fabricate inputs, change a foreign claim,
 force a lease, or expand scope. A failed attempt remains in the report even if
-a later retry passes. Full original-input regeneration unavailable is
+a later retry passes. The existing markdown fixture is deferred to the named
+D53 verifier queue; do not run it in this implementation lane. Full original-input regeneration unavailable is
 INCONCLUSIVE, never a substituted PASS.
 
 ## Stop condition

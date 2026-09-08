@@ -138,3 +138,19 @@ the only authority to run the existing helper, materialize the JSON, and run
 the recorded checks. This handoff does not alter INTK-060, historical
 A/Foundation, Closed or C/Domain claims, original inputs, historical
 cohorts/evaluations, or the frozen roster.
+
+
+## Markdown-placement support finding
+
+The approved renamed destinations are not presently admitted by the existing
+base..head Markdown placement gate: `scripts/Test-MarkdownPlacement.ps1` only
+allows the named `docs/` subtrees and excludes `docs/principal-profiles/`.
+`scripts/Test-TestMarkdownPlacement.ps1` is the existing regression fixture
+for that allow-list. The historical ownership register is unavailable in this
+isolated worktree because `pegasus_pack/` is ignored; no ownership record was
+changed. Root authorized the proportional same-PR correction: add only the
+canonical `docs/principal-profiles` subtree to the matcher and its existing
+allowed-destination list, and add the minimal AGENTS documentation-routing
+convention required by rule 24. Static search found old paths only in
+`docs/docs-review-temp/` review/audit material; those are historical evidence
+and remain unchanged.

@@ -2,13 +2,14 @@
 id: DELIV-054
 type: ticket
 title: Include hidden runtime directories in release ZIPs
-status: review
+status: verifying
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:27:02.890Z'
   review: '2026-09-08T13:47:12.527Z'
+  verifying: '2026-09-08T13:58:49.526Z'
 taken_at: '2026-09-08T13:31:44.019Z'
 branch: DELIV-054-hidden-runtime-zips
 worktree: .worktrees/deliv-054
@@ -32,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/703'
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:47:12.527Z'
+updated: '2026-09-08T13:58:49.526Z'
 ---
 
 ## What
