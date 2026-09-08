@@ -96,3 +96,24 @@ Root authorized the bounded affected-consumer correction. Test-AzureDeploymentPl
 Git diff check passed with an LF-to-CRLF advisory. Committed the one-file correction locally as 7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08, Keep deployment plan smoke census canonical. Branch is clean. No rerun, host command, cloud operation, push, or PR was performed; this exact head requires fresh verifier binding.
 
 - 2026-09-08T18:31:13.712Z lease-phase implementing → running-command (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 7; expires 2026-09-08T19:01:13.703Z)
+
+## Corrected-head sole-host verification attempt — parser invocation stopped — 2026-09-08
+
+Canonical re-grant: DELIV-053 `scratch/execution` version `9647ea38643ea120`.
+Ready packet: ticket revision `rev1:1dd2d374bb6421aa`; unchanged plan/checklist/files versions `6dc328062a78eda0` / `cde62a0c45158a1f` / `d8b67e022854fd51`.
+Exact base/head: `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08`.
+
+Preflight at 2026-09-08T18:31:08.1871315Z exited 0: exact clean worktree/common repository/branch/head; base ancestor; exactly eleven scoped paths; distinct active worktrees; zero dotnet/MSBuild/testhost/vstest processes. Lease renewed to revision 7 in running-command phase.
+
+Sequential results:
+
+1. 2026-09-08T18:31:23.0904723Z–2026-09-08T18:31:24.1829861Z — `pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1` — exit 0. Release workstation/manifest and LocalDB classification passed.
+2. 2026-09-08T18:31:31.7929840Z–2026-09-08T18:31:41.0457546Z — `pwsh -NoProfile -File ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` — exit 0. Local deployment-plan validation passed; Bicep emitted only its available-upgrade warning.
+3. 2026-09-08T18:31:48.1255391Z–2026-09-08T18:31:50.0158811Z — `pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1` — exit 0. All relative Markdown links resolved, 141 files checked.
+4. 2026-09-08T18:31:58.9855541Z–2026-09-08T18:31:59.8943552Z — `pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c -Head 7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08` — exit 0.
+5. 2026-09-08T18:33:02.3666581Z–2026-09-08T18:33:03.0475087Z — ignored bounded PowerShell-fence parser harness invocation — exit 1 before any fence parse. PowerShell passed both comma-separated path values as one native argument, and `Resolve-Path` could not find the combined literal `./.agents/skills/pegasus-release/SKILL.md,./.agents/skills/pegasus-release/references/database-migration.md`. No recipe content executed.
+   Harness SHA-256 `1A176843649694551EE115D7474F6735E860A5E9B7812A27E65AECFD3F348910`; release skill `9A180D5EDE0D944F3990B9488F81B5BA8F0A87A4062621B581C065C605D4C789`; migration recipe `B48BB3D81CFA97D14FC038AA1C626A7F94FC3024B6E47A4E477E41B4BF650DEA`.
+
+Disposition: repository script/document checks PASS; fence-parse obligation remains **INCONCLUSIVE / NOT RUN** because of the verifier invocation failure. Per stop/no-autonomous-retry, the invocation was not corrected or retried. The ignored harness was removed. Postcheck at 2026-09-08T18:33:29.5019317Z confirmed exact clean HEAD, harness absent, and zero heavy processes. The earlier bbae334 Local failure remains retained and is not erased by the corrected-head PASS.
+
+No product fix, dotnet, browser, cloud, recipe execution, SQL, commit, push, PR, or live action occurred.
