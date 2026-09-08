@@ -213,3 +213,17 @@ TICK-085/DOCS-019 changes remain intact. Final diff --check PASS exit0 and
 worktree clean. No post-merge author build or runtime claim. Stop before push/
 PR pending root's source-census acceptance; independent review and manual
 visual acceptance remain outstanding.
+
+## Publication handoff
+
+Root approved normal push after reading the whole report and independent
+27-path/source census. PR700 is OPEN to dev at exact
+f86054c0e7cc73cb6245355dd21c03e58196d582; base readback remains
+96777888bfa7ee7f85d63979a4a09ae10cda7d13. Local/remote/GitHub head agree.
+https://github.com/collisionengineers/pegasus/pull/700
+
+The approved EPIC-014 converged final-CI policy applies. Neither absent nor
+skipped CI is called PASS. No new build or source merge occurred after the
+recorded checkpoint. Manual visual remains required in Verifying. Independent
+reviewer principal_delivery_audit owns the exact-head attestation and any
+permitted merge; neither author self-reviews or self-merges. Source frozen.
