@@ -302,6 +302,12 @@ that has not started an estimate; an existing estimate is reopened by its
 existing identity. These actions are available from the Case estimate section
 and do not require resetting credentials.
 
+Retaining a returned estimate's source artifacts does not consume the
+Engineer's still-valid Case edit authority. The import uses that authority
+to land one Draft. A genuine intervening Case edit or expired or lost lease
+still leaves the retained result awaiting import until the Engineer regains
+authority; callback replay creates neither another Draft nor another mutation.
+
 An interrupted provider write whose answer was lost remains `Unknown` and
 holds the account. It must not create another vehicle or calculation, or
 release the account merely because local time elapsed. The owning Engineer

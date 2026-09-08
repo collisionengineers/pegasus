@@ -75,43 +75,8 @@ internal sealed class EfAssessmentReportProjectionSource(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             profiles);
-        var confirmed = await (
-                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
-                    on occurrence.VersionId equals version.Id
-                where occurrence.CaseId == caseId
-                      && version.DocumentId == occurrence.DocumentId
-                      && version.IsCurrent
-                      && !version.IsLogicallyRemoved
-                      && version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                      && !context.Set<GeneratedCaseArtifactEntity>().Any(
-                          artifact => artifact.OperationKey == occurrence.OperationKey)
-                orderby occurrence.Ordinal
-                select new ConfirmedDocumentRow(
-                    occurrence.Id,
-                    occurrence.Ordinal,
-                    occurrence.DocumentId,
-                    occurrence.SemanticRole,
-                    version.Id,
-                    version.Version,
-                    version.FileName,
-                    version.MediaType,
-                    version.ContentLength,
-                    version.Sha256,
-                    version.BoxFileId,
-                    version.BoxVersionId))
-            .ToArrayAsync(cancellationToken);
-
-        var sources = confirmed
-            .Select(row => new AcceptedReportSource(
-                row.FileName,
-                row.Version.ToString(CultureInfo.InvariantCulture),
-                row.Sha256,
-                row.DocumentId,
-                row.VersionId,
-                row.BoxFileId,
-                row.BoxVersionId))
-            .ToArray();
+        var confirmed = await ConfirmedDocumentsAsync(context, caseId, cancellationToken);
+        var sources = ReportSources(confirmed);
 
         // Only the operator's prepared images, in the report's own order.
         var preparations = await assetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
@@ -195,12 +160,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             workspace.AcceptedSpecification,
             latestApplied,
             preparations,
-            confirmed.ToDictionary(
-                row => row.OccurrenceId,
-                row => new DocumentVersion(
-                    row.VersionId, row.DocumentId, row.Version, row.FileName, row.MediaType,
-                    row.ContentLength, row.Sha256, DocumentCustodyStatus.Confirmed,
-                    default, string.Empty, true, false, null)));
+            ConfirmedImageSources(confirmed));
 
         var currentVersion = await context.CaseWorkflows.AsNoTracking()
             .Where(item => item.CaseId == caseId)
@@ -236,7 +196,40 @@ internal sealed class EfAssessmentReportProjectionSource(
         return new ReportGuideSources(guides);
     }
 
-    private sealed record ConfirmedDocumentRow(
+    // Projection and transactional freeze use one definition of current source
+    // membership. The supplied context decides the transaction, never a new one.
+    internal static Task<ConfirmedDocumentRow[]> ConfirmedDocumentsAsync(
+        PegasusDbContext context, Guid caseId, CancellationToken cancellationToken) =>
+        (from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+         join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+             on occurrence.VersionId equals version.Id
+         where occurrence.CaseId == caseId
+               && version.DocumentId == occurrence.DocumentId
+               && version.IsCurrent
+               && !version.IsLogicallyRemoved
+               && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+               && !context.Set<GeneratedCaseArtifactEntity>().Any(
+                   artifact => artifact.OperationKey == occurrence.OperationKey)
+         orderby occurrence.Ordinal
+         select new ConfirmedDocumentRow(
+             occurrence.Id, occurrence.Ordinal, occurrence.DocumentId, occurrence.SemanticRole,
+             version.Id, version.Version, version.FileName, version.MediaType,
+             version.ContentLength, version.Sha256, version.BoxFileId, version.BoxVersionId))
+        .ToArrayAsync(cancellationToken);
+
+    internal static AcceptedReportSource[] ReportSources(IEnumerable<ConfirmedDocumentRow> confirmed) =>
+        confirmed.Select(row => new AcceptedReportSource(
+            row.FileName, row.Version.ToString(CultureInfo.InvariantCulture), row.Sha256,
+            row.DocumentId, row.VersionId, row.BoxFileId, row.BoxVersionId)).ToArray();
+
+    internal static Dictionary<Guid, DocumentVersion> ConfirmedImageSources(
+        IEnumerable<ConfirmedDocumentRow> confirmed) =>
+        confirmed.ToDictionary(row => row.OccurrenceId, row => new DocumentVersion(
+            row.VersionId, row.DocumentId, row.Version, row.FileName, row.MediaType,
+            row.ContentLength, row.Sha256, DocumentCustodyStatus.Confirmed,
+            default, string.Empty, true, false, null));
+
+    internal sealed record ConfirmedDocumentRow(
         Guid OccurrenceId,
         int Ordinal,
         Guid DocumentId,

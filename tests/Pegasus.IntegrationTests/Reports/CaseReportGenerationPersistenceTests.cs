@@ -113,6 +113,39 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     [Theory]
+    [InlineData("add")]
+    [InlineData("remove")]
+    [InlineData("occurrence")]
+    [InlineData("version")]
+    [InlineData("hash")]
+    [InlineData("name")]
+    [InlineData("media")]
+    [InlineData("length")]
+    [InlineData("box-file")]
+    [InlineData("box-version")]
+    [InlineData("current")]
+    [InlineData("custody")]
+    public async Task FreezeRefusesChangedConfirmedSourceCensusBeforeWriting(string change)
+    {
+        await using var harness = await Harness.CreateAsync();
+        // The fixture captured the complete source census at construction.
+        // Change persisted evidence independently, without a staff Case edit.
+        await harness.ChangeConfirmedSourceAsync(change);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var workflow = await context.CaseWorkflows.SingleAsync();
+        CaseMutationGuard.Require(workflow, harness.StaffActor, 1, harness.Lease.Token, Harness.StartUtc);
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), default));
+
+        Assert.Contains("source evidence changed", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(await harness.GenerationRowsAsync());
+        Assert.Empty(await harness.ArtifactRowsAsync());
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task SourceAdditionOrRemovalInvalidatesTheReportAndRefusesPreparedDelivery(bool remove)
@@ -208,7 +241,10 @@ public sealed class CaseReportGenerationPersistenceTests
         }
 
         Assert.Equal(CaseReportGenerationState.Stale, Assert.Single(await harness.GenerationRowsAsync()).State);
-        Assert.Equal(2, (await context.CaseWorkflows.SingleAsync()).Version);
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync();
+        Assert.Equal(1, workflow.Version);
+        CaseMutationGuard.Require(workflow, harness.StaffActor, 1, harness.Lease.Token, Harness.StartUtc);
+        Assert.Equal(harness.Lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_generation_stale"));
     }
 
@@ -279,7 +315,11 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(harness.CloseUp.VersionId, image.VersionId);
         Assert.Equal($"box-file-{harness.CloseUp.VersionId:N}", image.BoxFileId);
         Assert.Equal($"box-version-{harness.CloseUp.VersionId:N}", image.BoxVersionId);
-        var source = Assert.Single(generation.Snapshot.Sources);
+        Assert.Equal(3, generation.Snapshot.Sources.Count);
+        Assert.Contains(generation.Snapshot.Sources, item => item.DocumentId == harness.CloseUp.DocumentId);
+        Assert.Contains(generation.Snapshot.Sources, item => item.DocumentId == harness.Overview.DocumentId);
+        var source = Assert.Single(generation.Snapshot.Sources,
+            item => item.DocumentId == harness.Source.DocumentId);
         Assert.Equal(harness.Source.DocumentId, source.DocumentId);
         Assert.Equal($"box-file-{harness.Source.VersionId:N}", source.BoxFileId);
         Assert.Equal($"box-version-{harness.Source.VersionId:N}", source.BoxVersionId);
@@ -733,7 +773,10 @@ public sealed class CaseReportGenerationPersistenceTests
                 var lease = await new AcquireCaseEditLease(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
                     .ExecuteAsync(new(caseId, 1, staffActor, "lease-report"), CancellationToken.None);
-                var snapshotSource = new FakeSnapshotSource(caseId, closeUp, overview, source);
+                await using var sourceContext = await factory.CreateDbContextAsync();
+                var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
+                    sourceContext, caseId, default);
+                var snapshotSource = new FakeSnapshotSource(caseId, closeUp, overview, confirmed);
                 var harness = new Harness(
                     database, contentRoot, factory, caseId, staffActor, lease, snapshotSource,
                     closeUp, overview, source);
@@ -807,6 +850,42 @@ public sealed class CaseReportGenerationPersistenceTests
                 scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
             await store.ExecuteAsync(new(CaseId, Source.OccurrenceId, StaffActor,
                 "Incorrect source document", "remove-source", 1, Lease.Token), default);
+        }
+
+        public async Task ChangeConfirmedSourceAsync(string change)
+        {
+            if (change == "add")
+            {
+                await SeedDocumentAsync(Factory, CaseId, "instruction.pdf", "application/pdf", 3);
+                return;
+            }
+            await using var context = await Factory.CreateDbContextAsync();
+            if (change == "occurrence")
+            {
+                // No source facts change: an equal-sized census with a new
+                // occurrence must still differ from the captured membership.
+                await context.Set<DocumentOccurrenceEntity>()
+                    .Where(item => item.Id == Source.OccurrenceId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Id, Guid.NewGuid()));
+                return;
+            }
+            var version = await context.Set<DocumentVersionEntity>()
+                .SingleAsync(item => item.Id == Source.VersionId);
+            switch (change)
+            {
+                case "remove": version.IsLogicallyRemoved = true; break;
+                case "version": version.Version++; break;
+                case "hash": version.Sha256 = CloseUp.Sha256; break;
+                case "name": version.FileName = "close-up.png"; break;
+                case "media": version.MediaType = "image/png"; break;
+                case "length": version.ContentLength++; break;
+                case "box-file": version.BoxFileId = $"box-file-{CloseUp.VersionId:N}"; break;
+                case "box-version": version.BoxVersionId = $"box-version-{CloseUp.VersionId:N}"; break;
+                case "current": version.IsCurrent = false; break;
+                case "custody": version.CustodyStatus = DocumentCustodyStatus.Pending; break;
+                default: throw new ArgumentOutOfRangeException(nameof(change));
+            }
+            await context.SaveChangesAsync();
         }
 
         public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(CaseReportGenerationRecord generation) =>
@@ -1186,6 +1265,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly AssessmentReportProjectionInput projection;
         private readonly Harness.SeededDocument closeUp;
         private readonly Harness.SeededDocument overview;
+        private readonly IReadOnlyDictionary<Guid, DocumentVersion> confirmedSources;
         private readonly RepairSpecificationVersion estimate =
             AssessmentReportDraftWebTests.CurrentEstimate();
         private readonly Guid valuationId = Guid.NewGuid();
@@ -1196,11 +1276,12 @@ public sealed class CaseReportGenerationPersistenceTests
             Guid caseId,
             Harness.SeededDocument closeUp,
             Harness.SeededDocument overview,
-            Harness.SeededDocument source)
+            IReadOnlyList<EfAssessmentReportProjectionSource.ConfirmedDocumentRow> confirmed)
         {
             this.caseId = caseId;
             this.closeUp = closeUp;
             this.overview = overview;
+            confirmedSources = EfAssessmentReportProjectionSource.ConfirmedImageSources(confirmed);
             assessment = AssessmentReportDraftWebTests.FullAssessmentProjection(caseId);
             projection = AssessmentReportDraftWebTests.ReadyInput(caseId) with
             {
@@ -1213,12 +1294,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     Photo(closeUp, CaseAssetReportRole.CloseUp),
                     Photo(overview, CaseAssetReportRole.Overview),
                 ],
-                Sources =
-                [
-                    new AcceptedReportSource(
-                        "instruction.pdf", "1", source.Sha256, source.DocumentId, source.VersionId,
-                        $"box-file-{source.VersionId:N}", $"box-version-{source.VersionId:N}"),
-                ],
+                Sources = EfAssessmentReportProjectionSource.ReportSources(confirmed),
             };
         }
 
@@ -1240,11 +1316,7 @@ public sealed class CaseReportGenerationPersistenceTests
             estimate,
             Valuation(),
             [Preparation(closeUp, CaseAssetReportRole.CloseUp), Preparation(overview, CaseAssetReportRole.Overview)],
-            new Dictionary<Guid, DocumentVersion>
-            {
-                [closeUp.OccurrenceId] = Version(closeUp),
-                [overview.OccurrenceId] = Version(overview),
-            });
+            confirmedSources);
 
         private AppliedValuation Valuation() => new(
             valuationId, caseId, 1, guideValuationId, RecordedAtUtc,
@@ -1266,10 +1338,6 @@ public sealed class CaseReportGenerationPersistenceTests
                 document.Sha256, "image/png", role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 1, "engineer-1", RecordedAtUtc);
 
-        private static DocumentVersion Version(Harness.SeededDocument document) => new(
-            document.VersionId, document.DocumentId, 1, "photo.png", "image/png",
-            document.Content.LongLength, document.Sha256,
-            DocumentCustodyStatus.Confirmed, RecordedAtUtc, "engineer-1", true, false, null);
     }
 
     /// <summary>
