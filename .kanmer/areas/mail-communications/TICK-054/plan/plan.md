@@ -11,8 +11,8 @@ Retained source evidence never changes. No permanent-delete operation exists.
 
 Source: accepted dev `19e6f523bf6760cab39104b4dca3674b0ac8a512`.
 Evidence: `research/research.md`@`22e4a219a7da018e`,
-`files/files.md`@`208e30995b4d953e`,
-`open-questions/open-questions.md`@`e58a7bab450fa458`.
+`files/files.md`@`208e30995b4d953e`.
+Resolved questions version: e58a7bab450fa458.
 
 This replaces plan `f3f565c096f44a0c` and its obsolete permanent-delete journey.
 The settled August 20 boundary and current ticket body supersede that journey;
@@ -52,8 +52,8 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
   versions, expected provider version, operation key, selected internal category
   ID when applicable, and required reason for Delete/Restore. Staff identity
   comes from authentication. Require Staff + PerformCasework in Core; recheck
-  current authority/binding immediately before a fresh effect. Browser inputs
-  never choose mailbox, Graph ID, arbitrary category text or destination.
+  current authority/binding immediately before a fresh effect. No browser-supplied
+  mailbox, Graph ID, arbitrary category text or destination is accepted.
 - Add a small `RetainedMailOutlookStateEntity` projection in the **existing**
   EF owner: retained-message PK/FK, observed read/category/flag/current parent,
   current scope, changeKey/ETag, UTC observed time and optimistic version.
@@ -101,36 +101,35 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 
 ## Expected files
 
-| Path | Responsibility / risk |
-| --- | --- |
-| `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs` | Extend the existing exact-message use-case/store/transport boundary with closed read/category/flag/delete/restore actions and current-state results. Ordinary designated moves retain their classification rule; new actions cannot forge it. |
-| `src/Pegasus.Core/Intake/RetainedMail.cs` | Expose separately labelled arrival and observed Outlook state, freshness, current effective scope and allowed exact-message actions. |
-| `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs` | Add the staff-authorized active-choice read needed by the message page, using the existing store/resolver and single catalogue. No new administration or master-category sync. |
-| `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs` | Existing journal owner carries all these concrete actions, shared per-message exclusion, replay/recovery, current observation and recorded restore target. No second move store or workflow. |
-| `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs` | Extend existing operation row with closed action kind/expected-state/before-after evidence; add one per-retained-message mutable Outlook-state projection without changing arrival fields. |
-| `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs` | Journal constraints and unique pending/uncertain exclusion; current-state row FK/version and no cascading evidence deletion. |
-| `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` | Single effective unread/current-folder projection for detail, list/counts and retained search; restored Inbox items reappear without re-intake. |
-| `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` | Reuse GraphMailClient and GraphRetainedMailFolderMover; exact metadata read/conditional property PATCH and existing move/Deleted Items resolver. No DELETE/permanentDelete endpoint. |
-| `src/Pegasus.Infrastructure/DependencyInjection.cs` | Register added Core commands in the existing composition; keep unavailable production transport default. MAIL-028 owns activation. |
-| `src/Pegasus.Infrastructure/Persistence/Migrations/*RetainedMailMessageState*.cs` | One normal migration and generated designer only, current-state projection plus narrow journal changes; exact Web grants/DELETE denial in same diff. No historic migration edits. |
-| `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs` | Generated current EF model only. |
-| `scripts/Invoke-AzureDatabaseBootstrap.ps1` | Same-migration grant census and least-privilege matrix, no broad grants or execution. |
-| `src/Pegasus.Web/Pages/Mail/Message.cshtml` | Existing exact-message toolbar/detail and reason dialog pattern; actions only here. |
-| `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` | Thin authenticated/antiforgery action and read-only reconciliation handlers with server-resolved identity/state; preserve originating list context. |
-| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | One label vocabulary for named actions/states. |
-| `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs` | Closed action/actor/destination/category and expected-state policy cases. |
-| `tests/Pegasus.Core.Tests/Intake/ApprovedOutlookCategoryTests.cs` | Staff active choices and disabled/forged category refusal. |
-| `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` | Existing SQL harness: shared exclusion/replay/restart, evidence preservation, restore target and effective list/counts. |
-| `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` | Existing fake HTTP: exact identities/headers/property confinement, 412 and uncertain responses, read-only recovery. |
-| `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` | Existing authenticated real-page harness: controls, antiforgery/version/refusal/recovery and minimal actual route captures. |
-| `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs` | Prove actual Web owner can execute its state/journal writes; retained evidence DELETE remains refused and Worker does not acquire a mail mutation grant. |
-| `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs` | Update the known exact pending-migration inventory when the new migration is generated; do not repeat DOCS-020's omitted-list failure. |
-| `docs/frd/frd-08-email-mailbox-and-background-processing.md` | Clarify settled MAIL-13 action/current-state/restore/recovery semantics; retain read-only browsing and permanent-deletion prohibition. |
-| `docs/capabilities.md` | State implementation vs activation accurately, not Done from registration. |
-| `docs/current-architecture.md` | Describe the actual shared owner and explicit still-closed activation state after implementation. |
-| `docs/design/test-ui/pages/inbox-message--*.html` | Generated captures owned by the changed route, only measured states. |
-| `docs/design/test-ui/index.md` | Generated capture metadata if changed by the existing update script. |
-
+| Action | Repo-root-relative path | Responsibility |
+| --- | --- | --- |
+| Modify | `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs` | Extend the existing exact-message use-case/store/transport boundary with closed read/category/flag/delete/restore actions and current-state results. Ordinary designated moves retain their classification rule; new actions cannot forge it. |
+| Modify | `src/Pegasus.Core/Intake/RetainedMail.cs` | Expose separately labelled arrival and observed Outlook state, freshness, current effective scope and allowed exact-message actions. |
+| Modify | `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs` | Add the staff-authorized active-choice read needed by the message page, using the existing store/resolver and single catalogue. No new administration or master-category sync. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs` | Existing journal owner carries all these concrete actions, shared per-message exclusion, replay/recovery, current observation and recorded restore target. No second move store or workflow. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs` | Extend existing operation row with closed action kind/expected-state/before-after evidence; add one per-retained-message mutable Outlook-state projection without changing arrival fields. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs` | Journal constraints and unique pending/uncertain exclusion; current-state row FK/version and no cascading evidence deletion. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` | Single effective unread/current-folder projection for detail, list/counts and retained search; restored Inbox items reappear without re-intake. |
+| Modify | `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` | Reuse GraphMailClient and GraphRetainedMailFolderMover; exact metadata read/conditional property PATCH and existing move/Deleted Items resolver. No DELETE/permanentDelete endpoint. |
+| Modify | `src/Pegasus.Infrastructure/DependencyInjection.cs` | Register added Core commands in the existing composition; keep unavailable production transport default. MAIL-028 owns activation. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/Migrations/*RetainedMailMessageState*.cs` | One normal migration and generated designer only, current-state projection plus narrow journal changes; exact Web grants/DELETE denial in same diff. No historic migration edits. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs` | Generated current EF model only. |
+| Modify | `scripts/Invoke-AzureDatabaseBootstrap.ps1` | Same-migration grant census and least-privilege matrix, no broad grants or execution. |
+| Modify | `src/Pegasus.Web/Pages/Mail/Message.cshtml` | Existing exact-message toolbar/detail and reason dialog pattern; actions only here. |
+| Modify | `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` | Thin authenticated/antiforgery action and read-only reconciliation handlers with server-resolved identity/state; preserve originating list context. |
+| Modify | `src/Pegasus.Web/Presentation/OperatorLabels.cs` | One label vocabulary for named actions/states. |
+| Modify | `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs` | Closed action/actor/destination/category and expected-state policy cases. |
+| Modify | `tests/Pegasus.Core.Tests/Intake/ApprovedOutlookCategoryTests.cs` | Staff active choices and disabled/forged category refusal. |
+| Modify | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` | Existing SQL harness: shared exclusion/replay/restart, evidence preservation, restore target and effective list/counts. |
+| Modify | `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` | Existing fake HTTP: exact identities/headers/property confinement, 412 and uncertain responses, read-only recovery. |
+| Modify | `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` | Existing authenticated real-page harness: controls, antiforgery/version/refusal/recovery and minimal actual route captures. |
+| Modify | `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs` | Prove actual Web owner can execute its state/journal writes; retained evidence DELETE remains refused and Worker does not acquire a mail mutation grant. |
+| Modify | `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs` | Update the known exact pending-migration inventory when the new migration is generated; do not repeat DOCS-020's omitted-list failure. |
+| Modify | `docs/frd/frd-08-email-mailbox-and-background-processing.md` | Clarify settled MAIL-13 action/current-state/restore/recovery semantics; retain read-only browsing and permanent-deletion prohibition. |
+| Modify | `docs/capabilities.md` | State implementation vs activation accurately, not Done from registration. |
+| Modify | `docs/current-architecture.md` | Describe the actual shared owner and explicit still-closed activation state after implementation. |
+| Modify | `docs/design/test-ui/pages/inbox-message--*.html` | Generated captures owned by the changed route, only measured states. |
+| Modify | `docs/design/test-ui/index.md` | Generated capture metadata if changed by the existing update script. |
 
 ## Do not modify
 
@@ -168,17 +167,40 @@ rewrite or preservation framework.
 
 ### Step 1 — Extend the existing Core action boundary
 
+- Preconditions: root approves this current plan and assigns a fresh execution packet; integrated TICK-049/MAIL-004 owners are present.
+- Tests: RetainedMailFolderMoveTests; ApprovedOutlookCategoryTests.
+- Commands: no author build/test; submit the named Core filter to root.
+- Preserved behaviour: ordinary MAIL-07 designated movement and catalogue administration remain unchanged.
+- Negative cases: non-staff, missing authority, forged category/destination, stale expected state and absent restore origin refuse.
+- Expected output: focused Core assertions pass under root verification; no new package or permanent-delete enum.
+- Deviation stop: a new policy owner, unapproved behaviour or undeclared file is needed.
+
 - Files: `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs`, `src/Pegasus.Core/Intake/RetainedMail.cs`, `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs`, `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs`, `tests/Pegasus.Core.Tests/Intake/ApprovedOutlookCategoryTests.cs`.
 - Change: the closed action requests/results, active category choices and current-state view; Core owns authorization, target eligibility and action semantics. Preserve the ordinary designated-folder move contract.
 - Done when: direct Core actor/forged target/category/stale-state refusals and successful action policy cases are represented by focused tests; no permanent-delete branch exists.
 
 ### Step 2 — Implement durable state, existing transport and recovery
 
+- Preconditions: Step 1 contracts are fixed; root coordinates the current migration number and shared-file ownership before edits.
+- Tests: MessageState cases in RetainedMailPersistenceTests/ProductionGraphSourceTests, affected AzureSqlRuntimeRoleMigrationTests and CaseWorkflowMigrationTests.
+- Commands: no author build/test/cloud; root runs the agreed focused SQL/fake-HTTP/role filter and migration grant check.
+- Preserved behaviour: immutable arrival/custody/Case/Sent evidence, one existing journal and unavailable live composition.
+- Negative cases: stale provider/binding, two active keys, key reuse, absent restore target, unknown/cancelled effect and denied SQL role.
+- Expected output: one effect maximum per reserved action, uncertain work remains recoverable and occupied, exact grants pass.
+- Deviation stop: conditional provider semantics cannot be met without an unsafe fallback or a second store/service.
+
 - Files: `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs`, `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs`, `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs`, `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`, `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs`, `src/Pegasus.Infrastructure/DependencyInjection.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/*RetainedMailMessageState*.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs`, `scripts/Invoke-AzureDatabaseBootstrap.ps1`, `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs`, `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs`, `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs`.
 - Change: one journal/exclusion owner and separate mutable observation row; exact PATCH/move/probe, restore target, effective list projection and same-key restart recovery. Schema/grants/census together.
 - Done when: no provider write precedes durable reservation/current checks; reconstructed unknown work only probes; unrelated categories and retained source survive; restored Inbox row/count return; fake/local compositions do not enable a live writer.
 
 ### Step 3 — Wire the exact message page and governing behaviour
+
+- Preconditions: Step 2 use cases and stored results exist; the page consumes those decisions without new UI policy.
+- Tests: MessageState cases and the default message-detail route in MailWorkspaceWebTests.
+- Commands: no author runtime run; send the smallest changed route capture names to root.
+- Negative cases: missing antiforgery/authentication, forged state/category/destination, stale confirmation, unavailable composition and cancelled dialog.
+- Expected output: only deliberate exact-message POSTs can mutate through Core; keyboard/focus/context remain intact.
+- Deviation stop: shared CSS/dialog redesign, compose/send or Administration policy is required.
 
 - Files: `src/Pegasus.Web/Pages/Mail/Message.cshtml`, `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs`, `src/Pegasus.Web/Presentation/OperatorLabels.cs`, `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs`, `docs/frd/frd-08-email-mailbox-and-background-processing.md`, `docs/capabilities.md`, `docs/current-architecture.md`.
 - Change: named authenticated POST handlers under `/Inbox/{id}` call Core only. Reuse the existing toolbar, status/error feedback and reason dialog markup/pattern. Read/unread, category and flag controls use explicit actions, not automatic navigation effects; Delete/Restore require Confirm/Cancel and reason. Check status uses the original operation key and never mutates Graph. Refresh is explicit, not background polling.
@@ -187,11 +209,22 @@ rewrite or preservation framework.
 
 ### Step 4 — Root-owned focused verification and evidence handoff
 
+- Preconditions: source is frozen for root and actual capture paths/filter names have been agreed.
+- Tests: the focused Core/SQL/fake-HTTP/Web/role cohort listed below; existing Test UI update/verify and catalogue.
+- Commands: root runs the Commands section once against the recorded author head; no author parallel build/test.
+- Preserved behaviour: all failure evidence remains and local passes never become live-activation claims.
+- Negative cases: missing capture, stale snapshot, failed role/caller check or uncertain provider fact cannot be marked PASS.
+- Expected output: recorded exit-zero focused results, exact TRX/capture artifacts and reviewed scope report.
+- Deviation stop: any failing result is returned for a bounded correction; no repeated whole-suite loop.
+
 - Files: `docs/design/test-ui/pages/inbox-message--*.html`, `docs/design/test-ui/index.md`.
 - Change: root runs the scheduled focused cohort below, captures the actual message route, updates/verifies only that scope and checks catalogue/grants. Author records every attempt, source/head and exact outcomes in the ticket report; no failure is erased by later recovery.
 - Done when: root provides passing bounded evidence, author reconciles the checklist/report and hands the unchanged reviewed scope to independent review. No self-review, merge, activation or live journey is claimed here.
 
 ## Acceptance checks
+
+- Manual source inspection: no DELETE/permanentDelete handler/transport path, and no retained evidence deletion.
+- Executable focused check under root: `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~RetainedMailFolderMoveTests|FullyQualifiedName~ApprovedOutlookCategoryTests"` must exit 0.
 
 1. Table-driven Core cases cover eight action kinds, Staff-only PerformCasework,
    forged/disabled category, unapproved/mismatched state and absent restore
