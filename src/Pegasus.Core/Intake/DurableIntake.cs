@@ -1353,22 +1353,14 @@ public sealed class LinkIntake(
             request.EditLeaseToken);
         await store.LinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
 
-        // A manually linked receipt whose image-only material already
-        // registered an Image intake must move that Image-initiated Case out
-        // of Awaiting instruction too — the one lifecycle transition owner
-        // also used by the automatic pairing paths. Advisory: the manual
-        // link itself has already committed, so a sync failure here is
-        // retried the next time this receipt is linked or a case is accepted.
-        try
+        // The reasoned link committed. The same observable owner completes
+        // untouched group members and merge, or leaves durable timer recovery.
+        var pairing = await casePairing.PairRegisteredReceiptAsync(request.ReceiptId, cancellationToken);
+        Activity.Current?.SetTag("image_intake.pairing_failures", pairing.Failures);
+        Activity.Current?.SetTag("image_intake.failure_type", pairing.FirstFailure);
+        if (pairing.Failures > 0)
         {
-            await casePairing.SyncMergeAfterLinkAsync(
-                request.ReceiptId,
-                request.CaseId,
-                request.Actor,
-                cancellationToken);
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
         }
     }
 }

@@ -42,6 +42,14 @@ The staged-artifact reconciliation function resumes Pending custody by its
 durable logical version. Box remains the durable content owner; the SQL-indexed
 Azure cache validates hashes and expires after 24 hours idle.
 
+The same reconciliation function invokes `IImageIntakeCasePairing` for oldest
+eligible registered images still Awaiting instruction. Acceptance and registered
+receipt replay invoke that owner too. Candidates read current `CaseMatchIndex`
+identity; automatic link and merge transactions recheck current identity,
+principal, eligibility and staff decisions. Group pairing completes every
+current image-member association before its one lifecycle/custody merge.
+No additional queue, service registration or recovery worker is introduced.
+
 Queued intake re-evaluation resolves the receipt's single retained source asset
 through the same logical content reader after its transient staging copy has
 been deleted. The Worker supplies the exact receipt, current Case, source hash

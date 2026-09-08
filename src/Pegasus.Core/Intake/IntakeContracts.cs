@@ -1108,7 +1108,8 @@ public sealed record AutomaticIntakeLinkRequest(
     long ExpectedCaseVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason,
+    long? ExpectedStaffOriginAssociationVersion = null);
 
 public interface IIntakeMutationStore
 {

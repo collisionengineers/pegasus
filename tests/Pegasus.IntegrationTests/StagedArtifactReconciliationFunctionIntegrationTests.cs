@@ -52,6 +52,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new UnreachableActionHistoryWriter(),
             TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var pairing = new RecordingPairing();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             new EmptyCacheCleanup(),
@@ -60,6 +61,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyDocumentContentStore(),
                 new EmptyStagedArtifactStore()),
             groupedImageReconciler,
+            pairing,
             unidentifiedReconciler,
             vehicleLookupReconciler,
             providerSubmissionReconciler,
@@ -69,7 +71,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         Assert.Equal(50, workStore.MaximumItems);
         Assert.True(pendingCustodyFactory.CreateCount > 0);
-        Assert.Equal(5, logger.States.Count);
+        Assert.Equal(50, pairing.MaximumItems);
+        Assert.Equal(6, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
@@ -84,19 +87,58 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(0, groupedImageState["Escaped"]);
         Assert.Equal(0, groupedImageState["Failures"]);
 
-        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[2]);
+        var pairingState = logger.States[2];
+        Assert.Equal(7, pairingState["Candidates"]);
+        Assert.Equal(3, pairingState["Merged"]);
+        Assert.Equal(2, pairingState["Failures"]);
+        Assert.Equal(nameof(IntakeAssociationConflictException), pairingState["FirstFailure"]);
+
+        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[3]);
         Assert.Equal(0, unidentifiedState["Candidates"]);
         Assert.Equal(0, unidentifiedState["Resolved"]);
         Assert.Equal(0, unidentifiedState["Failures"]);
 
-        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[3]);
+        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[4]);
         Assert.Equal(0, vehicleLookupState["Enqueued"]);
 
-        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[4]);
+        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[5]);
         Assert.Equal(0, providerSubmissionState["Candidates"]);
         Assert.Equal(0, providerSubmissionState["Repaired"]);
         Assert.Equal(0, providerSubmissionState["Failures"]);
         Assert.Null(providerSubmissionState["FirstFailure"]);
+    }
+
+    internal static Task RunPairingTimerAsync(
+        IImageIntakeCasePairing pairing, IDbContextFactory<PegasusDbContext> contextFactory)
+    {
+        var workStore = new ReconciliationWorkStore(0);
+        var receipts = new EmptyIntakeReceiptQueries();
+        var function = new StagedArtifactReconciliationFunction(
+            new ReconcileStagedArtifacts(workStore, new RejectingStagedArtifactAuthority(),
+                new EmptyStagedArtifactStore(), TimeProvider.System),
+            new EmptyCacheCleanup(),
+            new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
+            new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
+                new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
+            pairing,
+            new ReconcileUnidentifiedDestinations(new EmptyUnidentifiedStore(), new UnreachableResolveUnidentified(),
+                receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System),
+            new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
+            new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
+        return function.RunAsync(null!, CancellationToken.None);
+    }
+
+    private sealed class RecordingPairing : IImageIntakeCasePairing
+    {
+        public int MaximumItems { get; private set; }
+        public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult(new ImageIntakePairingResult(7, 3, 2, nameof(IntakeAssociationConflictException)));
+        }
+        public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
 

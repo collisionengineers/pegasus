@@ -210,6 +210,31 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
+Pairing uses the Case's current accepted registration and principal, not its
+original instruction draft. A registered image identity requires an exact
+registration match; a known principal must agree. The existing single-image
+exact-match precedence also applies to one-member groups. Multi-member groups
+retain their stricter complete-candidate uniqueness rule; persisted expected
+membership, not the presence of a group identifier, distinguishes them.
+
+Both arrival orders, registered-receipt replay and acceptance replay resume
+the same pairing operation. The existing reconciliation timer retries oldest
+eligible Awaiting instruction records, including linked-but-unmerged records.
+Current nonmatches do not consume that bounded batch or become permanently
+excluded. Failures remain visible and do not stop unrelated pairings.
+Every current image member must be associated before a group merges once.
+Automatic writes recheck current identity and uniqueness transactionally;
+merge rechecks every current association, destination eligibility and active
+Case edit lease. A deliberate staff unlink or reassignment is never undone by
+recovery. A still-current reasoned staff association retains its authority,
+including an intentional identity override, regardless of the retry actor.
+A reasoned staff decision on a registered group's origin also authorises
+completion of untouched image members. That completion checks the current
+origin decision and its observed version, records the originating staff
+identity/reason/version with SystemWorker completion attribution, and never
+overwrites or revives a sibling with association history. Final merge also
+refuses a changed origin decision even when the target Case ID is unchanged.
+
 **Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same configured chase interval a Not-ready formal Case's first chase falls due at (one global whole-calendar-day value, 1 to 365, default 7 — D23), and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
 
 ### Grouped image-intake routing
@@ -420,4 +445,4 @@ Definitive authorised intake creates exactly one instructed Case idempotently. A
 
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
-Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does, and so does the Image-initiated Case merge transition.
+Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does. Automatic Image-initiated Case association checks the current Case version and yields to an active staff lease; the subsequent image merge also yields to a live lease and rechecks the current associations inside its transaction.

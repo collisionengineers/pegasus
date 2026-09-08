@@ -1,5 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Custody;
+using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -1073,6 +1078,143 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             impersonation.CommandText = "REVERT;";
             await impersonation.ExecuteNonQueryAsync();
         }
+    }
+
+    [Fact]
+    public async Task WorkerReconcilesRegisteredImageUsingCurrentCaseIdentityExactlyOnce()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var caseReceiptId = Guid.NewGuid();
+        var imageReceiptId = Guid.NewGuid();
+        var imageId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var seededPrincipal = await SeededPrincipals.QdosAsync(context);
+        var principalId = seededPrincipal.Id;
+        var lineageId = seededPrincipal.SequenceLineageId;
+        var emptyEnvelope = EfIntakeReceiptStore.SerializeEnvelope(Array.Empty<string>());
+
+        // Owner-side persisted-state fixture, not a newly received instruction.
+        // The supplied QDOS registrations deliberately differ: the current index,
+        // not the original draft, identifies this already-registered image.
+        await database.ExecuteAsync($"""
+            INSERT INTO [dbo].[IntakeReceipts] (
+                [Id], [SourceFileName], [MediaType], [SourceLength], [SourceHash],
+                [SourceChannel], [ExternalReceiptToken], [ReceivedAtUtc], [ProcessedAtUtc],
+                [SourceReaderKey], [SourceReaderVersion], [Version], [Decision],
+                [DecisionReason], [EvidenceJson], [FieldsJson], [OcrCandidatesJson])
+            VALUES
+                ('{caseReceiptId:D}', N'instruction.eml', N'message/rfc822', 1,
+                 REPLICATE(N'A', 64), N'manual_upload', N'image-role-case:{caseReceiptId:N}',
+                 '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00',
+                 N'runtime-role-test', N'1', 0, N'case_created', N'Existing Case fixture',
+                 N'{emptyEnvelope}', N'{emptyEnvelope}', N'{emptyEnvelope}'),
+                ('{imageReceiptId:D}', N'1_CLVoffside-V1.jpg', N'image/jpeg', 1,
+                 REPLICATE(N'B', 64), N'manual_upload', N'image-role-source:{imageReceiptId:N}',
+                 '2031-05-06T10:29:00+00:00', '2031-05-06T10:29:00+00:00',
+                 N'runtime-role-test', N'1', 0, N'image_intake_registered', N'Registered image fixture',
+                 N'{emptyEnvelope}', N'{emptyEnvelope}', N'{emptyEnvelope}');
+            INSERT INTO [dbo].[IntakeAssets] (
+                [Id], [IntakeReceiptId], [SourceLabel], [FileName], [MediaType],
+                [Kind], [Disposition], [ContentLength], [ContentHash], [StorageKey])
+            VALUES (
+                '{Guid.NewGuid():D}', '{imageReceiptId:D}', N'source', N'1_CLVoffside-V1.jpg',
+                N'image/jpeg', N'source', N'source', 1, REPLICATE(N'B', 64),
+                N'runtime-role/{imageReceiptId:N}');
+            INSERT INTO [dbo].[InstructionDrafts] ([IntakeReceiptId], [VehicleRegistration])
+            VALUES ('{caseReceiptId:D}', N'NG22FVH');
+            INSERT INTO [dbo].[Cases] (
+                [Id], [PrincipalId], [SequenceLineageId], [Year], [Sequence], [Reference],
+                [Type], [InitialState], [CustodyState], [OriginIntakeReceiptId],
+                [InstructionComplete], [ImagesComplete], [CreatedAtUtc], [Version], [ConcurrencyToken])
+            VALUES ('{caseId:D}', '{principalId:D}', '{lineageId:D}', 2031, 1, N'QDOS31001',
+                N'inspection', N'review', N'pending', '{caseReceiptId:D}', 1, 1,
+                '2031-05-06T10:30:00+00:00', 0, '{Guid.NewGuid():D}');
+            INSERT INTO [dbo].[CaseWorkflows] ([CaseId], [State], [Version], [ConcurrencyToken])
+            VALUES ('{caseId:D}', N'{nameof(CaseLifecycleState.Review)}', 0, '{Guid.NewGuid():D}');
+            INSERT INTO [dbo].[CaseMatchIndex] (
+                [CaseId], [WorkProviderCode], [NormalizedVrm], [MatchPolicyKey],
+                [MatchPolicyVersion], [UpdatedAtUtc])
+            VALUES ('{caseId:D}', N'QDOS', N'PG18BTY', N'runtime-role-test', 1,
+                '2031-05-06T10:31:00+00:00');
+            INSERT INTO [dbo].[ImageIntakes] (
+                [Id], [OriginReceiptId], [SourceChannel], [ExternalReceiptToken], [SourceHash],
+                [EvaluationRevisionId], [NormalizedVehicleRegistration], [ImageIntakeReference],
+                [PrincipalId], [CreatedAtUtc], [CreatedByActorKind], [CreatedByActorSubjectId],
+                [Reason], [CreationOperationKey], [RequestFingerprint], [LifecycleState],
+                [LifecycleVersion], [CustodyState])
+            VALUES ('{imageId:D}', '{imageReceiptId:D}', N'manual_upload',
+                N'image-role-source:{imageReceiptId:N}', REPLICATE(N'B', 64), '{Guid.NewGuid():D}',
+                N'PG18BTY', N'PG18BTY-01', '{principalId:D}', '2031-05-06T10:29:00+00:00',
+                N'SystemWorker', N'image-intake-automation', N'Registered image fixture',
+                N'image-role-register:{imageReceiptId:N}', REPLICATE(N'C', 64),
+                N'awaiting_instruction', 0, N'pending');
+            CREATE USER [pegasus_test_image_recovery_worker] WITHOUT LOGIN;
+            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_image_recovery_worker];
+            """);
+
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var impersonation = connection.CreateCommand();
+        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_image_recovery_worker';";
+        await impersonation.ExecuteNonQueryAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
+            var workerFactory = new ConnectedContextFactory(options);
+            var pairing = new ImageIntakeCasePairing(
+                new EfImageIntakeStore(workerFactory),
+                new EfImageIntakeCaseCandidates(workerFactory),
+                new EfIntakeMutationStore(workerFactory),
+                TimeProvider.System,
+                new CommittedWorkPublisherDouble(),
+                new EfIntakeReceiptStore(workerFactory));
+
+            Assert.Equal(new ImageIntakePairingResult(1, 1, 0),
+                await pairing.ReconcileAsync(1, CancellationToken.None));
+            Assert.Equal(new ImageIntakePairingResult(0, 0, 0),
+                await pairing.ReconcileAsync(1, CancellationToken.None));
+        }
+        finally
+        {
+            impersonation.CommandText = "REVERT;";
+            await impersonation.ExecuteNonQueryAsync();
+        }
+
+        var association = await context.IntakeManualAssociations.AsNoTracking()
+            .SingleAsync(item => item.IntakeReceiptId == imageReceiptId);
+        Assert.True(association.IsActive);
+        Assert.Equal(caseId, association.CaseId);
+        Assert.Equal(nameof(ActorKind.SystemWorker), association.ActorKind);
+        Assert.Equal(ImageIntakeAutomation.ActorId, association.ActorSubjectId);
+        var image = await context.ImageIntakes.AsNoTracking().SingleAsync(item => item.Id == imageId);
+        Assert.Equal("merged_into_instruction_case", image.LifecycleState);
+        Assert.Equal(1, image.LifecycleVersion);
+        Assert.Equal(caseId, image.MergedIntoCaseId);
+        Assert.Equal("QDOS31001", image.MergedIntoCaseReference);
+        var lifecycle = await context.ImageIntakeLifecycleEvents.AsNoTracking()
+            .SingleAsync(item => item.ImageIntakeId == imageId);
+        Assert.Equal("merged_into_instruction_case", lifecycle.EventType);
+        Assert.Equal(nameof(ActorKind.SystemWorker), lifecycle.ActorKind);
+        Assert.Equal(ImageIntakeAutomation.ActorId, lifecycle.ActorSubjectId);
+        Assert.Equal(caseId, lifecycle.CaseId);
+        var custody = await context.ExternalWorkItems.AsNoTracking()
+            .SingleAsync(item => item.ImageIntakeId == imageId);
+        Assert.Equal(ExternalWorkKinds.MergeImageCaseCustody, custody.Kind);
+        Assert.Equal(caseId, custody.CaseId);
+        Assert.Equal("pending", custody.State);
+        Assert.Equal(1, await context.IntakeMutationHistory.CountAsync(item =>
+            item.IntakeReceiptId == imageReceiptId && item.EventType == "intake_case_auto_linked"));
+        Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "intake_case_auto_linked"));
+        Assert.Equal(1, await context.CaseHistory.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "image_initiated_case_merged"));
+        Assert.Equal("NG22FVH", await context.InstructionDrafts.Where(item =>
+            item.IntakeReceiptId == caseReceiptId).Select(item => item.VehicleRegistration).SingleAsync());
+        Assert.Equal("PG18BTY", await context.CaseMatchIndex.Where(item =>
+            item.CaseId == caseId).Select(item => item.NormalizedVrm).SingleAsync());
     }
 
     [Fact]

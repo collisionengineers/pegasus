@@ -120,7 +120,9 @@ public sealed record ImageIntakeSummary(
     string? ClosureReason = null,
     int ImageCount = 0,
     IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload,
-    string? PrincipalCode = null);
+    string? PrincipalCode = null,
+    Guid? PrincipalId = null,
+    int GroupExpectedMemberCount = 1);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,
@@ -149,7 +151,9 @@ public sealed record ImageIntakeDetail(
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
     ImageCustodyState? Custody = null,
-    string? PrincipalCode = null)
+    string? PrincipalCode = null,
+    int GroupExpectedMemberCount = 1,
+    long? AssociatedCaseVersion = null)
 {
     public ImageInitiatedCaseState State => Record.State;
 
@@ -176,7 +180,8 @@ public sealed record MergeImageInitiatedCaseRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    long ExpectedVersion);
+    long ExpectedVersion,
+    long? ExpectedStaffOriginAssociationVersion = null);
 
 public sealed record CloseImageInitiatedCaseRequest(
     Guid ImageIntakeId,
@@ -217,8 +222,9 @@ public interface IImageIntakeQueries
 
     /// <summary>
     /// The registered image receipts this Image intake covers — its origin
-    /// plus, for a group registration, every registered image-only member —
-    /// ordered by the submission ordinal and restricted to image media.
+    /// plus, for a group registration, every durable image-only member —
+    /// ordered by the submission ordinal and restricted to image media. A
+    /// later queue decision never removes a member from association guards.
     /// </summary>
     Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
         Guid imageIntakeId,
@@ -283,6 +289,11 @@ public sealed record ImageIntakeOperationReplay(ImageIntakeRecord Result);
 /// </summary>
 public interface IImageIntakeStore : IImageIntakeQueries
 {
+    Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
+        int maximumItems,
+        Guid? caseId,
+        CancellationToken cancellationToken);
+
     Task<ImageIntakeOperationReplay?> ProbeRegisterReplayAsync(
         RegisterImageIntakeRequest request,
         CancellationToken cancellationToken);
@@ -361,4 +372,5 @@ public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
     long CaseVersion,
-    string ConfirmedRegistration);
+    string ConfirmedRegistration,
+    Guid? PrincipalId = null);
