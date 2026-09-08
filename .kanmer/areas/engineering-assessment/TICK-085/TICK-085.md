@@ -2,7 +2,7 @@
 id: TICK-085
 type: ticket
 title: Complete Glass's repair-estimate import from a representative export
-status: review
+status: verifying
 area: engineering-assessment
 order: 1140
 assignee: principal_delivery_audit
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   preparing: '2026-09-07T21:28:21.905Z'
   review: '2026-09-08T04:58:36.336Z'
+  verifying: '2026-09-08T05:04:56.904Z'
 taken_at: '2026-09-08T03:02:52.244Z'
 branch: TICK-085-glass-pdf-import
 worktree: .worktrees/tick-085
@@ -41,12 +42,17 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 commits:
-  - 1fb0a7a1d907e6a82a586ea8ba14d4a9c58d75b4
+  - aefe4c32d078ad79c0368666b5666032e6865248
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/698'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: aefe4c32d078ad79c0368666b5666032e6865248
+delivery_recorded_at: '2026-09-08T05:04:57.503Z'
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-08T04:58:37.791Z'
+updated: '2026-09-08T05:04:57.503Z'
 ---
 
 ## What
