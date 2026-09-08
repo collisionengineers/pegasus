@@ -7,3 +7,7 @@ Root reviewed current unfrozen forms/orchestrator and sent one consolidated corr
 ## Verification deviation — 8 September 2026
 
 Without a current host-verifier grant, I ran `node --check .worktrees/INTK-066/src/Pegasus.Web/wwwroot/js/site.js` from the repository root. Exit code: `0`; tool transcript reports `0.7 s`. The execution transcript did not include a wall-clock timestamp, so none is inferred here. This was an ungranted verification process while PLAT-046 owned the canonical host slot. No test, build, browser, capture, parser, or further verification command will be run by this worker. `git diff` inspection only remains in scope.
+
+## Commit identity correction — 8 September 2026
+
+An earlier handoff copied the wrong full SHA (`da6ff8e1680080b5eb349602ac6cae7ec42767d3`). Read-only `git rev-parse HEAD` on the recorded worktree returned the actual clean commit: `da6ff8e16815100e42da65e60df3e45a3cced2d2`. The ticket commits field was corrected to that exact identity. No source, commit, or worktree mutation occurred while resolving this record.

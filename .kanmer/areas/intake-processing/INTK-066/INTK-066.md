@@ -25,6 +25,8 @@ links:
   - INTK-016
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - da6ff8e16815100e42da65e60df3e45a3cced2d2
 capture_evidence:
   - 'https://github.com/collisionengineers/pegasus/actions/runs/34240260482'
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -36,7 +38,7 @@ capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T18:27:23.312Z'
+updated: '2026-09-08T18:54:44.676Z'
 ---
 
 ## Observation
