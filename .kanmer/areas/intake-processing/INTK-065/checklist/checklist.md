@@ -9,11 +9,19 @@
 
 ## Closeout — INTK-065
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date confirmed)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/intk-065`
-- [ ] `git branch -d INTK-065-principal-evidence-inventory` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date confirmed)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] Pre-merge refresh harness and focused TRX retained with matching SHA-256 values
+- [x] cd out of worktree; `git worktree remove .worktrees/intk-065`
+- [x] `git branch -D INTK-065-principal-evidence-inventory` (squash-merged)
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `git push origin --delete INTK-065-principal-evidence-inventory`
 - [ ] `take_ticket action: "release"`
+
+PR #706 merge and full schema-2 proof were re-read before cleanup. The
+pre-merge artifacts were copied outside the disposable worktree and hash-verified;
+the recorded clean implementation worktree and feature branches were then
+removed. Historical failures, erratum and original-input regeneration limitation
+remain in the ticket records; unrelated shared-checkout changes were untouched.

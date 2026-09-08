@@ -12,16 +12,6 @@ stageEntered:
   review: '2026-09-08T14:45:48.793Z'
   verifying: '2026-09-08T15:28:33.019Z'
   done: '2026-09-08T16:10:29.158Z'
-taken_at: '2026-09-08T13:43:28.206Z'
-branch: INTK-065-principal-evidence-inventory
-worktree: .worktrees/intk-065
-claim_expires_at: '2026-09-08T16:30:33.146Z'
-claim_controller: codex-mcp-client
-lease_id: 67bf01af-2c70-47df-a295-5ddca0f3fd7e
-lease_revision: 7
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-065'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T16:00:33.146Z'
 labels:
   - regression
   - source-inventory
@@ -43,7 +33,7 @@ delivery_sha: d76de2534ec6651c1a434a55f76593b7b140bf1c
 delivery_recorded_at: '2026-09-08T16:11:45.657Z'
 archived: false
 created: '2026-09-08T07:15:35.565Z'
-updated: '2026-09-08T16:11:45.657Z'
+updated: '2026-09-08T16:12:22.861Z'
 ---
 
 ## What
