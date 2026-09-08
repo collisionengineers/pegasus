@@ -104,3 +104,30 @@ Lease renewed by fresh CAS to revision 13, running-command, at
 - 2026-09-08T04:16:36.248Z lease-phase running-command → implementing (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 14; expires 2026-09-08T04:46:36.241Z)
 
 - 2026-09-08T04:17:35.931Z lease-phase implementing → review (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 15; expires 2026-09-08T04:47:35.897Z)
+
+## Author publication and independent handoff — 2026-09-08
+
+Root session 83241 finished exit 0: incremental Integration Release build
+21.64s, 0 warnings; exact corrected restricted Worker method 1 PASS, 0 skipped,
+35.3962993s. Author read actual final TRX
+`tests/Pegasus.IntegrationTests/TestResults/intk-063-worker-seed-corrected.trx`:
+UTC start 04:11:14.7290190Z, finish 04:11:52.3918048Z; SHA256
+`D7D37F72E5BC7FC742CBA75E286AC536C05B061F22415297C4A46115CF7FAFC0`.
+The earlier compile failure and 17/18 duplicate-QDOS fixture failure remain
+above and in whole report `67f2c76040cf0b1c`, with three distinct TRX hashes.
+
+Root authorized publication after that PASS. Exact 19 mapped paths committed
+as `e7db237e47322d2378ccf44749d97024db377aeb`, +1222/-290, with approved
+[skip ci] marker. Normal push PASS; new PR
+https://github.com/collisionengineers/pegasus/pull/696 OPEN to dev, exact live
+head read back twice and equals local/remote branch. No dev merge or source
+change after tested fixture. Whole report and checklist `5ff6eab776e8775e`
+read back; commit/PR traceability recorded. Fresh enter-Review gates passed;
+Implementing -> Review at 2026-09-08T04:17:33.123Z.
+
+Author tree remains clean at the recorded branch/worktree. Lease CAS revision
+15, phase Review, heartbeat 04:17:35.897Z, expires 04:47:35.897Z. Root owns
+independent exact-head review and later merged-dev verification; author stops.
+No self-review/merge/Done, CI PASS, initial registration/live/provider or cloud
+claim. Current packet base advancing to 498144b0 is distinguished from actual
+author starting cdaa02584c in the report.
