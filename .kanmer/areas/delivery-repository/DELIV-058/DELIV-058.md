@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Align architecture assertions with current extraction selection and pairing
   composition
-status: review
+status: verifying
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T14:58:28.071Z'
   review: '2026-09-08T15:20:07.226Z'
+  verifying: '2026-09-08T15:47:47.145Z'
 taken_at: '2026-09-08T15:09:15.962Z'
 branch: DELIV-058-architecture-assertions
 worktree: .worktrees/deliv-058
@@ -38,7 +39,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T15:20:07.226Z'
+updated: '2026-09-08T15:47:47.145Z'
 ---
 
 ## What
