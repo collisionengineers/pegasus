@@ -13,6 +13,7 @@ using UglyToad.PdfPig.AcroForms.Fields;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Exceptions;
+using UglyToad.PdfPig.Geometry;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Pegasus.Infrastructure.Intake;
@@ -326,7 +327,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
             limits.AddImageObjects(images.Length);
 
-            var hasDominantRaster = images.Any(image => Coverage(image, page) >= ScannedPageImageCoverage);
+            var hasDominantRaster = images.Any(image => Coverage(
+                image.BoundingBox, page.CropBox.GetVisibleBounds(page.Rotation)) >= ScannedPageImageCoverage);
             var hasInsufficientText = readableCharacters < MinimumReadablePdfCharacters;
 
             var imageNumber = 0;
@@ -388,21 +390,19 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         return new(pages, ExtractPdfFormFields(document, sourceLabel, result));
     }
 
-    private static double Coverage(IPdfImage image, Page page)
+    internal static double Coverage(PdfRectangle imageBounds, PdfRectangle visiblePage)
     {
-        var visiblePage = page.CropBox.Bounds;
-        var pageArea = Math.Abs(visiblePage.Width * visiblePage.Height);
+        var pageArea = visiblePage.Area;
         if (pageArea <= 0)
         {
             return 0;
         }
 
-        var left = Math.Max(image.BoundingBox.Left, visiblePage.Left);
-        var right = Math.Min(image.BoundingBox.Right, visiblePage.Right);
-        var bottom = Math.Max(image.BoundingBox.Bottom, visiblePage.Bottom);
-        var top = Math.Min(image.BoundingBox.Top, visiblePage.Top);
-        var imageArea = Math.Max(0, right - left) * Math.Max(0, top - bottom);
-        return imageArea / pageArea;
+        // PdfPig renders images into rotated display space; CropBox.Bounds
+        // remains unrotated. Rectangle edge properties are also undefined for
+        // a rotated rectangle, so normalize before clipping to visible space.
+        var intersection = imageBounds.Normalise().Intersect(visiblePage);
+        return (intersection?.Area ?? 0) / pageArea;
     }
 
     private static bool TryReadPdfImage(

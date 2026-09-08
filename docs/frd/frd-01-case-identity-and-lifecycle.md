@@ -102,7 +102,22 @@ command can hand a Review Case to its already-assigned eligible Engineer;
 it is not a second UI step. Neither route proves EVA receipt or an external
 EVA assignment.
 
-Incoming cancellation classification or association never changes a Case automatically. In the focused alpha, mailbox processing records the settled classification for every route-accepted received message and may automatically associate QDOS-direct correspondence with its Case under the accepted ADR-0020 predicates, but only an incoming instruction creates intake work and no classification or association mutates Case state; a separately retained and reasonedly associated cancellation message may support an authorised staff action to place a pre-report Case in `Held pending staff decision`, confirm `Provider cancelled`, or release it. Release requires the message to be reasonedly recategorised, unlinked, or reassociated first. Every original and corrected classification/association, actor, time, reason, and evidence remains permanent history.
+Incoming cancellation classification or association never changes a Case
+automatically. Mailbox processing records the settled classification for
+route-accepted received messages. Automatic principal-scoped association uses
+the supported current-instruction profiles and unambiguous typed match keys
+defined in [FRD-02](frd-02-intake-and-source-identity.md); QDOS retains its
+accepted correspondence predicates under ADR-0020. This does not enable
+arbitrary non-QDOS correspondence or extend QDOS cancellation recognition to
+other principals. Current-envelope boundaries still exclude quoted historical
+instructions. Only an incoming instruction creates intake work, and no
+classification or association mutates Case state. A separately retained and
+reasonedly associated cancellation message may support an authorised staff
+action to place a pre-report Case in `Held pending staff decision`, confirm
+`Provider cancelled`, or release it. Release requires the message to be
+reasonedly recategorised, unlinked, or reassociated first. Every original and
+corrected classification/association, actor, time, reason, and evidence remains
+permanent history.
 
 ### Workflow display labels and stage-bound actions
 

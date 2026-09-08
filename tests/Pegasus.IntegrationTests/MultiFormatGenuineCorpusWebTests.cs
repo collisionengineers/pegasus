@@ -47,13 +47,13 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         Assert.Equal("QDOS", route.SelectedRoute?.RouteOwnerCode);
         Assert.Equal(MailRouteKind.DirectProvider, route.SelectedRoute?.Kind);
         Assert.Equal("QDOS", route.SelectedRoute?.WorkProviderCode);
-        Assert.Equal(QdosMailRoutePolicy.Key, route.PolicyKey);
-        Assert.Equal(QdosMailRoutePolicy.Version, route.PolicyVersion);
+        Assert.Equal(PrincipalMailRoutePolicy.Key, route.PolicyKey);
+        Assert.Equal(PrincipalMailRoutePolicy.Version, route.PolicyVersion);
         AssertRoutePredicate(route, "direct.sender-exactly-one", matched: true);
         AssertRoutePredicate(route, "forward.staff-transport", matched: false);
         AssertRoutePredicate(route, "forward.original-exactly-one", matched: false);
         AssertRoutePredicate(route, "forward.original-external", matched: false);
-        AssertRoutePredicate(route, "direct.qdos-domain", matched: true);
+        AssertRoutePredicate(route, "direct.principal-identity", matched: true);
         AssertRoutePredicate(route, "intermediary.accepted-policy", matched: false);
 
         var classification = receipt.MailClassificationDecision;
@@ -64,8 +64,8 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         Assert.Equal("inspection", classification.Category?.Subtype);
         Assert.False(classification.Category?.IsReplyContext);
         Assert.Equal(CaseType.InspectionAndAudit, classification.CaseType);
-        Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
-        Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
+        Assert.Equal(PrincipalMailClassificationPolicy.Key, classification.PolicyKey);
+        Assert.Equal(PrincipalMailClassificationPolicy.Version, classification.PolicyVersion);
         AssertClassificationPredicate(classification, "subject.automatic-reply", matched: false);
         AssertClassificationPredicate(classification, "subject.reply-prefix", matched: false);
         AssertClassificationPredicate(classification, "body.triage-only-request", matched: false);
@@ -78,7 +78,7 @@ public sealed class MultiFormatGenuineCorpusWebTests(ITestOutputHelper output)
         Assert.Contains(
             receipt.Evidence,
             item => item.Signal == "established-principal"
-                && item.Detail == $"Principal QDOS was established by {QdosMailRoutePolicy.Key} v{QdosMailRoutePolicy.Version}.");
+                && item.Detail == $"Principal QDOS was established by {PrincipalMailRoutePolicy.Key} v{PrincipalMailRoutePolicy.Version}.");
 
         WriteAggregate("MSG", receipt.Decision);
     }

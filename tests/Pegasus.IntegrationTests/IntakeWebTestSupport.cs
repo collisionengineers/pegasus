@@ -204,6 +204,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             if (mailClassificationPolicy is not null)
             {
                 services.RemoveAll<IMailClassificationPolicy>();
+                services.RemoveAll<IEnumerable<IMailClassificationPolicy>>();
                 services.AddSingleton(mailClassificationPolicy);
             }
             if (approvedMailboxIdentityResolver is not null)

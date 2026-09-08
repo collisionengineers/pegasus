@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Intake;
+using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 using Xunit.Abstractions;
 
@@ -75,7 +75,7 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
         var readResult = await reader.ReadAsync(Source(path!, Array.IndexOf(Expectations, expected)), CancellationToken.None);
         Assert.Equal(IntakeSourceReadStatus.Readable, readResult.Status);
 
-        var route = new QdosMailRoutePolicy().Evaluate(readResult);
+        var route = new PrincipalMailRoutePolicy().Evaluate(readResult);
         Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
 
         var result = new QdosInstructionExtractionPolicy().Extract(
@@ -83,8 +83,8 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
             ReceivedAtUtc,
             new EstablishedPrincipalContext(
                 QdosInstructionExtractionPolicy.SupportedPrincipalCode,
-                QdosMailRoutePolicy.Key,
-                QdosMailRoutePolicy.Version));
+                PrincipalMailRoutePolicy.Key,
+                PrincipalMailRoutePolicy.Version));
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         output.WriteLine(
             $"{Path.GetFileName(path)} => claimant='{draft.ClaimantName}' claim='{draft.ClaimNumber}' " +

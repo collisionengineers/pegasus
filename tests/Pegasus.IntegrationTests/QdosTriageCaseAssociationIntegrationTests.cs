@@ -212,21 +212,21 @@ public sealed partial class QdosTriageIntegrationTests
                     sourceIdentity),
                 CancellationToken.None);
         Assert.Equal(IntakeSourceReadStatus.Readable, readResult.Status);
-        var route = new QdosMailRoutePolicy().Evaluate(readResult);
+        var route = new PrincipalMailRoutePolicy().Evaluate(readResult);
         Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
         var extracted = new QdosInstructionExtractionPolicy().Extract(
             readResult,
             receivedAtUtc,
             new(
                 QdosInstructionExtractionPolicy.SupportedPrincipalCode,
-                QdosMailRoutePolicy.Key,
-                QdosMailRoutePolicy.Version));
+                PrincipalMailRoutePolicy.Key,
+                PrincipalMailRoutePolicy.Version));
         var draft = Assert.IsType<InstructionDraft>(extracted.InstructionDraft);
         var normalizedVrm = Assert.IsType<string>(draft.VehicleRegistration);
         Assert.Equal(QdosInstructionExtractionPolicy.SupportedPrincipalCode, draft.SuggestedPrincipalCode);
         Assert.Equal(
             CaseType.InspectionAndAudit,
-            new QdosMailClassificationPolicy().Classify(readResult).CaseType);
+            new PrincipalMailClassificationPolicy("QDOS").Classify(readResult).CaseType);
         var acceptedMatch = new IntakeEvidence(
             IntakeEvidenceSource.SystemDefault,
             IntakeEvidenceStrength.Strong,

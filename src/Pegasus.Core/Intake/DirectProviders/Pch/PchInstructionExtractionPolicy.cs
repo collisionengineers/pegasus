@@ -4,7 +4,7 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Reads a Performance Car Hire / Parkhouse (PCH) instruction: rank 2 by
-/// observed volume, and review-only — this policy proposes candidates and
+/// observed volume — this policy proposes candidates and
 /// allocates nothing. `partial` because it owns generated regexes.
 ///
 /// PCH prints two documents that read alike and mean different things: an
@@ -18,7 +18,8 @@ namespace Pegasus.Core.Intake;
 ///
 /// Nothing here activates a route. The pch-ltd.com sender evidence in the
 /// corpus is route identity, and a document profile is not permission to
-/// allocate: `ProcessIntake` keeps automatic allocation for QDOS alone.
+/// allocate: `ProcessIntake` requires agreement with its accepted sender route
+/// and a definitive requested work type before automatic allocation.
 /// </summary>
 public sealed partial class PchInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles

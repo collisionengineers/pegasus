@@ -121,6 +121,8 @@ public sealed record InstructionPolicySelection(
     IReadOnlyList<IInstructionExtractionPolicy> Matches,
     IReadOnlyList<string> MatchedVariantKeys)
 {
+    public IReadOnlyList<IntakeContentFragment> InstructionContent { get; init; } = [];
+
     public static InstructionPolicySelection Selected(
         IInstructionExtractionPolicy policy,
         IReadOnlyList<string>? variantKeys = null) =>
@@ -176,24 +178,47 @@ public sealed class InstructionExtractionPolicySelector(
             return InstructionPolicySelection.NotApplicable();
         }
 
-        var text = Text(readResult);
+        var documents = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult)
+            .GroupBy(fragment => DocumentIdentity(fragment.SourceLabel), StringComparer.Ordinal)
+            .Select(group => group.ToArray())
+            .ToArray();
         var matches = this.policies
             .Select(policy => (Policy: policy, Profile: policy as IInstructionDocumentProfile))
             .Where(entry => entry.Profile is not null
                 && string.Equals(
                     entry.Profile.Signature.DocumentRole,
                     documentRole,
-                    StringComparison.OrdinalIgnoreCase)
-                && Matches(entry.Profile.Signature, text))
-            .Select(entry => (entry.Policy, Variants: MatchingVariants(entry.Profile!, text)))
-            .Where(entry => entry.Variants is not null)
+                    StringComparison.OrdinalIgnoreCase))
+            .Select(entry => new
+            {
+                entry.Policy,
+                Documents = documents.Select(content => new
+                {
+                    Content = content,
+                    Text = string.Join('\n', content.Select(fragment => fragment.Text))
+                })
+                .Where(document => Matches(entry.Profile!.Signature, document.Text))
+                .Select(document => new
+                {
+                    document.Content,
+                    Variants = MatchingVariants(entry.Profile!, document.Text)
+                })
+                .Where(document => document.Variants is not null)
+                .ToArray()
+            })
+            .Where(entry => entry.Documents.Length > 0)
             .OrderBy(entry => entry.Policy.PrincipalCode, StringComparer.Ordinal)
             .ToArray();
 
         return matches.Length switch
         {
             0 => InstructionPolicySelection.NotApplicable(),
-            1 => InstructionPolicySelection.Selected(matches[0].Policy, matches[0].Variants),
+            1 => InstructionPolicySelection.Selected(matches[0].Policy,
+                matches[0].Documents.SelectMany(document => document.Variants!)
+                    .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()) with
+                {
+                    InstructionContent = matches[0].Documents.SelectMany(document => document.Content).ToArray()
+                },
             _ => InstructionPolicySelection.Ambiguous([.. matches.Select(entry => entry.Policy)])
         };
     }
@@ -238,6 +263,21 @@ public sealed class InstructionExtractionPolicySelector(
                 text.Contains(signal, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string Text(IntakeSourceReadResult readResult) =>
-        string.Join('\n', readResult.Content.Select(fragment => fragment.Text));
+    public IInstructionExtractionPolicy? ForPrincipal(string principalCode) =>
+        this.policies.SingleOrDefault(policy => string.Equals(
+            policy.PrincipalCode, principalCode, StringComparison.Ordinal));
+
+    internal static string DocumentIdentity(string sourceLabel)
+    {
+        var end = sourceLabel.Length;
+        foreach (var suffix in new[] { ", page ", ", table ", ", form field " })
+        {
+            var index = sourceLabel.IndexOf(suffix, StringComparison.Ordinal);
+            if (index >= 0)
+            {
+                end = Math.Min(end, index);
+            }
+        }
+        return sourceLabel[..end];
+    }
 }

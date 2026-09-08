@@ -11,6 +11,72 @@ namespace Pegasus.Core.Tests.Intake;
 public sealed class InstructionExtractionPolicySelectorTests
 {
     [Fact]
+    public void SeparateDocumentsCannotAssembleAProfile()
+    {
+        var selector = new InstructionExtractionPolicySelector([Profile("QDOS", ["QDOS", "Registration:"])]);
+        var read = Readable("QDOS") with { Content =
+            [new(IntakeEvidenceSource.DocumentContent, "mail, attachment 1", "QDOS"),
+             new(IntakeEvidenceSource.DocumentContent, "mail, attachment 2", "Registration: AB12 CDE")] };
+        Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable, Select(selector, read).Outcome);
+    }
+
+    [Fact]
+    public void ASeparateReportCannotDisqualifyTheInstruction()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("QDOS", ["QDOS", "Registration:"], ["Connexus Vehicle Assessors"])]);
+        var instruction = new IntakeContentFragment(IntakeEvidenceSource.DocumentContent,
+            "mail, attachment 1, page 1", "QDOS\nRegistration: AB12 CDE");
+        var read = Readable("") with { Content =
+            [instruction, new(IntakeEvidenceSource.PdfContent, "mail, attachment 2, page 1", "Connexus Vehicle Assessors")] };
+        var selected = Select(selector, read);
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selected.Outcome);
+        Assert.Equal(instruction, Assert.Single(selected.InstructionContent));
+    }
+
+    [Theory]
+    [InlineData(true, InstructionPolicySelectionOutcome.Selected)]
+    [InlineData(false, InstructionPolicySelectionOutcome.NotApplicable)]
+    public void OnlyAProvedStaffForwardCanUseTheAttachedOriginal(bool staffForward, InstructionPolicySelectionOutcome expected)
+    {
+        var selector = new InstructionExtractionPolicySelector([Profile("CURRENT", ["Assessment Instruction"])]);
+        var read = Readable("") with
+        {
+            Content = [new(IntakeEvidenceSource.EmailBody, "message, attached email 1, message body", "Assessment Instruction")],
+            TransportEvidence =
+            [
+                new(IntakeEvidenceSource.Sender, staffForward ? "digital@collisionengineers.co.uk" : "kalan@autologistic.co.uk",
+                    IntakeSenderIdentityKind.Transport, "message"),
+                new(IntakeEvidenceSource.Sender, "kalan@autologistic.co.uk", IntakeSenderIdentityKind.AttachedOriginal, "message, attached email 1")
+            ]
+        };
+        Assert.Equal(expected, Select(selector, read).Outcome);
+        var deeper = read with { Content = [read.Content[0] with { SourceLabel = "message, attached email 1, attached email 2, message body" }] };
+        Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable, Select(selector, deeper).Outcome);
+    }
+
+    [Fact]
+    public void ProvedInlineOriginalSurvivesQuotedLocatorWithoutItsOlderThread()
+    {
+        var selector = new InstructionExtractionPolicySelector([Profile("CURRENT", ["Assessment Instruction"], ["Older Report"])]);
+        const string header = "From: kalan@autologistic.co.uk\nSent: 7 September 2026\nTo: digital@collisionengineers.co.uk\nSubject: instruction\n\n";
+        var read = Readable("") with
+        {
+            Content = [new(IntakeEvidenceSource.EmailBody, "message, quoted history",
+                header + "Assessment Instruction\n\n" + header + "Older Report",
+                IntakeSourceLocator.ForMessagePart(IntakeMessagePart.QuotedHistory))],
+            TransportEvidence =
+            [
+                new(IntakeEvidenceSource.Sender, "digital@collisionengineers.co.uk", IntakeSenderIdentityKind.Transport, "message"),
+                new(IntakeEvidenceSource.Sender, "kalan@autologistic.co.uk", IntakeSenderIdentityKind.InlineForwardedOriginal, "message, inline forwarded-message header")
+            ]
+        };
+        var selection = Select(selector, read);
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.DoesNotContain("Older Report", Assert.Single(selection.InstructionContent).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ADocumentCarryingEveryRequiredSignalSelectsThatProfile()
     {
         var selector = new InstructionExtractionPolicySelector(
@@ -188,12 +254,11 @@ public sealed class InstructionExtractionPolicySelectorTests
     }
 
     [Fact]
-    public void ANegativeSignalQuotedInAnEarlierMessageStillDisqualifiesTheProfile()
+    public void QuotedHistoryCannotOverrideTheCurrentInstructionProfile()
     {
-        // The quoted history is part of what the document says. A profile that
-        // declares a negative signal is not rescued by that signal appearing
-        // only beneath a forwarded header — selection reads content, and the
-        // quoted fragment is content.
+        // Current-message identity comes from the reader's existing locator.
+        // History remains retained, but cannot turn a current instruction into
+        // another principal's report (TICK-035, current-message requirement).
         var selector = new InstructionExtractionPolicySelector(
             [Profile("QUOTED", ["Assessment Instruction"], ["Third Party Engineer"])]);
         var readResult = new IntakeSourceReadResult(
@@ -214,9 +279,11 @@ public sealed class InstructionExtractionPolicySelectorTests
             [],
             RequiresOcr: false);
 
-        Assert.Equal(
-            InstructionPolicySelectionOutcome.NotApplicable,
-            Select(selector, readResult).Outcome);
+        var selection = Select(selector, readResult);
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Equal("QUOTED", selection.Policy!.PrincipalCode);
+        Assert.Equal(IntakeMessagePart.CurrentBody,
+            Assert.Single(selection.InstructionContent).Locator!.MessagePart);
     }
 
     [Fact]

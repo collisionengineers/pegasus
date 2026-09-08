@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Pegasus.Core.Cases;
@@ -239,8 +239,8 @@ public sealed class QdosIntakeWebTests
 
         var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
         Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
-        Assert.Equal(QdosMailRoutePolicy.Key, route.PolicyKey);
-        Assert.Equal(QdosMailRoutePolicy.Version, route.PolicyVersion);
+        Assert.Equal(PrincipalMailRoutePolicy.Key, route.PolicyKey);
+        Assert.Equal(PrincipalMailRoutePolicy.Version, route.PolicyVersion);
         var selectedRoute = Assert.IsType<MailRouteSelection>(route.SelectedRoute);
         Assert.Equal("QDOS", selectedRoute.RouteOwnerCode);
         Assert.Equal(MailRouteKind.DirectProvider, selectedRoute.Kind);
@@ -252,7 +252,7 @@ public sealed class QdosIntakeWebTests
         Assert.Contains(route.Predicates, predicate =>
             predicate.Key == "forward.original-external" && predicate.Matched);
         Assert.Contains(route.Predicates, predicate =>
-            predicate.Key == "direct.qdos-domain" && predicate.Matched);
+            predicate.Key == "direct.principal-identity" && predicate.Matched);
 
         var caseId = Assert.IsType<Guid>(receipt.CurrentCaseId);
         var caseReference = Assert.IsType<string>(receipt.CurrentCaseReference);

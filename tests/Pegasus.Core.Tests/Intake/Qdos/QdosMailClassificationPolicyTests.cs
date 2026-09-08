@@ -3,13 +3,13 @@ using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
-public sealed class QdosMailClassificationPolicyTests
+public sealed class PrincipalMailClassificationPolicyTests
 {
     [Fact]
     public void PolicyKeyAndVersionAreStable()
     {
-        Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(8, QdosMailClassificationPolicy.Version);
+        Assert.Equal("principal_mail_classification", PrincipalMailClassificationPolicy.Key);
+        Assert.Equal(1, PrincipalMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void DuplicatePdfAndDocumentTriageLettersAreOneCategoryCandidate()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage.pdf, page 1", TriageLetter()),
@@ -115,7 +115,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void DistinctTriageLettersRemainAmbiguousCandidates()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.PdfContent, "message, attachment 1, triage-one.pdf", TriageLetter()),
@@ -165,7 +165,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void PlainAndCombinedEngineerLettersRemainAmbiguous()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.PdfContent, "message, attachment 1, plain.pdf", "ENGINEER NOTIFICATION"),
@@ -258,7 +258,7 @@ public sealed class QdosMailClassificationPolicyTests
         string reportText,
         AuditAssessment expectedAssessment)
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -283,7 +283,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void AuditInstructionWithoutASeparateOriginalReportCannotProduceAnAssessment()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -302,7 +302,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void OriginalReportWithBothOutcomesCannotProduceAnAssessment()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -327,7 +327,7 @@ public sealed class QdosMailClassificationPolicyTests
     [InlineData("The vehicle is not a total loss.")]
     public void NegatedOrSubwordOutcomeCannotProduceAnAssessment(string reportText)
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -492,7 +492,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         // A chaser that carries the original instruction email as an
         // attachment must classify on its own content, not the original's.
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(
@@ -517,10 +517,49 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Null(result.CaseType);
     }
 
+    [Theory]
+    [InlineData(true, "ENGINEER NOTIFICATION", CaseType.Inspection)]
+    [InlineData(true, "AUDIT REPORT NOTIFICATION", CaseType.Audit)]
+    [InlineData(false, "ENGINEER NOTIFICATION", null)]
+    public void QdosClassificationUsesOnlyTheProvedAttachedOriginal(
+        bool staffForward, string title, CaseType? expected)
+    {
+        // Structural envelope evidence over the existing generated tells;
+        // this is not represented as another genuine corpus email.
+        var read = new IntakeSourceReadResult(IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent,
+                "message, attached email 1, attachment 1: instruction.pdf, page 1", title),
+             new(IntakeEvidenceSource.PdfContent,
+                "message, attached email 1, attachment 2: original-report.pdf, page 1", "Repairable")],
+            [
+                new(IntakeEvidenceSource.Sender,
+                    staffForward ? "digital@collisionengineers.co.uk" : "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport, "message"),
+                new(IntakeEvidenceSource.Sender, "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal, "message, attached email 1")
+            ], [], false);
+        var policy = new PrincipalMailClassificationPolicy("QDOS");
+        var classification = policy.Classify(read);
+        Assert.Equal(expected, classification.CaseType);
+        if (expected == CaseType.Audit)
+        {
+            Assert.NotNull(classification.StandaloneAuditReport);
+        }
+        else
+        {
+            Assert.Null(classification.StandaloneAuditReport);
+        }
+        Assert.Null(policy.Classify(read with
+        {
+            Content = [read.Content[0] with
+                { SourceLabel = "message, attached email 1, attached email 2, attachment 1: instruction.pdf" }]
+        }).CaseType);
+    }
+
     [Fact]
     public void CombinedMarkerInADifferentDocumentDoesNotUpgradeInspection()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.DocumentContent, "instruction letter", "ENGINEER NOTIFICATION\nOur Ref: 23456/1"),
@@ -536,7 +575,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void CombinedMarkerInsideNestedEmailDoesNotUpgradeInspection()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.DocumentContent, "instruction letter", "ENGINEER NOTIFICATION\nOur Ref: 23456/1"),
@@ -561,7 +600,7 @@ public sealed class QdosMailClassificationPolicyTests
     [Fact]
     public void SimultaneousAuditAndEngineerTitlesAreAmbiguousWithoutACaseType()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.DocumentContent, "audit instruction", "AUDIT REPORT NOTIFICATION"),
@@ -605,7 +644,7 @@ public sealed class QdosMailClassificationPolicyTests
             content.Add(new(IntakeEvidenceSource.DocumentContent, "attached letter", document));
         }
 
-        return new QdosMailClassificationPolicy().Classify(new(
+        return new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             content,
             subject is null ? [] : [new(IntakeEvidenceSource.Subject, subject)],

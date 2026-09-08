@@ -1,6 +1,6 @@
-namespace Pegasus.Infrastructure.Persistence;
+namespace Pegasus.Core.Cases;
 
-internal static class CaseDataFieldNames
+public static class CaseDataFieldNames
 {
     public const string WorkProviderCode = "work_provider_code";
     public const string ClaimantName = "claimant_name";

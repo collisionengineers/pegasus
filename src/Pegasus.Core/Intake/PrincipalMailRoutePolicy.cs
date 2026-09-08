@@ -3,25 +3,87 @@ using System.Collections.Immutable;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// The QDOS direct-provider mail route: proves the provider route from the effective
+/// The evidenced principal mail routes: prove the provider route from the effective
 /// sender (unwrapping a staff forward to the proved original sender). Route identity is a
 /// different fact from message-type classification and case association, which stay with
 /// their own policies.
 /// </summary>
-public sealed class QdosMailRoutePolicy : IMailRoutePolicy
+public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
 {
-    public const string Key = "qdos_mail_route";
-    public const int Version = 4;
-    private const string PrincipalCode = "QDOS";
+    public const string Key = "principal_mail_route";
+    public const int Version = 1;
     private const string StaffTransportDomain = "collisionengineers.co.uk";
 
     /// <summary>
-    /// The operator-accepted QDOS direct route set (decision 2026-08-03, from the
-    /// provider-domain reference snapshot's QDOS entry). Exact whole-domain equality per
-    /// domain — no suffix or subdomain widening.
+    /// Exact direct sender identities from the supplied reference and original
+    /// instructions. An identity containing @ is one mailbox, never its domain.
+    /// This is the one runtime list, also read by customer Settings.
     /// </summary>
-    public static readonly ImmutableArray<string> AcceptedDirectDomains =
-        ["qdosassist.co.uk", "qdoslaw.co.uk", "qdosassists.co.uk"];
+    public static readonly ImmutableDictionary<string, ImmutableArray<string>> AcceptedIdentities =
+        new Dictionary<string, ImmutableArray<string>>(StringComparer.Ordinal)
+        {
+            ["ALS"] = ["autologistic.co.uk"],
+            ["AX"] = ["ax-uk.com"],
+            ["BC"] = ["bakercoleman.co.uk"],
+            ["BLACK"] = ["blackstone-legal.co.uk"],
+            ["DFD"] = ["dfd-solicitors.co.uk"],
+            ["FW"] = ["fairwaylegal.co.uk"],
+            ["KBS"] = ["knightsbridgesolicitors.co.uk"],
+            ["MP"] = ["montrealprestige.co.uk"],
+            ["OAK"] = ["oakwoodscotland.co.uk", "oakwoodsolicitors.co.uk"],
+            ["PCH"] = ["pch-ltd.com"],
+            ["QCL"] = ["qc-law.co.uk"],
+            ["QDOS"] = ["qdosassist.co.uk", "qdoslaw.co.uk", "qdosassists.co.uk"],
+            ["RJS"] = ["robertjameslaw.co.uk"],
+            ["SBL"] = ["smartbusinesslink.com"],
+            ["YML"] = ["networkhduk@gmail.com"]
+        }.ToImmutableDictionary(StringComparer.Ordinal);
+
+    private static readonly ImmutableArray<string> PchIntermediaryDomains =
+        ["connexus.co.uk", "ensurance-claims.co.uk"];
+
+    /// <summary>
+    /// Current document boundaries, including the proved original in a staff
+    /// forward. An arbitrary attached old email is not a current instruction.
+    /// Reuses the route's sender cardinality and the existing forward parser.
+    /// </summary>
+    internal static IEnumerable<IntakeContentFragment> CurrentInstructionContent(IntakeSourceReadResult readResult)
+    {
+        var transport = SenderIdentities(readResult.TransportEvidence, IntakeSenderIdentityKind.Transport);
+        var originals = SenderIdentities(readResult.TransportEvidence,
+            IntakeSenderIdentityKind.AttachedOriginal, IntakeSenderIdentityKind.InlineForwardedOriginal);
+        var staffForward = transport.Length == 1 && originals.Length == 1
+            && TryGetMailboxDomain(transport[0].Address, out var domain)
+            && string.Equals(domain, StaffTransportDomain, StringComparison.OrdinalIgnoreCase);
+        foreach (var fragment in readResult.Content)
+        {
+            var nested = fragment.SourceLabel.IndexOf(", attached email ", StringComparison.Ordinal);
+            if (nested >= 0 && (!staffForward
+                || !fragment.SourceLabel.StartsWith(originals[0].SourceLabel + ",", StringComparison.Ordinal)
+                || fragment.SourceLabel.IndexOf(", attached email ", nested + 1, StringComparison.Ordinal) >= 0))
+            {
+                continue;
+            }
+            var forwardedBody = staffForward && fragment.Source == IntakeEvidenceSource.EmailBody
+                && string.Equals(StaffForwardBodyCleaner.ForwardedSenderAddress(fragment.Text),
+                    originals[0].Address, StringComparison.OrdinalIgnoreCase);
+            if (fragment.Locator?.MessagePart == IntakeMessagePart.QuotedHistory && !forwardedBody)
+            {
+                continue;
+            }
+            if (forwardedBody)
+            {
+                var text = StaffForwardBodyCleaner.SplitForwardedHeader(
+                    StaffForwardBodyCleaner.Clean(fragment.Text, isStaffForward: true)).Body;
+                var olderMessage = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(text);
+                yield return fragment with { Text = olderMessage.Success ? text[..olderMessage.Index] : text };
+            }
+            else
+            {
+                yield return fragment;
+            }
+        }
+    }
 
     /// <summary>
     /// The effective sender for a retained message whose route decision
@@ -65,7 +127,9 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
         return originalSender;
     }
 
-    public MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult)
+    public MailRouteEvaluationResult Evaluate(
+        IntakeSourceReadResult readResult,
+        InstructionPolicySelection? instruction = null)
     {
         EnsureReadable(readResult);
 
@@ -104,11 +168,16 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
         var effectiveDomain = string.Empty;
         var hasValidEffectiveSender = effectiveSender is not null
             && TryGetMailboxDomain(effectiveSender.Address, out effectiveDomain);
-        var matchedDirectDomain = hasValidEffectiveSender
-            ? AcceptedDirectDomains.FirstOrDefault(domain =>
-                string.Equals(effectiveDomain, domain, StringComparison.OrdinalIgnoreCase))
-            : null;
-        var matchesDirectQdosDomain = matchedDirectDomain is not null;
+        var directMatch = AcceptedIdentities
+            .SelectMany(entry => entry.Value.Select(identity => (Principal: entry.Key, Identity: identity)))
+            .SingleOrDefault(entry => hasValidEffectiveSender && string.Equals(
+                entry.Identity.Contains('@') ? effectiveSender!.Address : effectiveDomain,
+                entry.Identity, StringComparison.OrdinalIgnoreCase));
+        var matchedPrincipal = directMatch.Principal;
+        var matchesDirectIdentity = matchedPrincipal is not null;
+        var matchesIntermediary = hasValidEffectiveSender
+            && PchIntermediaryDomains.Contains(effectiveDomain, StringComparer.OrdinalIgnoreCase)
+            && instruction is { Outcome: InstructionPolicySelectionOutcome.Selected, Policy.PrincipalCode: "PCH" };
 
         MailRoutePredicateResult[] predicates =
         [
@@ -137,15 +206,17 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                     ? "The original sender is external to Collision Engineers."
                     : "No unambiguous external original sender was proved."),
             new(
-                "direct.qdos-domain",
-                matchesDirectQdosDomain,
-                matchesDirectQdosDomain
-                    ? $"The effective sender uses the accepted direct QDOS domain '{matchedDirectDomain}'."
-                    : "The effective sender does not use an accepted direct QDOS domain."),
+                "direct.principal-identity",
+                matchesDirectIdentity,
+                matchesDirectIdentity
+                    ? $"The effective sender uses the accepted identity '{directMatch.Identity}' for '{matchedPrincipal}'."
+                    : "The effective sender does not match an accepted direct principal identity."),
             new(
                 "intermediary.accepted-policy",
-                false,
-                "No QDOS intermediary mail route has accepted evidence in this policy version.")
+                matchesIntermediary,
+                matchesIntermediary
+                    ? "The evidenced intermediary and unique PCH instruction profile agree."
+                    : "No evidenced intermediary with an agreeing instruction profile was proved.")
         ];
 
         if (!hasOneTransportSender)
@@ -208,13 +279,13 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                 null);
         }
 
-        if (!matchesDirectQdosDomain)
+        if (!matchesDirectIdentity && !matchesIntermediary)
         {
             return Result(
                 MailRouteDisposition.NoMatch,
                 null,
                 predicates,
-                "The effective sender does not match an accepted QDOS mail route.",
+                "The effective sender does not match an accepted principal mail route.",
                 transportIdentities,
                 originalIdentities,
                 effectiveSender);
@@ -222,9 +293,11 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
 
         return Result(
             MailRouteDisposition.Accepted,
-            new(PrincipalCode, MailRouteKind.DirectProvider, PrincipalCode),
+            matchesDirectIdentity
+                ? new(matchedPrincipal!, MailRouteKind.DirectProvider, matchedPrincipal!)
+                : new(effectiveDomain, MailRouteKind.Intermediary, "PCH"),
             predicates,
-            "The effective sender matches the accepted direct QDOS mail route.",
+            "The effective sender matches an evidenced principal mail route.",
             transportIdentities,
             originalIdentities,
             effectiveSender);
@@ -273,7 +346,7 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
         if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete)
         {
             throw new ArgumentException(
-                "The QDOS extraction policy accepts only fully readable, complete reader results.",
+                "Mail routing accepts only fully readable, complete reader results.",
                 nameof(readResult));
         }
     }

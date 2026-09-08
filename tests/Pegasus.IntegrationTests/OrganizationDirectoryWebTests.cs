@@ -123,10 +123,25 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Matches(
             """<input\b(?=[^>]*name="LocationIsImageBasedAssessment")(?=[^>]*checked="checked")[^>]*>""",
             html);
-        foreach (var domain in Pegasus.Core.Intake.QdosMailRoutePolicy.AcceptedDirectDomains)
+        foreach (var domain in Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities["QDOS"])
         {
             Assert.Contains(domain, html, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public async Task YmlSettingsShowTheExactMailboxNotASharedDomain()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'YML';");
+        using var response = await client.GetAsync($"/Administration/Principals/Settings/{principalId:D}");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Accepted e-mail identities", html, StringComparison.Ordinal);
+        Assert.Contains("networkhduk@gmail.com", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Accepted e-mail domains", html, StringComparison.Ordinal);
     }
 
     private static string InputValue(string html, string name)

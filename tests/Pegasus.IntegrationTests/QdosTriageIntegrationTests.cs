@@ -58,7 +58,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Empty(detail.ResponseEvidence);
         var created = Assert.Single(detail.History);
         Assert.Equal("triage_created", created.EventType);
-        Assert.Contains(QdosMailClassificationPolicy.Key, created.Reason, StringComparison.Ordinal);
+        Assert.Contains(PrincipalMailClassificationPolicy.Key, created.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

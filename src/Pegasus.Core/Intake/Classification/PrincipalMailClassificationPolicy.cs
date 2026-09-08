@@ -4,7 +4,9 @@ using Pegasus.Core.Cases;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// QDOS message-type classification over the settled taxonomy, built only on the
+/// Principal-bound message classification over selected current instructions.
+/// Additional profiles require their explicit inspection/examination request or
+/// evidenced template; PCH Audit and credit repair remain distinct. QDOS uses the
 /// operator-guaranteed generated tells: Triage tells live in the email or its attached letter and
 /// the work-type notification titles live only inside the attached instruction letter. Body
 /// keyword matching is deliberately absent — corpus evidence shows "audit" in a body
@@ -17,10 +19,10 @@ namespace Pegasus.Core.Intake;
 /// cohort counts belong to the versioned evidence/evaluation output rather than this
 /// policy comment. All supported tells produce one triage candidate.
 /// </summary>
-public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
+public sealed partial class PrincipalMailClassificationPolicy(string workProviderCode) : IMailClassificationPolicy
 {
-    public const string Key = "qdos_mail_classification";
-    public const int Version = 8;
+    public const string Key = "principal_mail_classification";
+    public const int Version = 1;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -28,22 +30,30 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     private const string EngineerNotificationTitle = "ENGINEER NOTIFICATION";
     private const string ReportPlusAuditMarker = "REPORT + AUDIT REPORT";
 
-    public string WorkProviderCode => "QDOS";
+    public string WorkProviderCode { get; } = workProviderCode;
     public string PolicyKey => Key;
     public int PolicyVersion => Version;
 
-    public MailClassificationResult Classify(IntakeSourceReadResult readResult)
+    public MailClassificationResult Classify(
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeContentFragment>? instructionContent = null)
     {
         ArgumentNullException.ThrowIfNull(readResult);
 
+        if (WorkProviderCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
+        {
+            return ClassifySelectedInstruction(readResult, instructionContent ?? []);
+        }
+
         var subject = readResult.TransportEvidence
             .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value ?? string.Empty;
-        var bodyTexts = Texts(readResult, IntakeEvidenceSource.EmailBody);
-        var documentFragments = readResult.Content
+        var currentContent = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray();
+        var bodyTexts = currentContent.Where(fragment => fragment.Source == IntakeEvidenceSource.EmailBody)
+            .Select(fragment => fragment.Text).ToArray();
+        var documentFragments = currentContent
             .Where(fragment => fragment.Source
                 is IntakeEvidenceSource.DocumentContent
                 or IntakeEvidenceSource.PdfContent)
-            .Where(fragment => !IsNestedMessageContent(fragment))
             .ToArray();
         var documentTexts = documentFragments.Select(fragment => fragment.Text).ToArray();
 
@@ -248,6 +258,48 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                 : name;
     }
 
+    private MailClassificationResult ClassifySelectedInstruction(
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeContentFragment> instructionContent)
+    {
+        var subject = readResult.TransportEvidence
+            .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value ?? string.Empty;
+        var texts = instructionContent
+            .Select(fragment => StaffForwardBodyCleaner.SplitForwardedHeader(fragment.Text).Body)
+            .ToArray();
+        var audit = WorkProviderCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
+            && texts.Any(text => text.Contains("NEW INSTRUCTION (Connexus Audit Report)", StringComparison.OrdinalIgnoreCase));
+        var creditRepair = WorkProviderCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
+            && texts.Any(text => text.Contains("CREDIT REPAIR", StringComparison.OrdinalIgnoreCase)
+                && text.Contains("Inspection Request", StringComparison.OrdinalIgnoreCase));
+        var inspection = creditRepair || (!audit && texts.Any(text =>
+            ExplicitInspectionRequestRegex().IsMatch(text)
+            || (WorkProviderCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))
+            || (WorkProviderCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))));
+        MailClassificationPredicateResult[] predicates =
+        [
+            new("instruction.explicit-audit", audit, "The selected PCH instruction explicitly requests a Connexus Audit Report."),
+            new("instruction.explicit-inspection", inspection, "The selected instruction contains an evidenced inspection request."),
+            new("subject.reply-context", ReplyPrefixRegex().IsMatch(subject), "The subject identifies correspondence in a reply thread.")
+        ];
+        if (AutomaticReplyRegex().IsMatch(subject) || ReplyPrefixRegex().IsMatch(subject)
+            || (!audit && !inspection))
+        {
+            return MailClassificationResult.Unclassified(predicates,
+                "No unambiguous current inspection or Audit request was proved by the selected instruction.", Key, Version);
+        }
+        if (audit && inspection)
+        {
+            return MailClassificationResult.Ambiguous(["audit", "inspection"], predicates,
+                "Separate Audit and credit-repair requests compete; no work type is selected.", Key, Version);
+        }
+        return MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, audit ? "audit" : "inspection"),
+            predicates, "The selected instruction explicitly identifies the requested work.", Key, Version,
+            audit ? CaseType.Audit : CaseType.Inspection,
+            audit ? EvaluateStandaloneAuditReport(readResult, instructionContent) : null);
+    }
+
     private sealed record ClassificationCandidate(
         MailCategory Category,
         CaseType? CaseType,
@@ -262,17 +314,21 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         && OfficialInspectionWillFollowRegex().IsMatch(text);
 
     private static StandaloneAuditReportEvaluation? EvaluateStandaloneAuditReport(
-        IntakeSourceReadResult readResult)
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeContentFragment>? instructionContent = null)
     {
-        var attachments = readResult.Content
+        var attachments = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult)
             .Where(fragment => fragment.Source is IntakeEvidenceSource.DocumentContent or IntakeEvidenceSource.PdfContent)
-            .Where(fragment => !IsNestedMessageContent(fragment))
             .Where(fragment => fragment.SourceLabel.Contains(", attachment ", StringComparison.Ordinal))
             .GroupBy(fragment => AssetSourceLabel(fragment.SourceLabel), StringComparer.Ordinal)
             .Select(group => new
             {
                 AssetSourceLabel = group.Key,
-                HasInstruction = group.Any(fragment => fragment.Text.Contains(AuditNotificationTitle, StringComparison.Ordinal)),
+                HasInstruction = instructionContent is null
+                    ? group.Any(fragment => fragment.Text.Contains(AuditNotificationTitle, StringComparison.Ordinal))
+                    : instructionContent.Any(fragment => string.Equals(
+                        InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel), group.Key,
+                        StringComparison.Ordinal)),
                 HasRepairable = group.Any(fragment => ContainsRepairable(fragment.Text)),
                 HasTotalLoss = group.Any(fragment => ContainsTotalLoss(fragment.Text))
             })
@@ -298,11 +354,8 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
             : null;
     }
 
-    private static string AssetSourceLabel(string sourceLabel)
-    {
-        var pageIndex = sourceLabel.IndexOf(", page ", StringComparison.Ordinal);
-        return pageIndex < 0 ? sourceLabel : sourceLabel[..pageIndex];
-    }
+    private static string AssetSourceLabel(string sourceLabel) =>
+        InstructionExtractionPolicySelector.DocumentIdentity(sourceLabel);
 
     private static bool ContainsRepairable(string text) =>
         RepairableLiteralRegex().IsMatch(text)
@@ -312,24 +365,11 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         TotalLossLiteralRegex().IsMatch(text)
         && !NegatedTotalLossLiteralRegex().IsMatch(text);
 
-    private static string[] Texts(
-        IntakeSourceReadResult readResult,
-        IntakeEvidenceSource source) =>
-        readResult.Content
-            .Where(fragment => fragment.Source == source)
-            .Where(fragment => !IsNestedMessageContent(fragment))
-            .Select(fragment => fragment.Text)
-            .ToArray();
-
-    /// <summary>
-    /// A tell counts only in the received message itself. The reader labels
-    /// every fragment that came out of an attached message — and everything
-    /// beneath it — with an ", attached email N" segment, so a forwarded or
-    /// quoted original instruction inside a chaser never re-classifies the
-    /// chaser as a new instruction.
-    /// </summary>
-    private static bool IsNestedMessageContent(IntakeContentFragment fragment) =>
-        fragment.SourceLabel.Contains(", attached email ", StringComparison.Ordinal);
+    [GeneratedRegex(
+        @"\b(?:inspect|examine)\b|\b(?:urgent\s+desktop\s+inspection|inspection\s+request|arrange\s+(?:(?:an?|the)\s+)?(?:inspection|examination))\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex ExplicitInspectionRequestRegex();
 
     [GeneratedRegex(@"^\s*Automatic reply\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AutomaticReplyRegex();

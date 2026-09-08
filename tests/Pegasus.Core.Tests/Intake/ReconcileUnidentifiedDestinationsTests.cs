@@ -561,8 +561,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
                     MailCategory.TriageRequestSubtype),
                 [new("subject.engineer-triage", true, "The subject opens with the generated Triage line.")],
                 "Exactly one accepted classification predicate family matched.",
-                QdosMailClassificationPolicy.Key,
-                QdosMailClassificationPolicy.Version)
+                PrincipalMailClassificationPolicy.Key,
+                PrincipalMailClassificationPolicy.Version)
         };
 
     private static IntakeReceipt Receipt(

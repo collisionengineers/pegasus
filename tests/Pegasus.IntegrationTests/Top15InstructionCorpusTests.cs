@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 
@@ -592,6 +593,86 @@ public sealed class Top15InstructionCorpusTests
             new AlsInstructionExtractionPolicy(),
             new BcInstructionExtractionPolicy()
         ];
+
+    [ReferencePackFact]
+    public async Task OneGenuineInstructionPerPrincipalProvesSelectedWorkTypeAndMatchKeys()
+    {
+        var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
+        var selector = new InstructionExtractionPolicySelector(Policies());
+        var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
+        Assert.Equal(15, representatives.Length);
+        foreach (var sample in representatives)
+        {
+            var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
+            var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            Assert.Equal(sample.Sha256, hash);
+            var read = await reader.ReadAsync(Source(bytes, Path.GetFileName(sample.PackRelativePath), hash), CancellationToken.None);
+            Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
+            Assert.False(read.IsIncomplete);
+            if (sample.Profile == "MP")
+            {
+                Assert.True(read.RequiresOcr, "The genuine MP PDF is a scan, not an embedded-text instruction.");
+                Assert.Equal(1, Assert.Single(read.ScannedPdfPages).PageNumber);
+                const string ocrPath = "astra_output/reports/principals/MP/sources/6ca905773ea2.txt";
+                const string ocrHash = "bf3ebed1dbca26fd20fe4b6ffa15737da8d6844ba91bf10deab859f1c47748d6";
+                var ocrBytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), ocrPath));
+                Assert.Equal(ocrHash, Convert.ToHexStringLower(SHA256.HashData(ocrBytes)));
+                var supplied = Encoding.UTF8.GetString(ocrBytes);
+                Assert.Contains($"Source: {sample.PackRelativePath}", supplied, StringComparison.Ordinal);
+                Assert.Contains($"SHA256: {hash}", supplied, StringComparison.Ordinal);
+                var pageStart = supplied.IndexOf("[OCR page 1]", StringComparison.Ordinal);
+                Assert.True(pageStart >= 0, "The supplied MP OCR evidence must identify its page.");
+                // This is the supplied, hash-bound corpus OCR result, not an
+                // Azure request or invented provider operation/response.
+                read = AnalyzeRetainedInstruction.CreateOcrReadResult(new(hash, [1], new(
+                    IntakeOcrState.Completed, "supplied-corpus", "astra-ocr", "reference-v1",
+                    ResponseSha256: ocrHash, Pages: [new(1, supplied[pageStart..], [], [])])));
+                Assert.Equal(hash, Assert.Single(read.Content).Locator?.Sha256);
+                Assert.Equal("ocr", Assert.Single(read.Content).Locator?.DocumentRole);
+            }
+            var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
+            Assert.True(selection.Outcome == InstructionPolicySelectionOutcome.Selected, $"{sample.Profile}: {Describe(selection)}");
+            Assert.Equal(sample.Profile, selection.Policy!.PrincipalCode);
+            var instruction = read with { Content = selection.InstructionContent };
+            var extracted = selection.Policy.Extract(instruction, ProcessedAtUtc, new(sample.Profile, "corpus-profile", 1));
+            Assert.Empty(WrongIdentity(sample.PackRelativePath, sample, extracted));
+            Assert.Empty(NeighbouringValuesThatArrived(sample.PackRelativePath, sample, extracted));
+            Assert.Equal(InstructionPolicyApplicability.Applicable, extracted.Applicability);
+            var classification = new PrincipalMailClassificationPolicy(sample.Profile).Classify(read, selection.InstructionContent);
+            Assert.True(classification.Outcome == MailClassificationOutcome.Classified, $"{sample.Profile}: {classification.Reason}");
+            // The first QDOS and PCH originals explicitly request an Audit.
+            Assert.Equal(sample.Profile is "PCH" or "QDOS" ? CaseType.Audit : CaseType.Inspection, classification.CaseType);
+            if (sample.Profile != "QDOS")
+            {
+                // A controlled reply-context probe over unchanged original
+                // document content; this is not claimed as another real email.
+                var reply = read with { TransportEvidence = [new(IntakeEvidenceSource.Subject, "RE: instruction")] };
+                Assert.Equal(MailClassificationOutcome.Unclassified,
+                    new PrincipalMailClassificationPolicy(sample.Profile).Classify(reply, selection.InstructionContent).Outcome);
+            }
+            var matcher = new PrincipalCaseMatchPolicy(selection.Policy);
+            var keys = matcher.ExtractMatchKeys(instruction);
+            var draft = Assert.IsType<InstructionDraft>(extracted.InstructionDraft);
+            var written = matcher.DeriveIndexKeys(new(draft.ClaimNumber, draft.VehicleRegistration, draft.ClaimantName, draft.DateOfIncident));
+            Assert.True(keys.HasAnyKey, $"{sample.Profile}: the original supplied no match key.");
+            Assert.Equal(written.DurableClaimToken, keys.DurableClaimToken);
+            Assert.Equal(written.NormalizedVrm, keys.NormalizedVrm);
+            if (sample.Profile == "YML")
+            {
+                Assert.Equal(sample.Identity, new ExpectedIdentity(draft.ClaimantName,
+                    draft.ClaimNumber, draft.VehicleRegistration, draft.DateOfIncident, draft.InstructionDate));
+                // A structural boundary probe over the same original output:
+                // the issuer letterhead alone cannot stand in for its closing.
+                var fragment = Assert.Single(instruction.Content);
+                var closing = fragment.Text.LastIndexOf("HD UK Network", StringComparison.Ordinal);
+                Assert.True(closing > fragment.Text.IndexOf("Dear Sirs", StringComparison.Ordinal));
+                Assert.False(matcher.ExtractMatchKeys(instruction with
+                {
+                    Content = [fragment with { Text = fragment.Text[..closing] }]
+                }).HasAnyKey);
+            }
+        }
+    }
 
     [ReferencePackFact]
     public async Task EveryLabelledOriginalSelectsItsProfileAndMisidentifiesNothing()

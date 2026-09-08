@@ -14,5 +14,5 @@ tags: [qdos, association, routing]
 > **Superseded — relocated to functional requirements.** These are
 > operator-accepted feature/business rules, not a technical decision. The QDOS
 > direct-route association predicates now live in
-> [FRD-09 § Accepted QDOS automatic case-association predicates](../frd/frd-09-provider-and-intermediary-routes.md#accepted-qdos-automatic-case-association-predicates).
+> [FRD-09 § Accepted principal email routes and automatic association](../frd/frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
 > Retained for history; git history holds the original decision.

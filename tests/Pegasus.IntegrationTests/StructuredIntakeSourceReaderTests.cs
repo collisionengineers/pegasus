@@ -6,6 +6,8 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.IntegrationTests.DocumentExtraction;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
 
 namespace Pegasus.IntegrationTests;
 
@@ -21,6 +23,39 @@ namespace Pegasus.IntegrationTests;
 public sealed class StructuredIntakeSourceReaderTests
 {
     private static readonly DateTimeOffset Received = new(2026, 5, 4, 8, 30, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(90)]
+    [InlineData(180)]
+    [InlineData(270)]
+    public void FullPageRasterCoverageUsesRotatedVisibleCoordinates(int rotation)
+    {
+        // Geometry only: no fabricated instruction or raster document. PdfPig
+        // offsets the crop origin and rotates content into this display space.
+        var visible = new CropBox(new PdfRectangle(20, 30, 220, 130))
+            .GetVisibleBounds(new PageRotationDegrees(rotation));
+        var image = rotation switch
+        {
+            90 => new PdfRectangle(visible.TopRight, visible.BottomRight, visible.TopLeft, visible.BottomLeft),
+            180 => new PdfRectangle(visible.BottomRight, visible.BottomLeft, visible.TopRight, visible.TopLeft),
+            270 => new PdfRectangle(visible.BottomLeft, visible.TopLeft, visible.BottomRight, visible.TopRight),
+            _ => visible
+        };
+        Assert.Equal(1, MimeKitPdfPigOpenXmlIntakeSourceReader.Coverage(image, visible), 10);
+    }
+
+    [Theory]
+    [InlineData(80, 0.2)]
+    [InlineData(100, 0)]
+    [InlineData(120, 0)]
+    public void RasterCoverageClipsImagesOutsideTheVisibleCrop(double left, double expected)
+    {
+        var visible = new CropBox(new PdfRectangle(20, 30, 220, 130))
+            .GetVisibleBounds(new PageRotationDegrees(270));
+        var image = new PdfRectangle(left, 0, left + 100, 200);
+        Assert.Equal(expected, MimeKitPdfPigOpenXmlIntakeSourceReader.Coverage(image, visible), 10);
+    }
 
     private const string ForwardedBody =
         "Please see the instruction below.\r\n"

@@ -34,7 +34,14 @@ public sealed partial class YmlInstructionExtractionPolicy : IInstructionExtract
     }
     private static IEnumerable<IntakeContentFragment> Fields(IntakeContentFragment f)
     {
-        var t=f.Text.Replace("\r\n","\n",StringComparison.Ordinal).Replace('\r','\n'); var dear=DearRegex().Match(t); var sign=SignatureRegex().Match(t); if(!dear.Success||!sign.Success||sign.Index<=dear.Index) yield break; var h=t[..dear.Index]; var b=t[dear.Index..sign.Index];
+        var t=f.Text.Replace("\r\n","\n",StringComparison.Ordinal).Replace('\r','\n');
+        var dear=DearRegex().Match(t);
+        if(!dear.Success) yield break;
+        // The issuer also appears in the letterhead; only its closing line
+        // after the salutation bounds the instruction body.
+        var sign=SignatureRegex().Match(t, dear.Index + dear.Length);
+        if(!sign.Success) yield break;
+        var h=t[..dear.Index]; var b=t[dear.Index..sign.Index];
         yield return L(f,"Document issuer","HD UK Network");
         foreach(Match m in RefRegex().Matches(h)) yield return L(f,"Our Ref",m.Groups["value"].Value); foreach(Match m in DateRegex().Matches(h)) yield return L(f,"Header date",m.Groups["value"].Value);
         foreach(var (r,l) in Lines) foreach(Match m in r.Matches(b)) yield return L(f,l,m.Groups["value"].Value);

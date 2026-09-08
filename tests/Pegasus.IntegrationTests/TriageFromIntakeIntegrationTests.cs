@@ -52,7 +52,7 @@ public sealed class TriageFromIntakeIntegrationTests
         Assert.Equal(TriageState.Open, detail.Record.State);
         var created = Assert.Single(detail.History, item => item.EventType == "triage_created");
         Assert.Contains(
-            QdosMailClassificationPolicy.Key,
+            PrincipalMailClassificationPolicy.Key,
             created.Reason,
             StringComparison.Ordinal);
         // The intake pipeline opened this Triage, so the history says so in the
