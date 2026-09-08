@@ -2,8 +2,6 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Pegasus.Core.Cases;
-using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -89,7 +87,13 @@ public sealed class ImageIntakeWebTests
 
         var caseEmail = IntakeTestEvidence.CreateEmail(
             "auto-case.eml",
-            "QDOS instruction\r\nClaim Number: AUTO-WEB-01\r\nVehicle Registration: AB12 CDE");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimNumber: "AUTO-WEB-01", registration: "AB12 CDE"))
+            ]);
         var caseUpload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,
@@ -98,10 +102,8 @@ public sealed class ImageIntakeWebTests
             caseEmail.Content);
         var caseOriginReceiptId = IntakeWebDriver.ReceiptId(caseUpload);
 
-        // Manual uploads have no persisted mailbox classification, so automatic
-        // allocation records a truthful case-type-unavailable failure. The
-        // image scenario then supplies the explicit staff acceptance that
-        // makes the instruction an eligible case before moving it to Review.
+        // The formal instruction allocates its case through the normal path;
+        // the image scenario then moves that case to Review before association.
         var caseId = await ImageIntakeTestData.PromoteAllocatedCaseAsync(
             factory.Services,
             caseOriginReceiptId,
@@ -324,7 +326,13 @@ internal static class ImageIntakeTestData
     {
         var email = IntakeTestEvidence.CreateEmail(
             $"case-{claimNumber.ToLowerInvariant()}.eml",
-            $"QDOS instruction\r\nClaimant Name: Fixture Claimant\r\nClaim Number: {claimNumber}\r\nVehicle Registration: {registration}");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: "Fixture Claimant", claimNumber: claimNumber, registration: registration))
+            ]);
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, email.FileName, email.MediaType, email.Content);
         return await PromoteAllocatedCaseAsync(
@@ -356,29 +364,7 @@ internal static class ImageIntakeTestData
         parameter.Value = originReceiptId;
         command.Parameters.Add(parameter);
         var caseId = await command.ExecuteScalarAsync();
-        if (caseId is null || caseId is DBNull)
-        {
-            var receipt = Assert.IsType<IntakeReceipt>(
-                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                    .GetAsync(originReceiptId, CancellationToken.None));
-            var failure = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
-            Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, failure.FailureKind);
-            var accepted = await scope.ServiceProvider
-                .GetRequiredService<IAcceptIntake>()
-                .ExecuteAsync(
-                    new(
-                        receipt.Id,
-                        receipt.Version,
-                        ActionActor.SystemWorker("image-intake-integration"),
-                        $"image-case-accept:{Guid.NewGuid():N}",
-                        "Staff confirmed the manually uploaded instruction before image association.",
-                        CaseType.Inspection,
-                        QdosPrincipal.Code,
-                        new(true, true)),
-                    CancellationToken.None);
-            caseId = accepted.Identity.CaseId;
-        }
-        var caseIdValue = (Guid)caseId;
+        var caseIdValue = Assert.IsType<Guid>(caseId);
 
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,

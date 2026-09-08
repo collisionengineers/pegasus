@@ -93,7 +93,13 @@ public sealed class ImageViewingWebTests
 
         var caseEmail = IntakeTestEvidence.CreateEmail(
             "gallery-case.eml",
-            "QDOS instruction\r\nClaim Number: GALLERY-01\r\nVehicle Registration: AB12 CDE");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimNumber: "GALLERY-01", registration: "AB12 CDE"))
+            ]);
         var caseUpload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,

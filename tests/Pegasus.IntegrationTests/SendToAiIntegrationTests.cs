@@ -54,7 +54,13 @@ public sealed partial class SendToAiIntegrationTests
         var services = scope.ServiceProvider;
         var email = IntakeTestEvidence.CreateEmail(
             $"send-to-ai-{Guid.NewGuid():N}.eml",
-            "QDOS instruction\r\nClaimant Name: Send Test\r\nClaim Number: STA-001\r\nVehicle Registration: AB12 CDE");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: "Send Test", claimNumber: "STA-001", registration: "AB12 CDE"))
+            ]);
         var receipt = await services.GetRequiredService<ProcessIntake>()
             .ExecuteAsync(
                 new(
@@ -296,12 +302,7 @@ public sealed partial class SendToAiIntegrationTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
-        // The control renders gated/disabled, not a clickable dead end.
-        var sendGate = Regex.Match(
-            html,
-            "<span class=\"gated\" data-condition=\"(?<value>[^\"]+)\">[^<]*<button[^>]*>(?:(?!</button>).)*?Send to Claude",
-            RegexOptions.Singleline);
-        Assert.True(sendGate.Success, "Send to Claude renders as a gated, disabled control.");
+        Assert.DoesNotContain("data-dialog-open=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",

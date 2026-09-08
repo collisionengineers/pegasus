@@ -110,12 +110,13 @@ public sealed partial class MultiFormatIntakeWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var pdf = CreatePdf("Synthetic PDF attachment");
+        var pdf = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: "Synthetic Person", claimNumber: "SYN-MSG-001", registration: "AB12 CDE");
         var msg = new MsgFileBuilder()
             .WithRootMessage(
                 "IPM.Note",
                 "Synthetic msg instruction",
-                "QDOS instruction\r\nClaim Number: SYN-MSG-001\r\nVehicle Registration: AB12 CDE\r\nClaimant Name: Synthetic Person",
+                "Please see the attached instruction.",
                 senderSmtpAddress: "instructions@qdosassist.co.uk")
             .WithByValueAttachment("supporting.pdf", "application/pdf", pdf)
             .Build();
@@ -162,9 +163,11 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var docx = CreateDocx(
-            "QDOS instruction",
-            "Claim Number: SYN-EML-001",
-            "Vehicle Registration: AB12 CDE");
+            "ENGINEER NOTIFICATION",
+            "QDOS",
+            "Our Client’s Vehicle:",
+            "Registration: AB12 CDE",
+            "Claim Number: SYN-EML-001");
         var pdf = CreatePdf("Synthetic PDF attachment");
         var image = Convert.FromBase64String(TinyJpegBase64);
         var nested = CreateMessage(
@@ -204,9 +207,12 @@ public sealed partial class MultiFormatIntakeWebTests
         var image = Convert.FromBase64String(TinyJpegBase64);
         var message = CreateQdosMessage(
             "Synthetic duplicate evidence",
-            "QDOS instruction\r\nClaim Number: SYN-DUP-001\r\nVehicle Registration: AB12 CDE",
+            "Please see the attached instruction and duplicate image evidence.",
             ("vehicle-front-original.jpg", "image/jpeg", image),
-            ("vehicle-front-copy.jpg", "image/jpeg", image));
+            ("vehicle-front-copy.jpg", "image/jpeg", image),
+            ("instruction.pdf", "application/pdf",
+                IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                    claimNumber: "SYN-DUP-001", registration: "AB12 CDE")));
 
         var result = await UploadAsync(factory, client, "duplicate-images.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
@@ -722,8 +728,11 @@ public sealed partial class MultiFormatIntakeWebTests
             [0, 0]);
         var message = CreateQdosMessage(
             "Synthetic repeated DOCX image placement",
-            ConfirmingQdosBody,
-            ("repeated-image.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
+            "Please see the attached instruction and repeated image evidence.",
+            ("repeated-image.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx),
+            ("instruction.pdf", "application/pdf",
+                IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                    claimNumber: "SYN-GUARD-001", registration: "AB12 CDE")));
 
         var result = await UploadAsync(factory, client, "repeated-docx-image-attachment.eml",
         "message/rfc822",
@@ -755,7 +764,10 @@ public sealed partial class MultiFormatIntakeWebTests
         using var client = CreateClient(factory);
         var message = CreateQdosMessage(
             "Synthetic corrupt attachments",
-            ConfirmingQdosBody,
+            "Please see the attached instruction and unreadable documents.",
+            ("instruction.pdf", "application/pdf",
+                IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                    claimNumber: "SYN-GUARD-001", registration: "AB12 CDE")),
             ("corrupt.pdf", "application/pdf", "not a PDF"u8.ToArray()),
             ("corrupt.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "PK invalid"u8.ToArray()));
 

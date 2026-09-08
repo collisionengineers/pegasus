@@ -607,7 +607,13 @@ public sealed class RecoveryTests
     {
         var email = IntakeTestEvidence.CreateEmail(
             $"{identity}.eml",
-            $"QDOS instruction\r\nClaimant Name: Recovery Claimant\r\nClaim Number: {identity}\r\nVehicle Registration: AB12 CDE");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: "Recovery Claimant", claimNumber: identity, registration: "AB12 CDE"))
+            ]);
         return new(
             email.FileName,
             email.MediaType,

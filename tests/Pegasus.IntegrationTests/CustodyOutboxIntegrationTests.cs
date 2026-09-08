@@ -38,7 +38,7 @@ public sealed class CustodyOutboxIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var source = CreateSource();
+        var source = CreatePreCaseReevaluationSource();
         var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
             source.Source,
             $"reevaluation-retained-source:{Guid.NewGuid():N}",
@@ -109,7 +109,7 @@ public sealed class CustodyOutboxIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var source = CreateSource();
+        var source = CreatePreCaseReevaluationSource();
         var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
             source.Source,
             $"reevaluation-mismatched-source:{Guid.NewGuid():N}",
@@ -1254,14 +1254,15 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
 
         var fixtureId = Guid.NewGuid().ToString("N");
-        var attachmentBytes = "%PDF-1.4 synthetic estimate body"u8.ToArray();
+        var attachmentBytes = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Attachment Test {fixtureId}", claimNumber: $"ATT-{fixtureId}");
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
         message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
         message.Subject = "QDOS test instruction";
         var builder = new MimeKit.BodyBuilder
         {
-            TextBody = $"QDOS instruction\r\nClaimant Name: Attachment Test {fixtureId}\r\nClaim Number: ATT-{fixtureId}",
+            TextBody = "Please see the attached instruction.",
         };
         builder.Attachments.Add(
             "estimate.pdf", attachmentBytes, MimeKit.ContentType.Parse("application/pdf"));
@@ -1320,7 +1321,8 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
 
         var fixtureId = Guid.NewGuid().ToString("N");
-        var first = "%PDF-1.4 synthetic instruction letter"u8.ToArray();
+        var first = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Two Attachments {fixtureId}", claimNumber: $"ATT2-{fixtureId}");
         var second = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
@@ -1328,7 +1330,7 @@ public sealed class CustodyOutboxIntegrationTests
         message.Subject = "QDOS test instruction";
         var builder = new MimeKit.BodyBuilder
         {
-            TextBody = $"QDOS instruction\r\nClaimant Name: Two Attachments {fixtureId}\r\nClaim Number: ATT2-{fixtureId}",
+            TextBody = "Please see the attached instruction.",
         };
         builder.Attachments.Add(
             "43127_1_LtrtoAuditEngin.pdf", first, MimeKit.ContentType.Parse("application/pdf"));
@@ -2248,7 +2250,8 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
 
         var fixtureId = Guid.NewGuid().ToString("N");
-        var letter = "%PDF-1.4 synthetic instruction letter"u8.ToArray();
+        var letter = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Photograph Roles {fixtureId}", claimNumber: $"IMG-{fixtureId}");
         var photograph = SyntheticJpeg();
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
@@ -2256,7 +2259,7 @@ public sealed class CustodyOutboxIntegrationTests
         message.Subject = "QDOS test instruction";
         var builder = new MimeKit.BodyBuilder
         {
-            TextBody = $"QDOS instruction\r\nClaimant Name: Photograph Roles {fixtureId}\r\nClaim Number: IMG-{fixtureId}",
+            TextBody = "Please see the attached instruction.",
         };
         builder.Attachments.Add(
             "53364_1_LtrtoEngineerIn.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
@@ -2355,17 +2358,25 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
 
         var fixtureId = Guid.NewGuid().ToString("N");
-        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Audit Custody {fixtureId}", claimNumber: $"AUD-{fixtureId}",
+            notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            notificationTitle: "ORIGINAL BODYSHOP REPORT",
+            additionalLines: ["Assessment outcome: Repairable"],
+            addSignatureLines: false);
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
         message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
         message.Subject = "QDOS audit instruction";
         var builder = new MimeKit.BodyBuilder
         {
-            TextBody = $"QDOS instruction\r\nClaimant Name: Audit Custody {fixtureId}\r\nClaim Number: AUD-{fixtureId}",
+            TextBody = "Please see the attached audit instruction.",
         };
         builder.Attachments.Add(
             "Bodyshopreport236502-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "AuditReportNotification236502-V1.pdf", instruction, MimeKit.ContentType.Parse("application/pdf"));
         message.Body = builder.ToMessageBody();
         using var output = new MemoryStream();
         message.WriteTo(output);
@@ -2383,12 +2394,15 @@ public sealed class CustodyOutboxIntegrationTests
             CancellationToken.None);
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var evidence = Assert.IsType<StandaloneAuditEvidence>(
+            await services.GetRequiredService<IStandaloneAuditEvidenceQueries>()
+                .GetForReceiptAsync(receipt.Id, CancellationToken.None));
         var outcome = await AcceptAsync(
             services,
             receipt.Id,
             caseType: CaseType.Audit,
-            standaloneAuditEvidenceId: evidenceId);
+            expectedVersion: evidence.ReceiptVersion,
+            standaloneAuditEvidenceId: evidence.Id);
 
         await services.GetRequiredService<IProcessQueuedCustody>()
             .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
@@ -2424,17 +2438,25 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
 
         var fixtureId = Guid.NewGuid().ToString("N");
-        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"End To End {fixtureId}", claimNumber: $"E2E-{fixtureId}",
+            notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            notificationTitle: "ORIGINAL BODYSHOP REPORT",
+            additionalLines: ["Assessment outcome: Repairable"],
+            addSignatureLines: false);
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
         message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
         message.Subject = "QDOS audit instruction";
         var builder = new MimeKit.BodyBuilder
         {
-            TextBody = $"QDOS instruction\r\nClaimant Name: End To End {fixtureId}\r\nClaim Number: E2E-{fixtureId}",
+            TextBody = "Please see the attached audit instruction.",
         };
         builder.Attachments.Add(
             "Bodyshopreport236503-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "AuditReportNotification236503-V1.pdf", instruction, MimeKit.ContentType.Parse("application/pdf"));
         message.Body = builder.ToMessageBody();
         using var output = new MemoryStream();
         message.WriteTo(output);
@@ -2452,13 +2474,16 @@ public sealed class CustodyOutboxIntegrationTests
             CancellationToken.None);
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var evidence = Assert.IsType<StandaloneAuditEvidence>(
+            await services.GetRequiredService<IStandaloneAuditEvidenceQueries>()
+                .GetForReceiptAsync(receipt.Id, CancellationToken.None));
         var outcome = await AcceptAsync(
             services,
             receipt.Id,
             completeness: new(true, true),
             caseType: CaseType.Audit,
-            standaloneAuditEvidenceId: evidenceId);
+            expectedVersion: evidence.ReceiptVersion,
+            standaloneAuditEvidenceId: evidence.Id);
 
         await services.GetRequiredService<IProcessQueuedCustody>()
             .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
@@ -2649,19 +2674,19 @@ public sealed class CustodyOutboxIntegrationTests
                 .FindBySourceIdentityAsync(source.Source.SourceIdentity, CancellationToken.None));
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        // Manual uploads have no persisted mailbox classification. Processing
-        // therefore records a truthful case-type-unavailable allocation
-        // failure; the custody scenario supplies the explicit staff acceptance
-        // that turns this reviewable receipt into a case.
-        var failed = Assert.IsType<IntakeAllocationState>(
+        var allocation = Assert.IsType<IntakeAllocationState>(
             (await services.GetRequiredService<IIntakeReceiptQueries>()
                 .GetAsync(receipt.Id, CancellationToken.None))!.AllocationState);
-        Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, failed.FailureKind);
-        var accepted = await AcceptAsync(
-            services,
-            receipt.Id,
-            new CaseCompleteness(false, false));
-        return new(accepted.Identity.CaseId, accepted.CustodyWorkId, receipt.Id, source.Content);
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, allocation.Status);
+
+        await using var db = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var link = await db.CaseIntakeLinks.SingleAsync(
+            item => item.IntakeReceiptId == receipt.Id,
+            CancellationToken.None);
+        Assert.Equal(allocation.CaseId, link.CaseId);
+        return new(link.CaseId, link.CustodyWorkId, receipt.Id, source.Content);
     }
 
     private static async Task<IntakeEvaluationRevision> DrainStagedAsync(
@@ -2717,10 +2742,44 @@ public sealed class CustodyOutboxIntegrationTests
         var fixtureId = Guid.NewGuid().ToString("N");
         var email = IntakeTestEvidence.CreateEmail(
             $"custody-{fixtureId}.eml",
-            $"QDOS instruction\r\nClaimant Name: Custody Test {fixtureId}\r\nClaim Number: CUS-{fixtureId}");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: $"Custody Test {fixtureId}", claimNumber: $"CUS-{fixtureId}"))
+            ]);
         var identity = new IntakeSourceIdentity(
             IntakeSourceChannel.ManualUpload,
             $"custody-source:{Guid.NewGuid():N}");
+        return new(
+            new(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                FixedUtcNow,
+                "custody-test",
+                identity),
+            email.Content);
+    }
+
+    private static SourceFixture CreatePreCaseReevaluationSource()
+    {
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var email = IntakeTestEvidence.CreateEmail(
+            $"custody-reevaluation-{fixtureId}.eml",
+            "Please see the retained source awaiting work-type classification.",
+            attachments:
+            [
+                ("source-awaiting-classification.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: $"Reevaluation Source {fixtureId}",
+                        claimNumber: $"REV-{fixtureId}",
+                        notificationTitle: "RE-EVALUATION SOURCE — WORK TYPE NOT YET CLASSIFIED"))
+            ]);
+        var identity = new IntakeSourceIdentity(
+            IntakeSourceChannel.ManualUpload,
+            $"custody-reevaluation-source:{Guid.NewGuid():N}");
         return new(
             new(
                 email.FileName,
@@ -2991,6 +3050,18 @@ public sealed class CustodyOutboxIntegrationTests
         {
             EffectCalls++;
             return await inner.RetainAcceptedIntakeSourceAsync(root, source, operationKey, cancellationToken);
+        }
+
+        public virtual async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+            CaseCustodyRoot root,
+            IntakeSourceCustodyReference attachment,
+            int ordinal,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            EffectCalls++;
+            return await inner.RetainAcceptedIntakeAttachmentAsync(
+                root, attachment, ordinal, operationKey, cancellationToken);
         }
 
         public virtual async Task<string> CreateAuditReferenceFolderAsync(
