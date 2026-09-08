@@ -68,10 +68,12 @@ Review-gated transitions evaluate instruction and image completeness from
 persisted facts inside the transaction; posted readiness claims are not
 authority, and staff-confirmation checkboxes are retired (CASE-046, PLAT-072).
 Complete instructions and images move a Case from Not ready to Review. In
-Review, **Send to EVA** is the implicit review action and moves the Case to
-With Engineer; no instruction-review or image-review evidence or setting
-exists (D44, 2026-09-03). A Report approval identifies one immutable artifact
-and its approving staff actor. `Report sent` requires one retained exact
+Review, **Hand to Engineer** is the review action: selecting an eligible
+Engineer assigns the Case and moves it to With Engineer atomically. No
+separate reviewed checkbox or start-work action is required. No EVA export
+or submission is required (CASE-049, current operator direction). A Report
+approval identifies one immutable artifact and its approving staff actor.
+`Report sent` requires one retained exact
 approved-mailbox Sent item with its mailbox/Sent-folder scope, immutable item,
 conversation/reply-chain identities, authoritative Sent time, and separate
 link time; an assertion, draft, queue result, generated file, or export proxy
@@ -90,15 +92,32 @@ the original image record shows its formal Case target.
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
-When a Case has complete instructions and images, it enters Review. Sending it
-to EVA moves it to With Engineer and makes it visible in the Engineers queue.
-Assignment is optional: staff may assign an eligible Pegasus Engineer
-directly when required, or an Engineer may take an unassigned case when starting
-work. Assignment is ownership, not readiness, and never substitutes for a
-missing Review or export gate. Pegasus assignment does not prove EVA receipt or
-an external EVA assignment.
+When a Case has complete instructions and images, it enters Review. Staff
+hand it to an eligible Pegasus Engineer under the current Case edit lease
+and version. Assignment, Sign-off Engineer selection and entry to With
+Engineer are one attributable operation, making native engineering work
+available without EVA. Exact replay does not hand off twice. Incomplete,
+stale or unauthorized requests change nothing. An existing headless start
+command can hand a Review Case to its already-assigned eligible Engineer;
+it is not a second UI step. Neither route proves EVA receipt or an external
+EVA assignment.
 
-Incoming cancellation classification or association never changes a Case automatically. In the focused alpha, mailbox processing records the settled classification for every route-accepted received message and may automatically associate QDOS-direct correspondence with its Case under the accepted ADR-0020 predicates, but only an incoming instruction creates intake work and no classification or association mutates Case state; a separately retained and reasonedly associated cancellation message may support an authorised staff action to place a pre-report Case in `Held pending staff decision`, confirm `Provider cancelled`, or release it. Release requires the message to be reasonedly recategorised, unlinked, or reassociated first. Every original and corrected classification/association, actor, time, reason, and evidence remains permanent history.
+Incoming cancellation classification or association never changes a Case
+automatically. Mailbox processing records the settled classification for
+route-accepted received messages. Automatic principal-scoped association uses
+the supported current-instruction profiles and unambiguous typed match keys
+defined in [FRD-02](frd-02-intake-and-source-identity.md); QDOS retains its
+accepted correspondence predicates under ADR-0020. This does not enable
+arbitrary non-QDOS correspondence or extend QDOS cancellation recognition to
+other principals. Current-envelope boundaries still exclude quoted historical
+instructions. Only an incoming instruction creates intake work, and no
+classification or association mutates Case state. A separately retained and
+reasonedly associated cancellation message may support an authorised staff
+action to place a pre-report Case in `Held pending staff decision`, confirm
+`Provider cancelled`, or release it. Release requires the message to be
+reasonedly recategorised, unlinked, or reassociated first. Every original and
+corrected classification/association, actor, time, reason, and evidence remains
+permanent history.
 
 ### Workflow display labels and stage-bound actions
 
@@ -122,14 +141,17 @@ that rail and render as Closed · `<outcome>` in Search. A label is never a
 state: every transition remains a named Core action, and history records the
 Core state, not the label.
 
-- **Send to EVA** is offered in Review and again in With Engineer as a
-  re-send (D36). The dialog holds Engineer, Sign-off Engineer and Download
+- **Hand to Engineer** is offered in Review while editing. Its dialog
+  selects the Engineer; the handoff itself is the review action.
+- **Send to EVA** is optional, offered in Review and again in With Engineer
+  as a re-send (D36). The dialog shows the Engineer, selects Sign-off
+  Engineer and offers Download
   ZIP / Send via API; Send via API is disabled unless the Principal enables
   it. There is no separate Download EVA package action. The package,
   mapping, and per-Principal submission policy are owned by
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-and-external-engineering-handoff).
 - The **Engineer sections** of the Case record (Damage, Valuation, Estimate,
-  Settlement, Report) are always viewable and read-only once Complete (D30;
+  Settlement, Report) are always viewable and editable only With Engineer (D30;
   the former D11 access rule is now this read-only rule). Editing them uses
   the Case edit lease below; the report-draft entry point is owned by
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point).

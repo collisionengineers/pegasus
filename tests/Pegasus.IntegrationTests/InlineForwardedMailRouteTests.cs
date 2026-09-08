@@ -20,7 +20,7 @@ public sealed class InlineForwardedMailRouteTests
             + "Subject: Engineer notification\r\n\r\n"
             + "Please process the attached instruction.");
 
-        var route = new QdosMailRoutePolicy().Evaluate(result);
+        var route = new PrincipalMailRoutePolicy().Evaluate(result);
 
         Assert.Equal(
             "instructions@qdosassist.co.uk",
@@ -52,7 +52,7 @@ public sealed class InlineForwardedMailRouteTests
             + "Subject: Engineer Triage - Our Claim Reference 47939/1\r\n\r\n"
             + "Can you kindly advise if the vehicle would be considered repairable.");
 
-        var route = new QdosMailRoutePolicy().Evaluate(result);
+        var route = new PrincipalMailRoutePolicy().Evaluate(result);
 
         // The copied recipient is a recipient, never a candidate sender.
         Assert.Equal(
@@ -86,7 +86,7 @@ public sealed class InlineForwardedMailRouteTests
             + "Subject: Engineer Triage\r\n\r\n"
             + "Original request.");
 
-        var route = new QdosMailRoutePolicy().Evaluate(result);
+        var route = new PrincipalMailRoutePolicy().Evaluate(result);
 
         Assert.DoesNotContain(
             result.TransportEvidence,
@@ -149,7 +149,7 @@ public sealed class InlineForwardedMailRouteTests
     {
         var result = await ReadAsync("desk@collisionengineers.co.uk", body);
 
-        var route = new QdosMailRoutePolicy().Evaluate(result);
+        var route = new PrincipalMailRoutePolicy().Evaluate(result);
 
         Assert.Equal(MailRouteDisposition.NeedsSorting, route.Disposition);
         Assert.Null(route.EffectiveSender);

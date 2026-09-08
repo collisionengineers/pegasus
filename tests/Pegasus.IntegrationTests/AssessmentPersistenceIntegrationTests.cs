@@ -12,6 +12,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
@@ -61,7 +62,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var harness = await Harness.CreateAsync(counter);
         var outcome = await harness.AcceptAsync("assessment-workspace-query-count");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         counter.Reset();
 
         var workspace = await new EfAssessmentWorkspaceSource(harness.Factory)
@@ -77,7 +77,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
         await using var staffContext = await harness.Factory.CreateDbContextAsync();
@@ -328,54 +327,48 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 EngineVersion));
     }
 
-    [Fact]
-    public async Task AssessmentAccessRequiresAnExportAfterTheLatestReviewEntry()
+    [Theory]
+    [InlineData(CaseLifecycleState.Review, false, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
+    [InlineData(CaseLifecycleState.PostReport, true, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
+    [InlineData(CaseLifecycleState.CreatedInError, false, true)]
+    public async Task AssessmentAccessUsesNativeStateAndRetainsWorkspaceWithoutAnExport(
+        CaseLifecycleState state,
+        bool canOpen,
+        bool isReadOnly)
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-access-review-cycle");
-        await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
-        var source = new EfAssessmentAccessSource(harness.Factory);
-
-        Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
-        Assert.Null(await new EfAssessmentWorkspaceSource(harness.Factory)
-            .GetAsync(outcome.Identity.CaseId));
-
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
-        var exportedAccess = (await source.GetAsync(outcome.Identity.CaseId))!;
-        Assert.True(exportedAccess.CanOpen);
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            Assert.Null((await context.CaseWorkflows.AsNoTracking().SingleAsync(
-                item => item.CaseId == outcome.Identity.CaseId)).AssignedEngineerId);
-        }
-
+        var lease = await harness.AcquireLeaseAsync(
+            outcome.Identity.CaseId, 0, harness.AutomationActor, "retained-assessment-lease");
+        await harness.SaveAssessment.ExecuteAsync(new(
+            outcome.Identity.CaseId, lease.Version, harness.AutomationActor,
+            "retained-assessment-value", "Record vehicle condition.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["vehicle.condition"] = "good"
+            }), CancellationToken.None);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var workflow = await context.CaseWorkflows.SingleAsync(
                 item => item.CaseId == outcome.Identity.CaseId);
-            workflow.Version = 1;
-            context.CaseWorkflowEvents.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                CaseId = outcome.Identity.CaseId,
-                Workflow = workflow,
-                EventType = "case_returned_to_review",
-                OperationKey = "assessment-access-return",
-                RequestHash = "test",
-                ActorKind = ActorKind.Staff.ToString(),
-                ActorSubjectId = "staff-1",
-                ActorRolesJson = "[]",
-                Reason = "Review the corrected case.",
-                OccurredAtUtc = StartUtc,
-                BeforeVersion = 0,
-                AfterVersion = 1
-            });
+            workflow.State = state.ToString();
             await context.SaveChangesAsync();
+            Assert.False(await context.EvaFirstHandoffProxies.AnyAsync(
+                item => item.CaseId == outcome.Identity.CaseId));
         }
 
-        Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 1);
-        Assert.True((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
+        var access = Assert.IsType<AssessmentAccessState>(
+            await new EfAssessmentAccessSource(harness.Factory).GetAsync(outcome.Identity.CaseId));
+        Assert.Equal(canOpen, access.CanOpen);
+        Assert.Equal(isReadOnly, access.IsReadOnly);
+        var workspace = Assert.IsType<AssessmentWorkspace>(
+            await new EfAssessmentWorkspaceSource(harness.Factory).GetAsync(outcome.Identity.CaseId));
+        Assert.Equal(state, workspace.Header.State);
+        Assert.Equal(outcome.Identity.CaseId, workspace.Data.Identity.CaseId);
+        Assert.Equal(outcome.Identity.CaseId, workspace.Assessment.CaseId);
+        Assert.Equal("good", workspace.Assessment.Field("vehicle.condition")?.Value);
     }
 
     [Fact]
@@ -679,6 +672,70 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
+    public async Task EarlierEstimateUpdateReplaysItsRecordedIdentityWithoutRevertingLaterEdits()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("estimate-replay-case")).Identity.CaseId;
+        var actor = harness.EngineerActor;
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
+        var lease1 = await harness.AcquireLeaseAsync(caseId, 0, actor, "replay-lease-1");
+        var create = new SaveEstimateRequest(caseId, 0, actor, "replay-K1", "Recorded an estimate.",
+            lease1.Token, null, new("Repairer", 2, 40m, null, null, 20m, null),
+            [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
+            new(RepairSpecificationSourceRoute.Manual, null, null, null));
+        var first = await save.ExecuteAsync(create, default);
+        var lease2 = await harness.AcquireLeaseAsync(caseId, 1, actor, "replay-lease-2");
+        var update = create with
+        {
+            EstimateId = first.SpecificationId, ExpectedVersion = 1, EditLeaseToken = lease2.Token,
+            OperationKey = "replay-K2", Details = first.Details with { Name = "Engineer revision" },
+            ExistingLineIds = first.Lines.Select(line => (Guid?)line.Id).ToArray(),
+            Lines = [create.Lines[0] with { WorkUnits = 3m }],
+        };
+        var second = await save.ExecuteAsync(update, default);
+        var lease3 = await harness.AcquireLeaseAsync(caseId, 2, actor, "replay-lease-3");
+        var third = await save.ExecuteAsync(update with
+        {
+            ExpectedVersion = 2, EditLeaseToken = lease3.Token, OperationKey = "replay-K3",
+            Details = second.Details with { Name = "Final revision" },
+            ExistingLineIds = second.Lines.Select(line => (Guid?)line.Id).ToArray(),
+            Lines = [create.Lines[0] with { WorkUnits = 4m }],
+        }, default);
+
+        // Reconstruct the store under the real Web runtime role. The replay
+        // must read its permanent action result after LastOperationKey moved.
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE USER [estimate_replay_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_replay_web];");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_replay_web';");
+        try
+        {
+            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
+            var resumed = new SaveEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock), jobs, harness.Clock);
+            var replay = await resumed.ExecuteAsync(update, default);
+            Assert.Equal(first.SpecificationId, replay.SpecificationId);
+            Assert.Equal(third.Details.Name, replay.Details.Name);
+            Assert.Equal(third.Lines[0].Id, replay.Lines[0].Id);
+            Assert.Equal(4m, replay.Lines[0].WorkUnits);
+            Assert.Equal(third.Lines[0].AmendedAtUtc, replay.Lines[0].AmendedAtUtc);
+            await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+                resumed.ExecuteAsync(update with { Details = update.Details with { Name = "Changed intent" } }, default));
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+                resumed.ExecuteAsync(update with { OperationKey = "new-stale-operation" }, default));
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+        Assert.Equal(3, await context.CaseWorkflowEvents.CountAsync(item => item.CaseId == caseId && item.EventType.StartsWith("estimate_")));
+        Assert.Equal(3, await context.ActionHistory.CountAsync(item => item.AggregateId == caseId.ToString("D") && item.EventKind.StartsWith("estimate_")));
+        Assert.Equal(3, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
+    }
+
+    [Fact]
     public async Task NamedEstimatesSaveDuplicateDiscardSetCurrentAndListWithOneCurrentPerCase()
     {
         await using var harness = await Harness.CreateAsync();
@@ -853,6 +910,88 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         Assert.Equal(4, (await list.ExecuteAsync(caseId, CancellationToken.None)).Count);
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
+    }
+
+    [Fact]
+    public async Task ImportedDocumentStorePreservesAuthorityOnReplayAndRequiresEngineerAcceptance()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("import-store-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-store-lease");
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser()
+            .Parse(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml())).Estimate!;
+        var hash = Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml())));
+        var source = new RepairSpecificationSource(RepairSpecificationSourceRoute.Glasses,
+            "estimate-import:store-contract", parsed.SourceVersion, hash);
+        // Chosen VAT/rate are existing Engineer header inputs, not inferred
+        // from source VAT. The canonical caller separately proves Unknown VAT.
+        var request = new SaveEstimateRequest(caseId, 0, engineer, "import-store-save", ImportRawEstimate.ImportReason,
+            lease.Token, null, new("Glass's 1", null, 40m, null, null, 20m, null,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), parsed.Lines, source);
+        var authority = new ImportRawEstimateRequest(engineer, caseId, 0, lease.Token,
+            Guid.NewGuid(), Guid.NewGuid(), hash, request.OperationKey, request.Details.Name);
+        foreach (var state in new[] { CaseLifecycleState.Review, CaseLifecycleState.NotReady, CaseLifecycleState.Held })
+        {
+            await using var setup = await harness.Factory.CreateDbContextAsync();
+            var workflow = await setup.CaseWorkflows.SingleAsync(row => row.CaseId == caseId);
+            workflow.State = state.ToString();
+            await setup.SaveChangesAsync();
+            var authorityRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.RepairSpecifications.RequireImportAuthorityAsync(authority, default));
+            Assert.Contains("read-only", authorityRefusal.Message, StringComparison.Ordinal);
+            var saveRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                harness.RepairSpecifications.SaveImportedEstimateAsync(request, default));
+            Assert.Contains("read-only", saveRefusal.Message, StringComparison.Ordinal);
+            Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
+            Assert.Equal(0, (await setup.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
+            Assert.False(await setup.ActionHistory.AnyAsync(row => row.CorrelationId == request.OperationKey));
+        }
+        await SetReportPreparationAsync(harness.Factory, caseId);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE USER [estimate_import_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_import_web];");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_import_web';");
+        RepairSpecificationVersion imported;
+        try
+        {
+            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
+            var store = new EfRepairSpecificationStore(runtimeFactory, harness.Clock);
+            await store.RequireImportAuthorityAsync(authority, default);
+            await store.RequireImportAuthorityAsync(authority, default);
+            imported = await store.SaveImportedEstimateAsync(request, default);
+            Assert.Equal(RepairSpecificationState.Draft, imported.State);
+            Assert.False(imported.IsCurrent);
+            Assert.All(imported.Lines, line => Assert.False(line.IsConfirmed));
+            Assert.Null(await store.GetCurrentAcceptedAsync(caseId, default));
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.RequireImportAuthorityAsync(authority, default));
+            await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.SaveImportedEstimateAsync(request, default));
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+        var live = await harness.AcquireLeaseAsync(caseId, 1, engineer, "import-store-replay-lease");
+        var replay = await harness.RepairSpecifications.SaveImportedEstimateAsync(request with
+        {
+            ExpectedVersion = 1, EditLeaseToken = live.Token, OperationKey = "import-store-second-completion"
+        }, default);
+        Assert.Equal(imported.SpecificationId, replay.SpecificationId);
+        await harness.RepairSpecifications.RequireImportAuthorityAsync(authority with
+        {
+            ExpectedVersion = 1, EditLeaseToken = live.Token
+        }, default);
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var use = new SetCurrentEstimate(harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
+        var useRequest = new SetCurrentEstimateRequest(caseId, 1, engineer, "import-store-use", "Use estimate.", live.Token, imported.SpecificationId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => use.ExecuteAsync(useRequest with { Actor = harness.AutomationActor }, default));
+        var accepted = await use.ExecuteAsync(useRequest, default);
+        Assert.True(accepted.IsCurrent);
+        Assert.All(accepted.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
+        Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
+        Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
     }
 
     /// <summary>
@@ -2217,7 +2356,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                         acceptanceStore,
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory),
-                        new CommittedWorkPublisherDouble()),
+                        new CommittedWorkPublisherDouble(),
+                        new TriageCasePairing(new EfTriageStore(factory,
+                            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
@@ -2247,7 +2388,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     "Accepted assessment fixture case",
                     CaseType.Inspection,
                     "QDOS",
-                    new(true, true, false, false),
+                    new(true, true),
                     AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
                 CancellationToken.None);
 

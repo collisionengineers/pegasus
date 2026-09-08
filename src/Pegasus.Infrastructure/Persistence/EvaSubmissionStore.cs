@@ -113,6 +113,12 @@ public sealed class EvaSubmissionStore(
             EvaCaseEvidenceReader.Build(caseData, vehicle),
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime));
 
+        var claimantAddress = EvaSubmissionPolicy.AcceptedClaimantAddress(caseData.Claimant.Address);
+        if (claimantAddress is null)
+        {
+            return new(null, export.UnrecordedFields, [EvaSubmissionPolicy.InvalidClaimantAddressReason]);
+        }
+
         // Reading a case's photographs goes to Box, so a transport failure is
         // an ordinary way for this to fail. It is translated here rather than
         // left to escape as a provider-shaped exception. An unreachable
@@ -141,6 +147,7 @@ public sealed class EvaSubmissionStore(
             export.Source.Fields,
             caseData.Identity.Reference,
             caseData.Identity.PrincipalCode,
+            claimantAddress,
             instructionSettings,
             images.Select(ToInstructionFile).ToArray());
 

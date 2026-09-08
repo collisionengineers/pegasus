@@ -441,10 +441,9 @@ public sealed class GenerateCaseAssessmentReportDraft(
         var access = await getAssessmentAccess.ExecuteAsync(
             new(caseId, actor),
             cancellationToken);
-        // H3: the report journey (preview included) never depends on an EVA
-        // export cycle — the workspace opening rule's state set without its
-        // export clause.
-        if (access is null || !AssessmentAccessPolicy.CanOpenReports(access))
+        // Native report preview uses the same lifecycle action gate as the
+        // other Engineer sections; no external export is a prerequisite.
+        if (access is null || !access.CanOpen)
         {
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
         }
@@ -457,7 +456,7 @@ public sealed class GenerateCaseAssessmentReportDraft(
 
         var projected = AssessmentReportProjection.Project(input with
         {
-            ReportDate = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime),
+            ReportDate = LondonCalendar.DateAt(timeProvider.GetUtcNow()),
         });
         if (!projected.IsReady)
         {

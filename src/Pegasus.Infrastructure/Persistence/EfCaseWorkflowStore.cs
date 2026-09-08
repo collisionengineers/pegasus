@@ -597,14 +597,16 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
         Guid? signOffEngineerId,
+        CaseLifecycleState targetState,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_engineer_assigned", (context, workflow, now) =>
+        MutateAsync(request, $"state_{targetState}", (context, workflow, now) =>
         {
             RequireReviewReadiness(workflow);
             workflow.AssignedEngineerId = request.EngineerId;
             workflow.SignOffEngineerId = signOffEngineerId;
+            workflow.State = targetState.ToString();
             return Task.CompletedTask;
-        }, cancellationToken);
+        }, cancellationToken, targetState.ToString());
 
     public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
         SetCaseSignOffEngineerRequest request,

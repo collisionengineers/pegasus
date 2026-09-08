@@ -1,6 +1,7 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Presentation;
 
@@ -12,6 +13,22 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class CaseWorkspaceLabels
 {
+    public const string HandToEngineer = "Hand to Engineer";
+
+    public static class EstimateImport
+    {
+        public const string Complete = "Complete import";
+        public const string Sources = "Retained estimate sources";
+        public const string SourceRetained = "Estimate source retained.";
+        public const string Imported = "Estimate imported as a Draft.";
+        public static string OcrStatus(IntakeOcrState? state) => state switch
+        {
+            IntakeOcrState.Unknown => "OCR outcome unknown.",
+            IntakeOcrState.Failed => "OCR failed.",
+            _ => "OCR pending.",
+        };
+    }
+
     /// <summary>
     /// The Vehicle section's lookup-chip surface. These live here, not in the
     /// shared OperatorLabels, because they are Case-only: the shared file is
@@ -293,6 +310,12 @@ public static class CaseWorkspaceLabels
     {
         public const string Launch = "Glass's";
         public const string Resume = "Resume";
+        public const string Close = "Close session";
+        public const string CloseReason = "Reason";
+        public const string ExternalClosedConfirmation = "Glass's is closed and no estimate remains open";
+        public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
+        public const string Closed = "The Glass's session was closed.";
+        public const string CloseRefused = "The Glass's session was not closed.";
         public const string State = "State";
         public const string Failure = "Failure";
 

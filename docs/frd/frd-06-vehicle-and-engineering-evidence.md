@@ -277,6 +277,38 @@ artifact creates the next immutable Draft. The provider and parser are
 auto-detected from the registered types and an ambiguous artifact is refused,
 never guessed.
 
+The command proves the typed actor and current persisted Case version, edit
+lease holder/token and expiry before reading a source-hash replay or starting
+OCR. Both that check and the final save require the existing assessment-editable
+state (Report preparation or Post report); accepted Review alone is insufficient.
+An occurrence must name the exact confirmed, nonremoved document version;
+a correctly paired historical version remains valid retained evidence. A new
+Draft is guarded again in the save transaction. Importing never confirms its
+rows or changes Current, including when an Engineer initiated it. The existing
+Engineer **Use estimate** action confirms and accepts the Draft after its
+source, mapping, rows and calculation basis satisfy the normal acceptance rules.
+
+Glass's calculation PDFs retain ordered Body, Auxiliary and Paint rows,
+included-operation context, source guide codes, unambiguous manufacturer part
+identities, notes and printed amounts. PDF labour hours are already net of
+overlap; they do not reuse XML's gross-time conversion. Parts and position
+appendices provide evidence for existing rows, never additional charges.
+Repeated printed charges and visibly clipped text remain as printed. Whole-row,
+section and document reconciliation is required; missing or ambiguous required
+evidence refuses the whole import. Source rates and VAT do not select a Pegasus
+rate card or determine a repairer's VAT status.
+
+Only positively qualified unusable-text-map pages use the retained OCR path
+in ADR-0040. Pending or unknown work returns its durable operation identity and
+state, not a partial Draft. Completing a retained source reuses that operation
+and freshly submitted Case authority, without uploading or submitting it again.
+Required page/word attribution, coordinates and complete arithmetic must agree;
+confidence alone neither accepts evidence nor supplies a numeric cutoff.
+The Estimate section offers **Complete import** for confirmed retained import
+sources not yet represented by an estimate. Pending custody becomes selectable
+only when its existing confirmation completes. A replay of the original upload
+does not revive its old lease or assume another Case-version increment.
+
 Corrections create a new reasoned version which retains and supersedes the
 earlier accepted version; accepted rows and their evidence are never edited in
 place. A Case with no unambiguous current accepted version fails closed. The
@@ -284,6 +316,37 @@ shared specification uses one technical line vocabulary and calculation basis. T
 assessment-report lists—new parts, repairs, and additional operations—are a
 single deterministic names-only projection of those ordered lines, not a
 second renderer-owned repair specification.
+
+The estimate editor saves the Case version and line identities submitted by
+the Engineer. Retrying the same operation preserves that intent: source
+evidence and amendment timestamps are resolved only for a new operation, not
+rebuilt before replay detection. A prior successful operation returns its same
+estimate identity in its current state, even after later edits; it never
+reapplies the older edit. Changed intent under the same operation key is
+refused, as is a new operation against a stale Case version.
+
+### Glass's interrupted sessions
+
+A Glass's launch records its callback and external account before contacting
+the provider. Vehicle and estimate identities are retained as soon as their
+answers arrive. Resume continues an interrupted preparation or a known vehicle
+that has not started an estimate; an existing estimate is reopened by its
+existing identity. These actions are available from the Case estimate section
+and do not require resetting credentials.
+
+Retaining a returned estimate's source artifacts does not consume the
+Engineer's still-valid Case edit authority. The import uses that authority
+to land one Draft. A genuine intervening Case edit or expired or lost lease
+still leaves the retained result awaiting import until the Engineer regains
+authority; callback replay creates neither another Draft nor another mutation.
+
+An interrupted provider write whose answer was lost remains `Unknown` and
+holds the account. It must not create another vehicle or calculation, or
+release the account merely because local time elapsed. The owning Engineer
+can close that uncertain record only after confirming Glass's is closed and
+no estimate remains open, with a reason. Stale versions and another Engineer's
+closure are refused. Checkpoints and explicit closure are permanently audited
+without provider credentials, callback tokens or document content.
 
 ### Conservative MOT mileage estimation
 

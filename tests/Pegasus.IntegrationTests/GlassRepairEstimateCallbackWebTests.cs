@@ -247,6 +247,38 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Single(await workspace.SessionsAsync());
     }
 
+    [Fact]
+    public async Task AnUnknownSessionCanBeResumedOrExplicitlyClosedFromItsOwnersCasePage()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        workspace.Mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK,
+            GlassProviderFixture.StartEre(GlassProviderFixture.LaunchUrl().Replace(
+                "&EuComp=1005_1005_powered_by_eucomp", string.Empty, StringComparison.Ordinal))));
+        await workspace.ClaimLeaseAsync();
+        using var launch = await workspace.LaunchAsync();
+        Assert.Equal(HttpStatusCode.Found, launch.StatusCode);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, Assert.Single(await workspace.SessionsAsync()).State);
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains("handler=ResumeGlass", html, StringComparison.Ordinal);
+        Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
+        using var resumed = await workspace.PostAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+        Assert.Equal(HttpStatusCode.Found, resumed.StatusCode);
+        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+
+        var close = FormFor(await workspace.CaseHtmlAsync(), "CloseGlass");
+        close["reason"] = "Confirmed the calculation is closed in Glass's.";
+        close["externalSessionClosed"] = "false";
+        using var unconfirmed = await workspace.PostAsync("CloseGlass", close);
+        Assert.Equal(HttpStatusCode.Found, unconfirmed.StatusCode);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, Assert.Single(await workspace.SessionsAsync()).State);
+        close["externalSessionClosed"] = "true";
+        using var closed = await workspace.PostAsync("CloseGlass", close);
+        Assert.Equal(HttpStatusCode.Found, closed.StatusCode);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
+        Assert.DoesNotContain("handler=CloseGlass", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+    }
+
     // --------------------------------------------------------------- the page
 
     /// <summary>
@@ -280,6 +312,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
+        var launchVersion = await workspace.CaseVersionAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
 
         using var returned = await workspace.ReturnAsync(correlation);
@@ -298,6 +331,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(RepairSpecificationState.Draft, estimate.State);
         Assert.NotEmpty(estimate.Lines);
         Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
+        // Only landing the Draft is a staff mutation; retaining its two source
+        // artifacts must not spend the authority the import still needs.
+        Assert.Equal(launchVersion + 1, await workspace.CaseVersionAsync());
     }
 
     [Fact]
@@ -346,6 +382,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             Assert.Equal(HttpStatusCode.Found, first.StatusCode);
         }
         var consumedAtUtc = Assert.Single(await workspace.SessionsAsync()).CallbackConsumedAtUtc;
+        var completedVersion = await workspace.CaseVersionAsync();
 
         using var again = await workspace.ReturnAsync(correlation);
 
@@ -358,6 +395,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(consumedAtUtc, session.CallbackConsumedAtUtc);
         Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+        Assert.Equal(completedVersion, await workspace.CaseVersionAsync());
     }
 
     /// <summary>
@@ -588,6 +626,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
             inner.ResumeAsync(request, cancellationToken);
 
+        public Task<GlassRepairEstimateSession> CloseAsync(
+            GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken) =>
+            inner.CloseAsync(request, cancellationToken);
+
         public Task<GlassRepairEstimateSession> CompleteAsync(
             GlassRepairEstimateCallback callback, CancellationToken cancellationToken) =>
             fault.OnComplete
@@ -715,8 +757,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
             await using var context = await scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
-            return await context.Set<CaseEntity>()
-                .Where(item => item.Id == CaseId)
+            return await context.CaseWorkflows
+                .Where(item => item.CaseId == CaseId)
                 .Select(item => item.Version)
                 .SingleAsync();
         }
@@ -974,8 +1016,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     OriginIntakeReceiptId = receiptId,
                     InstructionComplete = true,
                     ImagesComplete = true,
-                    InstructionConfirmedByStaff = true,
-                    ImagesConfirmedByStaff = true,
                     CreatedAtUtc = FixedUtcNow,
                     Version = 1,
                     ConcurrencyToken = Guid.NewGuid(),

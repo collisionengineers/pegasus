@@ -122,11 +122,9 @@ public enum CaseCustodyState
 
 public sealed record CaseCompleteness(
     bool InstructionComplete,
-    bool ImagesComplete,
-    bool InstructionConfirmedByStaff,
-    bool ImagesConfirmedByStaff)
+    bool ImagesComplete)
 {
-    public bool IsReadyForReview(bool automaticallyDefinitive) =>
+    public bool IsReadyForReview() =>
         InstructionComplete && ImagesComplete;
 }
 
@@ -252,22 +250,8 @@ public interface ILinkedCaseReplacementStore
 }
 
 
-public sealed record CreateOrganizationRequest(
-    string Name,
-    IReadOnlyList<OrganizationRole> Roles,
-    ActionActor Actor,
-    string OperationKey);
-
-public sealed record UpdateOrganizationRolesRequest(
-    Guid OrganizationId,
-    long ExpectedVersion,
-    IReadOnlyList<OrganizationRole> Roles,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason);
-
 public sealed record CreatePrincipalRequest(
-    Guid OrganizationId,
+    string Name,
     string Code,
     ActionActor Actor,
     string OperationKey,
@@ -293,7 +277,6 @@ public sealed record UpdatePrincipalEvaSubmissionRequest(
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,
     long ExpectedVersion,
-    Guid SuccessorOrganizationId,
     string SuccessorCode,
     ActionActor Actor,
     string OperationKey,
@@ -354,18 +337,6 @@ public static class EngineerFindingPolicy
                 "Only the Engineer assigned to this case can record the finding.");
         }
     }
-}
-
-public interface ICreateOrganization
-{
-    Task<Organization> ExecuteAsync(CreateOrganizationRequest request, CancellationToken cancellationToken);
-}
-
-public interface IUpdateOrganizationRoles
-{
-    Task<Organization> ExecuteAsync(
-        UpdateOrganizationRolesRequest request,
-        CancellationToken cancellationToken);
 }
 
 public interface ICreatePrincipal

@@ -84,6 +84,14 @@ submission. Idempotent retries reconcile to the same result. The current
 manual-upload bound remains 10 MiB per file; future bounds require the research
 and operator decision tracked by `INTK-052`.
 
+Public POST admission checks the route-bound token before reading the form.
+Unavailable links refuse the body without buffering it. File and total-body
+transport bounds apply before antiforgery and multipart model binding; normal
+multipart overhead is allowed within a finite bound. Enforcement counts actual
+bytes, including requests with absent or understated Content-Length, and an
+oversized refused body never reaches custody. Form or query values cannot
+substitute a different token for the one in the route.
+
 File type/count/size limits, authentication of the staff creator, token expiry
 and revocation, idempotent retry, abuse handling, durable custody, cross-request
 isolation, and non-disclosing error behavior are acceptance gates.
@@ -109,6 +117,19 @@ case, reference, or downstream side effect. Staff can inspect Received,
 Processing, Complete, or Failed by the staged receipt identifier; failure wording
 is bounded and does not disclose exception or infrastructure detail.
 
+An evaluation is recorded before its destination is written, but the work is
+not complete until required association, allocation, Triage, and Unidentified
+writes finish. A transient destination failure retains a retryable work item
+and the same evaluation identity; it must not allocate a second case. A recorded
+unique case match withholds new-case allocation even when its association has
+not yet been persisted. Staging is cleaned only after that durable completion.
+
+A multi-image submission has one group-level destination and, when unresolved,
+one Unidentified reference with the group's canonical reason. Pending groups
+are recovered by the existing bounded sweep, selecting eligible oldest groups
+before applying its page limit. Groups with an Unidentified outcome leave that
+recovery set; unrelated newer receipts cannot starve a pending image group.
+
 For both email and manual upload, the durable commit is followed immediately by
 a best-effort publication of the stable work identifier. Publication never
 precedes the commit and a publication failure never rolls it back. Pending work
@@ -123,7 +144,7 @@ The ordinary path records correlated timings for durable receipt, publication,
 queue claim, source reading, identification, classification, extraction,
 association/allocation, case creation, custody hand-off, and terminal state.
 Those timings contain identifiers and bounded outcome data, never source
-content. From durable receipt, ordinary supported QDOS email and manual-upload
+content. From durable receipt, ordinary supported principal email and manual-upload
 work reaches its case destination, or its truthful terminal non-case outcome,
 within five seconds at p95. Case custody confirmation is measured as the final
 best-effort segment and any Box/provider delay is attributed separately. A
@@ -160,6 +181,22 @@ Box case-file custody is a required day-one alpha capability, but it follows Cas
 
 Matching uses explainable evidence. Message identifiers, provider/domain policy, route identity, accepted reference tokens, VRM, party identity, and operator confirmation may contribute. A weak, ambiguous, or contradictory signal never silently associates material with a case; competing candidate cases and unresolved source-identity conflicts become Unidentified with the corresponding canonical reason.
 
+The fifteen evidenced principal email routes use the existing instruction
+profiles through one route, classification and match policy ownership chain.
+Exact sender identity and selected current document profile must agree;
+document identity alone never allocates a Case. A proved forwarded original
+is current material, not discarded quoted history. Unrelated reports and old
+thread content cannot supply or veto a current instruction's profile.
+The accepted identities, explicit work-type predicates, preserved QDOS
+body/Triage rules and shared fail-closed association procedure are owned by
+[FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
+
+Acceptance joins a profile's typed instruction values to the canonical Case
+field identity, not another principal's printed field labels. The original
+review-field names, candidates and source locators remain unchanged. Missing,
+conflicting or non-unique source attribution still prevents allocation; a
+different label never justifies invented evidence or staff confirmation.
+
 VRM correlation is a suggestion until confirmed by accepted evidence or an authorised operator. Source deduplication is occurrence-aware: exact bytes and transport identifiers support correlation, while each visible placement and chronology entry remains auditable.
 
 Arrival-time proximity never associates or consolidates material. A mismatch
@@ -173,7 +210,40 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
+Pairing uses the Case's current accepted registration and principal, not its
+original instruction draft. A registered image identity requires an exact
+registration match; a known principal must agree. The existing single-image
+exact-match precedence also applies to one-member groups. Multi-member groups
+retain their stricter complete-candidate uniqueness rule; persisted expected
+membership, not the presence of a group identifier, distinguishes them.
+
+Both arrival orders, registered-receipt replay and acceptance replay resume
+the same pairing operation. The existing reconciliation timer retries oldest
+eligible Awaiting instruction records, including linked-but-unmerged records.
+Current nonmatches do not consume that bounded batch or become permanently
+excluded. Failures remain visible and do not stop unrelated pairings.
+Every current image member must be associated before a group merges once.
+Automatic writes recheck current identity and uniqueness transactionally;
+merge rechecks every current association, destination eligibility and active
+Case edit lease. A deliberate staff unlink or reassignment is never undone by
+recovery. A still-current reasoned staff association retains its authority,
+including an intentional identity override, regardless of the retry actor.
+A reasoned staff decision on a registered group's origin also authorises
+completion of untouched image members. That completion checks the current
+origin decision and its observed version, records the originating staff
+identity/reason/version with SystemWorker completion attribution, and never
+overwrites or revives a sibling with association history. Final merge also
+refuses a changed origin decision even when the target Case ID is unchanged.
+
 **Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same configured chase interval a Not-ready formal Case's first chase falls due at (one global whole-calendar-day value, 1 to 365, default 7 — D23), and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
+
+Triage association follows [FRD-03](frd-03-triage.md#automatic-association-with-a-formal-case):
+creation, formal acceptance and replay attempt the same principal-scoped
+typed-identity match; existing scheduled reconciliation retries unfinished
+links. The final transaction rechecks current evidence, complete candidate
+uniqueness, versions and staff edit authority. A deliberate manual unlink or
+reassignment remains authoritative. This association preserves the distinct
+Triage identity and workflow and creates no further Case/PO.
 
 ### Grouped image-intake routing
 
@@ -383,4 +453,4 @@ Definitive authorised intake creates exactly one instructed Case idempotently. A
 
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
-Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does, and so does the Image-initiated Case merge transition.
+Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does. Automatic Image-initiated Case association checks the current Case version and yields to an active staff lease; the subsequent image merge also yields to a live lease and rechecks the current associations inside its transaction.

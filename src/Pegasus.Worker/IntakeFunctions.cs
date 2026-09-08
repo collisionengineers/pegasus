@@ -1,5 +1,7 @@
 ﻿using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ProviderApi;
@@ -180,6 +182,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
     IDocumentContentCacheCleanup documentContentCacheCleanup,
     ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    IImageIntakeCasePairing imageIntakeCasePairing,
+    ITriageCasePairing triageCasePairing,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ReconcileProviderSubmissions reconcileProviderSubmissions,
@@ -233,6 +237,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
             groupedImageResult.Escaped,
             groupedImageResult.Failures);
 
+        var pairing = await imageIntakeCasePairing.ReconcileAsync(50, cancellationToken);
+        LogImageIntakePairing(logger, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
+        var triagePairing = await triageCasePairing.ReconcileAsync(50, cancellationToken);
+        LogTriageCasePairing(logger, triagePairing.Candidates, triagePairing.Linked,
+            triagePairing.Failures, triagePairing.FirstFailure);
+
         // INTK-018: resolves an open Unidentified item whose origin receipt
         // was promoted outside its own processing pass (a sibling group
         // member's registration, a staff action, or a historic stale row) —
@@ -271,6 +281,16 @@ public sealed partial class StagedArtifactReconciliationFunction(
         Level = LogLevel.Information,
         Message = "Enqueued {Enqueued} automatic vehicle lookups.")]
     private static partial void LogAutomaticVehicleLookups(ILogger logger, int enqueued);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Reconciled registered image pairing: {Candidates} candidates, {Merged} merged, {Failures} failures. First failure: {FirstFailure}")]
+    private static partial void LogImageIntakePairing(
+        ILogger logger, int candidates, int merged, int failures, string? firstFailure);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Reconciled Triage pairing: {Candidates} candidates, {Linked} linked, {Failures} failures. First failure: {FirstFailure}")]
+    private static partial void LogTriageCasePairing(
+        ILogger logger, int candidates, int linked, int failures, string? firstFailure);
 
     [LoggerMessage(
         Level = LogLevel.Information,

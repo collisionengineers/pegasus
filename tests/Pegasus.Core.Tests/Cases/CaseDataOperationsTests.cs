@@ -42,7 +42,7 @@ public sealed class CaseDataOperationsTests
     public void CompletenessPolicyDependsOnlyOnCompleteInstructionsAndImages()
     {
         var evaluation = CaseCompletenessPolicy.Evaluate(
-            new(true, true, false, false),
+            new(true, true),
             Configuration);
 
         Assert.True(evaluation.SatisfiesPolicy);
@@ -65,7 +65,7 @@ public sealed class CaseDataOperationsTests
                 "confirm-completeness",
                 "Reviewed current evidence",
                 " ",
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
             new(
@@ -75,7 +75,7 @@ public sealed class CaseDataOperationsTests
                 "confirm-completeness-system",
                 "Reviewed current evidence",
                 "lease",
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None));
 
         Assert.Null(store.ConfirmedRequest);

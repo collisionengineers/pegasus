@@ -11,6 +11,24 @@ public sealed class ProcessIntakeTests
     private static readonly DateTimeOffset ProcessedAtUtc = new(2031, 4, 5, 9, 30, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset ReceivedAtUtc = new(2030, 12, 31, 16, 45, 0, TimeSpan.Zero);
 
+    [Fact]
+    public async Task AConflictingSelectedPrincipalCannotExtractClassifyOrAssociate()
+    {
+        // A structural signature probe only: no invented instruction or email.
+        var read = Readable(content: [new(IntakeEvidenceSource.DocumentContent, "attachment",
+            "fairwaylegal\nVehicle Registration Number:\nMake/Model:")]);
+        var receipt = await CreateSut(new StubReader(read), new RecordingStore(),
+            extractionPolicy: new FwInstructionExtractionPolicy()).ExecuteAsync(CreateSource());
+        Assert.Equal(MailRouteDisposition.Accepted, receipt.MailRouteDecision?.Disposition);
+        Assert.Equal("QDOS", receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Null(receipt.ExtractionPolicyKey);
+        Assert.Null(receipt.MailClassificationDecision);
+        Assert.NotEqual(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision?.Outcome);
+        Assert.Contains("conflicts", receipt.DecisionReason, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(IntakeSourceReadStatus.Unsupported, IntakeDecision.Unsupported, "unsupported_test", "The test source is unsupported.")]
     [InlineData(IntakeSourceReadStatus.TechnicalFailure, IntakeDecision.TechnicalFailure, "technical_test", "The test source could not be read.")]
@@ -371,11 +389,11 @@ public sealed class ProcessIntakeTests
         var result = await sut.ExecuteAsync(CreateSource());
 
         var draft = Assert.Single(store.Drafts);
-        Assert.Equal(IntakeDecision.CaseCreated, draft.Decision);
-        Assert.Null(draft.FailureCode);
+        Assert.Equal(IntakeDecision.OcrRequired, draft.Decision);
+        Assert.Equal("ocr_required", draft.FailureCode);
         Assert.NotEmpty(draft.Fields);
         Assert.NotEmpty(draft.MissingFields);
-        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Equal(IntakeDecision.OcrRequired, result.Decision);
         Assert.Contains(result.Evidence, item => item.Signal == "additional-scanned-content");
     }
 
@@ -385,7 +403,7 @@ public sealed class ProcessIntakeTests
         var content = new IntakeContentFragment(
             IntakeEvidenceSource.DocumentContent,
             "controlled readable page",
-            "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-2");
+            "ENGINEER NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-2");
         var sut = CreateSut(
             new StubReader(Readable(requiresOcr: true, content: [content])),
             new RecordingStore());
@@ -432,7 +450,7 @@ public sealed class ProcessIntakeTests
 
         var result = await sut.ExecuteAsync(source);
 
-        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
         var route = Assert.IsType<MailRouteEvaluationResult>(result.MailRouteDecision);
         Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
         Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(route.TransportIdentities).Address);
@@ -460,7 +478,7 @@ public sealed class ProcessIntakeTests
             content:
             [
                 new(IntakeEvidenceSource.EmailBody, "message body", "Please process the attachment."),
-                new(IntakeEvidenceSource.DocumentContent, "attachment", "Claimant Name: Direct Claimant"),
+                new(IntakeEvidenceSource.DocumentContent, "attachment", "ENGINEER NOTIFICATION\nClaimant Name: Direct Claimant"),
                 new(IntakeEvidenceSource.DocumentContent, "attachment", "Claim Number: DIRECT-1")
             ]);
 
@@ -485,7 +503,7 @@ public sealed class ProcessIntakeTests
             content:
             [
                 new(IntakeEvidenceSource.EmailBody, "forward body", "Please process the attached instruction."),
-                new(IntakeEvidenceSource.DocumentContent, "attachment one", "Claimant Name: Forwarded Claimant"),
+                new(IntakeEvidenceSource.DocumentContent, "attachment one", "ENGINEER NOTIFICATION\nClaimant Name: Forwarded Claimant"),
                 new(IntakeEvidenceSource.DocumentContent, "attachment two", "Claim Number: FORWARD-1")
             ]);
 
@@ -812,8 +830,8 @@ public sealed class ProcessIntakeTests
             receipt.Evidence,
             item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
         Assert.Equal(IntakeEvidenceStrength.Strong, match.Strength);
-        Assert.Equal(QdosMailClassificationPolicy.Key, match.MatcherKey);
-        Assert.Equal(QdosMailClassificationPolicy.Version, match.MatcherVersion);
+        Assert.Equal(PrincipalMailClassificationPolicy.Key, match.MatcherKey);
+        Assert.Equal(PrincipalMailClassificationPolicy.Version, match.MatcherVersion);
         Assert.Contains("body.triage-only-request", match.Detail);
 
         // The registration survives: it is what decides the operator's branch.
@@ -1106,6 +1124,7 @@ public sealed class ProcessIntakeTests
             IntakeEvidenceSource.DocumentContent,
             "controlled protocol fixture",
             """
+            ENGINEER NOTIFICATION
             QDOS instruction
             Claimant Name: Review Claimant
             Claim Number: PROTOCOL-001
@@ -1157,6 +1176,7 @@ public sealed class ProcessIntakeTests
             IntakeEvidenceSource.DocumentContent,
             "controlled blank-field fixture",
             $$"""
+            ENGINEER NOTIFICATION
             QDOS instruction
             Claimant Name:
             {{claimNumberLine}}
@@ -1300,9 +1320,9 @@ public sealed class ProcessIntakeTests
         IRegisterUnidentified? registerUnidentified = null,
         RetainIncomingArtifact? retainIncomingArtifact = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
-            extractionPolicy ?? new QdosInstructionExtractionPolicy(),
-            mailRoutePolicy ?? new QdosMailRoutePolicy(),
-            classificationPolicies ?? [new QdosMailClassificationPolicy()],
+            new InstructionExtractionPolicySelector([extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
+            mailRoutePolicy ?? new PrincipalMailRoutePolicy(),
+            classificationPolicies ?? [new PrincipalMailClassificationPolicy("QDOS")],
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc),
             automaticStandaloneAuditEvidence,
@@ -1563,7 +1583,7 @@ public sealed class ProcessIntakeTests
         }
 
         public Task<bool> TryClaimHandOverAsync(
-            Guid occurrenceId, CancellationToken cancellationToken) =>
+            string operationKey, CancellationToken cancellationToken) =>
             Task.FromResult(Interlocked.Exchange(ref claim, 0) == 1);
 
         public Task RecordAsync(

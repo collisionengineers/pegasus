@@ -16,7 +16,7 @@ public sealed partial class TestUiSnapshotTests
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly IReadOnlyDictionary<string, StateMatch> StateMatches =
+    private static readonly Dictionary<string, StateMatch> StateMatches =
         new Dictionary<string, StateMatch>(StringComparer.Ordinal)
         {
             ["sign-in--validation"] = new("validation-summary-errors"),
@@ -33,14 +33,15 @@ public sealed partial class TestUiSnapshotTests
             ["administration-account-confirm--force-logout"] = new("Force logout"),
             ["administration-account-confirm--reset-password"] = new("Reset password"),
             ["administration-account-confirm--clear-lease"] = new("Clear case edit hold"),
-            ["administration-principal-eva-submission--default"] = new(
-                "Settings for WEBP", "We could not complete that request",
+            ["administration-principal-settings--default"] = new(
+                "pegasustest</h1>", "We could not complete that request",
                 AlsoRequired: "Manual EVA API submission"),
             // The seeded list before any administrator change: the create
             // form is present and no test-created preset has been added.
             ["administration-valuation-presets--default"] = new("Create preset", "Roof rack"),
             ["administration-action-logs--default"] = new("<h1>Action logs</h1>", "Access denied"),
-            ["administration-health--default"] = new("<h1>Health</h1>", "Access denied"),
+            ["administration-health--default"] = new(
+                "<h1>Health</h1>", "Access denied", AlsoRequired: "<td>graph_unavailable</td>"),
             ["administration-reports--default"] = new("<h1>Reports</h1>", "Access denied"),
             ["administration-glass--default"] = new(
                 "glass-fixture-account", "Access denied", AlsoRequired: ">Enabled<"),
@@ -125,6 +126,19 @@ public sealed partial class TestUiSnapshotTests
             .ToArray();
         Assert.True(orphans.Length == 0, "Committed Test UI pages no state generates:\n- " + string.Join("\n- ", orphans));
         await VerifyOfflineBrowserRenderAsync(catalogueRoot, generated);
+    }
+
+    [Fact]
+    public void HealthDefaultSnapshotRequiresTheRecordedMailboxFailureState()
+    {
+        var state = StateMatches["administration-health--default"];
+
+        Assert.True(state.Matches("<h1>Health</h1><table><tr><td>graph_unavailable</td></tr></table>"));
+        Assert.False(state.Matches("<h1>Health</h1><table></table>"));
+        Assert.False(state.Matches("<h1>Health</h1><table><tr><td>Automation</td><td>Configured</td></tr></table>"));
+        Assert.False(state.Matches("<h1>Health</h1><p>graph_unavailable</p>"));
+        Assert.False(state.Matches("<h1>Reports</h1><table><tr><td>graph_unavailable</td></tr></table>"));
+        Assert.False(state.Matches("<h1>Health</h1>Access denied<table><tr><td>graph_unavailable</td></tr></table>"));
     }
 
     [Fact]

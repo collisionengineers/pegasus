@@ -3,6 +3,7 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
@@ -13,6 +14,31 @@ namespace Pegasus.Core.Tests.Assessment;
 /// </summary>
 public sealed class EstimateTests
 {
+    [Fact]
+    public void EditorEvidenceIsResolvedWithoutChangingTheSubmittedIntent()
+    {
+        var sourceLine = Line("repair", workUnits: 2m, materials: 7m) with
+        {
+            SourceRowIdentity = "repair-row-1", AmendedBy = Engineer.SubjectId, AmendedAtUtc = Now,
+        };
+        var existing = Estimate(Details(), sourceLine);
+        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        {
+            EstimateId = existing.SpecificationId, ExistingLineIds = [sourceLine.Id],
+            Lines = [LineInput("repair") with { Description = sourceLine.Description, WorkUnits = 3m }],
+        };
+        var resolved = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+        Assert.Null(submitted.Lines[0].AmendedAtUtc);
+        Assert.Null(submitted.Lines[0].SourceRowIdentity);
+        Assert.Equal(sourceLine.SourceRowIdentity, resolved.Lines[0].SourceRowIdentity);
+        Assert.Equal(7m, resolved.Lines[0].Materials);
+        Assert.Equal(Now.AddMinutes(1), resolved.Lines[0].AmendedAtUtc);
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ApplyEditorEvidence(
+            submitted with { ExistingLineIds = [Guid.NewGuid()] }, existing, Now));
+        Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateSave(submitted with { ExistingLineIds = [] }));
+    }
+
     private static readonly DateTimeOffset Now = new(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly ActionActor Engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -671,45 +697,45 @@ public sealed class EstimateTests
     [Fact]
     public async Task AnImportUsesTheSuppliedNameAndDerivesOneOnlyWhenNoneIsGiven()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"), JsonStub()],
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, new ImportOcrStore());
 
         await import.ExecuteAsync(ImportRequest(name: "  Repairer quote  "), CancellationToken.None);
 
-        Assert.Equal("Repairer quote", Assert.Single(save.Requests).Details.Name);
+        Assert.Equal("Repairer quote", Assert.Single(save.Saved).Details.Name);
     }
 
     [Fact]
     public async Task AnImportAutoDetectsItsFormatAndLandsOneSourceLabelledDraft()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"), JsonStub()],
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, new ImportOcrStore());
 
         var id = await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
-        var saved = Assert.Single(save.Requests);
+        var saved = Assert.Single(save.Saved);
         Assert.Null(saved.EstimateId);
         Assert.Equal("Audatex 1", saved.Details.Name);
         Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, saved.Source.Route);
-        Assert.Equal($"estimate-import:{ImportOperationKey}", saved.Source.ArtifactReference);
+        Assert.Equal($"estimate-import:{OccurrenceId:D}", saved.Source.ArtifactReference);
         Assert.Equal("Audatex v1", saved.Source.SourceVersion);
         Assert.Equal(ImportSha256, saved.Source.Sha256);
         Assert.Equal(ImportRawEstimate.ImportReason, saved.Reason);
-        Assert.NotEqual(Guid.Empty, id);
+        Assert.NotEqual(Guid.Empty, id.EstimateId);
 
         // Every imported row keeps the document, version, hash and row it came from.
         var line = Assert.Single(saved.Lines);
-        Assert.Equal($"estimate-import:{ImportOperationKey}", line.SourceDocumentIdentity);
+        Assert.Equal($"estimate-import:{OccurrenceId:D}", line.SourceDocumentIdentity);
         Assert.Equal(DocumentVersionId, line.SourceDocumentVersionId);
         Assert.Equal(ImportSha256, line.SourceDocumentSha256);
         Assert.Equal("1", line.SourceRowIdentity);
@@ -720,7 +746,7 @@ public sealed class EstimateTests
     [Fact]
     public async Task AnImportNamesTheDraftAfterTheImportsTheCaseAlreadyHolds()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var existing = Estimate(Details() with { Name = "Audatex 1" }) with
         {
             Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:earlier", "v0", new string('b', 64)),
@@ -730,17 +756,17 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(existing),
-            save);
+            save, new ImportOcrStore());
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
-        Assert.Equal("Audatex 2", Assert.Single(save.Requests).Details.Name);
+        Assert.Equal("Audatex 2", Assert.Single(save.Saved).Details.Name);
     }
 
     [Fact]
     public async Task AnAmbiguousOrUnrecognizedDocumentImportsNothing()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
 
         var ambiguous = new ImportRawEstimate(
@@ -748,23 +774,23 @@ public sealed class EstimateTests
                 new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"),
                 new StubParser(RepairSpecificationSourceRoute.Json, ".pdf", "Other"),
             ],
-            Retained, documents, new StubList(), save);
+            Retained, documents, new StubList(), save, new ImportOcrStore());
         var many = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => ambiguous.ExecuteAsync(ImportRequest(), CancellationToken.None));
         Assert.Contains("More than one", many.Message, StringComparison.Ordinal);
 
-        var none = new ImportRawEstimate([JsonStub()], Retained, documents, new StubList(), save);
+        var none = new ImportRawEstimate([JsonStub()], Retained, documents, new StubList(), save, new ImportOcrStore());
         var unrecognized = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => none.ExecuteAsync(ImportRequest(), CancellationToken.None));
         Assert.Contains("No estimate format", unrecognized.Message, StringComparison.Ordinal);
 
-        Assert.Empty(save.Requests);
+        Assert.Empty(save.Saved);
     }
 
     [Fact]
     public async Task AnImportOfTheSameSourceHashReplaysTheEstimateItAlreadyCreated()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var already = Estimate(Details()) with
         {
             Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256),
@@ -774,57 +800,55 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(already),
-            save);
+            save, new ImportOcrStore());
 
         var id = await import.ExecuteAsync(ImportRequest(operationKey: "op-import-2"), CancellationToken.None);
 
-        Assert.Equal(already.SpecificationId, id);
-        Assert.Empty(save.Requests);
+        Assert.Equal(already.SpecificationId, id.EstimateId);
+        Assert.Empty(save.Saved);
     }
 
     [Fact]
     public async Task AnImportRefusesBytesThatDoNotMatchTheHashItRecorded()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
             Retained,
             new StubDocuments("different bytes"u8.ToArray(), "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, new ImportOcrStore());
 
         var rejected = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
 
-        Assert.Contains("does not match the hash", rejected.Message, StringComparison.Ordinal);
-        Assert.Empty(save.Requests);
+        Assert.Contains("recorded length and hash", rejected.Message, StringComparison.Ordinal);
+        Assert.Empty(save.Saved);
     }
 
     [Fact]
-    public async Task AnImportRefusesADocumentThatReadsAsAnotherProvidersFormat()
+    public async Task AnImportRecordsTheContentDetectedProviderWithoutACallerSelectedRoute()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.Json, ".pdf", "Other")],
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, new ImportOcrStore());
 
-        await Assert.ThrowsAsync<EstimateParseRejectedException>(() => import.ExecuteAsync(
-            ImportRequest(route: RepairSpecificationSourceRoute.AudatexPdf), CancellationToken.None));
-
-        Assert.Empty(save.Requests);
+        await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
+        Assert.Equal(RepairSpecificationSourceRoute.Json, Assert.Single(save.Saved).Source.Route);
     }
 
     [Fact]
     public async Task AnImportOpensTheRetainedVersionAtItsRecordedLength()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, documents, new StubList(), save);
+            Retained, documents, new StubList(), save, new ImportOcrStore());
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -839,24 +863,24 @@ public sealed class EstimateTests
     [Fact]
     public async Task AVersionTheCaseDoesNotHoldImportsNothing()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            new StubMetadata(retained: null), documents, new StubList(), save);
+            new StubMetadata(retained: null), documents, new StubList(), save, new ImportOcrStore());
 
         var rejected = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
 
-        Assert.Contains("does not hold the document version", rejected.Message, StringComparison.Ordinal);
+        Assert.Contains("does not hold the exact source", rejected.Message, StringComparison.Ordinal);
         Assert.Empty(documents.Requests);
-        Assert.Empty(save.Requests);
+        Assert.Empty(save.Saved);
     }
 
     [Fact]
     public async Task AReplayIsAuthorizedBeforeTheReplayIsConsulted()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var already = Estimate(Details()) with
         {
             Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256),
@@ -864,49 +888,101 @@ public sealed class EstimateTests
         var estimates = new StubList(already);
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), estimates, save);
+            Retained, new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), estimates, save, new ImportOcrStore());
 
-        // The same subject under another actor kind, a staff user who is not an
-        // Engineer, an invalid expected version and a missing lease are each
-        // refused exactly as a first import is, before the replay is read.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => import.ExecuteAsync(
-            ImportRequest(actor: ActionActor.Automation(Engineer.SubjectId)), CancellationToken.None));
+        // Non-Engineers, malformed mutation envelopes and stale persisted
+        // authority all fail before consulting a source-hash replay.
         await Assert.ThrowsAsync<InvalidOperationException>(() => import.ExecuteAsync(
             ImportRequest(actor: User), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => import.ExecuteAsync(
             ImportRequest(expectedVersion: -1), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => import.ExecuteAsync(
             ImportRequest(lease: ""), CancellationToken.None));
+        save.RefuseAuthority = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => import.ExecuteAsync(
+            ImportRequest(), CancellationToken.None));
         Assert.Equal(0, estimates.Calls);
 
-        // The legitimate identical replay still resolves to the estimate the
-        // first import created at whatever version the case has since reached:
-        // a replay writes nothing, and the version is proven on the write.
-        Assert.Equal(already.SpecificationId, await import.ExecuteAsync(
-            ImportRequest(operationKey: "op-import-2", expectedVersion: 9), CancellationToken.None));
+        save.RefuseAuthority = false;
+        var replay = await import.ExecuteAsync(
+            ImportRequest(operationKey: "op-import-2", expectedVersion: 9), CancellationToken.None);
+        Assert.Equal(already.SpecificationId, replay.EstimateId);
         Assert.Equal(1, estimates.Calls);
-        Assert.Empty(save.Requests);
+        Assert.Empty(save.Saved);
     }
 
     [Fact]
-    public async Task AnUndefinedRouteImportsNothing()
+    public async Task AnUndefinedDetectedRouteImportsNothing()
     {
-        var save = new RecordingSave();
+        var save = new FakeSpecificationStore();
         var estimates = new StubList();
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
-            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, documents, estimates, save);
+            [new StubParser((RepairSpecificationSourceRoute)99, ".pdf", "Audatex")],
+            Retained, documents, estimates, save, new ImportOcrStore());
 
         await Assert.ThrowsAsync<EstimateParseRejectedException>(() => import.ExecuteAsync(
-            ImportRequest(route: (RepairSpecificationSourceRoute)99), CancellationToken.None));
+            ImportRequest(), CancellationToken.None));
 
-        Assert.Equal(0, estimates.Calls);
-        Assert.Empty(documents.Requests);
-        Assert.Empty(save.Requests);
+        Assert.Equal(1, estimates.Calls);
+        Assert.Single(documents.Requests);
+        Assert.Empty(save.Saved);
     }
 
     private static EstimateDetails Details() => Header(rate: 40m) with { Name = "Estimate 1" };
+
+    [Theory]
+    [InlineData(IntakeOcrState.Pending)]
+    [InlineData(IntakeOcrState.Unknown)]
+    [InlineData(IntakeOcrState.Failed)]
+    public async Task QualifiedOcrReturnsTheSameDurableOperationWithoutSavingRows(IntakeOcrState state)
+    {
+        var store = new FakeSpecificationStore();
+        var ocr = new ImportOcrStore { State = state };
+        var import = new ImportRawEstimate([new OcrParser()], Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), new StubList(), store, ocr);
+
+        var first = await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
+        var replay = await import.ExecuteAsync(ImportRequest(operationKey: "op-import-replay"), CancellationToken.None);
+
+        Assert.Null(first.EstimateId);
+        Assert.Equal(state, first.OcrState);
+        Assert.Equal(first.OcrOperationId, replay.OcrOperationId);
+        Assert.Equal(2, ocr.Begins.Count);
+        Assert.Equal(ocr.Begins[0], ocr.Begins[1]);
+        Assert.Equal(4, store.AuthorityChecks.Count);
+        Assert.Empty(store.Saved);
+    }
+
+    [Fact]
+    public async Task CanonicalAutomationImportUsesRetainedCompletedEvidenceWithoutAnAiJob()
+    {
+        var store = new FakeSpecificationStore();
+        var ocr = new ImportOcrStore { State = IntakeOcrState.Completed };
+        var import = new ImportRawEstimate([new OcrParser()], Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), new StubList(), store, ocr);
+
+        var result = await import.ExecuteAsync(ImportRequest(actor: Client), CancellationToken.None);
+
+        Assert.NotNull(result.EstimateId);
+        var saved = Assert.Single(store.Saved);
+        Assert.Equal(Client, saved.Actor);
+        Assert.Null(saved.AiJobId);
+        Assert.Equal(RepairSpecificationSourceRoute.Glasses, saved.Source.Route);
+        Assert.Equal(ImportSha256, Assert.Single(saved.Lines).SourceDocumentSha256);
+    }
+
+    [Fact]
+    public async Task ACompletedOcrResultMissingAQualifiedPageImportsNothing()
+    {
+        var store = new FakeSpecificationStore();
+        var ocr = new ImportOcrStore { State = IntakeOcrState.Completed, OmitPage = true };
+        var import = new ImportRawEstimate([new OcrParser()], Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), new StubList(), store, ocr);
+
+        await Assert.ThrowsAsync<EstimateParseRejectedException>(() => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
+        Assert.Empty(store.Saved);
+    }
 
     private static EstimateDetails Header(
         decimal? rate = null,
@@ -959,13 +1035,12 @@ public sealed class EstimateTests
 
     private static ImportRawEstimateRequest ImportRequest(
         string operationKey = ImportOperationKey,
-        RepairSpecificationSourceRoute route = RepairSpecificationSourceRoute.AudatexPdf,
         string name = "",
         ActionActor? actor = null,
         long expectedVersion = 4,
         string? lease = null) => new(
         actor ?? Engineer, CaseId, expectedVersion, lease ?? Lease,
-        OccurrenceId, DocumentVersionId, ImportSha256, route, operationKey, name);
+        OccurrenceId, DocumentVersionId, ImportSha256, operationKey, name);
 
     private static StubParser JsonStub() =>
         new(RepairSpecificationSourceRoute.Json, ".json", "Repairer");
@@ -973,16 +1048,14 @@ public sealed class EstimateTests
     private sealed class StubParser(
         RepairSpecificationSourceRoute route, string extension, string providerName) : IEstimateDocumentParser
     {
-        public RepairSpecificationSourceRoute Route => route;
-
         public bool CanParse(string fileName, string mediaType) =>
             string.Equals(Path.GetExtension(fileName), extension, StringComparison.OrdinalIgnoreCase);
 
-        public ParsedEstimate Parse(ReadOnlyMemory<byte> content) => new(
+        public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null) => new(new(
             $"{providerName} v1",
             [LineInput("repair") with { WorkUnits = 1.5m, Materials = 4m }],
-            providerName,
-            new EstimateSourceTotals(Net: 60m));
+            providerName, route,
+            new EstimateSourceTotals(Net: 60m)), []);
     }
 
     private sealed class StubMetadata(CaseDocumentMetadata? retained) : IGetCaseDocumentMetadata
@@ -995,6 +1068,43 @@ public sealed class EstimateTests
                 && query.VersionId == retained.VersionId
                 ? retained
                 : null);
+    }
+
+    // Protocol evidence only: not a fabricated Glass PDF or a fifth-sample OCR oracle.
+    private sealed class OcrParser : IEstimateDocumentParser
+    {
+        public bool CanParse(string fileName, string mediaType) => mediaType == "application/pdf";
+
+        public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null) =>
+            ocrPages is null ? new(null, [1, 2])
+                : new(new("retained OCR protocol", [LineInput("repair")], "Glass's", RepairSpecificationSourceRoute.Glasses), []);
+    }
+
+    private sealed class ImportOcrStore : IIntakeOcrOperationStore
+    {
+        public IntakeOcrState State { get; init; } = IntakeOcrState.Pending;
+        public bool OmitPage { get; init; }
+        public List<Guid> Begins { get; } = [];
+
+        public Task<IntakeOcrOperation> BeginAsync(Guid operationId, IntakeOcrRequest request, CancellationToken cancellationToken)
+        {
+            Begins.Add(operationId);
+            var pages = request.QualifiedPages.Where(page => !OmitPage || page != 2)
+                .Select(page => new IntakeOcrPage(page, "Protocol output", [], [])).ToArray();
+            var result = new IntakeOcrResult(State, IntakeOcrProviderIdentity.Provider, IntakeOcrProviderIdentity.ModelId,
+                IntakeOcrProviderIdentity.ApiVersion, "recorded-operation", ImportSha256, pages);
+            return Task.FromResult(new IntakeOcrOperation(operationId, null, request.DocumentVersionId, null,
+                request.SourceSha256, request.SourceContentLength, request.QualifiedPages, request.OperationKey,
+                State, 1, "recorded-operation", ImportSha256, Result: result,
+                CaseId: request.CaseId, OccurrenceId: request.OccurrenceId));
+        }
+
+        public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(Guid operationId, long expectedVersion, DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordSubmittedAsync(Guid operationId, long expectedVersion, string providerOperationId, DateTimeOffset submittedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class StubDocuments(byte[] content, string fileName, string mediaType)
@@ -1023,18 +1133,6 @@ public sealed class EstimateTests
         {
             Calls++;
             return Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(estimates);
-        }
-    }
-
-    private sealed class RecordingSave : ISaveEstimate
-    {
-        public List<SaveEstimateRequest> Requests { get; } = [];
-
-        public Task<RepairSpecificationVersion> ExecuteAsync(
-            SaveEstimateRequest request, CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            return Task.FromResult(Estimate(request.Details) with { Source = request.Source });
         }
     }
 
@@ -1106,6 +1204,22 @@ public sealed class EstimateTests
 
     private sealed class FakeSpecificationStore : IRepairSpecificationStore
     {
+        public List<ImportRawEstimateRequest> AuthorityChecks { get; } = [];
+        public bool RefuseAuthority { get; set; }
+
+        public Task RequireImportAuthorityAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        {
+            AuthorityChecks.Add(request);
+            if (RefuseAuthority)
+            {
+                throw new InvalidOperationException("Current persisted authority is required.");
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(SaveEstimateRequest request, CancellationToken cancellationToken) =>
+            SaveEstimateAsync(EstimatePolicy.ValidateImportedSave(request), cancellationToken);
+
         public List<SaveEstimateRequest> Saved { get; } = [];
 
         public RepairSpecificationVersion Current { get; set; } = Estimate(Details(), Line("repair", workUnits: 1m));

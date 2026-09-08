@@ -58,7 +58,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Empty(detail.ResponseEvidence);
         var created = Assert.Single(detail.History);
         Assert.Equal("triage_created", created.EventType);
-        Assert.Contains(QdosMailClassificationPolicy.Key, created.Reason, StringComparison.Ordinal);
+        Assert.Contains(PrincipalMailClassificationPolicy.Key, created.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -531,7 +531,7 @@ public sealed partial class QdosTriageIntegrationTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"TRIAGE"}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {"TRIAGE31001"}, {"inspection"}, {"not_ready"}, {"pending"}, {receiptId}, {true}, {true}, {true}, {true}, {now}, {SeededCaseEntityVersion}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {"TRIAGE31001"}, {"inspection"}, {"not_ready"}, {"pending"}, {receiptId}, {true}, {true}, {now}, {SeededCaseEntityVersion}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.Review)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(

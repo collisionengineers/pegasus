@@ -415,6 +415,63 @@ public static class EstimatePolicy
     public const string CopySuffix = " copy";
 
     /// <summary>
+    /// The editor posts stable line identities, not a copy of hidden source
+    /// evidence. Resolve that evidence only after the operation replay check.
+    /// </summary>
+    public static SaveEstimateRequest ApplyEditorEvidence(
+        SaveEstimateRequest request, RepairSpecificationVersion? existing, DateTimeOffset savedAtUtc)
+    {
+        if (request.ExistingLineIds is not { } identities)
+        {
+            return request;
+        }
+        var previousLines = existing?.Lines.ToDictionary(line => line.Id)
+            ?? new Dictionary<Guid, CaseEstimateLineRecord>();
+        var lines = request.Lines.Select((line, index) =>
+        {
+            if (identities[index] is not { } lineId)
+            {
+                return line;
+            }
+            if (!previousLines.TryGetValue(lineId, out var previous))
+            {
+                throw new InvalidOperationException("An estimate line changed before this edit was saved.");
+            }
+            var carried = line with
+            {
+                GuideCode = previous.GuideCode,
+                Unpriced = previous.Unpriced && line.Price is null,
+                Betterment = previous.Betterment,
+                Status = previous.Status,
+                EvidenceLabel = previous.EvidenceLabel,
+                Justification = previous.Justification,
+                Materials = previous.Materials,
+                Origin = previous.Origin,
+                SourceDocumentIdentity = previous.SourceDocumentIdentity,
+                SourceDocumentVersionId = previous.SourceDocumentVersionId,
+                SourceDocumentSha256 = previous.SourceDocumentSha256,
+                SourceRowIdentity = previous.SourceRowIdentity,
+            };
+            var (amendedBy, amendedAtUtc) = StampAmendment(
+                carried, previous, request.Actor.SubjectId, savedAtUtc);
+            return carried with { AmendedBy = amendedBy, AmendedAtUtc = amendedAtUtc };
+        }).ToArray();
+        return request with
+        {
+            Lines = AssessmentPolicy.NormalizeRepairSpecificationLines(lines),
+            Details = RetainEditorRate(request.Details, existing?.Details),
+            Source = existing?.Source ?? request.Source,
+            AiJobId = existing?.AiJobId ?? request.AiJobId,
+        };
+    }
+
+    public static EstimateDetails RetainEditorRate(EstimateDetails submitted, EstimateDetails? existing) =>
+        submitted with
+        {
+            Rate = existing?.Rate is { } card && card.HourlyRate == submitted.LabourRate ? card : null,
+        };
+
+    /// <summary>
     /// Amendment attribution for one saved estimate line. An editor replaces
     /// the whole line collection on save, so a line that came back unchanged
     /// keeps the attribution it already carried, while a line whose editable
@@ -567,6 +624,17 @@ public static class EstimatePolicy
     {
         CaseLifecycleRules.ValidateMutation(request);
         ArgumentNullException.ThrowIfNull(request.Lines);
+        if (request.ExistingLineIds is { } identities)
+        {
+            RepairSpecificationPolicy.RequireEngineer(request.Actor);
+            var suppliedIds = identities.OfType<Guid>().ToArray();
+            if (identities.Count != request.Lines.Count || suppliedIds.Contains(Guid.Empty)
+                || suppliedIds.Distinct().Count() != suppliedIds.Length
+                || (request.EstimateId is null && suppliedIds.Length > 0))
+            {
+                throw new ArgumentException("The editor's line identities do not match this estimate.", nameof(request));
+            }
+        }
         if (request.EstimateId == Guid.Empty || request.AiJobId == Guid.Empty)
         {
             throw new ArgumentException("An identifier cannot be empty when supplied.", nameof(request));
@@ -591,6 +659,33 @@ public static class EstimatePolicy
             Details = ValidateDetails(request.Details),
             Lines = AssessmentPolicy.NormalizeRepairSpecificationLines(request.Lines),
             Source = source,
+        };
+    }
+
+    public static void RequireImportActor(ActionActor actor)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (actor.Kind != ActorKind.Automation)
+        {
+            RepairSpecificationPolicy.RequireEngineer(actor);
+        }
+    }
+
+    /// <summary>Document import is not an AI-draft save and conveys no acceptance authority.</summary>
+    public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
+    {
+        CaseLifecycleRules.ValidateMutation(request);
+        RequireImportActor(request.Actor);
+        if (request.EstimateId is not null || request.AiJobId is not null || request.ExistingLineIds is not null
+            || !RepairSpecificationPolicy.IsDocumentRoute(request.Source.Route))
+        {
+            throw new InvalidOperationException("A retained document import creates a new source-backed Draft only.");
+        }
+        return request with
+        {
+            Details = ValidateDetails(request.Details),
+            Lines = AssessmentPolicy.NormalizeRepairSpecificationLines(request.Lines),
+            Source = RepairSpecificationPolicy.ValidateSource(request.Source),
         };
     }
 
@@ -772,7 +867,8 @@ public sealed record SaveEstimateRequest(
     EstimateDetails Details,
     IReadOnlyList<EstimateLineInput> Lines,
     RepairSpecificationSource Source,
-    Guid? AiJobId = null)
+    Guid? AiJobId = null,
+    IReadOnlyList<Guid?>? ExistingLineIds = null)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record DuplicateEstimateRequest(

@@ -158,7 +158,7 @@ internal static partial class InstructionFieldEngine
         internal SourceStructure(IReadOnlyList<IntakeContentFragment> fragments)
         {
             ArgumentNullException.ThrowIfNull(fragments);
-            var byTable = new Dictionary<int, TableIndex>();
+            var byTable = new Dictionary<(string Document, int Table), TableIndex>();
             for (var rank = 0; rank < fragments.Count; rank++)
             {
                 var fragment = fragments[rank];
@@ -168,10 +168,11 @@ internal static partial class InstructionFieldEngine
                         this.formFields.Add((fragment, rank));
                         break;
                     case { Kind: IntakeLocatorKind.TableCell, Table: { } table, Row: { } row, Column: { } column }:
-                        if (!byTable.TryGetValue(table, out var index))
+                        var identity = (InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel), table);
+                        if (!byTable.TryGetValue(identity, out var index))
                         {
                             index = new();
-                            byTable.Add(table, index);
+                            byTable.Add(identity, index);
                             this.tables.Add(index);
                         }
 

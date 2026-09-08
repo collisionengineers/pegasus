@@ -774,6 +774,27 @@ store remains available to both hosts. Configuration, resource permission,
 deployment and live provider proof require their separately approved targets;
 local composition tests do not establish any of them.
 
+The production Bicep module declares one `FormRecognizer` S0 account with a
+custom subdomain, disabled local authentication and a resource-scoped
+`Cognitive Services User` assignment for the existing Worker identity only
+([ADR-0040](adr/0040-qualified-document-intelligence-ocr.md)). It supplies the
+Worker endpoint; Web receives neither the setting nor that role. The
+`DOCUMENT_INTELLIGENCE_ACCOUNT_ID` and `DOCUMENT_INTELLIGENCE_ENDPOINT`
+deployment outputs identify the exact account for release readback. Current
+target, pricing and activation evidence belong in
+[operations](operations.md#document-intelligence-activation).
+
+Use the existing authorized release and preview procedure. Read back the
+account's SKU, custom subdomain, `disableLocalAuth`, scoped assignment and
+Worker endpoint before the approved qualified-page canary. Retain the OCR
+operation/API/model identity and result hash; replay the same operation to
+prove retained-output recovery, not a new provider submission. Web denial
+needs an actual identity-scoped check, not just an absent setting. If OCR
+activation must be rolled back, remove the Worker endpoint through the
+approved configuration route while preserving the account and retained
+operation evidence. Keep local authentication disabled; never use keys as a
+fallback. Infrastructure readback alone does not prove accepted extraction.
+
 Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
 
 ## Testing model

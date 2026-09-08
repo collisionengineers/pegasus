@@ -348,6 +348,8 @@ internal sealed class EfCaseArtifactCustody(
                 "Confirmed artifact custody requires exact Box file and version identities.");
         }
         var capturedRoot = address.CaseRootRemoteId!;
+        await using var confirmation = await db.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable, cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -368,7 +370,24 @@ internal sealed class EfCaseArtifactCustody(
         version.BoxVersionId = write.BoxVersionId;
         version.CustodyStatus = DocumentCustodyStatus.Confirmed;
         version.PendingContentStorageKey = null;
+        await RecordConfirmedSourceChangeAsync(
+            db, caseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
+        await confirmation.CommitAsync(cancellationToken);
         return Confirmed(version, occurrence.Id);
+    }
+
+    internal static async Task RecordConfirmedSourceChangeAsync(
+        PegasusDbContext db, Guid caseId, string operationKey,
+        DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        if (await EfCaseReportGenerationStore.SourceDocumentChangedAsync(
+                db, caseId, operationKey, nowUtc, cancellationToken))
+        {
+            // Custody is not a staff edit: keep the Engineer's live authority
+            // for the import that retained these artifacts. Freeze rechecks
+            // the complete source census in its own transaction.
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private async Task<CaseArtifactCustodyResult> RetainHoldingAsync(
@@ -668,6 +687,8 @@ public sealed class ReconcilePendingArtifactCustody
                     throw new InvalidDataException("Recovered custody omitted the exact Box identity.");
                 }
                 await using var update = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                await using var confirmation = await update.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, cancellationToken);
                 var changed = await update.Set<DocumentVersionEntity>()
                     .Where(value => value.Id == candidate.Version.Id
                         && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -682,6 +703,10 @@ public sealed class ReconcilePendingArtifactCustody
                         cancellationToken);
                 if (changed == 1)
                 {
+                    await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
+                        update, candidate.Case.Id, candidate.Occurrence.OperationKey,
+                        timeProvider.GetUtcNow(), cancellationToken);
+                    await confirmation.CommitAsync(cancellationToken);
                     confirmed++;
                 }
                 else

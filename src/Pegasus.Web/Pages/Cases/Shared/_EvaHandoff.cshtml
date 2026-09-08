@@ -3,48 +3,14 @@
 @using Pegasus.Web.Presentation
 @{
     var editing = !string.IsNullOrWhiteSpace(Model.EditLeaseToken);
-    var inReview = Model.State == CaseLifecycleState.Review;
     var canSelectSignOff = editing && Model.State is CaseLifecycleState.Review
         or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
 }
 
-@if (editing && inReview && Model.EngineerOptions.Count > 0)
-{
-    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@Model.CaseId"
-          asp-page-handler="AssignEngineer" class="stack">
-        <input type="hidden" name="id" value="@Model.CaseId" />
-        <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion" />
-        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
-        <input type="hidden" name="instructionsComplete" value="@Model.InstructionsComplete" />
-        <input type="hidden" name="imagesComplete" value="@Model.ImagesComplete" />
-        <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
-        <div class="field">
-            <label class="req" for="eva-engineer">@OperatorLabels.CaseWorkspace.RibbonEngineer</label>
-            <select id="eva-engineer" name="engineerId" required data-dialog-initial-focus>
-                <option value=""></option>
-                @foreach (var engineer in Model.EngineerOptions)
-                {
-                    <option value="@engineer.Id">@engineer.Name</option>
-                }
-            </select>
-        </div>
-        <div class="field">
-            <label class="req" for="eva-engineer-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
-            <input id="eva-engineer-reason" name="reason" required maxlength="500" />
-        </div>
-        <div class="button-row">
-            <button type="submit" class="btn btn--dark">@OperatorLabels.CaseWorkspace.AssignEngineer</button>
-        </div>
-    </form>
-}
-else
-{
-    <dl class="definition">
-        <dt>@OperatorLabels.CaseWorkspace.RibbonEngineer</dt>
-        <dd>@Model.EngineerDisplayName</dd>
-    </dl>
-}
+<dl class="definition">
+    <dt>@OperatorLabels.CaseWorkspace.RibbonEngineer</dt>
+    <dd>@Model.EngineerDisplayName</dd>
+</dl>
 
 @if (canSelectSignOff && Model.SignOffEngineerOptions.Count > 0)
 {

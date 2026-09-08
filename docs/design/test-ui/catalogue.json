@@ -235,32 +235,6 @@
     "reason": "Redirects permanently to the consolidated Mail settings area."
   },
   {
-    "source": "src/Pegasus.Web/Pages/Administration/Organizations/Edit.cshtml",
-    "route": "/Administration/Organizations/Edit/{id:guid}",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-organization-edit--default.html",
-        "branch": "Loaded newly created Work Provider organization before its first principal.",
-        "scenario": "administration-organization-edit--default"
-      }
-    ]
-  },
-  {
-    "source": "src/Pegasus.Web/Pages/Administration/Organizations/Index.cshtml",
-    "route": "/Administration/Organizations",
-    "classification": "visual",
-    "states": [
-      {
-        "state": "default",
-        "file": "pages/administration-organizations--default.html",
-        "branch": "Seeded v1 organizations plus the create form.",
-        "scenario": "administration-organizations--default"
-      }
-    ]
-  },
-  {
     "source": "src/Pegasus.Web/Pages/Administration/Principals/Create.cshtml",
     "route": "/Administration/Principals/Create",
     "classification": "visual",
@@ -268,21 +242,21 @@
       {
         "state": "default",
         "file": "pages/administration-principal-create--default.html",
-        "branch": "Loaded organization and available work-provider create form.",
+        "branch": "Single customer name and principal-code creation.",
         "scenario": "administration-principal-create--default"
       }
     ]
   },
   {
-    "source": "src/Pegasus.Web/Pages/Administration/Principals/EvaSubmission.cshtml",
-    "route": "/Administration/Principals/EvaSubmission/{organizationId:guid}/{principalId:guid}",
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Settings.cshtml",
+    "route": "/Administration/Principals/Settings/{principalId:guid}",
     "classification": "visual",
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-principal-eva-submission--default.html",
-        "branch": "Loaded organization and principal with the EVA API submission settings form.",
-        "scenario": "administration-principal-eva-submission--default"
+        "file": "pages/administration-principal-settings--default.html",
+        "branch": "Customer settings with inspection default, manual EVA and provider access controls.",
+        "scenario": "administration-principal-settings--default"
       }
     ]
   },
@@ -294,14 +268,14 @@
       {
         "state": "default",
         "file": "pages/administration-principals--default.html",
-        "branch": "Seeded v1 principals grouped by organization.",
+        "branch": "Flat customer list with one Settings action per principal code.",
         "scenario": "administration-principals--default"
       }
     ]
   },
   {
     "source": "src/Pegasus.Web/Pages/Administration/Principals/Replace.cshtml",
-    "route": "/Administration/Principals/Replace/{organizationId:guid}/{principalId:guid}",
+    "route": "/Administration/Principals/Replace/{principalId:guid}",
     "classification": "visual",
     "states": [
       {
@@ -787,7 +761,7 @@
       {
         "state": "default",
         "file": "pages/administration-health--default.html",
-        "branch": "Authorized administration query view.",
+        "branch": "Authorized populated mailbox health with recorded graph_unavailable failure.",
         "scenario": "administration-health--default"
       }
     ]

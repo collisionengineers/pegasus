@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
@@ -21,15 +22,16 @@ public sealed record ImportRawEstimateRequest(
     Guid OccurrenceId,
     Guid DocumentVersionId,
     string Sha256,
-    RepairSpecificationSourceRoute Route,
     string OperationKey,
     string Name)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, ImportRawEstimate.ImportReason, EditLeaseToken);
 
 public interface IImportRawEstimate
 {
-    Task<Guid> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
+    Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
 }
+
+public sealed record EstimateImportResult(Guid? EstimateId, Guid? OcrOperationId, IntakeOcrState? OcrState);
 
 /// <summary>
 /// The totals a source document prints for itself. They are reconciliation
@@ -62,7 +64,11 @@ public sealed record ParsedEstimate(
     string SourceVersion,
     IReadOnlyList<EstimateLineInput> Lines,
     string ProviderName,
+    RepairSpecificationSourceRoute Route,
     EstimateSourceTotals? SourceTotals = null);
+
+/// <summary>A completed format read, or the exact pages positively qualified for OCR.</summary>
+public sealed record EstimateDocumentReadResult(ParsedEstimate? Estimate, IReadOnlyList<int> QualifiedOcrPages);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
@@ -75,13 +81,11 @@ public sealed class EstimateParseRejectedException(string reason) : Exception(re
 /// Port for one external estimate document format (ENG-002). The document
 /// reader (PDF text extraction) is an external boundary, so the format
 /// parsers live in Infrastructure behind this port — the same split as
-/// <c>IIntakeSourceReader</c>. Each implementation owns exactly one
-/// provenance route from <see cref="RepairSpecificationSourceRoute"/>.
+/// <c>IIntakeSourceReader</c>. The PDF container detects its provider from
+/// readable content; no caller-selected route supplies that identity.
 /// </summary>
 public interface IEstimateDocumentParser
 {
-    RepairSpecificationSourceRoute Route { get; }
-
     /// <summary>Whether this parser recognizes the file by name and media type.</summary>
     bool CanParse(string fileName, string mediaType);
 
@@ -90,7 +94,7 @@ public interface IEstimateDocumentParser
     /// <see cref="EstimateParseRejectedException"/> naming why nothing was
     /// imported. Never returns a partial line set.
     /// </summary>
-    ParsedEstimate Parse(ReadOnlyMemory<byte> content);
+    EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null);
 }
 
 /// <summary>
@@ -99,7 +103,7 @@ public interface IEstimateDocumentParser
 /// document first and then calls this with the retained version's identity,
 /// so the import never re-reads an external system.
 ///
-/// The mutation envelope, the Engineer authorization and the named route are
+/// The mutation envelope and current persisted actor authority are
 /// proven before anything is read, so a replay is never a way to read an
 /// estimate the same call could not have created. The bytes are opened at
 /// the document and length the case's own record states and at the exact
@@ -115,7 +119,8 @@ public sealed class ImportRawEstimate(
     IGetCaseDocumentMetadata metadata,
     IReadLogicalDocumentVersion documents,
     IListCaseEstimates estimates,
-    ISaveEstimate save) : IImportRawEstimate
+    IRepairSpecificationStore store,
+    IIntakeOcrOperationStore ocr) : IImportRawEstimate
 {
     /// <summary>The reason recorded against every imported Draft.</summary>
     public const string ImportReason = "Imported an estimate from its retained source document.";
@@ -123,26 +128,90 @@ public sealed class ImportRawEstimate(
     /// <summary>An estimate document beyond this size is refused unread.</summary>
     public const int MaximumDocumentBytes = 32 * 1024 * 1024;
 
-    public async Task<Guid> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+    public async Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
-        if (!Enum.IsDefined(request.Route))
-        {
-            throw new EstimateParseRejectedException(
-                "The import names no known estimate source, so nothing was imported.");
-        }
+        EstimatePolicy.RequireImportActor(request.Actor);
         var sha256 = NormalizedHash(request.Sha256);
+        await store.RequireImportAuthorityAsync(request, cancellationToken);
+        var retained = await metadata.ExecuteAsync(
+            new(request.CaseId, request.OccurrenceId, request.DocumentVersionId, request.Actor),
+            cancellationToken);
+        if (retained is null || retained.CaseId != request.CaseId
+            || retained.OccurrenceId != request.OccurrenceId || retained.VersionId != request.DocumentVersionId
+            || retained.DocumentId == Guid.Empty || retained.ContentLength is <= 0 or > MaximumDocumentBytes
+            || !string.Equals(retained.Sha256, sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new EstimateParseRejectedException("The Case does not hold the exact source the import names.");
+        }
         var existing = await estimates.ExecuteAsync(request.CaseId, cancellationToken);
         if (existing.FirstOrDefault(estimate =>
                 string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
         {
-            return replayed.SpecificationId;
+            return new(replayed.SpecificationId, null, null);
         }
 
-        var (parser, parsed) = await ParseAsync(request, sha256, cancellationToken);
-        var artifactIdentity = $"estimate-import:{request.OperationKey}";
-        var saved = await save.ExecuteAsync(
+        await using var document = await documents.OpenAsync(
+            new(request.Actor, retained.DocumentId, retained.VersionId, IntakeAssetId: null,
+                request.CaseId, IntakeReceiptId: null, sha256, retained.ContentLength), cancellationToken);
+        var content = await ReadAsync(document, cancellationToken);
+        if (content.Length != retained.ContentLength
+            || !string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), sha256, StringComparison.Ordinal))
+        {
+            throw new EstimateParseRejectedException("The retained document does not match its recorded length and hash.");
+        }
+        var matches = parsers.Where(candidate => candidate.CanParse(retained.FileName, retained.MediaType)).ToArray();
+        if (matches.Length != 1)
+        {
+            throw new EstimateParseRejectedException(matches.Length == 0
+                ? "No estimate format recognizes the document."
+                : "More than one estimate format recognizes the document.");
+        }
+        var parser = matches[0];
+        var read = parser.Parse(content);
+        if (read.Estimate is null)
+        {
+            if (read.QualifiedOcrPages.Count == 0)
+            {
+                throw new EstimateParseRejectedException("No estimate or qualified OCR pages were read.");
+            }
+            // Authority is checked again after the bounded read, immediately before
+            // the durable OCR action. Neither this check nor pending consumes it.
+            await store.RequireImportAuthorityAsync(request, cancellationToken);
+            var operation = await IntakeOcrOperations.BeginDocumentAsync(ocr, retained, read.QualifiedOcrPages, cancellationToken);
+            if (operation.CaseId != retained.CaseId || operation.OccurrenceId != retained.OccurrenceId
+                || operation.DocumentVersionId != retained.VersionId || operation.IntakeReceiptId is not null
+                || operation.IntakeAssetId is not null || operation.SourceContentLength != retained.ContentLength
+                || !string.Equals(operation.SourceSha256, sha256, StringComparison.OrdinalIgnoreCase)
+                || !operation.QualifiedPages.SequenceEqual(read.QualifiedOcrPages))
+            {
+                throw new EstimateParseRejectedException("The retained OCR operation does not identify this exact source.");
+            }
+            if (operation.State != IntakeOcrState.Completed)
+            {
+                return new(null, operation.Id, operation.State);
+            }
+            var result = operation.Result;
+            var ocrRequest = new IntakeOcrRequest(null, retained.VersionId, null, sha256,
+                retained.ContentLength, read.QualifiedOcrPages, operation.OperationKey, retained.CaseId, retained.OccurrenceId);
+            if (result is null || result.State != IntakeOcrState.Completed
+                || result.Provider != IntakeOcrProviderIdentity.Provider || result.ModelId != IntakeOcrProviderIdentity.ModelId
+                || !string.Equals(operation.ResponseSha256, result.ResponseSha256, StringComparison.Ordinal)
+                || IntakeOcrPolicy.Validate(ocrRequest, result) is not null)
+            {
+                throw new EstimateParseRejectedException("The completed OCR result has no valid source-backed evidence.");
+            }
+            read = parser.Parse(content, result.PageResults);
+        }
+        var parsed = read.Estimate
+            ?? throw new EstimateParseRejectedException("The retained OCR output does not complete this estimate.");
+        if (read.QualifiedOcrPages.Count != 0 || !RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
+        {
+            throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
+        }
+        var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
+        var saved = await store.SaveImportedEstimateAsync(
+            EstimatePolicy.ValidateImportedSave(
             new(request.CaseId,
                 request.ExpectedVersion,
                 request.Actor,
@@ -164,48 +233,9 @@ public sealed class ImportRawEstimate(
                     EstimatePolicy.DefaultVatPercent, Notes: null),
                 [.. parsed.Lines.Select((line, index) => WithProvenance(
                     line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
-                new(parser.Route, artifactIdentity, parsed.SourceVersion, sha256)),
+                new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))),
             cancellationToken);
-        return saved.SpecificationId;
-    }
-
-    private async Task<(IEstimateDocumentParser Parser, ParsedEstimate Parsed)> ParseAsync(
-        ImportRawEstimateRequest request, string sha256, CancellationToken cancellationToken)
-    {
-        var retained = await metadata.ExecuteAsync(
-            new(request.CaseId, request.OccurrenceId, request.DocumentVersionId, request.Actor),
-            cancellationToken)
-            ?? throw new EstimateParseRejectedException(
-                "The case does not hold the document version the import names, so nothing was imported.");
-        await using var document = await documents.OpenAsync(
-            new(request.Actor, retained.DocumentId, retained.VersionId, IntakeAssetId: null,
-                request.CaseId, IntakeReceiptId: null, sha256, retained.ContentLength),
-            cancellationToken);
-        var content = await ReadAsync(document, cancellationToken);
-        var actual = Convert.ToHexStringLower(SHA256.HashData(content.Span));
-        if (!string.Equals(actual, sha256, StringComparison.Ordinal))
-        {
-            throw new EstimateParseRejectedException(
-                "The retained document does not match the hash the import recorded, so nothing was imported.");
-        }
-
-        var matches = parsers
-            .Where(candidate => candidate.CanParse(document.FileName, document.MediaType))
-            .ToArray();
-        var parser = matches.Length switch
-        {
-            0 => throw new EstimateParseRejectedException(
-                "No estimate format recognized this document, so nothing was imported."),
-            1 => matches[0],
-            _ => throw new EstimateParseRejectedException(
-                "More than one estimate format recognized this document, so nothing was imported."),
-        };
-        if (RepairSpecificationPolicy.IsDocumentRoute(request.Route) && request.Route != parser.Route)
-        {
-            throw new EstimateParseRejectedException(
-                $"The document reads as {parser.Route} but the import names {request.Route}, so nothing was imported.");
-        }
-        return (parser, parser.Parse(content));
+        return new(saved.SpecificationId, null, null);
     }
 
     private static async Task<ReadOnlyMemory<byte>> ReadAsync(

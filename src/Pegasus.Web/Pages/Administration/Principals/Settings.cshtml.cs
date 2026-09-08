@@ -4,34 +4,43 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Pages.Administration.Principals;
 
 /// <summary>
-/// EXT-04/EXT-18 item 6-7: a principal's two in-place settings — the optional
-/// manual EVA API submission flag, and its one default inspection-location
-/// choice. Automatic EVA submission is retired from this administration
-/// surface (item 7): the page offers no control for it and never sends a
-/// value that could turn it on.
-///
-/// ADR-0018 gave the inspection mode no post-creation edit and left a
-/// production change as a runbook action. These settings get their own page
-/// because a delivery route or a default location that could only be chosen
-/// while creating a principal could never be switched for the principals that
-/// already exist — and every principal in production already exists.
-///
-/// Both are settings changes, not a replacement: the code, the organization,
-/// the lineage and the allocation history are untouched, and neither ever
-/// changes B's separate CE assessment method.
+/// One customer's settings, through the existing Core administration commands.
+/// Credential secrets stay only in the immediate no-store issue/reset response.
 /// </summary>
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class EvaSubmissionModel(
-    IGetOrganization getOrganization,
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+public sealed class SettingsModel(
+    IGetPrincipal getPrincipal,
+    IGetPrincipalCredential getCredential,
+    IIssuePrincipalCredential issueCredential,
+    IPausePrincipalCredential pauseCredential,
+    IResumePrincipalCredential resumeCredential,
+    IRevokePrincipalCredential revokeCredential,
     IUpdatePrincipalEvaSubmission updatePrincipalEvaSubmission,
     IUpdatePrincipalDefaultInspectionLocation updatePrincipalDefaultInspectionLocation)
     : AdministrationPageModel
 {
-    public OrganizationDetails? Organization { get; private set; }
+    public PrincipalAdministrationDetails? Customer { get; private set; }
+    public PrincipalCredentialRecord? Credential { get; private set; }
+    public string? IssuedSecret { get; private set; }
+    public IReadOnlyList<string> AcceptedIdentities => Principal?.Code is { } code
+        && PrincipalMailRoutePolicy.AcceptedIdentities.TryGetValue(code, out var identities)
+        ? identities
+        : [];
+
+    [BindProperty]
+    public long CredentialVersion { get; set; }
+
+    [BindProperty]
+    public string? CredentialOperationKey { get; set; } = NewOperationKey();
+
+    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)]
+    public string? CredentialReason { get; set; }
     public PrincipalAdministrationSummary? Principal { get; private set; }
 
     [BindProperty]
@@ -81,7 +90,6 @@ public sealed class EvaSubmissionModel(
     public string? LocationOperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(
-        Guid organizationId,
         Guid principalId,
         CancellationToken cancellationToken)
     {
@@ -89,7 +97,7 @@ public sealed class EvaSubmissionModel(
         {
             return Forbid();
         }
-        if (!await LoadAsync(actor, organizationId, principalId, cancellationToken))
+        if (!await LoadAsync(actor, principalId, cancellationToken))
         {
             return NotFound();
         }
@@ -99,7 +107,6 @@ public sealed class EvaSubmissionModel(
     }
 
     public async Task<IActionResult> OnPostUpdateEvaAsync(
-        Guid organizationId,
         Guid principalId,
         CancellationToken cancellationToken)
     {
@@ -107,7 +114,7 @@ public sealed class EvaSubmissionModel(
         {
             return Forbid();
         }
-        if (!await LoadAsync(actor, organizationId, principalId, cancellationToken))
+        if (!await LoadAsync(actor, principalId, cancellationToken))
         {
             return NotFound();
         }
@@ -152,13 +159,14 @@ public sealed class EvaSubmissionModel(
         }
 
         EvaOperationKey = NewOperationKey();
+        ModelState.Remove(nameof(EvaOperationKey));
+        ModelState.Remove(nameof(ExpectedVersion));
         InitializeLocationFromPrincipal();
         ExpectedVersion = Principal!.Version;
         return Page();
     }
 
     public async Task<IActionResult> OnPostUpdateLocationAsync(
-        Guid organizationId,
         Guid principalId,
         CancellationToken cancellationToken)
     {
@@ -166,7 +174,7 @@ public sealed class EvaSubmissionModel(
         {
             return Forbid();
         }
-        if (!await LoadAsync(actor, organizationId, principalId, cancellationToken))
+        if (!await LoadAsync(actor, principalId, cancellationToken))
         {
             return NotFound();
         }
@@ -223,8 +231,96 @@ public sealed class EvaSubmissionModel(
         }
 
         LocationOperationKey = NewOperationKey();
+        ModelState.Remove(nameof(LocationOperationKey));
+        ModelState.Remove(nameof(ExpectedVersion));
         EvaManualSubmission = Principal!.EvaManualSubmission;
         ExpectedVersion = Principal!.Version;
+        return Page();
+    }
+
+
+    public Task<IActionResult> OnPostIssueCredentialAsync(Guid principalId, CancellationToken cancellationToken) =>
+        ChangeCredentialAsync(principalId, "issue", cancellationToken);
+
+    public Task<IActionResult> OnPostPauseCredentialAsync(Guid principalId, CancellationToken cancellationToken) =>
+        ChangeCredentialAsync(principalId, "pause", cancellationToken);
+
+    public Task<IActionResult> OnPostResumeCredentialAsync(Guid principalId, CancellationToken cancellationToken) =>
+        ChangeCredentialAsync(principalId, "resume", cancellationToken);
+
+    public Task<IActionResult> OnPostRevokeCredentialAsync(Guid principalId, CancellationToken cancellationToken) =>
+        ChangeCredentialAsync(principalId, "revoke", cancellationToken);
+
+    private async Task<IActionResult> ChangeCredentialAsync(
+        Guid principalId, string action, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        var submittedVersion = CredentialVersion;
+        if (!await LoadAsync(actor, principalId, cancellationToken))
+        {
+            return NotFound();
+        }
+        if (!IsOperationKeyValid(CredentialOperationKey))
+        {
+            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        }
+        if (string.IsNullOrWhiteSpace(CredentialReason))
+        {
+            ModelState.AddModelError(nameof(CredentialReason), "A reason is required.");
+        }
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                var request = new PrincipalCredentialCommandRequest(
+                    principalId, submittedVersion, actor, CredentialOperationKey!, CredentialReason!);
+                if (action == "issue")
+                {
+                    var result = await issueCredential.ExecuteAsync(request, cancellationToken);
+                    Credential = result.Credential;
+                    IssuedSecret = result.Secret;
+                    CredentialVersion = Credential.Version;
+                    CredentialOperationKey = NewOperationKey();
+                    ModelState.Clear();
+                    InitializeFromPrincipal();
+                    return Page();
+                }
+                Credential = action switch
+                {
+                    "pause" => await pauseCredential.ExecuteAsync(request, cancellationToken),
+                    "resume" => await resumeCredential.ExecuteAsync(request, cancellationToken),
+                    "revoke" => await revokeCredential.ExecuteAsync(request, cancellationToken),
+                    _ => throw new InvalidOperationException("Unknown credential action.")
+                };
+                TempData["AdministrationStatus"] = "The provider credential was updated.";
+                return RedirectToPage(new { principalId });
+            }
+            catch (PrincipalCredentialException exception)
+            {
+                ModelState.AddModelError(string.Empty, exception.Error switch
+                {
+                    PrincipalCredentialError.StaleVersion => "The API key changed. Retry from the current settings.",
+                    PrincipalCredentialError.OperationConflict => "The form was already used for a different operation.",
+                    PrincipalCredentialError.PrincipalInactive => "The principal is disabled.",
+                    _ => "The API key change was not accepted."
+                });
+            }
+            catch (ArgumentException)
+            {
+                ModelState.AddModelError(string.Empty, "The API key change was not accepted.");
+            }
+            catch (StaffAuthorizationException)
+            {
+                return Forbid();
+            }
+        }
+        CredentialOperationKey = NewOperationKey();
+        ModelState.Remove(nameof(CredentialOperationKey));
+        ModelState.Remove(nameof(CredentialVersion));
+        InitializeFromPrincipal();
         return Page();
     }
 
@@ -245,16 +341,18 @@ public sealed class EvaSubmissionModel(
 
     private async Task<bool> LoadAsync(
         ActionActor actor,
-        Guid organizationId,
         Guid principalId,
         CancellationToken cancellationToken)
     {
-        Organization = await getOrganization.ExecuteAsync(
-            new(actor, organizationId, principalId),
-            cancellationToken);
-        Principal = Organization?.Principals.SingleOrDefault(
-            principal => principal.Id == principalId);
-        return Organization is not null && Principal is not null;
+        Customer = await getPrincipal.ExecuteAsync(actor, principalId, cancellationToken);
+        Principal = Customer?.Principal;
+        if (Principal is null)
+        {
+            return false;
+        }
+        Credential = await getCredential.ExecuteAsync(actor, principalId, cancellationToken);
+        CredentialVersion = Credential?.Version ?? 0;
+        return true;
     }
 
     private static string MutationErrorMessage(OrganizationAdministrationError error) => error switch

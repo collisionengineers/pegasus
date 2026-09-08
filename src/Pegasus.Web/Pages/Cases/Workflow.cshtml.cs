@@ -8,7 +8,7 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case workspace's workflow actions: hold and release, return to Review, Engineer
-/// assignment and findings, starting report preparation, and the linked replacement for a
+/// handoff and findings, and the linked replacement for a
 /// case created in error. Every action redirects back to the workspace.
 /// </summary>
 [Authorize(
@@ -96,7 +96,6 @@ public sealed class WorkflowModel(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string reason,
         string editLeaseToken,
         Guid engineerId,
         bool instructionsComplete,
@@ -113,7 +112,7 @@ public sealed class WorkflowModel(
                     expectedVersion,
                     actor,
                     operationKey,
-                    reason,
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.HandToEngineer,
                     editLeaseToken,
                     engineerId,
                     Readiness(
@@ -121,7 +120,7 @@ public sealed class WorkflowModel(
                         imagesComplete,
                         evidenceReference)),
                 cancellationToken),
-            "The Engineer was assigned.");
+            "The case was handed to the Engineer.");
 
     public Task<IActionResult> OnPostSetSignOffEngineerAsync(
         Guid id,
@@ -146,29 +145,6 @@ public sealed class WorkflowModel(
                     signOffEngineerId),
                 cancellationToken),
             "The Sign-off Engineer was set.");
-
-    public Task<IActionResult> OnPostStartWorkAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "start_work",
-            actor => transitionCase.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    CaseTransitionDestination.ReportPreparation),
-                cancellationToken),
-            "Report preparation was started.");
 
     public Task<IActionResult> OnPostRecordEngineerFindingAsync(
         Guid id,

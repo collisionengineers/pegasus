@@ -101,10 +101,12 @@ public sealed class ProductionCompositionTests
         var parsers = provider.GetServices<IEstimateDocumentParser>().ToArray();
 
         Assert.Equal(3, parsers.Length);
-        Assert.IsType<AudatexEstimatePdfParser>(provider.GetRequiredService<IEstimateDocumentParser>());
+        Assert.IsType<PdfEstimateDocumentParser>(provider.GetRequiredService<IEstimateDocumentParser>());
         Assert.Same(provider.GetRequiredService<JsonEstimateParser>(), Assert.Single(parsers.OfType<JsonEstimateParser>()));
         Assert.Single(parsers.OfType<GlassEstimateXmlParser>());
-        Assert.Single(parsers.OfType<AudatexEstimatePdfParser>());
+        Assert.Single(parsers.OfType<PdfEstimateDocumentParser>());
+        Assert.Single(parsers, parser => parser.CanParse("estimate.pdf", "application/pdf"));
+        Assert.IsType<ImportRawEstimate>(scope.ServiceProvider.GetRequiredService<IImportRawEstimate>());
         Assert.IsType<EfGlassRepairEstimateSessionStore>(
             scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>());
     }
@@ -241,10 +243,15 @@ public sealed class ProductionCompositionTests
         // effect of composition (INTK-033).
         using var provider = BuildProduction();
 
-        var classification = Assert.Single(provider.GetServices<IMailClassificationPolicy>());
-        Assert.IsType<QdosMailClassificationPolicy>(classification);
-        Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
-        Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
+        var classifiers = provider.GetServices<IMailClassificationPolicy>().ToArray();
+        Assert.Equal(provider.GetServices<IInstructionExtractionPolicy>().Select(policy => policy.PrincipalCode).Order(),
+            classifiers.Select(policy => policy.WorkProviderCode).Order());
+        var classification = Assert.Single(classifiers, policy => policy.WorkProviderCode == "QDOS");
+        Assert.IsType<PrincipalMailClassificationPolicy>(classification);
+        Assert.Equal(PrincipalMailClassificationPolicy.Key, classification.PolicyKey);
+        Assert.Equal(PrincipalMailClassificationPolicy.Version, classification.PolicyVersion);
+        Assert.Equal(classifiers.Select(policy => policy.WorkProviderCode).Order(),
+            provider.GetServices<IProviderCaseMatchPolicy>().Select(policy => policy.WorkProviderCode).Order());
     }
 
     [Fact]

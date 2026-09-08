@@ -1,13 +1,29 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Cases;
 
 public sealed class ImmediateExternalPublicationTests
 {
+    private sealed class RecordingTriagePairing : ITriageCasePairing
+    {
+        public List<Guid> CaseIds { get; } = [];
+        public Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            CaseIds.Add(caseId);
+            return Task.FromResult(new TriageCasePairingResult(0, 0, 0));
+        }
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     [Fact]
     public async Task AcceptancePublishesTheCustodyWorkCreatedByItsCommittedTransaction()
     {
@@ -17,11 +33,34 @@ public sealed class ImmediateExternalPublicationTests
             new AcceptanceStore(workItemId),
             new ConfigurationStore(),
             new InspectionModeStore(),
-            publisher);
+            publisher,
+            new RecordingTriagePairing());
 
         var result = await acceptance.ExecuteAsync(AcceptanceRequest(), CancellationToken.None);
 
         Assert.False(result.IsDuplicate);
+        Assert.Equal([workItemId], publisher.WorkItemIds);
+    }
+
+    [Fact]
+    public async Task DuplicateAcceptanceRetriesPairingWithoutRepublishingAcceptanceCustody()
+    {
+        var workItemId = Guid.NewGuid();
+        var publisher = new RecordingPublisher();
+        var pairing = new RecordingPairing();
+        var triagePairing = new RecordingTriagePairing();
+        var acceptance = new AcceptIntake(new AcceptanceStore(workItemId),
+            new ConfigurationStore(), new InspectionModeStore(), publisher, triagePairing, pairing);
+        var request = AcceptanceRequest();
+
+        var first = await acceptance.ExecuteAsync(request, CancellationToken.None);
+        var replay = await acceptance.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.False(first.IsDuplicate);
+        Assert.True(replay.IsDuplicate);
+        Assert.Equal(first.Identity, replay.Identity);
+        Assert.Equal([first.Identity.CaseId, first.Identity.CaseId], pairing.CaseIds);
+        Assert.Equal([first.Identity.CaseId, first.Identity.CaseId], triagePairing.CaseIds);
         Assert.Equal([workItemId], publisher.WorkItemIds);
     }
 
@@ -56,7 +95,7 @@ public sealed class ImmediateExternalPublicationTests
             "Accept confirmed instruction.",
             CaseType.Inspection,
             "QDOS",
-            new(true, true, true, true));
+            new(true, true));
 
     private static ActionActor Staff() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -74,10 +113,35 @@ public sealed class ImmediateExternalPublicationTests
 
     private sealed class AcceptanceStore(Guid workItemId) : ICaseAcceptanceStore
     {
+        private readonly CaseAcceptanceOutcome outcome = Outcome(workItemId);
+        private bool accepted;
+
         public Task<CaseAcceptanceOutcome> AcceptAsync(
             CaseAcceptanceRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Outcome(workItemId));
+            CancellationToken cancellationToken)
+        {
+            var result = outcome with { IsDuplicate = accepted };
+            accepted = true;
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class RecordingPairing : IImageIntakeCasePairing
+    {
+        public List<Guid> CaseIds { get; } = [];
+
+        public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            CaseIds.Add(caseId);
+            return Task.FromResult(CaseIds.Count == 1
+                ? new ImageIntakePairingResult(1, 0, 1, nameof(IntakeAssociationConflictException))
+                : new ImageIntakePairingResult(1, 1, 0));
+        }
+
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class ReplacementStore(Guid workItemId) : ILinkedCaseReplacementStore

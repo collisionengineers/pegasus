@@ -187,8 +187,27 @@ public sealed class EfRepairSpecificationStore(
         return Map(entity);
     }
 
-    public async Task<RepairSpecificationVersion> SaveEstimateAsync(
+    public async Task RequireImportAuthorityAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EstimatePolicy.RequireImportActor(request.Actor);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
+        CaseMutationGuard.Require(workflow, request.Actor, request.ExpectedVersion, request.EditLeaseToken, Now());
+        RequireAssessmentEditable(workflow);
+    }
+
+    public Task<RepairSpecificationVersion> SaveEstimateAsync(
+        SaveEstimateRequest request, CancellationToken cancellationToken) =>
+        PersistEstimateAsync(request, importedDocument: false, cancellationToken);
+
+    public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
+        SaveEstimateRequest request, CancellationToken cancellationToken) =>
+        PersistEstimateAsync(EstimatePolicy.ValidateImportedSave(request), importedDocument: true, cancellationToken);
+
+    private async Task<RepairSpecificationVersion> PersistEstimateAsync(
         SaveEstimateRequest request,
+        bool importedDocument,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -196,13 +215,27 @@ public sealed class EfRepairSpecificationStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
+        var now = Now();
+        if (importedDocument)
+        {
+            CaseMutationGuard.Require(workflow, request.Actor, request.ExpectedVersion, request.EditLeaseToken, now);
+            RequireAssessmentEditable(workflow);
+            // The workflow lock and source census share this transaction: two
+            // concurrent completions cannot create two Drafts for one Case/hash.
+            var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
+                .FirstOrDefaultAsync(item => item.CaseId == request.CaseId
+                    && item.SourceSha256 == request.Source.Sha256, cancellationToken);
+            if (existingImport is not null)
+            {
+                return Map(existingImport);
+            }
+        }
         var requestHash = Hash(request);
         if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
         {
             return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
-        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
-        var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
 
         CaseRepairSpecificationEntity entity;
@@ -213,6 +246,7 @@ public sealed class EfRepairSpecificationStore(
             entity = await RequiredEstimateAsync(context, request.CaseId, estimateId, cancellationToken);
             editingCurrent = entity.IsCurrent;
             EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
+            request = EstimatePolicy.ApplyEditorEvidence(request, Map(entity), now);
             context.CaseEstimateLines.RemoveRange(entity.Lines);
             entity.Lines.Clear();
             eventType = "estimate_updated";
@@ -244,6 +278,16 @@ public sealed class EfRepairSpecificationStore(
         entity.LastOperationKey = request.OperationKey;
         ApplyDetails(entity, request.Details);
         AddLines(context, entity, request.Lines, request.Actor, now);
+        if (importedDocument)
+        {
+            // Retaining/reading a source is not confirmation of its technical
+            // lines, even when an Engineer initiated the import.
+            foreach (var line in entity.Lines)
+            {
+                line.ConfirmedBy = null;
+                line.ConfirmedAtUtc = null;
+            }
+        }
         RecordBreakdown(entity);
         if (editingCurrent)
         {
@@ -707,11 +751,24 @@ public sealed class EfRepairSpecificationStore(
     }
 
     private static async Task<RepairSpecificationVersion> ReplayedAsync(
-        PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-        Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleAsync(item => item.CaseId == caseId
-                && (item.CreationOperationKey == operationKey || item.LastOperationKey == operationKey),
-                cancellationToken));
+        PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken)
+    {
+        // LastOperationKey moves on every edit. The append-only operation
+        // history keeps the result identity even after K2 has been followed
+        // by K3; a replay reads that aggregate now, never reapplies K2.
+        var eventType = await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
+            .Select(item => item.EventType).SingleAsync(cancellationToken);
+        var after = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case" && item.AggregateId == caseId.ToString("D")
+                && item.CorrelationId == operationKey && item.EventKind == eventType)
+            .Select(item => item.AfterJson).SingleAsync(cancellationToken);
+        using var result = JsonDocument.Parse(after
+            ?? throw new InvalidOperationException("The estimate operation has no recorded result identity."));
+        var estimateId = result.RootElement.GetProperty("id").GetGuid();
+        return Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
+            .SingleAsync(item => item.CaseId == caseId && item.Id == estimateId, cancellationToken));
+    }
 
     private static async Task<CaseRepairSpecificationEntity> RequiredEstimateAsync(
         PegasusDbContext context, Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>
@@ -733,6 +790,14 @@ public sealed class EfRepairSpecificationStore(
         ArchivedCaseGuard.RequireMutable(workflow);
         workflow.Version++;
         CaseMutationGuard.ClearLease(workflow);
+    }
+
+    private static void RequireAssessmentEditable(CaseWorkflowEntity workflow)
+    {
+        if (AssessmentAccessPolicy.IsReadOnly(new(Enum.Parse<CaseLifecycleState>(workflow.State))))
+        {
+            throw new InvalidOperationException("The assessment is read-only in the current case state.");
+        }
     }
 
     private static string RequiredReason(string value) =>

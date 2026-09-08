@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Intake;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
@@ -179,7 +179,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     private static readonly DateTimeOffset ProcessedAtUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly EstablishedPrincipalContext QdosContext =
-        new("QDOS", QdosMailRoutePolicy.Key, QdosMailRoutePolicy.Version);
+        new("QDOS", PrincipalMailRoutePolicy.Key, PrincipalMailRoutePolicy.Version);
 
     [Fact]
     public void EstablishedQdosPrincipalExtractsFieldsWithoutContentMarker()

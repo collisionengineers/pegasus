@@ -153,6 +153,7 @@ public sealed class CaseWorkflowPersistenceTests
                     Guid.NewGuid(),
                     new(true, true, "case-completeness-projection")),
                 null,
+                CaseLifecycleState.ReportPreparation,
                 default));
 
         var workflow = Assert.IsType<CaseWorkflowRecord>(
@@ -820,7 +821,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task EnabledEngineerAssignmentPersistsAndExactReplaySurvivesLaterDisablement()
+    public async Task NativeHandoffIsAtomicGuardedAndReplaySurvivesLaterDisablement()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var engineerId = Guid.NewGuid();
@@ -851,6 +852,15 @@ public sealed class CaseWorkflowPersistenceTests
             harness.EngineerEligibility,
             new EfStaffAccountQueries(staffContext));
 
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+            sut.ExecuteAsync(request with { ExpectedVersion = before.Version + 1 }, default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            sut.ExecuteAsync(request with { EditLeaseToken = new string('x', lease.Token.Length) }, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            sut.ExecuteAsync(request with { Actor = ActionActor.SystemWorker("handoff-refused") }, default));
+        Assert.Equal(before, await harness.Store.GetAsync(harness.CaseId, default));
+        Assert.Equal(0L, await harness.WorkflowEventCountAsync(request.OperationKey));
+
         var assigned = await sut.ExecuteAsync(request, default);
         await harness.SetStaffEnabledAsync(engineerId, false);
         var disabled = await harness.EngineerEligibility.GetAsync(engineerId, default);
@@ -859,9 +869,43 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.False(disabled.IsEnabled);
         Assert.Equal(engineerId, assigned.AssignedEngineerId);
         Assert.Equal(engineerId, assigned.SignOffEngineerId);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, assigned.State);
         Assert.Equal(before.Version + 1, assigned.Version);
         Assert.Equal(assigned, replay);
         Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
+        Assert.Equal(1L, await harness.WorkflowEventTypeCountAsync(
+            harness.CaseId, "state_ReportPreparation"));
+        var nativeAccess = await new EfAssessmentAccessSource(harness.Factory).GetAsync(harness.CaseId);
+        Assert.NotNull(nativeAccess);
+        Assert.True(nativeAccess.CanOpen);
+        Assert.False(nativeAccess.IsReadOnly);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.False(await context.EvaFirstHandoffProxies.AnyAsync(
+            item => item.CaseId == harness.CaseId));
+        Assert.Null((await harness.QueryStore.GetAsync(new(harness.CaseId, actor), default))?.ActiveEditLease);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            sut.ExecuteAsync(request with { Reason = "Changed replay input" }, default));
+
+        // The handoff writes the existing state event used by Sent chronology,
+        // not a new assignment-only event or invented external delivery.
+        var handoffAt = harness.TimeProvider.GetUtcNow();
+        var earlier = await RetainReportEvidenceAsync(
+            harness, "before-native-handoff", handoffAt.AddMinutes(-2), handoffAt.AddMinutes(-1));
+        var sentLease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, assigned.Version, actor, "claim-native-sent"), default);
+        var link = new LinkReportEvidence(harness.Store);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => link.ExecuteAsync(
+            new(harness.CaseId, assigned.Version, actor, "native-before-sent",
+                "Older Sent item", sentLease.Token, earlier.EvidenceId), default));
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(3));
+        var later = await RetainReportEvidenceAsync(
+            harness, "after-native-handoff", handoffAt.AddMinutes(1), handoffAt.AddMinutes(2));
+        var linked = await link.ExecuteAsync(
+            new(harness.CaseId, assigned.Version, actor, "native-after-sent",
+                "Retained Sent item after handoff", sentLease.Token, later.EvidenceId), default);
+        Assert.Equal(CaseLifecycleState.PostReport, linked.State);
+        Assert.Equal(later.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
     }
 
     [Fact]
@@ -2628,7 +2672,7 @@ public sealed class CaseWorkflowPersistenceTests
             string reference,
             int sequence) =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {sequenceLineageId}, {2026}, {sequence}, {reference}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {sequenceLineageId}, {2026}, {sequence}, {reference}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
 
         private static async Task InsertCaseDataSnapshotAsync(
             PegasusDbContext context,

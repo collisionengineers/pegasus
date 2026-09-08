@@ -762,7 +762,7 @@ public sealed class ProviderApiSubmissionTests
             var indexed = await context.Set<CaseMatchIndexEntity>().AsNoTracking().SingleAsync();
             var duplicateId = Guid.NewGuid();
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.InstructionConfirmedByStaff}, {template.ImagesConfirmedByStaff}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
+                $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
 
             // CaseWorkflows.State is the CaseLifecycleState enum name; the
             // candidate query joins this row and parses it. It is deliberately
@@ -958,11 +958,8 @@ public sealed class ProviderApiSubmissionTests
     {
         await using var scope = api.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var organization = await services.GetRequiredService<ICreateOrganization>().ExecuteAsync(
-            new("Other Provider", [OrganizationRole.WorkProvider], Administrator, "provider-api:org:other"),
-            default);
         var principal = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new(organization.Id, "OTHER", Administrator, "provider-api:principal:other"),
+            new("Other Provider", "OTHER", Administrator, "provider-api:principal:other"),
             default);
         var issued = await services.GetRequiredService<IIssuePrincipalCredential>().ExecuteAsync(
             new(principal.Id, 0, Administrator, "provider-api:issue:other", "provider api test"),

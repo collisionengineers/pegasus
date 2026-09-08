@@ -145,6 +145,7 @@ public static class DependencyInjection
         services.AddScoped<IListTriagePage, ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
+        services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
         services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
@@ -168,9 +169,15 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
         services.AddScoped<ReplaySentEmailEvidence>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
-        services.AddSingleton<IMailRoutePolicy, QdosMailRoutePolicy>();
-        services.AddSingleton<IMailClassificationPolicy, QdosMailClassificationPolicy>();
-        services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
+        services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
+        services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
+            provider.GetServices<IInstructionExtractionPolicy>()
+                .Select(policy => (IMailClassificationPolicy)new PrincipalMailClassificationPolicy(policy.PrincipalCode))
+                .ToArray());
+        services.AddSingleton<IEnumerable<IProviderCaseMatchPolicy>>(provider =>
+            provider.GetServices<IInstructionExtractionPolicy>()
+                .Select(policy => (IProviderCaseMatchPolicy)new PrincipalCaseMatchPolicy(policy))
+                .ToArray());
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
         services.AddSingleton<QdosInstructionExtractionPolicy>();
@@ -291,13 +298,11 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfProviderSubmissionStore>());
         services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
         services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
-        services.AddScoped<ICreateOrganization, CreateOrganization>();
-        services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
+        services.AddScoped<IListPrincipals, ListPrincipals>();
+        services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalEvaSubmission, UpdatePrincipalEvaSubmission>();
-        services.AddScoped<IListOrganizations, ListOrganizations>();
-        services.AddScoped<IGetOrganization, GetOrganization>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
@@ -425,15 +430,13 @@ public static class DependencyInjection
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
-        // The JSON estimate document (ENG-026) sits beside the Audatex PDF;
-        // the import dialog selects the parser by the chosen source route.
+        // Every retained-source caller uses this same format set. One PDF
+        // container detects Glass's or Audatex from the document itself.
         services.AddSingleton<JsonEstimateParser>();
         services.AddSingleton<IEstimateDocumentParser>(provider =>
             provider.GetRequiredService<JsonEstimateParser>());
         services.AddSingleton<IEstimateDocumentParser, GlassEstimateXmlParser>();
-        // Details still requests the PDF parser singly and JSON by its concrete
-        // type; canonical import consumes all parsers through the collection.
-        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
+        services.AddSingleton<IEstimateDocumentParser, PdfEstimateDocumentParser>();
         services.AddScoped<EfGlassRepairEstimateSessionStore>();
         services.AddScoped<IGlassRepairEstimateSessionStore>(provider =>
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
@@ -599,10 +602,7 @@ public static class DependencyInjection
             services.AddScoped<IIntakeSourceReader>(provider =>
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
-            services.AddScoped(provider =>
-                ActivatorUtilities.CreateInstance<ProcessIntake>(
-                    provider,
-                    provider.GetRequiredService<QdosInstructionExtractionPolicy>()));
+            services.AddScoped<ProcessIntake>();
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.

@@ -1,14 +1,18 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests.Reports;
@@ -23,6 +27,256 @@ namespace Pegasus.IntegrationTests.Reports;
 [Trait("Category", "SqlServer")]
 public sealed class CaseReportGenerationPersistenceTests
 {
+    [Fact]
+    public async Task SourceReaderRejectsMutationDuringWorkspaceReadInsteadOfLabellingOldFieldsAsCurrent()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+            harness.ReadSourceAsync(new MutatingWorkspaceSource(harness)));
+    }
+
+    [Fact]
+    public async Task SourceReaderExcludesRetainedReportOutputButKeepsGeneratedInputDocuments()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var result = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+        var artifact = Assert.Single(result.Generation!.Artifacts);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var input = await context.Set<DocumentOccurrenceEntity>().SingleAsync(
+                item => item.Id == harness.Source.OccurrenceId);
+            input.Source = DocumentSource.Generated;
+            context.Add(new DocumentOccurrenceEntity
+            {
+                Id = Guid.NewGuid(), CaseId = harness.CaseId,
+                DocumentId = artifact.DocumentId!.Value, VersionId = artifact.VersionId!.Value,
+                Ordinal = 4, SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated, SourceOccurrenceIdentity = "retained-report",
+                RecordedAtUtc = Harness.StartUtc, OperationKey = artifact.OperationKey,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var inputs = await harness.ReadSourceAsync();
+
+        Assert.Contains(inputs!.Projection.Sources, source => source.DocumentId == harness.Source.DocumentId);
+        Assert.DoesNotContain(inputs.Projection.Sources, source => source.DocumentId == artifact.DocumentId);
+        Assert.Equal(1, inputs.CaseVersion);
+    }
+
+    [Fact]
+    public async Task FreezeRejectsSignatoryChangedAfterItsInputsWereRead()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ChangeSignatoryAsync("name");
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), default));
+
+        Assert.Contains("sign-off Engineer changed", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(await harness.GenerationRowsAsync());
+    }
+
+    [Fact]
+    public async Task FreezeRejectsOlderInputsEvenWhenTheCallerHoldsTheCurrentCaseVersion()
+    {
+        await using var harness = await Harness.CreateAsync();
+        // The source is deliberately held at version 1 while a genuine source
+        // mutation advances the Case and the caller reloads/reacquires at 2.
+        await harness.AddSourceAsync();
+        var lease = await new AcquireCaseEditLease(
+                new EfCaseWorkflowStore(harness.Factory, Harness.Clock))
+            .ExecuteAsync(new(harness.CaseId, 2, harness.StaffActor, "lease-report-2"), default);
+
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 2, lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), default));
+
+        Assert.Empty(await harness.GenerationRowsAsync());
+        Assert.Empty(await harness.ArtifactRowsAsync());
+    }
+
+    [Fact]
+    public async Task DefaultReportDateUsesLondonAtBstMidnight()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var result = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+
+        Assert.Equal(new DateOnly(2026, 9, 7), result.Generation!.Snapshot.ReportDate);
+        Assert.Equal(new DateOnly(2026, 9, 7), result.Generation.Snapshot.Report.ReportDate);
+    }
+
+    [Theory]
+    [InlineData("add")]
+    [InlineData("remove")]
+    [InlineData("occurrence")]
+    [InlineData("version")]
+    [InlineData("hash")]
+    [InlineData("name")]
+    [InlineData("media")]
+    [InlineData("length")]
+    [InlineData("box-file")]
+    [InlineData("box-version")]
+    [InlineData("current")]
+    [InlineData("custody")]
+    public async Task FreezeRefusesChangedConfirmedSourceCensusBeforeWriting(string change)
+    {
+        await using var harness = await Harness.CreateAsync();
+        // The fixture captured the complete source census at construction.
+        // Change persisted evidence independently, without a staff Case edit.
+        await harness.ChangeConfirmedSourceAsync(change);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var workflow = await context.CaseWorkflows.SingleAsync();
+        CaseMutationGuard.Require(workflow, harness.StaffActor, 1, harness.Lease.Token, Harness.StartUtc);
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), default));
+
+        Assert.Contains("source evidence changed", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(await harness.GenerationRowsAsync());
+        Assert.Empty(await harness.ArtifactRowsAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SourceAdditionOrRemovalInvalidatesTheReportAndRefusesPreparedDelivery(bool remove)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+        var generation = generated.Generation!;
+        var delivery = await harness.PrepareDeliveryAsync(generation);
+
+        if (remove)
+        {
+            await harness.RemoveSourceAsync();
+        }
+        else
+        {
+            await harness.AddSourceAsync();
+        }
+
+        var stale = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Stale, stale.State);
+        Assert.Equal(CaseReportStaleReasons.SourceDocumentsChanged, await harness.StaleReasonAsync());
+        Assert.Equal(generation.SnapshotHash, stale.SnapshotHash);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.PrepareDeliveryAsync(generation));
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => harness.RequireDeliveryReadyAsync(delivery));
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("qualifications")]
+    [InlineData("signature")]
+    [InlineData("eligibility")]
+    [InlineData("disabled")]
+    [InlineData("role")]
+    [InlineData("unchanged")]
+    public async Task EffectiveSignatoryEditsInvalidateOnlyChangedFrozenIdentity(string change)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+        var generation = generated.Generation!;
+        var delivery = await harness.PrepareDeliveryAsync(generation);
+
+        await harness.ChangeSignatoryAsync(change);
+
+        var current = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(generation.SnapshotHash, current.SnapshotHash);
+        Assert.Equal("Ed Mawdsley", current.Snapshot.Report.Signatory.PrintedName);
+        if (change == "unchanged")
+        {
+            Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
+            await harness.RequireDeliveryReadyAsync(delivery);
+        }
+        else
+        {
+            Assert.Equal(CaseReportGenerationState.Stale, current.State);
+            Assert.Equal(CaseReportStaleReasons.SignatoryChanged, await harness.StaleReasonAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => harness.PrepareDeliveryAsync(generation));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => harness.RequireDeliveryReadyAsync(delivery));
+        }
+    }
+
+    [Theory]
+    [InlineData("pegasus_web_runtime_role")]
+    [InlineData("pegasus_worker_runtime_role")]
+    public async Task RuntimeCustodyCallerInvalidatesSourceButNotItsOwnReportOutput(string role)
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync("CREATE USER [report_custody_caller] WITHOUT LOGIN;");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"EXEC sys.sp_addrolemember @rolename = {role}, @membername = N'report_custody_caller';");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_custody_caller';");
+        try
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
+                context, harness.CaseId, Harness.OperationKey, Harness.StartUtc, default);
+            Assert.Equal(1, (await context.CaseWorkflows.SingleAsync()).Version);
+            Assert.Equal(nameof(CaseReportGenerationState.Confirmed),
+                (await context.Set<CaseReportGenerationEntity>().SingleAsync()).State);
+
+            await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
+                context, harness.CaseId, "glass-estimate-source", Harness.StartUtc, default);
+            await transaction.CommitAsync();
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+
+        Assert.Equal(CaseReportGenerationState.Stale, Assert.Single(await harness.GenerationRowsAsync()).State);
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync();
+        Assert.Equal(1, workflow.Version);
+        CaseMutationGuard.Require(workflow, harness.StaffActor, 1, harness.Lease.Token, Harness.StartUtc);
+        Assert.Equal(harness.Lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
+        Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_generation_stale"));
+    }
+
+    [Fact]
+    public async Task WebRuntimeRoleCanFreezeAndConfirmThroughTheActualReportStore()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using var connectionOwner = await harness.Factory.CreateDbContextAsync();
+        await connectionOwner.Database.OpenConnectionAsync();
+        await connectionOwner.Database.ExecuteSqlRawAsync(
+            "CREATE USER [report_generation_caller] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [report_generation_caller];");
+        await connectionOwner.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_generation_caller';");
+        try
+        {
+            // EF does not own this already-open connection. Both store
+            // transactions run under the same real runtime impersonation.
+            var factory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(connectionOwner.Database.GetDbConnection()).Options);
+            var result = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness),
+                    store: harness.StoreUsing(factory))
+                .ExecuteAsync(harness.Request(), default);
+
+            Assert.Equal(CaseReportGenerationState.Confirmed, result.Generation!.State);
+            Assert.Equal(CaseReportArtifactStatus.Confirmed, Assert.Single(result.Generation.Artifacts).Status);
+        }
+        finally
+        {
+            await connectionOwner.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+    }
+
     [Fact]
     public async Task FreezeCommitsBeforeRenderingAndConfirmationIsASecondTransaction()
     {
@@ -61,7 +315,11 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(harness.CloseUp.VersionId, image.VersionId);
         Assert.Equal($"box-file-{harness.CloseUp.VersionId:N}", image.BoxFileId);
         Assert.Equal($"box-version-{harness.CloseUp.VersionId:N}", image.BoxVersionId);
-        var source = Assert.Single(generation.Snapshot.Sources);
+        Assert.Equal(3, generation.Snapshot.Sources.Count);
+        Assert.Contains(generation.Snapshot.Sources, item => item.DocumentId == harness.CloseUp.DocumentId);
+        Assert.Contains(generation.Snapshot.Sources, item => item.DocumentId == harness.Overview.DocumentId);
+        var source = Assert.Single(generation.Snapshot.Sources,
+            item => item.DocumentId == harness.Source.DocumentId);
         Assert.Equal(harness.Source.DocumentId, source.DocumentId);
         Assert.Equal($"box-file-{harness.Source.VersionId:N}", source.BoxFileId);
         Assert.Equal($"box-version-{harness.Source.VersionId:N}", source.BoxVersionId);
@@ -434,13 +692,16 @@ public sealed class CaseReportGenerationPersistenceTests
     private sealed class Harness : IAsyncDisposable
     {
         internal const string OperationKey = "case-report-1";
-        internal static readonly DateTimeOffset StartUtc = new(2026, 9, 6, 10, 0, 0, TimeSpan.Zero);
+        internal static readonly DateTimeOffset StartUtc = new(2026, 9, 6, 23, 30, 0, TimeSpan.Zero);
+        internal static TimeProvider Clock => new FixedTimeProvider(StartUtc);
 
         private readonly LocalDbTestDatabase database;
+        private readonly string contentRoot;
         private readonly FakeSnapshotSource snapshotSource;
 
         private Harness(
             LocalDbTestDatabase database,
+            string contentRoot,
             PooledDbContextFactory<PegasusDbContext> factory,
             Guid caseId,
             ActionActor staffActor,
@@ -451,6 +712,7 @@ public sealed class CaseReportGenerationPersistenceTests
             SeededDocument source)
         {
             this.database = database;
+            this.contentRoot = contentRoot;
             this.snapshotSource = snapshotSource;
             Factory = factory;
             CaseId = caseId;
@@ -491,7 +753,10 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public static async Task<Harness> CreateAsync()
         {
-            var database = await LocalDbTestDatabase.CreateAsync();
+            var contentRoot = Path.Combine(Path.GetTempPath(), "Pegasus.ReportTests", Guid.NewGuid().ToString("N"));
+            var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => contentRoot,
+                configureServices: IdentityPersistenceTestServices.Configure);
             try
             {
                 var options = new DbContextOptionsBuilder<PegasusDbContext>()
@@ -500,6 +765,7 @@ public sealed class CaseReportGenerationPersistenceTests
                 var factory = new PooledDbContextFactory<PegasusDbContext>(options);
                 var staffActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
                 var caseId = await SeedCaseAsync(factory);
+                await SeedSignatoryAsync(factory);
                 var closeUp = await SeedDocumentAsync(factory, caseId, "close-up.png", "image/png", 1);
                 var overview = await SeedDocumentAsync(factory, caseId, "overview.png", "image/png", 2);
                 var source = await SeedDocumentAsync(
@@ -507,9 +773,12 @@ public sealed class CaseReportGenerationPersistenceTests
                 var lease = await new AcquireCaseEditLease(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
                     .ExecuteAsync(new(caseId, 1, staffActor, "lease-report"), CancellationToken.None);
-                var snapshotSource = new FakeSnapshotSource(caseId, closeUp, overview, source);
+                await using var sourceContext = await factory.CreateDbContextAsync();
+                var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
+                    sourceContext, caseId, default);
+                var snapshotSource = new FakeSnapshotSource(caseId, closeUp, overview, confirmed);
                 var harness = new Harness(
-                    database, factory, caseId, staffActor, lease, snapshotSource,
+                    database, contentRoot, factory, caseId, staffActor, lease, snapshotSource,
                     closeUp, overview, source);
                 foreach (var document in new[] { closeUp, overview, source })
                 {
@@ -521,6 +790,10 @@ public sealed class CaseReportGenerationPersistenceTests
             catch
             {
                 await database.DisposeAsync();
+                if (Directory.Exists(contentRoot))
+                {
+                    Directory.Delete(contentRoot, recursive: true);
+                }
                 throw;
             }
         }
@@ -528,19 +801,150 @@ public sealed class CaseReportGenerationPersistenceTests
         public GenerateCaseReport Generate(
             RecordingCustody custody,
             IAssessmentReportRenderer renderer,
-            RecordingCustodyStatus? custodyStatus = null) => new(
-                new RecordingStore(Store, Sequence),
+            RecordingCustodyStatus? custodyStatus = null,
+            EfCaseReportGenerationStore? store = null) => new(
+                new RecordingStore(store ?? Store, Sequence),
                 new FakeContentSource(this),
                 renderer,
                 custody,
                 custodyStatus ?? new RecordingCustodyStatus(),
                 new FixedTimeProvider(StartUtc));
 
+        public EfCaseReportGenerationStore StoreUsing(IDbContextFactory<PegasusDbContext> factory) =>
+            new(factory, snapshotSource, new FakeDocumentReader(this), Clock);
+
         public GenerateCaseReportRequest Request(
             CaseReportArtifactKind kind = CaseReportArtifactKind.AssessmentReport,
             string operationKey = OperationKey) => new(
                 StaffActor, CaseId, 1, Lease.Token, operationKey, kind,
                 "Generate the immutable case report");
+
+        public async Task<CaseReportFreezeInputs?> ReadSourceAsync(IGetAssessmentWorkspace? workspace = null)
+        {
+            await using var scope = database.CreateAsyncScope();
+            var services = scope.ServiceProvider;
+            ICaseReportSnapshotSource source = new EfAssessmentReportProjectionSource(Factory,
+                workspace ?? new FakeGetAssessmentWorkspace(AssessmentWorkspaceTestData.Create(
+                    AssessmentReportDraftWebTests.FullAssessmentProjection(CaseId) with { CaseVersion = 1 })),
+                services.GetRequiredService<IDocumentContentStore>(),
+                services.GetRequiredService<IStaffAccountQueries>(),
+                services.GetRequiredService<ICaseAssetPreparationQueries>(),
+                services.GetRequiredService<IListAppliedValuations>());
+            return await source.GetAsync(CaseId, StaffActor, default);
+        }
+
+        public async Task AddSourceAsync()
+        {
+            await using var scope = database.CreateAsyncScope();
+            var store = new EfDocumentCustodyStore(Factory,
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
+            await store.ExecuteAsync(new(CaseId, "instruction.pdf", "application/pdf", Source.Content,
+                DocumentSemanticRole.Instruction, DocumentSource.Generated, "source-change",
+                StaffActor, "add-source", 1, Lease.Token), default);
+        }
+
+        public async Task RemoveSourceAsync()
+        {
+            await using var scope = database.CreateAsyncScope();
+            ILogicallyRemoveDocument store = new EfDocumentCustodyStore(Factory,
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
+            await store.ExecuteAsync(new(CaseId, Source.OccurrenceId, StaffActor,
+                "Incorrect source document", "remove-source", 1, Lease.Token), default);
+        }
+
+        public async Task ChangeConfirmedSourceAsync(string change)
+        {
+            if (change == "add")
+            {
+                await SeedDocumentAsync(Factory, CaseId, "instruction.pdf", "application/pdf", 3);
+                return;
+            }
+            await using var context = await Factory.CreateDbContextAsync();
+            if (change == "occurrence")
+            {
+                // No source facts change: an equal-sized census with a new
+                // occurrence must still differ from the captured membership.
+                await context.Set<DocumentOccurrenceEntity>()
+                    .Where(item => item.Id == Source.OccurrenceId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Id, Guid.NewGuid()));
+                return;
+            }
+            var version = await context.Set<DocumentVersionEntity>()
+                .SingleAsync(item => item.Id == Source.VersionId);
+            switch (change)
+            {
+                case "remove": version.IsLogicallyRemoved = true; break;
+                case "version": version.Version++; break;
+                case "hash": version.Sha256 = CloseUp.Sha256; break;
+                case "name": version.FileName = "close-up.png"; break;
+                case "media": version.MediaType = "image/png"; break;
+                case "length": version.ContentLength++; break;
+                case "box-file": version.BoxFileId = $"box-file-{CloseUp.VersionId:N}"; break;
+                case "box-version": version.BoxVersionId = $"box-version-{CloseUp.VersionId:N}"; break;
+                case "current": version.IsCurrent = false; break;
+                case "custody": version.CustodyStatus = DocumentCustodyStatus.Pending; break;
+                default: throw new ArgumentOutOfRangeException(nameof(change));
+            }
+            await context.SaveChangesAsync();
+        }
+
+        public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(CaseReportGenerationRecord generation) =>
+            new EfCaseReportDeliveryPreparationStore(Factory, Clock).PrepareAsync(
+                new(new(StaffActor, CaseId, 1, Lease.Token, generation.Id, generation.Version, "prepare-report"),
+                    new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report")), default);
+
+        public Task RequireDeliveryReadyAsync(CaseReportDeliveryPreparationRecord record) =>
+            new ReportSendReadiness(new EfCaseReportDeliveryPreparationStore(Factory, Clock)).RequireReadyAsync(
+                new(StaffActor, CaseId, record.FrozenCaseVersion, record.Preparation.GenerationId,
+                    record.Preparation.GenerationVersion, record.Preparation.Id, record.Preparation.Version,
+                    record.Preparation.Artifacts), default);
+
+        public async Task ChangeSignatoryAsync(string change)
+        {
+            await using var scope = database.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var store = new EfStaffAccountAdministration(context,
+                scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(), Clock);
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+            if (change == "disabled")
+            {
+                await store.DisableAsync(new(actor, FakeSnapshotSource.SignatoryId, "Unavailable", "change-signatory"), default);
+            }
+            else if (change == "role")
+            {
+                await store.AssignAsync(new(actor, FakeSnapshotSource.SignatoryId, [StaffRole.User],
+                    "Duties changed", "change-signatory"), default);
+            }
+            else
+            {
+                await store.UpdateAsync(new(actor, FakeSnapshotSource.SignatoryId,
+                    change != "eligibility", change == "name" ? "Ed M" : "Ed Mawdsley",
+                    change == "qualifications" ? "ATA VDA" : "ATA VDA AQP",
+                    change == "signature" ? EvidenceBytesOf(7) : SignatureBytes,
+                    change != "eligibility", "Updated signatory", "change-signatory"), default);
+            }
+        }
+
+        private static async Task SeedSignatoryAsync(PooledDbContextFactory<PegasusDbContext> factory)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            var engineerRole = await context.Roles.SingleAsync(role => role.NormalizedName == "ENGINEER");
+            context.Users.Add(new PegasusIdentityUser
+            {
+                Id = FakeSnapshotSource.SignatoryId,
+                UserName = "ed-mawdsley", NormalizedUserName = "ED-MAWDSLEY",
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString(),
+                IsEnabled = true, IsSignOffEngineer = true, IsDefaultSignOffEngineer = true,
+                SignOffPrintedName = "Ed Mawdsley", SignOffQualifications = "ATA VDA AQP",
+                SignOffSignature = SignatureBytes,
+                SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(SignatureBytes)),
+            });
+            context.UserRoles.Add(new IdentityUserRole<Guid>
+            {
+                UserId = FakeSnapshotSource.SignatoryId, RoleId = engineerRole.Id,
+            });
+            await context.SaveChangesAsync();
+        }
 
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
@@ -663,7 +1067,23 @@ public sealed class CaseReportGenerationPersistenceTests
                     && item.EventKind == eventKind);
         }
 
-        public async ValueTask DisposeAsync() => await database.DisposeAsync();
+        public async Task<string?> StaleReasonAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            return await context.ActionHistory
+                .Where(item => item.AggregateId == CaseId.ToString("D")
+                    && item.EventKind == EfCaseReportGenerationStore.StaleEventKind)
+                .Select(item => item.Reason).SingleAsync();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await database.DisposeAsync();
+            if (Directory.Exists(contentRoot))
+            {
+                Directory.Delete(contentRoot, recursive: true);
+            }
+        }
 
         internal static byte[] EvidenceBytesOf(byte seed) => [137, 80, 78, 71, seed, 1, 2, 3];
 
@@ -817,6 +1237,18 @@ public sealed class CaseReportGenerationPersistenceTests
         }
     }
 
+    private sealed class MutatingWorkspaceSource(Harness harness) : IGetAssessmentWorkspace
+    {
+        public async Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query, CancellationToken cancellationToken = default)
+        {
+            var workspace = AssessmentWorkspaceTestData.Create(
+                AssessmentReportDraftWebTests.FullAssessmentProjection(harness.CaseId) with { CaseVersion = 1 });
+            await harness.AddSourceAsync();
+            return workspace;
+        }
+    }
+
     /// <summary>
     /// The one read model a freeze loads, built from the same accepted
     /// fixtures the routed report tests use so readiness is genuinely met.
@@ -826,13 +1258,14 @@ public sealed class CaseReportGenerationPersistenceTests
         internal static readonly byte[] SignatureBytes = [137, 80, 78, 71, 9, 9, 9, 9];
 
         private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
-        private static readonly Guid SignatoryId = Guid.NewGuid();
+        internal static readonly Guid SignatoryId = Guid.NewGuid();
 
         private readonly Guid caseId;
         private readonly CaseAssessmentProjection assessment;
         private readonly AssessmentReportProjectionInput projection;
         private readonly Harness.SeededDocument closeUp;
         private readonly Harness.SeededDocument overview;
+        private readonly IReadOnlyDictionary<Guid, DocumentVersion> confirmedSources;
         private readonly RepairSpecificationVersion estimate =
             AssessmentReportDraftWebTests.CurrentEstimate();
         private readonly Guid valuationId = Guid.NewGuid();
@@ -843,11 +1276,12 @@ public sealed class CaseReportGenerationPersistenceTests
             Guid caseId,
             Harness.SeededDocument closeUp,
             Harness.SeededDocument overview,
-            Harness.SeededDocument source)
+            IReadOnlyList<EfAssessmentReportProjectionSource.ConfirmedDocumentRow> confirmed)
         {
             this.caseId = caseId;
             this.closeUp = closeUp;
             this.overview = overview;
+            confirmedSources = EfAssessmentReportProjectionSource.ConfirmedImageSources(confirmed);
             assessment = AssessmentReportDraftWebTests.FullAssessmentProjection(caseId);
             projection = AssessmentReportDraftWebTests.ReadyInput(caseId) with
             {
@@ -860,12 +1294,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     Photo(closeUp, CaseAssetReportRole.CloseUp),
                     Photo(overview, CaseAssetReportRole.Overview),
                 ],
-                Sources =
-                [
-                    new AcceptedReportSource(
-                        "instruction.pdf", "1", source.Sha256, source.DocumentId, source.VersionId,
-                        $"box-file-{source.VersionId:N}", $"box-version-{source.VersionId:N}"),
-                ],
+                Sources = EfAssessmentReportProjectionSource.ReportSources(confirmed),
             };
         }
 
@@ -887,11 +1316,7 @@ public sealed class CaseReportGenerationPersistenceTests
             estimate,
             Valuation(),
             [Preparation(closeUp, CaseAssetReportRole.CloseUp), Preparation(overview, CaseAssetReportRole.Overview)],
-            new Dictionary<Guid, DocumentVersion>
-            {
-                [closeUp.OccurrenceId] = Version(closeUp),
-                [overview.OccurrenceId] = Version(overview),
-            });
+            confirmedSources);
 
         private AppliedValuation Valuation() => new(
             valuationId, caseId, 1, guideValuationId, RecordedAtUtc,
@@ -913,10 +1338,6 @@ public sealed class CaseReportGenerationPersistenceTests
                 document.Sha256, "image/png", role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 1, "engineer-1", RecordedAtUtc);
 
-        private static DocumentVersion Version(Harness.SeededDocument document) => new(
-            document.VersionId, document.DocumentId, 1, "photo.png", "image/png",
-            document.Content.LongLength, document.Sha256,
-            DocumentCustodyStatus.Confirmed, RecordedAtUtc, "engineer-1", true, false, null);
     }
 
     /// <summary>

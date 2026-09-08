@@ -761,8 +761,8 @@ public sealed partial class CaseDetailsWebTests
     public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        // The EVA control is a Review act (FRD-07): the workspace offers the
-        // handoff only in Review, so the store stands there.
+        // Capture Review with an eligible native handoff and optional EVA
+        // delivery. No external action is required to assign the Engineer.
         var store = new RecordingCaseDetailsStore
         {
             ExposeCustody = true,
@@ -775,6 +775,8 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<IStaffAccountQueries>(services,
+                    new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -999,7 +1001,7 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task LifecyclePostsBindHoldReleaseAndReportPreparationToAuthenticatedLease()
+    public async Task LifecyclePostsBindHoldReleaseAndNativeHandoffToAuthenticatedLease()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -1011,11 +1013,13 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IHoldCase>();
                 services.RemoveAll<IReleaseCase>();
                 services.RemoveAll<ITransitionCase>();
+                services.RemoveAll<IAssignCaseEngineer>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IHoldCase>(store);
                 services.AddSingleton<IReleaseCase>(store);
                 services.AddSingleton<ITransitionCase>(store);
+                services.AddSingleton<IAssignCaseEngineer>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1046,30 +1050,41 @@ public sealed partial class CaseDetailsWebTests
         using var releaseResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Workflow?handler=ReleaseHold",
             LifecycleForm(antiforgeryToken, store, "release-case", "Provider replied"));
-        using var startResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}/Workflow?handler=StartWork",
-            LifecycleForm(antiforgeryToken, store, "start-report-preparation", "Engineer work started"));
+        var engineerId = Guid.NewGuid();
+        using var handoffResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Workflow?handler=AssignEngineer",
+            Form(antiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "native-handoff"),
+                ("editLeaseToken", store.LeaseToken),
+                ("engineerId", engineerId.ToString("D")),
+                ("instructionsComplete", "true"),
+                ("imagesComplete", "true"),
+                ("evidenceReference", "case-completeness-projection")));
 
         AssertPrg(holdResponse, store.CaseId);
         AssertPrg(releaseResponse, store.CaseId);
-        AssertPrg(startResponse, store.CaseId);
+        AssertPrg(handoffResponse, store.CaseId);
         var actorSubjectId = Assert.Single(store.Claims).Actor.SubjectId;
         var hold = Assert.Single(store.Holds);
         var release = Assert.Single(store.Releases);
-        var transition = Assert.Single(store.Transitions);
+        var handoff = Assert.Single(store.EngineerAssignments);
         Assert.Equal(actorSubjectId, hold.Actor.SubjectId);
         Assert.Equal(actorSubjectId, release.Actor.SubjectId);
-        Assert.Equal(actorSubjectId, transition.Actor.SubjectId);
+        Assert.Equal(actorSubjectId, handoff.Actor.SubjectId);
         Assert.Equal(store.CaseVersion, hold.ExpectedVersion);
         Assert.Equal(store.CaseVersion, release.ExpectedVersion);
-        Assert.Equal(store.CaseVersion, transition.ExpectedVersion);
+        Assert.Equal(store.CaseVersion, handoff.ExpectedVersion);
         Assert.Equal(store.LeaseToken, hold.EditLeaseToken);
         Assert.Equal(store.LeaseToken, release.EditLeaseToken);
-        Assert.Equal(store.LeaseToken, transition.EditLeaseToken);
+        Assert.Equal(store.LeaseToken, handoff.EditLeaseToken);
         Assert.Equal("hold-case", hold.OperationKey);
         Assert.Equal("release-case", release.OperationKey);
-        Assert.Equal("start-report-preparation", transition.OperationKey);
-        Assert.Equal(CaseTransitionDestination.ReportPreparation, transition.Destination);
+        Assert.Equal("native-handoff", handoff.OperationKey);
+        Assert.Equal("Hand to Engineer", handoff.Reason);
+        Assert.Equal(engineerId, handoff.EngineerId);
+        Assert.Empty(store.Transitions);
     }
 
     [Fact]
@@ -1369,9 +1384,7 @@ public sealed partial class CaseDetailsWebTests
                 ("reason", "Images turned out to be incomplete"),
                 ("instructionComplete", "true"),
                 ("instructionComplete", "false"),
-                ("imagesComplete", "false"),
-                ("instructionConfirmedByStaff", "false"),
-                ("imagesConfirmedByStaff", "false")));
+                ("imagesComplete", "false")));
         AssertPrg(response, store.CaseId);
 
         // The command really did receive false, so the panel must not claim otherwise.
@@ -2019,11 +2032,11 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
-    private sealed class StubStaffAccounts(Guid staffId, string userName)
+    private sealed class StubStaffAccounts(Guid staffId, string userName, StaffRole role = StaffRole.User)
         : IStaffAccountQueries, IStaffHeldCaseEditLeaseQueries
     {
         private readonly StaffAccountSummary account =
-            new(staffId, userName, true, false, [StaffRole.User]);
+            new(staffId, userName, true, false, [role]);
 
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
@@ -2273,9 +2286,7 @@ public sealed partial class CaseDetailsWebTests
                 new(
                     new(
                         InstructionComplete: true,
-                        ImagesComplete: true,
-                        InstructionConfirmedByStaff: false,
-                        ImagesConfirmedByStaff: false),
+                        ImagesComplete: true),
                     new(false, "case-completeness", 1)),
                 new(Confirmed("QDOS")),
                 new(Confirmed("Case claimant"), Empty<string>(), Empty<string>()),

@@ -3,9 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -96,6 +98,25 @@ public sealed class EfCaseReportGenerationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
+        CaseMutationGuard.RequireVersion(workflow, inputs.CaseVersion);
+
+        // Automatic custody does not consume a staff edit lease or advance its
+        // Case version. Recheck all source membership/metadata under this same
+        // serializable transaction so a newly confirmed or removed source
+        // cannot slip between the outside projection and the frozen snapshot.
+        var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
+            context, request.CaseId, cancellationToken);
+        var currentSources = EfAssessmentReportProjectionSource.ReportSources(confirmed);
+        var currentImages = EfAssessmentReportProjectionSource.ConfirmedImageSources(confirmed);
+        if (!currentSources.SequenceEqual(inputs.Projection.Sources)
+            || currentImages.Count != inputs.Readiness.ConfirmedImageSources.Count
+            || currentImages.Any(pair =>
+                !inputs.Readiness.ConfirmedImageSources.TryGetValue(pair.Key, out var captured)
+                || pair.Value != captured))
+        {
+            throw new InvalidOperationException(
+                "The source evidence changed while report inputs were being read; generate again.");
+        }
 
         var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
         if (!readiness.IsReady)
@@ -106,7 +127,7 @@ public sealed class EfCaseReportGenerationStore(
         var (reportDate, overridden) = CaseReportReadiness.ResolveReportDate(
             readiness.RecordedReportDate,
             readiness.ReportDateOverridden,
-            DateOnly.FromDateTime(now.UtcDateTime));
+            LondonCalendar.DateAt(now));
         var projected = AssessmentReportProjection.Project(
             inputs.Projection with { ReportDate = reportDate });
         if (projected.Snapshot is null)
@@ -115,6 +136,14 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = BuildSnapshot(request, inputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
+        var profiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken).ConfigureAwait(false);
+        if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
+                workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles)))
+        {
+            throw new InvalidOperationException(
+                "The sign-off Engineer changed while report inputs were being read; generate again.");
+        }
         var snapshotHash = HashOf(MaterialOf(snapshot));
 
         // Reuse only the Case's current, un-staled generation: a stale or
@@ -490,6 +519,60 @@ public sealed class EfCaseReportGenerationStore(
 
         return current.Length;
     }
+
+    /// <summary>
+    /// Report outputs are not their own source evidence. The retained operation
+    /// identity, not DocumentSource.Generated (also used by uploads), proves it.
+    /// The caller commits source membership and invalidation together.
+    /// </summary>
+    internal static async Task<bool> SourceDocumentChangedAsync(
+        PegasusDbContext context, Guid caseId, string operationKey,
+        DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        if (await context.Set<GeneratedCaseArtifactEntity>()
+                .AnyAsync(item => item.OperationKey == operationKey, cancellationToken))
+        {
+            return false;
+        }
+
+        await MarkStaleAsync(context, caseId, CaseReportStaleReasons.SourceDocumentsChanged,
+            nowUtc, cancellationToken);
+        return true;
+    }
+
+    internal static async Task MarkChangedSignatoriesStaleAsync(
+        PegasusDbContext context, DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        var profiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken);
+        var current = await (
+            from generation in context.Set<CaseReportGenerationEntity>()
+            join workflow in context.CaseWorkflows on generation.CaseId equals workflow.CaseId
+            where generation.SupersededById == null
+                && generation.State != nameof(CaseReportGenerationState.Stale)
+            select new { Generation = generation, workflow.SignOffEngineerId, workflow.AssignedEngineerId })
+            .ToArrayAsync(cancellationToken);
+        foreach (var row in current)
+        {
+            var signatory = CaseSignOffEngineerResolver.Resolve(
+                row.SignOffEngineerId, row.AssignedEngineerId, profiles);
+            if (!SignatoryMatches(DeserializeSnapshot(row.Generation), signatory))
+            {
+                await MarkStaleAsync(context, row.Generation.CaseId,
+                    CaseReportStaleReasons.SignatoryChanged, nowUtc, cancellationToken);
+            }
+        }
+    }
+
+    private static bool SignatoryMatches(
+        CaseReportGenerationSnapshot snapshot, SignOffEngineerProfile? profile) =>
+        profile is not null
+        && snapshot.SignatoryStaffId == profile.StaffId
+        && string.Equals(snapshot.Report.Signatory.PrintedName, profile.PrintedName, StringComparison.Ordinal)
+        && string.Equals(snapshot.Report.Signatory.Qualifications, profile.Qualifications, StringComparison.Ordinal)
+        && string.Equals(snapshot.SignatureContentType, profile.SignatureContentType, StringComparison.Ordinal)
+        && string.Equals(snapshot.SignatureSha256,
+            Convert.ToHexStringLower(SHA256.HashData(profile.Signature)), StringComparison.Ordinal);
 
     async Task<CaseReportGeneration?> ICaseReportGenerationQueries.GetAsync(
         ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken)

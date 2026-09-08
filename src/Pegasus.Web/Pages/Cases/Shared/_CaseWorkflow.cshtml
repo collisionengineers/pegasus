@@ -136,8 +136,6 @@
                             @* Each checkbox carries a trailing hidden false so an unchecked box still submits its value. *@
                             <label class="choice"><input type="checkbox" name="instructionComplete" value="true" checked="@data.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionComplete" value="false" />
                             <label class="choice"><input type="checkbox" name="imagesComplete" value="true" checked="@data.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" />
-                            <input type="hidden" name="instructionConfirmedByStaff" value="@data.Completeness.Values.InstructionConfirmedByStaff" />
-                            <input type="hidden" name="imagesConfirmedByStaff" value="@data.Completeness.Values.ImagesConfirmedByStaff" />
                             <div class="field"><label class="req" for="completeness-reason">Reason</label><input id="completeness-reason" name="reason" required maxlength="500" /></div>
                         </div>
                         <div class="button-row">
@@ -219,13 +217,11 @@
         </section>
     }
 
-    @* Undrawn in the prototype, but the only surface for three real Core
-       paths: the Review → With Engineer transition, its return, and the
+    @* The remaining Core lifecycle actions: return to Review and the
        correction of a wrongly linked report-Sent item. Archiving ends a
        terminal case's editability. Offered only in edit context, and only
        when one of them applies. *@
     @{
-        var offersStartWork = mayEdit && state == CaseLifecycleState.Review;
         var offersReturnToReview = mayEdit
             && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
         var offersUnlinkEvidence = mayEdit
@@ -233,8 +229,7 @@
             && state is not CaseLifecycleState.Held
             && !CaseLifecycleRules.IsTerminal(state);
         var offersArchive = mayEdit && CaseLifecycleRules.IsTerminal(state) && workflow.Archive is null;
-        var offersLifecyclePanel = offersStartWork
-            || offersReturnToReview
+        var offersLifecyclePanel = offersReturnToReview
             || offersUnlinkEvidence
             || offersArchive;
     }
@@ -243,13 +238,6 @@
         <section class="panel" aria-labelledby="case-lifecycle-title">
             <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
             <div class="panel-body button-row">
-                @if (offersStartWork)
-                {
-                    <button type="button" class="btn" data-dialog-open="case-start-work-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                        <span>Start report preparation</span>
-                    </button>
-                }
                 @if (offersReturnToReview)
                 {
                     <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
@@ -278,22 +266,6 @@
 
 @if (mayEdit)
 {
-    @if (state == CaseLifecycleState.Review)
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "case-start-work-dialog",
-            ["DialogTitle"] = "Start report preparation",
-            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "StartWork", new { id = workflow.CaseId }),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
-            {
-                ["id"] = workflow.CaseId.ToString(),
-                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                ["editLeaseToken"] = leaseToken
-            }
-        })" />
-    }
     @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport)
     {
         <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)

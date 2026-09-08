@@ -625,7 +625,7 @@ never copied, except the Case Workspace v2 fixture set permitted by D43
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
-| Supplied engineer signatures | Andy Patterson's approved exact tuple is embedded by Infrastructure; other supplied assets remain governed; never Web decorative imagery. The signatory policy is D31 (the Case's Sign-off Engineer tuple), delivered by `DOCS-017`. |
+| Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type (D31, DOCS-017). No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
 The imported renderer can exercise its own assets without proving the planned
@@ -697,7 +697,7 @@ this section owns only how those decisions appear in the UI.
 
 | Actor | UI boundary |
 | --- | --- |
-| Administrator | Staff shell plus the Administration areas: Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports. No secret display beyond the masked Principal API key. |
+| Administrator | Staff shell plus the Administration areas: Staff accounts & roles, Principals, Workflow configuration, Mail settings, Automation & AI, Service health, Action Logs, Reports. No secret retrieval; newly issued Principal API keys are shown once. |
 | Engineer, User | Staff shell without Administration. Their ordinary Inbox, Cases, Search, Case record (including its Engineer sections, D30), Upload and Operations controls are identical. |
 | Automated processing | No UI account or interactive control; the Automation Actor appears only as `SYSTEM` / `AI` in notes and Action Logs. |
 | Provider API client | No staff shell, Case workspace, or Administration surface; its credential is the Principal "Pegasus API key" (D8). |
@@ -978,8 +978,12 @@ D31), presence strip, action bar and `section-nav` with scroll-spy;
 `?section=` jumps; sections below the fold render lazily; no layout switch.
 Action bar: Edit Case | Finish editing and Renew editing | "Editing held by
 X until T." | Reopen Case (closed); Place on Hold / Release Hold; Create
-upload link; **Send to EVA** (Review; With Engineer as a re-send — D36) →
-the EVA handoff dialog (Engineer, Sign-off Engineer; Download ZIP / Send via
+upload link; **Hand to Engineer** (Review while editing) → an ordinary
+dialog selecting an eligible Engineer, with no reason input or reviewed
+checkbox. The one handoff enters With Engineer; there is no second Start
+report preparation action. **Send to EVA** remains optional (Review; With
+Engineer as a re-send — D36) → the EVA dialog (Engineer display, Sign-off
+Engineer; Download ZIP / Send via
 API, API disabled unless the Principal enables it); **Report sent** (primary,
 With Engineer — confirms detected Sent evidence, D10) / **Return to
 Engineer** (Complete); right: Close Case (danger, not Complete). There is no
@@ -990,7 +994,7 @@ over one lease covers every section, including Files preparation edits.
 Sections in order (D30): **Overview, Engineer notes, Inspection, Vehicle,
 Damage, Valuation, Estimate, Settlement, Report, Files, Notes**. Every
 section is always viewable; Damage, Valuation, Estimate, Settlement and
-Report are read-only once Complete.
+Report are editable only With Engineer and read-only in every other state.
 
 - **Overview:** workflow stepper (Held exception badge); Outstanding
   requirements (title, Source, Why, Resolve); the edit form when editing
@@ -1116,11 +1120,15 @@ page at `/Administration/Glass/{staffId:guid}`.
   Reset password → Temporary password, Confirm temporary password, Reason;
   each Engineer row shall link to that engineer's Glass's page.
   forced change at next sign-in, never emailed — D28); Create staff account.
-- **Principals:** table Name, Principal Code, Roles, State, Settings; Create
-  Principal (creates the backing Organisation inline, D2); Settings dialog —
-  route e-mail addresses (read-only), the ADR-0038 Manual API submission
-  setting (ZIP export needs no setting) — Pegasus API key (masked, Show / Hide),
-  Generate new key (danger → reason), Save.
+- **Principals:** flat customer table Name, Principal Code, State, Settings;
+  Create Principal takes one name and code, with no owner organisation or
+  role selector. The Settings page holds activated e-mail domains (read-only
+  from the route policy), the default inspection location, and the ADR-0038
+  Manual API submission setting (ZIP export needs no setting). Provider API
+  controls are Generate / Reset key, Pause / Resume, and Revoke, each with a
+  reason. A generated or reset key is shown once in the immediate response,
+  never retrieved later. Code replacement remains on that same customer.
+  Separate repairer and location directory entries are not Principal rows.
 - **Workflow configuration:** Instruction completeness and Image completeness
   (required / not-required item rules with exact blockers, never a percentage
   — D23), no staff review panel (D44), Due work (Chase interval: whole
@@ -1438,9 +1446,10 @@ their field, source, reason and resolution. Lifecycle actions are the named
 Core outcomes: hold, release, close with reason, reopen with reason;
 `Created in error` offers only its linked replacement. Report sent is
 evidence-driven (D10); the Engineer sections are always viewable and
-read-only once Complete, and `/Cases/{id}/Assessment` is a permanent 301
-(D30); Send to EVA is offered in Review and re-sent from With Engineer with
-Download ZIP or Send via API (D36).
+read-only outside With Engineer, and `/Cases/{id}/Assessment` is a permanent 301
+(D30). Hand to Engineer performs Review → With Engineer in one action.
+Send to EVA remains optional in Review and With Engineer with Download ZIP
+or Send via API (D36); it never gates native estimates or reports.
 
 **Search** runs the advanced query and previews the selected Case; closed
 cases show their outcome.

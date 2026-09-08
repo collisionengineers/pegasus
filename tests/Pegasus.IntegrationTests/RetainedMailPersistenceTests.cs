@@ -889,7 +889,7 @@ public sealed class RetainedMailPersistenceTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {stored.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {false}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"mail-005-fixture"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {caseId}, {"QDOS26099"})");
+                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {stored.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"mail-005-fixture"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {caseId}, {"QDOS26099"})");
         }
 
         await using var scope = database.CreateAsyncScope();
@@ -989,7 +989,8 @@ public sealed class RetainedMailPersistenceTests
         // different policy, or the policy's predicate logic regressed, this
         // call -- not a fabricated result -- would change and the
         // assertions below would fail.
-        var policy = services.GetRequiredService<IMailClassificationPolicy>();
+        var policy = Assert.Single(services.GetServices<IMailClassificationPolicy>(),
+            candidate => candidate.WorkProviderCode == "QDOS");
         var original = policy.Classify(new(
             IntakeSourceReadStatus.Readable,
             [
@@ -1003,8 +1004,8 @@ public sealed class RetainedMailPersistenceTests
             [],
             false));
         Assert.Equal(MailClassificationOutcome.Ambiguous, original.Outcome);
-        Assert.Equal(QdosMailClassificationPolicy.Key, original.PolicyKey);
-        Assert.Equal(QdosMailClassificationPolicy.Version, original.PolicyVersion);
+        Assert.Equal(PrincipalMailClassificationPolicy.Key, original.PolicyKey);
+        Assert.Equal(PrincipalMailClassificationPolicy.Version, original.PolicyVersion);
 
         foreach (var message in messages)
         {

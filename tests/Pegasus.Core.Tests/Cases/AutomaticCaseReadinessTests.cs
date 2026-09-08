@@ -8,18 +8,19 @@ public sealed class AutomaticCaseReadinessTests
     private static readonly CaseWorkflowConfiguration Configuration =
         new("case-workflow", 1);
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CompleteEvidenceIsReadyRegardlessOfIntakeConfirmation(bool staffConfirmed)
+    [Fact]
+    public void CompleteEvidenceIsReadyWithoutStaffConfirmation()
     {
-        var completeness = Complete(staffConfirmed);
+        var completeness = new CaseCompleteness(true, true);
 
-        Assert.True(completeness.IsReadyForReview(automaticallyDefinitive: false));
+        Assert.True(completeness.IsReadyForReview());
         Assert.True(CaseCompletenessPolicy.Evaluate(
-            completeness,
-            Configuration,
-            automaticallyDefinitive: false).SatisfiesPolicy);
+            completeness, Configuration).SatisfiesPolicy);
+        Assert.Equal(
+            ["ImagesComplete", "InstructionComplete"],
+            typeof(CaseCompleteness).GetProperties()
+                .Select(property => property.Name)
+                .Order(StringComparer.Ordinal));
     }
 
     [Theory]
@@ -30,22 +31,10 @@ public sealed class AutomaticCaseReadinessTests
         bool instructionComplete,
         bool imagesComplete)
     {
-        var completeness = new CaseCompleteness(
-            instructionComplete,
-            imagesComplete,
-            InstructionConfirmedByStaff: instructionComplete,
-            ImagesConfirmedByStaff: imagesComplete);
+        var completeness = new CaseCompleteness(instructionComplete, imagesComplete);
 
-        Assert.False(completeness.IsReadyForReview(automaticallyDefinitive: true));
+        Assert.False(completeness.IsReadyForReview());
         Assert.False(CaseCompletenessPolicy.Evaluate(
-            completeness,
-            Configuration,
-            automaticallyDefinitive: true).SatisfiesPolicy);
+            completeness, Configuration).SatisfiesPolicy);
     }
-
-    private static CaseCompleteness Complete(bool staffConfirmed) =>
-        new(InstructionComplete: true,
-            ImagesComplete: true,
-            InstructionConfirmedByStaff: staffConfirmed,
-            ImagesConfirmedByStaff: staffConfirmed);
 }

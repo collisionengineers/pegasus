@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Assessment;
 
@@ -58,13 +59,11 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
     private const int MaximumLines = AssessmentPolicy.MaximumEstimateLines;
     private const int MoneyDecimals = 2;
 
-    public RepairSpecificationSourceRoute Route => RepairSpecificationSourceRoute.Json;
-
     public bool CanParse(string fileName, string mediaType) =>
         string.Equals(Path.GetExtension(fileName), ".json", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mediaType, "application/json", StringComparison.OrdinalIgnoreCase);
 
-    public ParsedEstimate Parse(ReadOnlyMemory<byte> content)
+    public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null)
     {
         JsonDocument document;
         try
@@ -106,11 +105,12 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
                 position++;
                 parsed.Add(ParseLine(line, position));
             }
-            return new ParsedEstimate(
+            return new(new ParsedEstimate(
                 sourceVersion,
                 parsed,
                 OptionalText(root, "provider", 100) ?? DefaultProviderName,
-                ParseTotals(root));
+                RepairSpecificationSourceRoute.Json,
+                ParseTotals(root)), []);
         }
     }
 

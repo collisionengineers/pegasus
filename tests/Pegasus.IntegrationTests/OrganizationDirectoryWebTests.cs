@@ -20,33 +20,14 @@ public sealed partial class OrganizationDirectoryWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var organizationGet = await client.GetAsync("/Administration/Organizations");
-        var organizationHtml = await organizationGet.Content.ReadAsStringAsync();
-        organizationGet.EnsureSuccessStatusCode();
-        var organizationForm = new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = InputValue(organizationHtml, "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(organizationHtml, "OperationKey"),
-            ["OrganizationName"] = "Directory Web Caller Provider",
-            ["WorkProvider"] = bool.TrueString,
-            ["InstructionIntermediary"] = bool.FalseString
-        };
-        using var organizationPost = await client.PostAsync(
-            "/Administration/Organizations?handler=Create",
-            new FormUrlEncodedContent(organizationForm));
-        Assert.Equal(HttpStatusCode.Redirect, organizationPost.StatusCode);
-        var organizationId = await factory.Database.ScalarAsync<Guid>(
-            "SELECT Id FROM Organizations WHERE Name = 'Directory Web Caller Provider';");
-
-        using var principalGet = await client.GetAsync(
-            $"/Administration/Principals/Create?organizationId={organizationId:D}");
+        using var principalGet = await client.GetAsync("/Administration/Principals/Create");
         var principalHtml = await principalGet.Content.ReadAsStringAsync();
         principalGet.EnsureSuccessStatusCode();
         var principalForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(principalHtml, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(principalHtml, "OperationKey"),
-            ["OrganizationId"] = organizationId.ToString("D"),
+            ["Name"] = "Directory Web Caller Provider",
             ["Code"] = "DIRW",
             ["InspectionMode"] = "PhysicalAddress"
         };
@@ -57,7 +38,7 @@ public sealed partial class OrganizationDirectoryWebTests
         var principalId = await factory.Database.ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'DIRW';");
 
-        var settingsPath = $"/Administration/Principals/EvaSubmission/{organizationId:D}/{principalId:D}";
+        var settingsPath = $"/Administration/Principals/Settings/{principalId:D}";
         using var settingsGet = await client.GetAsync(settingsPath);
         var settingsHtml = await settingsGet.Content.ReadAsStringAsync();
         settingsGet.EnsureSuccessStatusCode();
@@ -112,7 +93,10 @@ public sealed partial class OrganizationDirectoryWebTests
         using var indexGet = await client.GetAsync("/Administration/Principals");
         var indexHtml = await indexGet.Content.ReadAsStringAsync();
         indexGet.EnsureSuccessStatusCode();
-        Assert.Contains("Directory Web Caller Yard", indexHtml, StringComparison.Ordinal);
+        Assert.Contains("Directory Web Caller Provider", indexHtml, StringComparison.Ordinal);
+        using var settingsAfterEvaGet = await client.GetAsync(settingsPath);
+        settingsAfterEvaGet.EnsureSuccessStatusCode();
+        Assert.Contains("Directory Web Caller Yard", await settingsAfterEvaGet.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.DoesNotContain("Automatic", indexHtml, StringComparison.Ordinal);
     }
 
@@ -125,23 +109,39 @@ public sealed partial class OrganizationDirectoryWebTests
     /// actually renders for the seeded row.
     /// </summary>
     [Fact]
-    public async Task QdosPrincipalDefaultsToImageBasedAssessmentOnThePrincipalsIndex()
+    public async Task QdosPrincipalSettingsDefaultToImageBasedAssessmentAndShowAcceptedDomains()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync("/Administration/Principals");
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
+        using var response = await client.GetAsync($"/Administration/Principals/Settings/{principalId:D}");
 
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
-        var qdosRowStart = html.IndexOf("<td>QDOS</td>", StringComparison.Ordinal);
-        Assert.True(qdosRowStart >= 0, "The Principals index must list the seeded QDOS principal.");
-        var rowEnd = html.IndexOf("</tr>", qdosRowStart, StringComparison.Ordinal);
-        Assert.True(rowEnd >= 0, "The QDOS row must be a complete table row.");
-        Assert.Contains(
-            "Image Based Assessment",
-            html[qdosRowStart..rowEnd],
-            StringComparison.Ordinal);
+        Assert.Matches(
+            """<input\b(?=[^>]*name="LocationIsImageBasedAssessment")(?=[^>]*checked="checked")[^>]*>""",
+            html);
+        foreach (var domain in Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities["QDOS"])
+        {
+            Assert.Contains(domain, html, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task YmlSettingsShowTheExactMailboxNotASharedDomain()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'YML';");
+        using var response = await client.GetAsync($"/Administration/Principals/Settings/{principalId:D}");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Accepted e-mail identities", html, StringComparison.Ordinal);
+        Assert.Contains("networkhduk@gmail.com", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Accepted e-mail domains", html, StringComparison.Ordinal);
     }
 
     private static string InputValue(string html, string name)

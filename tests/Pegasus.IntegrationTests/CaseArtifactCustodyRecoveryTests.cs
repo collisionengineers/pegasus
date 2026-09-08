@@ -6,6 +6,8 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 
@@ -127,6 +129,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 pendingVersionId = pending.Id;
                 Assert.Equal(DocumentCustodyStatus.Pending, pending.CustodyStatus);
                 pendingOccurrenceId = (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id;
+                Assert.Equal(0, (await db.CaseWorkflows.SingleAsync()).Version);
             }
 
             // The provider result was lost, but the accepted Pending intent is
@@ -155,6 +158,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                     DocumentCustodyStatus.Confirmed,
                     (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
                 Assert.Null((await db.Set<DocumentVersionEntity>().SingleAsync()).PendingContentStorageKey);
+                // Custody confirms source evidence without consuming a staff edit.
+                Assert.Equal(0, (await db.CaseWorkflows.SingleAsync()).Version);
                 var confirmed = await db.Set<DocumentVersionEntity>().SingleAsync();
                 confirmed.IsLogicallyRemoved = true;
                 await db.SaveChangesAsync();
@@ -171,6 +176,53 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AutomaticCustodyPreservesLiveCaseAuthority(bool recover)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var lease = await new AcquireCaseEditLease(new EfCaseWorkflowStore(factory, TimeProvider.System))
+            .ExecuteAsync(new(caseId, 0, actor, "lease-custody"), default);
+        IDocumentContentStore content = recover ? new FailFirstContentStore() : new SuccessfulContentStore();
+        var artifacts = new MemoryArtifactStore();
+        var custody = new EfCaseArtifactCustody(factory, content, artifacts, TimeProvider.System);
+        var bytes = "request evidence"u8.ToArray();
+        var request = ArtifactRequest(actor, caseId, bytes);
+        if (recover)
+        {
+            await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(request, default));
+            var result = await new ReconcilePendingArtifactCustody(factory, content, artifacts)
+                .ExecuteAsync(10, default);
+            Assert.Equal(1, result.Confirmed);
+        }
+        else
+        {
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed,
+                (await custody.RetainAsync(request, default)).Disposition);
+        }
+        var retained = await custody.FindByOperationKeyAsync(actor, caseId, request.OperationKey, default);
+        var replay = await custody.RetainAsync(request with
+        {
+            Content = new MemoryStream(bytes, writable: false)
+        }, default);
+        Assert.NotNull(retained);
+        Assert.Equal(retained.DocumentId, replay.DocumentId);
+        Assert.Equal(retained.VersionId, replay.VersionId);
+        Assert.Equal(retained.OccurrenceId, replay.OccurrenceId);
+        await using var context = await factory.CreateDbContextAsync();
+        Assert.Single(await context.Set<DocumentVersionEntity>().ToArrayAsync());
+        Assert.Single(await context.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+        var workflow = await context.CaseWorkflows.SingleAsync();
+        Assert.Equal(0, workflow.Version);
+        Assert.Equal(lease.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
+        CaseMutationGuard.Require(workflow, actor, 0, lease.Token, DateTimeOffset.UtcNow);
     }
 
     [Fact]
@@ -702,6 +754,13 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 CustodyRootRemoteId = "case-root",
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 ConcurrencyToken = Guid.NewGuid()
+            },
+            new CaseWorkflowEntity
+            {
+                CaseId = caseId,
+                State = "NotReady",
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid(),
             });
         await db.SaveChangesAsync();
         return caseId;

@@ -72,6 +72,17 @@ EXT-04. Pegasus submits a case to EVA over its API, carrying the same mapped
 values and the same eligible images the export carries. The route was built
 against EVA's test credentials on 2026-08-27 by operator direction.
 
+The API also sends the canonical accepted claimant address as `ClmAdd`,
+required by EVA with a maximum of 40 characters. The current Confirmed value
+takes precedence over Fact; a suggestion or unresolved value is not accepted.
+Missing, whitespace-only, over-limit or control/format-containing values block
+a new submission before image retrieval or the EVA call, without recording an
+attempt or changing the Case. Known-operation replay returns the prior outcome
+first. Valid text, including ordinary address punctuation, is sent unchanged;
+Pegasus never truncates it or substitutes an inspection or other party's
+address. This is an API request prerequisite, not another Case-readiness or ZIP
+export gate; the thirteen-field package remains unchanged.
+
 **Pegasus has not yet called EVA.** The contract below is proved against the
 vendor's own recorded traffic and against its published request model; no
 submission has been made to any EVA environment, so nothing here establishes
@@ -143,6 +154,26 @@ the operator's direction. The instruction date is not sent: EVA sets it when
 the instruction arrives.
 
 ### External boundary
+
+#### Retained PDF estimates
+
+The canonical estimate-import command accepts the supplied Glass's calculation
+and Audatex full-report PDFs through their deterministic provider mappings.
+It retains the original document and source hash before importing a Draft;
+the same Case and source hash replay the same import. Printed totals, rates,
+line structure and provider identity must agree. PDF net labour is not reduced
+again by an XML-specific overlap rule.
+
+Embedded text is the first source. A positively established unusable font map
+or a qualified scan-like page may use the existing page-restricted OCR path
+under [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) and
+[FRD-05](frd-05-documents-extraction-and-custody.md#qualified-ocr). Mere parser
+failure is not qualification. A pending or uncertain OCR operation is not an
+imported estimate. Retained output may be consumed later by the same command
+under the current Case version and edit lease; no background OCR completion
+can overwrite the Engineer's current work or select a Current estimate.
+
+#### Integration routes
 
 Three routes are planned:
 
