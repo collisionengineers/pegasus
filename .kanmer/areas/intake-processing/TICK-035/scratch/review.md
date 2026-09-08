@@ -1,13 +1,13 @@
 ---
 kind: review-attestation
 pr: "692"
-head_sha: "006b556ff3e995c5a2aac0cdb2a4d508ada5be23"
-verdict: needs-changes
+head_sha: "cca5521a6315420129320061759209273bb64c67"
+verdict: pass
 reviewer: "pack_reconcile"
 independent: true
-plan_hash: "a29f6fa6041932cc"
-ticket_updated: "2026-09-08T01:41:18.145Z"
-board_sha: "4d49eff654aac814882475437be2dd4a2c88c9ec"
+plan_hash: "7a28b8ab58ed1ca2"
+ticket_updated: "2026-09-08T02:06:42.835Z"
+board_sha: "8b09791e5d8e0406f01b38b0fbc8ce387a013b75"
 expected_reviewers: ["pack_reconcile"]
 threads_snapshot: []
 findings:
@@ -21,158 +21,213 @@ findings:
     disposition: fixed
   - id: F-003
     severity: major
-    summary: "Non-QDOS automatic email matching extracts and consumes keys even when no agreeing instruction profile was selected."
-    disposition: open
+    summary: "Non-QDOS automatic email matching extracted and consumed keys without an agreeing selected instruction profile."
+    disposition: fixed
 ---
 
-# TICK-035 consolidated independent review
+# TICK-035 independent delta review
 
-NEEDS CHANGES at the exact PR692 head above. Root assigned pack_reconcile as
-sole expected reviewer; this reviewer's exact-head public COMMENT
-[5136452778](https://github.com/collisionengineers/pegasus/pull/692#pullrequestreview-5136452778)
-settles that set. Author intake_audit and reviewer are distinct agent roles,
-despite sharing a GitHub account. No author/self-review, build/test or merge.
+PASS at exact PR692 head cca5521a6315420129320061759209273bb64c67.
+Root assigned pack_reconcile as sole expected reviewer. The exact-head
+[public review5136590986](https://github.com/collisionengineers/pegasus/pull/692#pullrequestreview-5136590986)
+settled that identity at 2026-09-08T02:16:19Z before this attestation.
+Author intake_audit and reviewer are distinct agent roles despite sharing
+the repository GitHub account. Reviewer ran no build or test, changed no
+source or author lease, and did not merge.
 
-Read the whole current packet: research e916e4ac7aa58fd6,
-plan a29f6fa6041932cc, files e9ca25221233b6ab,
-report fdc4ceb245498e5c and checklist d71e2989ca0790d1; live gates,
-EPIC-014, governing FRD-02/09 and the changed FRD-01 paragraph.
-No open-questions document exists and the live resolved-questions gate passes.
-Read original preflight7074751553d263d8; it remains untouched and is not
-retrospectively labelled PASS. This is the first consolidated exact-PR review,
-not a repeat of that bounded source preflight.
+This whole-file record supersedes needs-changes29da3f33c888cb13 as the current
+decision. The original public review5136452778 and source
+preflight7074751553d263d8 remain historical evidence, not retrospectively PASS.
+The ticket is Review, review_round1. This is the bounded delta review of
+F-003, changed lines, direct callers/contracts and relevant assertions;
+unchanged source is not reopened as an unrestricted second audit.
 
-## Source scope and accepted work
+## Current packet and scope
 
-Inspected the 58-path final diff against accepted dev3a5ce645c, including all
-production changes, known consumers, canonical docs and actual-source tests.
-The normal merge636555159 joins verified author7fcd4c662 and accepted
-CASE-049 dev3a5ce645c; final006b556 changes only the FRD-01 paragraph.
-The report's 52 TICK runtime paths and 22 CASE runtime paths are disjoint;
-the source-scoped earlier evidence is not a newly executed final-head test.
+Read the whole current plan7a28b8ab58ed1ca2,
+filesa37303dd2d9f8f1f, report70312df54319f367,
+checklist54a984eff71f67c8, executionbc4b6d6de3c978f5 and previous whole
+review29da3f33c888cb13. The prior complete research
+e916e4ac7aa58fd6 remains unchanged from the consolidated review.
+Fresh live gates pass Review and resolved questions; no open-questions
+document exists. Proof is correctly absent before merge and does not
+substitute for this review. EPIC-014 and the current FRD-02/09 principal
+selection/matching clauses plus FRD-01 association paragraph bind the delta.
 
-One renamed Core route owner supplies the exact fifteen-principal identities
-and Settings metadata. YML remains one exact mailbox, not Gmail; PCH's two
-intermediary domains require an agreeing profile. Sender cardinality, exact
-domain equality and proved-forward consistency remain. The selector groups
-current physical documents, rejects profile mixing and excludes historical
-or unproved nested content. Separate report negatives do not veto a current
-instruction. DI derives classifiers/matchers from existing extractors.
+The exact diff from006b556ff3e995c5a2aac0cdb2a4d508ada5be23 is only two
+files, +70/-2: ProcessIntake.cs and QdosAllocationRecoveryTests.cs.
+Local clean HEAD, pushed PR head and stated correction agree. The prior
+normal accepted-dev merge, final document paragraph and 58-path consolidated
+review remain historical whole-PR evidence. The report's 52-path equality
+claim belongs to its explicitly earlier006b556 checkpoint; the current two
+paths are instead covered by this correction's build/tests. CASE-049 native
+handoff remains unchanged. No UI/snapshot/schema/grant/package or deployment
+file changed. Generated index authority was expressly handed to UIIMP-017;
+no repeated capture is owed for this source-only delta.
 
-Explicit work-type classification remains separate from identity. QDOS's
-generated Triage/Inspection/Audit/combined/correspondence predicates survive;
-non-QDOS requires supported inspect/examine or DFD/FW tells. PCH Audit is not
-overridden by its generic inspection footer, and competing credit-repair/Audit
-requests fail closed. No blanket Inspection, generic correspondence grammar,
-new seed list, matching framework, provider host, schema, grants or dependency.
+## F-003 — fixed by cca5521a6315420129320061759209273bb64c67
 
-Canonical case-field vocabulary was moved, not copied. The pure field-name
-join preserves original candidate evidence and refuses selected conflicts and
-duplicate matching attribution; unused PCH phone alternatives do not veto the
-typed selected source. The installed PdfPig visible/rotated rectangle APIs fix
-the original MP scan's coverage without lowering thresholds or duplicating
-the separate Type3 qualification owner.
+ProcessIntake.cs:794-796 already derives extractionPolicy from accepted
+principal context, conflicting/ambiguous-profile refusal and the selected
+existing profile. Only QDOS has the settled no-competing-profile fallback.
+Line808 now passes the mail route into EvaluateIntakeCaseMatch only when
+that same extractionPolicy is present, instead of checking merely
+conflictingProfile. There is no copied selector predicate or new rule owner.
 
-The narrow Razor review found no material UI issue: the existing semantic
-detail-list now says accepted e-mail identities and reads Core's catalog.
-No actions, form authority, CSS/JS/library or focus behavior changed. Root's
-actual Settings tests and scoped snapshot/catalogue evidence are recorded;
-no manual visual or all-principal visual capture is claimed.
+EvaluateIntakeCaseMatch.cs:32-35 returns null for the absent route before
+selecting a provider, invoking ExtractMatchKeys or querying candidates.
+A non-QDOS NotApplicable profile can therefore no longer invoke the typed
+extractor through the automatic email match path. The existing later
+NeedsSorting/OcrRequired refusal keeps its route evidence but persists no
+CaseMatchDecision. DurableIntake.cs:985-988 then has no UniqueMatch to consume,
+so its existing association owner cannot bypass that refusal.
 
-## F-001 and F-002 — fixed, prior history preserved
+QDOS's non-conflicting body/correspondence fallback remains populated and
+still reaches its existing matcher; conflicting selected principals remain
+refused. ProcessIntake's ProviderApi branch at713-767 is unchanged and returns
+before the mail selector/guard. It continues to use ExecuteDeclaredAsync
+on the authenticated submission's declared fields, rejecting an existing
+Case rather than treating it as email or requiring a document profile.
+No universal correspondence grammar or new matcher/orchestrator was added.
 
-Both are fixed by7fcd4c662c5457024d1d20c5fe0c02c842e98a63 and unchanged
-in final006b556. F-001 maps existing Locator/RawValue through both directions
-of EfIntakeReceiptStore's same candidate JSON record. Two located/unlocated
-roundtrips assert exact candidate equality and printed SourceValue. The
-original persisted ALS column2 locator assertion remains unchanged.
+### Meaningful durable negative and unchanged positives
 
-F-002 keys SourceStructure's existing dictionary by the existing
-DocumentIdentity plus Table, preserving actual locators without renumbering.
-The ALS structural two-document probe retains equal table1/row4/column2,
-distinct physical source labels and contradictory supplied registrations;
-both candidates survive, HasConflict is true and typed registration is null.
-Missing/duplicate client cells and missing paired header still refuse values;
-owner/third-party columns cannot fill claimant vehicle facts.
+The existing genuine ALS theory first creates one real SQL-backed Case,
+then uniquely associates the next occurrence and replays without duplicate
+allocation. Exact original hashes, accepted principal, claimant/reference/
+VRM/make/model, source origin, image/readiness and persisted locator
+assertions remain. The original table-role and physical-document conflict
+probes were not weakened.
 
-## F-003 — open; root-settled bounded remedy
+The added probe changes only decoded content derived from that same retained
+original, removing the required Vehicle Model: signature signal. Its explicit
+ReaderKey is structural-profile-signal-probe; it is not claimed as another
+genuine envelope or freshly read immutable source. The selector must return
+NotApplicable. Independently calling the existing matcher without the new
+guard must still return UniqueMatch to that actual prior Case with claim
+160754 and registration K40NLY. This makes the refused destination meaningful:
+there is a known eligible unique target, not an empty fake candidate list.
 
-ProcessIntake.cs:789-809 distinguishes conflicting profiles from no profile.
-When selection is NotApplicable for a non-QDOS accepted sender,
-extractionPolicy is null, but the code passes CurrentInstructionContent and
-the accepted route to caseMatchEvaluator before its later no-profile refusal.
-PrincipalCaseMatchPolicy.cs:30-44 invokes that provider's Extract directly,
-which is an extractor, not the signature selector. DurableIntake.cs:985-1015
-then applies a recorded UniqueMatch without requiring a draft or allocation.
+A four-line test source-reader port supplies that decoded structural result.
+The existing queue fixture takes ProcessIntake explicitly; its three existing
+call sites pass their same registered instance. Real ReceiveIntake, durable
+work/evaluation, ProcessIntake and SQL association/allocation owners process
+and replay the probe. Assertions require Accepted ALS/NeedsSorting, no
+InstructionDraft, match decision, CurrentCaseId, allocation, manual-association
+or CaseIntakeLink row, and exactly the original one Case. Original source
+bytes and hash assertions remain untouched. No test host/framework or
+fabricated domain email was introduced.
 
-A concrete source-derived structural example is the genuine ALS instruction
-with the required Vehicle Model: profile signal absent while its separate
-Our Reference/client/registration fields remain. The selector refuses the
-profile but the typed extractor can still produce unique existing-Case keys.
-This review did not run that probe and does not claim an observed wrong
-association in the genuine corpus. New Case allocation remains refused.
-The defect is the bypass of this ticket's accepted selected-profile boundary
-before automatic non-QDOS instruction extraction/matching, not proof that all
-possible typed correspondence association is inherently unsafe.
+## F-001 and F-002 — fixed history retained
 
-Root inspected the same caller chain and settled the intended remedy:
-require an agreeing selected profile before automatic non-QDOS email matching.
-Preserve the existing QDOS correspondence exception and declared Provider API
-matching. Use the existing ProcessIntake selection/guard; do not invent a
-universal correspondence grammar, another matcher or a new policy layer.
+Both remain fixed by7fcd4c662c5457024d1d20c5fe0c02c842e98a63, verified in the
+prior consolidated review and unchanged in this two-file delta. Git equality
+for both production owners passed exit0.
 
-Acceptance for this one remediation class: one real existing-Case destination
-negative retaining usable unique typed keys but missing the profile must
-produce no automatic association/allocation; selected-profile positive and
-existing QDOS/declared API behaviors remain proved. Reuse existing focused
-fixtures; no broad rerun or new test infrastructure. Plan/files alignment
-precedes author edits. No second material finding was found in the full census.
+F-001 retains existing Locator and RawValue through both directions of the
+same EfIntakeReceiptStore candidate JSON record. Located/unlocated roundtrips
+and exact printed SourceValue remain, as does the real persisted ALS column2
+assertion. No schema, migration, alternate serializer or compatibility layer.
 
-## Runtime evidence and honest limits
+F-002 keys SourceStructure by existing DocumentIdentity plus Table, rather
+than global table number. The ALS two-physical-source probe retains identical
+table/row/column coordinates but distinct source labels and contradictory
+supplied registrations; both candidates survive, HasConflict is true and
+typed registration is absent. Missing/duplicate client cells and missing
+paired header still refuse values instead of borrowing owner/third-party
+columns. No table renumbering, glyph decoder or new parsing framework.
 
-Reviewer ran no tests. Root is sole heavy verifier. Independently read six
-retained TRXs and recomputed hashes; exact failure counts remain:
-combined classifier53/53 PASS; combined Integration12/14 with2 FAIL;
-YML/hash/Settings4/5 with1 FAIL; four actual mails3/4 with1 ALS FAIL;
-final structural Core10/10 PASS; final Integration exactly3/3 PASS
-(one genuine ALS plus two JSON roundtrips), not five.
+## Focused runtime evidence read independently
 
-Final hashes:
-- tick-035-table-identity.trx:
-  B7F1EDEBC41DA2DBA0D48DE10A0561A18BEFA8959C3B0BC390CF53517AF117FA.
-- tick-035-persisted-provenance.trx:
-  20DF014FB223C516DFA34CB2F80F14DEC08F41BB967E717981B836CBF926508A.
-- prior four-mail failed attempt:
-  75482A9ACDCDEAB73B744027E237497744C22AA35F2244487CE08F90E90F432D.
+No reviewer execution. Root job80003 performed the frozen correction build
+and focused checks before the commit; author confirms no subsequent source
+change. Root reports whole incremental Release build exit0,111.42s,
+zero warnings/errors. Both actual TRXs were read for names, counters and
+timestamps and recomputed SHA-256 values match report70312df54319f367:
 
-The current report already records exactly three final Integration cases.
-Root reported final Release build49.53s/zero warnings/errors and source-scoped
-earlier original/profile/route/Settings passes. No repeated whole rail,
-fresh final-merge test, hosted-CI green, live Azure/Glass/mail or deployment is
-inferred. Earlier twelve Core inventory/version failures, ALS provenance,
-MP geometry, YML closing-boundary and hash-casing failures are retained.
+- artifacts/verification/tick-035-profile-guard-core.trx:
+  2 total/executed/passed,0 failed/error/skipped/inconclusive.
+  SHA25683934F6E1BD4482DA1D477F48C46717F4CF7915E3637B18221C6C37E697AC2EE.
+  Start2026-09-08T03:01:13.2975607+01:00;
+  finish2026-09-08T03:01:15.1708901+01:00.
+  AConflictingSelectedPrincipalCannotExtractClassifyOrAssociate and
+  AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage
+  passed. The latter demonstrates the QDOS no-selected-profile fallback
+  still reaches matching and records the competing candidates; it is a
+  Core policy fixture, not a newly executed genuine QDOS email journey.
+- artifacts/verification/tick-035-profile-guard-destinations.trx:
+  2 total/executed/passed,0 failed/error/skipped/inconclusive.
+  SHA2565EDA51724AB4818C34CF69FEB70E114D4E5DC13A0536D583362DF9C5925E0026.
+  Start2026-09-08T03:01:16.5555366+01:00;
+  finish2026-09-08T03:02:01.3615320+01:00.
+  GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions(ALS)
+  and ASubmissionMatchingAnExistingCaseIsRejectedWithoutMutationOrDuplicateAllocation
+  passed,42.8566268s and42.1882173s in the same invocation, not sequential
+  durations. The latter uses the actual authenticated API, retained work and
+  create-only existing-Case rejection.
 
-ALS/FW/SBL genuine emails prove one Inspection Case and repeat association/
-replay with pinned readiness and exact origin/field facts. YML HD4021 is
-genuine later report correspondence: accepted mailbox, no current draft/type/
-Case and zero allocation. It must not mine its two-deep quoted instruction.
-The fifteen standalone original profile/type/key pass is separate; the MP OCR
-text is supplied hash-bound Astra evidence, not a new Azure response.
-No genuine initial YML envelope allocation is claimed.
+The full report retains exact commands. Tests are in the retained
+.worktrees/tick-035; root remains sole heavy verifier. The fresh result does
+not erase earlier failed runs or claim a new whole suite, hosted-CI PASS,
+exact-merge verification or deployment.
 
-## Live facts and handoff
+## Consolidated evidence and residual limits preserved
 
-PR OPEN/MERGEABLE/CLEAN; same repository, head TICK-035-principal-routes to dev,
-exact006b556. Dev is unprotected; active rules[], required contexts[]/checks[],
-head check_runs[]/statuses[]. Aggregate pending with zero contexts is not a
-required failed/pending check and is not a CI-green claim. Full GraphQL thread
-page is empty with hasNextPage:false. Bot summary IC_kwDOThBrk88AAAABTHZo_g is
-running with mergeGateEnabled:false, no actual finding; acknowledged as
-non-gating status, not an expected reviewer or security PASS. Later actual
-threads require a fresh whole-file attestation. Bound board tip was pushed
-ahead0/behind0. No author lease heartbeat was performed.
+The prior review covered all58 paths and actual callers: one immutable
+fifteen-principal Core identity catalog, profile/current-physical-document
+selection, explicit work-type classification, principal-scoped normalization
+and existing eliminator, canonical case-field vocabulary moved rather than
+copied, original provenance and installed PdfPig scan geometry. The narrow
+Settings label/metadata change had root's scoped capture/verify/catalogue
+evidence, not a new UI framework or manual visual claim. None is changed
+by this correction.
 
-Return the same ticket/PR/branch/worktree to Implementing for root-authorized
-F-003 remediation. Preserve all fixed findings, failed attempts and original
-preflight. No merge or proof rewrite. Delta review then covers this finding,
-the correction and direct callers/tests; it does not reopen unrelated source.
+Earlier reviewed counters remain: classifier53/53 PASS; combined
+Integration12/14 with2 FAIL; YML/hash/Settings4/5 with1 FAIL; genuine mail3/4
+with1 ALS locator FAIL; final structural Core10/10 PASS; final provenance
+Integration exactly3/3 PASS, one genuine ALS and two JSON roundtrips, not5.
+Earlier inventory/version, provenance, MP geometry, YML signature and
+hash-casing failures remain in the report. Prior final hashes remain
+B7F1EDEBC41DA2DBA0D48DE10A0561A18BEFA8959C3B0BC390CF53517AF117FA
+and20DF014FB223C516DFA34CB2F80F14DEC08F41BB967E717981B836CBF926508A.
+The original genuine-mail failure remains
+75482A9ACDCDEAB73B744027E237497744C22AA35F2244487CE08F90E90F432D.
+
+ALS/FW/SBL genuine mail proves its recorded Case outcomes and replay.
+YML HD4021 is later report correspondence and remains accepted mailbox with
+no current draft/type/Case and zero allocation; two-deep quoted history
+must not create an instruction. Fifteen standalone genuine profile/type/key
+documents are separate evidence from an initial YML envelope, which is
+not available and whose automatic allocation is not claimed. MP OCR text
+is supplied hash-bound Astra evidence, not a new Azure operation.
+No live email, Glass or cloud write occurred in this ticket review.
+
+## Current GitHub/board evidence and handoff
+
+After this exact-head public review settled, fresh PR readback is
+OPEN/MERGEABLE/CLEAN, same collisionengineers/pegasus repository,
+TICK-035-principal-routes to dev, exactcca5521a. Full GraphQL
+reviewThreads(first:100) returns nodes[] and hasNextPage:false; no actual
+thread is omitted or left unresolved.
+
+Bot summary IC_kwDOThBrk88AAAABTHZo_g completed
+2026-09-08T01:59:15.576330Z on the prior006b556 head with no actual
+findings and mergeGateEnabled:false. Disposition: acknowledged historical
+non-gating bot evidence, not a current-head security PASS or expected reviewer.
+The original needs-changes public review is retained; this newer exact-head
+review provides the disposition. Later actual comments/threads require a
+fresh whole-file record, not silent acceptance.
+
+Live dev is cc441645b0a62a806e34367ad75e9eaff4df8b11, unprotected with
+active rules[], required contexts[]/checks[], head check_runs[] and statuses[].
+Aggregate pending with zero contexts is not a required pending check and
+not a CI-green claim. Root-authorized skip-ci avoids duplicate speculative
+rails only; final converged CI/release and exact-merge proof remain separate.
+Fresh board tip is synchronized ahead0/behind0 and equal local/remote SHA,
+bound above. Plan/report/checklist/ticket timestamp remain unchanged after
+reviewer settlement. No lease heartbeat or board stage move by reviewer.
+
+No open finding remains. Root must read this whole attestation and refresh
+head, plan/ticket/checks/threads and board push before its own merge decision.
+The author claim/worktree remain retained. Stop before merge, proof, cleanup,
+next implementation or any external delivery action.
