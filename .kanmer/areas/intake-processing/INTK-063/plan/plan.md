@@ -21,13 +21,19 @@ and current operator brief. Historical owners remain linked, not absorbed.
    pairing still requires exact normalized registration.
 2. Add bounded oldest eligible pending queries in the existing image store.
    Include single/grouped Awaiting rows and linked-but-unmerged rows. Exclude
-   no-match/manual-unlinked/merged/staff-closed rows before the cap so old
-   ineligible rows cannot starve actionable work.
+   dynamically nonmatching/manual-unlinked/merged/staff-closed rows before the cap so old
+   ineligible rows cannot starve actionable work. Do not persist a permanent
+   no-match exclusion: a later Case or corrected identity must make the row
+   eligible again.
 3. Extend the existing pairing owner to sweep those candidates. Recheck complete
    current candidate uniqueness/identity inside automatic-write transaction,
    using existing query ownership context-bound if needed. Preserve current
    version, Staff lease, archival/post-report guards and deterministic operation
    keys. Do not convert a deliberate unlink into another automatic association.
+   The link and merge are separate operations: also recheck the CURRENT receipt
+   association equals the intended Case, known principal and Case eligibility
+   inside the existing merge transaction. An image lifecycle version alone
+   does not detect a staff unlink/relink between automatic link and merge.
 4. Wire registered-image replay, acceptance replay and existing staged-artifact
    reconciliation timer to the same owner. Reuse SyncMergeAfterLinkAsync and
    pending custody dispatch. Report recoverable failures and continue unrelated
@@ -39,7 +45,8 @@ and current operator brief. Historical owners remain linked, not absorbed.
 Root alone runs locked restore/build and focused Core/SQL filters after freeze.
 Tests prove both orders; unique/exact VRM, current correction, known-principal
 conflict, ambiguous candidates, closed/post-report, active lease/stale version;
-manual unlink; failure after link before merge recovered by a timer tick alone;
+manual unlink/relink between link and merge (no stale-target custody); failure
+  after link before merge recovered by a timer tick alone;
 duplicate acceptance/registered replay; single/grouped eligibility and oldest
 nonmatch starvation; restricted Worker actual association/merge transaction.
 No new test host, soak, full corpus or live email/provider call.

@@ -40,7 +40,7 @@ board history. This is not authority to take a worktree or modify source yet.
 
 | Read, do not modify for this scope | What it establishes |
 | --- | --- |
-| `docs/operator-notes.md`, `docs/frd/frd-04-parties-accounts-and-access.md`, `docs/adr/0004-no-permanent-deletion.md` (resolve actual ADR filename through index) | Binding no-permanent-delete rule and staff role ownership; no meaning change authorised. |
+| `docs/operator-notes.md`, `docs/frd/frd-04-parties-accounts-and-access.md`, `docs/adr/0004-provider-api-and-staff-mcp-authentication.md` | Binding no-permanent-delete rule and staff role ownership; no meaning change authorised. |
 | `docs/design/README.md`, `src/Pegasus.Web/Pages/Shared/_ReasonDialog.cshtml` | Existing confirmation, focus, status/error, no explanatory-copy and responsive conventions. Reuse without changing the shared component. |
 | `src/Pegasus.Core/Intake/Classification/MailLogicalFolderPolicy.cs` | Business folder taxonomy is not Inbox/Deleted Items; preserve classification policy. |
 | `src/Pegasus.Core/Identity/ApprovedMailboxAdministration.cs` | Exact approved mailbox and folder bindings/version. |

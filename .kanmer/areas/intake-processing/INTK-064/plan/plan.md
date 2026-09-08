@@ -23,17 +23,24 @@ preserving no normal Case/PO allocation from Triage itself.
 2. Feed accepted origin/Triage identity and known persisted principal through
    EvaluateIntakeCaseMatch's existing typed-key route. Reuse EfCaseMatchIndex in
    a context-bound form so the SAME complete candidate query/eliminator can run
-   under the existing Triage serializable transaction. No duplicate matching
+   under the existing Triage serializable transaction. Include FindAsync and
+   FindByCaseIdAsync replacement redirects in that same context-bound query.
+   No duplicate matching
    grammar, query owner, candidate priority or arbitrary first result.
 3. Before writing, recheck Triage state/version/principal, target archive/terminal
    state/version, live Staff lease and complete current candidate uniqueness.
+   Compare the final current Case.PrincipalId directly with the known Triage
+   principal, including Created-in-error replacement redirects: the initial
+   provider-scoped lookup does not establish the replacement's principal.
    Prior deliberate manual unlink/relink prevents automatic override. Use
    deterministic operation key and existing operation hash/replay/history and
    Case workflow event transaction. Cancelled stays unlinked; Completed may
    link without reopening or promoting its finding.
 4. Invoke after Triage create/replay and formal acceptance/replay; add bounded
    recovery to the existing staged reconciliation timer. Eligible-before-cap
-   queries avoid unknown/nonmatch/manual-override starvation. Report recoverable
+   queries avoid unknown/nonmatch/manual-override starvation. Nonmatch is a
+   dynamic eligibility condition, not a permanent recorded exclusion; a later
+   Case/correction must allow retry. Report recoverable
    failures and continue unrelated work; durable records remain retryable.
 5. Update FRD/as-built and focused existing fixtures. No UI redesign, Case/PO
    allocation, finding copy, new queue/schema/grants or provider mutation.
@@ -42,7 +49,8 @@ preserving no normal Case/PO allocation from Triage itself.
 
 Root alone executes build and focused existing Core/real SQL fixtures after
 freeze. Prove both arrival orders, duplicate replay, timer-only failure recovery,
-current corrected identity and competing-candidate race, known principal
+current corrected identity and competing-candidate race, cross-principal
+  Created-in-error replacement refusal, known principal
 contradiction/unknown principal, manual unlink/relink, lease and stale version,
 Cancelled refusal, Completed association and actual restricted Worker entry.
 Assert one current link/history, unchanged references/findings, no extra Case/PO,
