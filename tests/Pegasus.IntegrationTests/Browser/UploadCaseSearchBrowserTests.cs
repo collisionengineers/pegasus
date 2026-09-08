@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using Pegasus.Core.Intake;
@@ -39,7 +40,7 @@ public sealed class UploadCaseSearchBrowserTests
         await list.Locator("[role=option]").First.WaitForAsync();
         var response = await searchResponse;
         using var results = JsonDocument.Parse(await response.TextAsync());
-        var selectedCaseVersion = results.RootElement[0].GetProperty("version").GetInt64().ToString();
+        var selectedCaseVersion = results.RootElement[0].GetProperty("version").GetInt64().ToString(CultureInfo.InvariantCulture);
         Assert.Equal("true", await input.GetAttributeAsync("aria-expanded"));
 
         await input.PressAsync("ArrowDown");

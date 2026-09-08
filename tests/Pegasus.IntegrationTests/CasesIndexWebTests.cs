@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -62,9 +63,9 @@ public sealed class CasesIndexWebTests
             ["id"] = image.Record.Id.ToString("D"),
             ["receiptId"] = receiptId.ToString("D"),
             ["operationId"] = operationId.ToString("D"),
-            ["receiptVersion"] = receipt!.Version.ToString(),
+            ["receiptVersion"] = receipt!.Version.ToString(CultureInfo.InvariantCulture),
             ["caseId"] = caseId.ToString("D"),
-            ["caseVersion"] = workflow!.Version.ToString(),
+            ["caseVersion"] = workflow!.Version.ToString(CultureInfo.InvariantCulture),
             ["reference"] = string.Empty,
             ["reason"] = "Staff matched the reviewed image to the instructed case."
         };
@@ -147,9 +148,9 @@ public sealed class CasesIndexWebTests
             ["id"] = image.Record.Id.ToString("D"),
             ["receiptId"] = receiptId.ToString("D"),
             ["operationId"] = Guid.NewGuid().ToString("D"),
-            ["receiptVersion"] = receipt!.Version.ToString(),
+            ["receiptVersion"] = receipt!.Version.ToString(CultureInfo.InvariantCulture),
             ["caseId"] = caseId.ToString("D"),
-            ["caseVersion"] = workflow!.Version.ToString(),
+            ["caseVersion"] = workflow!.Version.ToString(CultureInfo.InvariantCulture),
             ["reference"] = caseReference,
             ["reason"] = "Forged single-member group attachment."
         };

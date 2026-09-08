@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -281,7 +282,7 @@ public sealed class UploadConfirmationWebTests
                 ["reference"] = "NO-SUCH-CASE",
                 ["reason"] = "Staff tried a reference that matches nothing.",
                 ["operationId"] = operationId.ToString("D"),
-                ["receiptVersion"] = receiptVersion.ToString()
+                ["receiptVersion"] = receiptVersion.ToString(CultureInfo.InvariantCulture)
             }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var failedPage = await response.Content.ReadAsStringAsync();
@@ -506,11 +507,11 @@ public sealed class UploadConfirmationWebTests
             ["reference"] = caseReference,
             ["reason"] = "Staff matched the whole submission to the instructed case.",
             ["operationId"] = confirmation.OperationId.ToString("D"),
-            ["caseVersion"] = confirmation.CaseVersion.ToString()
+            ["caseVersion"] = confirmation.CaseVersion.ToString(CultureInfo.InvariantCulture)
         };
         foreach (var receiptVersion in confirmation.ReceiptVersions)
         {
-            replayFields[$"receiptVersions[{receiptVersion.Key:D}]"] = receiptVersion.Value.ToString();
+            replayFields[$"receiptVersions[{receiptVersion.Key:D}]"] = receiptVersion.Value.ToString(CultureInfo.InvariantCulture);
         }
         var replay = await PostGroupHandlerAsync(
             client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", replayFields);
@@ -611,11 +612,11 @@ public sealed class UploadConfirmationWebTests
         };
         if (receiptVersion is { } reviewedReceiptVersion)
         {
-            fields["receiptVersion"] = reviewedReceiptVersion.ToString();
+            fields["receiptVersion"] = reviewedReceiptVersion.ToString(CultureInfo.InvariantCulture);
         }
         if (caseVersion is { } reviewedCaseVersion)
         {
-            fields["caseVersion"] = reviewedCaseVersion.ToString();
+            fields["caseVersion"] = reviewedCaseVersion.ToString(CultureInfo.InvariantCulture);
         }
         if (caseId is { } chosen)
         {
@@ -684,7 +685,7 @@ public sealed class UploadConfirmationWebTests
                 var receiptId = status!.ProcessedReceiptId ?? status.StagedReceiptId;
                 var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
                 Assert.NotNull(receipt);
-                fields[$"receiptVersions[{receiptId:D}]"] = receipt!.Version.ToString();
+                fields[$"receiptVersions[{receiptId:D}]"] = receipt!.Version.ToString(CultureInfo.InvariantCulture);
                 receiptVersions[receiptId] = receipt.Version;
             }
         }
@@ -695,7 +696,7 @@ public sealed class UploadConfirmationWebTests
 
         var caseVersion = await CaseVersionAsync(factory, caseId);
         fields["caseId"] = caseId.ToString("D");
-        fields["caseVersion"] = caseVersion.ToString();
+        fields["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture);
         var statusCode = await PostGroupHandlerAsync(
             client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields);
         return new(statusCode, operationId, receiptVersions, caseVersion);

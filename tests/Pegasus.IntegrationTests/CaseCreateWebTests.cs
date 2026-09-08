@@ -433,7 +433,11 @@ public sealed partial class CaseCreateWebTests
                     provider => failing.Wrap(
                         ActivatorUtilities.CreateInstance<AllocateIntake>(provider)));
             }));
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
         var receipt = await CreateBareReceiptAsync(factory.Services);
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
         var startingVersion = await ReadReceiptVersionAsync(factory.Services, receipt.Id);
