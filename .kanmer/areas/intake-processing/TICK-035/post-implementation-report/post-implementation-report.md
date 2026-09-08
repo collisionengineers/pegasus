@@ -8,8 +8,8 @@ receipt-provenance roundtrips all passed. Earlier focused passes and failures
 are preserved as attempt history below; no whole-repository test-suite pass
 or deployment is claimed.
 
-Current pre-checkpoint head: b47d8cc27aeba391e6cd650db3dc30d382f7e06e plus the
-seven mapped author files. Root authorized a checkpoint commit after these
+Current clean checkpoint: 7fcd4c662c5457024d1d20c5fe0c02c842e98a63,
+committing the seven mapped author files after root's passing focused checks. Root authorized a checkpoint commit after these
 results, but PR/base integration is explicitly on hold until CASE-049 merges
 its FRD-01 ownership. No edit to that document is authorized yet. No PR,
 independent review PASS, merge, exact-merge proof or live deployment is claimed.
@@ -537,3 +537,13 @@ sentence must align with the generalized matching owner after that file's
 ownership handoff; preserve its QDOS-specific cancellation event guard. No new
 source or test work is required merely for that doc sentence. Checklist's
 runtime verification item can now be checked; PR/review handoff remains open.
+
+
+Checkpoint7fcd4c662c5457024d1d20c5fe0c02c842e98a63 was committed with
+[skip ci]; git status is clean. Root's preserved Settings capture outputs
+normalized byte-identically to the existing committed snapshots and required
+no additional snapshot content diff. Independent reviewer re-read the two final
+provenance corrections at this exact checkpoint and found both F-P01/F-P02
+fixed with no remaining material delta finding; original preflight
+7074751553d263d8 is preserved. This bounded source check is not formal
+exact-final-PR approval. No push, PR or FRD-01 edit has occurred.
