@@ -83,3 +83,7 @@ Static caller inspection found two consumers not named in the original map. Thes
 | docs/design/test-ui/pages/cases-index--*.html | Affected queue snapshots only; resolve exact catalogue scope before capture. |
 
 The existing Awaiting image queue supports explicit staff association for registered images from Mail/Provider as well as ManualUpload. CanOffer may therefore accept ImageIntakeRegistered across channels, while ordinary receipt eligibility and all new automatic ManualUpload guards stay scoped as planned. Core owns this single eligibility rule; no fallback or duplicate policy.
+
+## Resolved catalogue path — 8 September 2026
+
+Catalogue inspection resolves the prior provisional cases-index snapshot entry: `src/Pegasus.Web/Pages/Cases/Index.cshtml` at `/Cases` owns `docs/design/test-ui/pages/queues--default.html` and `queues--empty.html`. The authorized generated-file scope is `docs/design/test-ui/pages/queues--*.html`, replacing the nonexistent `cases-index--*.html` placeholder. `cases--*.html` belongs to `/Search` and is not added. Capture scopes are upload-status, upload-group-status, case-create and queues, using their actual owning cohorts. This changes no product scope.
