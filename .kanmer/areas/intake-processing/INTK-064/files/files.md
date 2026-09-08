@@ -41,6 +41,12 @@ preserve every assertion and do not create an optional/no-op production path:
 - tests/Pegasus.IntegrationTests/ProviderApiCaseDataSnapshotPersistenceTests.cs
 - tests/Pegasus.IntegrationTests/ProviderInspectionModeAcceptanceTests.cs
 
+The required EfTriageStore policy dependency also updates exactly one direct
+constructor fixture: tests/Pegasus.IntegrationTests/ConcurrencyTokenPersistenceTests.cs.
+Reuse its real QDOS policy with QdosInstructionExtractionPolicy as in
+CaseMatchIntegrationTests; preserve every concurrency assertion. Root approved
+this fixture-only map correction after the exact caller census.
+
 ## Context files
 
 | Path | Constraint |

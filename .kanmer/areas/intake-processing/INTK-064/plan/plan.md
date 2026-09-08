@@ -6,7 +6,7 @@ Automatically link a uniquely identified Triage and formal Case in either
 arrival order, preserving permanent Triage reference/findings and reasoned
 manual control. Current execution baseline:
 aefe4c32d078ad79c0368666b5666032e6865248 (fresh origin/dev).
-Evidence: research 1233ce70e848f312; files 07e40ec3beb8068c.
+Evidence: research 1233ce70e848f312; files ad7d6256df45fcd9.
 Prior plan 597e4162d28c4a76 remains historical; its transaction/replacement
 guards are retained below.
 
@@ -85,7 +85,7 @@ serializable transaction.
 
 ## Expected files and do not modify
 
-Exact paths/responsibilities are files 07e40ec3beb8068c: seven production files,
+Exact paths/responsibilities are files ad7d6256df45fcd9: seven production files,
 three canonical docs, six behavior-test files and six constructor-only test
 files. Compared with the old map, DurableIntake.cs and
 EvaluateIntakeCaseMatch.cs are read-only context; AddTriageNoteTests and the
@@ -102,7 +102,11 @@ Root is the sole build/test owner. Use existing locked solution restore and
 Release build once on the frozen source, then focused existing
 TriageReplayTests, QdosTriageCaseAssociationIntegrationTests,
 TriageFromIntakeIntegrationTests and QdosTriageReplayIntegrationTests; include
-the new restricted-role method in AzureSqlRuntimeRoleMigrationTests.
+the new restricted-role method in AzureSqlRuntimeRoleMigrationTests and
+ConcurrencyTokenPersistenceTests.FreshLocalDbCaseAcceptanceAndTriageInsertUpdateGenerateTokensAndRejectStaleWrites.
+The latter is the one necessary direct EfTriageStore constructor fixture
+approved by root: supply its existing real QDOS policy pattern, preserving
+all concurrency assertions.
 Retain AddTriageNoteTests and ImmediateExternalPublicationTests as the small
 affected Core regressions. Constructor-only unrelated SQL classes do not
 justify rerunning their whole cohorts.
