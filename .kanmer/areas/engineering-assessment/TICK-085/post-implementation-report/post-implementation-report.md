@@ -94,3 +94,25 @@ threshold: complete attributable evidence and arithmetic are required, and
 import completion never confirms rows or promotes Current. No all-five/OCR
 provider PASS, Review/Done, self-review, merge or deployment is authorized
 before root disposition and evidence.
+
+
+## Pre-runtime review findings and authorized correction — 2026-09-08
+
+Root approved two bounded corrections within the existing file map before any
+runtime attempt. Preserve the validated submitted browser token after a
+completed canonical import; the existing redirected GET clears it only when
+the persisted lease was consumed. Source-hash replay otherwise keeps valid
+server authority but incorrectly asks the browser to Recover. The existing Web
+fixture now models imported mutation and lease consumption; a completion replay
+must keep one Draft, the same workflow version and fresh lease, without another
+writer/history side effect. Fresh import must still clear authority on GET.
+
+Second finding confirmed; correction in progress, not yet frozen. Canonical import must also reuse AssessmentAccessPolicy on the persisted
+workflow before bytes/OCR/hash replay and again in the imported-save transaction.
+CaseMutationGuard alone is insufficient: it permits nonterminal pre-handoff
+states which the assessment policy makes read-only. Use the existing policy,
+not a second lifecycle list. Retain the just-accepted Review MCP setup as a
+no-bytes/no-OCR/no-Draft negative, then perform native Engineer handoff and
+acquire fresh authority for its positive path. The existing SQL store test must
+also refuse direct imported save in read-only states. No unrelated writer,
+schema, route, contract flag, Core vocabulary or test framework is authorized.

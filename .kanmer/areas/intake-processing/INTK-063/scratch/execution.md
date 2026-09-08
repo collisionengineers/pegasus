@@ -55,3 +55,48 @@ The missing System.Globalization import correction remains. Root's initial-princ
 Source is frozen again for one root rerun. Current plan/files are unchanged (10543d55d4090f66/a2712472fca53cc9), as this is their existing replay contract. Readback confirmed the exact anonymous projection now carries the conditional component. git diff --check PASS exit 0. No author build/test. Fresh resumed packet showed current lease revision 10; successful CAS renewal is revision 11, implementing, expiry 04:22:15.266Z. Same worktree/branch/base.
 
 - 2026-09-08T04:00:54.723Z lease-phase implementing → running-command (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 12; expires 2026-09-08T04:30:54.717Z)
+
+## Root verification attempt 2 and minimal fixture correction — 2026-09-08
+
+Root sole-verifier session 89133 completed exit 1 before author source was
+released. Full Release solution build PASS, 124.08s, 0 warnings; Core focused
+cohort 75 PASS / 0 failures / 0 skipped, reported test duration 128ms;
+integration focused cohort 17 PASS / 1 FAIL / 0 skipped, reported duration
+1m50s. Initial attempt 65450 compile failure and its correction remain above.
+
+Author independently read the retained TRX counters, precise timestamps and
+hashes (no tests or builds executed by author):
+
+- `tests/Pegasus.Core.Tests/TestResults/intk-063-core-corrected.trx`:
+  75 executed, 75 passed; start 2026-09-08T04:03:28.6642250Z, finish
+  2026-09-08T04:03:30.6238919Z. SHA256
+  `C464DEFFFB614EC5CD9B60D2CE38541BA24E23659A000FEC95995D05833D1834`.
+- `tests/Pegasus.IntegrationTests/TestResults/intk-063-integration-corrected.trx`:
+  18 executed, 17 passed, 1 failed; start 2026-09-08T04:03:32.2343630Z,
+  finish 2026-09-08T04:05:25.2657326Z. SHA256
+  `C3FA11D7CC51BF79FF967BF9D0C662F97332EB2E3642D68B2E86DCEB0A1F7C73`.
+
+Only failure:
+`AzureSqlRuntimeRoleMigrationTests.WorkerReconcilesRegisteredImageUsingCurrentCaseIdentityExactlyOnce`.
+Its owner-side seed duplicated the migration-seeded QDOS Organization name and
+Principal code, causing uniqueness and cascading FK failures before the
+restricted Worker caller ran. No role permission success was established by
+this failed case.
+
+After the root-confirmed process completion and exact authorization, corrected
+only that method in the existing mapped test file: reuse
+`SeededPrincipals.QdosAsync(context)` and its Id/SequenceLineageId; remove the
+three duplicate Organization/PrincipalSequenceLineage/Principal inserts.
+No fabricated customer, production change, new grant, or weakened assertion.
+Existing migrated estate helper is the source of IDs. `git diff --check`
+PASS exit 0 after correction (line-ending notices only).
+
+Source frozen again: recorded `.worktrees/intk-063`, branch
+`INTK-063-image-link-recovery`, HEAD/base
+`cdaa02584c38ecc27d3bd24784f59da189138bc1`; 19 mapped tracked paths only.
+Root will run incremental integration build and ONLY
+`FullyQualifiedName~AzureSqlRuntimeRoleMigrationTests.WorkerReconcilesRegisteredImageUsingCurrentCaseIdentityExactlyOnce`.
+No rerun of 75 passing Core or 17 passing integration cases requested. No PR,
+push, review, merge, cloud operation or author heavy command performed.
+Lease renewed by fresh CAS to revision 13, running-command, at
+2026-09-08T04:10:20.319Z; expires 04:40:20.319Z.
