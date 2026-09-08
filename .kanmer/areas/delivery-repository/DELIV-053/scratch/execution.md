@@ -364,3 +364,15 @@ Root reread canonical IDLE e053f70fdefb75d6, fresh ready packet, and actual clea
 Run original dotnet build Pegasus.slnx, Core --no-build, and SAME amended focused nonbrowser Integration filter (UploadConfirmationWebTests|UploadOutcomeQueriesTests|CaseCreateWebTests|GroupedIntakeWebTests|ImageIntake|CasesIndexWebTests|MailWorkspaceWebTests|TriageQueuesWebTests.AwaitingAttach, all FullyQualifiedName~ predicates grouped then &Category!=Browser). After all PASS, browser --no-build filter Category=Browser&(FullyQualifiedName~UploadCaseSearchBrowserTests|FullyQualifiedName~QdosAllocationRecoveryBrowserTests), xUnit.MaxParallelThreads=1, using documented installed Chromium/setup. New theories prove actual confirmation and editable Create at1580/1100/760; keep all unrelated existing tests in these classes. First genuine failure stops remainder and returns IDLE; no autonomous retry or source/assertion/filter fixes.
 
 Fresh exact-head/process census required. After original build parent exits, record/revalidate PID/start/parent/expected command of only this invocation's reusable MSBuild nodes then native exact-ID cleanup permitted, as prior grants. No foreign/name-based termination. Local disposable SQL only. No snapshot generation, source edits, push/PR, live/cloud/Outlook/Box. Remaining full Release rails and four-scope capture/verification are separate later obligations, not waived. Record exact commands/exits and explicit canonical IDLE on finish.
+
+## Host slot handoff — INTK-066 exact-head queue PASS — 2026-09-08
+
+At exact clean HEAD `500b86a9b21adbd7a8fe56a65ddd52782630ce21`, sole verifier `/root/agent_config_verifier` completed the granted queue:
+- Build PASS, 0 warnings/errors; six exact invocation-owned reusable MSBuild nodes cleaned after the parent exited.
+- Core PASS: 1,955 passed / 14 skipped / 0 failed.
+- Amended focused non-browser Integration PASS: 127 passed / 0 skipped / 0 failed.
+- Two-class single-thread browser selection PASS: 10 passed / 0 skipped / 0 failed, including the 1580/1100/760 confirmation and editable Create theories.
+
+Exact commands and cleanup identities are retained in INTK-066 scratch/execution. No retry, source/snapshot edit, live action, push or PR occurred. Final worktree remained exact-head clean and the dotnet/MSBuild/testhost/vstest census was empty. INTK-066 lease returned to phase `implementing` at revision 30.
+
+Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned**. Remaining full Release rails and four-scope snapshot obligations require a separate fresh grant.
