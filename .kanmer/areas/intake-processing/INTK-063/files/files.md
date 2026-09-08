@@ -28,8 +28,7 @@
 ## Tests and protected ownership
 
 - tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeCasePairingTests.cs
-- tests/Pegasus.Core.Tests/Intake/AutomaticImageIntakeTests.cs (locate actual
-  existing path with rg before edit; no duplicated fixture)
+- tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs
 - tests/Pegasus.IntegrationTests/ImageIntakePersistenceTests.cs
 - tests/Pegasus.IntegrationTests/GroupedImageIntakeConcurrencyTests.cs
 - Existing AzureSqlRuntimeRoleMigrationTests for real restricted Worker caller.
