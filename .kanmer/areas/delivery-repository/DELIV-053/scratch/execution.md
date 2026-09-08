@@ -512,3 +512,19 @@ After all commands completed, root static review found a concrete requirement de
 Prior full nonbrowser 75f result remains retained FAIL (1,969 passed/5 failed); the focused 9/9 closes only those corrected assertions, not a new full-suite aggregate.
 
 All processes exited. INTK-066 lease returned to `implementing`, revision 69. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
+
+## Sole-host final group-render correction verification
+
+Canonical prior IDLE7134cce90e2d1b6b read, fresh packet ready, clean frozen HEAD684ddce42c6a8535d603adb54354c9b3c2bca6b5. /root/final_verifier is sole ACTIVE CEALEX-May25 owner, recorded INTK-066 worktree/branch unchanged. Root changed only the existing group Razor compact/readiness conditions and strengthened its existing WorkingMemberWithAnOpenSibling test for two cases; previous seven generated capture outputs were committed as observed evidence, and the group processing snapshot now needs regeneration against this correction. Other three page scopes remain unchanged by the source delta. Three porcelain-only capture stat entries (including index.html) were proven raw+filtered hash equal HEAD before normal Git stat refresh; no content/staged drift, source clean.
+
+Run the scoped capture workflow directly; its first phase compiles the affected Web/Integration project and dependencies. This is proportional build/test evidence for a Razor condition/test-only delta, not another unrelated full solution run.
+1. pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope upload-group-status -CaptureFilter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~UploadCaseSearchBrowserTests"
+2. pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope upload-group-status
+3. pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1
+4. pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1
+5. pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c -Head 684ddce42c6a8535d603adb54354c9b3c2bca6b5
+6. git diff --check
+
+Retain full internal browser/nonbrowser/update results. The nonbrowser selection includes BOTH strengthened processing test cases plus all existing UploadConfirmation/Qdos tests and appended TestUiFocusedRenderTests. Confirm these cases were selected. Expected generated inventory is three existing upload-group-status states; only docs/design/test-ui/pages/upload-group-status--*.html may change. Do not hand-edit snapshots, source, tests, scripts, catalogue or index; actual undeclared content drift stops.
+
+Root just validated existing absolute capture target C:/Users/Alex/Documents/GitHub/pegasus/.worktrees/INTK-066/artifacts/test-ui-capture inside recorded worktree; target and artifacts are nonlinked directories. Freshly revalidate before the normal script removes this disposable capture directory. Prior captured defect is retained in committed snapshot/history; new capture replaces the disposable input for current verification. No other cleanup target permitted. Use same exact-owned-node cleanup only after invocation parent exit if needed, never foreign/broad process termination. Lease heartbeats owned by verifier, source frozen, no live/cloud/externalSQL/Outlook/Box, packaging or commit/push/PR. Stop first genuine failure, record all commands and return both records IDLE/lease implementing; no retry or fixes. Root will inspect the corrected rendered diff and own final report/commit/PR.
