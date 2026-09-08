@@ -39,3 +39,15 @@ D39. No diagram exists in the codebase today (the ENG-006 grid was removed by th
 Research@c56007a0e80d6697 and files@66f9e028c99fd81e; root approved the
 bounded canonical-code/shared-geometry shape, not execution. Whole plan
 and path handoff remain outstanding. No builds/tests/source changes occurred.
+
+## Root bounded plan review — 2026-09-08
+
+Root fully read plan@8e5c42c8c0ebf15b, files@66f9e028c99fd81e and
+open-questions@1838b908abc04b95. Approved the proposed design/scope:
+existing 34 canonical entries, one embedded geometry with actual Case/PDF
+callers, unchanged three-member ReportImpact retaining canonical codes,
+native typed global Save and the bounded existing-browser harness.
+
+This is not take or source authority. Exact predecessor/shared-index
+handoffs remain outstanding; the combined execution prerequisite stays
+unchecked. No claim, stage, branch, source or evidence state is changed.
