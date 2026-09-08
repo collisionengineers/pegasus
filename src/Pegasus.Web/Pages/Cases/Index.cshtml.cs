@@ -372,10 +372,7 @@ public sealed class IndexModel(
                 SelectedImageReceiptVersion = (await getIntake.ExecuteAsync(
                     new(receiptId, actor), cancellationToken))?.Version;
                 var image = await _imageIntakeQueries.GetAsync(SelectedId.Value, cancellationToken);
-                if (image is not null
-                    && image.Record.SubmissionGroupId is { } groupId
-                    && image.GroupExpectedMemberCount > 1
-                    && image.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload)
+                if (RequiresGroupConfirmation(image) && image!.Record.SubmissionGroupId is { } groupId)
                 {
                     SelectedImageSubmissionGroupId = groupId;
                 }
@@ -394,7 +391,8 @@ public sealed class IndexModel(
         var image = await _imageIntakeQueries.GetByOriginReceiptAsync(receiptId, cancellationToken);
         return image is not null
             && image.Record.Id == surfaceId
-            && image.Record.Origin.ReceiptId == receiptId;
+            && image.Record.Origin.ReceiptId == receiptId
+            && !RequiresGroupConfirmation(image);
     }
 
     protected override Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
@@ -406,10 +404,12 @@ public sealed class IndexModel(
         Guid surfaceId,
         CancellationToken cancellationToken)
     {
-        var image = (await _imageIntakeQueries.ListAsync(false, cancellationToken))
-            .SingleOrDefault(candidate => candidate.Id == surfaceId
-                && candidate.State == ImageInitiatedCaseState.AwaitingInstruction);
-        return image is null ? [] : [image.OriginReceiptId];
+        var image = await _imageIntakeQueries.GetAsync(surfaceId, cancellationToken);
+        return image is null
+            || image.State != ImageInitiatedCaseState.AwaitingInstruction
+            || RequiresGroupConfirmation(image)
+            ? []
+            : [image.Record.Origin.ReceiptId];
     }
 
     protected override async Task<IActionResult> RenderSurfaceAsync(
@@ -420,6 +420,12 @@ public sealed class IndexModel(
         SelectedId = surfaceId;
         return await OnGetAsync(cancellationToken);
     }
+
+    private static bool RequiresGroupConfirmation(ImageIntakeDetail? image) =>
+        image is not null
+        && image.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+        && image.Record.SubmissionGroupId is not null
+        && image.GroupExpectedMemberCount > 1;
 
     private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {

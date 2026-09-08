@@ -125,6 +125,52 @@ public sealed class CasesIndexWebTests
         Assert.Contains($"/Upload/Group/{groupId:D}", html, StringComparison.Ordinal);
         Assert.Contains("Continue with this submission", html, StringComparison.Ordinal);
         Assert.DoesNotContain("?handler=Attach", html, StringComparison.Ordinal);
+
+        using var scopedSearch = await client.GetAsync(
+            $"/Cases?handler=CaseSearch&id={image.Record.Id:D}&receiptId={receiptId:D}&term=AB");
+        using var allSearch = await client.GetAsync(
+            $"/Cases?handler=CaseSearch&id={image.Record.Id:D}&term=AB");
+        Assert.Equal("[]", (await scopedSearch.Content.ReadAsStringAsync()).Trim());
+        Assert.Equal("[]", (await allSearch.Content.ReadAsStringAsync()).Trim());
+
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(receipt);
+        var forgedIndex = new Dictionary<string, string>
+        {
+            ["id"] = image.Record.Id.ToString("D"),
+            ["receiptId"] = receiptId.ToString("D"),
+            ["operationId"] = Guid.NewGuid().ToString("D"),
+            ["receiptVersion"] = receipt!.Version.ToString(),
+            ["reason"] = "Forged single-member group attachment."
+        };
+        using var rejected = await PostImageAttachAsync(client, forgedIndex);
+        Assert.Equal(HttpStatusCode.Redirect, rejected.StatusCode);
+        Assert.Null((await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None))!.CurrentCaseId);
+
+        var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .GetAsync(groupId, CancellationToken.None);
+        Assert.NotNull(group);
+        var memberId = group!.Members[0].StagedReceiptId;
+        using var memberPage = await client.GetAsync($"/Upload/Status/{memberId:D}");
+        Assert.Equal(HttpStatusCode.Redirect, memberPage.StatusCode);
+        Assert.Equal($"/Upload/Group/{groupId:D}", memberPage.Headers.Location?.OriginalString);
+
+        using var memberScopedSearch = await client.GetAsync(
+            $"/Upload/Status/{memberId:D}?handler=CaseSearch&receiptId={receiptId:D}&term=AB");
+        using var memberAllSearch = await client.GetAsync(
+            $"/Upload/Status/{memberId:D}?handler=CaseSearch&term=AB");
+        Assert.Equal("[]", (await memberScopedSearch.Content.ReadAsStringAsync()).Trim());
+        Assert.Equal("[]", (await memberAllSearch.Content.ReadAsStringAsync()).Trim());
+
+        forgedIndex["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var memberRejected = await client.PostAsync(
+            $"/Upload/Status/{memberId:D}?handler=Attach",
+            new FormUrlEncodedContent(forgedIndex));
+        Assert.Equal(HttpStatusCode.Redirect, memberRejected.StatusCode);
+        Assert.Null((await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None))!.CurrentCaseId);
     }
 
     [Fact]
