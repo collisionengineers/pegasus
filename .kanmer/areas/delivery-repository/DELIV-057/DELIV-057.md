@@ -1,0 +1,40 @@
+---
+id: DELIV-057
+type: ticket
+title: Seed the historical vehicle lookup migration schema accurately
+status: backlog
+area: delivery-repository
+assignee: ''
+profile: fix
+labels:
+  - regression
+  - test-fixtures
+  - corrective
+links: []
+refs:
+  - docs/engineering.md
+archived: false
+created: '2026-09-08T13:28:14.030Z'
+updated: '2026-09-08T13:28:14.030Z'
+---
+
+## What
+
+Fix the three VehicleLookupBackfillTests setup failures by seeding the schema that actually exists before the tested migration.
+
+## Why
+
+PR700 run34196369756 fails before exercising migration assertions because its historical schema still requires InstructionConfirmedByStaff. The current production schema removed that field via PLAT-072. Historical test setup must reflect its own starting schema without restoring obsolete production columns.
+
+## Approach
+
+- Change only tests/Pegasus.IntegrationTests/VehicleLookupBackfillTests.cs using its existing database setup.
+- Seed required historical columns at the tested migration stage; preserve all transition/backfill/idempotency assertions.
+- No production migration/model/permissions change, compatibility mechanism or fabricated domain inputs.
+
+## Verification
+
+- [ ] Sole host verifier runs the existing VehicleLookupBackfillTests selection after a sequential affected build if required.
+- [ ] Retain the original nonzero results and exact new exits; independent review and draft PR to dev.
+
+## Outcome
