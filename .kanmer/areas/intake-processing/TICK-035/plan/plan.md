@@ -232,3 +232,29 @@ Compare original/snapshot SHA bytes and exact receipt/snapshot persisted hash,
 without changing the production representation. Root reruns only the two failed
 original-source tests, then focused Settings capture. No broader build/test
 cohort or new source sample. Retain all earlier failed attempts.
+
+
+## Genuine-mail expectation and ALS caller correction
+
+Root approved the actual-currentness correction: retain HD4021 as a genuine
+YML report-correspondence negative, not a new instruction mined from quoted
+history. Parameterize the original four-input test using ReferencePackTheory,
+so each original reports independently and one failure cannot hide another.
+Each still runs two occurrences and replay. YML must prove accepted route,
+Unclassified/no draft/no Case and zero allocations; ALS/FW/SBL must create one
+Inspection Case and uniquely associate the next occurrence, retaining pinned
+images/readiness/origin/field provenance.
+
+The actual ALS DOC revealed newline-only row predicates skipping visible
+claimant/vehicle values. Extend only existing ALS Party/Vrm/Make/Model/Category
+row-start predicates to accept newline or two tabs; never single tab into the
+adjacent owner/third-party column. Keep the shared reader unchanged. Pin exact
+supplied claimant, reference, registration, make/model and party separation,
+including a structural probe removing the claimant column while retaining the
+owner and third-party. No inferred fallback or fabricated domain data. The
+other current originals' typed fields also become explicit expectations.
+
+Author performs only bounded source checks, then freezes. Root reruns these
+four independently reported original cases only; already-passed53 Core,
+fifteen-original PDF and Settings captures are not repeated. Record missing
+independent YML initial-envelope coverage honestly. Preserve every failed run.

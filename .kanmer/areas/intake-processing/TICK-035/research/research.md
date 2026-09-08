@@ -283,3 +283,34 @@ Convert.ToHexString (uppercase), while the fixture pins original bytes with
 ToHexStringLower. Decode both hexadecimal values for byte equality and also
 assert exact persisted receipt-to-snapshot hash equality. No production hash
 normalization or storage change is warranted.
+
+
+## Genuine mail currentness and ALS row boundaries — 8 September 2026
+
+Root's next correction build passed (23.09s, zero warnings). Focused five
+checks had four PASS and one FAIL: all fifteen original typed-key profiles,
+QDOS/YML Settings and actual pegasustest Administration capture passed; the
+four-email loop then failed on YML InstructionDraft at line68. Its route was
+correctly Accepted/YML, not null. The unchanged HD4021 message currently asks
+for comments on a third-party report. Attached PDFs are a fee note and reports;
+the original instruction exists only two messages deep in quoted history.
+Selector NotApplicable, Unclassified and no new Case are therefore correct.
+Root approved correcting this false-positive fixture, retaining that original
+as a negative. Do not promote quoted history or fabricate an envelope. A local
+.eml text search found only this YML message; pack's47 email filenames and the
+five original HDUK PDFs provide no separate initial YML envelope. YML genuine
+mail allocation is not yet proved; the fifteen-original PDF proof is separate.
+
+Read-only calls to the already-built production reader, selector, selected-
+content classifier and match extractor confirmed ALS/FW/SBL each Accepted,
+Selected and Inspection with usable claim keys. FW and SBL yield their labelled
+identity. ALS's current DOC has client Name and vehicle label rows separated
+by double tabs in its main text; the existing newline-only ALS predicates miss
+them. The binary reader already documents its cell/row mark convention and
+last-paragraph-only cell limitation. Do not broaden that reader. Extend only
+ALS's existing row starts to accept newline or the double-tab row boundary,
+never a single tab into the owner/third-party column. Its original distinguishes
+Mr Martin Neilly/K40NLY/Vauxhall/Mokka X Elite Nav Ecotec S/S from owner Kathleen
+Neilly and third-party PX11OJA/Skoda. Preserve source labels and candidates.
+Pin these actual fields, not conditional null-skipping assertions. Retain the
+same original/hash. No new parser, framework, role fallback or provider call.

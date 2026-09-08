@@ -120,3 +120,17 @@ proved salutation, not at the identical letterhead. No new parser or grammar.
 Existing Top15InstructionCorpusTests adds exact YML original identity and an
 unclosed-letter negative; QdosAllocationRecoveryTests compares SHA bytes plus
 exact persisted receipt/snapshot hash. All other files remain frozen.
+
+
+## Current-message and ALS genuine caller correction
+
+- Existing QdosAllocationRecoveryTests.cs: parameterize the same four original
+  references into separately reported cases. YML report correspondence stays
+  exact-source, Accepted route but no draft/type/Case; preserve both deliveries
+  and replay. ALS/FW/SBL retain one-Case allocation, association, factual state
+  and provenance checks; pin supplied labelled identity instead of accepting
+  null claimant/vehicle facts. No new fixture/host.
+- src/Pegasus.Core/Intake/DirectProviders/Als/AlsInstructionExtractionPolicy.cs:
+  only existing claimant/vehicle row-start patterns recognize binary DOC's
+  double-tab row boundary, preserving first-column and owner/third-party roles.
+  Shared Word reader and extraction framework are deliberately unchanged.
