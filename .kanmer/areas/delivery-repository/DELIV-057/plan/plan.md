@@ -26,7 +26,7 @@ Add both historical column names and the already-established `true` seed values 
 
 - `src/**` — no migration, model, snapshot, grant, or production-code change.
 - `docs/**` — no documentation change.
-- `tests/**` except `tests/Pegasus.IntegrationTests/VehicleLookupBackfillTests.cs` — no assertion, test, or fixture expansion.
+- Other test files — no assertion, test, or fixture expansion.
 - `.github/**`, `scripts/**`, package/dependency inputs, generated artifacts, and `corpus/**`.
 
 ## Constraints

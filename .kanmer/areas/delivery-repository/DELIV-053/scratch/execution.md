@@ -9,3 +9,28 @@ Created the scoped configuration/instruction diff in `DELIV-053-codex-agents` at
 ## Host slot grant — 2026-09-08
 
 Host CEALEX-May25: /root/agent_config_verifier is the sole authorized verification executor for DELIV-053's frozen .worktrees/deliv-053 configuration diff. Scope: strict Codex diagnostics, profile discovery/model evidence and lightweight role checks only. No application tests/builds, browser capture, packaging, live writes, user config changes or auto-trust. The immediately preceding process census found no dotnet/MSBuild/testhost/vstest processes. Parent and all other agents run only static inspection until an explicit idle handoff. All commands in this slot execute sequentially and failure is retained; do not rerun a failed check without reporting its cause and getting a revised authorized step.
+
+## Host verification attempt 1 — 2026-09-08 — INCONCLUSIVE
+
+Host-slot owner: `/root/agent_config_verifier` on `CEALEX-May25`. Frozen input: worktree `C:/Users/Alex/Documents/GitHub/pegasus/.worktrees/deliv-053`, branch `DELIV-053-codex-agents`, HEAD and merge-base `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`. Frozen byte checks matched the grant exactly: `AGENTS.md` SHA-256 `d14f1f0ddd53d46766bbe7af08c1e218f2af548875a244f3e9576a0e12b31d69`; `.codex/config.toml` SHA-256 `c78dff0413e843a6aab70ddb27d40271d3cfe8ccdc1c7de3e2b11d165275807d`. CLI identity: `codex-cli 0.153.4`.
+
+Strict configuration diagnostic (single invocation, process exited):
+```text
+COMMAND: codex --strict-config doctor --summary
+EXIT: 0
+Configuration
+  ✓ config       loaded
+  ✓ auth         auth is configured
+  ✓ mcp          2 server (2 stdio) · 0 disabled
+  ✓ sandbox      unrestricted fs + enabled network · approval Never
+FINAL: 20 ok · 1 idle · 5 notes · 3 warn · 0 fail degraded
+```
+Doctor warnings/notes were environment/state observations: Microsoft Defender interference warning, worktree not on Windows Dev Drive, rollout files missing from state DB, 1,360 active rollout files / 6.39 GB, unrestricted filesystem/network. They were not strict-config failures. Connectivity checks passed and background app-server was idle.
+
+First role-discovery diagnostic attempted:
+```text
+COMMAND: codex --strict-config debug prompt-input "Read-only configuration discovery evidence only; do not act."
+EXIT: 1
+OUTPUT: Error: `--strict-config` is not supported for `codex debug`
+```
+Disposition: this is an unsupported diagnostic command combination, not evidence of a configuration failure. Per the execution packet's first-failure/no-automatic-retry rule, no retry without `--strict-config`, child/session launch, or later verification check was run. Consequently actual client-visible discovery of all five named roles and their effective model/reasoning settings was not established in this attempt. The separate preserved-Kanmer/no-secret acceptance check also remained incomplete when the stop condition fired. Overall result: **INCONCLUSIVE**, exact blocker the unsupported `--strict-config debug` combination. No product edit, application build/test, capture/browser host, packaging, cloud write, user-config change, auto-trust, child agent, or external write occurred. All Codex processes from this attempt exited. Host slot returned **IDLE** after this record.
