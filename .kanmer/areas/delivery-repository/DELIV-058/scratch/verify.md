@@ -37,3 +37,5 @@ Preflight at `2026-09-08T15:11:57.3201105Z` found no scoped build/test process. 
 Postcheck at `2026-09-08T15:15:04.1712207Z` retained the same two-file status, clean diff check, and exact blob hashes. Three idle reusable MSBuild nodes remained; no testhost/vstest or active verification command remained.
 
 Disposition: **PASS**. No source write, rerun, D56 action, broader application test, commit, push, PR, merge, or stage mutation was performed.
+
+Root exact-merge setup: PR708 confirmed MERGED 0a6ccca799eb670825e60b614cf24b846cdf4572 into dev; current declared pr.yml/verify/push lookup exits1 HTTP404 absent workflow, all scoped obligations missing under ordinary fallback. Reconcile returned no recommendation. Read plan128e84dc19caa5f6/gates, renewed retained lease3 verifying. Only after receipt lookup fetched and created exact clean detached .worktrees/verify-deliv-058-0a6ccca799eb670825e60b614cf24b846cdf4572; HEAD matched, symbolic-ref empty exit1 as expected for detached, status clean. Sole verifier queued locked Architecture restore, Release build, focused2 and full116 after current D57/D56. No proof/PASS/Done/main/Azure claim.

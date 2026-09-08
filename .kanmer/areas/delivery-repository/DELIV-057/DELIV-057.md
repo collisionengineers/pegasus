@@ -2,7 +2,7 @@
 id: DELIV-057
 type: ticket
 title: Seed the historical vehicle lookup migration schema accurately
-status: verifying
+status: done
 area: delivery-repository
 order: -10
 assignee: codex-mcp-client
@@ -11,6 +11,7 @@ stageEntered:
   preparing: '2026-09-08T13:30:20.896Z'
   review: '2026-09-08T14:50:24.397Z'
   verifying: '2026-09-08T15:38:07.533Z'
+  done: '2026-09-08T15:50:04.524Z'
 taken_at: '2026-09-08T13:34:30.046Z'
 branch: DELIV-057-seed-historical-vehicle-lookup-schema
 worktree: .worktrees/deliv-057
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/707'
 archived: false
 created: '2026-09-08T13:28:14.030Z'
-updated: '2026-09-08T15:41:29.071Z'
+updated: '2026-09-08T15:50:04.524Z'
 ---
 
 ## What
