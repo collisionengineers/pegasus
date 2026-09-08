@@ -11,15 +11,15 @@ stageEntered:
 taken_at: '2026-09-08T05:16:20.212Z'
 branch: INTK-064-triage-link-recovery
 worktree: .worktrees/intk-064
-claim_expires_at: '2026-09-08T06:22:18.318Z'
+claim_expires_at: '2026-09-08T06:29:49.759Z'
 claim_controller: intake_audit
 lease_id: 002a6af1-7ec8-435c-920c-66323b0ace95
-lease_revision: 6
+lease_revision: 7
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-064'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T05:52:18.318Z'
+lease_heartbeat_at: '2026-09-08T05:59:49.759Z'
 labels:
   - triage
   - association
@@ -39,7 +39,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T05:52:18.318Z'
+updated: '2026-09-08T05:59:49.759Z'
 ---
 
 ## What
