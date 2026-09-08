@@ -7,7 +7,7 @@ reviewer: "/root/parallel_plan_review"
 independent: true
 plan_hash: "128e84dc19caa5f6"
 ticket_updated: "2026-09-08T15:20:07.226Z"
-board_sha: "19ad33bde248fbfd6581f725f4c516ad97b23497"
+board_sha: "800b09a0ab3b0246e144ee5e92c2eef1c5c9e462"
 expected_reviewers: ["/root/parallel_plan_review"]
 threads_snapshot: []
 findings:
@@ -23,7 +23,7 @@ findings:
     ticket: DELIV-057
   - id: F-003
     severity: note
-    summary: "The optional SQL shard 1 exposes the held-lease fixture expecting CaseCreated where current evidence routes NeedsSorting."
+    summary: "The optional SQL shards expose intake fixtures that now route NeedsSorting or produce no IntakeAllocationState."
     disposition: deferred-to-ticket
     ticket: DELIV-056
   - id: F-004
@@ -31,6 +31,11 @@ findings:
     summary: "The optional browser and Test UI lanes repeat the upload case-search timeout."
     disposition: rejected-with-reason
     reason: "PR 708 changes only two architecture-test files and no upload, Web, browser, runtime or integration-test path; both lanes failed the same unchanged test while 134 of 135 tests passed."
+  - id: F-005
+    severity: note
+    summary: "The optional SQL shard 3 exposes the stale InaccessibleCaseCannotPostSendToClaude gated-disabled-control expectation."
+    disposition: deferred-to-ticket
+    ticket: DELIV-056
 ---
 
 # DELIV-058 independent review
@@ -43,14 +48,14 @@ This is an independent round-0 whole-PR review. PR 708 was reviewed at exact
 head `71c1bc1266583459d40b82c3d19d59af632afa7d` against plan version
 `128e84dc19caa5f6`, ticket revision `rev1:3488e8e52112c560`, and ticket
 timestamp `2026-09-08T15:20:07.226Z`. The pushed board tip was
-`19ad33bde248fbfd6581f725f4c516ad97b23497` with ahead 0.
+`800b09a0ab3b0246e144ee5e92c2eef1c5c9e462` with ahead 0.
 
 The complete packet, all three governing refs, exact PR diff, implementation
 report, sole-host verifier record, current checks, reviews, comments and review
 threads were gathered. The ticket is in Review, PR 708 is open and ready,
-targets the configured integration branch `dev`, and retains the expected
-single commit. No group context applies. GitHub reviews and review threads are
-empty. The expected reviewer set is settled by this record.
+mergeable, targets the configured integration branch `dev`, and retains the
+expected single commit. No group context applies. GitHub reviews and review
+threads are empty. The expected reviewer set is settled by this record.
 
 ## Changes and scope reviewed
 
@@ -95,11 +100,12 @@ test and does not claim a broader application-suite PASS.
 The exact query immediately before this record reported no required checks on
 `DELIV-058-architecture-assertions`. Absence is configuration evidence, not
 a fabricated green suite. The broader optional repository-check run
-`34244034556` was still in progress at the bounded review cutoff.
+`34244034556` completed FAILURE and remains explicit non-PASS evidence.
 
-Completed passing jobs were changes, documentation, local-development-scripts
-and reference-data; infrastructure was path-skipped. Completed non-PASS jobs
-were dispositioned from their actual logs:
+Changes, documentation, local-development-scripts, reference-data and
+sql-integration-coverage passed; infrastructure was path-skipped. Unit,
+browser, Test UI and all three SQL shards failed. Those actual failures are
+dispositioned without relabelling the broader run green:
 
 - F-001: unit built successfully, then Core passed 1,906 and skipped 14 before
   `TrackedPegasusSourceHashesHaveNotDrifted` failed on the deleted
@@ -110,17 +116,24 @@ were dispositioned from their actual logs:
 - F-002: SQL shard 1 passed 658, skipped 1 and failed three vehicle-lookup
   fixtures because they inserted NULL `InstructionConfirmedByStaff`.
   DELIV-057 owns that fixture class and has since merged to `dev`.
-- F-003: the fourth SQL shard-1 failure expected `CaseCreated` but observed
-  `NeedsSorting` in `HeldLeaseConfirmationClearsOnlyTheCurrentLeaseThroughRazor`.
-  DELIV-056 owns that evidence-fixture class.
+- F-003: SQL shard 1's remaining failure expected `CaseCreated` but observed
+  `NeedsSorting`; shard 2 passed 612, skipped 3 and failed 29; shard 3 passed
+  620 and failed 15. Except for F-005, those shard-2/3 failures are the same
+  fixture class: accepted allocation was expected while current evidence
+  routed `NeedsSorting` or produced no `IntakeAllocationState`. DELIV-056
+  owns the evidence-fixture correction.
 - F-004: browser and Test UI each passed 134/135 and failed the same
   `UploadCaseSearchBrowserTests` case after a 30-second wait for
   `details.upload-attach > summary`. The PR changes no causal path, so this is
   rejected as a PR-708 finding without being relabelled PASS.
+- F-005: SQL shard 3's
+  `InaccessibleCaseCannotPostSendToClaude` failed its historical
+  gated-disabled-control expectation. Current read-only cases omit mutation
+  controls; DELIV-056 owns the stronger negative-absence correction alongside
+  its related seed correction. No ENG-034 remediation or new ticket is
+  inferred.
 
-SQL shards 2 and 3 remained pending at the cutoff. They are recorded as
-unobserved optional evidence, not inferred, waived, or presented as green. The
-corrective programme still owes a converged full repository gate before
+The corrective programme still owes a converged full repository gate before
 promotion.
 
 The sole GitHub comment is Codex status
@@ -131,15 +144,17 @@ finding to disposition.
 
 ## Decision and residual risk
 
-F-001, F-002 and F-003 are terminally deferred to their named owners. F-004 is
-rejected as causal to this two-test diff for the stated path and baseline
-evidence. No finding remains open. There is no unmet scoped acceptance check,
-review thread, security/data-loss/destructive risk, runtime change, or
+F-001 through F-003 and F-005 are terminally deferred to their named owners.
+F-004 is rejected as causal to this two-test diff for the stated path and
+baseline evidence. No finding remains open. There is no unmet scoped acceptance
+check, review thread, security/data-loss/destructive risk, runtime change, or
 failed/missing required check.
 
 PASS for the bounded DELIV-058 architecture-assertion correction at the exact
 head above. This does not claim the optional repository workflow is green and
-does not authorize merge, release, deployment, proof, source edit, rerun or
-cleanup. A later merge decision requires explicit authority and a fresh
-head/check/thread/ticket/plan/board gather; any changed relevant input requires
-this whole-file record to be replaced.
+does not accept release, deployment, proof, source edit, rerun or cleanup.
+Root has supplied explicit authority for ordinary squash integration to
+`dev` only. Merge remains contingent on a fresh unchanged
+head/check/thread/ticket/plan/board gather and permits no force, bypass, waiver
+or `main` promotion. Exact merged-SHA verification and Done remain separate
+obligations.
