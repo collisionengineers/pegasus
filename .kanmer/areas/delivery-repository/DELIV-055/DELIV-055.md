@@ -2,7 +2,7 @@
 id: DELIV-055
 type: ticket
 title: Restore the self-contained release migration host recipe
-status: review
+status: verifying
 area: delivery-repository
 order: 40
 assignee: codex-mcp-client
@@ -11,6 +11,7 @@ stageEntered:
   preparing: '2026-09-08T13:28:18.420Z'
   implementing: '2026-09-08T13:30:29.628Z'
   review: '2026-09-08T14:24:56.601Z'
+  verifying: '2026-09-08T14:54:07.503Z'
 taken_at: '2026-09-08T13:32:27.085Z'
 branch: DELIV-055-migration-host-doc
 worktree: 'C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\deliv-055'
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/705'
 archived: false
 created: '2026-09-08T13:25:29.949Z'
-updated: '2026-09-08T14:45:47.884Z'
+updated: '2026-09-08T14:54:07.503Z'
 ---
 
 ## What
