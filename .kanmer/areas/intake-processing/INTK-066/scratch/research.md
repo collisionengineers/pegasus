@@ -1,0 +1,3 @@
+## Settled new-Case boundary — operator, 8 September 2026
+
+For a manually uploaded definitive instruction with no viable existing Case: run the normal extraction, propose a new Case whose details staff may alter, then explicitly accept or reject. Do not propose or reserve a Case/PO. Generate the permanent Case/PO only after staff acceptance through the existing allocator. This supplements the earlier operator decision requiring explicit confirmation even for one viable existing Case. No allocation/association should race the manual confirmation screen via queued processing or later automatic reconciliation; non-manual email/provider routes retain their current policy.
