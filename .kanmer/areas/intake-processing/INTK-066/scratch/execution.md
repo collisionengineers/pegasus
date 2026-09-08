@@ -45,3 +45,24 @@ Canonical DELIV-053 IDLE version1bf95e7dd6d779f6 reread; verifier ran no runtime
 Root reread canonical IDLE version1bf95e7dd6d779f6. Sole CEALEX-May25 owner /root/agent_config_verifier is ACTIVE at observed clean HEAD 26bf5d00206014f58adf8149abe39084fd52b3f4, .worktrees/INTK-066, branch INTK-066-manual-upload-confirmation, unchanged base9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c. Ready resumed packet has plan55c918dad00c5863/filesdc89538d010c1b7f. Corrective guards at both single-item surfaces and meaningful valid-target group regression are frozen. Initial da6ff queue was NOT RUN, not PASS or test failure.
 
 Run initial queue now sequentially: dotnet build Pegasus.slnx; Core tests --no-build; Integration --no-build filtered to (FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~MailWorkspaceWebTests)&Category!=Browser; after all pass, Category=Browser&FullyQualifiedName~UploadCaseSearchBrowserTests with documented local browser setup and xUnit.MaxParallelThreads=1. Read existing environment setup; recheck inputs/process ownership. Disposable local SQL fixture only, no live services/cloud/Outlook/Box. No source fixes, snapshot updates, retry, commit/push/PR. Stop first real failure and return exact diagnosis/exit; record unstarted obligations and canonical IDLE. Author idle/no edits. Root lease renewed rev7 running-command60min; verifier coordinate heartbeat. After this queue, further full affected cohorts and 4 actual snapshot scopes require subsequent grant.
+
+## Corrected-head sole-host verification — build failure — 2026-09-08
+
+Canonical grant: DELIV-053 `scratch/execution` version `c978108750dfcfa8`.
+Ready packet: ticket revision `rev1:de3f6c0f581f5fc1`; plan `55c918dad00c5863`; files `dc89538d010c1b7f`.
+Exact base/head: `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `26bf5d00206014f58adf8149abe39084fd52b3f4`.
+
+Preflight at 2026-09-08T19:06:05.7667647Z exited 0: exact clean worktree/common repository/branch/head; base ancestor; 35 changed paths and zero forbidden paths; author idle; zero dotnet/MSBuild/testhost/vstest processes; Windows LocalDB default with external SQL environment variables unset.
+
+2026-09-08T19:06:22.6569501Z–2026-09-08T19:08:07.1479244Z — `dotnet build Pegasus.slnx` — exit 1. Restore completed and Core/Core.Tests/Infrastructure/Worker compiled, then Pegasus.Web failed with 0 warnings and 6 errors:
+
+- `src/Pegasus.Web/Pages/Cases/Index.cshtml.cs(419,9)`: CS0200 — `IndexModel.Queue` is read-only and cannot be assigned.
+- `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs(241,69)`: CS8602 — possible null dereference.
+- `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs(256,48)`: CS8602 — possible null dereference.
+- `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs(268,17)`: CS8604 — possible null `expectedReceiptVersions` argument to `AttachGroupAsync`.
+- `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs(375,42)`: CA1859 — parameter `receiptVersions` should use `Dictionary<Guid,long>?` rather than `IReadOnlyDictionary<Guid,long>?`.
+- `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs(407,42)`: the same CA1859 finding.
+
+Disposition: **FAIL / stopped at command 1**. Core tests, focused non-browser SQL tests, and conditional UploadCaseSearch browser tests are NOT RUN. No source fix, retry, snapshot update, SQL fixture, browser, cloud, Outlook, Box, commit, push, or PR action occurred.
+
+At 2026-09-08T19:08:35.0504412Z the exact HEAD remained clean. The postcheck wrapper exited 1 only because six `dotnet` processes started at 20:06:23 local by this build remained; observed PIDs 3348, 4780, 6368, 13584, 24076, and 28988. Per instruction, they were not killed or otherwise touched. This process observation does not change the build failure classification.
