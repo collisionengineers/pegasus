@@ -9,10 +9,10 @@
 
 ## Closeout — INTK-064
 
-- [ ] PR merge verified (gh pr view state/mergedAt)
-- [ ] proof.md finalized with PR and merge date
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR, follow-ups)
+- [x] PR merge verified (gh pr view state/mergedAt)
+- [x] proof.md finalized with PR and merge date
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR, follow-ups)
 - [ ] Exit and remove exact owned verification/implementation worktrees
 - [ ] Remove merged ticket branch normally (no force)
 - [ ] Fetch/prune owned Git metadata and check no leftovers

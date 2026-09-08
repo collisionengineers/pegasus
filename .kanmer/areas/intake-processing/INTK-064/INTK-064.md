@@ -50,7 +50,7 @@ delivery_sha: 96777888bfa7ee7f85d63979a4a09ae10cda7d13
 delivery_recorded_at: '2026-09-08T06:26:18.051Z'
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T06:35:05.182Z'
+updated: '2026-09-08T06:35:50.319Z'
 ---
 
 ## What
@@ -96,9 +96,12 @@ Historical claims and the separate original roster remain unchanged.
 
 ## Outcome
 
-Implemented creation/replay, formal acceptance/replay and existing timer
-association. Root verified Release build, 32 Core and 14 integration tests
-(including genuine arrival orders and restricted Worker), plus 127 document
-link checks. The report retains the earlier compile failure. Integrated and independently
-reviewed, not deployed. Root retains the Verifying lease for exact-merge proof;
-no post-merge runtime or Done claim yet.
+Verified Done at exact merge 96777888bfa7ee7f85d63979a4a09ae10cda7d13
+(PR #699, merged 2026-09-08T06:16:37Z). Independent review236cd47ab3845f07
+PASS; full-read final proof62004ad6af9cbc43 PASS retains the initial CS8602
+failure, corrected author results and exact merged Release build/32 Core/
+14 integration/127 document checks. Four hashed TRXs and manifest are retained
+in pegasus_pack/current/proofs/INTK-064 before normal owned cleanup.
+No implementation deviations or outstanding ticket acceptance. EPIC-014 owns
+final converged release/live lifecycle proof; not deployed. ENG-029's narrow
+assertion handoff and all historical claims remain preserved.
