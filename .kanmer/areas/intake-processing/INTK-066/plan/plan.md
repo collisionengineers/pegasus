@@ -7,7 +7,7 @@ Never associate automatically or propose/reserve Case/PO before acceptance.
 
 ## Starting state
 Integration baseline origin/dev 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c.
-Evidence: research/research.md@16702074ba67f26c, files/files.md@e4a0f08f02f5ca13.
+Evidence: `research/research.md`@`16702074ba67f26c`, `files/files.md`@`e4a0f08f02f5ca13`.
 Preparing feature ticket, untaken; no source modifications or verification yet.
 The operator's 8 September implementation instruction and subsequent new-Case
 clarification approve this bounded behavior and necessary FRD reconciliation.
@@ -170,7 +170,7 @@ Use one whole-ticket execution packet; no unconstrained step continuation.
 ## Commands
 Run from recorded ticket worktree on PowerShell 7, by granted verifier only.
 Read docs/engineering.md and docs/runbook.md for existing environment variables/setup.
-1. dotnet build Pegasus.sln --no-restore
+1. dotnet build Pegasus.slnx
 2. dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --no-build
 3. dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-build --filter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake"
 4. dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-build --filter "Category=Browser&FullyQualifiedName~UploadCaseSearchBrowserTests" -- xUnit.MaxParallelThreads=1
