@@ -81,3 +81,6 @@ docs/design/system/dist/
 ~$*
 .codex/config.toml
 .mcp.json
+opencode.json
+.opencode/skills/
+/pegasus_pack/
