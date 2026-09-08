@@ -13,17 +13,6 @@ stageEntered:
   review: '2026-09-08T14:24:56.601Z'
   verifying: '2026-09-08T14:54:07.503Z'
   done: '2026-09-08T15:12:10.746Z'
-taken_at: '2026-09-08T13:32:27.085Z'
-branch: DELIV-055-migration-host-doc
-worktree: 'C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\deliv-055'
-claim_expires_at: '2026-09-08T15:28:06.651Z'
-claim_controller: codex-mcp-client
-lease_id: b9dc1816-f141-49a6-a72c-873df695f7f0
-lease_revision: 3
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-055'
-lease_provider: codex
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T14:58:06.651Z'
 labels:
   - release
   - corrective
@@ -41,7 +30,7 @@ delivery_sha: a1f0bfe260ea05df531df6e0ca3109141e7697da
 delivery_recorded_at: '2026-09-08T15:14:00.893Z'
 archived: false
 created: '2026-09-08T13:25:29.949Z'
-updated: '2026-09-08T15:14:00.893Z'
+updated: '2026-09-08T15:14:38.664Z'
 ---
 
 ## What
