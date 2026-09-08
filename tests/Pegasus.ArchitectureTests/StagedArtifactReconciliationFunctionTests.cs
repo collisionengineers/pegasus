@@ -3,6 +3,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ProviderApi;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Worker;
@@ -23,6 +24,8 @@ public sealed class StagedArtifactReconciliationFunctionTests
                 typeof(IDocumentContentCacheCleanup),
                 typeof(ReconcilePendingArtifactCustody),
                 typeof(ReconcileGroupedImageIntake),
+                typeof(IImageIntakeCasePairing),
+                typeof(ITriageCasePairing),
                 typeof(ReconcileUnidentifiedDestinations),
                 typeof(ReconcileAutomaticVehicleLookups),
                 typeof(ReconcileProviderSubmissions),

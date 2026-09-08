@@ -198,14 +198,21 @@ public sealed class DependencyDirectionTests
         Assert.Contains(typeof(IIntakeSourceReader), parameters);
         Assert.Contains(typeof(IIntakeReceiptStore), parameters);
         Assert.Contains(typeof(IIntakeArtifactStore), parameters);
-        Assert.Contains(typeof(IInstructionExtractionPolicy), parameters);
-        Assert.DoesNotContain(typeof(QdosInstructionExtractionPolicy), parameters);
+        Assert.Contains(typeof(InstructionExtractionPolicySelector), parameters);
+        Assert.DoesNotContain(
+            constructor.GetParameters(),
+            parameter => typeof(IInstructionExtractionPolicy).IsAssignableFrom(parameter.ParameterType));
+
+        var selectorConstructor = Assert.Single(typeof(InstructionExtractionPolicySelector).GetConstructors());
+        Assert.Equal(
+            [typeof(IEnumerable<IInstructionExtractionPolicy>)],
+            selectorConstructor.GetParameters().Select(parameter => parameter.ParameterType));
 
         // One policy per instruction profile, so the SET is not frozen - INTK-060
         // C03 adds fourteen more beside QDOS. What must hold is where they live
         // and what reaches them: every implementation is Core's, none is
-        // duplicated in Infrastructure, and the orchestrator above depends on
-        // the interface rather than on any of them.
+        // duplicated in Infrastructure, while the selector owns their
+        // collection boundary.
         var implementations = typeof(CoreAssembly).Assembly.GetTypes()
             .Where(type => !type.IsAbstract && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type))
             .ToArray();
