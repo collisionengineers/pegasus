@@ -1,0 +1,982 @@
+{
+  "base": "af1625fae8ac8018054c95e988907f6c44fa4639",
+  "state": "implemented",
+  "files": [
+    {
+      "path": ".agents/skills/pegasus-release/SKILL (2).md",
+      "action": "delete",
+      "before_sha256": "0cf0146dd546e8237dd0057f93e172b9dca1e802527ac0e1ace131176841d58c",
+      "after_sha256": null,
+      "patch": "patches/001-SKILL (2).md.patch"
+    },
+    {
+      "path": ".agents/skills/pegasus-release/SKILL.md",
+      "action": "modify",
+      "before_sha256": "3f26f1cbbc9874a5cf697adadc6e1418f6af2de304bcdf2dc321f42a8a055ffa",
+      "after_sha256": "6c85926dcb7e8cd6f0008b4bb89652111ce078094280c95c8bbe4e114fd597b8",
+      "patch": "patches/002-SKILL.md.patch"
+    },
+    {
+      "path": ".agents/skills/pegasus-release/references/troubleshooting.md",
+      "action": "modify",
+      "before_sha256": "25908d00020aabc7060ed960649eca715c618eed4787bfddea35bb4422dbb645",
+      "after_sha256": "bd5f8fdf4340ce56a818023d63f0d3de4c780983c67bdcef1f3cfd8dc5736815",
+      "patch": "patches/003-troubleshooting.md.patch"
+    },
+    {
+      "path": ".agents/skills/pegasus-wipe-intake-data/SKILL (2).md",
+      "action": "delete",
+      "before_sha256": "21edb93178256a3e6ba21d9ae4f09f8b69953f21ad8f9e798b605bede971833d",
+      "after_sha256": null,
+      "patch": "patches/004-SKILL (2).md.patch"
+    },
+    {
+      "path": ".agents/skills/razor-pages-ui-implementation/SKILL.md",
+      "action": "modify",
+      "before_sha256": "eecdf0ecee3cb9b81694886e824595dbfe1c1f89b2150ef63f66667bdd8a57ec",
+      "after_sha256": "32f7b87c7770c5519889e51072a0e4748ed4f613d575c107ee6c5fee8cd8129a",
+      "patch": "patches/005-SKILL.md.patch"
+    },
+    {
+      "path": ".grok/skills/.kanmer-skills-version",
+      "action": "delete",
+      "before_sha256": "1b17dda2a473aebc94357e632d640fa0abbc656dd480f1299b3e322fe56439a0",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-auto/SKILL.md",
+      "action": "delete",
+      "before_sha256": "00e0ce4bccd3c223e5a4f91cd96a98a1c28ea3d7bd67821ff8ff7f3cb50a34d3",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-auto/assets/current-run-template.md",
+      "action": "delete",
+      "before_sha256": "ea7bb6b21b157df9cff45f1bf45141efc913fe86ef13690c52c6619bf8856eae",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-auto/assets/run-state-template.md",
+      "action": "delete",
+      "before_sha256": "2edc2e268f8ee4103814c455262fc27a0a5842cfc90f9dafebacb03935ea6ca9",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-closeout/SKILL.md",
+      "action": "delete",
+      "before_sha256": "3524a067fa75a8d716d0c887ea8c67a8b382aa78f9382b099444bc56a032b228",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-closeout/assets/closeout-checklist.md",
+      "action": "delete",
+      "before_sha256": "117c4eec3444abad5ef180e5c141dd97208a3d113afed9e336f5bfb6dbf8a5bb",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-docs/SKILL.md",
+      "action": "delete",
+      "before_sha256": "8fb47aca1d55ef5d165d083112f9ab33112d6947b45935a2553f4aaad78b6365",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-docs/assets/adr-template.md",
+      "action": "delete",
+      "before_sha256": "da878f353ac9f906af8b1e24cdf9794acb6aaed24e8270256656bcab3f9ff9b7",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-docs/assets/agents-template.md",
+      "action": "delete",
+      "before_sha256": "2a959aeba09939fc613178910a941488c067b14c2e20c042fb0f1a7a501843bb",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-docs/assets/doc-structure.md",
+      "action": "delete",
+      "before_sha256": "87c802e8a007477db2883353bc11615ee75e16ed9c75eb8e03b07b6a72f4e0dc",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-docs/assets/frd-template.md",
+      "action": "delete",
+      "before_sha256": "25de30125bca0372c2ce81e235ab7468791c090f0129305f91b0f2b2fc786627",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-docs/assets/prd-template.md",
+      "action": "delete",
+      "before_sha256": "e172952de9af89abec21fb763bc19fbb7c928b08b7902abfb6e0335b7e469952",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-execute/SKILL.md",
+      "action": "delete",
+      "before_sha256": "9cd3d2a52d98a243b0e3a2429a84b6990e86eaa6b2a60ea0e4506a9e06861bc2",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-execute/assets/post-implementation-report-template.md",
+      "action": "delete",
+      "before_sha256": "42e391116917b3a934ac4233af69a0a05282a819918fdff22289d450004c4ce7",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-execute/assets/pr-template.md",
+      "action": "delete",
+      "before_sha256": "9c7746ed33176ac1777a4450e61a7378847538020eb5b0b317ee9b32b04c7670",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-execute/assets/proof-template.md",
+      "action": "delete",
+      "before_sha256": "5063aad47899d6984774a48ba3fc14146e8548ccd239db4188cadb58f1aac590",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-execute/assets/proof-test-template.md",
+      "action": "delete",
+      "before_sha256": "e4238ea5b21c447fb2fdd0034aaf473fd56c125b1627519548f365213a0b8b43",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-execute/assets/proof-visual-template.md",
+      "action": "delete",
+      "before_sha256": "a0ca9de0e3d8bf967b076c311bc29cd277e0e7166b0dd9d78228f9b4cc65c11c",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-groom/SKILL.md",
+      "action": "delete",
+      "before_sha256": "9ca8c85fccd04d157be826233806159e7420cea3882304dea05a174a84353832",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/SKILL.md",
+      "action": "delete",
+      "before_sha256": "56941d263e664c82ce37bb531e035e8c05b96eadef9600ec42cf5b27394ecbff",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/approval-contract.md",
+      "action": "delete",
+      "before_sha256": "bb2fd3378ab9a07691b7db996cd18a2b5e521bb0fa7c32b973d2248a1339a473",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/brief-cloud-infra.md",
+      "action": "delete",
+      "before_sha256": "947c6881e6aea40e3b5d93092da897c5e17ed01c14e49cef8e5501980243b3e9",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/brief-data-migration.md",
+      "action": "delete",
+      "before_sha256": "58d545752f88319146a41de9c5bf74e6849c02d43378d23ceb85e227d08edafc",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/brief-docs.md",
+      "action": "delete",
+      "before_sha256": "03de8492abb0ccd1a850e6e5cb77ee9737900d2c085eb0918e6031022dd77ad4",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/brief-fix.md",
+      "action": "delete",
+      "before_sha256": "406a013e2b2acf40c4db9abb3470f789dcf805d9a53f81ef6a2a5bc687cd0202",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/brief-ui-ux.md",
+      "action": "delete",
+      "before_sha256": "8950177f6e1c64fbd9d947cb89608f00371312f6607975c19dd652cc3081ba7f",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/checklist-template.md",
+      "action": "delete",
+      "before_sha256": "2b28631a2fbaebf407a0e1e90556f349fed6924cc4af158a8b3bccb9916e2ecc",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-plan/assets/plan-template.md",
+      "action": "delete",
+      "before_sha256": "c11ff345306f8b71aada7d206562e99fe8c552d655083eefc3797aa3fd5b41cd",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-report/SKILL.md",
+      "action": "delete",
+      "before_sha256": "1d701519e68ea1d2116f6edda4e67633a0abc8292cf824564424049558dc3625",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-research/SKILL.md",
+      "action": "delete",
+      "before_sha256": "cb78ce1e0804057e8e6eb3ab7c5bff9c12e11e8b37b5f04b4775b0f896b50af2",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-research/assets/files-template.md",
+      "action": "delete",
+      "before_sha256": "1ddf50eea6238327bffa36b24af877dae6331037d70e267ff35770883bd86744",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-research/assets/open-questions-template.md",
+      "action": "delete",
+      "before_sha256": "3f1002d00a142fb5e8768ef7135dbf78ad206f3e1534040c6308b83c441530a6",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-research/assets/research-template.md",
+      "action": "delete",
+      "before_sha256": "b61263ca47bc685ac5a4ca203a0e2188c45f9d22d0f8c47cb7c6e4ee4ca9a82a",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-review/SKILL.md",
+      "action": "delete",
+      "before_sha256": "eefcbf902c9d6113ce13d37f767d74dd9d09a21921ec64afc0127006b70e6404",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-setup/SKILL.md",
+      "action": "delete",
+      "before_sha256": "7b2aa92aa8dd1b4e174a12eb86a1d73fcbd64b620eab1f91d285e3dca5d52544",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-tickets/SKILL.md",
+      "action": "delete",
+      "before_sha256": "b6a8cf66986d4f3ad46bdfe7483ba051b0ccb265ff03d349645939930f00ed6a",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-tickets/assets/group-context.md",
+      "action": "delete",
+      "before_sha256": "ebac964afd7288b00229fcf4424c48db80d11deaa9d037091eacfff6dc331031",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-tickets/assets/ticket-template.md",
+      "action": "delete",
+      "before_sha256": "ea963e5cad4baed292232e6844cf6e0f19305a5329bc1357fa566d200391517f",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-tickets/references/tool-reference.md",
+      "action": "delete",
+      "before_sha256": "7d2b4602e0cb2305af9241c306f08138734dfb66017bab231e575e7a1d1ebb96",
+      "after_sha256": null
+    },
+    {
+      "path": ".grok/skills/kanmer-verify/SKILL.md",
+      "action": "delete",
+      "before_sha256": "8d07f55866ece6a4dbcb895bde1d50c3744141e1274d4174b137ab8a5ee16ea2",
+      "after_sha256": null
+    },
+    {
+      "path": "AGENTS.md",
+      "action": "modify",
+      "before_sha256": "b80a9a197f12d8bc1d5bc175da4bfddc15e00b1b2cfa3f98943e8ebede3975bb",
+      "after_sha256": "e26e2af92f34defce73441aeefc044a009f4b412bfff4c0ffe88681ba8e1e439",
+      "patch": "patches/046-AGENTS.md.patch"
+    },
+    {
+      "path": "CONTEXT.md",
+      "action": "modify",
+      "before_sha256": "1c17cf8fdc04941d54542d38d8bf008769076925c1590a6b49c80340f4ae1d31",
+      "after_sha256": "84835ea486814ccc2a0af80ec56a771d6297f805f7d1652babe79e3752594341",
+      "patch": "patches/047-CONTEXT.md.patch"
+    },
+    {
+      "path": "README.md",
+      "action": "modify",
+      "before_sha256": "5fc2b2eaa4e4763613bdabd9e6a561c0c670d7dd63c4ab21134a030b88755246",
+      "after_sha256": "35c066593abcf7f2bc1cf5c9c9c066177fabbfc18a0da007ce346cbfbc28c158",
+      "patch": "patches/048-README.md.patch"
+    },
+    {
+      "path": "docs/adr/0002-dotnet-modular-monolith-on-azure.md",
+      "action": "modify",
+      "before_sha256": "7a53a9f0b70e964175650bf515a3030fc4c06012ec6a4963dabc71db970a4cff",
+      "after_sha256": "693edeff7411a6ce95c2668f57fa74f6db4274b16296698dc9805c8d7f319431",
+      "patch": "patches/049-0002-dotnet-modular-monolith-on-azure.md.patch"
+    },
+    {
+      "path": "docs/adr/0003-pdfpig-for-first-qdos-slice.md",
+      "action": "modify",
+      "before_sha256": "cc93e96cf735093c0ab883ab73d8e8a8a80f109445f983723b63f3f1bb3c6bd2",
+      "after_sha256": "896453da666ad7bcb58272f9ea094b4c0f4ba1f2a546c6b78ce75ac14be3f91b",
+      "patch": "patches/050-0003-pdfpig-for-first-qdos-slice.md.patch"
+    },
+    {
+      "path": "docs/adr/0005-multiformat-intake-assets.md",
+      "action": "modify",
+      "before_sha256": "30d40417585861d8f1ef48d4ad9a5e9b49d95dee5947871bc4b0920b95b5aec7",
+      "after_sha256": "ef0564142fffdaf08f4fac12434862e069d2337fb93f7f60db0046e298ef1441",
+      "patch": "patches/051-0005-multiformat-intake-assets.md.patch"
+    },
+    {
+      "path": "docs/adr/0006-provider-neutral-intake-with-contained-qdos-policy.md",
+      "action": "modify",
+      "before_sha256": "798c419cbd99da9e0a002139ba2d7be4d4a33ed4ad9b024efd9689ac5defdc6e",
+      "after_sha256": "0c8b5b26649400e021e190a25d2c500b28b555020181ea4257f6c439404fb747",
+      "patch": "patches/052-0006-provider-neutral-intake-with-contained-qdos-policy.md.patch"
+    },
+    {
+      "path": "docs/adr/0007-direct-terminal-azure-deployment.md",
+      "action": "modify",
+      "before_sha256": "522b0fae7d927ada941b472fb1328d66e496fdb2572a3adb07e9c684bfe7252b",
+      "after_sha256": "45842335b5d25ed497db7416840d0ad1c37c57c729bb6cc71f3f98c26221b6a8",
+      "patch": "patches/053-0007-direct-terminal-azure-deployment.md.patch"
+    },
+    {
+      "path": "docs/adr/0008-separate-direct-provider-and-intermediary-email-policies.md",
+      "action": "modify",
+      "before_sha256": "cd6ef7ff10d4961d60ca2dc4d0c076651a527408db6b1f297ec47cc51d3ffcca",
+      "after_sha256": "34e6b551fa7cbe88ed4e5a2516e56668955337696fbeb528338ecd71e58974cf",
+      "patch": "patches/054-0008-separate-direct-provider-and-intermediary-email-policies.md.patch"
+    },
+    {
+      "path": "docs/adr/0009-adopt-pegasus-monorepo-workspaces.md",
+      "action": "modify",
+      "before_sha256": "6b667317f7c878b88a9c4b4b69b7be56603b0b698b1faab97c38f01b1606bdd3",
+      "after_sha256": "aaa295a7982fd33f438fae93e78a07da407af6de273abaeabae468a9523b460c",
+      "patch": "patches/055-0009-adopt-pegasus-monorepo-workspaces.md.patch"
+    },
+    {
+      "path": "docs/adr/0013-qdos-alpha-implementation-contract.md",
+      "action": "modify",
+      "before_sha256": "6b7f2a7d13e8361da0ba6e1a639dd14d6996af3c06a696310000435b54d54640",
+      "after_sha256": "29c978f6014cc65b9d1b29ddce627a5bb452905c824fa6fac6d73d19e0971463",
+      "patch": "patches/056-0013-qdos-alpha-implementation-contract.md.patch"
+    },
+    {
+      "path": "docs/adr/0015-host-web-on-container-apps-consumption.md",
+      "action": "modify",
+      "before_sha256": "cf6e4460613177c339ae8a6c560ed458c6a87f364f2daa0206daf4f5fa9e754c",
+      "after_sha256": "d19fd877c69f4d74a66ce39c8e0b79ce680a8e8a28dd2c1f6b27c1cb2f0cb4b1",
+      "patch": "patches/057-0015-host-web-on-container-apps-consumption.md.patch"
+    },
+    {
+      "path": "docs/adr/0018-provider-inspection-mode-database-setting.md",
+      "action": "modify",
+      "before_sha256": "7a616a47fc5b8368edb28d14d9c6bc232dd9ae6e60920f566ce6eb444c2d5164",
+      "after_sha256": "61e2e1d39f15edd86ef391719c66279d7900015fd587b666cfdba278ce315d89",
+      "patch": "patches/058-0018-provider-inspection-mode-database-setting.md.patch"
+    },
+    {
+      "path": "docs/adr/0019-in-process-onnx-vrm-recognition.md",
+      "action": "modify",
+      "before_sha256": "c2eab85e23c6c9f14fc1a378d3b24569c39dcec6f9d076f1d26a8e1cc3fed8ff",
+      "after_sha256": "750f132990cc1aa6df327a4b372852587ad7864aeee2d02a9f7d3ebc7f4654cd",
+      "patch": "patches/059-0019-in-process-onnx-vrm-recognition.md.patch"
+    },
+    {
+      "path": "docs/adr/0021-automation-actor-direct-write-assessment-contract.md",
+      "action": "modify",
+      "before_sha256": "6c76b8c50848b08c2fdcb613193e05e68f469656404c6e2e434c2483b10502dd",
+      "after_sha256": "0f1d3dab6a94df04c21c1b46369a5c39f0e1cdb28c4f48ffb3f7cdf240b36718",
+      "patch": "patches/060-0021-automation-actor-direct-write-assessment-contract.md.patch"
+    },
+    {
+      "path": "docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md",
+      "action": "modify",
+      "before_sha256": "b2299e56a3858a75227009829cd8904052890a253d9ff8ce17db487edf8ae43f",
+      "after_sha256": "77cf22f82c1c6f7492ab8530e260478c529bd9510a9e44ffcfb3a38ae4afbc9c",
+      "patch": "patches/061-0024-stable-approved-mailbox-identity-and-explicit-baseline.md.patch"
+    },
+    {
+      "path": "docs/adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md",
+      "action": "modify",
+      "before_sha256": "dc8390fc257385a6a635e309ddeb97e573f47a433428448eeeccd0f190f12d15",
+      "after_sha256": "345f277113e1419ec361dd512e9dd2ec1eafe57e656446bc764a5f565189dab9",
+      "patch": "patches/062-0026-enable-automation-mcp-by-explicit-deployment-configuration.md.patch"
+    },
+    {
+      "path": "docs/adr/0027-authorization-code-for-external-mcp-connectors.md",
+      "action": "modify",
+      "before_sha256": "3d6772a58b12a12d56ced32a229188718800fa2bdf993e5cc90b1082502bc2f0",
+      "after_sha256": "db30c3a800745b2cf58f672cf384cc7b870e8b08247c3668d5db6d680776cd31",
+      "patch": "patches/063-0027-authorization-code-for-external-mcp-connectors.md.patch"
+    },
+    {
+      "path": "docs/adr/0029-image-initiated-case-projection.md",
+      "action": "modify",
+      "before_sha256": "53cae8ccad72996b2ccfca11befb8dcb5f0386808df3fce0088d25e45d0064de",
+      "after_sha256": "d52273a9f483b0542a853684564974814b808bcbf5f33acaa5c6b3787c0e86a3",
+      "patch": "patches/064-0029-image-initiated-case-projection.md.patch"
+    },
+    {
+      "path": "docs/adr/0030-non-additive-schema-changes-before-cutover.md",
+      "action": "modify",
+      "before_sha256": "371c8eaf56e3f5ba19ef06ede73ff8038aba13fe695fd61ffbc4a85687c4b814",
+      "after_sha256": "49130bcda0a1e4d54cfd17a03768e77c3d0a1956c3bc903fef6a56d5c2c1dfbe",
+      "patch": "patches/065-0030-non-additive-schema-changes-before-cutover.md.patch"
+    },
+    {
+      "path": "docs/adr/0031-automation-actor-contract-without-eva-export-tools.md",
+      "action": "modify",
+      "before_sha256": "6579c2c35eed284b8b7d5196ded1ba881d8be32f992fbb5a7bf6c484ccd6bb76",
+      "after_sha256": "038ba3646000b11dcd7b9254f0f38c9d748b46d5e80571a5423838894c4af8ef",
+      "patch": "patches/066-0031-automation-actor-contract-without-eva-export-tools.md.patch"
+    },
+    {
+      "path": "docs/adr/0032-near-real-time-durable-intake-triggering.md",
+      "action": "modify",
+      "before_sha256": "cec928b04471445a52fd29ae744ea21dfc7ef7527636943b8ff144e695b21fdf",
+      "after_sha256": "061b3f0cabd0f0a5f1d196f0b4dcaabde9c6371544e109aaa0fd000a928fdb54",
+      "patch": "patches/067-0032-near-real-time-durable-intake-triggering.md.patch"
+    },
+    {
+      "path": "docs/adr/0035-ai-job-ledger.md",
+      "action": "modify",
+      "before_sha256": "48320e3ad1f3151d5c732bdedce001bddd19f7d87afaa55e73218946388c7eba",
+      "after_sha256": "c9a685755e85e4d9658017264f61e4a8b8cdf17dad074aa842a3fcde3d885874",
+      "patch": "patches/068-0035-ai-job-ledger.md.patch"
+    },
+    {
+      "path": "docs/adr/0036-outbound-mail-via-approved-mailbox.md",
+      "action": "modify",
+      "before_sha256": "0ce739ed03a3f476fda5efcf41edaecc70aea2a3d4cbc1e077b3d2ea27700663",
+      "after_sha256": "a90665398d36b11d0d29876619e4bf44c250122cdc2c68f650a88d02ac82da68",
+      "patch": "patches/069-0036-outbound-mail-via-approved-mailbox.md.patch"
+    },
+    {
+      "path": "docs/adr/0037-linux-authorised-release-workstation.md",
+      "action": "modify",
+      "before_sha256": "6ba259a39bfdb7a379863ebfad8b028576beef493045a294e4fc505a679acb8b",
+      "after_sha256": "dda0f1463ac9fe7d6457cc1a5c3b677c899aab293d44c1aa13c792bc239acf42",
+      "patch": "patches/070-0037-linux-authorised-release-workstation.md.patch"
+    },
+    {
+      "path": "docs/adr/0039-windows-and-linux-release-workstations.md",
+      "action": "modify",
+      "before_sha256": "b0cc38a4858325d3a6cadb449fa357b720870078ac191f5499cc2aade06331e9",
+      "after_sha256": "36be68323711fd3e396fc5ea7830f7cfd9aadc20bbb5a202b597ce9048140747",
+      "patch": "patches/071-0039-windows-and-linux-release-workstations.md.patch"
+    },
+    {
+      "path": "docs/adr/0041-persistent-automation-keys-and-grant-attribution.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "0106e47bedc9ed4b668c7697ed402fc54b6c0ef69af49774586b57448517c968",
+      "patch": "patches/072-0041-persistent-automation-keys-and-grant-attribution.md.patch"
+    },
+    {
+      "path": "docs/adr/0042-staff-send-operation-journal.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "2167662ab9f044c71c902689e283114a33a7a0c4f67d2f904a76955585d57cd8",
+      "patch": "patches/073-0042-staff-send-operation-journal.md.patch"
+    },
+    {
+      "path": "docs/adr/0043-per-engineer-vendor-credential-protection.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "2f2bad57e9cc37ed6cebda786958fe32b3ba3868c82f7616215457c3394cba95",
+      "patch": "patches/074-0043-per-engineer-vendor-credential-protection.md.patch"
+    },
+    {
+      "path": "docs/adr/0044-mail-occurrence-and-business-identity.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "2090c5baf7181a0f04fdb2f55563ae2ea53ec792b1eb36792cd977b190c1cd18",
+      "patch": "patches/075-0044-mail-occurrence-and-business-identity.md.patch"
+    },
+    {
+      "path": "docs/adr/0045-document-custody-and-derived-caches.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "45c355b409079f6bcb86e1bb38b7b206facb7ffa5f8537f79fd53b59adb4e767",
+      "patch": "patches/076-0045-document-custody-and-derived-caches.md.patch"
+    },
+    {
+      "path": "docs/adr/README.md",
+      "action": "modify",
+      "before_sha256": "bf00b3359472f5689f5a330a3848817678175f251e515f54b1c8ae6d1553b908",
+      "after_sha256": "848bd1eb98e5f27a142a833a5c0055aba2dc4d8951cb4a93cf00b05c47a6c877",
+      "patch": "patches/077-README.md.patch"
+    },
+    {
+      "path": "docs/boundaries.md",
+      "action": "delete",
+      "before_sha256": "92f71bd5c0556ed5d6ea4304a5c7ed485dfea9e61bd0133875654b65b89ccb85",
+      "after_sha256": null,
+      "patch": "patches/078-boundaries.md.patch"
+    },
+    {
+      "path": "docs/capabilities.md",
+      "action": "modify",
+      "before_sha256": "00cf50ad4e90940ea46d1a1ccd6422861fe682b86f13b20ecb4db9972605c2c0",
+      "after_sha256": "9f0fc4557e1b6e8409e415d63bef4f5266fd879f552739df645da1c29e81a181",
+      "patch": "patches/079-capabilities.md.patch"
+    },
+    {
+      "path": "docs/current-architecture.md",
+      "action": "modify",
+      "before_sha256": "639d98dd0d9764d5b89c1bbd118844d2d975fd9cd5706d5cb3fa0f30dbb5a462",
+      "after_sha256": "22ee683cbd7a9d3881b995867d5b340ee2834c664480cab4eb4b5d1f77326494",
+      "patch": "patches/080-current-architecture.md.patch"
+    },
+    {
+      "path": "docs/design/README.md",
+      "action": "modify",
+      "before_sha256": "fc6f59af2c20a9f3b5a75dfc7fd0de825674d49f4c5bd057fddfe4d44fc72bab",
+      "after_sha256": "d59b01760c4ec4483c51dccf32289054e445f7da598152bd3bcc3c9577c5594f",
+      "patch": "patches/081-README.md.patch"
+    },
+    {
+      "path": "docs/engineering.md",
+      "action": "modify",
+      "before_sha256": "0c05a7d938ea7471610ce010e5a3340b76cd076559205768b14d4572c7a4c0d1",
+      "after_sha256": "de14b71a07a35c3694c65b93f00337d2e35a73faf1b57896e9c56558dc9140b5",
+      "patch": "patches/082-engineering.md.patch"
+    },
+    {
+      "path": "docs/engineering/configuration.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "8e6394d07154234e41a1dd72ae2344f2cc7fd5eaeca0132d87c9c2b91f8a4dc3",
+      "patch": "patches/083-configuration.md.patch"
+    },
+    {
+      "path": "docs/external-component-documents/README.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a80dd13ee23baea3249f53d6fe7b69991dc684044b9a075b29e9ef3d478efddc"
+    },
+    {
+      "path": "docs/external-component-documents/brego/New Text Document.txt",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/external-component-documents/brego/api1.json",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "d2f72b4a3495f344d549056396f903336071790464fd5ebcf4136ed92bfd05f0"
+    },
+    {
+      "path": "docs/external-component-documents/brego/brego.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a16e5bc7e1d256e7fc98ffcebfe0924e638b9734a13c49291e38b66b207873e0"
+    },
+    {
+      "path": "docs/external-component-documents/cazana/cazana-api-spec.json",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "d317e5696735ff3a0be5c9d484b945316c6065d638ab5d4e53d770c9220155d6"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/docs/43127_1_LtrtoAuditEngin.pdf",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "695a7c4d34d70376cf1341fac5a3350f7ec0054a07436fedabc625ee00ffd13a"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/docs/Bodyshopreport236502-V1.pdf",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "431aa1a2ee5e7ce74e2455107594c07e94b77160a9c02746209ee099b35570bd"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/old-extraction-working/QDOS_NX14AXY.json",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a399ce99d1d22dcbcd7f7fb1ad357e81428557d6d67069311572d1eba8e62184"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015.zip",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "881730a645eea9370f82dfa36cbcbfc33581a3f28bace25fc605f616e8e2dd89"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/EVA-ap.QDOS26015.json",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "65ced7d29a0643dbb95cd83dabc4c14b2a10f54f7c46a52ed7a79dc169ae539b"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/Images/004 page-4-image-1.jpg",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "39bfd7c2d280b72fedea3bfaba30582c408caf164034f3316e783e4b904e124d"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/Images/005 page-4-image-2.jpg",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "d1d7df28920d0a758d647fbb369bd9c6ee39b0bb74e70edeebfbc14be8fdaad9"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/Images/006 page-5-image-1.jpg",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "649b4abb79f951d676a19570e05ff1e0c257e7c46a415a44cd6f0b520cef34d0"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/Images/007 page-6-image-1.jpg",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "5683bf45873bee719cfbe901d0f50948619b00f76cff5c5f39db366db4b8cedf"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/Images/008 page-7-image-1.jpg",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "d6587bc8c8129d9e5886e1a4536236db02fc2b5cd8dc0ca5b5d686827595e37e"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/manifest.sha256",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "aa103d96694e97b9fa7aa00c7af5bf6d47df93a181cd2bdadfbbb1a0b3c26c03"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-comparison-test/pegasus-output/EVA-ap.QDOS26015/provenance.json",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "f5f4a85f18927266e74c3f75188ed6fbb3b026d27ba8b6048f0e0e2aaba32b4a"
+    },
+    {
+      "path": "docs/external-component-documents/eva/drag-and-drop-example.json",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "1fa894616fc688cd6c55cbbbec5ef26cad118124b87d54dc45d50db26578a574"
+    },
+    {
+      "path": "docs/external-component-documents/eva/eva-api-docs.pdf",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "fb6c66f4dcdc2452ef477f79881ffd675d4c14aa077f681a4351638033e9d7d5"
+    },
+    {
+      "path": "docs/external-component-documents/eva/eva-api-pdf-extracted.md",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "feb2b488e4d75bbcc6b5e3c871696e8f4d44ea6fefb2760418eb35b0e1141efa"
+    },
+    {
+      "path": "docs/external-component-documents/experian/experian-velocity-api-schema.yaml",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a959e5df70f489199ddb953f7ed88c6593f7d2cfe50a3c33d7d1d9a2a8ee083c"
+    },
+    {
+      "path": "docs/frd/README.md",
+      "action": "modify",
+      "before_sha256": "87d27b8ba8cdcc071f482428ac0af37418b54e3192db759fc62af3d8670ffa4e",
+      "after_sha256": "a080fe4ee513629b2fa20f1ce080816a1a7bb8393d597a13923f97858964ce7a",
+      "patch": "patches/105-README.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-01-case-identity-and-lifecycle.md",
+      "action": "modify",
+      "before_sha256": "471caf17135323c2ac98594c54463b8301a15abe81ff01739210ded0b2c0d03d",
+      "after_sha256": "7de5bb6891e26d7117022eb839cc3aa297cb53efc91778c9f79b44f925515889",
+      "patch": "patches/106-frd-01-case-identity-and-lifecycle.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-02-intake-and-source-identity.md",
+      "action": "modify",
+      "before_sha256": "df38a5e3b2f7fd5b0b6a8d1d75f7a920b3c33f2e5e1f702e86e9a6a5ff3220ed",
+      "after_sha256": "f3bd6a22ffcebf97d03cc479a23fca35fc59b2ca451dc70f2f374594d17a163f",
+      "patch": "patches/107-frd-02-intake-and-source-identity.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-03-triage.md",
+      "action": "modify",
+      "before_sha256": "de39f88a759bd51076a9b80ac95bb56a7805f13fa74d0693d34801b3dbd55920",
+      "after_sha256": "7116eb7757e570a2dba9b4e67102b271c0f215687a596deb67b3360de59789c2",
+      "patch": "patches/108-frd-03-triage.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-04-parties-accounts-and-access.md",
+      "action": "modify",
+      "before_sha256": "b5e6fb6b95adcac9df51790dd136780ce3ecca79bcdbf52e7d3c0268040c1cea",
+      "after_sha256": "7f687f009e1c81237d5ea416d87bcbf19ce8b6b7495abd1012e893cb0aee30f0",
+      "patch": "patches/109-frd-04-parties-accounts-and-access.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-05-documents-extraction-and-custody.md",
+      "action": "modify",
+      "before_sha256": "28b31b095232284840434de33d1de234835c38fc26215b46826e700f247ef328",
+      "after_sha256": "104775451caf76aeeb1eda695443fdab57dfc48d8df69fce9e3db10a5c35381c",
+      "patch": "patches/110-frd-05-documents-extraction-and-custody.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-06-vehicle-and-engineering-evidence.md",
+      "action": "modify",
+      "before_sha256": "063e0e6a05e11958a2a6a057c38b29e80959860336d2cdba53b0602f18c2a938",
+      "after_sha256": "a999419c1c60cc8b3fecf25724ba941dab0db973ccf4a2d1dfb99af60b792742",
+      "patch": "patches/111-frd-06-vehicle-and-engineering-evidence.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-07-eva-and-external-engineering-handoff.md",
+      "action": "modify",
+      "before_sha256": "60e7d7e2047f726d9123ef0614e4310f146c6cab750242eae81e6a1739f3b294",
+      "after_sha256": "11a67f9d69bab7d6503db5a84980c5d04411c9bda3399e6633c39731b75d5b45",
+      "patch": "patches/112-frd-07-eva-and-external-engineering-handoff.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-08-email-mailbox-and-background-processing.md",
+      "action": "modify",
+      "before_sha256": "f199920f9c3e158b3e7da58caa8e62796a81cdb6f95bd842d07cf225d02e23de",
+      "after_sha256": "1a6c99892f88accbf1862aeb8f77e767f7f35b703ec8a8713ff2f901480eb3d7",
+      "patch": "patches/113-frd-08-email-mailbox-and-background-processing.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-09-provider-and-intermediary-routes.md",
+      "action": "modify",
+      "before_sha256": "a30cafa55e386d243c566750dfd028059b878c9c75c23f800e117bd639ff8766",
+      "after_sha256": "19fa33d7b963f83d759b9c2dab462e53c3fb77da4cd5625aca4139269f54e637",
+      "patch": "patches/114-frd-09-provider-and-intermediary-routes.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-10-mcp-automation-and-actor-boundary.md",
+      "action": "modify",
+      "before_sha256": "9d3e0a9171ba45d8930427b6e18c46bcb7adf0ee146ece448baf757267a9185e",
+      "after_sha256": "3b8e961cb0e9b7bf119fc087cb9a2c6cc7c0a95edb7a3e73719a7d3ff4f7d373",
+      "patch": "patches/115-frd-10-mcp-automation-and-actor-boundary.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md",
+      "action": "modify",
+      "before_sha256": "f36eed5c75151afd217856c3ea5136be0f957ec6b74a4a225b9b54f23cb24d61",
+      "after_sha256": "2086f07107e31ddabb08c7ca5bcea776ab16a873c3904e0f82b24df4946eecb0",
+      "patch": "patches/116-frd-11-reports-correspondence-and-reviewed-proposals.md.patch"
+    },
+    {
+      "path": "docs/frd/frd-12-operator-experience.md",
+      "action": "modify",
+      "before_sha256": "74bf85d9808e21aea2b301196d7696d56b5d33fd4fe6f856a5638a04ea01a6af",
+      "after_sha256": "ef114620857a8b9006900729286ae0578a658c27b229ff1c03050976e7b934b7",
+      "patch": "patches/117-frd-12-operator-experience.md.patch"
+    },
+    {
+      "path": "docs/index.md",
+      "action": "modify",
+      "before_sha256": "3d15d1c0d0b4b9b4402bc7496be3e6acb065a2fa3bd0515aee3d812fda47ebad",
+      "after_sha256": "32e7ce0bebc1215bcf8802e327663a7bee2e2d04b7b727f7e26f009277dba08c",
+      "patch": "patches/118-index.md.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/Final-Format-Example-02.json",
+      "action": "delete",
+      "before_sha256": "1a4131a576cbf69348f30c736b9437ded11dfa152dbf58bb642d97382a78119f",
+      "after_sha256": null,
+      "patch": "patches/119-Final-Format-Example-02.json.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/docs/43127_1_LtrtoAuditEngin.pdf",
+      "action": "delete",
+      "before_sha256": "695a7c4d34d70376cf1341fac5a3350f7ec0054a07436fedabc625ee00ffd13a",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/docs/Bodyshopreport236502-V1.pdf",
+      "action": "delete",
+      "before_sha256": "431aa1a2ee5e7ce74e2455107594c07e94b77160a9c02746209ee099b35570bd",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/old-extraction-working/QDOS_NX14AXY.json",
+      "action": "delete",
+      "before_sha256": "b0be84b9f542bfef8918e461203841a10293c116dc897383c00a2be75caf7b1a",
+      "after_sha256": null,
+      "patch": "patches/122-QDOS_NX14AXY.json.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015.zip",
+      "action": "delete",
+      "before_sha256": "881730a645eea9370f82dfa36cbcbfc33581a3f28bace25fc605f616e8e2dd89",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/EVA-ap.QDOS26015.json",
+      "action": "delete",
+      "before_sha256": "65ced7d29a0643dbb95cd83dabc4c14b2a10f54f7c46a52ed7a79dc169ae539b",
+      "after_sha256": null,
+      "patch": "patches/124-EVA-ap.QDOS26015.json.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/Images/004 page-4-image-1.jpg",
+      "action": "delete",
+      "before_sha256": "39bfd7c2d280b72fedea3bfaba30582c408caf164034f3316e783e4b904e124d",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/Images/005 page-4-image-2.jpg",
+      "action": "delete",
+      "before_sha256": "d1d7df28920d0a758d647fbb369bd9c6ee39b0bb74e70edeebfbc14be8fdaad9",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/Images/006 page-5-image-1.jpg",
+      "action": "delete",
+      "before_sha256": "649b4abb79f951d676a19570e05ff1e0c257e7c46a415a44cd6f0b520cef34d0",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/Images/007 page-6-image-1.jpg",
+      "action": "delete",
+      "before_sha256": "5683bf45873bee719cfbe901d0f50948619b00f76cff5c5f39db366db4b8cedf",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/Images/008 page-7-image-1.jpg",
+      "action": "delete",
+      "before_sha256": "d6587bc8c8129d9e5886e1a4536236db02fc2b5cd8dc0ca5b5d686827595e37e",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/manifest.sha256",
+      "action": "delete",
+      "before_sha256": "31d20836b6569f095277959b0092c613d47255a7e1b8fe8dc8763062a5c3c3ba",
+      "after_sha256": null,
+      "patch": "patches/130-manifest.sha256.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/ap.QDOS26015/pegasus-output/EVA-ap.QDOS26015/provenance.json",
+      "action": "delete",
+      "before_sha256": "f5f4a85f18927266e74c3f75188ed6fbb3b026d27ba8b6048f0e0e2aaba32b4a",
+      "after_sha256": null,
+      "patch": "patches/131-provenance.json.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/eva-api-docs-assets/page-001-image-1.jpeg",
+      "action": "delete",
+      "before_sha256": "91698971b84eeeeb2b29488336d2a22e767468ce342d7477e9367574b871864a",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/eva-api-docs-assets/page-001-image-2.png",
+      "action": "delete",
+      "before_sha256": "26720b9029395e2287f6c846132fb9bc4cedfbd47f3a2fdf2319b0f83e4ca83a",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/eva-api-docs-assets/page-061-image-1.jpeg",
+      "action": "delete",
+      "before_sha256": "fabb599507d52a47cbb32be1a56503377f320051096bf4af3387d91b0e90ab73",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/eva-api-docs-assets/page-061-image-2.jpeg",
+      "action": "delete",
+      "before_sha256": "8af870bf0d8b18c3a411ca5b3da2afc67f413fb2fbb9d63ad0bb6d2c295c470c",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/json-extraction-parity/eva-api-docs.md",
+      "action": "delete",
+      "before_sha256": "b0f973ab6f7060d0485c6b546f8df803e48b1b0c9a373a2583c982bd19135c46",
+      "after_sha256": null,
+      "patch": "patches/136-eva-api-docs.md.patch"
+    },
+    {
+      "path": "docs/json-extraction-parity/eva-api-docs.pdf",
+      "action": "delete",
+      "before_sha256": "fb6c66f4dcdc2452ef477f79881ffd675d4c14aa077f681a4351638033e9d7d5",
+      "after_sha256": null
+    },
+    {
+      "path": "docs/open-decisions.md",
+      "action": "modify",
+      "before_sha256": "af9fff418fea477f7f617e8effc08ca55d435481eb921c833ae53fbad5fd93e3",
+      "after_sha256": "6e0983196c51c93e7a7a88988d97baf58c3346c65a4bebfc815517b36fbad1e8",
+      "patch": "patches/138-open-decisions.md.patch"
+    },
+    {
+      "path": "docs/operations.md",
+      "action": "modify",
+      "before_sha256": "b4d37247ade3044e2abfb5ca4779cf5d4e2e51bed52d925fa3be88708ea0e76a",
+      "after_sha256": "3730afeff4f98692e9a2dd2f54f8debef071095b4b974928395069e0b96d810e",
+      "patch": "patches/139-operations.md.patch"
+    },
+    {
+      "path": "docs/operator-notes.md",
+      "action": "delete",
+      "before_sha256": "7bf3259c518e2546e87acf958e53b032618a25c338b43a3542cf9ca241c13802",
+      "after_sha256": null,
+      "patch": "patches/140-operator-notes.md.patch"
+    },
+    {
+      "path": "docs/prd/README.md",
+      "action": "modify",
+      "before_sha256": "8a6df8fc4405839e080adf1b5bae619bdd661a71b501a8dac5f32540e3dd8231",
+      "after_sha256": "6311fb910eba216380a5feb9f306e48be4385efe22b75fb2e198e9e017d3ec0e",
+      "patch": "patches/141-README.md.patch"
+    },
+    {
+      "path": "docs/prd/pegasus-product.md",
+      "action": "modify",
+      "before_sha256": "06045063c20e2515f0bbdfe6d7a759a1c851bf321fcab1cf11c6006f5a4884a9",
+      "after_sha256": "af96e992b10b3a8dbadc18121280ff2759ba3e24a1869918ba26428d5ee9df38",
+      "patch": "patches/142-pegasus-product.md.patch"
+    },
+    {
+      "path": "docs/principal-rules-and-mappings/README.md",
+      "action": "modify",
+      "before_sha256": "d0ff7fd39c88d0afd1e3218d42e9a6f19ea75b635574fb4eff68aff2f16c63f8",
+      "after_sha256": "4848b8fecdfaa9919a1ec759daea24afca5117845b0b8d92da7981146d1253bf",
+      "patch": "patches/143-README.md.patch"
+    },
+    {
+      "path": "docs/runbook.md",
+      "action": "modify",
+      "before_sha256": "4fda519bfaa54d1c2f6e617832da5d8547b16698ff280d65fe9097111bfc49dd",
+      "after_sha256": "942a842e8b8f00bf657d79e673bd077eaccfda0e2e7dd1ba7791075def3c0e78",
+      "patch": "patches/144-runbook.md.patch"
+    },
+    {
+      "path": "reference/EVA/EVA_API_SCHEMA.md",
+      "action": "modify",
+      "before_sha256": "03e3a320e44a4536014bb05ed7c4dc3fb8cc9076667cf9e2328059fea50eb0df",
+      "after_sha256": "24e35a3b91df119f6caead3e3db3e199f270dcaccde24ccbc55bfac3c8f71f83",
+      "patch": "patches/145-EVA_API_SCHEMA.md.patch"
+    },
+    {
+      "path": "reference/README.md",
+      "action": "modify",
+      "before_sha256": "303f650f8a0138438cc7b16f70d96722dda46460aa23d2cd1bf525f54b3e6c9a",
+      "after_sha256": "5eb2934b24e2515a8c64d1d28128917d63ed55b5b0e467d273beeed453b7a9d7",
+      "patch": "patches/146-README.md.patch"
+    },
+    {
+      "path": "scripts/Invoke-QdosAlphaAcceptance.ps1",
+      "action": "delete",
+      "before_sha256": "a40acdc40046d00987149a8f5de04ebe63f5416a18dc64d8055bcb4f508b4517",
+      "after_sha256": null,
+      "patch": "patches/147-Invoke-QdosAlphaAcceptance.ps1.patch"
+    },
+    {
+      "path": "scripts/Test-DocumentationLinks.ps1",
+      "action": "modify",
+      "before_sha256": "713446383d8dd5b807c2b9a284126b0785e7c7355874cf68f2ce21074eb38db2",
+      "after_sha256": "5d0ca345cb2d4098c82d89dd9faac13160e00633d4342ef92882249edf134653",
+      "patch": "patches/148-Test-DocumentationLinks.ps1.patch"
+    },
+    {
+      "path": "scripts/Test-MarkdownPlacement.ps1",
+      "action": "modify",
+      "before_sha256": "db89942247aef748c27068a45e5c3706e3d7c0df52680973af03476b7503c65a",
+      "after_sha256": "5ff362d8967ededd793baea0b8d80a9edf74c110d8aa71b8c3305981998797b7",
+      "patch": "patches/149-Test-MarkdownPlacement.ps1.patch"
+    },
+    {
+      "path": "scripts/Test-TestMarkdownPlacement.ps1",
+      "action": "modify",
+      "before_sha256": "a98c2efbaa78ce3958335bb80be9ad71fb382d627f733f363b117d4e084418d4",
+      "after_sha256": "cd025835b98f20e5b65be357b6a1ccdcec44357146ebe921e5bd90fb476ec7b8",
+      "patch": "patches/150-Test-TestMarkdownPlacement.ps1.patch"
+    }
+  ]
+}

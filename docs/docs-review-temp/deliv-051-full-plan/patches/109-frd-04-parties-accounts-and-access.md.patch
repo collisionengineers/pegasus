@@ -1,0 +1,47 @@
+--- a/docs/frd/frd-04-parties-accounts-and-access.md
++++ b/docs/frd/frd-04-parties-accounts-and-access.md
+@@ -30,7 +30,7 @@
+ 
+ Andrew and Alex are the initial `Administrator` assignments held in application data/configuration. No person, name, email address, or bypass is hard-coded into authorization. Automated processing uses a distinct durable machine identity and only named Core actions; it is not a staff account or an independent policy owner.
+ 
+-Authorization is enforced in Core use cases and at every caller boundary. It fails closed without revealing case or source data. Immutable principal/reference, source, association, history, and closed-case rules apply regardless of administrative privilege. Development routes and data never confer production access.
++Authorization is enforced in Core use cases and at every caller boundary. It fails closed without revealing case or source data. Immutable principal/reference, source, association, history, and Case edit-authority rules apply regardless of administrative privilege. Development routes and data never confer production access.
+ 
+ ### Principals administration
+ 
+@@ -43,7 +43,7 @@
+ row. A code replacement stays with the same customer and follows the
+ [principal-code replacement rule](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity).
+ Visuals and controls are owned by the
+-[design README](../design/README.md#operator-experience-requirements).
++[design README](frd-12-operator-experience.md).
+ 
+ The Principal Settings page carries:
+ 
+@@ -82,7 +82,9 @@
+ 
+ **Reset password** is an Administrator-only account action on the same table
+ (D15, 2026-09-06). It generates and reveals a temporary password once through
+-the protected confirmation flow. The existing password policy and
++the protected confirmation UI, visible to the Administrator so it can be
++conveyed to the user. Accounts are not email-bound; it is not automatically
++emailed. The existing password policy and
+ non-reversible hash remain the password owner. The existing
+ forced-change state is set, so the account must choose a new password at its
+ next sign-in. The reset is a permanent action-history event with actor, time and
+@@ -131,3 +133,15 @@
+ page.
+ 
+ No identity design, app registration, scope declaration, role table, file, or registration proves that a live caller exists or is accepted.
++
++## Case-party provenance
++
++A Principal instructs and pays; an Intermediary routes work without becoming
++Principal. A Repairer may hold the vehicle and supply evidence. Image Source
++names the actual supplier, which may be any of these or an individual. One
++organization may perform several functions on a Case. Sender identity alone
++does not settle Principal. Later directory corrections must not rewrite the
++Case’s accepted party identities, functions or inspection address.
++
++Initial Administrator assignments are application data, never hard-coded
++authorization. External customers have no staff application account.

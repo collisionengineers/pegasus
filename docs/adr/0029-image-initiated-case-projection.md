@@ -3,7 +3,7 @@ id: ADR-0029
 status: accepted
 date: 2026-08-19
 supersedes: [ADR-0013]
-superseded_by: []
+superseded_by: [ADR-0045]
 related_capabilities: [INT-17, INT-28]
 related_frd: [frd-01, frd-02, frd-05, frd-06, frd-12]
 tags: [image-initiated, image-intake, lifecycle]
@@ -15,6 +15,10 @@ tags: [image-initiated, image-intake, lifecycle]
 Accepted. This ADR supersedes the image-only pre-Case technical boundary in
 ADR-0013. ADR-0013 remains an immutable historical record; its accepted body is
 not edited.
+
+## Current applicability
+
+The projection preserves image-origin identity separately from formal Case/PO. FRD-05 now specifies image-reference custody. ADR-0045 supersedes the no-image-folder custody restriction; FRD-05 owns image-reference custody and verified merge/cleanup behavior. Replacement of ADR-0013 is limited to image-origin clauses.
 
 ## Context
 
@@ -34,13 +38,10 @@ with a reason. A unique, non-overlapping VRM match records a merge event on both
 the ImageIntake history and formal Case history; staff closure is reasoned and
 terminal.
 
-No second Box client, runtime, database, or formal Case allocator is
-introduced: Image-initiated files stay under the existing intake
-source-artifact retention until a merge makes them available for the formal
-Case's own Box custody. A dedicated VRM-keyed custody root for the
-Image-initiated Case itself is not part of this decision — it has no caller in
-this slice, so it is not built and not claimed; a future ADR covers it if a
-concrete caller needs it.
+No second Box client, runtime, database, or formal Case allocator is introduced.
+Image-reference Box custody and subsequent verified Case handoff follow FRD-05
+and ADR-0045. The former exclusion of an image-reference folder is superseded;
+the separate image-origin identity/projection remains accepted.
 
 ## Consequences
 

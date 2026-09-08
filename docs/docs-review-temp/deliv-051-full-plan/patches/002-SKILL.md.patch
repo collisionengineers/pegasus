@@ -1,0 +1,37 @@
+--- a/.agents/skills/pegasus-release/SKILL.md
++++ b/.agents/skills/pegasus-release/SKILL.md
+@@ -17,9 +17,10 @@
+ Authentication is not write approval. Deployed Web/Worker remain Linux; no
+ Windows containers or Docker daemon are needed to build the OCI archive.
+ 
+-[`docs/runbook.md`](../../../docs/runbook.md) and
+-[`docs/engineering.md`](../../../docs/engineering.md) are authoritative. Stop
+-if they disagree with this skill.
++The [index](../../../docs/index.md) identifies each policy owner. This skill
++owns the release procedure; engineering owns verification policy and operations
++owns dated observations. Resolve conflicts within those scopes before the
++affected operation.
+ 
+ ## Fixed production target
+ 
+@@ -241,12 +242,15 @@
+ 
+ ## 10. Record and retain evidence
+ 
+-Update `docs/current-architecture.md` and `docs/operations.md` with the observed
+-SHA, manifest hash, digest, revision, migration and evidence. Deliver those
+-changes through the normal reviewed PR to `dev`, then use a fresh authorised
+-promotion-only pass to put the docs on `main`; do not redeploy unchanged
+-application code.
++Update `docs/operations.md` with the dated observed artifact, configuration,
++migration and activation evidence. Update `docs/current-architecture.md` only
++when source structure or composition changed; do not repeat operational artifact
++identities there. Link retained attempts and failures from the release record.
+ 
+ Copy `artifacts/releases/$version` outside the disposable worktree before
+ removing it. The release is unfinished until both current-state documents match
+ what was actually deployed.
++
++## Recovery and diagnostics
++
++Read [recovery and diagnostics](../../../docs/runbook.md) only for diagnosis or a separately authorized recovery operation.

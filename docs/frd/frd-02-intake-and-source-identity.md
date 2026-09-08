@@ -9,7 +9,7 @@ Intake may begin through staff-forwarded email, a staff-created request-scoped u
 
 Direct Case creation is one of those ways, not an exception to them (D26, 2026-09-01). Staff enter the required identity and either attach the instruction or record it. Pegasus persists an attributable intake receipt for that instruction — actor, time, the attached or recorded instruction and its custody identity — and only then reuses the normal principal resolution and Case/PO allocation policy. There is no parallel allocation implementation and no direct-creation route that skips the receipt: the allocator that serves automatic creation is the only allocator.
 
-Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
+Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md) owns the accepted numbers). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
 
 A usable registration therefore settles into one of two outcomes the operator
 sees (operator ruling, 2026-08-19): when it matches no existing Case, the
@@ -62,8 +62,10 @@ When a retained source becomes Unidentified because no category can be determine
 **Accepted source boundary:** only authenticated staff may create a link. The token has a stable identity and
 is bound to exactly one upload request, its allowed operation, and a
 server-enforced expiry. It is security-sensitive and is never written to
-permanent business history, message content, or content-bearing telemetry.
-Token generation and at-rest representation remain implementation choices;
+permanent business history, diagnostic logs, or content-bearing telemetry.
+The functional upload link may be delivered to its intended recipient in a
+staff-initiated chaser; that bounded delivery is not permission to expose it
+elsewhere. Use a cryptographically generated 256-bit token retained only as a hash;
 acceptance must prove expiry, revocation, and cross-request isolation through
 the real caller. Revocation invalidates every later request, and an
 unauthenticated caller cannot extend expiry.
@@ -81,8 +83,7 @@ that first success do not start the session. The requester may add or replace
 files until explicit finalisation or session expiry; either event closes the
 link and all later bytes are refused without disclosing the Case or earlier
 submission. Idempotent retries reconcile to the same result. The current
-manual-upload bound remains 10 MiB per file; future bounds require the research
-and operator decision tracked by `INTK-052`.
+manual/public source limits are owned by Source upload limits below.
 
 Public POST admission checks the route-bound token before reading the form.
 Unavailable links refuse the body without buffering it. File and total-body
@@ -165,11 +166,12 @@ Before creating a case or allocating a reference, Pegasus must establish:
 Once those identity-critical facts are established, Pegasus creates the Case/PO
 and allocates its permanent reference. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. An Audit's retained original report
-is identity-critical: without one separate report with one literal outcome,
-Pegasus cannot determine whether the reference is `a.` or `ap.` and enters
-`Unidentified`. The manual case-create screen does not offer Audit; it is
-created only by this retained-email route. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
+not form another pre-Case acceptance gate. For standalone Audit, allocate the
+normal Case/PO once Principal and Audit case type are definitive. Missing or
+ambiguous original-report outcome withholds only the later `a.` or `ap.` Audit
+reference, as defined in FRD-01. Supported email and Provider API Audit routes
+use that same distinction; this does not add Audit to manual case creation.
+If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
 evidence and each retry result. It never allocates a reusable identity as a
@@ -357,7 +359,7 @@ The decision table, evaluated once per file:
 
 1. **A case is already associated** (`CurrentCaseId` set). This is always a
    report of something automation already did — the "linked automatically
-   only on a definitive match" rule (operator notes) means a unique
+   only on a definitive match" rule (the accepted requirement) means a unique
    `CaseMatchOutcome` match or the grouped-image-routing unique match above
    is written before Complete is ever reached, so the confirmation step never
    re-offers this as a choice. The operator sees the case reference, a link
@@ -454,3 +456,60 @@ Definitive authorised intake creates exactly one instructed Case idempotently. A
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
 Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does. Automatic Image-initiated Case association checks the current Case version and yields to an active staff lease; the subsequent image merge also yields to a live lease and rechecks the current associations inside its transaction.
+
+## Source upload limits
+
+The anonymous link remains a hashed 256-bit token and discloses no Case.
+The accepted source limits are 100 MiB per file, 20 files and 200 MiB
+aggregate bytes per multipart request, plus 64 KiB of fixed multipart
+overhead. The Provider API keeps its separate 30 MiB decoded envelope and
+42 MiB encoded request limits.
+
+| Setting | Accepted source value |
+| --- | --- |
+| Aggregate file bytes | 209 715 200 (200 MiB) |
+| Multipart request | 200 MiB plus 64 KiB fixed overhead |
+| Per-file bytes | 104 857 600 (100 MiB) |
+| File count | 20 |
+| Link lifetime | 168 h (7 days) |
+| Submission session | Fixed, non-sliding 15 minutes |
+| Rate, per token | 20 per 10 minutes |
+| Rate, per address | 30 per minute |
+| Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook` |
+
+`IntakeEnvelopeLimits` is the single Core owner of the manual/public
+per-file, file-count and aggregate ceilings. `RequestUploadLimits` may
+tighten those ceilings for a configured estate and may never raise them.
+The public-upload session reserves capacity before custody, admits at most
+one current successor for a replacement occurrence, and expires after its
+fixed 15-minute window. Expiry, revocation, limit-version mismatch and
+capacity refusal are typed outcomes; none authorises a fresh upload.
+
+The per-address limiter remains necessary because an unknown token is
+refused before the token-partitioned limiter runs, while Razor's antiforgery
+handling may otherwise buffer the multipart request first. It runs after
+routing and before endpoint execution.
+
+The repository's deployment configuration and dated live evidence are
+separate from this accepted source policy and remain owned by
+[operations](../operations.md). Existing links are bound to the limits version
+and lifetime recorded when issued; a mismatch fails closed, after which
+staff may issue a new link through the existing Case action.
+
+## Instruction field meanings
+
+A Work Instruction contains details of a claimant involved in a road traffic accident. Capture:
+
+| Field | Rule |
+| --- | --- |
+| Work Provider | Also referred to as the principal. |
+| Claimant Name | Extract from the instruction. |
+| Claim Number | External reference number. |
+| Vehicle Registration | VRM. |
+| Vehicle Make | Extract from the instruction or obtain through an authorized lookup capability when absent. |
+| Vehicle Model | Extract from the instruction or obtain through an authorized lookup capability when absent. |
+| Vehicle Mileage | Extract when supplied; estimation from MOT data is a required capability when available. |
+| Accident Circumstances | Extract from the instruction. |
+| Date of Incident | Extract from the instruction. |
+| Instruction Date | Use the document value; if absent, default to the current date. |
+| Inspection Address | Use FRD-06 inspection-location rules. |

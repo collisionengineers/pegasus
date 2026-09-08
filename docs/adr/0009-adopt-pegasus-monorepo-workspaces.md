@@ -3,7 +3,7 @@ id: ADR-0009
 status: accepted
 date: 2026-07-27
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0025]
 related_capabilities: []
 related_frd: []
 tags: [architecture, workspaces]
@@ -12,6 +12,10 @@ tags: [architecture, workspaces]
 
 - Date: 2026-07-27
 - Status: accepted
+
+## Current applicability
+
+The four-project and source-admission boundary survives. ADR-0025 integrated and retired the particular imports. No current independent workspace build obligation remains.
 
 ## Context
 

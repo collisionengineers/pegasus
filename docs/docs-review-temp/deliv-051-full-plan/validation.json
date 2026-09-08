@@ -1,0 +1,14 @@
+{
+  "state": "implementation-validation",
+  "local_checks": {
+    "markdown_placement_regressions": 0,
+    "relative_links": 0,
+    "ui_catalogue": 0
+  },
+  "prior_failures": [
+    "proposal BOM dry-run corrected",
+    "earlier dotnet build cancelled, exit 1",
+    "trailing EOF blank lines corrected"
+  ],
+  "application_tests": "not selected by documentation-only impact"
+}

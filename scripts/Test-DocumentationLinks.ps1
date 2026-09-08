@@ -1,4 +1,4 @@
-# Fails when a tracked Markdown file contains a relative link to a path that
+# Fails when a repository Markdown file contains a relative link to a path that
 # does not exist. External URLs and same-file anchors are not checked.
 # Scope includes workspace documentation.
 # Fenced code blocks and inline code spans are stripped before scanning: text
@@ -11,7 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex|\.grok|\.kanmer)/'
+$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.codex|\.kanmer|docs/docs-review-temp|docs/external-component-documents)/'
 $linkPattern = [regex]'\[[^\]]*\]\(([^)\s]+)\)'
 # A fence is ``` or ~~~ at up to three spaces of indent; it closes on the next
 # fence of the same character. Blank the body but keep the line count so any
@@ -29,7 +29,7 @@ function Remove-CodeSpans {
     return $inlineCodePattern.Replace($withoutFences, { param($match) '' })
 }
 
-$files = git -C $repoRoot ls-files '*.md' | Where-Object { $_ -notmatch $excluded }
+$files = @(git -C $repoRoot -c core.quotePath=false ls-files --cached --others --exclude-standard '*.md' | Sort-Object -Unique | Where-Object { $_ -notmatch $excluded -and (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) })
 $broken = @()
 foreach ($relative in $files) {
     $file = Join-Path $repoRoot $relative

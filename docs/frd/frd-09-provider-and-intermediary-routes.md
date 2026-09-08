@@ -42,17 +42,9 @@ for its authenticated principal follows the same case-creation path as an
 equally definitive email instruction. API-01 is create-only: it never associates
 material with or mutates an existing Case.
 
-**Additional-contract boundary:** API-01 below owns the accepted current routes,
-schemas, limits and Principal credential contract. It does not establish an
-additional external tenancy model or a Pegasus identity/field named
-`provider_domain_key`. No allowed source proves an owner or current/predecessor
-consumer for that name. Pegasus therefore does not create, migrate, map, alias,
-or retire it. Any later proposal must first establish authoritative source and
-consumer evidence, stable-principal/route/provenance mapping, collision and
-unknown handling, cutover, rollback, retention, and explicit retirement proof
-through the separate [open
-decision](../open-decisions.md#external-data-submission-and-report-contracts);
-none may be inferred from provider-domain evidence.
+API-01 owns the supported routes, schemas, limits and Principal credential
+contract. Additional tenancy or identity fields require a concrete accepted
+consumer requirement; supplied provider-domain evidence does not invent one.
 
 No provider route is active until its exact capability allocation, accepted
 contract, credentials/scopes, failure and recovery proof, real caller, and
@@ -237,3 +229,21 @@ The registration that decides FRD-03's branch is read by the ordinary label-anch
 extraction: from the letter's `Registration:` line in the body template, and from the
 subject's `Vehicle Registration` label in the subject template, which states it nowhere
 else.
+
+
+## Triage result contract
+
+A Provider API Triage submission exposes the same result shape and
+Principal-scoped access as a regular Case submission, using the Triage
+`T-` reference in place of the normal Case/PO reference. It does not allocate a
+formal Case merely to populate that result. Receipt and processing state retain
+their ordinary meaning; a result is not proof of an emailed response.
+
+## Non-overlapping route rules
+
+Accepted route predicates must be mutually exclusive for their intended input.
+A concrete audit request is not a generic footer match; make that distinction
+in the predicates rather than add a precedence score. There is no open policy
+question asking staff to choose a winning rule. An unexpected overlap fails
+closed with visible evidence and is a defect to correct, not a supported
+ambiguous routing mode or permission to guess.

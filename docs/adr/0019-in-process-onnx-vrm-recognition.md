@@ -13,6 +13,10 @@ tags: [vrm, onnx, image]
 - Date: 2026-08-03
 - Status: accepted
 
+## Current applicability
+
+The ONNX boundary survives. FRD-06 owns the specific accepted automatic recognition/matching exception; this record’s general suggestion wording must not erase that exception or expand it into blanket autonomous confirmation.
+
 ## Context
 
 `INT-17` allocates suggestion-first automatic vehicle-registration reading
@@ -94,4 +98,4 @@ The engine selection above is unchanged. The cohort evaluation it names has
 since run and the operator accepted the **0.80** threshold with the
 `INT-28`/`INT-32` match rules; former open decision 1 is closed. The accepted
 full-cohort and holdout numbers and their qualification are owned by
-[operations § dated evidence](../operations.md#dated-evidence-qualifications).
+[operations § dated evidence](../operations.md).

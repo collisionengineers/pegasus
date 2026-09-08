@@ -1,0 +1,163 @@
+--- a/docs/frd/frd-01-case-identity-and-lifecycle.md
++++ b/docs/frd/frd-01-case-identity-and-lifecycle.md
+@@ -16,8 +16,12 @@
+ - An Audit requires two separate document attachments: the Audit instruction and the original report to be audited. Who states that report's outcome depends on the route. On the retained-email route Pegasus reads the literal outcome in the report itself: `repairable` derives `a.{Case/PO}` and `total loss` derives `ap.{Case/PO}`, and missing, conflicting or ambiguous original-report evidence withholds only the later Audit reference. A definitive instruction still creates the normal Case/PO once Principal and identity-critical gates pass. On the Provider API route the authenticated Principal declares the verdict and that declaration derives the reference (operator decision, 2026-08-28); the original report is still required as an attachment, because the Engineer needs the report they are auditing, but it is not parsed to decide the prefix. No staff confirmation is an intake gate on either route.
+ - Inspection + Audit begins with the normal Inspection Case/PO reference. After Collision Engineers’ Engineer produces the later Audit report through EVA, the Engineer manually creates the applicable `a.{Case/PO}` or `ap.{Case/PO}` Box subfolder under that existing Box folder. Pegasus does not create that later folder until it replaces EVA under a separately accepted integration.
+ - A used principal code is replaced by one linked successor in an atomic Core transaction: deactivate the predecessor, continue its next unused sequence in the Europe/London cutover year, and begin later years at `001`. Both identities and the reason remain permanent.
+-- A wrong-principal case closes as `Created in error`, with a reason and a linked replacement. Neither reference is reused; the original never reopens.
+-- A case is never deleted. Reopening requires a reason and the normal destination gates.
++- A wrong-principal Case records `Created in error`, a reason and a linked
++  replacement. Neither identity changes and neither reference is reused. This
++  correction is a recorded disposition, not an irreversible Case closure.
++- A Case is never deleted or terminally closed. A return to engineering work
++  records a reason and uses the normal destination gates; the query cycle below
++  does not require a separate manual reopen.
+ - Principal is the instructing and paying party. An Intermediary supplies a route without thereby becoming Principal. Repairer identifies the vehicle holder or repair organisation; Image Source identifies the actual supplier of images. One organisation may hold several case roles, but an ambiguous sender never establishes Principal.
+ - Every case snapshots the inspection address, organisation identities, and party roles accepted for that case. Later reusable-directory corrections never rewrite historical case evidence.
+ - Source messages, files, visible placements, attachments, images, and subsequent correspondence retain stable source identities and provenance.
+@@ -56,12 +60,17 @@
+ - inspection/report preparation appropriate to desktop assessment;
+ - report approval and delivery evidence without adding a separate pre-send case-review gate;
+ - post-report queries, corrections, addenda, disputes, and reasoned closure where allocated;
+-- four distinct instructed-Case terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`; Image-initiated merge/closure is a separate image-origin lifecycle outcome, not a fifth formal Case closure state;
+-- reasoned reopen through normal destination gates, excluding `Created in error` and `Held` as a reopen destination.
++- `Completed` and `Query` as reversible post-report work states; cancellation,
++  rejection and Created in error remain reasoned history dispositions, not
++  terminal closure states;
++- a reasoned return to engineering through the normal destination gates.
++  Image-intake merge/staff closure is a separate pre-Case lifecycle.
+ 
+ Each unmet progression requirement is an individual actionable blocker. The UI identifies its exact field or material, source/provenance, reason, and permitted resolution; an opaque aggregate such as “no unresolved field reviews”, and a completeness percentage or score of any kind, are prohibited. Instruction completeness and image completeness are each a versioned set of required and not-required items with exact named blockers (D23, 2026-09-01): the configuration records which items are required, the gate names every required item that is unmet, and nothing is reduced to a single figure. An action is enabled exactly when its current explicit prerequisites are satisfied. Saving unchanged or unrelated data must neither unlock it nor reset lifecycle, readiness, or advisory state.
+ 
+-Durable receipt acknowledgement, retained correspondence, prepared or copied text, the `First sent to Engineer` export proxy, and a `Report sent` event are not terminal case outcomes. Report-sent evidence enters post-report work; post-report completion is a separate named closure action.
++A receipt acknowledgement, prepared text, export or generated file does not
++prove report sending or complete a Case. Post-report work can be marked
++`Completed`; this is reversible work status, never terminal closure.
+ 
+ The named Core workflow records the policy key and version used for readiness.
+ Review-gated transitions evaluate instruction and image completeness from
+@@ -79,7 +88,10 @@
+ link time; an assertion, draft, queue result, generated file, or export proxy
+ fails closed.
+ 
+-Every closure selects exactly one named terminal outcome, records the authenticated actor, time, reason and prior/new state in permanent history, and leaves the Case, Case/PO, source relationships, and closure chronology intact. A closed case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
++Every Case disposition records the actor, time, reason, prior/current state and
++retained evidence in permanent history. Completed Cases accept query receipt
++or attachment and move to `Query`; replying to the query returns the Case to
++`Completed`. Neither transition erases earlier completion or query history.
+ 
+ Every Image-intake association, reversal, or correction records the same attributable relationship evidence without closing or creating a Case. The Case, Case/PO, Image Intake Reference, source relationships, and chronology remain intact.
+ 
+@@ -110,8 +122,8 @@
+ accepted correspondence predicates under ADR-0020. This does not enable
+ arbitrary non-QDOS correspondence or extend QDOS cancellation recognition to
+ other principals. Current-envelope boundaries still exclude quoted historical
+-instructions. Only an incoming instruction creates intake work, and no
+-classification or association mutates Case state. A separately retained and
++instructions. Only an incoming instruction creates intake work, and classification alone does not mutate Case state. A query received for or
++attached to a Completed Case follows the explicit Query transition below. A separately retained and
+ reasonedly associated cancellation message may support an authorised staff
+ action to place a pre-report Case in `Held pending staff decision`, confirm
+ `Provider cancelled`, or release it. Release requires the message to be
+@@ -121,55 +133,28 @@
+ 
+ ### Workflow display labels and stage-bound actions
+ 
+-Core lifecycle states are unchanged. The operator sees display labels only,
+-owned by the single code-to-words map
+-`Pegasus.Web.Presentation.OperatorLabels` named in the design README's
+-[Enforced presentation rules](../design/README.md#enforced-presentation-rules):
+-
+-| Core state | Display label |
+-| --- | --- |
+-| `Not ready` | Not ready |
+-| `Review` | Review |
+-| `Report preparation`, `Post report` | With Engineer |
+-| `Post-report complete` | Complete |
+-| `Held` | Held (exception, never a workflow step) |
+-| `Provider cancelled`, `Collision Engineers rejected`, `Created in error`, source e-mail unlinked | Closed · `<outcome>` |
+-
+-The Cases workflow rail lists Not ready, Review, With Engineer and Complete,
+-with Held as an exception group; the other terminal outcomes never appear in
+-that rail and render as Closed · `<outcome>` in Search. A label is never a
+-state: every transition remains a named Core action, and history records the
+-Core state, not the label.
+-
+-- **Hand to Engineer** is offered in Review while editing. Its dialog
+-  selects the Engineer; the handoff itself is the review action.
+-- **Send to EVA** is optional, offered in Review and again in With Engineer
+-  as a re-send (D36). The dialog shows the Engineer, selects Sign-off
+-  Engineer and offers Download
+-  ZIP / Send via API; Send via API is disabled unless the Principal enables
+-  it. There is no separate Download EVA package action. The package,
+-  mapping, and per-Principal submission policy are owned by
+-  [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-and-external-engineering-handoff).
+-- The **Engineer sections** of the Case record (Damage, Valuation, Estimate,
+-  Settlement, Report) are always viewable and editable only With Engineer (D30;
+-  the former D11 access rule is now this read-only rule). Editing them uses
+-  the Case edit lease below; the report-draft entry point is owned by
+-  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point).
+-- **Report sent** is evidence-driven; no manual "sent" assertion exists. A
+-  report sent from Pegasus through an approved mailbox
+-  ([FRD-08 outbound correspondence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence))
+-  links its retained Sent item to the Case automatically. A report sent
+-  through EVA is detected by the approved-mailbox report-mail match — the
+-  Case reference and a PDF attachment — whereupon the PDF is attached to the
+-  Case as the report document and the Sent item is linked. Either path
+-  enters post-report work, still displayed as With Engineer. The Case action
+-  offers only confirmation of detected evidence; `Post-report complete`
+-  remains the separate, reasoned closure that ends post-report work.
+-- **Return to Engineer** is the reasoned reopen from Complete to Report
+-  preparation; it requires an assigned Engineer and the normal destination
+-  gates.
+-- **Close Case** is offered while the Case is not Complete and selects one
+-  named terminal outcome as above.
++The required workflow labels are `Not ready`, `Review`, `With Engineer`,
++`Completed` and `Query`, with `Held` as an exception. Use the single presentation
++map for code-to-words translation; existing enum names do not override these
++requirements. No formal Case appears as terminally Closed.
++
++- **Hand to Engineer** in Review assigns an eligible Engineer and starts native
++  engineering work through the Case lease and version gates.
++- **Send to EVA** is optional in Review or With Engineer. Download ZIP and Send
++  via API share [FRD-07](frd-07-eva-and-external-engineering-handoff.md); the
++  Principal must enable the API route. EVA never gates native work.
++- Damage, Valuation, Estimate, Settlement and Report are always viewable.
++  Engineering edits require With Engineer and the normal Case edit authority.
++  No pre-assignment valuation check may depend on an Engineer-only edit.
++- **Report sent** confirms retained exact Sent evidence under FRD-08; generation,
++  an export or a manual assertion is insufficient.
++- **Completed** records that the current work is complete. Query receipt or
++  attachment moves a Completed Case to Query. Replying returns it to Completed.
++- **Return to Engineer** records a reason and applies the destination gates
++  when further engineering changes are required. It is not a prerequisite for
++  receiving, attaching or replying to a query.
++- Cancellation, rejection and Created in error record their reason and source
++  without permanently locking the Case or deleting any evidence.
+ 
+ ### Sign-off Engineer
+ 
+@@ -201,7 +186,8 @@
+ 
+ ### Due work, chasing, and action history
+ 
+-`Due by` comes from the inspection date or accepted equivalent deadline. The chase interval is one global whole-calendar-day value in workflow configuration, range 1 to 365 days, default 7, calculated in Europe/London (D23, 2026-09-01). For a case entering `Not ready`, the first chase occurs at the same Europe/London local time that many calendar days later and repeats at the same interval. A configuration change applies to schedules calculated after it; a chase already calculated keeps its date. `Held` preserves the remaining interval; release to `Not ready` resumes it. `Review`, accepted material arrival, or terminal closure stops the schedule.
++`Due by` comes from the inspection date or accepted equivalent deadline. The chase interval is one global whole-calendar-day value in workflow configuration, range 1 to 365 days, default 7, calculated in Europe/London (D23, 2026-09-01). For a case entering `Not ready`, the first chase occurs at the same Europe/London local time that many calendar days later and repeats at the same interval. A configuration change applies to schedules calculated after it; a chase already calculated keeps its date. `Held` preserves the remaining interval; release to `Not ready` resumes it. `Review`, accepted material arrival, completion, or a reasoned cancellation
++or rejection stops the current missing-material chase schedule.
+ 
+ Manual chasing remains a staff action in the alpha unless an allocated capability and accepted integration explicitly authorize automation. The history records what was attempted, by whom, through which channel, against which party/address, when, and with what evidence. A recorded action is not proof of external delivery.
+ 
+@@ -214,3 +200,13 @@
+ channel/outcome, optional note, and next permitted action together. Prepared or
+ copied text remains visibly distinct from sent, delivered, answered, or
+ completed work.
++
++## Post-report responsibility
++
++The Engineer responds to queries or disputes from the Principal, third-party
++insurer or claimant. There is no terminally closed Case state. Receipt of a
++query for, or attachment of a query to, a Completed Case moves it to `Query`.
++Replying to that query moves it back to `Completed`; a draft or acknowledgement
++is not a reply. The linked correspondence and attributable transitions remain
++in the Case history. Further engineering edits use the reasoned Return to
++Engineer action and normal edit authority.

@@ -180,10 +180,8 @@ other, and Triage findings never populate or change either one.
 A correction never edits an earlier accepted or issued finding in place. It
 creates a reasoned superseding report/finding or addendum with actor, time,
 source, structured before/after values, and the prior artifact/version retained.
-If the case is closed, an authorised reasoned reopen through the ordinary
-destination gates must occur before the correction; `Created in error` remains
-non-reopenable. Current views may recompute from the superseding version, but
-historical reports, events, and counts keep their original provenance.
+Case edits follow the state, role, lease and version guards in FRD-01.
+Completed status is reversible and query correspondence follows its Query cycle.
 
 Betterment figures and estimate `guide` codes recorded on a source or an
 estimate version are retained evidence only (D17, 2026-09-01). No finding,
@@ -238,8 +236,9 @@ it never becomes the Engineer's Value by itself. Engineer's Value is adopted
 only by an explicit Apply using this order: commercial VAT 20%, prior total
 loss 10% or 20%, fixed additions, then condition deduction, with whole-pound
 rounding away from zero. A generic assessment save never writes the adopted
-value (AUTO-015). Valuation adjustments, rationale and revaluation history
-stay with `EXT-10` (later).
+value. The accepted adjustment calculation above is current required behavior;
+it is not deferred by a capability allocation label. Additional rationale or
+revaluation-history scope requires its own accepted contract.
 
 ### Settlement
 
@@ -266,9 +265,9 @@ one was selected, creating actor/time, and—when accepted—the
 named Engineer and acceptance time. Glass's, Audatex PDF, an approved AI
 proposal, and manual entry are provenance routes, never authorities: imported
 or automated material remains a draft until an authorised Engineer accepts the
-exact source, mapping, ordered lines, and calculation basis. Legacy lines with
-no such evidence remain explicit `LegacyUnresolved` drafts and cannot satisfy
-report readiness.
+exact source, mapping, ordered lines, and calculation basis. A draft without
+the required provenance cannot satisfy report readiness. This does not require
+conversion or preservation of obsolete disposable development-state estimates.
 
 A raw artifact imported through either caller of the shared import command is
 keyed by Case plus source hash (D16, 2026-09-01): the same Case with the same
@@ -367,3 +366,56 @@ close-up in the same group. No-readable or conflicting valid VRMs do not receive
 a fabricated image reference; they enter the grouped Unidentified contract with
 the applicable reason, including conflicting_vrms.
 - **Irreversible choice:** the estimate may be derived only by this conservative algorithm; unsafe evidence yields abstention or a qualified range rather than an invented mileage value.
+
+## Inspection location and estimate sources
+
+Every CE assessment is a desktop inspection. A physical inspection address is
+report data, not evidence of CE attendance. The Principal setting selects a
+physical vehicle location or the literal `Image Based Assessment`; a staff
+override requires a recorded reason and can be reversed the same way.
+Address suggestions may use Principal usage frequency, accident location and
+image/vision evidence; suggestions do not silently become confirmed facts.
+
+Repair cost figures come from external estimate imports (including Audatex and
+Glass's), AI estimates returned through MCP, or staff file import. Do not invent
+manual repair totals to bypass the accepted estimate contract. Unknown repairer
+VAT needs explicit status/category before totals are accepted. Supplied,
+observed, derived and professionally accepted values retain their distinctions.
+
+## Retained PDF estimate import
+
+
+The canonical estimate-import command accepts the supplied Glass's calculation
+and Audatex full-report PDFs through their deterministic provider mappings.
+It retains the original document and source hash before importing a Draft;
+the same Case and source hash replay the same import. Printed totals, rates,
+line structure and provider identity must agree. PDF net labour is not reduced
+again by an XML-specific overlap rule.
+
+Embedded text is the first source. A positively established unusable font map
+or a qualified scan-like page may use the existing page-restricted OCR path
+under [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) and
+[FRD-05](frd-05-documents-extraction-and-custody.md#qualified-ocr). Mere parser
+failure is not qualification. A pending or uncertain OCR operation is not an
+imported estimate. Retained output may be consumed later by the same command
+under the current Case version and edit lease; no background OCR completion
+can overwrite the Engineer's current work or select a Current estimate.
+
+## Market Research requests
+
+Selecting **Market Research** on the Valuation screen creates a ledger job.
+External Claude Cowork, equipped with the Pegasus connector and its own research
+tools, obtains the research and files. The connector attaches those files to
+the Case and the Automation Actor marks the job Completed. The tools and
+research execution are outside this repository. Research evidence and any
+source-labelled valuation proposal do not automatically become the Engineer's
+Value. Job states and attribution are owned by FRD-11.
+
+## Valuation readiness
+
+Any valuation check required before Review or Hand to Engineer must be resolvable
+at that stage by an authorized actor. No such prerequisite may require editing
+an Engineer-only section that becomes available only after handoff. Engineer's
+Value, settlement and report calculations belong to engineering work and are
+not invented pre-assignment blockers. Named external-check failures expose their
+actual permitted resolution; no circular readiness gate is acceptable.

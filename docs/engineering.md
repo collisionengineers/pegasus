@@ -7,56 +7,16 @@ procedures in the [runbook](runbook.md), operational evidence in
 Authority order is defined once in the
 [documentation index](index.md).
 
-## Branches and delivery
+## Delivery evidence
 
-- Task branches are cut from `dev` and merge into `dev` through a PR. `main`
-  is the active deployment and the sole revision eligible for an authorised
-  release. `dev` and `main` are never rebased, reset, or force-pushed. Claims
-  and execution evidence live in the owning Kanmer ticket.
-- Promote `dev` to `main` only as an exact-SHA fast-forward: fetch both remote
-  refs, confirm `git merge-base --is-ancestor origin/main origin/dev`, record
-  the reviewed `origin/dev` SHA, then atomically push that SHA to both
-  `refs/heads/main` and `refs/heads/dev` with an explicit lease on `dev`:
+Kanmer owns the task lifecycle, branch/worktree claims and review/proof gates.
+Read the active execution context for the integration branch and host verifier.
+CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head
+success or a justified path skip is evidence for that job only.
 
-  ```text
-  git push --atomic --force-with-lease=refs/heads/dev:<reviewed-dev-sha> origin <reviewed-dev-sha>:refs/heads/main <reviewed-dev-sha>:refs/heads/dev
-  ```
+## Documentation authoring
 
-  The second refspec is a no-op only when `dev` still equals the reviewed SHA;
-  the transaction rejects a concurrent change instead of partially promoting
-  `main`. The lease is an expected-value assertion, not permission to rewrite:
-  neither shared ref may be rewritten. Fetch again and require both remote
-  heads to equal the recorded SHA. The release actor needs explicit `MERGE AUTH
-  GRANTED` before the push. A failed preflight, rejected transaction, or
-  unequal read-back stops the release; it is never repaired by a rebase, reset,
-  or force push.
-- A GitHub PR merge, rebase merge, or squash merge is not an exact-SHA
-  promotion and does not replace that procedure. GitHub protection and
-  rulesets are intentionally out of scope on subscription grounds, so the
-  main-push CI check is detective rather than a server-side prevention.
-- No routine `main` → `dev` synchronization merge is permitted.
-- Commit subjects are imperative and name a capability ID from
-  [capabilities](capabilities.md) when one applies; otherwise they name the
-  task.
-- A durable decision that constrains future architecture gets an ADR under
-  [docs/adr/](adr/README.md). Everything else is a commit message.
-- Green means every `repository-check` job for the PR's head revision
-  succeeded or was path-skipped. The executable CI behavior, path filters,
-  lane selection, timeouts, and runner choices are defined and explained in
-  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). No separate
-  workspace CI lane remains: both imported source workspaces were integrated
-  and retired under ADR-0025 (see [workspaces](../workspaces/README.md)).
-
-## Markdown convention
-
-- The H1 is line 1 of the file; a blank line precedes every heading.
-  The generated Kanmer preamble in AGENTS.md is exempt; normal formatting
-  applies to its human-owned guide.
-- Tables use the compact delimiter row `| --- |` without padded alignment.
-- Prose in root and `docs/` guidance files is hard-wrapped near 78 columns;
-  table rows and link-dense lines may run long.
-- The [documentation index](index.md#new-markdown-files) owns where new
-  Markdown files may be created.
+Follow the [index](index.md#markdown-convention) for formatting and placement.
 
 ## Evidence
 
@@ -69,28 +29,18 @@ against the authoritative rule.
 
 ### Required evidence tiers
 
-For each delivered capability, identify the authoritative rule, Core policy owner, real production entry point, persisted result, adapter or side effect, operator-visible result, and applicable tier.
+Choose evidence for the claim:
 
-1. **Static/build/architecture** — compile the four approved projects, enforce dependency direction and one policy owner, compile Bicep, inspect dependencies, and prevent tracked corpus or secret material. This proves consistency only.
-2. **Core/domain** — positive, contradictory, ambiguous, and failure cases for intake, references, matching, lifecycle, roles, completeness, and case invariants.
-3. **Parser/adapter contracts** — EML/PDF/DOCX/DOC/MSG handling; corruption, encryption, expansion/resource limits, cancellation, path/integrity safety, stable contract codes, and deterministic external failures. Format recognition, deployed parser capability, OCR activation and genuine-sample acceptance remain separate claims.
-4. **LocalDB persistence** — fresh and incompatible schemas, committed SQL Server migrations, rollback, state/action-history/outbox atomicity, reference allocation, constraints, pagination, leases, stale versions, concurrency, and backup/restore.
-5. **Web/API/MCP caller** — actual routes reach Core; authentication, antiforgery, validation, scope, idempotency, exception translation, and action-history actor are observable.
-6. **Functions/Azurite caller** — actual timer/queue trigger, Blob staging, identifier-only messages, duplicate/retry/poison/restart behavior, and delete-after-Box-confirmation.
-7. **Browser/accessibility** — the package-pinned Playwright Chromium lane
-   drives authenticated workflows, dashboard/queue agreement, two-session
-   editing, keyboard, focus and error behavior, semantic labels,
-   text-plus-colour states, 200%-equivalent reflow, forced colours, reduced
-   motion, and axe rules. It is the selected release evidence for those named
-   checks. It does not prove screen-reader interoperability, complete WCAG
-   conformance, subjective usability, or operator acceptance.
-8. **Genuine corpus** — immutable reviewed cohort and untouched holdout through the real caller, including field-level accuracy, conflicts, unreadable pages, and false case/reference outcomes. Detailed evidence remains ignored and local.
-9. **Security/observability** — role matrix, secure cookies, transient authentication throttling, request forgery, denial before client construction/call, dependency and dynamic scanning, correlation, health, redaction, and bounded failure metrics.
-10. **Performance/concurrency** — eight concurrent operators, 2–20+ files per case, the 2,000-cases-per-month cohort and soak tier (**not run by this programme and never represented as passing** — D27, 2026-09-01; its evidence spike `PLAT-066` sits outside EPIC-011, while per-ticket concurrency tests still run), the current 10 MiB manual-upload bound and future intake bounds only after `INTK-052` research and operator decision (the Provider API envelope stays 30 MB and is owned by [FRD-09](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)), burst/soak behavior, and 48,000–480,000+ annual asset-metadata shapes. Do not invent a release latency threshold without an explicit decision.
-11. **Migration/recovery** — every supported prior schema, idempotent migration scripts, previous-artifact compatibility, restore into a new database, and reconciliation by stable Outlook/Box identities.
-12. **Integrated workflow** — authenticated source receipt through Core, SQL/outbox, actual Worker trigger, adapter outcome, persisted operator view, telemetry, and safe replay. Registration or mock-only paths do not satisfy this tier.
+| Claim | Evidence |
+| --- | --- |
+| Policy behaves correctly | Focused meaningful tests against the governing FRD, including supported failures. |
+| Adapter or persistence behavior works | Relevant boundary, authorization, concurrency and recovery evidence. |
+| Feature is wired | A named application caller traverses the intended policy and adapter. |
+| Artifact works in an environment | Exact artifact identity, configuration and observed runtime behavior. |
+| Operator workflow is accepted | Explicit acceptance by its designated authority. |
 
-Run policy tests first, adapter contracts second, persistence/transaction tests third, actual HTTP/Functions caller tests fourth, genuine cohort/holdout evidence where relevant, then separately approved live-service and operator-acceptance gates.
+Registration, a green build and deployment do not establish the next tier.
+This table is not a sequence of universal gates for every documentation edit.
 
 ## Engineering invariants
 
@@ -103,9 +53,8 @@ Topology and accepted boundaries are owned by [architecture](current-architectur
 - A business rule, classifier, allocator, parser, workflow transition, or
   external effect has one implementation. Shared code is consumed through
   project references, never by copying source.
-- On encountering a third implementation, stop and consolidate; migrate or
-  delete the replaced code, registrations, tests, and documentation in the same
-  slice.
+- A second business-policy implementation is duplication. Consolidate affected
+  owners within the requested scope; do not wait for a third copy.
 
 ### Capability organization
 
@@ -118,10 +67,10 @@ layer. `Audit` and `Triage` keep their reserved business meanings.
 
 Add an interface only for a real external boundary, a second concrete caller,
 or an accepted ADR. A deferred capability belongs in
-[capabilities](capabilities.md) or [open decisions](open-decisions.md) — never
-as dormant registration, an unused endpoint, a disabled flag, or dark
-destructive code. Anything built but unwired for two weeks gains a real caller
-or is deleted; a dangerous superseded capability is deleted immediately.
+Kanmer for allocation; unresolved behavior belongs in open decisions. Do not
+build dormant registration, unused endpoints or dark destructive code for
+hypothetical future work. Wire required implementation to its real caller and
+remove superseded code within the affected scope.
 
 ### Classifiers and failure semantics
 
@@ -136,7 +85,7 @@ or is deleted; a dangerous superseded capability is deleted immediately.
 
 ## Simplicity
 
-The [simplicity rails](../AGENTS.md#simplicity-rails) in `AGENTS.md` are the
+The [simplicity rails](../AGENTS.md#project-principles) in `AGENTS.md` are the
 rules; these are the mechanics.
 
 ### The four lenses
@@ -227,55 +176,39 @@ correct identity and role (row-level security once made a live database look
 wiped), prove the recovery source is complete, obtain the required approval,
 and stop if observations differ from the plan.
 
-## Lessons from the predecessor
+## Verification and failure handling
 
-CollisionSpike (2,039 process/doc files vs 1,173 product files, a 128,427-line
-generated ledger, ~20 CI gates, and a first live email that failed within four
-hours) is failure evidence, not a source tree. The rules above compress what it
-demonstrated:
+- Exercise representative retained input through the actual caller before
+  claiming behavior. Idealized fixtures and registrations alone are insufficient.
+- Derive evidence precedence explicitly and test realistic contradictions.
+- Review literal business values against their accepted source independently
+  of tests that may repeat the implementation's mistake.
+- Keep one business-policy owner. Reuse the existing client and custody boundary.
+- Keep a guard when it protects a supported failure mode; remove one whose
+  requirement is obsolete. Absence of a recorded failure does not prove redundancy.
+- Review broad edits against their exact base and resulting tree for lost behavior.
+- Rehearse destructive operations against identified targets, with recovery
+  evidence and the authorization required for the actual operation.
+- Classify dependency failures at their boundary; expose exhausted or poison work
+  with a supported recovery action rather than repeated opaque exceptions.
 
-| Demonstrated failure | Rule |
-| --- | --- |
-| First real forwarded email misclassified; no case minted | Exercise genuine traffic through the actual caller before claiming completion |
-| Sender identity and filenames outranked stronger content evidence | Explicit, re-derived precedence with contradiction tests |
-| Rebuilt engine registered with no caller; fixture `From:` lines decorative | Registration and idealized fixtures are not caller proof |
-| Nine token-mint paths, four HTTP wrappers, three Box-folder implementations | Search first; stop at the third copy |
-| Implementer swapped mapping values and wrote tests asserting the swap | Independent review of literal business values |
-| Guards encoded defects as allowed divergence; never watched to fail | A guard that has never fired is deleted |
-| Repo reset silently reverted five tables while checks stayed green | Broad cleanups get adversarial exact-base/head review |
-| Planned wipe-and-replay would have destroyed ~150 cases; dry run caught it | Rehearse destructive work read-only and prove recovery first |
-| One bad Box folder reference produced 1,896 exceptions in a day | Classify failures at the client boundary; park poison work visibly |
-| ~30 consecutive governance PRs while the intake engine stayed untrusted | Process is not a product; delete controls whose triggers never occur |
-| 17-ticket misclassification wave found via operator screenshots, not CI | Weekly human review of real operator-visible output |
 
-## v1 shared development contracts
 
-PLAT-075 owns the common Foundation commit consumed unchanged by CASE-047 and
-INTK-060. This is an incomplete development checkpoint, not runtime or release
-evidence. The owner-ticket plan records the exact Foundation SHA and subsequent
-shared corrections. The C# definitions are the signature authority:
+## Verification policy
 
-| Consumer | Contract owner and signature |
-| --- | --- |
-| Accounts and Case editing | `IClearCaseEditLease.ExecuteAsync(ClearCaseEditLeaseRequest, CancellationToken)` validates an Administrator, selected Case, expected staff holder and independent lease generation; returns the retained clearance result on exact replay. |
-| B Glass's repair estimates | `IPerUserExternalCredentialReader.GetEnabledAsync(ActionActor, ExternalCredentialProvider, CancellationToken)` returns server-only enabled credential material for that actor; administrative status never includes its password. |
-| B generated and imported artifacts; C retained sources | `ICaseArtifactCustody.RetainAsync(CaseArtifactCustodyRequest, CancellationToken)` accepts one Case or receipt destination and returns confirmed logical identity or an explicit pending/failed/unknown result. |
-| B/C logical reads and A downloads | `IReadLogicalDocumentVersion.OpenAsync(ReadLogicalDocumentVersionRequest, CancellationToken)` selects exactly one complete document/version pair or retained intake asset; Case and receipt contexts are checked against persisted associations. Storage addresses never come from callers. |
-| C correspondence | `IStaffMailSend.SendAsync(StaffMailSendCommand, CancellationToken)` owns the single mail operation and its server-computed payload hash. |
-| B report delivery | `IStaffReportSend.SendAsync(StaffReportSendCommand, CancellationToken)` uses the same mail operation; B's `IReportSendReadiness.RequireReadyAsync` rechecks persisted versions and exact artifacts at the side effect. |
-| B source adoption | `ISourceCandidateQueries` and `IThirdPartyReportCandidateQueries` return C-owned source observations. Typed report leaves retain raw value, unit, currency, document/version/hash and locator; B alone accepts CE findings. |
-| B location selection | `IInspectionLocationChoices.SearchAsync` returns a bounded choice with postcode, source kind, source record and version. A location never implies CE attendance. |
-| B raw estimate import via Web/MCP | `IImportRawEstimate.ExecuteAsync` accepts logical source identity, SHA-256, typed actor, expected Case version, lease and operation key. |
+Select checks by affected behavior and executable inputs, using the existing
+CI change classifier as a routing aid. Ordinary prose and links do not require
+.NET restore/build/test. Embedded renderer assets, snapshots and other actual
+application/test inputs require the checks appropriate to their effects.
 
-The mail state vocabulary is `StaffMailState`; attempt stages use
-`StaffMailAttemptStage`. Submitted means provider acceptance. Only matching
-observed Sent evidence establishes Sent. Recovery projections contain safe
-state, attempt time, mailbox generation, payload hash and expiry; upload URLs,
-credential material and provider-session secrets stay inside the adapter.
+Run focused checks first for affected code. Full solution checks apply when
+shared impact, explicit acceptance criteria or the release procedure requires
+them; serialize heavy work or reuse qualifying exact-head CI evidence. An
+explicit broader regression requirement is not a requirement to rebuild after
+each prose amendment. The [verification procedures](runbook.md)
+owns commands and test-environment setup.
 
-Foundation itself registered the administrative lease implementation. The
-Stream A source now adds the account/credential, mailbox, staff-mail,
-logical-content/cache and administration query implementations. B/C domain
-implementations and their A-authored composition patches arrive together on
-the owning branches. The combined checkout must prove those callers;
-contracts and registrations alone do not establish a working user journey.
+Documentation correctness takes priority over obsolete parser/placement rules.
+Record those consumers for amendment or retirement, without preserving a wrong
+documentation contract to make them pass. Do not report their failure as an
+application regression or conceal an actual runtime regression.

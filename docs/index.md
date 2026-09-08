@@ -1,51 +1,65 @@
 # Repository documentation
 
-One file per question. `docs/` contains prose only; supplied evidence is
-indexed under the top-level [`reference/`](../reference/README.md) tree and
-design assets remain under [`docs/design/`](design/).
+Use the owner of the question. Current operator instructions and accepted
+requirements establish intent. Source establishes implementation; dated exact
+artifact observations establish deployment. A green test does not override a
+business requirement or prove live acceptance. Resolve material conflicts in
+the affected owner; record only the genuinely undecided portion.
 
-| Question | File |
+| Question | Canonical owner |
 | --- | --- |
-| What is in flight and what can I take? | The Kanmer board (`.kanmer/`, via the `kanmer` tools) |
-| Why must Pegasus do it — business need, users, outcomes, scope? | [PRD](prd/README.md) |
-| How must a capability behave — I/O, states, rules, edge cases, acceptance? | [FRD index](frd/README.md) |
-| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap and capability-ID registry; its *Canonical owner* column joins each ID to its PRD, FRD, or ADR |
-| What is deferred or deliberately excluded, and why? | [Boundaries](boundaries.md) |
-| What is undecided? | [Open decisions](open-decisions.md) |
-| What did Collision Engineers actually say? | [Operator notes](operator-notes.md) |
-| What exists now (the as-built snapshot)? | [Current architecture](current-architecture.md) |
-| What is deployed, released, monitored, or recovery-proved now? | [Operations](operations.md) |
-| How do I set up, develop, test, run, release, monitor, or recover? | [Runbook](runbook.md) |
-| What engineering guidance and evidence tiers apply? | [Engineering](engineering.md) |
-| What procedure governs task claims, plans, reviews, and Git safety? | Kanmer skills and managed instructions; [Pegasus workflow supplement](../AGENTS.md#repository-task-workflow). |
-| What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
-| What raw supplied evidence exists? | [Reference evidence](../reference/README.md) |
-| What are the UI rules, and the Integrated Operations Workspace shell contract? | [Design](design/README.md) — visual, component and shell authority; route and page behaviour (Work Centre, Cases, Search, Case workspace) is [FRD-12](frd/frd-12-operator-experience.md) |
-| How is a provider's email identified, classified, and mapped? | [Principal rules and mappings](principal-rules-and-mappings/README.md) — descriptive companions; the cited FRD/ADR/policy owners bind |
-| What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) — the sole current-state owner; `.azure/deployment-plan.md` is the immutable 2026-08-02 execution record |
-| What do the imported source workspaces own? | [Workspaces](../workspaces/README.md) |
-| What do domain terms mean? | [`CONTEXT.md`](../CONTEXT.md) (repo root) |
-
-## Authority
-
-operator-notes.md (business fact) > PRD (`prd/`, product intent — what and why) >
-FRD (`frd/`, functional specification — required behaviour) > capabilities.md
-(schedule and capability-ID registry) > ADRs (durable technical decisions) >
-current-architecture.md and operations.md (current state) > runbook.md, engineering.md,
-and design/README.md (working rules within their scopes). Code plus passing tests beat any document about
-current state. On conflict: fix the losing document in the same commit you
-notice it; if the conflict is material and you cannot resolve it, put one line
-in [open decisions](open-decisions.md) and stop the affected work.
+| Agent entry and non-obvious repository constraints | [AGENTS](../AGENTS.md) |
+| Product outcomes, users, quality targets and exclusions | [PRD](prd/pegasus-product.md) |
+| Functional behavior, state, limits and acceptance | [FRDs](frd/README.md) |
+| Durable technical decisions and current successors | [ADRs](adr/README.md) |
+| Domain terminology | [CONTEXT](../CONTEXT.md) |
+| Stable capability identities and requirement links | [Capabilities](capabilities.md) |
+| Current work, ordering, grants and delivery evidence | Kanmer ticket/group and its linked PR/CI records |
+| Unresolved product or technical choices | [Open decisions](open-decisions.md) |
+| Source structure and policy/caller locations | [Architecture](current-architecture.md) |
+| Last observed deployed estate and operational support | [Operations](operations.md) |
+| Engineering and verification policy | [Engineering](engineering.md) |
+| Local, verification and operational procedures | [Runbook directory](runbook.md) and existing release/wipe skills |
+| Visual assets, components and presentation | [Design](design/README.md); functional interactions remain in FRD-12 |
+| Principal-policy evidence and descriptive companions | [Principal mappings](principal-rules-and-mappings/README.md) |
+| Supplied domain evidence | [Reference](../reference/README.md) |
+| Supplied vendor/component contracts | [External component documents](external-component-documents/README.md) |
+| Retired source imports and admission boundary | [Workspaces](../workspaces/README.md) |
 
 ## New Markdown files
 
-Follow [New Markdown placement](../AGENTS.md#new-markdown-placement) for
-allowed file types, ticket documents, registration and workspace exceptions.
-AGENTS.md owns these rules; this index owns navigation and authority.
+Create a PRD for product intent, an FRD for functional behavior, and an ADR for
+a durable technical choice. Use their existing directories and indexes. Put a
+rule in its existing canonical owner whenever possible; add a focused document
+only when it answers a distinct recurring question that lacks an owner.
 
-## Image-initiated Case authority
+Operational procedures remain in the runbook. Existing release, wipe and Razor
+skills retain their defined scope; do not create skills for documentation sections. Engineering/configuration references may live under
+`docs/engineering/`; vendor evidence stays under `docs/external-component-documents/`.
+These locations do not create new product or workflow authority.
 
-The durable technical boundary is [ADR-0029](adr/0029-image-initiated-case-projection.md).
-Behaviour is owned by FRD-01, FRD-02, FRD-05, FRD-06, and FRD-12. The formal
-Instruction-initiated Case remains the only Case/PO allocator; Image-initiated
-records use their separate VRM reference and lifecycle history.
+Routine task research, plans, reviews and proof belong to Kanmer. An explicit
+operator request may create a temporary review artifact at the requested path;
+mark it temporary and remove it when its useful results have durable owners.
+Do not invent a technical ADR merely to authorize a documentation move.
+
+## Markdown convention
+
+- Start ordinary prose with an H1. Supported YAML frontmatter and managed
+  preambles may precede it. Preserve generated formats and vendor source fidelity.
+- Separate headings and lists from surrounding prose with blank lines.
+- Use compact Markdown tables with `| --- |` delimiters, without alignment padding.
+- Hard-wrap ordinary prose near 78 columns; tables, code and link-dense lines
+  may run longer. Readability matters more than a line-count target.
+- Use relative links to canonical clauses; repair inbound links when moving or
+  retiring a heading. Generated snapshots and immutable supplied evidence are
+  not reformatted merely to satisfy prose conventions.
+
+## Decision records
+
+Keep issued ADR IDs and rationale recoverable. A changed technical decision
+uses the next unissued ID; do not fill the deliberately unissued ADR-0017 gap.
+Frontmatter records status and successor relationships. For partial replacement,
+identify replaced clauses and surviving owners explicitly: a whole-file
+superseded label must not hide a still-active rule. PRD/FRD indexes define their
+document shapes; Kanmer's templates do not override Pegasus-specific placement.
