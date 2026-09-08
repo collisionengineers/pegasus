@@ -10,7 +10,7 @@ accepted Case claimant address. No new intake, Case-data or ZIP capability.
 Read-only research base: origin/dev
 cc441645b0a62a806e34367ad75e9eaff4df8b11.
 Evidence: `research/research.md`@`084f62058746126a` and
-`files/files.md`@`623d466dfb5fd003`.
+`files/files.md`@`56e85ba675b83b94`.
 
 The address already extracts, persists with provenance and supports normal
 Case editing. Only the API payload/map/serializer and local submission guard
