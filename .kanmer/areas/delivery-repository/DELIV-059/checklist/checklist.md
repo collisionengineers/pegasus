@@ -41,4 +41,4 @@ PR #676 closure, or deployment had occurred at verification time.
 - [x] cd out of worktree; `git worktree remove .worktrees/deliv-059`
 - [x] `git branch -d DELIV-059-restore-release-39-history` (`-D` if squash/rebase-merged)
 - [x] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] `take_ticket action: "release"`
