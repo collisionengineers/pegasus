@@ -147,7 +147,8 @@ association/allocation, case creation, custody hand-off, and terminal state.
 Those timings contain identifiers and bounded outcome data, never source
 content. From durable receipt, ordinary supported principal email and manual-upload
 work reaches its case destination, or its truthful terminal non-case outcome,
-within five seconds at p95. Case custody confirmation is measured as the final
+within five seconds at p95, excluding time awaiting the manual staff decision.
+Case custody confirmation is measured as the final
 best-effort segment and any Box/provider delay is attributed separately. A
 large, retrying, or legitimately incomplete item remains Received or Processing
 with no older terminal outcome projected over it.
@@ -163,8 +164,11 @@ Before creating a case or allocating a reference, Pegasus must establish:
 - processing and size/format limits;
 - absence of unresolved wrong-Principal, duplicate-occurrence, receipt-integrity, or source-custody ambiguity.
 
-Once those identity-critical facts are established, Pegasus creates the Case/PO
-and allocates its permanent reference. Incomplete ordinary business detail,
+Once those identity-critical facts are established, an automatic route creates
+the Case/PO and allocates its permanent reference. Manual upload instead awaits
+explicit acceptance of the editable proposal under the
+[upload confirmation contract](#upload-confirmation-surface); extraction alone
+never allocates or reserves its Case/PO. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
 not form another pre-Case acceptance gate. For standalone Audit, allocate the
 normal Case/PO once Principal and Audit case type are definitive. Missing or
@@ -184,7 +188,15 @@ Box case-file custody is a required day-one alpha capability, but it follows Cas
 
 ### Matching conflicts and reversible association
 
-Matching uses explainable evidence. Message identifiers, provider/domain policy, route identity, accepted reference tokens, VRM, party identity, and operator confirmation may contribute. A weak, ambiguous, or contradictory signal never silently associates material with a case; competing candidate cases and unresolved source-identity conflicts become Unidentified with the corresponding canonical reason.
+Matching uses explainable evidence. Message identifiers, provider/domain policy,
+route identity, accepted reference tokens, VRM, party identity, and operator
+confirmation may contribute. A weak, ambiguous, or contradictory signal never
+silently associates material with a Case. Automatic routes send competing
+candidate Cases and unresolved source-identity conflicts to Unidentified with
+the corresponding canonical reason. Manual upload offers current viable
+destinations directly under the [upload confirmation contract](#upload-confirmation-surface),
+including when several candidates exist. Unresolved source-integrity or unsafe
+material still fails closed; a destination choice cannot override that failure.
 
 The fifteen evidenced principal email routes use the existing instruction
 profiles through one route, classification and match policy ownership chain.
@@ -222,6 +234,10 @@ exact-match precedence also applies to one-member groups. Multi-member groups
 retain their stricter complete-candidate uniqueness rule; persisted expected
 membership, not the presence of a group identifier, distinguishes them.
 
+Manual-upload image material requires explicit staff confirmation even for one
+eligible match. Its Image Intake Reference may be registered automatically, but
+initial processing and later reconciliation never choose its Case destination.
+
 Both arrival orders, registered-receipt replay and acceptance replay resume
 the same pairing operation. The existing reconciliation timer retries oldest
 eligible Awaiting instruction records, including linked-but-unmerged records.
@@ -233,12 +249,14 @@ merge rechecks every current association, destination eligibility and active
 Case edit lease. A deliberate staff unlink or reassignment is never undone by
 recovery. A still-current reasoned staff association retains its authority,
 including an intentional identity override, regardless of the retry actor.
-A reasoned staff decision on a registered group's origin also authorises
+A reasoned staff decision on a non-manual registered group's origin also authorises
 completion of untouched image members. That completion checks the current
 origin decision and its observed version, records the originating staff
 identity/reason/version with SystemWorker completion attribution, and never
 overwrites or revives a sibling with association history. Final merge also
 refuses a changed origin decision even when the target Case ID is unchanged.
+Manual groups instead retain the confirmation's reviewed per-member decisions;
+reconciliation may finish their merge only after every member is associated.
 
 **Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same configured chase interval a Not-ready formal Case's first chase falls due at (one global whole-calendar-day value, 1 to 365, default 7 — D23), and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
 
@@ -263,6 +281,13 @@ registration must not detach itself from an overview image submitted with it,
 and the group — never an individual image — is the unit
 that reaches an association, a pre-Case Image intake registration, or a
 `Unidentified` outcome.
+
+For manual upload, the 8 September confirmation decision supersedes automatic
+Case attachment in these rules: matching supplies suggestions, usable image
+identity may register, and the group awaits one explicit staff destination
+decision even when exactly one eligible Case matches. The automatic association
+precedence below applies to non-manual routes. Recognition, complete membership,
+and fail-closed source-identity rules apply to both.
 
 - **Mailbox attachment entry.** When a newly processed mailbox message would
   otherwise enter Unidentified, has not been routed as an instruction, Case or
@@ -365,7 +390,8 @@ The decision table, evaluated against the current retained material:
    existing reversal path; the confirmation surface does not invent another
    association mechanism.
 2. **Registered as a new Image-initiated Case** (`ImageIntakeRegistered`).
-   Also always automatic (a usable VRM with no unique existing-Case match);
+   Registration is automatic for usable image identity retained pending a staff
+   decision, including when a manual upload has a unique existing-Case match;
    reported with a link to its own searchable surface, never re-offered as a
    manual creation (an Image-initiated Case's reference is VRM-keyed and
    cannot be hand-created without one). While the registration is still
@@ -387,7 +413,7 @@ The decision table, evaluated against the current retained material:
 Where the staff decision is genuinely open — rows 2 and 3 — the surface also
 carries the decision itself:
 
-  - **Add to an existing case.** The retained match candidates are shown
+- **Add to an existing case.** The retained match candidates are shown
    first, including a sole viable candidate; typed receipt-scoped search adds
    only current viable Cases (reference, registration, claimant and stage
    shown — never an internal identifier). A unique candidate is never an
