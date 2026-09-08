@@ -86,3 +86,21 @@ Stop on failing checks, unresolved actual caller, unplanned file/dependency/sche
 ## Stop condition
 
 After focused evidence and scoped snapshot checks, publish one bounded PR and stop for independent review. No author merge, next ticket, cloud write or deployment. Controller later owns merge/exact integrated proof and authorized release.
+
+## Current execution readiness — 8 September 2026
+
+PLAT-072 is Done and closed at d442366787d452da22d36719272d4eb79dc1afde.
+ENG-041's original implementation is integrated; its post-merge correction
+planf0aa4318d6dca111/files1d4c177e23c8d8b9 now reserves only custody/report
+source-census owners, three separate tests and FRD-06. Root read both full
+maps: there is no overlap with this CASE-049 file scope. Its historical Case
+Details files are not future correction authority. Therefore CASE-049 may
+proceed in parallel; it need not wait for unrelated ENG-041 closeout.
+
+Root authorizes pack_reconcile to obtain a fresh execution packet, create and
+take the isolated CASE-049 branch/worktree from accepted dev19e6f523 (or its
+fresh fetched descendant after confirming no scope drift), implement the
+bounded native handoff and access changes, and freeze for root's focused checks.
+No author build/test, self-review, merge, provider or cloud operation. Root
+remains sole heavy verifier. Preserve current failed Glass proof and all foreign
+historical claims; this ticket does not fix the Glass custody boundary.
