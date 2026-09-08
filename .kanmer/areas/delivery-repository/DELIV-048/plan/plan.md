@@ -114,3 +114,20 @@ Any unrelated deferred-Azure-service assertion change belongs to root OCR lane.
 Freeze source and report commands/filters to root for verification. Do not
 commit, open PR or move to Review until root supplies evidence. Independent
 review owns merge; no cloud write or production deployment in this ticket.
+
+## Exact-merge correction — 2026-09-08
+
+Root's full-read proof2462b18082379607 records FAIL implementation at PR681
+merge1c1d7a0a45555604bafd3e732bd606bf083b804a. Reuse the same recorded
+DELIV-048-portable-release branch/.worktrees/deliv-048; no second claim.
+After clean recorded-identity checks, normally merge current accepted dev;
+preserve the original squash-reviewed source and all newer integrated changes.
+Root authors only the existing ORAS Windows repair hint and regression in
+Test-PegasusPlatform's existing two-host mapping loop (supply Kind in its mock).
+Both hosts point to the existing official pinned ORAS installation guidance.
+No new commands/conventions, dependencies or installer; AGENTS already records
+ADR0039, so this repairs text rather than changes that convention. Existing
+file map already includes both files. Run that cheap script and native hint
+check only; original artifact validation remains pending. New exact-head
+independent review is required; prior proof FAIL stays in history and no
+Done/deployment claim is allowed from this correction alone.

@@ -11,3 +11,5 @@ Root's focused build/17 architecture tests/Local deployment-plan PASS supplied; 
 - 2026-09-07T21:22:41.688Z lease-phase implementing → review (lease 3c8db85f-4398-4b63-9133-6f8a1b49830a rev 4; expires 2026-09-07T21:52:41.671Z)
 
 - 2026-09-07T21:51:26.910Z lease-phase review → verifying (lease 3c8db85f-4398-4b63-9133-6f8a1b49830a rev 5; expires 2026-09-07T22:21:26.898Z)
+
+- 2026-09-08T06:46:29.645Z stage verifying → implementing by codex-mcp-client; reason: proof FAIL implementation: exact merged Windows ORAS repair hint still requires Linux, contrary to ADR0039/current DELIV048 acceptance; correct only mapped existing hint/test on retained workspace.

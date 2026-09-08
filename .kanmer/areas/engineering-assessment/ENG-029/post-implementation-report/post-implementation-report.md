@@ -192,3 +192,24 @@ Root authorized checkpoint followed by a normal clean-branch merge of
 origin/dev96777888, preserving INTK-064's constructor alongside this ticket's
 assertions. Stop and return that exact head/census before push/PR. No self
 review, merge to dev, claim release or cleanup is authorized.
+
+## Exact author checkpoint and clean dev integration
+
+Scoped checkpoint e0ab668a184c167c5e1fc753a92d9a4fb3120421 contains
+exactly25 mapped source/doc/test files plus2 actual Case snapshot deltas,
+27 files +1403/-227. Unavailable/index normalized to no Git delta. Clean
+worktree was confirmed before normal merge of the freshly fetched, exact
+origin/dev96777888bfa7ee7f85d63979a4a09ae10cda7d13.
+
+Normal merge head f86054c0e7cc73cb6245355dd21c03e58196d582 has parents
+that exact checkpoint and accepted dev. Merge added only INTK-064's accepted
+24-file +818/-38 delta. No conflict, stash, reset, rebase or force was used.
+All27 PR paths equal the checkpoint scope. Of those paths,26 retain the
+exact Git blob identity from the runtime-checked checkpoint; only
+CaseDataCompletenessPersistenceTests changed, carrying dev's TriageCasePairing
+constructor/import. Its diff against dev is only this ticket's unchanged-Fact
+assertion method. Both direct diffs were inspected. All source owners and
+TICK-085/DOCS-019 changes remain intact. Final diff --check PASS exit0 and
+worktree clean. No post-merge author build or runtime claim. Stop before push/
+PR pending root's source-census acceptance; independent review and manual
+visual acceptance remain outstanding.
