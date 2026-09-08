@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -131,6 +132,46 @@ public sealed class AssessmentPolicyTests
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(new() { ["incident.assessed"] = "03/08/2026" })));
+    }
+
+    [Theory]
+    [InlineData("th-TH")]
+    [InlineData("ar-SA")]
+    [InlineData("en-GB")]
+    public void DateValuesUseTheGregorianCalendarRegardlessOfCurrentCulture(string cultureName)
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+        try
+        {
+            var dateFields = AssessmentVocabulary.Definitions.Values
+                .Where(definition => definition.Type == AssessmentFieldType.Date
+                    && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
+                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path))
+                .ToArray();
+            Assert.NotEmpty(dateFields);
+            foreach (var definition in dateFields)
+            {
+                // Calendar probes, not new case evidence.
+                foreach (var value in new[] { "2027-01-02", "2028-02-29" })
+                {
+                    var normalized = AssessmentPolicy.ValidateAndNormalize(
+                        Request(new() { [definition.Path] = value }, Engineer));
+                    Assert.Equal(value, normalized.Fields[definition.Path]);
+                }
+
+                foreach (var value in new[] { "2027-02-29", "02/01/2027", "0001-01-01" })
+                {
+                    Assert.Throws<ArgumentException>(() =>
+                        AssessmentPolicy.ValidateAndNormalize(
+                            Request(new() { [definition.Path] = value }, Engineer)));
+                }
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
     }
 
     [Fact]

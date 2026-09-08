@@ -477,7 +477,8 @@ public static class AssessmentPolicy
                 };
 
             case AssessmentFieldType.Date:
-                if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", out var date)
+                if (!DateOnly.TryParseExact(
+                        value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
                     || date == DateOnly.MinValue)
                 {
                     throw new ArgumentException(
