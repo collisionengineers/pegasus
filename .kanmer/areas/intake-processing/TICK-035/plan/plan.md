@@ -258,3 +258,19 @@ Author performs only bounded source checks, then freezes. Root reruns these
 four independently reported original cases only; already-passed53 Core,
 fifteen-original PDF and Settings captures are not repeated. Record missing
 independent YML initial-envelope coverage honestly. Preserve every failed run.
+
+
+### ALS refinement: structured vehicle columns, not ambiguous tab inference
+
+The empty-client-cell negative shows two tabs can also mean adjacent empty
+cells. Therefore do not extend vehicle row regexes to that ambiguous boundary.
+Use existing table locators and InstructionFieldEngine.SourceStructure: prove
+one Clients Vehicle header beside Third Party Vehicle, bind only label column1
+to value column2, preserve the original value cell and rename the label using
+the existing ALS vehicle field bindings. Missing/duplicate client value cells
+produce no candidate; columns3/4 never supply it. Existing labelled newline
+patterns remain for actual plain/PDF instruction documents without table cells.
+For a document with structured cells, those cells exclusively own vehicle
+reading. No shared binary reader changes. Only claimant Party's existing
+boundary accepts the proved double-tab before the Name paragraph; its adjacent
+owner Name remains excluded. Root approved this refinement before source edits.
