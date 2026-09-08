@@ -78,7 +78,7 @@ public sealed partial class TestUiSnapshotTests
             ["upload-group-status--default"] = new("Open case"),
             ["upload-request--validation"] = new("Choose a document to upload."),
             ["upload-status--processing"] = new("data-auto-refresh=\"2000\""),
-            ["upload-status--needs-decision"] = new("needs a staff decision"),
+            ["upload-status--needs-decision"] = new("Choose a case destination"),
             ["upload-status--default"] = new("<h1>Complete</h1>")
         };
 

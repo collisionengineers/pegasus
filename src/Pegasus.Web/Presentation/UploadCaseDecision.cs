@@ -360,7 +360,7 @@ public sealed class UploadCaseDecision(
                     targetCaseId,
                     input.ExpectedCaseVersion,
                     actor,
-                    $"upload-attach-lease:{input.OperationId:N}:{receiptId:N}:{targetCaseId:N}"),
+                    $"upload-attach-lease:{operationKey}"),
                 cancellationToken);
             await linkIntake.ExecuteAsync(
                 new(
@@ -489,7 +489,7 @@ public sealed class UploadCaseDecision(
                         targetCaseId,
                         nextCaseVersion,
                         actor,
-                        $"upload-attach-lease:{operationId:N}:{receiptId:N}:{targetCaseId:N}"),
+                        $"upload-attach-lease:{operationKey}"),
                     cancellationToken);
                 await linkIntake.ExecuteAsync(
                     new(

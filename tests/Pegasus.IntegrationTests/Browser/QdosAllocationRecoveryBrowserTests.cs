@@ -240,16 +240,44 @@ public sealed class QdosAllocationRecoveryBrowserTests
         Assert.Equal(0, await support.Page.Locator("[data-case-type-selector]").CountAsync());
     }
 
-    [Fact]
-    public async Task CaseTypeSelectorDoesNotOfferAudit()
+    [Theory]
+    [InlineData(1580)]
+    [InlineData(1100)]
+    [InlineData(760)]
+    public async Task CaseTypeSelectorDoesNotOfferAudit(int width)
     {
-        await using var support = await BrowserTestSupport.StartAsync();
+        await using var support = await BrowserTestSupport.StartAsync(width: width, height: 900);
         var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
             support.Services,
             CaseType.Inspection,
             "NOTACTIVE");
         await support.GoToAsync($"/Cases/Create?receiptId={receipt.Id:D}");
         var selector = support.Page.Locator("[data-case-type-selector]");
+        Assert.True(await selector.IsVisibleAsync());
+        Assert.True(await support.Page.GetByRole(
+            AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Accept and create case" }).IsVisibleAsync());
+
+        await support.Page.GetByText("Change a value", new() { Exact = true }).ClickAsync();
+        var claimNumber = support.Page.Locator("#draft-claim-number");
+        var registration = support.Page.Locator("#draft-vehicle-registration");
+        var principal = support.Page.Locator("#PrincipalCode");
+        var reason = support.Page.Locator("#Reason");
+        Assert.True(await claimNumber.IsVisibleAsync());
+        Assert.True(await registration.IsVisibleAsync());
+        Assert.True(await principal.IsVisibleAsync());
+        Assert.True(await reason.IsVisibleAsync());
+        await claimNumber.FillAsync("QDOS-EDITED-01");
+        await registration.FillAsync("AB12 CDE");
+        await principal.FillAsync("NOTACTIVE");
+        await reason.FillAsync("Staff reviewed the editable proposal.");
+        Assert.Equal("QDOS-EDITED-01", await claimNumber.InputValueAsync());
+        Assert.Equal("AB12 CDE", await registration.InputValueAsync());
+        Assert.Equal("NOTACTIVE", await principal.InputValueAsync());
+        Assert.Equal("Staff reviewed the editable proposal.", await reason.InputValueAsync());
+        Assert.False(
+            await support.Page.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth"),
+            $"The editable Case create form at {width}px scrolls horizontally after opening its proposal fields.");
         Assert.Equal(
             ["Inspection", "Inspection and Audit"],
             await selector.Locator("option").AllTextContentsAsync());

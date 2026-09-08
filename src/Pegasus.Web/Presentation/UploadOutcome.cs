@@ -318,12 +318,27 @@ public sealed class UploadOutcomeQueries(
 
         if (unidentified is { State: UnidentifiedState.Open })
         {
+            // A manual image group is still an Unidentified decision until
+            // staff supplies the registration or selects a viable Case. The
+            // grouped confirmation owns that one decision, so it needs the
+            // same bounded receipt/version input as other attachable states.
+            // Keep the U state and never turn image-only material into a
+            // new-Case proposal.
+            var attach = isImageOnlyMaterial
+                && receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+                && IntakeAssociationDestinationPolicy.CanOffer(receipt)
+                ? new UploadOutcomeAttach(
+                    receipt.Id,
+                    receipt.Version,
+                    await SuggestionsAsync(receipt, actor, cancellationToken))
+                : null;
             return new(
                 UploadOutcomeKind.NeedsReview,
                 "Needs review",
                 "This could not be matched automatically and needs a staff decision.",
                 new("Review", $"/Unidentified/{unidentified.Id:D}"),
-                null);
+                null,
+                attach);
         }
 
         if (groupedImage && receipt.Decision == IntakeDecision.NeedsSorting)

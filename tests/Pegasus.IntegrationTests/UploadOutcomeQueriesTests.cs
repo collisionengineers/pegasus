@@ -210,11 +210,24 @@ public sealed class UploadOutcomeQueriesTests
         // INTK-006/007's "kept intact as one group" routing. The builder
         // must fall back to it rather than reporting this member as if
         // nothing happened.
-        var result = await BuildAsync(status, receipt, submissionGroupId: groupId, unidentifiedByGroup: byGroup);
+        var suggestedCaseId = Guid.NewGuid();
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: groupId,
+            unidentifiedByGroup: byGroup,
+            suggestions:
+            [
+                new(suggestedCaseId, "QDO31004", "AB12 CDE", null, CaseLifecycleState.Review, 6)
+            ]);
 
         Assert.Equal(UploadOutcomeKind.NeedsReview, result.Kind);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal($"/Unidentified/{unidentifiedId:D}", result.PrimaryAction!.Url);
+        Assert.NotNull(result.Attach);
+        Assert.Equal(receiptId, result.Attach!.ReceiptId);
+        Assert.Equal(receipt.Version, result.Attach.ReceiptVersion);
+        Assert.Equal(suggestedCaseId, Assert.Single(result.Attach.SuggestedDestinations).CaseId);
     }
 
     [Fact]

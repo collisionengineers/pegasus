@@ -17,15 +17,25 @@ namespace Pegasus.IntegrationTests.Browser;
 [Trait("Category", "Browser")]
 public sealed class UploadCaseSearchBrowserTests
 {
-    [Fact]
-    public async Task CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision()
+    [Theory]
+    [InlineData(1580)]
+    [InlineData(1100)]
+    [InlineData(760)]
+    public async Task CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision(int width)
     {
         await using var support = await BrowserTestSupport.StartAsync(
-            useIntegrationTestAuthentication: true);
+            width: width, height: 900, useIntegrationTestAuthentication: true);
         var caseId = await SeedSearchableCaseAsync(support.Services, "BRWS01");
         var processedReceiptId = await UploadAndOpenAttachAsync(support);
 
         var input = support.Page.Locator("[data-case-search-input]");
+        var reason = support.Page.Locator("[data-case-search] textarea[name=reason]");
+        var submit = support.Page.Locator("[data-case-search] button[type=submit]");
+        Assert.False(await HasHorizontalDocumentOverflowAsync(support.Page),
+            $"The upload confirmation at {width}px scrolls horizontally.");
+        Assert.True(await input.IsVisibleAsync());
+        Assert.True(await reason.IsVisibleAsync());
+        Assert.True(await submit.IsVisibleAsync());
         Assert.Equal("combobox", await input.GetAttributeAsync("role"));
         Assert.Equal("false", await input.GetAttributeAsync("aria-expanded"));
         Assert.NotNull(await input.GetAttributeAsync("aria-controls"));
@@ -64,9 +74,9 @@ public sealed class UploadCaseSearchBrowserTests
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
         await AssertReceiptAssociationAsync(support.Services, processedReceiptId, expectedCaseId: null);
 
-        await support.Page.Locator("[data-case-search] textarea[name=reason]").FillAsync(
+        await reason.FillAsync(
             "Staff matched the document to the existing case in the browser journey.");
-        await support.Page.Locator("[data-case-search] button[type=submit]").ClickAsync();
+        await submit.ClickAsync();
         await support.Page.WaitForURLAsync("**/Upload/Status/**");
 
         var confirmation = support.Page.Locator("[data-confirmation]");
@@ -188,6 +198,9 @@ public sealed class UploadCaseSearchBrowserTests
         Assert.NotNull(receipt);
         Assert.Equal(expectedCaseId, receipt.CurrentCaseId);
     }
+
+    private static Task<bool> HasHorizontalDocumentOverflowAsync(IPage page) =>
+        page.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth");
 
     /// <summary>
     /// A directly seeded case reachable by the search: the origin receipt is
