@@ -184,14 +184,29 @@ runs. Preserve ENG-041, DOCS-020 and all unrelated work.
   included operations, contextual parts joins and source identity, not totals
   alone. The older section-level JSON is context, not a competing oracle.
 - Different Case/occurrence/version/hash/length, wrong scope/actor, stale lease,
-  forged provider save, ambiguous PDF, malformed amount and low-confidence
-  required evidence all fail closed without partial Draft rows.
+  forged provider save, ambiguous PDF, malformed amount and missing or incoherent
+  required OCR evidence all fail closed without partial Draft rows.
 - Pending/Unknown reload and completion preserve the same source and operation;
   no second custody artifact, OCR request, estimate or old edit is produced.
 - Actual Web and MCP callers use the same Core command; existing Glass XML,
   JSON and Audatex imports remain valid, as do Engineer-only Current rules.
 - Source-evidence bytes/hash remain immutable; original totals do not replace
   selected card/VAT arithmetic. No source schema or live provider action.
+
+## OCR evidence and acceptance
+
+Root read IntakeOcrPolicy.Validate, ADR-0040, FRD-05 Qualified OCR and FRD-06
+Canonical repair specifications. There is no accepted numeric cutoff:
+confidence alone neither accepts a field nor discards a page. Do not invent a
+percentage or configuration. Required word/page identity, coordinates, complete
+ordered rows and section/document arithmetic must be unambiguous; missing or
+incoherent evidence refuses the entire import. Preserve provider confidence
+and exact source evidence. Imported OCR rows must remain unconfirmed Draft
+material until the existing Engineer confirmation/acceptance action; import
+completion cannot promote them to Current. Prove low-confidence evidence never
+auto-confirms or becomes Current, rather than testing an invented percentage.
+Reuse existing row confirmation and ValidateAcceptance; if their current writer
+cannot express this, report the specific gap before expanding the plan.
 
 ## Source-oracle dispositions
 
