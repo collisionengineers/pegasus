@@ -4,7 +4,8 @@
 
 Fix one office-time display inconsistency and one ambiguous Health snapshot
 state. Baseline accepted dev19e6f523bf6760cab39104b4dca3674b0ac8a512;
-read research/files and the complete ignored diagnosis. This is a bounded
+read research/files and the complete ignored diagnosis. Execution base is
+accepted dev cc441645b0a62a806e34367ad75e9eaff4df8b11. This is a bounded
 follow-up, not takeover of the historical UIIMP005 claim.
 
 ## Governing documents and reuse
@@ -12,6 +13,12 @@ follow-up, not takeover of the historical UIIMP005 claim.
 Meet FRD12 and design/README's one-clock rule. Reuse OperatorLabels.OfficeTime,
 existing Health Razor, StateMatch and populated mailbox Web test. No new
 policy, component, test framework, global culture or broad normalization.
+
+Root authorizes isolated execution after the precise TICK035 handoff: its
+plan 7a28b8ab58ed1ca2/files a37303dd2d9f8f1f relinquish only generated
+`docs/design/test-ui/index.html`. Its Settings outputs remain byte-identical
+and it will not regenerate/edit the index or any UI during its sole F003
+correction. This ticket still owns no Settings or Case snapshot/selector.
 
 ## Changes
 
@@ -53,7 +60,8 @@ cannot redefine the default. No manual visual PASS from a build alone.
 
 ## Stop condition
 
-Preparation stops with plan/files/checklist; ticket stays Preparing/unclaimed
-until root explicitly assigns a fresh packet after ownership clearance.
+Root has explicitly authorized fresh take after the above ownership handoff:
+branch `UIIMP-017-health-display`, worktree `.worktrees/uiimp-017`, accepted
+dev cc441645b0a62a806e34367ad75e9eaff4df8b11. No historical claim transfer.
 Execution stops for root focused verification, then independent review of the
 pushed dev-targeting PR. No self-review/merge/deploy.
