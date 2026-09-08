@@ -140,3 +140,13 @@ Postcheck at `2026-09-08T19:19:37.4338836Z` exited 0: exact HEAD/branch remained
 - 2026-09-08T19:20:39.590Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 13; expires 2026-09-08T19:50:39.580Z)
 
 2026-09-08 verifier-build compile correction: after canonical idle authorization, committed `4b3329675f48faede428a9c97212d1a610584136`. It deletes the duplicate `CaseReferenceAsync` near line 716 of `UploadConfirmationWebTests`, retaining the existing helper near line 302 which correctly returns `CaseWorkflowRecord.Identity.Reference`; and it changes the newly added `CasesIndexWebTests` reference read to `workflow.Identity.Reference`, matching the actual `CaseWorkflowRecord` contract. `git diff --check` exited 0 (only CRLF conversion warnings); no host build or test was run by the author. `git status --short` after commit was empty. Freeze this exact head for the verifier.
+
+- 2026-09-08T19:22:38.406Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 15; expires 2026-09-08T20:22:38.397Z)
+
+## Sole host re-grant — INTK-066 test compiler correction
+
+Root reread canonical IDLE 78acaa06b3a63a10 and ready resumed packet; actual clean HEAD 4b3329675f48faede428a9c97212d1a610584136 in the unchanged ticket worktree/branch. Minimal two-test-file correction removes duplicate reference helper and uses actual CaseWorkflowRecord.Identity.Reference; no assertions removed. Sole verifier /root/agent_config_verifier ACTIVE.
+
+Before original build, exact owned-node cleanup is authorized for PIDs 22280,26136,26840,27528,29136,29728 only. Root CIM read proves parent7436, creation2026-09-08T19:18:26.365448–.473165Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true, matching last granted build. Recheck these exact identities with the corrected UTC DateTimeOffset comparison, then native Stop-Process only matching listed nodes; record absence. No broad name-based termination or foreign process changes.
+
+Then run same original dotnet build Pegasus.slnx followed by Core --no-build, existing focused nonbrowser SQL and UploadCaseSearch browser queue if all prior pass. Retain all earlier failures (26bf source, c57 lock, cleanup precondition, c57 duplicate helper). No source/snapshot edits, autonomous second retry, assertion/filter weakening, live actions or push/PR. First genuine failure stops and returns canonical IDLE. Lease renewed running-command rev15 for60min. Report each command promptly.

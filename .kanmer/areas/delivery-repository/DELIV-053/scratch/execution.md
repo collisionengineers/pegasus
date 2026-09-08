@@ -299,3 +299,11 @@ The unchanged `dotnet build Pegasus.slnx` retry at exact clean `c57d8487cd343321
 Postcheck confirmed the exact head remained clean. The retry created six new reusable MSBuild nodes (PIDs 22280, 26136, 26840, 27528, 29136 and 29728); they were left untouched pending any fresh bounded disposition. No testhost/vstest or verification command remains.
 
 Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned**.
+
+## Sole host re-grant — INTK-066 test compiler correction
+
+Root reread canonical IDLE 78acaa06b3a63a10 and ready resumed packet; actual clean HEAD 4b3329675f48faede428a9c97212d1a610584136 in the unchanged ticket worktree/branch. Minimal two-test-file correction removes duplicate reference helper and uses actual CaseWorkflowRecord.Identity.Reference; no assertions removed. Sole verifier /root/agent_config_verifier ACTIVE.
+
+Before original build, exact owned-node cleanup is authorized for PIDs 22280,26136,26840,27528,29136,29728 only. Root CIM read proves parent7436, creation2026-09-08T19:18:26.365448–.473165Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true, matching last granted build. Recheck these exact identities with the corrected UTC DateTimeOffset comparison, then native Stop-Process only matching listed nodes; record absence. No broad name-based termination or foreign process changes.
+
+Then run same original dotnet build Pegasus.slnx followed by Core --no-build, existing focused nonbrowser SQL and UploadCaseSearch browser queue if all prior pass. Retain all earlier failures (26bf source, c57 lock, cleanup precondition, c57 duplicate helper). No source/snapshot edits, autonomous second retry, assertion/filter weakening, live actions or push/PR. First genuine failure stops and returns canonical IDLE. Lease renewed running-command rev15 for60min. Report each command promptly.
