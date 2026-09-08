@@ -33,7 +33,8 @@ root/another independent agent must review the follow-up, not that author.
 - [x] Reuse source query/mappings and reject changed complete census at freeze; preserve lease/version during atomic automatic custody invalidation.
 - [x] Align the existing SQL fixture and add meaningful custody/replay/source-race assertions; clarify FRD-06 only.
 - [x] Freeze source and report exact focused filter to root without author build/test; retain original FAIL and prior attempts.
-- [ ] Record root focused verification and submit a new dev-targeting follow-up PR for independent review, then exact-merge proof.
+- [x] Record root focused verification, all attempts, source-census/custody PASS, corrected five-caller PASS and fresh scoped snapshot/catalogue PASS.
+- [ ] Submit the authorized new dev-targeting follow-up PR for independent review; exact-merge proof remains the later verification stage.
 
 ## Post-merge correction attempt 1 disposition
 

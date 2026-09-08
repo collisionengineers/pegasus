@@ -385,3 +385,55 @@ PEGASUS_TEST_UI_CAPTURE_DIR was the absolute resolved
 .worktrees/eng-041/artifacts/eng-041-correction-capture;
 PEGASUS_TEST_UI_SCOPE=case-details; PEGASUS_TEST_UI_MODE unset.
 No snapshot verification/catalogue command ran after that guarded failure.
+
+## Post-merge correction final source verification — PASS
+
+Root supplied final job76428 exit0 after the exact helper correction. No
+production changes were made after attempt1; all four helper caller methods
+(five cases) passed. The original exact-merge FAIL and attempt1's 47 PASS /
+1 FAIL remain above and in their retained TRXs. Final source acceptance reuses
+the unchanged production/source-census/custody checks from those 47 passes;
+it does not pretend that attempt1 was an entirely passing run.
+
+Actual commands at .worktrees/eng-041:
+
+```powershell
+dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheSameReturnDeliveredTwiceRecordsNothingASecondTime|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheRealCaseAuthorityRequiresTheExactVersionAndLiveLease|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheRealCaseAuthorityRefusesIncompleteVehicleFacts' --logger 'trx;LogFileName=eng-041-workflow-version.trx' --results-directory ./artifacts/verification
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~TestUiSnapshotTests' --logger 'trx;LogFileName=eng-041-custody-snapshots.trx' --results-directory ./artifacts/verification
+```
+
+- Integration-project build: exit0, 17.14s, zero warnings/errors.
+- Helper caller cohort: exit0, five executed/passed, zero failures/skips, 57s.
+  TRX start2026-09-08T02:09:35.5228746+01:00;
+  finish2026-09-08T02:10:35.3490419+01:00.
+  artifacts/verification/eng-041-workflow-version.trx SHA-256
+  C3AD73073CD8FC5EBA55F957624C0F08174D33D4A8A0B16EBE96F0711C691FA9.
+- Snapshot verification: exit0, two executed/passed, zero failures/skips, 6s.
+  Reused the already fresh three passing Case Details captures from attempt1;
+  no recapture. PEGASUS_TEST_UI_CAPTURE_DIR resolves to
+  artifacts/eng-041-correction-capture, PEGASUS_TEST_UI_SCOPE=case-details,
+  PEGASUS_TEST_UI_MODE=verify. TRX start2026-09-08T02:10:37.7274401+01:00;
+  finish2026-09-08T02:10:47.4070397+01:00.
+  artifacts/verification/eng-041-custody-snapshots.trx SHA-256
+  7F1CD86E6486623820372DB9A48A96049FA72A7686B8AEC8A72A359D0BD5F7C3.
+- Root Test-UiCatalogue PASS: 60 routed pages, 67 prototypes, zero broken refs.
+
+Author independently read both final TRX counters, instants and hashes and
+verified the exact seven-file source census plus git diff --check exit0.
+No author build/test, manual visual pass or cloud/provider operation.
+Generated snapshots have no correction delta; source freshness is verified
+against genuine retained captures, not an invented visual approval.
+
+Root explicitly authorizes final report/checklist, scoped [skip ci] commit,
+normal push and a NEW dev-targeting follow-up PR because683 is already merged.
+Live read-back confirms PR683 MERGED atbaafa29e and no other open PR for this
+branch before creation. The earlier author history remains reachable through
+normal merge188d3e16; no reset, rebase or force-push. Root's skip-ci instruction
+avoids duplicate full suites only; required checks are not bypassed, and final
+converged CI/release verification still belong to the root controller.
+
+Independent exact-new-head review is next. This author must not review or
+merge this follow-up. A later verifier needs the exact follow-up merge SHA and
+proportionate custody/report/Glass caller checks, comparing immutable source
+inputs before reusing the unchanged47. No Done, deployment or cleanup claim.
