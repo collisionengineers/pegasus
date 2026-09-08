@@ -31,9 +31,13 @@ links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
+commits:
+  - 006b556ff3e995c5a2aac0cdb2a4d508ada5be23
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/692'
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T01:38:23.042Z'
+updated: '2026-09-08T01:40:33.411Z'
 ---
 
 ## What

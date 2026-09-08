@@ -11,3 +11,7 @@
 - 2026-09-08T00:30:57.259Z stage verifying → implementing by codex-mcp-client; reason: proof FAIL implementation: exact baafa29e integrated Glass return/replay expected Completed but remained AwaitingImport in two real Web/SQL tests; proof73d3327f6364834c read in full, 157 other integration and56Core passes retained. Diagnose and correct existing owner; preserve branch/worktree, open follow-up PR because683 is already merged.
 
 - 2026-09-08T00:35:27.503Z lease-phase running-command → implementing (lease 111299a8-7b0e-4d0c-873e-498a48680204 rev 14; expires 2026-09-08T01:05:27.493Z)
+
+- 2026-09-08T01:40:31.096Z lease-phase implementing → verifying (lease 111299a8-7b0e-4d0c-873e-498a48680204 rev 18; expires 2026-09-08T02:10:31.087Z)
+
+2026-09-08 01:40 UTC — Root read whole final independent PASS 6abcbc32911d7b8b, refreshed exact head b253306f, unchanged plan c096b7ddf32366de/ticket_updated 01:15:01.685Z, complete-empty live threads/check rollup/rules and synchronized board1d08a1f. Normal guarded squash merged PR691 at cc441645b0a62a806e34367ad75e9eaff4df8b11 (GitHub mergedAt01:39:46Z). No force, branch cleanup or cloud write. Original FAIL proof73d3327f6364834c remains. Moved Review→Verifying after fresh gates; detached exact-follow-up worktree is .worktrees/verify-eng-041-cc441645b0a62a806e34367ad75e9eaff4df8b11. Root alone owns focused merged runtime acceptance. The author-to-merge difference is only already-verified CASE-049, which is included in fresh actual Case captures.
