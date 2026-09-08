@@ -5,3 +5,5 @@
 - 2026-09-07T23:40:04.378Z lease-phase implementing → verifying (lease 111299a8-7b0e-4d0c-873e-498a48680204 rev 10; expires 2026-09-08T00:10:04.368Z)
 
 - 2026-09-08T00:22:23.111Z lease-phase verifying → running-command (lease 111299a8-7b0e-4d0c-873e-498a48680204 rev 13; expires 2026-09-08T00:52:23.097Z)
+
+2026-09-08T00:26:34Z root exact-merge verification FAIL: build61.48s and Core56PASS; Integration159 total157PASS2FAIL provider-return expectedCompleted actualAwaitingImport. Whole proof written/read back. Independent diagnosis assigned principal_delivery_audit. Preserve claims/worktrees/TRXs, no Done/cleanup/deployment. Root command used incorrect capture env names; no fresh snapshot proof is claimed and guarded snapshot commands did not run.
