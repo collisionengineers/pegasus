@@ -2,19 +2,22 @@
 id: DELIV-054
 type: ticket
 title: Include hidden runtime directories in release ZIPs
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-08T13:27:02.890Z'
 labels:
   - release
   - corrective
 links: []
 refs:
   - .agents/skills/pegasus-release/SKILL.md
+  - docs/adr/0039-windows-and-linux-release-workstations.md
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:25:29.904Z'
+updated: '2026-09-08T13:27:02.890Z'
 ---
 
 ## What
