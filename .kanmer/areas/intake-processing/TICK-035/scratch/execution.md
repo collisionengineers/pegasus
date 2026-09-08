@@ -21,3 +21,5 @@ Final author handoff: PR692 https://github.com/collisionengineers/pegasus/pull/6
 - 2026-09-08T01:41:18.158Z lease-phase implementing → review (lease 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744 rev 25; expires 2026-09-08T02:11:18.145Z)
 
 - 2026-09-08T01:48:12.240Z stage review → implementing by codex-mcp-client; reason: needs-changes on 006b556ff3e995c5a2aac0cdb2a4d508ada5be23: F-003 — enforce agreeing selected profile before non-QDOS automatic email matching; retain QDOS correspondence and declared Provider API. Root owns author authorization; same PR/worktree and all fixed history preserved.; review_round 1
+
+- 2026-09-08T01:51:02.571Z lease-phase review → implementing (lease 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744 rev 26; expires 2026-09-08T02:21:02.564Z)
