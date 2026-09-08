@@ -108,3 +108,31 @@ Recheck exact PID start-time/executable/commandline identities before acting; st
 ## Owned-node identity harness disposition
 
 Verifier reported the initial cleanup precondition refused before any Stop-Process because DateTime UTC literals were normalized/compared incorrectly. Read-only diagnosis again confirmed the exact six owned MSBuild nodes and19:06:23.558574–.562469Z starts. Root explicitly approved correcting only this comparison to DateTimeOffset UTC instants and performing the already-granted exact six-node cleanup once, then original build retry. Preserve precondition failure; no broader process targets or source changes. Existing canonical active grant remains sole verifier authority.
+
+## Owned-node cleanup and same-head build retry — source compile failure — 2026-09-08
+
+The bounded cleanup grant was read at ticket revision `rev1:bebd0e5de48be568`, lease revision 12, exact clean HEAD `c57d8487cd343321a07abb68c161bd7d9a00aa27`.
+
+The first cleanup precondition invocation exited 1 before any mutation with `PID 3348 identity mismatch`. Read-only diagnosis showed the process identity itself matched; the harness had converted UTC boundary literals into Local `DateTime` values and produced a false comparison. Root approved correcting only that identity comparison to explicit `DateTimeOffset`; the failed precondition remains retained.
+
+The corrected precondition atomically validated all six targets before stopping any:
+- PIDs 3348, 4780, 6368, 13584, 24076 and 28988.
+- Executable `C:\Program Files\dotnet\dotnet.exe`.
+- Parent PID 30332.
+- Command `MSBuild.dll /nodemode:1 /nodeReuse:true`.
+- UTC creation instants between `2026-09-08T19:06:23.5585740Z` and `2026-09-08T19:06:23.5624690Z`, matching the first granted build.
+
+Only those six exact owned nodes were stopped with `Stop-Process -Id`; exit 0 and zero targets remained at `2026-09-08T19:18:12.5986402Z`.
+
+The one authorized unchanged retry then ran:
+- `2026-09-08T19:18:25.7365442Z`–`2026-09-08T19:19:09.5051284Z`
+- Command: `dotnet build Pegasus.slnx`
+- Exit: 1
+- Summary: **FAILED**, 0 warnings, 1 error, elapsed 00:00:42.78.
+- Error: `tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs(716,39): CS0111: Type 'UploadConfirmationWebTests' already defines a member called 'CaseReferenceAsync' with the same parameter types.`
+
+Core, Web, Infrastructure, Worker and ArchitectureTests compiled before the IntegrationTests compile failure. This is a genuine source failure at the corrected head. It follows and does not erase the retained `26bf5d...` compiler failure or the first `c57d848...` retained-node lock failure.
+
+Per stop-first-failure, there was no second build retry or source fix. Core tests, focused non-browser SQL tests and conditional UploadCaseSearch browser tests are **NOT RUN**. No snapshot, SQL fixture, browser, cloud, Outlook, Box, commit, push or PR action occurred.
+
+Postcheck at `2026-09-08T19:19:37.4338836Z` exited 0: exact HEAD/branch remained clean. The retry created six reusable MSBuild nodes (PIDs 22280, 26136, 26840, 27528, 29136 and 29728; parent PID 7436; created 19:18:26.365448–.473165Z); no testhost or vstest remained. They were not terminated without a new bounded disposition.
