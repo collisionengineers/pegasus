@@ -78,3 +78,19 @@ At 2026-09-08T19:08:35.0504412Z the exact HEAD remained clean. The postcheck wra
 Root reread canonical IDLE baa17945d93e515d, ready resumed packet, and actual clean HEAD c57d8487cd343321a07abb68c161bd7d9a00aa27 in unchanged .worktrees/INTK-066 / INTK-066-manual-upload-confirmation. Two-file compiler correction statically checked: assign TabFilter, explicit nullable flow, concrete private dictionary types; no suppressed diagnostics or changed assertions. Keep failed26bf build evidence.
 
 Sole owner /root/agent_config_verifier ACTIVE. Run the same full initial sequential queue from build, Core, focused nonbrowser SQL (including CasesIndex/MailWorkspace), then UploadCaseSearch browser only if prior pass, exact commands and boundaries from immediately preceding grant. No source/snapshot changes or retries. Fresh process census distinguish recorded idle build-created daemons from active competing verification; do not terminate foreign processes. Local disposable test SQL allowed, external writes forbidden. Lease renewed running-command rev10/60min. Report each result; stop first genuine failure; return explicit canonical IDLE with exact outputs/exits/unstarted work. No new scope, push/PR/live operations.
+
+## Compile-corrected sole-host verification — environmental build failure — 2026-09-08
+
+Canonical corrected-head grant was read from both owning records. Frozen inputs: ticket revision `rev1:73dca7fc4c7ef9af`; plan `55c918dad00c5863`; files `dc89538d010c1b7f`; exact base/head `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c` / `c57d8487cd343321a07abb68c161bd7d9a00aa27`.
+
+Preflight began `2026-09-08T19:13:27.4865140Z` and exited 0: exact clean worktree, branch, common Git repository and base ancestry. The only heavy processes were the six retained prior-build `dotnet` MSBuild nodes (PIDs 3348, 4780, 6368, 13584, 24076 and 28988), each created at 20:06:23 local with `MSBuild.dll /nodemode:1 /nodeReuse:true`; there was no testhost, vstest or separately active verification command.
+
+Immediately after that preflight, `dotnet build Pegasus.slnx` exited 1 after 21.5077524 seconds. Restore was current, but MSBuild could not copy `src/Pegasus.Core/obj/Debug/net10.0/Pegasus.Core.dll` to `src/Pegasus.Core/bin/Debug/net10.0/Pegasus.Core.dll` because retained node PID 28988 held the destination. It issued ten MSB3026 retries, then:
+- MSB3027: exceeded retry count of 10; file locked by `.NET Host (28988)`.
+- MSB3021: unable to copy the file because another process was using it.
+
+Build summary: **FAILED**, 10 warnings, 2 errors, elapsed 00:00:20.41. This is an environmental build-node lock failure before source compilation; it does not supersede or erase the six compiler/analyzer errors retained from the earlier `26bf5d00206014f58adf8149abe39084fd52b3f4` build.
+
+Per the explicit stop-first-failure/no-retry/foreign-process boundary, PID 28988 and the other retained nodes were not terminated or touched, and the build was not retried. Core tests, focused non-browser SQL tests, and conditional UploadCaseSearch browser tests are **NOT RUN** at this head. No source fix, generated snapshot update, SQL fixture, browser, cloud, Outlook, Box, commit, push or PR action occurred.
+
+Postcheck at `2026-09-08T19:14:19.3647373Z` exited 0: exact HEAD/branch remained clean and the same six reusable MSBuild nodes remained; no testhost or vstest process existed. A fresh bounded disposition is required before any build-node shutdown or retry.
