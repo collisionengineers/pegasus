@@ -23,3 +23,11 @@ Root reread canonical IDLE version 5d4225ae78c12801 and confirmed clean exact HE
 ## Frozen static finding — Index manual-group binding
 
 At da6ff8e16815100e42da65e60df3e45a3cced2d2 root found Cases/Index UI group link is not enforced by SurfaceContainsReceiptAsync. Author independently confirmed read-only: inherited Attach reaches single AttachAsync, which has no group guard; pairing postpones merge but first receipt can still link. This violates the group decision requirement. Verifier instructed to finish only its current in-flight command, then stop queue and return canonical IDLE; no edits during freeze. Next correction is limited to existing Index binding/search and CasesIndexWebTests: reject manual multi-member group on the single-receipt surface, assert forged POST/search cannot mutate, preserve lone/nonmanual replay. No unrelated scope expansion.
+
+## Sole-host verification stop before first runtime command — 2026-09-08
+
+The verifier read the ready resumed packet at exact corrected commit `da6ff8e16815100e42da65e60df3e45a3cced2d2`, canonical grant, current engineering verification policy, and Windows LocalDB/browser setup. Before the first build began, root's concurrent static review found and recorded the remaining Cases/Index manual-group server-binding bypass, then instructed the verifier to finish only any current in-flight command and stop the remaining queue.
+
+No verification command was in flight and no build/test had started. Therefore the authorized queue stopped before command 1. The solution build, Core tests, focused non-browser SQL selection, and conditional UploadCaseSearch browser selection are all **NOT RUN** for this frozen head. No runtime PASS or failure is inferred.
+
+No source fix, snapshot update, retry, dotnet process, SQL fixture, browser, cloud, Outlook, Box, commit, push, or PR action occurred. The exact worktree/branch/claim remain the implementation resume target for the bounded author correction.
