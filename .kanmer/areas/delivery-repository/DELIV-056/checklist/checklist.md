@@ -37,4 +37,4 @@ The earlier D56 formal-document conversion remains recorded in scratch/notes.md.
 - [x] cd out of worktree; `git worktree remove .worktrees/deliv-056`
 - [x] `git branch -d DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence` (`-D` if squash/rebase-merged)
 - [x] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] `take_ticket action: "release"`

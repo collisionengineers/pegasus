@@ -34,13 +34,17 @@ refs:
   - docs/engineering.md
   - docs/adr/0007-direct-terminal-azure-deployment.md
 commits:
-  - 67b357475433df5fdb09cf7296284b90de516d47
+  - 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/710'
 deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c
+delivery_recorded_at: '2026-09-08T17:03:06.503Z'
 archived: false
 created: '2026-09-08T16:07:49.662Z'
-updated: '2026-09-08T17:02:07.874Z'
+updated: '2026-09-08T17:03:06.503Z'
 ---
 
 ## What
@@ -66,3 +70,8 @@ The approved next-corrective-deployment plan D1 explicitly requires release-39 e
 - [ ] Exact merged-SHA proof precedes Done.
 
 ## Outcome
+
+- PR [#710](https://github.com/collisionengineers/pegasus/pull/710) was squash-merged into `dev` on 2026-09-08 as `9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c`.
+- Final schema-2 exact-merge proof is PASS: the corrected identity/diff check, 140-file Markdown-link check, and exact merge-range placement check passed. Its original wrapper-only absolute-path join error is retained as a plan failure and not relabelled as a source failure.
+- Documentation-only work: integrated to `dev`; deployment is `n/a`. No .NET, package, cloud, migration, reset, promotion or production operation occurred.
+- The merge restores only the qualified historical release-39 documentation record. It does not close, change, or otherwise dispose PR #676; that separately authorised root action remains outside this ticket.

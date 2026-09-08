@@ -29,3 +29,16 @@ corrected preflight and all intended verification commands passed. Root's
 independent semantic review accepted the qualified provenance, CI
 browser-success contradiction and scope boundary. No .NET, push, PR, merge,
 PR #676 closure, or deployment had occurred at verification time.
+
+---
+
+## Closeout — DELIV-059
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date appended)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-059`
+- [ ] `git branch -d DELIV-059-restore-release-39-history` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
