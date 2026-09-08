@@ -61,7 +61,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var harness = await Harness.CreateAsync(counter);
         var outcome = await harness.AcceptAsync("assessment-workspace-query-count");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         counter.Reset();
 
         var workspace = await new EfAssessmentWorkspaceSource(harness.Factory)
@@ -77,7 +76,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
         await using var staffContext = await harness.Factory.CreateDbContextAsync();
@@ -328,54 +326,48 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 EngineVersion));
     }
 
-    [Fact]
-    public async Task AssessmentAccessRequiresAnExportAfterTheLatestReviewEntry()
+    [Theory]
+    [InlineData(CaseLifecycleState.Review, false, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
+    [InlineData(CaseLifecycleState.PostReport, true, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
+    [InlineData(CaseLifecycleState.CreatedInError, false, true)]
+    public async Task AssessmentAccessUsesNativeStateAndRetainsWorkspaceWithoutAnExport(
+        CaseLifecycleState state,
+        bool canOpen,
+        bool isReadOnly)
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-access-review-cycle");
-        await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
-        var source = new EfAssessmentAccessSource(harness.Factory);
-
-        Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
-        Assert.Null(await new EfAssessmentWorkspaceSource(harness.Factory)
-            .GetAsync(outcome.Identity.CaseId));
-
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
-        var exportedAccess = (await source.GetAsync(outcome.Identity.CaseId))!;
-        Assert.True(exportedAccess.CanOpen);
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            Assert.Null((await context.CaseWorkflows.AsNoTracking().SingleAsync(
-                item => item.CaseId == outcome.Identity.CaseId)).AssignedEngineerId);
-        }
-
+        var lease = await harness.AcquireLeaseAsync(
+            outcome.Identity.CaseId, 0, harness.AutomationActor, "retained-assessment-lease");
+        await harness.SaveAssessment.ExecuteAsync(new(
+            outcome.Identity.CaseId, lease.Version, harness.AutomationActor,
+            "retained-assessment-value", "Record vehicle condition.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["vehicle.condition"] = "good"
+            }), CancellationToken.None);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var workflow = await context.CaseWorkflows.SingleAsync(
                 item => item.CaseId == outcome.Identity.CaseId);
-            workflow.Version = 1;
-            context.CaseWorkflowEvents.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                CaseId = outcome.Identity.CaseId,
-                Workflow = workflow,
-                EventType = "case_returned_to_review",
-                OperationKey = "assessment-access-return",
-                RequestHash = "test",
-                ActorKind = ActorKind.Staff.ToString(),
-                ActorSubjectId = "staff-1",
-                ActorRolesJson = "[]",
-                Reason = "Review the corrected case.",
-                OccurredAtUtc = StartUtc,
-                BeforeVersion = 0,
-                AfterVersion = 1
-            });
+            workflow.State = state.ToString();
             await context.SaveChangesAsync();
+            Assert.False(await context.EvaFirstHandoffProxies.AnyAsync(
+                item => item.CaseId == outcome.Identity.CaseId));
         }
 
-        Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
-        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 1);
-        Assert.True((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
+        var access = Assert.IsType<AssessmentAccessState>(
+            await new EfAssessmentAccessSource(harness.Factory).GetAsync(outcome.Identity.CaseId));
+        Assert.Equal(canOpen, access.CanOpen);
+        Assert.Equal(isReadOnly, access.IsReadOnly);
+        var workspace = Assert.IsType<AssessmentWorkspace>(
+            await new EfAssessmentWorkspaceSource(harness.Factory).GetAsync(outcome.Identity.CaseId));
+        Assert.Equal(state, workspace.Header.State);
+        Assert.Equal(outcome.Identity.CaseId, workspace.Data.Identity.CaseId);
+        Assert.Equal(outcome.Identity.CaseId, workspace.Assessment.CaseId);
+        Assert.Equal("good", workspace.Assessment.Field("vehicle.condition")?.Value);
     }
 
     [Fact]

@@ -978,8 +978,12 @@ D31), presence strip, action bar and `section-nav` with scroll-spy;
 `?section=` jumps; sections below the fold render lazily; no layout switch.
 Action bar: Edit Case | Finish editing and Renew editing | "Editing held by
 X until T." | Reopen Case (closed); Place on Hold / Release Hold; Create
-upload link; **Send to EVA** (Review; With Engineer as a re-send — D36) →
-the EVA handoff dialog (Engineer, Sign-off Engineer; Download ZIP / Send via
+upload link; **Hand to Engineer** (Review while editing) → an ordinary
+dialog selecting an eligible Engineer, with no reason input or reviewed
+checkbox. The one handoff enters With Engineer; there is no second Start
+report preparation action. **Send to EVA** remains optional (Review; With
+Engineer as a re-send — D36) → the EVA dialog (Engineer display, Sign-off
+Engineer; Download ZIP / Send via
 API, API disabled unless the Principal enables it); **Report sent** (primary,
 With Engineer — confirms detected Sent evidence, D10) / **Return to
 Engineer** (Complete); right: Close Case (danger, not Complete). There is no
@@ -990,7 +994,7 @@ over one lease covers every section, including Files preparation edits.
 Sections in order (D30): **Overview, Engineer notes, Inspection, Vehicle,
 Damage, Valuation, Estimate, Settlement, Report, Files, Notes**. Every
 section is always viewable; Damage, Valuation, Estimate, Settlement and
-Report are read-only once Complete.
+Report are editable only With Engineer and read-only in every other state.
 
 - **Overview:** workflow stepper (Held exception badge); Outstanding
   requirements (title, Source, Why, Resolve); the edit form when editing
@@ -1442,9 +1446,10 @@ their field, source, reason and resolution. Lifecycle actions are the named
 Core outcomes: hold, release, close with reason, reopen with reason;
 `Created in error` offers only its linked replacement. Report sent is
 evidence-driven (D10); the Engineer sections are always viewable and
-read-only once Complete, and `/Cases/{id}/Assessment` is a permanent 301
-(D30); Send to EVA is offered in Review and re-sent from With Engineer with
-Download ZIP or Send via API (D36).
+read-only outside With Engineer, and `/Cases/{id}/Assessment` is a permanent 301
+(D30). Hand to Engineer performs Review → With Engineer in one action.
+Send to EVA remains optional in Review and With Engineer with Download ZIP
+or Send via API (D36); it never gates native estimates or reports.
 
 **Search** runs the advanced query and previews the selected Case; closed
 cases show their outcome.

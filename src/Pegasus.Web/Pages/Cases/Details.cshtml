@@ -44,6 +44,8 @@
     var isComplete = state == CaseLifecycleState.PostReportComplete;
     var isWithEngineer = state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var editing = !string.IsNullOrWhiteSpace(Model.LeaseToken) && workflow.Archive is null;
+    var canHandToEngineer = editing && isReview
+        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
@@ -258,6 +260,13 @@
         @if (workflow.ReplacementCaseId is { } replacementCaseId)
         {
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@replacementCaseId">Replacement case</a>
+        }
+        @if (canHandToEngineer)
+        {
+            <button type="button" class="btn btn--primary" data-dialog-open="case-handoff-dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>@CaseWorkspaceLabels.HandToEngineer</span>
+            </button>
         }
         @if (canSendToEva)
         {
@@ -596,6 +605,43 @@
             ["evidenceReference"] = "case-completeness-projection"
         }
     })" />
+}
+
+@if (canHandToEngineer)
+{
+    <div class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-handoff-dialog-title" tabindex="-1">@CaseWorkspaceLabels.HandToEngineer</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
+                  asp-page-handler="AssignEngineer" class="dialog-body stack">
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="instructionsComplete" value="@(Model.EvaHandoff!.InstructionsComplete)" />
+                <input type="hidden" name="imagesComplete" value="@(Model.EvaHandoff!.ImagesComplete)" />
+                <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
+                <div class="field">
+                    <label class="req" for="case-handoff-engineer">@OperatorLabels.CaseWorkspace.RibbonEngineer</label>
+                    <select id="case-handoff-engineer" name="engineerId" required data-dialog-initial-focus>
+                        <option value=""></option>
+                        @foreach (var engineer in Model.EvaHandoff!.EngineerOptions)
+                        {
+                            <option value="@engineer.Id">@engineer.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
+                </div>
+            </form>
+        </section>
+    </div>
 }
 
 @if (canSendToEva)

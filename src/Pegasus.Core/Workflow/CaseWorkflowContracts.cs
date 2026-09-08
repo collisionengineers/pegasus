@@ -427,6 +427,7 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
     Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
         Guid? signOffEngineerId,
+        CaseLifecycleState targetState,
         CancellationToken cancellationToken);
 
     Task<CaseWorkflowRecord> SetSignOffEngineerAsync(

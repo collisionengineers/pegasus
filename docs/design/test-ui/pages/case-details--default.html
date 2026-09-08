@@ -180,10 +180,6 @@
     </div>
 </header>
 
-    <div class="notice notice--success mb-2" role="status" data-confirmation>
-        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-        <span>Edit mode is active.</span>
-    </div>
 
 <article class="record">
     <div class="case-sticky" data-case-sticky>
@@ -266,6 +262,10 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
                         <span>Close Case</span>
                     </button>
+            <button type="button" class="btn btn--primary" data-dialog-open="case-handoff-dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Hand to Engineer</span>
+            </button>
             <button type="button" class="btn" data-dialog-open="eva-handoff-dialog">
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                 <span>Send to EVA</span>
@@ -425,43 +425,6 @@
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
         </section>
-        <section class="panel" aria-labelledby="case-lifecycle-title">
-            <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
-            <div class="panel-body button-row">
-                    <button type="button" class="btn" data-dialog-open="case-start-work-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                        <span>Start report preparation</span>
-                    </button>
-            </div>
-        </section>
-</div>
-
-        <div id="case-start-work-dialog" class="dialog-backdrop" data-dialog="case-start-work-dialog" data-reason-dialog hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-start-work-dialog_title">
-        <div class="dialog-head">
-            <h2 id="case-start-work-dialog_title" tabindex="-1">Start report preparation</h2>
-            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-            </button>
-        </div>
-        <form method="post" action="#">
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" />
-                <input type="hidden" name="id" value="test-ui-guid-1" />
-                <input type="hidden" name="expectedVersion" value="7" />
-                <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
-            <div class="dialog-body stack">
-                <div class="field">
-                    <label class="req" for="case-start-work-dialog_reason">Reason for action</label>
-                    <textarea id="case-start-work-dialog_reason" name="Reason" rows="3" required maxlength="500"></textarea>
-                </div>
-            </div>
-            <div class="dialog-foot">
-                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
-                <button type="submit" class="btn btn--primary">Confirm Action</button>
-            </div>
-        </form>
-    </section>
 </div>
 
 
@@ -1004,6 +967,36 @@
 
 
 
+    <div class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-handoff-dialog-title" tabindex="-1">Hand to Engineer</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" class="dialog-body stack" action="#">
+                <input type="hidden" name="id" value="test-ui-guid-1" />
+                <input type="hidden" name="expectedVersion" value="7" />
+                <input type="hidden" name="operationKey" value="{{operationkey}}" />
+                <input type="hidden" name="editLeaseToken" value="{{editleasetoken}}" />
+                <input type="hidden" name="instructionsComplete" value="value" />
+                <input type="hidden" name="imagesComplete" value="value" />
+                <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
+                <div class="field">
+                    <label class="req" for="case-handoff-engineer">Engineer</label>
+                    <select id="case-handoff-engineer" name="engineerId" required data-dialog-initial-focus>
+                        <option value=""></option>
+                            <option value="test-ui-guid-2">Engineer</option>
+                    </select>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--primary">Hand to Engineer</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+        </section>
+    </div>
+
     <div class="dialog-backdrop" data-dialog="eva-handoff-dialog" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="eva-handoff-dialog-title">
             <div class="dialog-head">
@@ -1014,10 +1007,10 @@
             </div>
             <div class="dialog-body stack">
 
-    <dl class="definition">
-        <dt>Engineer</dt>
-        <dd>Unassigned</dd>
-    </dl>
+<dl class="definition">
+    <dt>Engineer</dt>
+    <dd>Unassigned</dd>
+</dl>
 
     <dl class="definition">
         <dt>Sign-off Engineer</dt>
