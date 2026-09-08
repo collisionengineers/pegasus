@@ -4,14 +4,19 @@
 
 - Replaced the removed runbook-heading dependency with one self-contained
   process-environment recipe for the manifest-resolved migration bundle.
+- The single azd environment read is captured into `$environmentLines`; its
+  native exit code is checked immediately before parsing, with no re-query
+  fallback. The recipe reads only its listed approved required values and does
+  not print or persist the environment output.
 - The recipe maps every Production Web required key from approved non-secret
   azd values, fixed public platform values, derived Azure service URIs, or
   clearly marked process-only placeholders. Its Box configuration is
   shape-valid JWT JSON and it neither retrieves nor exposes secret material.
 - Preserved the `PreMigration` gate, manifest-bundle resolution,
   `--connection`-only invocation, database bootstrap, mismatch stop, and the
-  requirement to finish migrations before package operations. It explicitly
-  leaves PLAT-046 old-Web/Worker containment unresolved.
+  requirement to finish migrations before provisioning Web or deploying the
+  Worker package. It explicitly leaves PLAT-046 old-Web/Worker containment
+  unresolved.
 - Linked the existing AGENTS release-workstation/artifact constraint to the
   canonical release skill and migration recipe. No managed Kanmer or
   new-subagent text changed.
