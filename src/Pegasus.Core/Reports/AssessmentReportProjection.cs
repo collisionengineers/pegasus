@@ -457,7 +457,7 @@ public sealed class GenerateCaseAssessmentReportDraft(
 
         var projected = AssessmentReportProjection.Project(input with
         {
-            ReportDate = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime),
+            ReportDate = LondonCalendar.DateAt(timeProvider.GetUtcNow()),
         });
         if (!projected.IsReady)
         {

@@ -162,6 +162,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_disabled",
             now);
         await context.SaveChangesAsync(cancellationToken);
+        await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
             EfStaffAccountQueries.Summary(
@@ -267,6 +268,10 @@ public sealed class EfStaffAccountAdministration(
         }
 
         await context.SaveChangesAsync(cancellationToken);
+        if (rolesChanged)
+        {
+            await InvalidateChangedSignatoriesAsync(now, cancellationToken);
+        }
         await transaction.CommitAsync(cancellationToken);
         return new(
             EfStaffAccountQueries.Summary(
@@ -331,6 +336,7 @@ public sealed class EfStaffAccountAdministration(
             now,
             request.Reason);
         await context.SaveChangesAsync(cancellationToken);
+        await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(EfStaffAccountQueries.Summary(user, roles), WasReplay: false);
     }
@@ -506,6 +512,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_deleted",
             now);
         await context.SaveChangesAsync(cancellationToken);
+        await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
             user.Id,
@@ -599,12 +606,23 @@ public sealed class EfStaffAccountAdministration(
             timeProvider.GetUtcNow(),
             request.Reason);
         await context.SaveChangesAsync(cancellationToken);
+        await InvalidateChangedSignatoriesAsync(timeProvider.GetUtcNow(), cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
             EfStaffAccountQueries.Summary(
                 user,
                 roles),
             WasReplay: false);
+    }
+
+    private async Task InvalidateChangedSignatoriesAsync(
+        DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        // The profile writes above are saved inside the still-open transaction,
+        // so the ordinary eligible-profile query sees exactly the new tuple.
+        await EfCaseReportGenerationStore.MarkChangedSignatoriesStaleAsync(
+            context, nowUtc, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<StaffAccountSummary> CreateUserCoreAsync(

@@ -19,7 +19,7 @@ never renumbered or reused.
 
 | ID | Title | Status | Superseded-by | Owner capability |
 | --- | --- | --- | --- | --- |
-| [ADR-0001](0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | accepted | — | — |
+| [ADR-0001](0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | superseded | ADR-0040 | — |
 | [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure App Service | accepted | ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032 | — |
 | [ADR-0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | accepted | — | — |
 | [ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | accepted | ADR-0011 | — |
@@ -54,8 +54,10 @@ never renumbered or reused.
 | [ADR-0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | superseded | ADR-0038 | EXT-04 |
 | [ADR-0035](0035-ai-job-ledger.md) | AI job ledger | accepted | — | AI-10, AI-09, MCP-06, MCP-01 |
 | [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | accepted | — | — |
-| [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | accepted | — | OPS-10, OPS-24 |
+| [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
 | [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | accepted | — | EXT-04 |
+| [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
+| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | — | INT-16, EXT-12 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

@@ -394,6 +394,7 @@ internal sealed class EfQueuedCustodyProcessor(
             .Select(occurrence => occurrence.OperationKey)
             .ToListAsync(cancellationToken);
         var recorded = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
+        var added = false;
 
         foreach (var file in retainedFiles)
         {
@@ -427,6 +428,7 @@ internal sealed class EfQueuedCustodyProcessor(
             };
             context.Add(document);
             context.Add(version);
+            added = true;
             if (file.IntakeAssetId is { } intakeAssetId)
             {
                 var asset = await context.Set<IntakeAssetEntity>()
@@ -448,6 +450,12 @@ internal sealed class EfQueuedCustodyProcessor(
                 RecordedAtUtc = now,
                 OperationKey = file.OperationKey
             });
+        }
+        if (added)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, caseId, Pegasus.Core.Reports.CaseReportStaleReasons.SourceDocumentsChanged,
+                now, cancellationToken);
         }
     }
 
@@ -604,18 +612,12 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
             caseEntity.AuditCustodyConfirmedAtUtc = now;
         }
-        // CASE-013: this used to restate the readiness rule, and the copy was
-        // stricter than the one in Core — it required staff confirmation that
-        // CaseCompleteness.IsReadyForReview waives for an automatically
-        // definitive intake. Core's rule had no caller at all, which is how
-        // the two came to disagree. It has one now.
+        // Use the same factual completeness rule as intake acceptance.
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
-            caseEntity.ImagesComplete,
-            caseEntity.InstructionConfirmedByStaff,
-            caseEntity.ImagesConfirmedByStaff);
+            caseEntity.ImagesComplete);
         if (workflow.State == CaseLifecycleState.NotReady.ToString()
-            && completeness.IsReadyForReview(automaticallyDefinitive: false))
+            && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
         }

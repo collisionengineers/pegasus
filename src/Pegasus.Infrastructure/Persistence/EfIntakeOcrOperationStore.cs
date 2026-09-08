@@ -69,10 +69,15 @@ public sealed class EfIntakeOcrOperationStore(
             .SingleOrDefaultAsync(item => item.OperationKey == key, cancellationToken);
         if (existing is not null)
         {
+            var source = Envelope(existing.QualifiedPagesJson);
             if (existing.Id != operationId
                 || !string.Equals(existing.SourceSha256.TrimEnd(), request.SourceSha256, StringComparison.OrdinalIgnoreCase)
                 || existing.DocumentVersionId != request.DocumentVersionId
                 || existing.IntakeAssetId != request.IntakeAssetId
+                || source.IntakeReceiptId != request.IntakeReceiptId
+                || source.CaseId != request.CaseId
+                || source.OccurrenceId != request.OccurrenceId
+                || source.SourceContentLength != request.SourceContentLength
                 || !Pages(existing.QualifiedPagesJson).SequenceEqual(pages))
             {
                 throw new IntakeOcrOperationConflictException();
@@ -97,7 +102,8 @@ public sealed class EfIntakeOcrOperationStore(
             IntakeAssetId = request.IntakeAssetId,
             SourceSha256 = request.SourceSha256,
             QualifiedPagesJson = JsonSerializer.Serialize(
-                new OperationEnvelope(2, request.IntakeReceiptId, pages, 0, null, null),
+                new OperationEnvelope(3, request.IntakeReceiptId, pages, 0, null, null,
+                    request.SourceContentLength, request.CaseId, request.OccurrenceId),
                 SerializerOptions),
             OperationKey = key,
             State = nameof(IntakeOcrState.Pending),
@@ -130,7 +136,7 @@ public sealed class EfIntakeOcrOperationStore(
         {
             var envelope = Envelope(entity.QualifiedPagesJson);
             entity.QualifiedPagesJson = JsonSerializer.Serialize(
-                envelope with { Version = 2, SubmitAttemptedAtUtc = attemptedAtUtc },
+                envelope with { SubmitAttemptedAtUtc = attemptedAtUtc },
                 SerializerOptions);
             entity.State = nameof(IntakeOcrState.Processing);
             entity.RetryAtUtc = null;
@@ -155,7 +161,7 @@ public sealed class EfIntakeOcrOperationStore(
                 entity.ProviderOperationId = providerOperationId.Trim();
                 var envelope = Envelope(entity.QualifiedPagesJson);
                 entity.QualifiedPagesJson = JsonSerializer.Serialize(
-                    envelope with { Version = 2, SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
+                    envelope with { SubmittedAtUtc = submittedAtUtc }, SerializerOptions);
                 entity.State = nameof(IntakeOcrState.Processing);
                 entity.RetryAtUtc = null;
                 workItem.State = ExternalWorkStatePersistence.Processing;
@@ -204,8 +210,10 @@ public sealed class EfIntakeOcrOperationStore(
                     SerializerOptions);
                 entity.LastError = null;
                 entity.RetryAtUtc = null;
-                workItem.State = ExternalWorkStatePersistence.Completed;
-                workItem.CompletedAtUtc ??= _timeProvider.GetUtcNow();
+                // Provider output is durable; analysis remains dispatchable after
+                // a crash between this commit and the follow-up application.
+                workItem.State = ExternalWorkStatePersistence.Pending;
+                workItem.DueAtUtc = _timeProvider.GetUtcNow();
                 workItem.LeaseToken = null;
                 workItem.LeaseExpiresAtUtc = null;
                 workItem.FailureCode = null;
@@ -217,6 +225,27 @@ public sealed class EfIntakeOcrOperationStore(
             },
             cancellationToken);
     }
+
+    public Task<IntakeOcrOperation> CompleteAnalysisAsync(
+        Guid operationId,
+        long expectedVersion,
+        CancellationToken cancellationToken) =>
+        UpdateAsync(operationId, expectedVersion, (entity, workItem) =>
+        {
+            var result = JsonSerializer.Deserialize<ResultEnvelope>(entity.ResultJson
+                ?? throw new InvalidOperationException("OCR output must be retained before analysis completes."), SerializerOptions)
+                ?? throw new InvalidDataException("The retained OCR output is unreadable.");
+            entity.ResultJson = JsonSerializer.Serialize(result with { AnalysisCompleted = true }, SerializerOptions);
+            entity.State = nameof(IntakeOcrState.Completed);
+            entity.LastError = null;
+            entity.RetryAtUtc = null;
+            workItem.State = ExternalWorkStatePersistence.Completed;
+            workItem.CompletedAtUtc ??= _timeProvider.GetUtcNow();
+            workItem.LeaseToken = null;
+            workItem.LeaseExpiresAtUtc = null;
+            workItem.FailureCode = null;
+            workItem.FailureReason = null;
+        }, cancellationToken);
 
     public Task<IntakeOcrOperation> RecordOutcomeAsync(
         Guid operationId,
@@ -250,7 +279,6 @@ public sealed class EfIntakeOcrOperationStore(
                 entity.QualifiedPagesJson = JsonSerializer.Serialize(
                     envelope with
                     {
-                        Version = 2,
                         AttemptCount = envelope.AttemptCount + 1,
                         SubmitAttemptedAtUtc = state == IntakeOcrState.RetryScheduled
                             ? null
@@ -335,6 +363,7 @@ public sealed class EfIntakeOcrOperationStore(
             entity.DocumentVersionId,
             entity.IntakeAssetId,
             entity.SourceSha256.TrimEnd(),
+            envelope.SourceContentLength,
             envelope.Pages,
             entity.OperationKey,
             Enum.Parse<IntakeOcrState>(entity.State),
@@ -347,7 +376,10 @@ public sealed class EfIntakeOcrOperationStore(
             result?.Pages,
             envelope.SubmitAttemptedAtUtc,
             envelope.SubmittedAtUtc,
-            typedResult);
+            typedResult,
+            result?.AnalysisCompleted ?? false,
+            envelope.CaseId,
+            envelope.OccurrenceId);
     }
 
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
@@ -363,16 +395,20 @@ public sealed class EfIntakeOcrOperationStore(
     /// </param>
     private sealed record OperationEnvelope(
         int Version,
-        Guid IntakeReceiptId,
+        Guid? IntakeReceiptId,
         int[] Pages,
         int AttemptCount,
         DateTimeOffset? SubmitAttemptedAtUtc,
-        DateTimeOffset? SubmittedAtUtc);
+        DateTimeOffset? SubmittedAtUtc,
+        long SourceContentLength,
+        Guid? CaseId,
+        Guid? OccurrenceId);
 
     private sealed record ResultEnvelope(
         int Version,
         string Provider,
         string ModelId,
         string ApiVersion,
-        IReadOnlyList<IntakeOcrPage> Pages);
+        IReadOnlyList<IntakeOcrPage> Pages,
+        bool AnalysisCompleted = false);
 }

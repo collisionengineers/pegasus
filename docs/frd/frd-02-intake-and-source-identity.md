@@ -84,6 +84,14 @@ submission. Idempotent retries reconcile to the same result. The current
 manual-upload bound remains 10 MiB per file; future bounds require the research
 and operator decision tracked by `INTK-052`.
 
+Public POST admission checks the route-bound token before reading the form.
+Unavailable links refuse the body without buffering it. File and total-body
+transport bounds apply before antiforgery and multipart model binding; normal
+multipart overhead is allowed within a finite bound. Enforcement counts actual
+bytes, including requests with absent or understated Content-Length, and an
+oversized refused body never reaches custody. Form or query values cannot
+substitute a different token for the one in the route.
+
 File type/count/size limits, authentication of the staff creator, token expiry
 and revocation, idempotent retry, abuse handling, durable custody, cross-request
 isolation, and non-disclosing error behavior are acceptance gates.
@@ -108,6 +116,19 @@ completed or failed outcome. Duplicate delivery must not duplicate an evaluation
 case, reference, or downstream side effect. Staff can inspect Received,
 Processing, Complete, or Failed by the staged receipt identifier; failure wording
 is bounded and does not disclose exception or infrastructure detail.
+
+An evaluation is recorded before its destination is written, but the work is
+not complete until required association, allocation, Triage, and Unidentified
+writes finish. A transient destination failure retains a retryable work item
+and the same evaluation identity; it must not allocate a second case. A recorded
+unique case match withholds new-case allocation even when its association has
+not yet been persisted. Staging is cleaned only after that durable completion.
+
+A multi-image submission has one group-level destination and, when unresolved,
+one Unidentified reference with the group's canonical reason. Pending groups
+are recovered by the existing bounded sweep, selecting eligible oldest groups
+before applying its page limit. Groups with an Unidentified outcome leave that
+recovery set; unrelated newer receipts cannot starve a pending image group.
 
 For both email and manual upload, the durable commit is followed immediately by
 a best-effort publication of the stable work identifier. Publication never

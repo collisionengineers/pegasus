@@ -96,7 +96,75 @@ public sealed class WorkerActivationReleaseContractTests
     }
 
     [Fact]
-    public async Task LocalDeploymentPlanRejectsAppendedRogueHardCodedWorkerSetting()
+    public void DocumentIntelligenceTemplateUsesWorkerOnlyKeylessAccess()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var platformBicep = File.ReadAllText(Path.Combine(
+            repositoryRoot, "infra", "modules", "platform.bicep"));
+        var mainBicep = File.ReadAllText(Path.Combine(repositoryRoot, "infra", "main.bicep"));
+        var account = Regex.Match(
+            platformBicep,
+            @"(?ms)^resource documentIntelligence 'Microsoft\.CognitiveServices/accounts@2026-05-01' = \{.*?^\}",
+            RegexOptions.CultureInvariant).Value;
+
+        Assert.NotEmpty(account);
+        Assert.Matches(@"name:\s*documentIntelligenceName", account);
+        Assert.Matches(@"location:\s*location", account);
+        Assert.Matches(@"kind:\s*'FormRecognizer'", account);
+        Assert.Matches(@"sku:\s*\{\s*name:\s*'S0',\s*tier:\s*'Standard'\s*\}", account);
+        Assert.Matches(@"customSubDomainName:\s*documentIntelligenceName", account);
+        Assert.Matches(@"disableLocalAuth:\s*true", account);
+        Assert.DoesNotContain("identity:", account, StringComparison.Ordinal);
+        Assert.Contains("var documentIntelligenceName = '${prefix}-ocr-${suffix}'", platformBicep);
+        Assert.Contains(
+            "var cognitiveServicesUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')",
+            platformBicep);
+
+        var roles = Regex.Matches(
+                platformBicep,
+                @"(?ms)^resource \w+ 'Microsoft\.Authorization/roleAssignments@[^']+' = \{.*?^\}",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Value)
+            .Where(value => value.Contains("documentIntelligence", StringComparison.Ordinal)
+                || value.Contains("cognitiveServicesUserRole", StringComparison.Ordinal))
+            .ToArray();
+        var role = Assert.Single(roles);
+        Assert.Matches(@"scope:\s*documentIntelligence\s", role);
+        Assert.Contains("guid(documentIntelligence.id, workerIdentity.id, cognitiveServicesUserRole)", role);
+        Assert.Contains("roleDefinitionId: cognitiveServicesUserRole", role);
+        Assert.Contains("principalId: workerIdentity.properties.principalId", role);
+        Assert.Contains("principalType: 'ServicePrincipal'", role);
+        Assert.DoesNotContain("webIdentity", role, StringComparison.Ordinal);
+
+        var worker = Regex.Match(
+            platformBicep, @"(?ms)^resource workerApp .*?^\}", RegexOptions.CultureInvariant).Value;
+        Assert.Contains(
+            "{ name: 'DocumentIntelligence__Endpoint', value: documentIntelligence.properties.endpoint }", worker);
+        Assert.Matches(@"dependsOn:\s*\[[^\]]*\bworkerDocumentIntelligenceUser\b", worker);
+        Assert.Single(Regex.Matches(platformBicep, "name: 'DocumentIntelligence__Endpoint'"));
+        var web = Regex.Match(
+            platformBicep, @"(?ms)^resource webContainerApp .*?^\}", RegexOptions.CultureInvariant).Value;
+        Assert.NotEmpty(web);
+        Assert.DoesNotContain("DocumentIntelligence", web, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("output documentIntelligenceAccountId string = documentIntelligence.id", platformBicep);
+        Assert.Contains("output documentIntelligenceEndpoint string = documentIntelligence.properties.endpoint", platformBicep);
+        Assert.Contains(
+            "output DOCUMENT_INTELLIGENCE_ACCOUNT_ID string = activationAllowed ? platform!.outputs.documentIntelligenceAccountId : ''",
+            mainBicep);
+        Assert.Contains(
+            "output DOCUMENT_INTELLIGENCE_ENDPOINT string = activationAllowed ? platform!.outputs.documentIntelligenceEndpoint : ''",
+            mainBicep);
+    }
+
+    [Theory]
+    [InlineData("worker", "exact seven-function disabled-setting name census")]
+    [InlineData("account-kind", "Only the FormRecognizer Document Intelligence account kind is approved.")]
+    [InlineData("extra-account", "Additional Cognitive Services resources are prohibited.")]
+    [InlineData("foundry", "Deferred Azure services are prohibited")]
+    [InlineData("maps", "Deferred Azure services are prohibited")]
+    [InlineData("vision", "Deferred Azure services are prohibited")]
+    [InlineData("staticwebapp", "Deferred Azure services are prohibited")]
+    public async Task LocalDeploymentPlanRejectsUnapprovedTemplateChanges(string mutation, string expectedFailure)
     {
         var repositoryRoot = FindRepositoryRoot();
         var testRoot = Path.Combine(
@@ -124,6 +192,10 @@ public sealed class WorkerActivationReleaseContractTests
             CopyValidationFixtureFile(
                 repositoryRoot,
                 testRoot,
+                "scripts/PegasusPlatform.ps1");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
                 "scripts/Test-AzureDeploymentPlan.ps1");
 
             var platformBicepPath = Path.Combine(
@@ -134,11 +206,19 @@ public sealed class WorkerActivationReleaseContractTests
             var platformBicep = File.ReadAllText(platformBicepPath);
             const string marker =
                 "        { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled'";
-            var mutatedPlatformBicep = platformBicep.Replace(
-                marker,
-                "        { name: 'AzureWebJobs.Rogue-Function.Disabled', value: 'false' }" +
-                Environment.NewLine + marker,
-                StringComparison.Ordinal);
+            var mutatedPlatformBicep = mutation switch
+            {
+                "worker" => platformBicep.Replace(
+                    marker,
+                    "        { name: 'AzureWebJobs.Rogue-Function.Disabled', value: 'false' }" +
+                    Environment.NewLine + marker,
+                    StringComparison.Ordinal),
+                "account-kind" => platformBicep.Replace(
+                    "kind: 'FormRecognizer'", "kind: 'OpenAI'", StringComparison.Ordinal),
+                "extra-account" => platformBicep + Environment.NewLine +
+                    "resource unapprovedAccount 'Microsoft.CognitiveServices/accounts@2026-05-01' = { name: 'extra' }",
+                _ => platformBicep + Environment.NewLine + $"var unapprovedService = '{mutation}'"
+            };
             Assert.NotEqual(platformBicep, mutatedPlatformBicep);
             File.WriteAllText(platformBicepPath, mutatedPlatformBicep);
 
@@ -190,7 +270,7 @@ public sealed class WorkerActivationReleaseContractTests
             Assert.NotEqual(0, process.ExitCode);
             Assert.True(
                 diagnostic.Contains(
-                    "exact seven-function disabled-setting name census",
+                    expectedFailure,
                     StringComparison.Ordinal),
                 diagnostic);
             Assert.DoesNotContain("Rogue-Function", diagnostic, StringComparison.Ordinal);

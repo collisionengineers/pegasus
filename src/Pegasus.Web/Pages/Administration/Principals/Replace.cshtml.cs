@@ -8,21 +8,15 @@ namespace Pegasus.Web.Pages.Administration.Principals;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class ReplaceModel(
-    IGetOrganization getOrganization,
-    IListOrganizations listOrganizations,
+    IGetPrincipal getPrincipal,
     IReplacePrincipal replacePrincipal)
     : AdministrationPageModel
 {
-    public OrganizationDetails? Organization { get; private set; }
+    public PrincipalAdministrationDetails? Customer { get; private set; }
     public PrincipalAdministrationSummary? Predecessor { get; private set; }
-    public OrganizationListPage Organizations { get; private set; } =
-        new([], 1, ListOrganizations.MaximumPageSize, false, false);
 
     [BindProperty]
     public long ExpectedVersion { get; set; }
-
-    [BindProperty]
-    public Guid SuccessorOrganizationId { get; set; }
 
     [BindProperty]
     [Required, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)]
@@ -36,7 +30,6 @@ public sealed class ReplaceModel(
     public string OperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(
-        Guid organizationId,
         Guid principalId,
         CancellationToken cancellationToken)
     {
@@ -47,7 +40,6 @@ public sealed class ReplaceModel(
 
         return await LoadAsync(
             actor,
-            organizationId,
             principalId,
             initializeForm: true,
             cancellationToken)
@@ -56,7 +48,6 @@ public sealed class ReplaceModel(
     }
 
     public async Task<IActionResult> OnPostReplaceAsync(
-        Guid organizationId,
         Guid principalId,
         CancellationToken cancellationToken)
     {
@@ -66,7 +57,6 @@ public sealed class ReplaceModel(
         }
         if (!await LoadAsync(
                 actor,
-                organizationId,
                 principalId,
                 initializeForm: false,
                 cancellationToken))
@@ -74,12 +64,6 @@ public sealed class ReplaceModel(
             return NotFound();
         }
 
-        if (SuccessorOrganizationId == Guid.Empty)
-        {
-            ModelState.AddModelError(
-                nameof(SuccessorOrganizationId),
-                "Select a Work Provider organization for the successor.");
-        }
         if (!IsOperationKeyValid(OperationKey))
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
@@ -93,7 +77,6 @@ public sealed class ReplaceModel(
                     new(
                         principalId,
                         ExpectedVersion,
-                        SuccessorOrganizationId,
                         SuccessorCode,
                         actor,
                         OperationKey,
@@ -117,61 +100,27 @@ public sealed class ReplaceModel(
         }
 
         OperationKey = NewOperationKey();
+        ModelState.Remove(nameof(OperationKey));
+        ModelState.Remove(nameof(ExpectedVersion));
         ExpectedVersion = Predecessor!.Version;
         return Page();
     }
 
     private async Task<bool> LoadAsync(
         ActionActor actor,
-        Guid organizationId,
         Guid principalId,
         bool initializeForm,
         CancellationToken cancellationToken)
     {
-        Organization = await getOrganization.ExecuteAsync(
-            new(actor, organizationId, principalId),
-            cancellationToken);
-        Predecessor = Organization?.Principals.SingleOrDefault(
-            principal => principal.Id == principalId);
-        if (Organization is null || Predecessor is null)
+        Customer = await getPrincipal.ExecuteAsync(actor, principalId, cancellationToken);
+        Predecessor = Customer?.Principal;
+        if (Predecessor is null)
         {
             return false;
         }
-
-        Organizations = await listOrganizations.ExecuteAsync(
-            new(actor, 1, ListOrganizations.MaximumPageSize),
-            cancellationToken);
         if (initializeForm)
         {
             ExpectedVersion = Predecessor.Version;
-            SuccessorOrganizationId = Organization.Id;
-        }
-        if (SuccessorOrganizationId != Guid.Empty
-            && !Organizations.Organizations.Any(
-                item => item.Id == SuccessorOrganizationId))
-        {
-            var selected = SuccessorOrganizationId == Organization.Id
-                ? Organization
-                : await getOrganization.ExecuteAsync(
-                    new(actor, SuccessorOrganizationId),
-                    cancellationToken);
-            if (selected is not null)
-            {
-                Organizations = Organizations with
-                {
-                    Organizations =
-                    [
-                        new(
-                            selected.Id,
-                            selected.Name,
-                            selected.Roles,
-                            selected.Version,
-                            selected.Principals,
-                            selected.HasMorePrincipals),
-                        .. Organizations.Organizations
-                    ]
-                };
-            }
         }
         return true;
     }
@@ -184,10 +133,6 @@ public sealed class ReplaceModel(
             "The predecessor is already disabled and cannot be replaced again.",
         OrganizationAdministrationError.PrincipalAlreadyReplaced =>
             "The predecessor already has a linked successor.",
-        OrganizationAdministrationError.OrganizationNotFound =>
-            "The successor organization no longer exists.",
-        OrganizationAdministrationError.OrganizationCannotOwnPrincipals =>
-            "The successor organization must have the Work Provider role.",
         OrganizationAdministrationError.DuplicatePrincipalCode =>
             "That normalized successor code already exists.",
         OrganizationAdministrationError.StaleVersion =>

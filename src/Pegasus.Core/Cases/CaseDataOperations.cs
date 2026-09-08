@@ -49,17 +49,15 @@ public static class CaseCompletenessPolicy
 {
     public static CaseCompletenessEvaluation Evaluate(
         CaseCompleteness completeness,
-        CaseWorkflowConfiguration configuration,
-        bool automaticallyDefinitive = false)
+        CaseWorkflowConfiguration configuration)
     {
         CaseDataPolicy.ValidateCompleteness(completeness);
-        return EvaluateAcceptanceCommand(completeness, configuration, automaticallyDefinitive);
+        return EvaluateAcceptanceCommand(completeness, configuration);
     }
 
     internal static CaseCompletenessEvaluation EvaluateAcceptanceCommand(
         CaseCompleteness completeness,
-        CaseWorkflowConfiguration configuration,
-        bool automaticallyDefinitive = false)
+        CaseWorkflowConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(completeness);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -70,7 +68,7 @@ public static class CaseCompletenessPolicy
                 "The current case-workflow policy identity is invalid.");
         }
 
-        var satisfiesPolicy = completeness.IsReadyForReview(automaticallyDefinitive);
+        var satisfiesPolicy = completeness.IsReadyForReview();
 
         return new(
             satisfiesPolicy,
@@ -88,9 +86,7 @@ public static class CaseDataPolicy
         CaseLifecycleRules.ValidateMutation(request);
 
     /// <summary>
-    /// PLAT-072: completeness is two factual controls. The staff-confirmation
-    /// flags are no longer written by any command, so there is no pairing left
-    /// to police here; the columns survive only until their owner removes them.
+    /// Completeness records the two factual instruction and image values.
     /// </summary>
     public static void ValidateCompleteness(CaseCompleteness completeness) =>
         ArgumentNullException.ThrowIfNull(completeness);

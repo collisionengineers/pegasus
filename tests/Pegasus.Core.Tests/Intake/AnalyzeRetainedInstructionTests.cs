@@ -896,6 +896,7 @@ public sealed class AnalyzeRetainedInstructionTests
                 request.DocumentVersionId,
                 request.IntakeAssetId,
                 request.SourceSha256,
+                request.SourceContentLength,
                 request.QualifiedPages,
                 request.OperationKey,
                 IntakeOcrState.Pending,
@@ -911,6 +912,9 @@ public sealed class AnalyzeRetainedInstructionTests
             throw new InvalidOperationException("The analysis producer cannot submit OCR.");
 
         public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The analysis producer cannot complete OCR.");
+
+        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The analysis producer cannot complete OCR.");
 
         public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) =>

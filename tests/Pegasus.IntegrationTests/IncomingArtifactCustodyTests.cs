@@ -137,7 +137,7 @@ public sealed class IncomingArtifactCustodyTests
         Assert.Equal(seeded.FirstOccurrenceId, arrived.OccurrenceId);
 
         Assert.True(await store.TryClaimHandOverAsync(
-            seeded.FirstOccurrenceId,
+            seeded.FirstOperationKey,
             CancellationToken.None));
 
         // Committed before the hand-over, so a crash from here on leaves an
@@ -148,7 +148,7 @@ public sealed class IncomingArtifactCustodyTests
 
         // Everyone else, whenever they ask.
         Assert.False(await store.TryClaimHandOverAsync(
-            seeded.FirstOccurrenceId,
+            seeded.FirstOperationKey,
             CancellationToken.None));
 
         await store.RecordAsync(
@@ -165,7 +165,7 @@ public sealed class IncomingArtifactCustodyTests
         Assert.NotNull(found);
         Assert.Equal(IncomingArtifactCustodyState.Pending, found.State);
         Assert.False(await store.TryClaimHandOverAsync(
-            seeded.FirstOccurrenceId,
+            seeded.FirstOperationKey,
             CancellationToken.None));
     }
 

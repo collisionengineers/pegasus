@@ -806,12 +806,15 @@ public sealed class TriageQueuesWebTests
         await workStore.MarkDispatchedAsync(dispatchClaim.Id, dispatchClaim.LeaseToken!, now, CancellationToken.None);
         var processingClaim = await workStore.ClaimProcessingAsync(staged.Id, now, TimeSpan.FromMinutes(1), CancellationToken.None)
             ?? throw new InvalidOperationException("Expected the dispatched evaluation work item to be claimable for processing.");
-        var evaluation = await workStore.CompleteProcessingAsync(
+        var evaluation = await workStore.RecordEvaluationAsync(
             processingClaim.WorkItem.Id,
             processingClaim.WorkItem.LeaseToken!,
             processedReceiptId,
             now,
+            false,
             CancellationToken.None);
+        await workStore.CompleteProcessingAsync(processingClaim.WorkItem.Id,
+            processingClaim.WorkItem.LeaseToken!, now, CancellationToken.None);
         return evaluation.Id;
     }
 
@@ -1016,7 +1019,7 @@ public sealed class TriageQueuesWebTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {"pending"}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {"pending"}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {now}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(

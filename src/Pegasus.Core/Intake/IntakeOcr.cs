@@ -5,7 +5,7 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
 
-internal static class IntakeOcrOperations
+public static class IntakeOcrOperations
 {
     public static Task<IntakeOcrOperation> BeginAsync(
         IIntakeOcrOperationStore store,
@@ -41,6 +41,29 @@ internal static class IntakeOcrOperations
     {
         var identity = FormattableString.Invariant(
             $"intake-ocr/v1|{receiptId:D}|{assetId:D}|{sourceSha256.ToUpperInvariant()}|{string.Join(',', pages)}");
+        return HashIdentity(identity);
+    }
+
+    public static Task<IntakeOcrOperation> BeginDocumentAsync(
+        IIntakeOcrOperationStore store,
+        CaseDocumentMetadata source,
+        IReadOnlyList<int> qualifiedPages,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(qualifiedPages);
+        var pages = qualifiedPages.Distinct().Order().ToArray();
+        var operationId = HashIdentity(FormattableString.Invariant(
+            $"document-ocr/v1|{source.CaseId:D}|{source.OccurrenceId:D}|{source.VersionId:D}|{source.Sha256.ToUpperInvariant()}|{string.Join(',', pages)}"));
+        return store.BeginAsync(operationId,
+            new(null, source.VersionId, null, source.Sha256, source.ContentLength,
+                pages, $"document-ocr:{operationId:N}", source.CaseId, source.OccurrenceId),
+            cancellationToken);
+    }
+
+    private static Guid HashIdentity(string identity)
+    {
         Span<byte> digest = stackalloc byte[32];
         SHA256.HashData(Encoding.UTF8.GetBytes(identity), digest);
         return new Guid(digest[..16]);
@@ -82,29 +105,30 @@ public enum IntakeOcrState
 /// key: a replay finds the recorded operation rather than starting a second.
 /// </param>
 public sealed record IntakeOcrRequest(
-    Guid IntakeReceiptId,
+    Guid? IntakeReceiptId,
     Guid? DocumentVersionId,
     Guid? IntakeAssetId,
     string SourceSha256,
     long SourceContentLength,
     IReadOnlyList<int> QualifiedPages,
-    string OperationKey)
+    string OperationKey,
+    Guid? CaseId = null,
+    Guid? OccurrenceId = null)
 {
     public static void Validate(IntakeOcrRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.IntakeReceiptId == Guid.Empty)
-        {
-            throw new ArgumentException("An intake receipt identifier is required.", nameof(request));
-        }
-
-        // The same exclusive-or the OCR operation table's own check constraint
-        // enforces: a pre-case asset has no document version, and a case
-        // document is not addressed as an asset.
-        if (request.DocumentVersionId is null == request.IntakeAssetId is null)
+        var intakeSource = request.IntakeReceiptId is { } receiptId && receiptId != Guid.Empty
+            && request.IntakeAssetId is { } assetId && assetId != Guid.Empty
+            && request.DocumentVersionId is null && request.CaseId is null && request.OccurrenceId is null;
+        var caseSource = request.IntakeReceiptId is null && request.IntakeAssetId is null
+            && request.DocumentVersionId is { } versionId && versionId != Guid.Empty
+            && request.CaseId is { } caseId && caseId != Guid.Empty
+            && request.OccurrenceId is { } occurrenceId && occurrenceId != Guid.Empty;
+        if (!intakeSource && !caseSource)
         {
             throw new ArgumentException(
-                "An OCR request names exactly one of a document version or a retained intake asset.",
+                "An OCR request names an intake receipt and asset, or a Case, occurrence and document version.",
                 nameof(request));
         }
 
@@ -248,10 +272,11 @@ public interface IIntakeOcrProvider
 /// </summary>
 public sealed record IntakeOcrOperation(
     Guid Id,
-    Guid IntakeReceiptId,
+    Guid? IntakeReceiptId,
     Guid? DocumentVersionId,
     Guid? IntakeAssetId,
     string SourceSha256,
+    long SourceContentLength,
     IReadOnlyList<int> QualifiedPages,
     string OperationKey,
     IntakeOcrState State,
@@ -264,7 +289,10 @@ public sealed record IntakeOcrOperation(
     IReadOnlyList<IntakeOcrPage>? Pages = null,
     DateTimeOffset? SubmitAttemptedAtUtc = null,
     DateTimeOffset? SubmittedAtUtc = null,
-    IntakeOcrResult? Result = null)
+    IntakeOcrResult? Result = null,
+    bool AnalysisCompleted = false,
+    Guid? CaseId = null,
+    Guid? OccurrenceId = null)
 {
     public IReadOnlyList<IntakeOcrPage> PageResults => Pages ?? [];
 
@@ -340,6 +368,11 @@ public interface IIntakeOcrOperationStore
         Guid operationId,
         long expectedVersion,
         IntakeOcrResult result,
+        CancellationToken cancellationToken);
+
+    Task<IntakeOcrOperation> CompleteAnalysisAsync(
+        Guid operationId,
+        long expectedVersion,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -493,6 +526,7 @@ public sealed class ProcessIntakeOcr(
     IReadLogicalDocumentVersion documentReader,
     IAnalyzeRetainedInstruction analyzeRetainedInstruction,
     IIntakeReceiptQueries receiptQueries,
+    IGetCaseDocumentMetadata caseDocuments,
     TimeProvider timeProvider) : IProcessIntakeOcr
 {
     /// <summary>
@@ -512,25 +546,27 @@ public sealed class ProcessIntakeOcr(
         var operation = await store.FindAsync(workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The intake OCR operation is unavailable.");
 
-        // A terminal operation is done. A replay of the queue message finds it
-        // terminal and stops, so one durable operation has one side effect
-        // however many times the message is delivered.
-        if (operation.State is IntakeOcrState.Completed or IntakeOcrState.Failed)
+        // Provider completion is not terminal until its analysis is applied.
+        if (operation.AnalysisCompleted || operation.State == IntakeOcrState.Failed)
         {
             return;
         }
 
-        var receipt = await receiptQueries.GetAsync(operation.IntakeReceiptId, cancellationToken);
+        var receipt = operation.IntakeReceiptId is { } receiptId
+            ? await receiptQueries.GetAsync(receiptId, cancellationToken)
+            : null;
         var asset = receipt is null || operation.IntakeAssetId is not { } assetId
             ? null
             : receipt.AssetRecords.SingleOrDefault(record => record.Id == assetId);
-
-        // The length A04 verifies is the length the receipt recorded for the
-        // asset. Nothing here invents one, and a source whose recorded hash no
-        // longer matches the operation's is refused rather than read: an OCR
-        // result must be attributable to exactly the bytes it was asked about.
-        if (asset is null
-            || !string.Equals(asset.ContentHash, operation.SourceSha256, StringComparison.OrdinalIgnoreCase))
+        var document = operation.CaseId is { } caseId
+            && operation.OccurrenceId is { } occurrenceId
+            && operation.DocumentVersionId is { } versionId
+            ? await caseDocuments.ExecuteAsync(new(caseId, occurrenceId, versionId, OcrActor), cancellationToken)
+            : null;
+        var sourceHash = asset?.ContentHash ?? document?.Sha256;
+        var sourceLength = asset?.ContentLength ?? document?.ContentLength;
+        if (sourceLength != operation.SourceContentLength
+            || !string.Equals(sourceHash, operation.SourceSha256, StringComparison.OrdinalIgnoreCase))
         {
             await store.RecordOutcomeAsync(
                 operation.Id,
@@ -550,9 +586,18 @@ public sealed class ProcessIntakeOcr(
             operation.DocumentVersionId,
             operation.IntakeAssetId,
             operation.SourceSha256,
-            asset.ContentLength,
+            operation.SourceContentLength,
             operation.QualifiedPages,
-            operation.OperationKey);
+            operation.OperationKey,
+            operation.CaseId,
+            operation.OccurrenceId);
+        IntakeOcrRequest.Validate(request);
+
+        if (operation.Result is { } retainedResult)
+        {
+            await ReanalyzeAsync(operation, receipt, request, retainedResult, cancellationToken);
+            return;
+        }
 
         // An operation already sent is never sent again. It is asked about.
         // Which STATE it is in does not change that: a retry scheduled after a
@@ -563,7 +608,7 @@ public sealed class ProcessIntakeOcr(
         {
             await ApplyAsync(
                 operation,
-                receipt!,
+                receipt,
                 request,
                 await ReconcileAsync(request, recorded, cancellationToken),
                 cancellationToken);
@@ -596,8 +641,8 @@ public sealed class ProcessIntakeOcr(
         // attempt, then the provider's identity for it - and what it advanced
         // to is what the outcome is written against.
         var attempt = new Attempt(operation);
-        var result = await SubmitAsync(attempt, request, cancellationToken);
-        await ApplyAsync(attempt.Current, receipt!, request, result, cancellationToken);
+        var result = await SubmitAsync(attempt, request, document?.DocumentId, cancellationToken);
+        await ApplyAsync(attempt.Current, receipt, request, result, cancellationToken);
     }
 
     /// <summary>
@@ -621,6 +666,7 @@ public sealed class ProcessIntakeOcr(
     private async Task<IntakeOcrResult> SubmitAsync(
         Attempt attempt,
         IntakeOcrRequest request,
+        Guid? documentId,
         CancellationToken cancellationToken)
     {
         LogicalDocumentContent content;
@@ -629,10 +675,10 @@ public sealed class ProcessIntakeOcr(
             content = await documentReader.OpenAsync(
                 new(
                     OcrActor,
-                    DocumentId: null,
+                    documentId,
                     request.DocumentVersionId,
                     request.IntakeAssetId,
-                    CaseId: null,
+                    request.CaseId,
                     request.IntakeReceiptId,
                     request.SourceSha256,
                     request.SourceContentLength),
@@ -748,7 +794,7 @@ public sealed class ProcessIntakeOcr(
 
     private async Task ApplyAsync(
         IntakeOcrOperation operation,
-        IntakeReceipt receipt,
+        IntakeReceipt? receipt,
         IntakeOcrRequest request,
         IntakeOcrResult result,
         CancellationToken cancellationToken)
@@ -793,7 +839,7 @@ public sealed class ProcessIntakeOcr(
                 return;
             }
 
-            await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
+            current = await store.CompleteAsync(current.Id, current.Version, result, CancellationToken.None);
             await ReanalyzeAsync(current, receipt, request, result, cancellationToken);
             return;
         }
@@ -850,27 +896,59 @@ public sealed class ProcessIntakeOcr(
     }
 
     /// <summary>
-    /// Re-enters instruction analysis exactly once for the completed operation,
-    /// under an operation key derived from the OCR operation's own key. A replay
-    /// of the OCR work therefore replays the analysis rather than recording a
-    /// second set of candidates for the same reading.
+    /// Applies retained output idempotently to the current receipt version.
+    /// Incomplete analysis keeps its external work retryable without resubmission.
     /// </summary>
     private async Task ReanalyzeAsync(
         IntakeOcrOperation operation,
-        IntakeReceipt receipt,
+        IntakeReceipt? receipt,
         IntakeOcrRequest ocrRequest,
         IntakeOcrResult ocrResult,
         CancellationToken cancellationToken)
     {
-        var key = $"ocr:{operation.OperationKey}";
-        await analyzeRetainedInstruction.ExecuteAsync(
-            new(
-                OcrActor,
-                receipt.Id,
-                receipt.Version,
-                key.Length > 100 ? key[..100] : key,
-                operation.IntakeAssetId,
-                new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
-            cancellationToken);
+        if (operation.DocumentVersionId is not null)
+        {
+            // A retained estimate is consumed later through its authorized
+            // import command. OCR never mutates an Engineer's Case or lease.
+            await store.CompleteAnalysisAsync(operation.Id, operation.Version, CancellationToken.None);
+            return;
+        }
+
+        ArgumentNullException.ThrowIfNull(receipt);
+        var key = $"ocr:{operation.Id:N}:{receipt.Version}";
+        IntakeOcrFailure? failure = null;
+        try
+        {
+            var analysis = await analyzeRetainedInstruction.ExecuteAsync(
+                new(
+                    OcrActor,
+                    receipt.Id,
+                    receipt.Version,
+                    key,
+                    operation.IntakeAssetId,
+                    new(operation.SourceSha256, ocrRequest.QualifiedPages, ocrResult)),
+                cancellationToken);
+            if (analysis.Outcome is RetainedInstructionAnalysisOutcome.Conflict
+                or RetainedInstructionAnalysisOutcome.SourceUnavailable)
+            {
+                failure = new("ocr_analysis_incomplete", "The retained OCR result could not be applied to the current receipt.", Retryable: true);
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            failure = new("ocr_analysis_failure", "The retained OCR result could not be analysed: " + exception.GetType().Name, Retryable: true);
+        }
+
+        if (failure is null)
+        {
+            await store.CompleteAnalysisAsync(operation.Id, operation.Version, CancellationToken.None);
+            return;
+        }
+
+        var delay = IntakeOcrPolicy.NextAttemptDelay(operation.AttemptCount + 1, failure);
+        await store.RecordOutcomeAsync(operation.Id, operation.Version,
+            delay is null ? IntakeOcrState.Failed : IntakeOcrState.RetryScheduled,
+            failure, delay is { } retryIn ? timeProvider.GetUtcNow().Add(retryIn) : null,
+            CancellationToken.None);
     }
 }

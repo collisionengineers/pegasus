@@ -9,3 +9,6 @@ Read and follow the repository's
 [canonical release skill](../../../.agents/skills/pegasus-release/SKILL.md)
 completely before taking release action. Its linked references are part of the
 skill when their stated condition applies.
+
+That single procedure supports Windows x64 and Linux x64 release workstations
+while keeping the deployed application on Linux (ADR-0039).

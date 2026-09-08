@@ -10,6 +10,7 @@ namespace Pegasus.Web.Pages.Uploads;
 
 [AllowAnonymous]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+[TypeFilter(typeof(RequestUploadTransportFilter), Order = -2000)]
 public sealed partial class RequestModel(
     IGetRequestUpload getRequestUpload,
     IUploadToRequest uploadToRequest,
@@ -17,6 +18,7 @@ public sealed partial class RequestModel(
     ILogger<RequestModel> logger) : PageModel
 {
     [BindProperty(SupportsGet = true)]
+    [FromRoute]
     public string Token { get; set; } = string.Empty;
 
     [BindProperty]
@@ -67,7 +69,7 @@ public sealed partial class RequestModel(
 
     public async Task<IActionResult> OnPostUploadAsync(CancellationToken cancellationToken)
     {
-        UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
+        UploadPolicy = HttpContext.Features.Get<RequestUploadPublicView>();
         if (UploadPolicy is null)
         {
             return NotFound();
@@ -213,11 +215,9 @@ public sealed partial class RequestModel(
 
     public async Task<IActionResult> OnPostFinalizeAsync(CancellationToken cancellationToken)
     {
-        // Taken before the page is even read: Finish is anonymous and every
-        // step after this one is a database round trip, so a guard that ran
-        // after the first of them would not be guarding it. The same per-token
-        // window the upload handler keeps, rather than a second limiter with
-        // its own policy.
+        // Transport admission has already checked the route token before
+        // reading the form. Use the same per-token window as Upload before
+        // performing any finalization work; the public view is request-local.
         if (!attemptLimiter.TryAcquire(Token, out _))
         {
             Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -227,7 +227,7 @@ public sealed partial class RequestModel(
             return Page();
         }
 
-        UploadPolicy = await getRequestUpload.ExecuteAsync(Token, cancellationToken);
+        UploadPolicy = HttpContext.Features.Get<RequestUploadPublicView>();
         if (UploadPolicy is null)
         {
             return NotFound();

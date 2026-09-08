@@ -421,7 +421,7 @@ public sealed class CaseReportDeliveryPreparationTests
             1,
             CaseLifecycleState.ReportPreparation,
             new CaseCompletenessProjection(
-                new CaseCompleteness(false, false, false, false),
+                new CaseCompleteness(false, false),
                 new CaseCompletenessEvaluation(false, "test", 1)),
             new CaseProviderData(emptyString),
             new CaseClaimantData(emptyString, emptyString, emptyString),

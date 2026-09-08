@@ -46,7 +46,7 @@ public sealed partial class CaseAcceptanceReplayTests
             "Reviewed source evidence and confirmed the case intake.",
             CaseType.Inspection,
             PrincipalCode,
-            new(true, true, true, true));
+            new(true, true));
 
         var first = await acceptIntake.ExecuteAsync(request, CancellationToken.None);
         await SetCaseCustodyStateAsync(factory.Services, "confirmed");
@@ -125,7 +125,7 @@ public sealed partial class CaseAcceptanceReplayTests
                 "Reviewed the intake before the concurrent change.",
                 CaseType.Inspection,
                 PrincipalCode,
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None));
 
         Assert.Equal(0, await CountRowsAsync(factory.Services, "Cases"));
@@ -152,7 +152,7 @@ public sealed partial class CaseAcceptanceReplayTests
                 "   ",
                 CaseType.Inspection,
                 PrincipalCode,
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None));
         Assert.Equal(0, await CountRowsAsync(factory.Services, "Cases"));
         Assert.Equal(0, await CountRowsAsync(factory.Services, "CaseIntakeLinks"));
@@ -178,7 +178,7 @@ public sealed partial class CaseAcceptanceReplayTests
                     "Confirmed evidence before testing association lifecycle.",
                     CaseType.Inspection,
                     PrincipalCode,
-                    new(true, true, true, true)),
+                    new(true, true)),
                 CancellationToken.None);
         var caseId = accepted.Identity.CaseId;
         var acquireLease = scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>();

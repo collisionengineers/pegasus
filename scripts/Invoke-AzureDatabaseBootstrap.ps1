@@ -420,6 +420,13 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$($grant.Groups['role'].Value)|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
+    # 20260907210000_ReportInputInvalidationPermissions: report freeze/confirmation
+    # and custody-driven invalidation callers.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|CaseReportGenerations')
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|GeneratedCaseArtifacts')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseReportGenerations')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseReportGenerations')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|GeneratedCaseArtifacts')
     return @($expected | Sort-Object -Unique)
 }
 
