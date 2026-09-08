@@ -2,12 +2,13 @@
 id: INTK-066
 type: ticket
 title: Confirm viable Case destinations directly from manual upload
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-09-08T17:32:00.155Z'
+  review: '2026-09-08T23:36:56.847Z'
 taken_at: '2026-09-08T17:48:42.856Z'
 branch: INTK-066-manual-upload-confirmation
 worktree: .worktrees/INTK-066
@@ -26,26 +27,33 @@ links:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
-  - da6ff8e16815100e42da65e60df3e45a3cced2d2
-  - 4a17becc09584696531611b4dc39d19521f489b3
-  - 26bf5d00206014f58adf8149abe39084fd52b3f4
-  - c57d8487cd343321a07abb68c161bd7d9a00aa27
-  - 4b3329675f48faede428a9c97212d1a610584136
-  - cc826889407b97dc2d951219c70b59e619de70f2
-  - cca2c76cb9d4acc19e68a1a776719d5dc701f8d3
+  - e8bc3fcb47b2b47e405c806d17314cccefc71e26
+  - 6c58bdf1cfa5f238d505956e9ab4e59a9eb32035
+  - 684ddce42c6a8535d603adb54354c9b3c2bca6b5
+  - 137230ca4f9b5115e1176f387fd360dac7370d65
+  - 75f112a18ef7c228a044772686d8cbb403a4825d
+  - e843b5ee523aaf286541b20934dcf3e6d46fead1
   - 500b86a9b21adbd7a8fe56a65ddd52782630ce21
+  - cca2c76cb9d4acc19e68a1a776719d5dc701f8d3
+  - cc826889407b97dc2d951219c70b59e619de70f2
+  - 4b3329675f48faede428a9c97212d1a610584136
+  - c57d8487cd343321a07abb68c161bd7d9a00aa27
+  - 26bf5d00206014f58adf8149abe39084fd52b3f4
+  - 4a17becc09584696531611b4dc39d19521f489b3
+  - da6ff8e16815100e42da65e60df3e45a3cced2d2
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/712'
 capture_evidence:
   - 'https://github.com/collisionengineers/pegasus/actions/runs/34240260482'
   - docs/frd/frd-02-intake-and-source-identity.md
   - tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs
-  - tests/Pegasus.IntegrationTests/Browser/UploadCaseSearchBrowserTests.cs
 capture_actor: codex-mcp-client
 capture_disposition: promoted
 capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T23:34:54.538Z'
+updated: '2026-09-08T23:36:56.847Z'
 ---
 
 ## Observation
@@ -63,3 +71,7 @@ Implement the upload-screen workflow: staff choose the destination directly afte
 ## Scope boundary
 
 [[INTK-010]] and [[INTK-016]] are completed historical upload owners, not active correction tickets. Current board search found no active exact owner. Preserve their history. The whole root-cause class belongs together; it is not part of [[DELIV-056]]'s formal-evidence fixture-only correction. Use the feature profile for the missing confirmation route and permission/concurrency consequences. Preserve keyboard accessibility, search, destination, lease/version/reason and replay assertions. Do not expand into unrelated email allocation, upload caps or public sessions.
+
+## Operator revision — 9 September 2026
+
+Remove the complete snapshot/capture and browser-test systems from local tooling and CI, including direct references, and publish this revised change for review. This supersedes the earlier browser/snapshot test retention clauses, not the actual application interaction/accessibility requirements. Retain production PDF rendering dependencies. The approved unsupported corpus percentage gate removal is also retained. See current plan/report for exact scope, remaining evidence and historical failure dispositions. No merge or deployment is authorized.
