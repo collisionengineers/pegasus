@@ -4,11 +4,22 @@ type: ticket
 title: Restore the self-contained release migration host recipe
 status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:28:18.420Z'
   implementing: '2026-09-08T13:30:29.628Z'
+taken_at: '2026-09-08T13:32:27.085Z'
+branch: DELIV-055-migration-host-doc
+worktree: 'C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\deliv-055'
+claim_expires_at: '2026-09-08T14:02:27.085Z'
+claim_controller: codex-mcp-client
+lease_id: b9dc1816-f141-49a6-a72c-873df695f7f0
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-055'
+lease_provider: codex
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T13:32:27.085Z'
 labels:
   - release
   - corrective
@@ -17,7 +28,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-09-08T13:25:29.949Z'
-updated: '2026-09-08T13:30:29.628Z'
+updated: '2026-09-08T13:32:27.085Z'
 ---
 
 ## What
