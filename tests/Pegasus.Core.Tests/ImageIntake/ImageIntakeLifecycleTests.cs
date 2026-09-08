@@ -238,6 +238,10 @@ public sealed class ImageIntakeLifecycleTests
 
     private sealed class FakeStore : IImageIntakeStore
     {
+        public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
+            int maximumItems, Guid? caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public ImageIntakeOperationReplay? Replay { get; init; }
 
         public Exception? ProbeFailure { get; init; }

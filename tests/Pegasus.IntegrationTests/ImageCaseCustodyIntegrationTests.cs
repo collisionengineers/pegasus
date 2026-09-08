@@ -142,6 +142,21 @@ public sealed class ImageCaseCustodyIntegrationTests
         }
 
         var store = services.GetRequiredService<IImageIntakeStore>();
+        var mutations = services.GetRequiredService<IIntakeMutationStore>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
+        foreach (var receiptId in memberReceiptIds)
+        {
+            var workflow = await workflows.GetAsync(caseId, CancellationToken.None);
+            var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new(caseId, workflow!.Version, StaffActor(), $"image-custody-link-lease:{receiptId:N}"),
+                CancellationToken.None);
+            var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
+            await mutations.LinkAsync(new(receiptId, caseId, receipt!.Version, workflow.Version,
+                lease.Token, StaffActor(), $"image-custody-link:{receiptId:N}",
+                "Staff confirmed this image belongs to the instruction Case."),
+                DateTimeOffset.UtcNow, CancellationToken.None);
+        }
         var detail = await store.GetAsync(record.Id, CancellationToken.None);
         await store.MergeAsync(
             new(
@@ -150,7 +165,8 @@ public sealed class ImageCaseCustodyIntegrationTests
                 StaffActor(),
                 $"image-intake-merge:{record.Origin.ReceiptId:N}",
                 "The Image-initiated case was merged into the linked formal Case.",
-                detail!.LifecycleVersion),
+                detail!.LifecycleVersion,
+                ExpectedStaffOriginAssociationVersion: 0),
             CancellationToken.None);
 
         Guid mergeWorkId;

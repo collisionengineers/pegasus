@@ -220,7 +220,7 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
-    public async Task ExistingRegistrationShortCircuitsTheScan()
+    public async Task ExistingRegistrationShortCircuitsTheScanAndRetriesPairingExactlyOnce()
     {
         var harness = new Harness();
         harness.ImageIntakeQueries.Existing = new ImageIntakeDetail(
@@ -236,11 +236,16 @@ public sealed class AutomaticImageIntakeTests
             DateTimeOffset.UtcNow,
             null,
             null);
+        var caseId = Guid.NewGuid();
+        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE")];
 
+        await harness.ApplyAsync();
         await harness.ApplyAsync();
 
         Assert.Equal(0, harness.Engine.Calls);
         Assert.Empty(harness.Register.Requests);
+        Assert.Equal(caseId, Assert.Single(harness.MutationStore.AutoLinks).CaseId);
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, harness.ImageIntakeQueries.Existing!.State);
     }
 
     [Fact]
@@ -494,6 +499,9 @@ public sealed class AutomaticImageIntakeTests
                 ArtifactStore.Content[asset.StorageKey] = ImageBytes;
             }
 
+            Register.ImageStore = ImageIntakeQueries;
+            ImageIntakeQueries.ReceiptQueries = ReceiptQueries;
+            MutationStore.ReceiptQueries = ReceiptQueries;
             Automation = new ImageIntakeAutomation(
                 Engine,
                 SuggestionStore,
@@ -502,15 +510,14 @@ public sealed class AutomaticImageIntakeTests
                 ImageIntakeQueries,
                 Register,
                 CaseCandidates,
-                MutationStore,
                 ReceiptQueries,
                 new ImageIntakeCasePairing(
                     ImageIntakeQueries,
                     CaseCandidates,
                     MutationStore,
                     TimeProvider.System,
-                    new CommittedWorkPublisherDouble()),
-                TimeProvider.System);
+                    new CommittedWorkPublisherDouble(),
+                    ReceiptQueries));
         }
 
         public IntakeReceipt Receipt { get; }
@@ -655,6 +662,26 @@ public sealed class AutomaticImageIntakeTests
 
     private sealed class FakeImageIntakeQueries : IImageIntakeStore
     {
+        public FakeReceiptQueries ReceiptQueries { get; set; } = null!;
+
+        public Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(Guid imageIntakeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageIntakeImage>>(ReceiptQueries.Receipts
+                .Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial)
+                .Select(receipt => new ImageIntakeImage(receipt.Id, receipt.SourceFileName, receipt.MediaType)).ToArray());
+
+        public Task<ImageIntakeRecord> MergeAsync(MergeImageInitiatedCaseRequest request, CancellationToken cancellationToken)
+        {
+            Assert.All(ReceiptQueries.Receipts.Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial),
+                receipt => Assert.Equal(request.CaseId, receipt.CurrentCaseId));
+            var record = Existing!.Record with { State = ImageInitiatedCaseState.MergedIntoInstructionCase, MergedIntoCaseId = request.CaseId };
+            Existing = Existing with { Record = record, AssociatedCaseId = request.CaseId };
+            return Task.FromResult(record);
+        }
+
+        public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
+            int maximumItems, Guid? caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public ImageIntakeDetail? Existing { get; set; }
 
         public int EnsureRegisteredCalls { get; private set; }
@@ -711,6 +738,10 @@ public sealed class AutomaticImageIntakeTests
 
     private sealed class FakeRegister : IRegisterImageIntake
     {
+        public FakeImageIntakeQueries ImageStore { get; set; } = null!;
+
+        public int GroupExpectedMemberCount { get; set; } = 1;
+
         public List<RegisterImageIntakeRequest> Requests { get; } = [];
 
         /// <summary>
@@ -733,11 +764,15 @@ public sealed class AutomaticImageIntakeTests
             }
 
             Requests.Add(request);
-            return Task.FromResult(new ImageIntakeRecord(
+            var record = new ImageIntakeRecord(
                 Guid.NewGuid(),
                 request.Origin,
                 request.NormalizedVehicleRegistration,
-                ImageIntakeReferenceFormat.Create(request.NormalizedVehicleRegistration, 1)));
+                ImageIntakeReferenceFormat.Create(request.NormalizedVehicleRegistration, 1),
+                SubmissionGroupId: request.SubmissionGroupId);
+            ImageStore.Existing = new(record, DateTimeOffset.UtcNow, null, null,
+                GroupExpectedMemberCount: GroupExpectedMemberCount);
+            return Task.FromResult(record);
         }
     }
 
@@ -752,6 +787,7 @@ public sealed class AutomaticImageIntakeTests
 
     private sealed class FakeMutationStore : IIntakeMutationStore
     {
+        public FakeReceiptQueries ReceiptQueries { get; set; } = null!;
         public List<AutomaticIntakeLinkRequest> AutoLinks { get; } = [];
 
         public Task<IntakeReceipt> ResolveAsync(
@@ -780,6 +816,17 @@ public sealed class AutomaticImageIntakeTests
             CancellationToken cancellationToken)
         {
             AutoLinks.Add(request);
+            if (ReceiptQueries.Receipt?.Id == request.ReceiptId)
+            {
+                ReceiptQueries.Receipt = ReceiptQueries.Receipt with
+                { ManualLinkedCaseId = request.CaseId, ManualAssociationVersion = 0 };
+            }
+            var index = ReceiptQueries.Receipts.FindIndex(receipt => receipt.Id == request.ReceiptId);
+            if (index >= 0)
+            {
+                ReceiptQueries.Receipts[index] = ReceiptQueries.Receipts[index] with
+                { ManualLinkedCaseId = request.CaseId, ManualAssociationVersion = 0 };
+            }
             return Task.CompletedTask;
         }
     }
@@ -951,6 +998,10 @@ public sealed class AutomaticImageIntakeTests
                 DateTimeOffset.UtcNow,
                 members);
 
+            Register.ImageStore = ImageIntakeQueries;
+            Register.GroupExpectedMemberCount = GroupStore.Group.ExpectedMemberCount;
+            ImageIntakeQueries.ReceiptQueries = ReceiptQueries;
+            MutationStore.ReceiptQueries = ReceiptQueries;
             automation = new ImageIntakeAutomation(
                 Engine,
                 SuggestionStore,
@@ -959,15 +1010,14 @@ public sealed class AutomaticImageIntakeTests
                 ImageIntakeQueries,
                 Register,
                 CaseCandidates,
-                MutationStore,
                 ReceiptQueries,
                 new ImageIntakeCasePairing(
                     ImageIntakeQueries,
                     CaseCandidates,
                     MutationStore,
                     TimeProvider.System,
-                    new CommittedWorkPublisherDouble()),
-                TimeProvider.System,
+                    new CommittedWorkPublisherDouble(),
+                    ReceiptQueries),
                 GroupStore);
         }
 
