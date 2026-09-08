@@ -12,13 +12,13 @@ stageEntered:
 taken_at: '2026-09-08T17:52:41.849Z'
 branch: PLAT-046-destructive-migration-shutdown
 worktree: .worktrees/plat-046
-claim_expires_at: '2026-09-08T19:07:42.662Z'
+claim_expires_at: '2026-09-08T19:09:16.346Z'
 claim_controller: codex-mcp-client
 lease_id: f52130e7-d7ab-40ac-aa69-edb643bda825
-lease_revision: 10
+lease_revision: 11
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-046'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T18:37:42.662Z'
+lease_heartbeat_at: '2026-09-08T18:39:16.346Z'
 labels:
   - release
   - worker
@@ -28,9 +28,14 @@ links:
   - TICK-077
 refs:
   - docs/runbook.md
+commits:
+  - bbae334ca33c1f89617dfe458d8d7ac45dff24a0
+  - 7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/711'
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-09-08T18:37:42.662Z'
+updated: '2026-09-08T18:40:12.942Z'
 ---
 
 ## What

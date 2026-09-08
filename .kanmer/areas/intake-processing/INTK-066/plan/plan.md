@@ -195,3 +195,9 @@ No live operations, no merge, no foreign cleanup. Keep claim/worktree on pause.
 ## Stop condition
 Implementation and proportional evidence recorded truthfully, PR open to configured
 integration branch, ready for independent kanmer-review. Do not merge or start another ticket.
+
+## Primary affected-consumer correction — 8 September 2026
+
+This addendum records newly discovered real callers rather than pretending they were in the initial map. Mail/Message consumes the old generic SearchAsync and must retain its trimmed minimum-two-character, bounded generic search through existing ISearchCases. Cases/Index has a real Attach form (line259 at baseline) and post-attach redirect handling; it is not an unused inheritance. Keep that Awaiting image capability wired through the new shared bound confirmation contract, including actual selected image origin/receipt versions, explicit reviewed target, safe replay and error rendering. The additional exact files are recorded in files/files.md's affected-consumer disposition. No new service/schema/dependency or unrelated queue redesign is authorized.
+
+Because that existing queue includes registered Mail/Provider images, the shared query eligibility permits ImageIntakeRegistered across channels for explicit staff association; ordinary receipts remain ManualUpload scoped. Automatic Mail/Provider pairing remains unchanged. Update corresponding Core eligibility assertions with the exclusive test owner. Add CasesIndexWebTests and relevant MailWorkspaceWebTests to affected verification; update only affected cases-index captures with the actual catalogue scope, using the same sole-host ownership rules. Original source plan and earlier findings remain historical evidence.

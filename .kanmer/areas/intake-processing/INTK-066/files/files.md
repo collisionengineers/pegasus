@@ -68,3 +68,18 @@ No new dependency, DDL, grants, runtime asset package or release operation.
 Mailbox/provider automatic policy, arbitrary manual Audit creation, unresolved
 full-v1 Audit/Completed/Query changes, public session/capacity tickets, Principal
 document moves, alert/cloud changes, production reset/promotion/deployment.
+
+## Necessary affected-consumer disposition — 8 September 2026
+
+Static caller inspection found two consumers not named in the original map. These are necessary consequences of changing the shared upload confirmation contract, not unrelated cleanup. Add only:
+
+| Path | Why |
+| --- | --- |
+| src/Pegasus.Web/Pages/Mail/Message.cshtml.cs | Retain its supported generic Case search through existing ISearchCases, trimming/minimum-length/bounded result semantics; no upload-specific query dependency. |
+| src/Pegasus.Web/Pages/Cases/Index.cshtml.cs | Preserve existing Awaiting instruction image attach handler through new bound shared confirmation contract; selected-image receipt scope, reviewed versions and retry/error rendering. |
+| src/Pegasus.Web/Pages/Cases/Index.cshtml | Update its existing Attach form to the same explicit confirmation/reviewed-input contract; do not remove supported capability. |
+| tests/Pegasus.IntegrationTests/CasesIndexWebTests.cs | Prove the existing Awaiting image attach path remains wired and properly scoped. |
+| tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs | Relevant unchanged generic Case-search behavior if required by direct caller diff. |
+| docs/design/test-ui/pages/cases-index--*.html | Affected queue snapshots only; resolve exact catalogue scope before capture. |
+
+The existing Awaiting image queue supports explicit staff association for registered images from Mail/Provider as well as ManualUpload. CanOffer may therefore accept ImageIntakeRegistered across channels, while ordinary receipt eligibility and all new automatic ManualUpload guards stay scoped as planned. Core owns this single eligibility rule; no fallback or duplicate policy.
