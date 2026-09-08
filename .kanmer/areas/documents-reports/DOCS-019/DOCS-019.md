@@ -2,10 +2,12 @@
 id: DOCS-019
 type: ticket
 title: Design README still asserts the embedded Andy signature resource (D18-era)
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-09-08T04:17:00.364Z'
 labels:
   - sign-off
   - case-workspace-v2
@@ -18,7 +20,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-09-03T19:35:41.384Z'
-updated: '2026-09-03T19:35:41.384Z'
+updated: '2026-09-08T04:17:00.364Z'
 ---
 
 ## What

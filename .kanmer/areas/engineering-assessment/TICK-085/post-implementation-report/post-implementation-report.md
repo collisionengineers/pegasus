@@ -6,7 +6,7 @@ Source frozen for root verification on 2026-09-08, not verified or delivered.
 Branch TICK-085-glass-pdf-import; worktree .worktrees/tick-085.
 HEAD/base cdaa02584c38ecc27d3bd24784f59da189138bc1.
 No author build, test, capture, commit, PR, provider or cloud call.
-Plan 16b065e44461cc55; files 43b95919921e9630, both read back.
+Plan 9ba1a1686461dd62; files 43b95919921e9630, both read back.
 28 source/doc/test paths: 25 modified, 3 added; generated UI still owed root.
 
 ## Implementation
@@ -107,8 +107,8 @@ fixture now models imported mutation and lease consumption; a completion replay
 must keep one Draft, the same workflow version and fresh lease, without another
 writer/history side effect. Fresh import must still clear authority on GET.
 
-Second finding confirmed; correction in progress, not yet frozen. Canonical import must also reuse AssessmentAccessPolicy on the persisted
-workflow before bytes/OCR/hash replay and again in the imported-save transaction.
+Second finding confirmed and now corrected below. Canonical import must also
+reuse AssessmentAccessPolicy on the persisted workflow before bytes/OCR/hash replay and again in the imported-save transaction.
 CaseMutationGuard alone is insufficient: it permits nonterminal pre-handoff
 states which the assessment policy makes read-only. Use the existing policy,
 not a second lifecycle list. Retain the just-accepted Review MCP setup as a
@@ -123,3 +123,35 @@ uses the design authority's provider-plus-sequence default, without an initial
 Name field or handler parameter. Pass an empty name into the existing canonical
 command. Keep Core/MCP explicit names and the ordinary estimate-name editor.
 Update the initial Web expectation to Audatex 1, not an arbitrary supplied name.
+
+
+## Corrected source freeze — 2026-09-08
+
+All three root-confirmed pre-runtime findings are corrected within the mapped
+28 paths. No compiler/runtime attempt has run or been claimed.
+
+1. Browser completion now stores the canonical command's validated submitted
+   authority and lets existing RestoreLeaseState clear it against persisted
+   state on GET. CompletingAnImportedSourceAgainKeepsFreshBrowserAuthorityWithoutAnotherMutation
+   exercises real Core hash replay through HTTP, one recorded writer/Draft,
+   unchanged modeled workflow version and active lease, and a redirected form
+   carrying lease-2 without Recover editing. The fresh-import test still proves
+   lease-1 is absent and Edit Case is offered after consumed authority. This Web
+   fixture models persistence; actual history/count assertions remain in the
+   mapped real MCP and EF tests, not claimed from the fake.
+2. EfRepairSpecificationStore invokes one private RequireAssessmentEditable
+   helper in both persisted pre-read authority and imported-save transaction.
+   It delegates to AssessmentAccessPolicy.IsReadOnly; no duplicate state list.
+   The real MCP test first proves Review refuses with no bytes, OCR operation
+   or Draft, then performs IAssignCaseEngineer native handoff and acquires new
+   MCP authority for import/replay. The SQL test explicitly exercises Review,
+   NotReady and Held refusal at both entry points with no version/history/Draft
+   mutation. FRD-06 now states the same existing engineering-state requirement.
+3. The raw Web Name field/handler argument are removed; upload/completion pass
+   empty name for canonical provider-plus-sequence naming. Initial Web import
+   asserts Audatex 1, and the source-selector negative also proves import-name
+   absent. Core/MCP explicit names and ordinary editor rename are unchanged.
+
+Existing root filters above already cover all new assertions; no additional
+cohort or full-suite duplication is needed. Latest bounded git diff --check
+passed exit 0. Source is frozen again for one combined root runtime attempt.

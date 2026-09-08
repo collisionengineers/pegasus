@@ -7,7 +7,8 @@ Implemented the existing image-to-Case recovery path at author commit
 `cdaa02584c38ecc27d3bd24784f59da189138bc1`. Branch
 `INTK-063-image-link-recovery`, recorded worktree `.worktrees/intk-063`.
 Nineteen mapped files changed, +1222/-290; clean author tree after commit.
-PR: pending publication to dev in this authorized handoff.
+PR: [#696](https://github.com/collisionengineers/pegasus/pull/696), OPEN to dev;
+GitHub head read back as the exact author SHA above.
 
 Plan `10543d55d4090f66` and files `a2712472fca53cc9` were approved by root
 before the corresponding changes. FRD-02 and EPIC-014 are the governing

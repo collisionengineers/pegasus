@@ -11,3 +11,10 @@ Implementation and focused tests are authored on the recorded isolated worktree.
 Unchecked acceptance remains deliberate: root runtime/snapshot verification and
 the genuine fifth retained OCR oracle are still outstanding. No builds/tests,
 commit, PR or external service calls were performed by the author.
+
+
+Pre-runtime review corrections: browser authority on source replay, persisted
+assessment-editable-state gate before read and final save, and canonical Web
+initial naming are implemented and frozen. Runtime/all-five acceptance boxes
+remain unchecked; root owns the first combined verification. No test failure
+has yet been observed on this branch because no runtime command has run.

@@ -11,15 +11,15 @@ stageEntered:
 taken_at: '2026-09-08T02:44:23.546Z'
 branch: INTK-063-image-link-recovery
 worktree: .worktrees/intk-063
-claim_expires_at: '2026-09-08T04:40:20.319Z'
+claim_expires_at: '2026-09-08T04:46:36.241Z'
 claim_controller: root
 lease_id: 96040972-2231-4565-8a48-d176ea4c6aec
-lease_revision: 13
+lease_revision: 14
 lease_worker_run: pack_reconcile
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-063'
 lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-08T04:10:20.319Z'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T04:16:36.241Z'
 labels:
   - image-intake
   - pairing
@@ -36,12 +36,14 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
   - e7db237e47322d2378ccf44749d97024db377aeb
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/696'
 deployment: not-deployed
 delivery_state: not-integrated
 delivery_recorded_at: '2026-09-08T04:15:55.596Z'
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T04:15:55.596Z'
+updated: '2026-09-08T04:17:04.588Z'
 ---
 
 ## What
