@@ -59,3 +59,27 @@ OUTPUT: Expected exactly 5 PowerShell code fences; found 0.
 ```
 
 Disposition: **INCONCLUSIVE**. The retry confirms CRLF was not the sole discovery mismatch; the source fence shape does not match the harness's exact unindented three-backtick `powershell` line assumption. No code block reached the PowerShell parser and no embedded command executed. Per the one-retry grant, no further fence inspection, harness edit or retry ran. The ignored harness is intentionally retained at `artifacts/deliv-055-parse.ps1` for diagnosis. DELIV-054 post-merge verification did not start. All invoked processes exited.
+
+## Sole-host documentation verification final — 2026-09-08 — PASS
+
+Root's read-only diagnosis established that all five PowerShell fences are indented three spaces inside a numbered list. Under an explicit renewed grant, the retained ignored harness changed only its opening/closing anchors to permit leading whitespace while retaining exact five-block discovery and non-executing `Parser.ParseInput` validation.
+
+```text
+COMMAND: pwsh -NoProfile -File ./artifacts/deliv-055-parse.ps1
+EXIT: 0
+PARSE PASS block=1
+PARSE PASS block=2
+PARSE PASS block=3
+PARSE PASS block=4
+PARSE PASS block=5
+POWERSHELL_BLOCK_COUNT=5
+```
+
+Together with the final-freeze link result:
+```text
+COMMAND: pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1
+EXIT: 0
+All relative Markdown links resolve (140 files checked).
+```
+
+Final disposition: **PASS** for the granted documentation scope. All five embedded PowerShell blocks parsed and none executed. Markdown placement is N/A because the change modifies existing Markdown files only; the earlier missing-`Base`/`Head` invocation remains retained as a harness-contract failure. The earlier zero-block attempts remain retained as CRLF/indentation harness-discovery failures, not content failures. The ignored parser harness was removed after PASS. No recipe/azd/bundle/migration/release/live/cloud operation, application build/test, browser, source edit or child agent ran.

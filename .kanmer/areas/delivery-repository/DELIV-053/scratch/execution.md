@@ -170,3 +170,7 @@ Commit `f9f9cc0a9a66da15306b49ffa34f1d5b253c524d` is pushed on `DELIV-053-codex-
 ## Host slot re-grant — DELIV-055 parser harness correction — 2026-09-08
 
 After the prior attempt stopped and returned IDLE, /root authorized one bounded correction/retry of the ignored DELIV-055 parser-discovery harness. Sole slot owner is again `/root/agent_config_verifier`. Scope: replace the CRLF-sensitive fence regex with line-state discovery, require exactly five `powershell` fences, parse every block without executing it, retain the failed attempt, and continue to DELIV-054 detached verification only if this passes. No source edit, recipe execution, live operation, application build/test or competing verifier is authorized. Slot state: **ACTIVE**.
+
+## Host slot re-grant — DELIV-055 indented-fence correction — 2026-09-08
+
+After the retained retry failure and root's read-only diagnosis, /root authorizes one exact ignored-harness correction: allow leading whitespace on the opening and closing fence lines, retain the five-block requirement, and rerun once. Root confirmed the source uses three-space-indented numbered-list fences; this is a harness discovery issue, not a content failure. If the parse passes, proceed to the already granted DELIV-054 detached verification. Sole owner `/root/agent_config_verifier`; slot **ACTIVE**.
