@@ -51,3 +51,118 @@ Against current `origin/dev`, what exact-message state actions belong to MAIL-13
 ## Open questions
 
 Two operator decisions remain: the protected permanent-deletion conflict/role, and the canonical approved Outlook-category set/owner.
+
+# Current research — TICK-054, 2026-09-08
+
+## Question and authority
+
+Refresh the recoverable-only exact-message action scope against accepted dev
+`19e6f523bf6760cab39104b4dca3674b0ac8a512`. This section supersedes the old
+August current-state findings above; the old research is retained as history,
+not execution authority. No source, test, mailbox or cloud action was taken.
+
+Current ticket body and checked questions `06febe8dac9f44a2` settle read/unread,
+one approved-category add/remove, flag/unflag, recoverable Delete, and Restore
+to the server-recorded prior approved folder. Permanent deletion is forbidden
+for every role. FRD-08's category catalogue, exact retained identity, deliberate
+opened-message actions, retained evidence and outbound Flag/Delete clauses;
+EPIC-006; and EPIC-011 D4/D22 agree. Ordinary policy-designated movement remains
+MAIL-07. Compose/send/EVA detection and MAIL-031 Administration are not absorbed.
+The fresh root instruction authorises planning only; no take or implementation.
+
+## Findings
+
+- **Existing mover, not a planned dependency:** Core
+  `Intake/RetainedMailFolderMove.cs` contains `MoveRetainedMailFolder`,
+  `IRetainedMailFolderMoveStore`, `IRetainedMailFolderMover` and the exact
+  coordinates/result types. The EF implementation is
+  `Persistence/EfRetainedMailFolderMoveStore.cs`; its journal is
+  `RetainedMailFolderMoveEntity` in `MailboxEntities.cs`, configured in
+  `MailboxModelConfiguration.cs`. Unique operation key plus one pending or
+  uncertain operation per retained message already exclude concurrent writes.
+  It reserves before Graph and probes the immutable item's parent after an
+  uncertain move. The existing Message handler posts expected classification,
+  recommendation and mailbox versions, reason and operation key.
+- **Classification restriction is not a Delete gate:** existing MoveAsync
+  resolves only the current classification's designated logical folder.
+  `MailLogicalFolderType` contains business destinations, not Inbox or Deleted
+  Items. Delete/Restore must use explicit Core actions and server-owned approved
+  folder coordinates without invented classification or recommendation values;
+  they reuse the move transport and journal/exclusion, not its destination rule.
+- **Current state cannot overwrite arrival evidence:**
+  `RetainedMailboxMessageEntity.IsRead/FolderIdentity/FolderScope` describe
+  retention. The list's `BuildMatches` still uses arrival IsRead, and hides an
+  Inbox row after any successful journal move. That latter rule would wrongly
+  keep a restored-to-Inbox item hidden and must become effective-current-folder
+  filtering for this caller. The same projection owns list counts, detail and
+  search; do not introduce a second unread/folder rule in Razor. A small durable
+  current Outlook state/version/observed-time projection in the existing EF
+  owner is required; immutable source metadata is not a mutable cache.
+- **Concrete transport reuse:** `GraphMailClient` in
+  `Email/GraphApprovedSources.cs` already has `MoveMessageAsync`,
+  `ReadMessageParentFolderAsync` and `ResolveDeletedItemsFolderAsync`.
+  `GraphRetainedMailFolderMover` delegates move/probe, but no production
+  composition registers it. DI line 101 still installs only
+  `UnavailableRetainedMailFolderMover`. MAIL-028 owns that activation, not
+  MAIL-031 or a claim that TICK-049's old production label proves a live writer.
+  TICK-049 proof explicitly says no writer/Outlook mutation was activated.
+- **Catalogue exists and is not Graph's master catalogue:**
+  `ApprovedOutlookCategories.cs` owns the global entry and
+  `ResolveApprovedOutlookCategory`; `EfApprovedOutlookCategoryStore` reloads
+  active entries. `/Administration/MailCategories` is the real admin caller.
+  MAIL-004 proof `c17ceee04e5daf70` explicitly leaves MAIL-13 consumption
+  undelivered. Post only internal category ID; resolve current active exact
+  display name and version before mutation. Never create a new catalogue,
+  colours, Graph master-category synchronisation or search/linking semantics.
+- **Dependency direction:** live links show TICK-049 and MAIL-004 block
+  TICK-054; both implementations are integrated. TICK-054 blocks MAIL-031,
+  whose backlog body owns Administration policy controls. MAIL-031 is not an
+  unfinished prerequisite to the exact-message commands. MAIL-028 activation
+  remains separate. MAIL-027's old flag/delete clauses duplicate this settled
+  owner; its outbound/EVA scope remains untouched and it is not claimed here.
+- **Why the stream did not deliver these actions:** Astra
+  `v1_implementation_plans/DEFERRED-WORK.md:35` explicitly excludes
+  TICK-054, MAIL-028 and MAIL-026/027 flag/delete clauses; browsing and staff
+  send are distinct. The latest user request brings credential-free Preparing
+  work back into scope. This is an explicit deferred residual, not evidence
+  that PLAT-075 implemented Flag/Delete. PLAT-075 stays Verifying on its foreign
+  `task/pegasus-v1-platform` / `../pegasus-worktrees/v1-platform` record;
+  no force-take, release, cleanup or historical rewrite is authorised.
+- **Recovery limit:** SQL and Graph are not atomic. Existing cancellation
+  handoff can mark a move uncertain, but a process loss can leave pending.
+  New state actions must not strand or blindly repeat that operation: use the
+  same-key read-only probe, keep unresolved outcomes occupied, and distinguish
+  an observed target state from proof that Pegasus caused an external change.
+  A still-active pending request must not be released by a competing replay.
+
+## Provider facts checked read-only
+
+No project-declared sources exist (`get_sources`: declaredCount 0). Official
+Microsoft Graph v1 pages were read, with no provider request:
+
+- [Update message](https://learn.microsoft.com/en-us/graph/api/message-update?view=graph-rest-1.0)
+  documents PATCH of isRead, categories and flag, Mail.ReadWrite and a returned
+  updated message. Omitted properties remain unaffected; category replacement
+  must be derived from the freshly read full collection, not caller strings.
+- [Move message](https://learn.microsoft.com/en-us/graph/api/message-move?view=graph-rest-1.0)
+  documents exact-message move and destinationId. Reuse move for Deleted Items
+  and Restore, never DELETE or permanentDelete.
+- [Immutable IDs](https://learn.microsoft.com/en-us/graph/outlook-immutable-id)
+  documents the immutable-ID preference and same-mailbox stability. Every
+  exact read/mutation keeps that header; never cross a mailbox boundary.
+- [Message resource](https://learn.microsoft.com/en-us/graph/api/resources/message?view=graph-rest-1.0)
+  defines changeKey as the message version and parentFolderId/read/flag fields.
+  The update page does not establish a contractual If-Match guarantee for this
+  endpoint. Do not manufacture one from generic OData guidance. Carry the
+  returned ETag unchanged when available, send conditional PATCH, fail closed
+  on stale/missing expected state, and keep provider enforcement as an explicit
+  activation evidence obligation. A fake 412 test cannot prove live enforcement.
+
+## Implications
+
+One bounded extension of the existing retained-mail owner is sufficient:
+closed exact-message actions, existing journal/exclusion/move adapter,
+current-state projection, and thin authenticated Message handlers. No new
+runtime, queue, dispatcher, package, general mail framework, permanent delete,
+mailbox-wide synchronisation or TICK-088 work. Root owns verification; activation
+and disposable-message evidence remain distinct from local implementation.
