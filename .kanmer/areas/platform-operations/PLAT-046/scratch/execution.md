@@ -86,3 +86,11 @@ No dotnet, cloud, Azure, recipe execution, SQL, browser, source edit, commit, pu
 ## Failure diagnosis / bounded correction authorization — 2026-09-08
 
 Root statically located first Local failure: Test-AzureDeploymentPlan lines362–372 still regex-extracts literal AzureWebJobs.Disabled names from production smoke after smoke correctly moved to the canonical helper. This obsolete parser returns empty Actual; parameter binding fails. Author authorized to reconcile that affected assertion with smoke's canonical helper assignment while retaining exact Bicep/producer census and every live missing/extra/duplicate/value failure check. Do not allow empty census or restore duplicate runtime name lists. No test or live rerun authorized until corrected local commit freezes and a fresh canonical host grant. The bbae334 failure remains genuine retained evidence; platform PASS remains its exact-head result only.
+
+## Offline verification failure and correction — 2026-09-08
+
+The canonical host verifier recorded a platform PASS followed by Test-AzureDeploymentPlan Local failure on frozen commit bbae334ca33c1f89617dfe458d8d7ac45dff24a0. The failure is retained: Test-AzureDeploymentPlan still regex-extracted literal AzureWebJobs Disabled names from Invoke-ProductionSmoke after smoke moved to the canonical producer, so its extracted census was empty.
+
+Root authorized the bounded affected-consumer correction. Test-AzureDeploymentPlan now asserts that production smoke assigns expectedWorkerSettings from Get-PegasusWorkerDisabledSettingNames, while retaining the existing smoke assertions for live settings read, activation value mapping, ordinal name set, WorkerOnly, ActivationOnly, default exact census, disabled-setting query and recovery-timer behavior. Its Bicep source and compiled-template exact censuses remain unchanged. No empty-census allowance or duplicate list was added.
+
+Git diff check passed with an LF-to-CRLF advisory. Committed the one-file correction locally as 7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08, Keep deployment plan smoke census canonical. Branch is clean. No rerun, host command, cloud operation, push, or PR was performed; this exact head requires fresh verifier binding.
