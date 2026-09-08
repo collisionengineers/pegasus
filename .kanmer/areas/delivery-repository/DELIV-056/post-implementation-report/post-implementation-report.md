@@ -2,7 +2,7 @@
 
 ## Outcome
 
-The bounded D56 fixture correction is implemented across the final ten test files. It replaces stale QDOS route/body-token fixtures with actual definitive PDF instruction evidence, retains the original behavioral assertions, and records the two narrow amendments exposed by focused verification. No production policy, schema, runtime route, helper framework, dependency, documentation, corpus, commit, push, PR, merge, release or deployment changed.
+The bounded D56 fixture correction is implemented across the final ten test files. It replaces stale QDOS route/body-token fixtures with actual definitive PDF instruction evidence, retains the original behavioral assertions, and records the two narrow amendments exposed by focused verification. The retained base HEAD is `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`. No production policy, schema, runtime route, helper framework, dependency, documentation, corpus, commit, push, PR, merge, release or deployment changed.
 
 ## Changed files
 
@@ -23,10 +23,11 @@ The bounded D56 fixture correction is implemented across the final ten test file
 
 - Current static check: `git diff --check` passed (exit 0; only repository LF-to-CRLF advisories).
 - Current full binary diff hash: `bdbe80e82a6569a4a79ee57f44998f98f679eef2`; the final change set is 294 insertions / 108 deletions across exactly the ten paths above.
+- Original broad coverage was the host-owned 13-class `FullyQualifiedName~` selection, started at 2026-09-08T14:54:38Z: 269 total, 261 passed, 7 failed, 1 skipped, exit 1. Its retained TRX is `artifacts/verification/deliv-056-focused-host-20260908.trx` (SHA-256 `01E4E965C1203ECEBE13AB50DCF0DDCF16EBAD2A416F581D60119E76BF411C7F`). Six original D56 failures were later corrected; the seventh is the deferred UploadConfirmation/browser current-contract decision owned by [[INTK-066]].
 - Designated host incremental Release build at 2026-09-08T15:59:40Z passed, exit 0, with 0 warnings and 0 errors.
 - The seven-method focused run at hash `bfa477f890e1da5fb570c0bdecfd0825459a3f7c` passed five unchanged-source methods, including the Send-to-Claude negative launcher assertion, and failed only the two Audit version-token methods. Its failure record is retained in `scratch/verify.md@7fc07a84d76567c5`.
 - The exact two-method Audit delta at hash `bdbe80e82a6569a4a79ee57f44998f98f679eef2` passed 2/2, exit 0; TRX SHA-256: `A44267FEB86853AEBD7039F53D2231B10CD51C86211476075DAA7957830B69D7`.
-- Together, every named D56 correction method has focused PASS evidence at its applicable frozen diff. This is not a broad-suite PASS. The original 269-selected / 7-failed broad attempt, the earlier exact-six 4-pass / 2-fail attempt, and the exact-seven 5-pass / 2-fail attempt remain preserved and are not represented as passing runs.
+- Together, every named D56 correction method has focused PASS evidence at its applicable frozen diff. This is not a broad-suite PASS. The original broad attempt and the earlier exact-six and exact-seven partial-pass attempts remain preserved and are not represented as passing runs.
 
 ## Governing documents
 
@@ -39,4 +40,4 @@ The bounded D56 fixture correction is implemented across the final ten test file
 
 ## Handoff
 
-The implementation is ready for root publication review only. Do not commit, push, open a PR, merge, move stages, or run additional verification without the next explicit authorization.
+Publication authorization is in effect: after reconfirming the frozen ten-file diff, commit only those files, push the recorded branch, open one draft PR to `dev`, record its exact commit/PR, move the ticket to Review, and mark that PR ready for independent review. Do not rebase, merge, alter the base, run additional verification, or clean up the worktree.
