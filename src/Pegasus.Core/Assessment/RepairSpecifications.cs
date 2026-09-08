@@ -278,6 +278,13 @@ public sealed record AcceptRepairSpecificationRequest(
 
 public interface IRepairSpecificationStore
 {
+    /// <summary>Checks persisted current edit authority without consuming it.</summary>
+    Task RequireImportAuthorityAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Only the canonical retained-document importer supplies these validated source-backed rows.</summary>
+    Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
+        SaveEstimateRequest request, CancellationToken cancellationToken);
+
     Task<RepairSpecificationVersion> StartDraftAsync(
         StartRepairSpecificationDraftRequest request,
         CancellationToken cancellationToken);

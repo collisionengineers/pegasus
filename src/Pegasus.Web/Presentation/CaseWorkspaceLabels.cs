@@ -1,6 +1,7 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Presentation;
 
@@ -13,6 +14,20 @@ namespace Pegasus.Web.Presentation;
 public static class CaseWorkspaceLabels
 {
     public const string HandToEngineer = "Hand to Engineer";
+
+    public static class EstimateImport
+    {
+        public const string Complete = "Complete import";
+        public const string Sources = "Retained estimate sources";
+        public const string SourceRetained = "Estimate source retained.";
+        public const string Imported = "Estimate imported as a Draft.";
+        public static string OcrStatus(IntakeOcrState? state) => state switch
+        {
+            IntakeOcrState.Unknown => "OCR outcome unknown.",
+            IntakeOcrState.Failed => "OCR failed.",
+            _ => "OCR pending.",
+        };
+    }
 
     /// <summary>
     /// The Vehicle section's lookup-chip surface. These live here, not in the

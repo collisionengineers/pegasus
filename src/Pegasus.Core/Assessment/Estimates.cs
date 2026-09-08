@@ -662,6 +662,33 @@ public static class EstimatePolicy
         };
     }
 
+    public static void RequireImportActor(ActionActor actor)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (actor.Kind != ActorKind.Automation)
+        {
+            RepairSpecificationPolicy.RequireEngineer(actor);
+        }
+    }
+
+    /// <summary>Document import is not an AI-draft save and conveys no acceptance authority.</summary>
+    public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
+    {
+        CaseLifecycleRules.ValidateMutation(request);
+        RequireImportActor(request.Actor);
+        if (request.EstimateId is not null || request.AiJobId is not null || request.ExistingLineIds is not null
+            || !RepairSpecificationPolicy.IsDocumentRoute(request.Source.Route))
+        {
+            throw new InvalidOperationException("A retained document import creates a new source-backed Draft only.");
+        }
+        return request with
+        {
+            Details = ValidateDetails(request.Details),
+            Lines = AssessmentPolicy.NormalizeRepairSpecificationLines(request.Lines),
+            Source = RepairSpecificationPolicy.ValidateSource(request.Source),
+        };
+    }
+
     /// <summary>
     /// One estimate line's money and time. The shared line normalizer calls
     /// this for every path that writes an estimate line, so panel hours,

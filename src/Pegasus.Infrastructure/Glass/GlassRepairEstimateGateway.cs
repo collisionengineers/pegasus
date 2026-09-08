@@ -681,7 +681,7 @@ public sealed class GlassRepairEstimateGateway(
 
         try
         {
-            results.ImportedEstimateId = await import.ExecuteAsync(
+            var imported = await import.ExecuteAsync(
                 new ImportRawEstimateRequest(
                     actor,
                     session.CaseId,
@@ -692,10 +692,15 @@ public sealed class GlassRepairEstimateGateway(
                             "A retained Glass's export names no Case occurrence, so it cannot be imported."),
                     results.Xml.VersionId!.Value,
                     results.Xml.Sha256!,
-                    RepairSpecificationSourceRoute.Glasses,
                     $"{session.OperationKey}:import",
                     Name: string.Empty),
                 cancellationToken);
+            results.ImportedEstimateId = imported.EstimateId;
+            if (imported.EstimateId is null)
+            {
+                return await WriteAsync(session, GlassRepairEstimateSessionState.AwaitingImport,
+                    null, provider, callbackDigest, results, cancellationToken);
+            }
         }
         catch (Exception stale)
             when (stale is CaseVersionConflictException

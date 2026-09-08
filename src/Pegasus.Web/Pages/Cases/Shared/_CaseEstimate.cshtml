@@ -6,6 +6,7 @@
 @using TotalsLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateTotals
 @using VatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat
 @using DiscountLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateDiscount
+@using ImportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.Case!.Workflow.CaseId;
@@ -87,6 +88,34 @@
             }
         </div>
     </section>
+
+    @if (Model.PendingEstimateSources.Count > 0)
+    {
+        <section class="panel" aria-labelledby="estimate-source-title">
+            <div class="panel-head"><h2 id="estimate-source-title">@ImportLabels.Sources</h2></div>
+            <div class="panel-body stack">
+                @foreach (var source in Model.PendingEstimateSources)
+                {
+                    <div class="button-row">
+                        <span>@source.Version.FileName</span>
+                        @if (canImport)
+                        {
+                            <form method="post" asp-page="/Cases/Details" asp-page-handler="CompleteEstimateImport"
+                                  asp-route-id="@caseId" asp-route-section="estimate">
+                                <input type="hidden" name="expectedVersion" value="@Model.Case.Workflow.Version" />
+                                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                <input type="hidden" name="occurrenceId" value="@source.Occurrence.Id" />
+                                <input type="hidden" name="documentVersionId" value="@source.Version.Id" />
+                                <input type="hidden" name="sha256" value="@source.Version.Sha256" />
+                                <button type="submit" class="btn">@ImportLabels.Complete</button>
+                            </form>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    }
 
     @* Only the Engineer's own session renders, and only once one exists —
        another Engineer's runs inside another external account. *@
@@ -438,30 +467,15 @@
             <form method="post" enctype="multipart/form-data" asp-page="/Cases/Details"
                   asp-page-handler="ImportEstimate" asp-route-id="@caseId" asp-route-section="estimate">
                 <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
+                <input type="hidden" name="expectedVersion" value="@Model.Case.Workflow.Version" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <div class="dialog-body stack">
-                    <div>
-                        <label for="import-name">@EngineerLabels.EstimateName</label>
-                        <input type="text" id="import-name" name="name" maxlength="100" required data-dialog-initial-focus />
-                    </div>
-                    <div>
-                        <label for="import-source">@EngineerLabels.Source</label>
-                        <select id="import-source" name="source">
-                            <option value="audatex-pdf" selected>@EngineerLabels.AudatexPdf</option>
-                            <option value="json">@EngineerLabels.JsonEstimate</option>
-                            <option value="other" disabled>@EngineerLabels.Other</option>
-                        </select>
-                    </div>
                     <div class="dropzone" data-dropzone>
                         <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
                         <label for="estimate-file">@EngineerLabels.EstimateDropzone</label>
-                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,.json,application/pdf,application/json" required />
+                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,.json,.xml,application/pdf,application/json,application/xml,text/xml" required data-dialog-initial-focus />
                         <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>@EngineerLabels.ChooseFile</button>
                         <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
-                    </div>
-                    <div>
-                        <label for="import-reason">@EngineerLabels.Reason</label>
-                        <input type="text" id="import-reason" name="reason" maxlength="500" />
                     </div>
                 </div>
                 <div class="dialog-foot">

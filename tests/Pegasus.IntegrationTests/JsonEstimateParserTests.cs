@@ -13,6 +13,15 @@ public sealed class JsonEstimateParserTests
 {
     private readonly JsonEstimateParser parser = new();
 
+    private ParsedEstimate Parse(ReadOnlyMemory<byte> content)
+    {
+        var read = parser.Parse(content);
+        Assert.Empty(read.QualifiedOcrPages);
+        var parsed = Assert.IsType<ParsedEstimate>(read.Estimate);
+        Assert.Equal(RepairSpecificationSourceRoute.Json, parsed.Route);
+        return parsed;
+    }
+
     [Theory]
     [InlineData("estimate.json", "application/octet-stream", true)]
     [InlineData("ESTIMATE.JSON", "", true)]
@@ -22,13 +31,9 @@ public sealed class JsonEstimateParserTests
         Assert.Equal(expected, parser.CanParse(fileName, mediaType));
 
     [Fact]
-    public void TheRouteIsJson() =>
-        Assert.Equal(RepairSpecificationSourceRoute.Json, parser.Route);
-
-    [Fact]
     public void ParsesOperationsAndTypesWithTheirOwnFigures()
     {
-        var result = parser.Parse(Bytes(
+        var result = Parse(Bytes(
             """
             {
               "schema": "pegasus-estimate/1",
@@ -72,7 +77,7 @@ public sealed class JsonEstimateParserTests
     [Fact]
     public void ParsesBlendSpecialistRowMaterialsProvenanceAndTheDocumentsOwnTotals()
     {
-        var result = parser.Parse(Bytes(
+        var result = Parse(Bytes(
             """
             {
               "schema": "pegasus-estimate/1",
@@ -119,7 +124,7 @@ public sealed class JsonEstimateParserTests
     [Fact]
     public void ADocumentThatNamesNoProviderOrTotalsStillImports()
     {
-        var result = parser.Parse(Bytes(
+        var result = Parse(Bytes(
             """
             {
               "schema": "pegasus-estimate/1",
@@ -153,7 +158,7 @@ public sealed class JsonEstimateParserTests
     [InlineData("zero quantity", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "quantity": 0 } ] }""")]
     public void AnythingAmbiguousRejectsTheWholeImport(string reason, string document)
     {
-        var rejected = Record.Exception(() => parser.Parse(Bytes(document)));
+        var rejected = Record.Exception(() => Parse(Bytes(document)));
         Assert.True(rejected is EstimateParseRejectedException, reason);
     }
 

@@ -20,7 +20,6 @@ using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
-using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Glass;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
@@ -51,8 +50,7 @@ public sealed partial class DetailsModel(
     IDiscardEstimate discardEstimate,
     ISetCurrentEstimate setCurrentEstimate,
     IRepairSpecificationStore repairSpecifications,
-    IEstimateDocumentParser estimateParser,
-    JsonEstimateParser jsonEstimateParser,
+    IImportRawEstimate importRawEstimate,
     IAddCaseDocument addCaseDocument,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     ICaseAssetPreparationStore caseAssetPreparations,
@@ -263,6 +261,12 @@ public sealed partial class DetailsModel(
     public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
 
     public IReadOnlyList<RepairSpecificationVersion> Estimates { get; private set; } = [];
+
+    public IReadOnlyList<CaseFile> PendingEstimateSources => Case is null ? [] :
+        CaseFiles.Live(Case.Documents)
+            .Where(file => file.Occurrence.SourceOccurrenceIdentity.StartsWith("estimate-import:", StringComparison.Ordinal)
+                && !Estimates.Any(estimate => string.Equals(estimate.Source.Sha256, file.Version.Sha256, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
 
     public RepairSpecificationVersion? SelectedEstimate { get; private set; }
 
@@ -2500,174 +2504,126 @@ public sealed partial class DetailsModel(
     public static string VatCategoryField(EstimateVatCategories category) =>
         "estimateVat" + category;
 
-    /// <summary>
-    /// ENG-026: the estimate import. The file is parsed first
-    /// (no side effects — a rejected parse retains nothing), then retained
-    /// through the existing case-document custody path, then landed as a
-    /// named Draft estimate carrying the route, source version and hash of
-    /// the retained document. Nothing feeds a report until an Engineer makes
-    /// an estimate Current.
-    /// </summary>
+    /// <summary>Retain once, then use the same source-backed import as MCP and Glass's.</summary>
     public async Task<IActionResult> OnPostImportEstimateAsync(
         Guid id,
+        long expectedVersion,
         string operationKey,
         string? editLeaseToken,
-        string? name,
-        string? source,
-        string? reason,
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        var importAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (importAccess?.CanOpen != true)
-        {
-            return NotFound();
-        }
-        if (!actor.IsInRole(StaffRole.Engineer))
-        {
-            TempData["CaseError"] = "Only an Engineer can import an estimate.";
-            return RedirectToEstimate(id);
-        }
-        if (importAccess.IsReadOnly)
-        {
-            TempData["CaseError"] = "The case is read-only once Complete.";
-            return RedirectToEstimate(id);
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
-        }
-        var trimmedName = name?.Trim();
-        if (string.IsNullOrEmpty(trimmedName))
-        {
-            TempData["CaseError"] = "Name the imported estimate.";
-            return RedirectToEstimate(id);
-        }
-        var isJson = string.Equals(source, "json", StringComparison.OrdinalIgnoreCase);
-        if (!isJson && !string.Equals(source, "audatex-pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            // Only the sources the form offers; anything else is not this form's post.
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
-        }
-        var parser = isJson ? jsonEstimateParser : estimateParser;
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null) return guard;
+        if (!TryGetActor(out var actor)) return Forbid();
         if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
         {
             TempData["CaseError"] = "Choose a non-empty estimate file of 10 MB or less.";
             return RedirectToEstimate(id);
         }
-        if (!parser.CanParse(estimateFile.FileName, estimateFile.ContentType))
-        {
-            TempData["CaseError"] = isJson
-                ? "Only a JSON estimate can be imported from this source."
-                : "Only a PDF estimate can be imported from this source.";
-            return RedirectToEstimate(id);
-        }
 
-        await using var buffer = new MemoryStream((int)estimateFile.Length);
-        await estimateFile.CopyToAsync(buffer, cancellationToken);
-        var content = buffer.GetBuffer().AsMemory(0, checked((int)buffer.Length));
-
-        ParsedEstimate parsed;
-        try
+        // Bound the actual stream too; the form's advertised length is not authority.
+        await using var input = estimateFile.OpenReadStream();
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int count;
+        while ((count = await input.ReadAsync(chunk, cancellationToken)) > 0)
         {
-            parsed = parser.Parse(content);
+            if (buffer.Length + count > MaximumEstimateUploadBytes)
+            {
+                TempData["CaseError"] = "Choose an estimate file of 10 MB or less.";
+                return RedirectToEstimate(id);
+            }
+            buffer.Write(chunk, 0, count);
         }
-        catch (EstimateParseRejectedException exception)
-        {
-            TempData["CaseError"] = exception.Message;
-            return RedirectToEstimate(id);
-        }
-
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
-        {
-            return NotFound();
-        }
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            TempData["CaseError"] = NotInEditMode;
-            return RedirectToEstimate(id);
-        }
-
-        var caseVersion = details.Workflow.Version;
-        var artifactIdentity = $"estimate-import:{operationKey}";
         AddCaseDocumentResult retained;
         try
         {
             retained = await addCaseDocument.ExecuteAsync(
-                new(
-                    id,
-                    Path.GetFileName(estimateFile.FileName),
-                    isJson ? "application/json" : "application/pdf",
-                    content,
-                    DocumentSemanticRole.Other,
-                    DocumentSource.StaffUpload,
-                    artifactIdentity,
-                    actor,
-                    $"{operationKey}-document",
-                    caseVersion,
-                    editLeaseToken),
+                new(id, Path.GetFileName(estimateFile.FileName), estimateFile.ContentType, buffer.ToArray(),
+                    DocumentSemanticRole.Other, DocumentSource.StaffUpload, $"estimate-import:{operationKey}",
+                    actor, $"{operationKey}-document", expectedVersion, editLeaseToken!),
                 cancellationToken);
         }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
+        catch (StaffAuthorizationException) { return Forbid(); }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception,
-                "The estimate was not imported because the case changed or another editor holds it. "
-                + "Nothing was recorded; retry the import.");
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The estimate source could not be retained.");
             return RedirectToEstimate(id);
         }
 
+        if (retained.IsReplay || retained.Version.CustodyStatus != DocumentCustodyStatus.Confirmed)
+        {
+            // Retention replay makes no new Case mutation and cannot resurrect an
+            // old form's authority. Pending custody is not yet readable evidence.
+            // Complete the confirmed source from the current form in either case.
+            if (!retained.IsReplay) ClearLeaseState();
+            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.SourceRetained;
+            return RedirectToEstimate(id);
+        }
         try
         {
-            var draftLease = await acquireLease.ExecuteAsync(
-                new(id, caseVersion + 1, actor, NewOperationKey()),
+            // A fresh staff AddCaseDocument consumes exactly one version. Never
+            // adopt currentCaseVersion, which could include an intervening edit.
+            var importVersion = checked(expectedVersion + 1);
+            var lease = await acquireLease.ExecuteAsync(new(id, importVersion, actor, NewOperationKey()), cancellationToken);
+            StoreLeaseAuthority(id, lease.Token);
+            return await ImportRetainedEstimateAsync(new(actor, id, importVersion, lease.Token,
+                retained.Occurrence.Id, retained.Version.Id, retained.Version.Sha256, operationKey, string.Empty),
                 cancellationToken);
-            StoreLeaseAuthority(id, draftLease.Token);
-            var imported = await saveEstimate.ExecuteAsync(
-                new(
-                    id,
-                    caseVersion + 1,
-                    actor,
-                    operationKey,
-                    string.IsNullOrWhiteSpace(reason) ? "Estimate imported from a document" : reason.Trim(),
-                    draftLease.Token,
-                    null,
-                    new(trimmedName, null, null, null, null, EstimatePolicy.DefaultVatPercent, null),
-                    parsed.Lines,
-                    new(parser.Route, artifactIdentity, parsed.SourceVersion, retained.Version.Sha256)),
-                cancellationToken);
-            ClearLeaseState();
-            TempData["CaseStatus"] =
-                $"{trimmedName} was imported as a draft with {parsed.Lines.Count} lines for your review. "
-                + "The original document is kept on the case.";
-            return RedirectToEstimate(id, imported.SpecificationId.ToString("D"));
         }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
+        catch (StaffAuthorizationException) { return Forbid(); }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleLeaseFailure(id, PeekLeaseToken(), exception);
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception,
-                "The original document was kept on the case, but the estimate lines were not "
-                + "recorded because the case changed. Retry the import.");
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The source was retained; complete import using the current edit authority.");
+            return RedirectToEstimate(id);
         }
+    }
 
-        return RedirectToEstimate(id);
+    public async Task<IActionResult> OnPostCompleteEstimateImportAsync(
+        Guid id, long expectedVersion, string operationKey, string? editLeaseToken,
+        Guid occurrenceId, Guid documentVersionId, string sha256, CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null) return guard;
+        if (!TryGetActor(out var actor)) return Forbid();
+        try
+        {
+            return await ImportRetainedEstimateAsync(new(actor, id, expectedVersion, editLeaseToken!,
+                occurrenceId, documentVersionId, sha256, operationKey, string.Empty), cancellationToken);
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, editLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The import requires current edit authority.");
+            return RedirectToEstimate(id);
+        }
+    }
+
+    private async Task<IActionResult> ImportRetainedEstimateAsync(
+        ImportRawEstimateRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await importRawEstimate.ExecuteAsync(request, cancellationToken);
+            if (result.EstimateId is { } estimateId)
+            {
+                // A source-hash replay consumes no edit authority. The redirected
+                // GET clears this only when the persisted lease was consumed.
+                StoreLeaseAuthority(request.CaseId, request.EditLeaseToken);
+                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+                return RedirectToEstimate(request.CaseId, estimateId.ToString("D"));
+            }
+            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.OcrStatus(result.OcrState);
+        }
+        catch (EstimateParseRejectedException exception)
+        {
+            TempData["CaseError"] = exception.Message;
+        }
+        return RedirectToEstimate(request.CaseId);
     }
 
     private static string MutationRefusalMessage(Exception exception, string fallback) =>
