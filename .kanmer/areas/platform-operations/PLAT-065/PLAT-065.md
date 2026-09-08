@@ -36,10 +36,12 @@ blocks: []
 refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
+commits:
+  - fb00e457610535325de28d478c22eddef7c67705
 deployment: not-deployed
 archived: false
 created: '2026-09-01T14:40:45.034Z'
-updated: '2026-09-08T00:00:14.145Z'
+updated: '2026-09-08T00:02:10.178Z'
 ---
 
 ## What
