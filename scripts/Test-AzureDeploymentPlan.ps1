@@ -102,6 +102,28 @@ function Assert-ExactOrdinalCensus {
 function Test-ArtifactManifest {
     param([Parameter(Mandatory)][string] $Path)
 
+    function Assert-ZipRoot {
+        param(
+            [Parameter(Mandatory)][string] $ArchivePath,
+            [Parameter(Mandatory)][string] $RequiredRoot
+        )
+
+        $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+        try {
+            $hasRequiredRoot = @(
+                $archive.Entries | Where-Object {
+                    $_.FullName.StartsWith($RequiredRoot, [StringComparison]::Ordinal)
+                }
+            ).Count -gt 0
+            if (-not $hasRequiredRoot) {
+                throw "$(Split-Path -Leaf $ArchivePath) must contain $RequiredRoot at its root."
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+
     $resolvedManifest = Resolve-Path -LiteralPath $Path
     $manifest = Get-Content -LiteralPath $resolvedManifest -Raw | ConvertFrom-Json
     if ($manifest.schemaVersion -ne 3) {
@@ -148,6 +170,9 @@ function Test-ArtifactManifest {
             throw 'The Linux x64 migration bundle must be executable by its owner.'
         }
     }
+
+    Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'worker.zip') -RequiredRoot '.azurefunctions/'
+    Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredRoot '.playwright/'
 
     if (
         $manifest.webImage.repository -ne 'pegasus/web' -or
