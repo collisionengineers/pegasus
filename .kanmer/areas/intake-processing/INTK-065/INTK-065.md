@@ -33,12 +33,17 @@ links:
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 commits:
-  - 5e0aeb47b9cb87258e12f66967e1efee4743b3f3
+  - d76de2534ec6651c1a434a55f76593b7b140bf1c
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/706'
+deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: d76de2534ec6651c1a434a55f76593b7b140bf1c
+delivery_recorded_at: '2026-09-08T16:11:45.657Z'
 archived: false
 created: '2026-09-08T07:15:35.565Z'
-updated: '2026-09-08T16:10:29.158Z'
+updated: '2026-09-08T16:11:45.657Z'
 ---
 
 ## What
@@ -53,12 +58,28 @@ PR700's unit lane exposes source inventory drift inherited from [[TICK-035]]: th
 
 - Reuse the existing generator and hash-mode conventions; no runtime or corpus-original changes.
 - Distinguish current source links from the dossier's historical review baseline; do not promote evidence or rewrite the v5 evaluation.
-- Limit the proposed change to generator, tracked JSON, existing Core test and principal-rules README clarification.
-- This is an EPIC-014 supplemental follow-up. The original frozen 218-ticket roster stays unchanged; root owns the new single-ticket supplemental execution record. Preparation only until root approves the complete plan and current ownership.
+- Limit the change to generator, tracked JSON, existing Core test and principal-rules README clarification.
+- This is an EPIC-014 supplemental follow-up. The original frozen 218-ticket roster stays unchanged; root owns the new single-ticket supplemental execution record.
 
 ## Verification
 
-- [ ] Existing-helper affected-inventory regeneration is deterministic; every tracked source path/hash/byte count resolves, all evidenceRefs resolve, and historical sections/original hashes remain unchanged. Full original-input regeneration is unavailable on this host, not PASS; root approval of this evidence boundary is required.
-- [ ] Focused PrincipalIdentificationCorpusTests pass without dropped coverage, exclusions or fabricated old paths; root owns build/test execution.
+- [x] Existing-helper affected-inventory regeneration is deterministic; tracked current-source paths/hashes/byte counts and evidenceRefs resolve, while historical sections/original hashes remain unchanged.
+- [x] Focused PrincipalIdentificationCorpusTests passed without dropped coverage, exclusions or fabricated old paths; exact-merge proof retains the full-original-input regeneration limitation.
 
 ## Outcome
+
+PR #706 squash-merged into `dev` as
+`d76de2534ec6651c1a434a55f76593b7b140bf1c`. The author commit
+`5e0aeb47b9cb87258e12f66967e1efee4743b3f3` remains provenance; the merged
+SHA is the reachable integration record. The schema-2 proof records all nine
+typed attempts, including the retained harness exit 1 caused by an incorrect
+reference-count premise and its later inspected correction that passed against
+the same merged code/package.
+
+The review erratum, pre-merge failures, materialization supersession, and
+report/command transcription corrections remain in their recorded history.
+Full original-input corpus regeneration remains unavailable on this host and is
+not claimed as PASS. The material pre-merge refresh harness and focused TRX,
+plus exact-merge Core TRX and corrected harness, are retained outside the
+disposable worktree with verified hashes. This is a non-deployable inventory
+correction (`n/a`): no deployment, release promotion, or main update occurred.
