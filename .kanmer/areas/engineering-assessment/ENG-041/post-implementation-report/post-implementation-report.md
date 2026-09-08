@@ -322,3 +322,50 @@ Stop before commit/push/Review until root supplies actual results. Since PR683
 is merged, the later approved handoff needs a NEW dev-targeting follow-up PR,
 not an update claimed against a closed PR. Independent review and exact-follow-up
 merged verification remain owed. Worktree/claim and original FAIL are retained.
+
+## Post-merge correction attempt 1 and exact helper correction
+
+Root job94384 finished exit1. The correction build passed in 51.75 s with zero
+warnings/errors. Focused Integration reported 48 executed, 47 passed, one failed,
+zero skipped, in 2m53s. Both original callback journeys reached Completed/import;
+the sole failure was the new version-accounting assertion in
+TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession: expected
+launchVersion + 1 = 2, actual 1 at line336. This failed attempt is retained.
+
+Author read artifacts/verification/eng-041-custody-correction.trx directly:
+48 total/executed, 47 passed, one failed, zero notExecuted/error/inconclusive.
+TRX start 2026-09-08T02:00:55.9266207+01:00; finish
+2026-09-08T02:03:51.6984278+01:00.
+SHA-256 E32170BDAD1A4F74B29E11309C2F96041CCF933AA007378D3BDF9E2CD8994D81.
+Root reports all three correct fresh capture tests passed, with inputs retained
+in artifacts/eng-041-correction-capture. Snapshot verify and catalogue were not
+attempted because the guarded command stopped on the failing test. No visual
+pass, complete verification or deployment is claimed.
+
+Diagnosis: the existing test helper CaseVersionAsync queried CaseEntity.Version
+in Cases, whereas the real Glass authority and EfRepairSpecificationStore guard
+use CaseWorkflows.Version. Successful estimate import increments that workflow
+version and clears its lease through the existing Guard, not Cases.Version.
+Both fixture versions begin at 1, masking the helper error until the new
+post-import assertion. This is a wrong test observation, not evidence that
+import intentionally avoids the real Case mutation.
+
+After full run completion root explicitly approved changing ONLY that helper
+query from context.Set<CaseEntity>() / item.Id to context.CaseWorkflows /
+item.CaseId. Applied those two lines; Select(Version), SingleAsync, the +1
+assertion and the exact replay/no-extra-version assertion are unchanged.
+No production code changed after root's attempt. The correction remains seven
+files, now +210/-71 over188d3e16. Author git diff --check passed exit0 with only
+line-ending normalization warnings. Source is frozen again.
+
+Changed helper has four method callers: the failed callback, duplicate callback,
+exact-version/live-lease authority test, and two-row missing-vehicle-facts theory.
+Proposed minimal root rerun is therefore five cases under this exact filter:
+
+FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheSameReturnDeliveredTwiceRecordsNothingASecondTime|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheRealCaseAuthorityRequiresTheExactVersionAndLiveLease|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheRealCaseAuthorityRefusesIncompleteVehicleFacts
+
+Root owns the necessary incremental build and test invocation. No build/test
+was run by this author. Exact root command strings will accompany the final
+reported rerun; earlier 47 passes are not erased or silently presented as a
+fully passing cohort. Remain Implementing with claim/tree retained until root
+supplies the focused correction result and authorizes the new follow-up PR.

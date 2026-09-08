@@ -34,3 +34,11 @@ root/another independent agent must review the follow-up, not that author.
 - [x] Align the existing SQL fixture and add meaningful custody/replay/source-race assertions; clarify FRD-06 only.
 - [x] Freeze source and report exact focused filter to root without author build/test; retain original FAIL and prior attempts.
 - [ ] Record root focused verification and submit a new dev-targeting follow-up PR for independent review, then exact-merge proof.
+
+## Post-merge correction attempt 1 disposition
+
+- [x] Preserve root's 48-case attempt (47 PASS / 1 FAIL) and unchanged original merge FAIL; diagnose the sole new assertion failure against the real workflow authority.
+- [x] Apply only root-approved CaseVersionAsync query correction to CaseWorkflows/CaseId; retain +1 and replay assertions; freeze for the five affected cases.
+
+Root verification, snapshot completion and new follow-up PR remain unchecked
+above. This correction changes the observation target, not production behavior.
