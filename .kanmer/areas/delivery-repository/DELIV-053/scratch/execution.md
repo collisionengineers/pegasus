@@ -166,3 +166,7 @@ Root verification handoff: fresh persisted acceptance session 01a08159-c66e-7292
 ## Implementation handoff — 2026-09-08
 
 Commit `f9f9cc0a9a66da15306b49ffa34f1d5b253c524d` is pushed on `DELIV-053-codex-agents`. Draft PR https://github.com/collisionengineers/pegasus/pull/704 targets `dev`, records `Kanmer: DELIV-053`, and the ticket is now in Review. The post-implementation report and complete checklist retain the earlier INCONCLUSIVE harness attempts and final PASS acceptance evidence. No merge, deployment, or further verification command was run by the implementation author.
+
+## Host slot re-grant — DELIV-055 parser harness correction — 2026-09-08
+
+After the prior attempt stopped and returned IDLE, /root authorized one bounded correction/retry of the ignored DELIV-055 parser-discovery harness. Sole slot owner is again `/root/agent_config_verifier`. Scope: replace the CRLF-sensitive fence regex with line-state discovery, require exactly five `powershell` fences, parse every block without executing it, retain the failed attempt, and continue to DELIV-054 detached verification only if this passes. No source edit, recipe execution, live operation, application build/test or competing verifier is authorized. Slot state: **ACTIVE**.
