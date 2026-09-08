@@ -202,3 +202,13 @@ The ready packet authorizes only this exact map and the implementation
 sequence above. Freeze for root's focused runtime/capture verification before
 publication. After root PASS, report/push one dev PR and stop for independent
 review; no self-review/merge, live/provider action, new schema or deployment.
+
+## Direct-caller wording correction approved during implementation
+
+Root's independent Core-slice review found the three direct writable-state
+callers repeat a now-stale allowed-state list. In the mapped
+EfCaseWorkspaceStore, EfCaseAssessmentStore and EfValuationStore, replace
+only that denial wording with a current-state refusal. No guard, query or
+permission changes. The Core writable-state owner remains the single list.
+Root approved this exact bounded extension before edits; no tests assert the
+old wording. Preserve all other behavior and historical review dispositions.

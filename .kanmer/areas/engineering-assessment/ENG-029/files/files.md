@@ -19,6 +19,9 @@ Root approved this exact scope and handed off mapped files at 05:20 UTC on
 | src/Pegasus.Core/Assessment/AssessmentContracts.cs | Remove unused SettlementRepairDuration constant and writable definition only; add no vocabulary. |
 | src/Pegasus.Core/Assessment/AssessmentPolicy.cs | Include supported PostReport in existing writable-state owner only. Do not broaden any other lifecycle state or finding authority. |
 | src/Pegasus.Core/Reports/AssessmentReportProjection.cs | Expose the existing settlement calculation as one pure incomplete-input-safe projection reused by Case display and report generation; no duplicate formula/output record or changed report semantics. |
+| src/Pegasus.Infrastructure/Persistence/EfCaseWorkspaceStore.cs | Denial message only: remove stale duplicated lifecycle-state list; no guard or query change. |
+| src/Pegasus.Infrastructure/Persistence/EfCaseAssessmentStore.cs | Same directly affected denial-message correction only. |
+| src/Pegasus.Infrastructure/Persistence/EfValuationStore.cs | Same directly affected Engineer value denial-message correction only. |
 | docs/frd/frd-06-vehicle-and-engineering-evidence.md | Clarify one workspace editor and Estimate-owned repair days, typed storage/recovery ownership. Preserve TICK-085 canonical import decisions. |
 | docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md | Clarify current Report/Vehicle field writer and metadata-based named readiness, existing write states and sign-off/content/date rules only. |
 | docs/design/README.md | Align affected single-Save/Settlement/Vehicle/Report behavior and remove obsolete forced-demotion warning reference. No independent design or new screen. |
@@ -40,7 +43,7 @@ Root approved this exact scope and handed off mapped files at 05:20 UTC on
 
 ## Reuse/read-only boundaries
 
-CaseWorkspace.cs, EfCaseWorkspaceStore, EfAssessmentReportProjectionSource,
+CaseWorkspace.cs, EfAssessmentReportProjectionSource,
 CaseReportGeneration/CaseReportReadiness, CaseSignOffEngineerResolver,
 IStaffAccountQueries, AssessmentAccessPolicy, EstimateTotals/ReportRepairCosts,
 CaseDataCompletenessPersistenceTests.CaseDataHarness, existing Case page CSS,
