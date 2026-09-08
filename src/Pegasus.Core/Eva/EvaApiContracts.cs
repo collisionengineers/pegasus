@@ -89,6 +89,7 @@ public sealed record EvaInstructionPayload(
     /// than for the wire field it lands in.
     /// </summary>
     string ClaimantName,
+    string ClaimantAddress,
     string VehicleRegistration,
     string VehicleDescription,
     DateOnly? IncidentDate,

@@ -9,6 +9,9 @@ namespace Pegasus.Core.Tests.Qdos;
 /// </summary>
 public sealed class EvaApiMappingTests
 {
+    // Claimant-address example from the supplied EVA request model.
+    private const string ClaimantAddress = "22 Park Avenue";
+
     private static readonly EvaInstructionSettings Settings = new(
         "COLLENGAPI",
         "Vehicle Damage Inspection",
@@ -17,12 +20,13 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void TheExportsValuesTravelUnderEvasFieldNames()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
         Assert.Equal("COLLENGAPI", payload.RequestFrom);
         Assert.Equal("QDOS26031", payload.ExternalRef);
         Assert.Equal("AKH/47743/1", payload.ClaimNumber);
         Assert.Equal("A Smith", payload.ClaimantName);
+        Assert.Equal(ClaimantAddress, payload.ClaimantAddress);
         Assert.Equal("QDOS", payload.Agent);
         Assert.Equal("MT15OYK", payload.VehicleRegistration);
         Assert.Equal("Land Rover Defender 110", payload.VehicleDescription);
@@ -41,7 +45,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void TheExternalReferenceIsThePegasusCaseReferenceNotTheProvidersOwn()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
         Assert.Equal("QDOS26031", payload.ExternalRef);
         Assert.NotEqual(payload.ExternalRef, payload.ClaimNumber);
@@ -55,7 +59,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void ValuesEvaHasNoFieldForAreNamedInTheNote()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
         Assert.Equal(
             string.Join(
@@ -75,7 +79,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void TheInstructionDateIsLeftToEvaToSetOnReceipt()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
         Assert.DoesNotContain("Instruction Date", payload.Notes, StringComparison.Ordinal);
         Assert.DoesNotContain("05/02/2026", payload.Notes, StringComparison.Ordinal);
@@ -93,6 +97,7 @@ public sealed class EvaApiMappingTests
             Fields() with { Mileage = null, MileageUnit = null },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -113,6 +118,7 @@ public sealed class EvaApiMappingTests
                 null, null, null, null, null, null, null, null),
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -130,6 +136,7 @@ public sealed class EvaApiMappingTests
             Fields() with { MileageUnit = "Km" },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -151,6 +158,7 @@ public sealed class EvaApiMappingTests
             },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -172,6 +180,7 @@ public sealed class EvaApiMappingTests
             Fields() with { InspectionAddress = CaseEvaMapping.ImageBasedAssessment },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -187,7 +196,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void UnheldValuesAreSentAsEvasOwnNotKnownMembers()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
         Assert.Equal(EvaInstructionDefaults.NotKnown, payload.InUse);
         Assert.Equal(EvaInstructionDefaults.NotKnown, payload.VehicleDriveable);
@@ -205,6 +214,7 @@ public sealed class EvaApiMappingTests
             Fields() with { Vrm = " mt15 oyk " },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -222,6 +232,7 @@ public sealed class EvaApiMappingTests
             Fields() with { IncidentDate = "2026-01-31" },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []).IncidentDate);
 
@@ -234,7 +245,7 @@ public sealed class EvaApiMappingTests
             new("002 rear", ".png", new byte[] { 2 })
         ];
 
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, files);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, files);
 
         Assert.Equal(files, payload.Files);
     }
@@ -247,8 +258,8 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void RequestFromIsFixedAndAgentCarriesThePrincipal()
     {
-        var one = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
-        var two = CaseEvaApiMapping.Map(Fields(), "AKH26100", "AKH", Settings, []);
+        var one = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
+        var two = CaseEvaApiMapping.Map(Fields(), "AKH26100", "AKH", ClaimantAddress, Settings, []);
 
         Assert.Equal(one.RequestFrom, two.RequestFrom);
         Assert.Equal("QDOS", one.Agent);
@@ -266,6 +277,7 @@ public sealed class EvaApiMappingTests
             Fields() with { WorkProvider = "QDOS" },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -279,7 +291,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void AWorkProviderDifferingFromThePrincipalIsNoted()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", ClaimantAddress, Settings, []);
 
         Assert.Contains("Work Provider: Connexus", payload.Notes, StringComparison.Ordinal);
     }
@@ -299,6 +311,7 @@ public sealed class EvaApiMappingTests
             },
             "QDOS26031",
             "QDOS",
+            ClaimantAddress,
             Settings,
             []);
 
@@ -307,6 +320,23 @@ public sealed class EvaApiMappingTests
         Assert.Equal("Watford", payload.Location.City);
         Assert.Equal("London Hertfordshire", payload.Location.County);
         Assert.Equal("WD17 1AA", payload.Location.Postcode);
+    }
+
+    [Fact]
+    public void ClaimantAddressIsUnchangedAndSeparateFromTheInspectionLocation()
+    {
+        const string acceptedAddress = " 22 Park Avenue ";
+        var payload = CaseEvaApiMapping.Map(
+            Fields() with { InspectionAddress = "15 High Street\nWatford\nLondon\nHertfordshire\n\nWD17 1AA" },
+            "QDOS26031",
+            "QDOS",
+            acceptedAddress,
+            Settings,
+            []);
+
+        Assert.Equal(acceptedAddress, payload.ClaimantAddress);
+        Assert.Equal("15 High Street", payload.Location.Address);
+        Assert.Equal(2, CaseEvaApiMapping.MappingVersion);
     }
 
     private static EvaReplayFields Fields() => new(

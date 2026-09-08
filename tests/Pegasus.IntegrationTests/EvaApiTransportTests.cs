@@ -311,6 +311,8 @@ public sealed class EvaApiTransportTests
         Assert.Equal("QDOS26031", root.GetProperty("ExternalRef").GetString());
         Assert.Equal("MT15OYK", root.GetProperty("VehReg").GetString());
         Assert.Equal("A Smith", root.GetProperty("InsName").GetString());
+        Assert.Equal("22 Park Avenue", root.GetProperty("ClmAdd").GetString());
+        Assert.NotEqual(root.GetProperty("ClmAdd").GetString(), root.GetProperty("InspLocAdd").GetString());
         Assert.Equal("2026-01-31T00:00:00Z", root.GetProperty("DtIncident").GetString());
     }
 
@@ -372,6 +374,7 @@ public sealed class EvaApiTransportTests
                 "Miles"),
             "QDOS26031",
             "QDOS",
+            "22 Park Avenue",
             Options().Instruction,
             files);
 

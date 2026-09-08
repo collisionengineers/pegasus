@@ -1,4 +1,7 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
+using System.Text;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -46,6 +49,34 @@ public static class EvaSubmissionPolicy
     /// <summary>The one wording for "this case has no photographs to send".</summary>
     public const string NoRetainedImagesReason =
         EvaHandoffPolicy.NoRetainedImagesReason;
+
+    public const string InvalidClaimantAddressReason =
+        "EVA requires an accepted claimant address of at most 40 characters without control or format characters.";
+
+    /// <summary>
+    /// The current accepted claimant address, unchanged, or no usable API value.
+    /// A rejected current value never falls back to an older fact or suggestion.
+    /// </summary>
+    public static string? AcceptedClaimantAddress(CaseField<string> field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (field.Current is not { IsAccepted: true } current
+            || string.IsNullOrWhiteSpace(current.Value)
+            || current.Value.Length > 40)
+        {
+            return null;
+        }
+
+        foreach (var rune in current.Value.EnumerateRunes())
+        {
+            if (Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format)
+            {
+                return null;
+            }
+        }
+
+        return current.Value;
+    }
 
     /// <summary>
     /// Whether an operator may submit this case by hand. Requires the manual

@@ -1367,7 +1367,7 @@ public sealed class CustodyOutboxIntegrationTests
     /// this is the only thing that proves an archive comes out at all, which
     /// is what the operator asked for and what never worked.
     /// </summary>
-    [Fact]
+    [QdosMappingCustodyFact]
     public async Task EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -1376,25 +1376,31 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
 
         var fixtureId = Guid.NewGuid().ToString("N");
-        var message = new MimeKit.MimeMessage();
-        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
-        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
-        message.Subject = "QDOS test instruction";
-        var builder = new MimeKit.BodyBuilder
-        {
-            TextBody = $"QDOS instruction\r\nClaimant Name: Export Case {fixtureId}\r\nClaim Number: EXP-{fixtureId}",
-        };
-        builder.Attachments.Add(
-            "53364_1_LtrtoEngineerIn.pdf",
-            "%PDF-1.4 synthetic instruction letter"u8.ToArray(),
-            MimeKit.ContentType.Parse("application/pdf"));
+        var originalPath = Path.Combine(
+            QdosCorpus.Root,
+            "qdosmapping",
+            "(EREF10) RTA on 14_08_2026  Mr Paul Larcombe (Our Ref AMA_47857_1, Vehicle PG18 BTY).eml");
+        var originalBytes = await File.ReadAllBytesAsync(originalPath);
+        Assert.Equal(
+            "3063FF9ECB31878F582FB439047D999A41A7C6FE5B978CFBEE5C7E7F277553B4",
+            Convert.ToHexString(SHA256.HashData(originalBytes)));
+        using var originalStream = new MemoryStream(originalBytes);
+        using var message = await MimeKit.MimeMessage.LoadAsync(originalStream);
+        var mixed = Assert.IsType<MimeKit.Multipart>(message.Body);
+
+        // Derived export probe: retain the genuine envelope, body and instruction,
+        // adding only this fixture's existing two image assets in memory.
+        var builder = new MimeKit.BodyBuilder();
         var first = SyntheticJpeg();
         var second = SyntheticJpeg(shade: 90);
         builder.Attachments.Add(
             "1_CLVoffside-V1.jpg", first, MimeKit.ContentType.Parse("image/jpeg"));
         builder.Attachments.Add(
             "2_CLVnearside-V1.jpg", second, MimeKit.ContentType.Parse("image/jpeg"));
-        message.Body = builder.ToMessageBody();
+        foreach (var attachment in builder.Attachments)
+        {
+            mixed.Add(attachment);
+        }
         using var output = new MemoryStream();
         message.WriteTo(output);
 
@@ -1409,8 +1415,15 @@ public sealed class CustodyOutboxIntegrationTests
                     IntakeSourceChannel.ManualUpload,
                     $"case-export:{Guid.NewGuid():N}")),
             CancellationToken.None);
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        var outcome = await AcceptAsync(services, receipt.Id);
+        Assert.True(
+            receipt.Decision == IntakeDecision.CaseCreated,
+            $"Expected CaseCreated, got {receipt.Decision}: {receipt.DecisionReason}; "
+            + $"route={receipt.MailRouteDecision?.Reason}; profile={receipt.ExtractionPolicyKey}; "
+            + $"classification={receipt.MailClassificationDecision?.CaseType}.");
+        Assert.Equal(QdosInstructionExtractionPolicy.Key, receipt.ExtractionPolicyKey);
+        Assert.Equal(CaseType.InspectionAndAudit, receipt.MailClassificationDecision?.CaseType);
+        Assert.Equal("AMA/47857/1", receipt.InstructionDraft?.ClaimNumber);
+        var outcome = await AcceptAsync(services, receipt.Id, caseType: CaseType.InspectionAndAudit);
         await services.GetRequiredService<IProcessQueuedCustody>()
             .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
 
@@ -1463,12 +1476,14 @@ public sealed class CustodyOutboxIntegrationTests
             await principalSettings.SaveChangesAsync();
         }
         var evaTransport = new RecordingEvaTransport();
+        var evaImages = new RecordingEvaImageContentStore(services.GetRequiredService<IDocumentContentStore>());
+        var evaImageReader = new EvaCaseImageReader(evaImages);
         var submitter = new EvaSubmissionStore(
             services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
             services.GetRequiredService<ICaseDataQueries>(),
             services.GetRequiredService<IVehicleEvidenceQueries>(),
             services.GetRequiredService<IEvaSubmissionModeStore>(),
-            services.GetRequiredService<EvaCaseImageReader>(),
+            evaImageReader,
             evaTransport,
             new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
             services.GetRequiredService<TimeProvider>());
@@ -1676,7 +1691,7 @@ public sealed class CustodyOutboxIntegrationTests
         // ENG-015: Reference is the work provider's own reference -- the claim
         // number the letter carried -- not the Pegasus case reference. The
         // archive is still named by the case, asserted above.
-        Assert.Equal($"EXP-{fixtureId}", eva.RootElement.GetProperty("Reference").GetString());
+        Assert.Equal("AMA/47857/1", eva.RootElement.GetProperty("Reference").GetString());
         Assert.Equal(QdosPrincipal.Code, eva.RootElement.GetProperty("Work Provider").GetString());
         // Operator direction (2026-08-22): an absent inspection date is today's.
         Assert.False(
@@ -1777,6 +1792,98 @@ public sealed class CustodyOutboxIntegrationTests
         }
         var apiFirstVersion = (await services.GetRequiredService<ICaseWorkflowQueries>()
             .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!.Version;
+
+        // CASE-031: only the address field is varied. The existing accepted
+        // Case and retained photographs still exercise the production caller.
+        // The positive addresses are from the supplied EVA model and existing
+        // mapping fixture; malformed variants below are structural probes.
+        async Task SetClaimantAddressAsync(string? fact = null, string? suggestion = null, string? confirmed = null)
+        {
+            await using var addressContext = await services
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var addressRows = await addressContext.Set<CaseDataFieldEntity>()
+                .Where(item => item.CaseId == outcome.Identity.CaseId
+                    && item.FieldName == CaseDataFieldNames.ClaimantAddress)
+                .ToListAsync();
+            addressContext.RemoveRange(addressRows);
+            await addressContext.SaveChangesAsync();
+            foreach (var (kind, value) in new[]
+            {
+                (CaseDataCodes.Fact, fact),
+                (CaseDataCodes.Suggestion, suggestion),
+                (CaseDataCodes.Confirmed, confirmed)
+            })
+            {
+                if (value is null)
+                {
+                    continue;
+                }
+                addressContext.Add(new CaseDataFieldEntity
+                {
+                    CaseId = outcome.Identity.CaseId,
+                    FieldName = CaseDataFieldNames.ClaimantAddress,
+                    ValueKind = kind,
+                    ValueType = CaseDataCodes.Text,
+                    Value = value,
+                    SourceKind = CaseDataCodes.StaffCorrection,
+                    SourceIdentity = firstActor.SubjectId,
+                    SourceLabel = "CASE-031 supplied address boundary fixture",
+                    PolicyKey = "case-031-fixture",
+                    PolicyVersion = 1,
+                    ConfirmedByActor = kind == CaseDataCodes.Confirmed ? firstActor.SubjectId : null,
+                    ConfirmedAtUtc = kind == CaseDataCodes.Confirmed ? FixedUtcNow : null
+                });
+            }
+            await addressContext.SaveChangesAsync();
+        }
+
+        (string? Fact, string? Suggestion, string? Confirmed)[] invalidAddresses =
+        [
+            (null, null, null), // Missing or unresolved extraction has no accepted value.
+            (null, "22 Park Avenue", null),
+            (" \u00a0", null, null),
+            ("22\0 Park Avenue", null, null),
+            ("22 Park\nAvenue", null, null),
+            ("22\u200b Park Avenue", null, null),
+            ("22 Park Avenue".PadRight(41, 'x'), null, null),
+            ("22 Park Avenue", null, " ") // Do not fall back from invalid Confirmed to Fact.
+        ];
+        var beforeAddressRefusals = await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None);
+        await using var addressCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var historyCountBeforeAddressRefusals = await addressCheck.ActionHistory.CountAsync(item =>
+            item.AggregateType == "Case" && item.AggregateId == outcome.Identity.CaseId.ToString("D"));
+        var leaseBeforeAddressRefusals = await addressCheck.CaseWorkflows.AsNoTracking()
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .Select(item => new { item.EditLeaseToken, item.EditLeaseHolder, item.EditLeaseExpiresAtUtc })
+            .SingleAsync();
+        foreach (var address in invalidAddresses)
+        {
+            await SetClaimantAddressAsync(address.Fact, address.Suggestion, address.Confirmed);
+            var blocked = await submitter.ExecuteAsync(
+                new(outcome.Identity.CaseId, firstActor, Guid.NewGuid().ToString("N")),
+                CancellationToken.None);
+
+            Assert.NotNull(blocked);
+            Assert.False(blocked.IsSubmitted);
+            Assert.Equal([EvaSubmissionPolicy.InvalidClaimantAddressReason], blocked.BlockingReasons);
+            Assert.Equal(0, evaImages.ReadCount);
+            Assert.Equal(0, evaTransport.CallCount);
+            Assert.False(await addressCheck.EvaSubmissions.AnyAsync(item => item.CaseId == outcome.Identity.CaseId));
+            Assert.Equal(historyCountBeforeAddressRefusals, await addressCheck.ActionHistory.CountAsync(item =>
+                item.AggregateType == "Case" && item.AggregateId == outcome.Identity.CaseId.ToString("D")));
+            Assert.Equal(beforeAddressRefusals, await services.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(outcome.Identity.CaseId, CancellationToken.None));
+            Assert.Equal(leaseBeforeAddressRefusals, await addressCheck.CaseWorkflows.AsNoTracking()
+                .Where(item => item.CaseId == outcome.Identity.CaseId)
+                .Select(item => new { item.EditLeaseToken, item.EditLeaseHolder, item.EditLeaseExpiresAtUtc })
+                .SingleAsync());
+        }
+
+        await SetClaimantAddressAsync(fact: "22 Park Avenue");
         var firstApi = await submitter.ExecuteAsync(
             new(
                 outcome.Identity.CaseId,
@@ -1788,6 +1895,24 @@ public sealed class CustodyOutboxIntegrationTests
             .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
         Assert.Equal(CaseLifecycleState.ReportPreparation, afterFirstApi.State);
         Assert.Equal(apiFirstVersion + 1, afterFirstApi.Version);
+        Assert.Equal("22 Park Avenue", Assert.Single(evaTransport.Payloads).ClaimantAddress);
+        Assert.Equal(1, evaImages.ReadCount);
+
+        await SetClaimantAddressAsync(confirmed: "\u200b");
+        var knownApiReplay = await submitter.ExecuteAsync(
+            new(outcome.Identity.CaseId, firstActor, "88888888888888888888888888888888"),
+            CancellationToken.None);
+        Assert.Equal(firstApi!.Submission, knownApiReplay!.Submission);
+        Assert.Empty(knownApiReplay.BlockingReasons);
+        Assert.Equal(1, evaTransport.CallCount);
+        Assert.Equal(1, evaImages.ReadCount);
+        Assert.Equal(1, await addressCheck.EvaSubmissions.CountAsync(item => item.CaseId == outcome.Identity.CaseId));
+        Assert.Equal(historyCountBeforeAddressRefusals + 1, await addressCheck.ActionHistory.CountAsync(item =>
+            item.AggregateType == "Case" && item.AggregateId == outcome.Identity.CaseId.ToString("D")));
+        Assert.Equal(afterFirstApi, await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(outcome.Identity.CaseId, CancellationToken.None));
+
+        await SetClaimantAddressAsync(fact: "22 Park Avenue", confirmed: "15 High Street");
 
         var apiResend = await submitter.ExecuteAsync(
             new(
@@ -1801,6 +1926,8 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(CaseLifecycleState.ReportPreparation, afterApiResend.State);
         Assert.Equal(afterFirstApi.Version, afterApiResend.Version);
         Assert.Equal(2, evaTransport.CallCount);
+        Assert.Equal("15 High Street", evaTransport.Payloads[1].ClaimantAddress);
+        Assert.Equal(2, evaImages.ReadCount);
         Assert.Equal(2, await recheck.EvaSubmissions.CountAsync(
             item => item.CaseId == outcome.Identity.CaseId));
         Assert.Equal(2, await recheck.ActionHistory.CountAsync(item =>
@@ -1846,7 +1973,7 @@ public sealed class CustodyOutboxIntegrationTests
             services.GetRequiredService<ICaseDataQueries>(),
             services.GetRequiredService<IVehicleEvidenceQueries>(),
             services.GetRequiredService<IEvaSubmissionModeStore>(),
-            services.GetRequiredService<EvaCaseImageReader>(),
+            evaImageReader,
             versionRaceTransport,
             new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
             services.GetRequiredService<TimeProvider>());
@@ -1916,7 +2043,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ICaseDataQueries>(),
                 services.GetRequiredService<IVehicleEvidenceQueries>(),
                 services.GetRequiredService<IEvaSubmissionModeStore>(),
-                services.GetRequiredService<EvaCaseImageReader>(),
+                evaImageReader,
                 undeliveredTransport,
                 new EvaInstructionSettings("CASE040", "Desktop", "eva@example.test"),
                 services.GetRequiredService<TimeProvider>());
@@ -2036,12 +2163,14 @@ public sealed class CustodyOutboxIntegrationTests
     private sealed class RecordingEvaTransport(Func<Task>? afterSubmit = null) : IEvaApiTransport
     {
         public int CallCount { get; private set; }
+        public List<EvaInstructionPayload> Payloads { get; } = [];
 
         public async Task<EvaSubmissionResult> SubmitInstructionAsync(
             EvaInstructionPayload payload,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
+            Payloads.Add(payload);
             if (afterSubmit is not null)
             {
                 await afterSubmit();
@@ -2054,6 +2183,29 @@ public sealed class CustodyOutboxIntegrationTests
                 null,
                 payload.Files.Count);
         }
+    }
+
+    private sealed class RecordingEvaImageContentStore(IDocumentContentStore inner) : IDocumentContentStore
+    {
+        public int ReadCount { get; private set; }
+
+        public Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
+            IReadOnlyList<ManagedDocumentContentRead> reads, CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return inner.ReadVersionsAsync(reads, cancellationToken);
+        }
+
+        public Task StoreAsync(Guid caseId, string caseReference, Guid versionId,
+            ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId,
+            string expectedSha256, long expectedLength, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     /// <summary>
