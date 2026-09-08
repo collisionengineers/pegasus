@@ -7,7 +7,7 @@ reviewer: "codex-v1-remediation-root"
 independent: true
 plan_hash: "10543d55d4090f66"
 ticket_updated: "2026-09-08T04:25:42.240Z"
-board_sha: "168e02886dbd6a7def0f9bf3dd0ee1a999cb47ee"
+board_sha: "1592eb0cfa90800f866ec8c606a23676bb745f14"
 expected_reviewers:
   - "codex-v1-remediation-root"
 threads_snapshot: []
@@ -79,9 +79,9 @@ Gathered exact PR head/base, comments, reviews, checks and GraphQL review
 threads. The re-gather now includes root's public review PRR_kwDOThBrk88AAAABMjUefw
 on this exact head, repeating this disposition; no review threads exist and
 threads_snapshot is truthfully empty. Informational Codex security-summary comment
-IC_kwDOThBrk88AAAABTIpgiA says running with mergeGateEnabled:false; it contains
-no finding, is not an expected reviewer and is not claimed as a completed
-security review. Re-gather immediately before merge and disposition any new
+IC_kwDOThBrk88AAAABTIpgiA now says completed at2026-09-08T04:27:27.909671Z
+with mergeGateEnabled:false and contains no finding. It is ordinary evidence,
+not an expected reviewer or a required CI check. Re-gather immediately before merge and disposition any new
 substantive evidence.
 
 statusCheckRollup is empty, not green CI. The dev protection read returned
@@ -96,5 +96,7 @@ the approved bounded cohorts and retained failures. Final release/live
 acceptance remains with EPIC-014.
 
 Final re-gather retained exact head/base, empty checks and no review threads.
-Root public review was posted at2026-09-08T04:26:37Z; no new substantive finding
-was present. Expected independent reviewer root is settled on this head.
+The first final guard refused without a merge or source write because this
+informational comment changed from running to completed. Root re-gathered all
+comments, reviews and review threads at2026-09-08T04:36:38Z; there are no threads
+or new findings. Root public review was posted at2026-09-08T04:26:37Z. Expected independent reviewer root is settled on this head.

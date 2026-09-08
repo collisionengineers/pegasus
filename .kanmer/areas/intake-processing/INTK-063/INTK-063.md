@@ -2,13 +2,14 @@
 id: INTK-063
 type: ticket
 title: Recover Image-initiated Case pairing using current accepted identity
-status: review
+status: verifying
 area: intake-processing
 assignee: pack_reconcile
 profile: fix
 stageEntered:
   preparing: '2026-09-07T23:51:17.244Z'
   review: '2026-09-08T04:17:33.123Z'
+  verifying: '2026-09-08T04:37:40.981Z'
 taken_at: '2026-09-08T02:44:23.546Z'
 branch: INTK-063-image-link-recovery
 worktree: .worktrees/intk-063
@@ -44,7 +45,7 @@ delivery_state: not-integrated
 delivery_recorded_at: '2026-09-08T04:15:55.596Z'
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T04:25:42.240Z'
+updated: '2026-09-08T04:37:40.981Z'
 ---
 
 ## What
