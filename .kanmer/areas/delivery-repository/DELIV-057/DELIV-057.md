@@ -14,13 +14,13 @@ stageEntered:
 taken_at: '2026-09-08T13:34:30.046Z'
 branch: DELIV-057-seed-historical-vehicle-lookup-schema
 worktree: .worktrees/deliv-057
-claim_expires_at: '2026-09-08T15:18:31.455Z'
+claim_expires_at: '2026-09-08T16:11:29.071Z'
 claim_controller: codex-mcp-client
 lease_id: 8216975d-1775-4d5b-a9ef-f6a812bb3800
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-057'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T14:48:31.455Z'
+lease_phase: verifying
+lease_heartbeat_at: '2026-09-08T15:41:29.071Z'
 labels:
   - regression
   - test-fixtures
@@ -34,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/707'
 archived: false
 created: '2026-09-08T13:28:14.030Z'
-updated: '2026-09-08T15:38:07.533Z'
+updated: '2026-09-08T15:41:29.071Z'
 ---
 
 ## What
