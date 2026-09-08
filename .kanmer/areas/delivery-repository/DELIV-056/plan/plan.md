@@ -175,3 +175,15 @@ Stop after root reads and approves this entire revised plan/checklist. Until tha
 **Acceptance.** Each Audit test consumes the actual evidence created by `ProcessIntake`, so it reaches its unchanged acceptance/custody assertions without a duplicate `StandaloneAuditEvidence` insert. The designated host reruns only the same exact six-method command after this source change; no implementation-worker test/build, commit, push, PR, merge, release or deployment occurs.
 
 **Stop condition.** Stop after this plan addendum is recorded and root has reviewed its version. Do not edit source until root explicitly authorizes exactly the two call replacements.
+
+## SendToClaude display-correction addendum
+
+**Observed current contract.** In `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml`, the only interactive Send to Claude launcher is the anchor carrying `data-dialog-open="send-to-claude-dialog"`; its mutation form exists only in the separately rendered `data-dialog="send-to-claude-dialog"` dialog. When `AssessmentIsReadOnly` is true, the partial does not render the button row at all. `DetailsModel` fails an absent access answer closed to `AssessmentIsReadOnly = true`, and the existing `InaccessibleCaseCannotPostSendToClaude` proof already retains both dialog absence and a `404` for the POST.
+
+**One bounded change after root approval.** In `tests/Pegasus.IntegrationTests/SendToAiIntegrationTests.cs`, method `InaccessibleCaseCannotPostSendToClaude` only, replace the deleted stale positive gated-control regex with `Assert.DoesNotContain("data-dialog-open=\"send-to-claude-dialog\"", html, StringComparison.Ordinal)`. This is a specific negative assertion over the interactive launcher—not an absence assertion over the visible Send to Claude label, which can legitimately occur on a disabled control in other access states.
+
+**Preserve.** Keep the current dialog absence assertion and POST `HttpStatusCode.NotFound` assertion unchanged. Do not change the test fixture, Core read-only/access decision, Razor markup, endpoint guard, AI job recording seam, helper, seed, or any other D56 file. The Audit evidence-query correction remains at full-diff hash `14351132c034f809e4c6496b92430b75a46053a4` and has not yet been rerun.
+
+**Focused verifier handoff.** The next designated-host command is the existing exact six-method equality filter extended with exactly `Pegasus.IntegrationTests.SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude` (seven named methods total). The older 269-case result included the method after the stale regex deletion but is not proof of this stronger named assertion. The active INTK verifier owns the merge lane; this worker performs no build/test, commit, push, PR, merge, release or deployment.
+
+**Stop condition.** Stop after root reviews this plan addendum and its companion checklist item. Do not edit the test until root explicitly authorizes this one negative assertion.

@@ -24,3 +24,9 @@ The earlier D56 formal-document conversion remains recorded in scratch/notes.md 
   - InstructionDraftWebTests.IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes
 - 2026-09-08: direct changed-helper consumers are those same Audit/reevaluation methods, the CountingCustody cancellation method, and the InstructionDraft method. A helper extension is prohibited unless the existing real-PDF builder demonstrably cannot express truthful neutral document content and root separately approves it.
 - 2026-09-08: UploadConfirmation Attach and Browser UploadCaseSearch remain unmodified baseline current-contract work; HeldLease is expected to pass through D56’s existing formal SendToAi seed after integration.
+
+## SendToClaude display-correction addendum
+
+- [ ] After root approval, in `SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude` replace the obsolete positive gated-control regex with the precise negative assertion that the interactive `data-dialog-open="send-to-claude-dialog"` launcher is absent; retain the existing dialog-absence and POST-404 assertions, and change no fixture, helper, runtime path or other file.
+
+- 2026-09-08: designated-host verification must extend the existing exact six-method equality filter with only `SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude` (seven named methods). The earlier 269-case pass of this method predates the stronger assertion and is not proof of it.
