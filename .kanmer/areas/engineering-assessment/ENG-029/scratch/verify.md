@@ -92,3 +92,35 @@ Preflight at `2026-09-08T14:48:27.6971066Z` found only idle reusable MSBuild nod
 Postcheck at `2026-09-08T14:50:56.5167692Z` retained the same two-file status, clean diff check, and exact binary diff hash. Only idle reusable MSBuild nodes remained. No broader browser/capture/SQL cohort, rerun, source write, commit, push, PR update, merge, or stage mutation was performed. All previously recorded failures remain untouched.
 
 Disposition for the bounded F-004 caller lane: **PASS**. This does not satisfy or waive ENG-029's separately recorded multi-width manual visual acceptance, which remains INCONCLUSIVE/outstanding.
+
+## Merged-head F-004/documentation revalidation — PASS (2026-09-08)
+
+Verifier: `/root/agent_config_verifier`
+Frozen worktree: `.worktrees/eng-029`
+Branch: `ENG-029-case-workspace-editors`
+Exact merged head: `2cde68831485bfc426e062a83030edea661f976d`
+Parents: fixture commit `fef8909e2c256388c4d738ddf78f176e0e1b5cef`; accepted dev `a1f0bfe260ea05df531df6e0ca3109141e7697da`.
+
+Preflight at `2026-09-08T15:06:23.1922307Z` confirmed the exact clean branch/head and no active testhost/vstest command. The `fef8909…2cde688` range contained no `*.cs`, `*.csproj`, `*.props`, `*.targets`, `*.sln`, `global.json`, or `NuGet.config` change, so the already completed matching Release build was reused as authorized. The combined read-only probe exited 1 only because it also looked for the now-removed `scripts/verify_docs_links.py`; current HEAD owns `scripts/Test-DocumentationLinks.ps1`, which was inspected and then run below. This was not a product or documentation check failure and caused no retry of a verification command.
+
+### Commands
+
+1. `pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1`
+   - attempted_at: `2026-09-08T15:06:52.4419821Z`
+   - exit_code: **0**
+   - result: PASS
+   - summary: all relative Markdown links resolve; 140 files checked.
+2. `pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base fef8909e2c256388c4d738ddf78f176e0e1b5cef -Head 2cde68831485bfc426e062a83030edea661f976d`
+   - attempted_at: `2026-09-08T15:07:02.4896615Z`
+   - exit_code: **0**
+   - result: PASS
+3. `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~Pegasus.IntegrationTests.Browser.AssessmentReadinessSummaryBrowserTests.NotReadyReportDraftControlsStateTheConditionAndTheShellRenders|FullyQualifiedName~Pegasus.IntegrationTests.AssessmentEstimateImportWebTests.UseEstimateRecordsTheEngineersAcceptance" --logger "trx;LogFileName=eng-029-merged-f004-host-20260908.trx" --results-directory artifacts/verification`
+   - attempted_at: `2026-09-08T15:07:14.8383702Z`
+   - exit_code: **0**
+   - result: PASS
+   - summary: Failed 0, Passed 2, Skipped 0, Total 2.
+   - TRX SHA-256: `548339BFEE2D8945366FB063CA602D620C334D65AF73C03A63A0E3B12CBEB077`.
+
+Postcheck at `2026-09-08T15:08:07.2365852Z` confirmed exact HEAD and clean source status. Only idle reusable MSBuild nodes remained. No build, restore, source write, capture, broader test, commit, push, merge, or stage mutation was performed.
+
+Disposition: **PASS** for the merged-head documentation and two F-004 callers. The separately recorded 1580/1100/760 manual visual acceptance remains **INCONCLUSIVE/outstanding** and is neither satisfied nor waived by this pass.
