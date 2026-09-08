@@ -239,3 +239,9 @@ Canonical CEALEX-May25 host verification slot is now explicitly **IDLE / unassig
 ## Bounded parser invocation retry — PLAT-046 — 2026-09-08
 
 Root reread explicit IDLE version b4909293e70d6e8e. Grant sole CEALEX-May25 owner `/root/agent_config_verifier` **ACTIVE** for one corrected parser invocation at unchanged clean PLAT-046 HEAD `7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08`. Retain both prior failures. Recreate the ignored bounded parser with apply_patch; avoid native array-argument ambiguity by placing the exact two approved repo-relative source paths inside the harness or invoking each separately with correct PowerShell array binding. Parse every powershell fence in `.agents/skills/pegasus-release/SKILL.md` and its `references/database-migration.md`, including indented fences, require nonzero per-file counts and report totals, execute NO recipe code. No rerun of already passed checks, product edits, dotnet/browser/cloud/SQL/PR or push. Recheck frozen source hashes and process ownership first. On finish/failure retain result and explicitly return IDLE.
+
+## Host slot handoff — PLAT-046 corrected-head verification complete — 2026-09-08
+
+The bounded parser retry passed at unchanged exact HEAD `7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08`: all 14 release-skill and 5 migration-recipe PowerShell fences parsed with zero errors and no recipe execution. Combined with the preceding same-head PASS results for platform regression, Local deployment-plan validation, documentation links, and exact-range Markdown placement, PLAT-046's frozen verification queue is PASS. Both prior failures remain recorded. The ignored harness was removed; source stayed clean; no heavy process remains.
+
+Canonical CEALEX-May25 host verification slot is now explicitly **IDLE / unassigned**. INTK-066 still requires a separate fresh exact-input grant.

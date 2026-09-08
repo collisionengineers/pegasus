@@ -121,3 +121,24 @@ No product fix, dotnet, browser, cloud, recipe execution, SQL, commit, push, PR,
 - 2026-09-08T18:34:41.102Z lease-phase running-command → implementing (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 8; expires 2026-09-08T19:04:41.093Z)
 
 - 2026-09-08T18:35:58.123Z lease-phase implementing → running-command (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 9; expires 2026-09-08T19:05:58.113Z)
+
+## Bounded PowerShell-fence parser retry — PASS — 2026-09-08
+
+Canonical parser-only grant: DELIV-053 `scratch/execution` version `e8702f434cc74ad1`.
+Exact unchanged head: `7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08`.
+
+Preflight at 2026-09-08T18:35:51.6884773Z exited 0: exact clean branch/head; release skill SHA-256 `9A180D5EDE0D944F3990B9488F81B5BA8F0A87A4062621B581C065C605D4C789`; migration recipe SHA-256 `B48BB3D81CFA97D14FC038AA1C626A7F94FC3024B6E47A4E477E41B4BF650DEA`; zero heavy processes; prior harness absent; active execution contexts use distinct worktrees. Lease renewed to revision 9 in running-command phase.
+
+A fresh ignored apply_patch-created harness embedded exactly the two approved repo-relative paths, accepted indented `powershell`/`pwsh` fences, required nonzero per-file counts, and invoked only `System.Management.Automation.Language.Parser.ParseInput` on fence text. It did not invoke any parsed code.
+
+2026-09-08T18:36:33.7985811Z–2026-09-08T18:36:34.4407494Z — `pwsh -NoProfile -File ./artifacts/plat-046-parse-powershell-fences.ps1` — exit 0. Harness SHA-256 `EE9F02369260ED07C1509B550AEFD8F189E7396FE2A12B445EC34446D5BCC1AD`.
+
+- Release skill: 14 PowerShell fences parsed, 14 PASS.
+- Database-migration recipe: 5 PowerShell fences parsed, 5 PASS.
+- Total: 19 fences; parse failures: 0.
+
+The ignored harness was removed. Postcheck at 2026-09-08T18:36:51.1866471Z confirmed exact clean HEAD, harness absent, and zero heavy processes.
+
+Overall frozen corrected-head verification result: **PASS** when combined with the immediately preceding exact-head platform regression, Local deployment-plan, documentation-links, and Markdown-placement PASS results. Both earlier failures remain retained: the bbae334 Local contract failure and the first corrected-head parser invocation failure. No source edit, recipe execution, dotnet, browser, cloud/SQL/live action, commit, push, or PR occurred.
+
+- 2026-09-08T18:37:42.671Z lease-phase running-command → implementing (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 10; expires 2026-09-08T19:07:42.662Z)
