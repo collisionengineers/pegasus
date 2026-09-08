@@ -39,8 +39,6 @@
 | docs/design/test-ui/pages/upload-status--*.html | Affected generated route snapshots. |
 | docs/design/test-ui/pages/upload-group-status--*.html | Affected generated route snapshots. |
 | docs/design/test-ui/pages/case-create--*.html | Affected generated proposal snapshots, verify catalogue name first. |
-| docs/design/test-ui/assets/site.js | Generated existing JS asset when copied by snapshot generator. |
-| docs/design/test-ui/assets/site.css | Generated existing CSS asset if changed. |
 
 ## Context files
 
