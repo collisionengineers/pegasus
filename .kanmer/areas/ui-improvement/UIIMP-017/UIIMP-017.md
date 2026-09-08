@@ -2,7 +2,7 @@
 id: UIIMP-017
 type: ticket
 title: Use one office-time display and one reproducible Health snapshot state
-status: verifying
+status: done
 area: ui-improvement
 assignee: codex-mcp-client
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-08T00:42:19.213Z'
   review: '2026-09-08T02:33:30.782Z'
   verifying: '2026-09-08T02:38:06.618Z'
+  done: '2026-09-08T02:45:34.531Z'
 taken_at: '2026-09-08T01:56:09.050Z'
 branch: UIIMP-017-health-display
 worktree: .worktrees/uiimp-017
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/693'
 archived: false
 created: '2026-09-08T00:39:38.232Z'
-updated: '2026-09-08T02:38:06.683Z'
+updated: '2026-09-08T02:45:34.531Z'
 ---
 
 ## What
