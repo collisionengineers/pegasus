@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Align architecture assertions with current extraction selection and pairing
   composition
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T14:58:28.071Z'
+  review: '2026-09-08T15:20:07.226Z'
 taken_at: '2026-09-08T15:09:15.962Z'
 branch: DELIV-058-architecture-assertions
 worktree: .worktrees/deliv-058
@@ -30,10 +31,14 @@ refs:
   - docs/engineering.md
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-09-provider-and-intermediary-routes.md
+commits:
+  - 71c1bc1266583459d40b82c3d19d59af632afa7d
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/708'
 deployment: n/a
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T15:18:10.819Z'
+updated: '2026-09-08T15:20:07.226Z'
 ---
 
 ## What

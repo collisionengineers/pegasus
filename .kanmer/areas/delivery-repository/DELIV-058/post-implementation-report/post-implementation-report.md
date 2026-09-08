@@ -20,7 +20,7 @@ The changes preserve the explicit Core policy-selection boundary required by FRD
 
 Base: `origin/dev` at `a1f0bfe260ea05df531df6e0ca3109141e7697da`.
 Approved frozen blobs: `DependencyDirectionTests.cs` `77ca689ea1d91d694429cdcdee74ffd4ab29daf4`; `StagedArtifactReconciliationFunctionTests.cs` `80b74ef998d4ba905cd4b6dc05b10cea1945cd87`.
-Implementation commit: `71c1bc126c4678808ce53b733cd5a30c4c263ea3`.
+Implementation commit: `71c1bc1266583459d40b82c3d19d59af632afa7d`.
 
 ## Verification
 

@@ -1,71 +1,159 @@
-# Plan — DELIV-056: Align intake regression fixtures with definitive instruction evidence
+# Plan — DELIV-056: Correct six formal-evidence fixture regressions
 
 ## Objective
 
-Make the listed D2 regression scenarios reach their current assertions through the real intake paths, using a document that both selects QDOS and is formally classified as definitive. Align the one stale pre-handoff Send to Claude assertion.
+Correct the six D56-caused, in-scope failing methods without changing product policy, without undoing the prior conversion to real accepted documents, and without absorbing the unchanged UploadConfirmation/browser manual-attach contract defect.
 
-## Governing decisions
+## Starting state
 
-- `docs/frd/frd-02-intake-and-source-identity.md`: normal automatic allocation requires definitive evidence; transport evidence is not a substitute.
-- Extraction and classification are distinct: the actual document content needs the QDOS signature (`QDOS`, `Registration:`, `Our Client’s Vehicle:`) and a formal `ENGINEER NOTIFICATION` title.
-- Parent authorization permits one extension to the existing test helper, not a new fixture framework.
+The frozen worktree is .worktrees/deliv-056 on branch DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence. The sole-host broad regression command recorded in scratch/notes.md selected 269 cases (261 passed, 7 failed, 1 skipped; exit 1); it remains failure inventory evidence and is not narrow proof. The parent-reviewed root-cause packet is scratch/investigation.md@bf0ac77e9156b498. Evidence: research/research.md@6946d05dd2e760a3; files/files.md@5d3eccccfa0eaf23; prior plan/plan.md@6015cf1970066490; prior checklist/checklist.md@5ae85a2a1bc45166.
+
+Existing D56 real-document fixture edits remain in the worktree. This correction pass adds no changes outside the two paths below and does not alter those prior transport fixtures.
+
+## Governing docs
+
+- docs/frd/frd-02-intake-and-source-identity.md — **Meets.** Definitive authorised intake allocates one case idempotently; an exact existing-case match does not allocate a duplicate. Ambiguous/unidentified material stays on its truthful destination rather than being disguised as a positive instruction. The formal Audit shape must be evidence-backed before allocation.
+- docs/engineering.md — **Meets.** The implementation does not run checks in this planning phase. After implementation, one designated host runs the exact focused methods; the retained broad command remains a failure record rather than being represented as focused evidence.
 
 ## Required changes
 
-1. Add `IntakeTestEvidence.DefinitiveQdosInstructionDocument(...)` in `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs`. Its optional scenario-field parameters preserve intentional missing-field cases. It emits documented formal document text only; it does not generate a replacement mail path.
-2. Update the 13 named callers to place that text in their existing document transport (attachment, uploaded structured document, or equivalent existing document builder). Preserve input filename/sender/route/attachment counts and roles unless the specific scenario explicitly needs the instruction document asset.
-3. For display/setup-only case seeds, use the existing `AllocationTestData.StoreDefinitiveReceiptAsync` only where that preserves the original claim and deliberately does not bypass an intake-pipeline scenario.
-4. In SendToAI retain absent-dialog and denied-POST checks, remove only the stale disabled-control markup expectation.
+Four root-cause classes cover the six D56 failures:
+
+1. Audit two-document evidence: CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody and AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments each need both the formal Audit notification and a distinct, real original report carrying exactly one valid assessment. Preserve their current custody/review assertions.
+2. Honest pre-case source: CustodyOutboxIntegrationTests.ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted and ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt need a dedicated real PDF whose text truthfully identifies it as a QDOS source awaiting work-type classification. It must have no generated Engineer/Audit notification title. It is not a fake EmailBody route token or a document crafted to conceal a formal instruction; its purpose is the existing pre-case reevaluation contract.
+3. Attachment-aware custody test double: CancellationSqlFaultAndLeaseLossUseExactTaxonomyAndRequireStaffRecovery needs CountingCustody to count/delegate RetainAcceptedIntakeAttachmentAsync, allowing the current formal attachment to complete remote custody effects and the test’s injected SQL completion fault to be observed.
+4. Duplicate-source semantics: InstructionDraftWebTests.IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes must prove two independent receipt identities share one case through UniqueMatch/current-case association, with one allocation event and two receipt-recorded events. It must not replace the observed count with a weaker literal-only assertion.
+
+Reuse IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument directly for the neutral original-report and clearly labelled pre-case PDFs when it can express their actual content without an accepted work-type title. Do not edit IntakeWebTestSupport.cs merely for convenience. If implementation establishes that it cannot create a real, plainly labelled neutral document without accidental category text, stop and obtain parent approval before a minimal extension to that existing helper.
 
 ## Expected files
 
-| Action | Path | Responsibility |
+| Action | Repo-root-relative path | Responsibility |
 |---|---|---|
-| Modify | `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs` | One shared documented formal-instruction text helper. |
-| Modify | `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` | Existing mail/PDF custody inputs retain their path and asset assertions. |
-| Modify | `tests/Pegasus.IntegrationTests/InstructionDraftWebTests.cs` | Existing structured document draft inputs. |
-| Modify | `tests/Pegasus.IntegrationTests/ImageViewingWebTests.cs` | Existing image-view case seeds. |
-| Modify | `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` | Existing workspace intake caller. |
-| Modify | `tests/Pegasus.IntegrationTests/QdosTriageIntegrationTests.cs` | Existing QDOS/Triage caller. |
-| Modify | `tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs` | Existing queue caller. |
-| Modify | `tests/Pegasus.IntegrationTests/ImageIntakeWebTests.cs` | Existing image-intake case seed. |
-| Modify | `tests/Pegasus.IntegrationTests/MailboxIntakeIntegrationTests.cs` | Existing mailbox caller. |
-| Modify | `tests/Pegasus.IntegrationTests/MultiFormatIntakeWebTests.cs` | Existing DOCX/DOC/MSG/EML/PDF and guard inputs. |
-| Modify | `tests/Pegasus.IntegrationTests/RecoveryTests.cs` | Existing recovery seed. |
-| Modify | `tests/Pegasus.IntegrationTests/SendToAiIntegrationTests.cs` | Accepted-case seed and stale display assertion. |
-| Modify | `tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs` | Existing confirmation/attachment inputs. |
-| Modify | `tests/Pegasus.IntegrationTests/TestUiFocusedRenderTests.cs` | Existing focused-render seed. |
+| Modify | tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs | Correct the two Audit fixture pairs, isolate the two honest pre-case reevaluation sources, and make CountingCustody delegate/count attachment retention. |
+| Modify | tests/Pegasus.IntegrationTests/InstructionDraftWebTests.cs | Replace stale event total with explicit distinct-receipt / shared-case / UniqueMatch / exact-event-type proof. |
+| Inspect only; modify only after parent approval if the current helper cannot express truthful neutral PDFs | tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs | Reuse the existing real PDF construction; do not introduce a fixture framework or defaults. |
 
-## Ordered checklist
+## Do not modify
 
-### 1. Add shared documented instruction text
+- tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs and tests/Pegasus.IntegrationTests/Browser/UploadCaseSearchBrowserTests.cs. Their body-only manual-attach assumptions now resolve to Unidentified rather than an open attach card; they are baseline current-contract work, not a D56 green-up.
+- tests/Pegasus.IntegrationTests/TestUiFocusedRenderTests.cs. Its HeldLease scenario is satisfied by D56’s already-modified SendToAi shared seed once D56 integrates.
+- All other existing D56-modified test paths: ImageIntakeWebTests.cs, ImageViewingWebTests.cs, MailboxIntakeIntegrationTests.cs, MailWorkspaceWebTests.cs, MultiFormatIntakeWebTests.cs, QdosTriageIntegrationTests.cs, RecoveryTests.cs, and SendToAiIntegrationTests.cs.
+- src/**, docs/**, infra/**, scripts/**, package/dependency files, migrations, corpus/**, production policy, routing, allocation and UI behavior.
 
-- Extend the existing helper only; no dependency or framework.
-- Required text: `ENGINEER NOTIFICATION`, `QDOS`, `Our Client’s Vehicle:`, `Registration:`.
-- Scenario caller arguments retain existing claimant, claim, registration and optional missing fields.
+## Constraints
 
-### 2. Correct pipeline fixtures
+- Reuse the exact recorded D56 branch/worktree; do not retake the ticket or create a worktree/branch.
+- Actual documents remain actual PDFs through the existing MIME/receipt route. No body-keyword fallback, compatibility path, product-policy adjustment or source-parser workaround.
+- A standalone Audit requires two distinct document attachments and exactly one qualifying unnegated Repairable or Total Loss report outcome; do not combine the generated instruction and original report.
+- The pre-case documents must state their true pre-classification role in visible text, not imitate a formal document while exploiting classifier gaps.
+- Preserve the existing custody, source-retention, idempotency, automatic allocation, role, replay, review and destination assertions.
+- The broad 13-class command is known overbroad. It stays in scratch as original failure evidence; it must not be called an exact six-method regression command.
+- No implementation, restore, build, test, browser, commit, push, PR, merge, release or deployment occurs until root reads and approves this revised plan/checklist.
 
-- For each scenario that claims real intake behavior, retain its existing MIME/upload/mailbox/queued parser path.
-- Put the helper text in actual `DocumentContent`/`PdfContent`: do not place it in EmailBody.
-- Preserve original attachment cardinality and role assertions; where a test is specifically about an attachment, make that attachment the instruction content rather than adding an unrelated one.
-- Leave intentional malformed, truncation, limit and negative inputs negative.
+## Ordered steps
 
-### 3. Correct display-only setup and SendToAI
+### Step 1 — Build the two real Audit fixture pairs
 
-- Use the direct receipt helper only where no intake-pipeline assertion is being made.
-- Do not render an unavailable action. Retain missing-dialog and unauthorized POST denial checks.
+- Preconditions: Root approval of this revised packet; current CustodyOutbox source remains unchanged from the frozen D56 worktree.
+- Files: tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs; tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs
+- Symbols: AnAuditCaseCompletesCustody; AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments; IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument.
+- Change: In each Audit scenario retain the formal Audit notification attachment and add a distinct actual original-report PDF with exactly one unnegated assessment. Use the existing PDF helper if it can create plainly named neutral report content; otherwise stop for approval before any helper edit.
+- Preserved behaviour: Each receipt reaches CaseCreated and its existing custody/review assertions remain intact.
+- Forbidden: One-document Audit evidence, an Engineer notification in the report, a synthetic non-PDF report, product policy changes, or assertion removal.
+- Negative cases: A missing/ambiguous/negated report outcome must still fail closed under the current Core policy.
+- Tests: CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody; CustodyOutboxIntegrationTests.AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments.
+- Commands: Deferred to designated verifier: exact six-method command in Commands.
+- Expected output: Both selected Audit methods pass; their existing custody consequences remain asserted.
+- Done when: Each method has two semantically distinct retained document attachments and passes all original claims.
+- Deviation stop: Stop if the current helper cannot make an honest neutral report, if any added report creates a second classification candidate, or if a product path would need change.
 
-### 4. Static review and handoff
+### Step 2 — Isolate truthful pre-case reevaluation sources
 
-- Run only static scope/text/diff checks in this worker.
-- Do not run builds, tests, browser, capture, package, release or deploy operations.
-- The designated host verifier runs the exact existing 13-class selection after its required sequential build; any failure is reported without assertion weakening.
+- Preconditions: Step 1 complete or independently reviewable; no change to CreateSource() has been made.
+- Files: tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs; tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs
+- Symbols: ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted; ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt; CreateSource; new narrowly named pre-case source helper if needed; IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument.
+- Change: Add/use a separate source creator only for the two reevaluation tests. Its actual PDF represents source material awaiting work-type classification and has no Engineer/Audit notification. Leave the shared definitive CreateSource() and every automatic-acceptance caller unchanged.
+- Preserved behaviour: The tests still retain/re-read the exact logical source and still exercise drift rejection before receipt replacement.
+- Forbidden: Restoring body-token classification, changing automatic custody sources to pre-case, hiding a formal notification title, or changing reevaluation production behavior.
+- Negative cases: An already accepted receipt must remain rejected by the pre-case reevaluation API.
+- Tests: CustodyOutboxIntegrationTests.ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted; CustodyOutboxIntegrationTests.ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt.
+- Commands: Deferred to designated verifier: exact six-method command in Commands.
+- Expected output: Both selected methods pass while their receipt has no pre-existing Case association before reevaluation.
+- Done when: The new source’s content is honest, actual and pre-case, and no automatic custody caller changes.
+- Deviation stop: Stop if achieving NeedsSorting requires policy/source-parser changes or a deceptive fixture.
 
-## Non-goals
+### Step 3 — Complete attachment handling in the existing custody test double
 
-No `src/**`, policy, schema, docs, package, corpus, parser, source-inventory or product changes; no test files beyond the fourteen listed files.
+- Preconditions: Formal source attachment remains part of the test’s accepted case.
+- Files: tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs
+- Symbols: CancellationSqlFaultAndLeaseLossUseExactTaxonomyAndRequireStaffRecovery; CountingCustody; ICaseCustody.RetainAcceptedIntakeAttachmentAsync.
+- Change: Add the same effect-counting/pass-through behavior for attachment retention that CountingCustody already supplies for source/root/audit operations.
+- Preserved behaviour: The injected completion write still throws DbUpdateException after custody effects, recovery/retry semantics and exact taxonomy remain asserted.
+- Forbidden: Suppressing attachment retention, changing the fake to swallow errors, changing the SQL interceptor, or using a body-only source to skip the operation.
+- Negative cases: An adapter that does not implement attachment custody must remain fail-closed outside this test double.
+- Tests: CustodyOutboxIntegrationTests.CancellationSqlFaultAndLeaseLossUseExactTaxonomyAndRequireStaffRecovery.
+- Commands: Deferred to designated verifier: exact six-method command in Commands.
+- Expected output: The observed failure point returns to the asserted injected DbUpdateException and later recovery assertions pass.
+- Done when: CountingCustody reports attachment effects and delegates them to the inner real custody adapter.
+- Deviation stop: Stop if attachment retention changes the expected fault ordering or exposes a product defect rather than the intended injected transaction failure.
+
+### Step 4 — Prove one allocation across two identities
+
+- Preconditions: Existing formal InstructionDraft transport fixture and identity/hash assertions remain intact.
+- Files: tests/Pegasus.IntegrationTests/InstructionDraftWebTests.cs
+- Symbols: IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes; IntakeReceiptEvents; CaseMatchDecision; IntakeAllocationState.
+- Change: Retain evidence of separate receipt IDs/tokens and matching bytes/assets. Add assertions that the two receipts associate to one Case, the second records UniqueMatch/current Case, exactly one allocation-succeeded event exists, and exactly two receipt-recorded events exist.
+- Preserved behaviour: The first receives automatic allocation; the second never duplicates a Case; visible source identities remain distinct.
+- Forbidden: Changing source bytes/tokens to avoid the unique match, removing identity/hash checks, or replacing four with three without semantic proof.
+- Negative cases: A second allocation event or a second Case is a failure.
+- Tests: InstructionDraftWebTests.IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes.
+- Commands: Deferred to designated verifier: exact six-method command in Commands.
+- Expected output: The selected method passes only by proving the 2 receipt + 1 case + 1 allocation model.
+- Done when: The test’s event expectations name event type and receipt/case relationships, not only a total.
+- Deviation stop: Stop if the existing persistence/query surface cannot observe event type or association without changing production code.
+
+### Step 5 — Static scope review and designated focused verification handoff
+
+- Preconditions: Steps 1–4 complete; no deferred UploadConfirmation/browser source change has been made.
+- Files: tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs; tests/Pegasus.IntegrationTests/InstructionDraftWebTests.cs; tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs
+- Symbols: Not applicable; file-only reconciliation.
+- Change: Run static diff/scope review, record exact changed paths and hand the named test command to the one host verifier. Record any failure exactly; do not broaden or retry the legacy 13-class filter.
+- Preserved behaviour: Unchanged UploadConfirmation/browser failure stays recorded as a baseline current-contract issue; HeldLease is separately demonstrated after integration through its existing SendToAi seed.
+- Forbidden: Build/test/browser execution by this implementation worker, treating 269 selected tests as narrow proof, or altering deferred UI tests to green the run.
+- Negative cases: Any path outside the two correction files (or approved helper) is a scope failure.
+- Tests: the six exact failed methods above; their direct changed helper consumers are those same Audit/reevaluation methods, the CountingCustody cancellation method, and the InstructionDraft method. No extra consumer is silently added.
+- Commands: git diff --check; git diff --name-only; then host-owned test command below.
+- Expected output: Static checks pass; designated verifier reports six exact outcomes independently of the retained broad run.
+- Done when: Root has the implementation report and designated verifier handoff, not a local test result.
+- Deviation stop: Stop on a new file, helper expansion, non-zero static result, a conflicting worktree change, or unavailable host verification authority.
+
+## Acceptance checks
+
+- The six named failures are corrected through real fixture/test behavior, not Core/Web policy changes.
+- Both Audit scenarios use distinct attachment identities and one valid original-report assessment; their existing custody/review claims remain.
+- Both reevaluation scenarios begin genuinely pre-case and retain the existing logical-source/drift claims.
+- CountingCustody delegates real attachment custody and the SQL-fault method retains its exact exception/recovery proof.
+- The InstructionDraft method demonstrates two receipt identities, one Case, a UniqueMatch association, one allocation-succeeded event, and two receipt-recorded events.
+- UploadConfirmation Attach and browser case search remain visible as failures/deferred current-contract work; no pass is claimed for them.
+- HeldLease requires no direct test change: after integration it exercises the existing D56 formal SendToAi seed.
+- No dependency, application, schema, documentation, corpus, route or policy change is introduced.
+
+## Commands
+
+Implementation worker, only after approval:
+- git diff --check
+- git diff --name-only
+
+Designated host verifier, after its required sequential build and with the frozen D56 head:
+- dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "(FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.CancellationSqlFaultAndLeaseLossUseExactTaxonomyAndRequireStaffRecovery|FullyQualifiedName=Pegasus.IntegrationTests.InstructionDraftWebTests.IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes)" --logger "trx;LogFileName=deliv-056-corrections-host.trx" --results-directory artifacts/verification
+
+The command is intentionally exact-method equality, not a class-substring filter. UploadConfirmation Attach/browser and the PR706 HeldLease integration check are separate commands after their respective approval/integration conditions.
+
+## Failure and deviation rules
+
+Stop and report instead of improvising if the live worktree differs unexpectedly, a neutral PDF requires a production policy change, an audit report creates another category, any test requires a body-token fallback, an assertion cannot observe the claimed durable behavior, helper modification becomes necessary, a path outside Expected files changes, or a designated host result fails. Do not weaken an assertion, mutate the UploadConfirmation/browser baseline contract, rerun the historical broad filter as a substitute, merge, or start another ticket.
 
 ## Stop condition
 
-After fixture-only changes and static scope review, leave the ticket in implementing for parent-coordinated commit, review and verification. Do not merge or start another ticket.
+Stop after root reads and approves this entire revised plan/checklist. Until that approval, do not edit source or run tests/builds. After approval, execute only these bounded steps in the already recorded D56 worktree, then hand off static evidence and the exact six-method verifier command. Do not merge, release, deploy, or absorb the deferred UploadConfirmation/browser work.
