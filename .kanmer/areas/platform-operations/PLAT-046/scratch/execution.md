@@ -82,3 +82,7 @@ Disposition: **FAIL / stopped at the first genuine failure**. No retry, diagnosi
 No dotnet, cloud, Azure, recipe execution, SQL, browser, source edit, commit, push, or live operation occurred. PLAT-046 remains Implementing for primary disposition.
 
 - 2026-09-08T18:27:31.925Z lease-phase running-command → implementing (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 6; expires 2026-09-08T18:57:31.916Z)
+
+## Failure diagnosis / bounded correction authorization — 2026-09-08
+
+Root statically located first Local failure: Test-AzureDeploymentPlan lines362–372 still regex-extracts literal AzureWebJobs.Disabled names from production smoke after smoke correctly moved to the canonical helper. This obsolete parser returns empty Actual; parameter binding fails. Author authorized to reconcile that affected assertion with smoke's canonical helper assignment while retaining exact Bicep/producer census and every live missing/extra/duplicate/value failure check. Do not allow empty census or restore duplicate runtime name lists. No test or live rerun authorized until corrected local commit freezes and a fresh canonical host grant. The bbae334 failure remains genuine retained evidence; platform PASS remains its exact-head result only.
