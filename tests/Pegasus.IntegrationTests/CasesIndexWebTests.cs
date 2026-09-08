@@ -141,7 +141,7 @@ public sealed class CasesIndexWebTests
             .GetAsync(caseId, CancellationToken.None);
         Assert.NotNull(receipt);
         Assert.NotNull(workflow);
-        var caseReference = workflow!.Case.Reference;
+        var caseReference = workflow!.Identity.Reference;
         var forgedIndex = new Dictionary<string, string>
         {
             ["id"] = image.Record.Id.ToString("D"),

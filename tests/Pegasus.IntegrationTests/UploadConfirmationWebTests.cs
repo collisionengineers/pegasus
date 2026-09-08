@@ -713,18 +713,6 @@ public sealed class UploadConfirmationWebTests
         return workflow!.Version;
     }
 
-    private static async Task<string> CaseReferenceAsync(
-        IntakeWebApplicationFactory factory,
-        Guid caseId)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var workflow = await scope.ServiceProvider
-            .GetRequiredService<ICaseWorkflowStore>()
-            .GetAsync(caseId, CancellationToken.None);
-        Assert.NotNull(workflow);
-        return workflow!.Case.Reference;
-    }
-
     private sealed record GroupAttachConfirmation(
         HttpStatusCode StatusCode,
         Guid OperationId,
