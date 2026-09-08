@@ -130,17 +130,12 @@ public interface IUploadOutcomeQueries
 /// existing surfaces) rather than re-implementing any of those mutations.
 /// </summary>
 /// <remarks>
-/// Automatic association is channel-agnostic and already ran by the time this
-/// is called (<c>AssociateCaseIfUnambiguousAsync</c> in Core): a definitive,
-/// unique case match is always attached before a receipt reaches Complete, so
-/// <see cref="UploadOutcomeKind.Attached"/> is always a report of something
-/// automation already did, never a decision this surface makes. The one
-/// staff decision this ticket adds is offered when automation fell short of
-/// that bar: <see cref="UploadOutcomeKind.PossibleMatch"/> (ambiguous
-/// candidates) or <see cref="UploadOutcomeKind.ReadyToCreate"/> (no match at
-/// all). A grouped image upload can terminal-decide its members
-/// independently (INTK-011); this builder makes no group-wide assumption —
-/// it is evaluated once per member.
+/// Automatic association may already have run for non-manual channels by the
+/// time this is called. A manual upload keeps even a unique viable match for
+/// an explicit staff confirmation, while <see cref="UploadOutcomeKind.Attached"/>
+/// always reports an association that has already settled. A grouped image
+/// upload can terminal-decide its members independently (INTK-011); this
+/// builder makes no group-wide assumption — it is evaluated once per member.
 /// </remarks>
 public sealed class UploadOutcomeQueries(
     IGetIntake getIntake,
@@ -228,8 +223,8 @@ public sealed class UploadOutcomeQueries(
         // the Core-owned image-only-material rule (not a media-type sniff)
         // keeps an instruction document in a mixed group from being
         // mislabelled with the images' registration.
-        var groupedImage = submissionGroupId is not null
-            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
+        var isImageOnlyMaterial = ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
+        var groupedImage = submissionGroupId is not null && isImageOnlyMaterial;
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered || groupedImage)
         {
             var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
@@ -248,10 +243,13 @@ public sealed class UploadOutcomeQueries(
             }
             if (detail is not null)
             {
+                var message = detail.State == ImageInitiatedCaseState.AwaitingInstruction
+                    ? $"This was registered as a new vehicle-image case, {detail.Record.ImageIntakeReference}. A staff member can explicitly add it to an existing case."
+                    : $"This was registered as a new vehicle-image case, {detail.Record.ImageIntakeReference}.";
                 return new(
                     UploadOutcomeKind.ImageCaseRegistered,
                     "Registered as a new vehicle-image case",
-                    $"No matching case was found, so this was registered as a new vehicle-image case, {detail.Record.ImageIntakeReference}.",
+                    message,
                     new("View", $"/VehicleImages/{detail.Record.Id:D}"),
                     null,
                     detail.State == ImageInitiatedCaseState.AwaitingInstruction
@@ -263,29 +261,6 @@ public sealed class UploadOutcomeQueries(
             }
         }
 
-        // A manual upload never treats even a unique recorded match as an
-        // automatic destination. Keep the retained material here until staff
-        // either confirm a viable existing Case or explicitly accept the
-        // extracted new-Case proposal. This comes before Unidentified so the
-        // intake status page reports the real pending decision rather than a
-        // separate queue's automatic-routing result.
-        if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
-            && (receipt.Decision == IntakeDecision.OcrRequired
-                || receipt.Decision == IntakeDecision.NeedsSorting
-                || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)))
-        {
-            return new(
-                UploadOutcomeKind.ReadyToCreate,
-                "Choose a case destination",
-                "Review the extracted details, then add this to an existing case or create a new case.",
-                new("Create a new case", $"/Cases/Create?receiptId={receipt.Id:D}"),
-                null,
-                new UploadOutcomeAttach(
-                    receipt.Id,
-                    receipt.Version,
-                    await SuggestionsAsync(receipt, actor, cancellationToken)));
-        }
-
         var unidentified = await unidentifiedStore.GetByOriginAsync(
             UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
         if (unidentified is null && submissionGroupId is { } groupId)
@@ -293,16 +268,6 @@ public sealed class UploadOutcomeQueries(
             unidentified = await unidentifiedStore.GetByOriginAsync(
                 UnidentifiedOrigin.SubmissionGroup(groupId), cancellationToken);
         }
-        if (unidentified is { State: UnidentifiedState.Open })
-        {
-            return new(
-                UploadOutcomeKind.NeedsReview,
-                "Needs review",
-                "This could not be matched automatically and needs a staff decision.",
-                new("Review", $"/Unidentified/{unidentified.Id:D}"),
-                null);
-        }
-
         if (unidentified is { State: UnidentifiedState.Resolved })
         {
             var destination = unidentified.ResolutionTargetReference;
@@ -313,6 +278,51 @@ public sealed class UploadOutcomeQueries(
                     ? "This was resolved."
                     : $"This was resolved to {destination}.",
                 new("View", $"/Unidentified/{unidentified.Id:D}"),
+                null);
+        }
+
+        // A manual upload never treats even a unique recorded match as an
+        // automatic destination. Its ordinary instruction-bearing material
+        // therefore remains here until staff confirm a viable existing Case,
+        // or (only if none is viable) explicitly accept the extracted new-Case
+        // proposal. This intentionally precedes an open automatic
+        // Unidentified item: the upload screen owns this manual decision.
+        // Image-only material remains with Image Intake/Unidentified, whose
+        // pending and review states are not manual case-creation proposals.
+        if (!isImageOnlyMaterial
+            && receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+            && (receipt.Decision == IntakeDecision.OcrRequired
+                || receipt.Decision == IntakeDecision.NeedsSorting
+                || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)))
+        {
+            var suggestions = await SuggestionsAsync(receipt, actor, cancellationToken);
+            if (suggestions.Count > 0)
+            {
+                return new(
+                    UploadOutcomeKind.PossibleMatch,
+                    "Choose a case destination",
+                    "Choose a case destination. Select a viable existing case and confirm it, or search for a different existing case.",
+                    null,
+                    null,
+                    new UploadOutcomeAttach(receipt.Id, receipt.Version, suggestions));
+            }
+
+            return new(
+                UploadOutcomeKind.ReadyToCreate,
+                "Choose a case destination",
+                "Choose a case destination. No viable existing case was found, so you can create a new case from the extracted details.",
+                new("Create a new case", $"/Cases/Create?receiptId={receipt.Id:D}"),
+                null,
+                new UploadOutcomeAttach(receipt.Id, receipt.Version, suggestions));
+        }
+
+        if (unidentified is { State: UnidentifiedState.Open })
+        {
+            return new(
+                UploadOutcomeKind.NeedsReview,
+                "Needs review",
+                "This could not be matched automatically and needs a staff decision.",
+                new("Review", $"/Unidentified/{unidentified.Id:D}"),
                 null);
         }
 

@@ -547,13 +547,13 @@ public sealed class TriageQueuesWebTests
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
         await using var scope = factory.Services.CreateAsyncScope();
-        var imageIntake = await RegisterImageIntakeAsync(factory, client, scope.ServiceProvider, "WX34YZA");
+        var imageIntake = await RegisterImageIntakeAsync(
+            factory, client, scope.ServiceProvider, "WX34YZA");
 
-        using var response = await PostAttachAsync(
-            client, imageIntake.Id, imageIntake.Origin.ReceiptId, "UNKNOWN", string.Empty);
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        using var redirected = await client.GetAsync(response.Headers.Location);
-        var html = await redirected.Content.ReadAsStringAsync();
+        using var response = await PostAttachWithBlankReasonAsync(
+            client, imageIntake.Id, imageIntake.Origin.ReceiptId, "UNKNOWN");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("A reason is required to add this to a case.", html, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
     }
@@ -976,6 +976,49 @@ public sealed class TriageQueuesWebTests
         string reference,
         string reason)
     {
+        using var surface = await client.GetAsync($"/Cases?tab=awaiting&selected={id:D}");
+        Assert.Equal(HttpStatusCode.OK, surface.StatusCode);
+        var surfaceHtml = await surface.Content.ReadAsStringAsync();
+        var receiptVersion = InputValue(surfaceHtml, "receiptVersion");
+        var operationId = Guid.NewGuid().ToString("D");
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var prepared = await client.PostAsync(
+            "/Cases?handler=Attach",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["id"] = id.ToString("D"),
+                ["receiptId"] = receiptId.ToString("D"),
+                ["operationId"] = operationId,
+                ["receiptVersion"] = receiptVersion,
+                ["reference"] = reference,
+                ["reason"] = reason
+            }));
+        Assert.Equal(HttpStatusCode.OK, prepared.StatusCode);
+        var preparedHtml = await prepared.Content.ReadAsStringAsync();
+        var caseVersion = long.Parse(InputValue(preparedHtml, "caseVersion"), CultureInfo.InvariantCulture);
+        return await client.PostAsync(
+            "/Cases?handler=Attach",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["id"] = id.ToString("D"),
+                ["receiptId"] = receiptId.ToString("D"),
+                ["operationId"] = operationId,
+                ["receiptVersion"] = receiptVersion,
+                ["caseId"] = InputValue(preparedHtml, "caseId"),
+                ["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture),
+                ["reference"] = reference,
+                ["reason"] = reason
+            }));
+    }
+
+    private static async Task<HttpResponseMessage> PostAttachWithBlankReasonAsync(
+        HttpClient client,
+        Guid id,
+        Guid receiptId,
+        string reference)
+    {
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         return await client.PostAsync(
             "/Cases?handler=Attach",
@@ -985,8 +1028,18 @@ public sealed class TriageQueuesWebTests
                 ["id"] = id.ToString("D"),
                 ["receiptId"] = receiptId.ToString("D"),
                 ["reference"] = reference,
-                ["reason"] = reason
+                ["reason"] = string.Empty
             }));
+    }
+
+    private static string InputValue(string html, string name)
+    {
+        var match = Regex.Match(
+            html,
+            $"<input\\b(?=[^>]*\\bname=\\\"{Regex.Escape(name)}\\\")(?=[^>]*\\bvalue=\\\"(?<value>[^\\\"]*)\\\")[^>]*>",
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        Assert.True(match.Success, $"Expected hidden input '{name}' in rendered confirmation.");
+        return WebUtility.HtmlDecode(match.Groups["value"].Value);
     }
 
     /// <summary>

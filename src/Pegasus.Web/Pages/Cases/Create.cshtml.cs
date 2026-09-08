@@ -327,7 +327,7 @@ public sealed partial class CreateModel(
             //    "nothing changed" test: one code path, a decision normalised
             //    by Core's own completeness rule, and an honest record that a
             //    person keyed or confirmed these values.
-            var corrected = await resolveIntake.ExecuteAsync(
+            _ = await resolveIntake.ExecuteAsync(
                 new(
                     Receipt.Id,
                     ExpectedReceiptVersion,
@@ -337,7 +337,11 @@ public sealed partial class CreateModel(
                     IntakeResolutionKind.CorrectDraft,
                     postedDraft),
                 cancellationToken);
-            var version = corrected.Version;
+            // A correction replay returns the current receipt snapshot, which
+            // can include later steps in this same page operation. The next
+            // command must nevertheless retain the version chain the staff
+            // reviewed: one correction advances that rendered version once.
+            var version = ExpectedReceiptVersion + 1;
 
             // 2. The inspection address, where a person still has to settle it.
             if (RequiresAddressResolution)
@@ -360,11 +364,10 @@ public sealed partial class CreateModel(
                         DeriveOperationId(operationId, "address"),
                         HttpContext.TraceIdentifier),
                     cancellationToken);
-                // The duplicate branch reports the receipt's latest version,
-                // which can already include acceptance.  This page operation
-                // owns exactly one address advancement after the correction;
-                // retaining that version preserves the allocation command's
-                // original hash and lets a concurrent later change conflict.
+                // The address operation advances the stable continuation once
+                // whether it was newly applied or safely replayed. Its replay
+                // snapshot can include a later acceptance, so it is not a
+                // continuation version.
                 version++;
             }
 
@@ -383,7 +386,7 @@ public sealed partial class CreateModel(
                         InstructionComplete,
                         ImagesComplete),
                     StandaloneAuditEvidenceId,
-                    corrected.InstructionDraft?.InspectionDate),
+                    postedDraft.InspectionDate),
                 cancellationToken);
 
             if (allocation.State.Status != IntakeAllocationProjectionStatus.Succeeded

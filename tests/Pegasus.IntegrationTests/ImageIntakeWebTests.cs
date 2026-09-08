@@ -80,7 +80,7 @@ public sealed class ImageIntakeWebTests
     }
 
     [Fact]
-    public async Task ConfidentReadAutoRegistersAndAutoAssociatesTheUnambiguousCase()
+    public async Task ConfidentMailboxReadAutoRegistersAndAutoAssociatesTheUnambiguousCase()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -88,41 +88,20 @@ public sealed class ImageIntakeWebTests
             recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var caseEmail = IntakeTestEvidence.CreateEmail(
-            "auto-case.eml",
-            "Please see the attached instruction.",
-            attachments:
-            [
-                ("instruction.pdf", "application/pdf",
-                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
-                        claimNumber: "AUTO-WEB-01", registration: "AB12 CDE"))
-            ]);
-        var caseUpload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            caseEmail.FileName,
-            caseEmail.MediaType,
-            caseEmail.Content);
-        var caseOriginReceiptId = IntakeWebDriver.ReceiptId(caseUpload);
-
-        // The formal instruction allocates its case through the normal path;
-        // the image scenario then moves that case to Review before association.
-        var caseId = await ImageIntakeTestData.PromoteAllocatedCaseAsync(
-            factory.Services,
-            caseOriginReceiptId,
-            nameof(CaseLifecycleState.Review));
-
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            "vehicle.png",
-            "image/png",
-            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
-            Guid.NewGuid().ToString("N"));
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
-
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "AUTO-WEB-01");
+        var receiptId = await AllocationTestData.SubmitAndProcessAsync(
+            services,
+            new IntakeSource(
+                "vehicle.png",
+                "image/png",
+                Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, $"image-auto:{Guid.NewGuid():N}")),
+            $"mailbox-image-auto:{Guid.NewGuid():N}");
         var receipt = await services
             .GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None);

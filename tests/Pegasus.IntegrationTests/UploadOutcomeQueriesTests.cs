@@ -90,12 +90,21 @@ public sealed class UploadOutcomeQueriesTests
             null,
             null);
 
-        var result = await BuildAsync(status, receipt, imageIntakeDetail: detail);
+        var result = await BuildAsync(
+            status,
+            receipt,
+            imageIntakeDetail: detail,
+            suggestions:
+            [
+                new(Guid.NewGuid(), "QDO31000", "AB12 CDE", null, CaseLifecycleState.Review, 4)
+            ]);
 
         Assert.Equal(UploadOutcomeKind.ImageCaseRegistered, result.Kind);
         Assert.Contains("AB12CDE-01", result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("No matching case was found", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal($"/VehicleImages/{imageIntakeId:D}", result.PrimaryAction!.Url);
+        Assert.Single(result.Attach!.SuggestedDestinations);
     }
 
     [Fact]
@@ -108,6 +117,7 @@ public sealed class UploadOutcomeQueriesTests
         var result = await BuildAsync(status, receipt);
 
         Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal("Create a new case", result.PrimaryAction!.Label);
         Assert.Equal($"/Cases/Create?receiptId={receiptId:D}", result.PrimaryAction!.Url);
@@ -140,10 +150,12 @@ public sealed class UploadOutcomeQueriesTests
             new(secondCaseId, "QDO31002", null, "Smith", CaseLifecycleState.Review, 3)
         ]);
 
-        Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
+        Assert.Equal(UploadOutcomeKind.PossibleMatch, result.Kind);
         Assert.NotNull(result.Attach);
         Assert.Equal([firstCaseId, secondCaseId], result.Attach!.SuggestedDestinations.Select(item => item.CaseId));
         Assert.All(result.Attach.SuggestedDestinations, item => Assert.NotNull(item.Version));
+        Assert.Null(result.PrimaryAction);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -169,8 +181,10 @@ public sealed class UploadOutcomeQueriesTests
             receipt,
             suggestions: [new(caseId, "QDO31003", "AB12 CDE", null, CaseLifecycleState.Review, 12)]);
 
-        Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
+        Assert.Equal(UploadOutcomeKind.PossibleMatch, result.Kind);
         Assert.Equal(caseId, Assert.Single(result.Attach!.SuggestedDestinations).CaseId);
+        Assert.Null(result.PrimaryAction);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
         Assert.Null(receipt.CurrentCaseId);
     }
 
@@ -180,7 +194,10 @@ public sealed class UploadOutcomeQueriesTests
         var receiptId = Guid.NewGuid();
         var groupId = Guid.NewGuid();
         var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
-        var receipt = MakeReceipt(receiptId, IntakeDecision.NeedsSorting);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            mediaType: "image/jpeg");
         var unidentifiedId = Guid.NewGuid();
         var byGroup = new UnidentifiedItem(
             unidentifiedId, 1, "U1", UnidentifiedOrigin.SubmissionGroup(groupId),

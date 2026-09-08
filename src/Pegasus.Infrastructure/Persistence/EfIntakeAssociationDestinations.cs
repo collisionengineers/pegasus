@@ -156,15 +156,13 @@ public sealed class EfIntakeAssociationDestinations(
             {
                 item.CaseId,
                 item.Case.Reference,
-                item.Case.Type,
                 item.State,
                 item.ArchivedAtUtc,
                 item.ReportSentEvidenceId,
                 item.Version
             })
             .SingleOrDefaultAsync(cancellationToken);
-        if (row is null || !Enum.TryParse<CaseType>(row.Type, false, out _)
-            || !Enum.TryParse<CaseLifecycleState>(row.State, false, out var state)
+        if (row is null || !Enum.TryParse<CaseLifecycleState>(row.State, false, out var state)
             || !IntakeAssociationDestinationPolicy.IsViable(
                 receipt, state, row.ArchivedAtUtc is not null, row.ReportSentEvidenceId is not null))
         {
