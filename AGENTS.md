@@ -82,415 +82,112 @@ local removal must confirm the alias is stopped before deleting its metadata.
 24. **A PR that changes commands or conventions updates AGENTS.md in the same PR.**
 <!-- kanmer:instructions:end -->
 
+## Codex reusable subagents
+
+Project-local roles are defined in [`.codex/agents`](.codex/agents):
+`pegasus-scout`, `pegasus-investigator`, `pegasus-implementer`,
+`pegasus-reviewer`, and `pegasus-verifier`. Their configuration follows the
+[OpenAI subagent configuration documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents)
+and [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference),
+read 2026-09-08.
+
+- Delegate only independent work that is useful to the active task, normally to
+  2–4 children and never beyond the configured eight-child ceiling. Every
+  assignment names either its ticket and worktree, or an explicit direct-work
+  designation and source root, plus input revision, allowed files, expected
+  output, and stop condition. The primary owns assignment, file-overlap
+  resolution, approvals, integration, and release operations.
+- Children do not recursively delegate, change unrelated files, or autonomously
+  start tests, builds, verification scripts, capture/browser hosts, or packaging.
+  Scout, investigator, and reviewer never perform external writes; other children
+  need an explicit bounded workflow that authorizes the action and target. Role
+  profiles do not grant permissions or override parent runtime policy.
+- All host test/build work, including focused commands, verification scripts,
+  capture/browser hosts, and packaging, is serialized behind one explicit current
+  host-slot owner. Each such assignment names the canonical
+  `<ticket>/scratch/execution.md` host-slot record. Before running, the owner
+  reads it and refuses a missing, stale, ambiguous, wrong-host, wrong-input, or
+  non-owner slot; it also checks other active execution contexts and host
+  processes. All host sessions share that record, with no second active record;
+  process absence or a profile never grants a slot. The current owner records
+  explicit idle before transfer, then the primary rereads and records the next
+  owner. Static reads and Git diff inspection may overlap.
+- The verifier runs commands sequentially against frozen inputs, retains failed
+  results, and makes no product fixes. The primary may take the slot for release
+  packaging only after an explicit idle handoff. Other host sessions coordinate
+  and never kill foreign processes.
+
 # Pegasus repository instructions
 
-Pegasus is Collision Engineers' clean-room case-management and reporting
-application. Read the Kanmer board (`.kanmer/`, via the `kanmer` tools) for current work, then the
-[documentation index](docs/index.md) for the file that owns your question and
-the authority rule.
+Pegasus is Collision Engineers' case-management and reporting application.
+Start with [the documentation index](docs/index.md) for the owner of the question
+and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
-## Commands
+## Project principles
 
-Canonical solution commands (`--locked-mode` enforces the committed package
-locks); run these before delivery:
-
-```powershell
-dotnet restore ./Pegasus.slnx --locked-mode
-dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
-```
-
-Identical on Windows and Linux (`pwsh` either way). Focused per-project forms
-and the two complementary integration-test filters are in
-[the runbook](docs/runbook.md#locked-restore-build-and-test).
-
-Core CI uses `-- xUnit.MaxParallelThreads=1` so concurrent test collections do
-not compete against the intake parsers' short regex time budgets. Keep those
-production budgets and every test assertion intact.
-SQL shard jobs allow 30 minutes including their build, with the existing
-test-concurrency cap and complete-shard coverage checks retained.
-
-Reference-data generator checks run with
-`python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'`.
-Text snapshots marked `normalized-lf` hash and count normalized bytes; immutable
-domain evidence keeps its exact raw bytes.
-
-Release `PreProvision` validation requires the Box holding-folder identifier
-and both Automation MCP certificate URI lists. It validates versioned HTTPS
-Key Vault addresses before the read-only Worker smoke; see the release inputs
-in `docs/runbook.md`. This check does not authorize provisioning.
-
-After changing a routed Razor page, regenerate the Test UI snapshots with
-`./scripts/Update-TestUiSnapshots.ps1`, then prove them with
-`./scripts/Update-TestUiSnapshots.ps1 -Verify` (a fresh capture; add
-`-SkipCapture` to reuse the last one) and `./scripts/Test-UiCatalogue.ps1`.
-Use `-MaxParallelThreads 1` to serialize capture tests when host memory is
-limited; the default zero preserves the existing lane concurrency.
-For a focused refresh, pair the page prefix with the test cohort that captures
-it:
-
-```powershell
-pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
-  -Scope case-details `
-  -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"
-pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
-  -Verify -SkipCapture -Scope case-details
-```
-
-Commit `docs/design/test-ui/` with the page change: CI runs the same verify
-in the build lane and the catalogue check on every change set.
-
-## Architecture map
-
-- `src/Pegasus.Core` — business policy and ports; the one owner of business
-  rules.
-- `src/Pegasus.Infrastructure` — adapters implementing Core's ports; depends
-  on Core only.
-- `src/Pegasus.Web` / `src/Pegasus.Worker` — composition roots; depend on both
-  Core and Infrastructure.
-- `tests/` — `Pegasus.Core.Tests`, `Pegasus.ArchitectureTests`,
-  `Pegasus.IntegrationTests`.
-- `docs/` — the PRD/FRD/ADR governance tree (below);
-  [`docs/current-architecture.md`](docs/current-architecture.md) is the
-  as-built system shape and dependency direction, and
-  [`docs/operations.md`](docs/operations.md) is deployed/runtime state.
-- `.kanmer/` — the Kanmer board (see Kanmer operating instructions above).
-- `workspaces/` — provenance for retired source imports. Accepted slices live
-  in the application; the historical imports are not active build units.
-- `corpus/` — local, ignored, immutable domain evidence; never committed,
-  renamed, or modified.
-- `infra/` — deployment infrastructure.
-
-## Conventions
-
-- Markdown: the H1 is line 1, a blank line precedes every heading, tables use
-  the compact `| --- |` delimiter, and prose is hard-wrapped near 78 columns
-  ([engineering](docs/engineering.md#markdown-convention)).
-- A new repository Markdown file is a PRD, FRD, or technical ADR only;
-  everything else edits an existing canonical file
-  ([New Markdown placement](#new-markdown-placement)).
-- `Pegasus.Core` owns business policy; a second implementation of a business
-  rule anywhere else is a stop condition
-  ([Product invariants](#product-invariants),
-  [engineering](docs/engineering.md#one-core-owner)).
-- The [Simplicity rails](#simplicity-rails) below (search-before-build, one
-  list per concept, no speculative abstraction) bind every change.
-
-## Gotchas
-
-- One platform per workstation — Windows+PowerShell 7 or Linux+PowerShell 7 —
-  never mixed in a single run or evidence record
-  ([runbook](docs/runbook.md#supported-platform)). Release operations use the
-  authorised Windows x64 or Linux x64 terminal (ADR-0039); the migration
-  bundle matches that workstation, while deployed hosts stay Linux.
-- `corpus/` is local, ignored, and immutable — never upload, publish, commit,
-  rename, or modify it.
-- A closed composition or feature gate is a disabled flag, not a partially
-  shipped feature — never claim or document it as delivered before it has a
-  real caller and activation evidence.
-- That rule applies to implemented backend behaviour shipped dark. A named,
-  ticketed frontend preview may appear disabled and inert before its backend
-  exists; it has no production handler and makes no delivery claim.
-- Never delete a case; wrong-principal work closes as `Created in error` with
-  a linked replacement instead, and neither reference is reused.
-- `docs/operator-notes.md` is protected — stop for user resolution before
-  changing its meaning.
+- Treat the project as unreleased development unless the task establishes a
+  real released consumer or a required persistent-data contract. Replace obsolete
+  behavior and update affected consumers; do not invent compatibility machinery.
+- Implement the requested scope with the simplest correct design. Add complexity
+  only for a current requirement. Reuse the existing owner rather than creating
+  another policy, vocabulary or workflow implementation.
+- Core owns business policy and ports. Infrastructure implements those ports;
+  Web and Worker compose both. Imported source, skills and models own no policy.
+- Resolve contradictory requirements against current operator instructions and
+  the governing specification; source history alone is not authority.
 
 ## Verification
 
-- The canonical solution commands above are the delivery gate.
-- Prove the actual caller, not just a green build — a registration, a green
-  build, and a deployed feature are different evidence tiers
-  ([engineering](docs/engineering.md#required-evidence-tiers)).
-- After any deployment, refresh
-  [`docs/current-architecture.md`](docs/current-architecture.md) and
-  [`docs/operations.md`](docs/operations.md) in the same task; a deploy that
-  leaves either stale is unfinished.
-- A ticket's `proof/proof.md` is required before it reaches Done, and is
-  written on the configured integration branch after review and merge.
+Select verification from the effects of the change. Prose-only edits require
+relevant documentation checks and semantic review; do not run dotnet restore,
+build or test solely because Markdown changed. Application code, dependencies,
+build inputs and embedded executable assets require affected build/test evidence.
+Run full solution checks when the affected scope, explicit acceptance criteria
+or release procedure requires them. Reuse qualifying exact-head CI evidence and
+coordinate heavy verification through the active Kanmer execution context.
 
-## Documentation model — PRD, FRD, ADR
+Read [engineering verification policy](docs/engineering.md#verification-policy)
+and the [verification procedure](docs/runbook.md).
+For routed Razor changes, follow the existing Razor skills and their scoped
+snapshot procedure. Report failed, omitted and inconclusive checks honestly.
+Obsolete documentation-parser contracts do not justify retaining incorrect docs.
 
-This repository separates three questions and gives each a home. **Governance —
-this model, the routing rules below, ADR conventions, and where new Markdown
-goes — lives in this file, never in an ADR.** [`docs/index.md`](docs/index.md)
-is the navigation index and owns the authority chain.
+## Repository map
 
-- **`operator-notes.md`** — the binding business truth (what Collision Engineers
-  actually said). Protected: stop for user resolution before changing its
-  meaning. It is the seed for every PRD and FRD; they restate and structure it,
-  never overrule it.
-- **PRD — `docs/prd/`** — *what the product must do and why*: business need,
-  users, outcomes, scope, permanent boundaries, quality/capacity targets, and
-  the acceptance model. A PRD states no mechanics.
-- **FRD — `docs/frd/`** — *how a capability must behave*: inputs/outputs,
-  states, rules, edge cases, fail-closed behaviour, and acceptance evidence. An
-  FRD implements a PRD outcome and cites `docs/design/README.md` for UI behaviour. It
-  never invents product scope or records a technical decision.
-- **ADR — `docs/adr/`** — a durable *technical/architectural* product decision
-  only. Not documentation rules, not process, not feature behaviour. If a
-  decision has behavioural consequences, the behaviour is written in the FRD and
-  the ADR links to it.
-- **`docs/capabilities.md`** — the schedule and capability-ID registry. Its
-  *Canonical owner* column is the join key from each capability ID to its PRD,
-  FRD, or ADR. It never holds normative behaviour.
-- **`docs/boundaries.md`** — what is deliberately **deferred or excluded**, and
-  the seams preserved to add it later. Boundary rules, not scheduling data.
-- **`docs/current-architecture.md` / `docs/operations.md`** — the as-built
-  snapshot (what exists and how it is wired now) and the deployed/runtime state.
-  Both are living snapshots and must be refreshed after every deploy (see
-  Safety rails). **`docs/runbook.md` / `docs/engineering.md` / `docs/design/README.md`**
-  — working rules within their scopes. These are downstream of PRD/FRD/ADR and
-  never override them.
+- `src/Pegasus.Core`: business policy and ports.
+- `src/Pegasus.Infrastructure`: adapters and persistence.
+- `src/Pegasus.Web`, `src/Pegasus.Worker`: application composition and callers.
+- `tests/`: Core, architecture and integration evidence.
+- `infra/`: deployment definitions; `scripts/`: existing operational tooling.
+- `docs/current-architecture.md`: source structure; `docs/operations.md`: dated
+  deployed observations. A release updates operations; architecture changes only
+  when source structure changes.
+- `.agents/skills/`: Pegasus procedures. Installed Kanmer owns generic workflow;
+  do not recreate removed local Kanmer copies or fork plugin instructions here.
 
-Routing — where to write, and where to send an agent:
+## Non-obvious constraints
 
-| The change is about… | Write it in |
-| --- | --- |
-| Product intent, scope, an outcome, a boundary, success criteria | a **PRD** |
-| Required behaviour of a capability — I/O, states, rules, edge cases, acceptance | an **FRD** |
-| A chosen technical mechanism or architectural boundary | a **thin ADR** + the behaviour in the FRD |
-| Schedule, allocation, a capability ID | **`docs/capabilities.md`** |
-| A current-state fact (deployed, live, monitored) | **`docs/operations.md`** / **`docs/current-architecture.md`** |
-| A business statement from the operator | **`docs/operator-notes.md`** (protected) |
-| A repository rule, convention, or process | **this file** |
+- `Audit`, `Triage`, `Unidentified`, `Image Intake` and `Blocked intake` are
+  distinct. Use the glossary and owning FRD; never call generic sorting Triage.
+- Never delete a Case or reuse its reference. Wrong-Principal correction and
+  reasoned reopening follow FRD-01.
+- `corpus/` is local, ignored and immutable: never upload, commit, rename or
+  modify it. Use supplied domain evidence; generated evaluations go in artifacts.
+- Read-only cloud inventory is permitted. External writes require authorization
+  covering the actual operation and targets; tool availability is not a grant.
+- Local alpha work does not mutate Outlook or Box except an explicitly approved
+  test mailbox or disposable Box subtree.
+- Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
+  commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
+  and [migration recipe](.agents/skills/pegasus-release/references/database-migration.md)
+  for the authorized workstation and platform-matching artifacts.
+- A closed feature or composition gate is not delivery. An inert UI preview may
+  exist only where its accepted interface contract permits it.
 
-### ADR conventions
+## Documentation and work context
 
-ADRs are an append-only decision log of durable technical/architectural choices.
-
-- **Stable IDs.** Never renumber, reuse, or delete an ADR. Supersede a decision
-  by writing a **new** ADR (the next free number) and setting the old one's
-  `status: superseded`. The number is a permanent citation key used across code,
-  tests, and tracked plans.
-- **One decision per ADR** — a durable technical/architectural choice, not a
-  bundle of them.
-- **YAML frontmatter** on every ADR, so currency and relationships are
-  machine-readable:
-
-  ```yaml
-  ---
-  id: ADR-0002
-  status: accepted        # proposed | accepted | superseded | deprecated
-  date: 2026-07-23
-  supersedes: []
-  superseded_by: []
-  related_capabilities: []
-  related_frd: []
-  tags: []
-  ---
-  ```
-
-- **Template:** `Status · Context · Decision · Consequences · Options considered
-  (optional) · Links`. Status is stated first so a body-only read is never
-  mistaken for current when it is superseded.
-- **Keep ADRs durable.** No dated cost tables, retail prices, or historical
-  runbooks in an ADR — those belong in `docs/operations.md`/`docs/runbook.md`;
-  git history keeps the record. Feature behaviour belongs in an FRD.
-- **The index** (`docs/adr/README.md`) is a thin table derived from frontmatter:
-  `ID | Title | Status | Superseded-by | Owner capability`. The set of current
-  architecture decisions is that index filtered to `status: accepted` — a view,
-  not a renumbering.
-
-### New Markdown placement
-
-A new repository Markdown file is one of: a **PRD** under `docs/prd/`, an
-**FRD** under `docs/frd/`, or a **technical ADR** under `docs/adr/`. Transient
-task research, plans, checklists, reviews, and proof live in the owning Kanmer
-ticket documents, not in the repository tree. Everything else edits an existing canonical file. No
-ADR is required to authorise a PRD or FRD; a new PRD or FRD records its canonical
-owner in `docs/capabilities.md` and is linked from `docs/index.md`.
-Workspace-local documentation stays governed by its accepted integration
-contract and existing workspace tree.
-
-## Planning process
-
-- The Kanmer board (`.kanmer/`) is the multi-agent work queue.
-  [Capabilities](docs/capabilities.md) is the roadmap;
-  [open decisions](docs/open-decisions.md) holds unresolved questions;
-  [ADRs](docs/adr/README.md) hold durable technical decisions.
-- Claims, worktrees, plans, reviews, merge authority, tracking boundaries, and
-  every Git safety allowance or prohibition are owned by
-  [Repository task workflow](#repository-task-workflow) below.
-- New Markdown placement is owned by the
-  [documentation index](docs/index.md#new-markdown-files).
-- Prove the actual caller — a registration, a green build, and a deployed
-  feature are different claims (evidence tiers:
-  [engineering](docs/engineering.md#required-evidence-tiers)).
-
-## Simplicity rails
-
-Over-engineering is a defect, not a style. The mechanics — the four review
-lenses, skip rules, fault-handling and test-support shapes, plan sizing — are
-owned by [engineering](docs/engineering.md#simplicity); these are the rules
-every task carries:
-
-- **Search before you build.** Name the existing port, helper, convention, or
-  test fake you reuse, or say in the plan why none fits. A second business
-  implementation, or a third copy of anything else, is a stop condition
-  ([one Core owner](docs/engineering.md#one-core-owner)).
-- **One list per concept.** An exception taxonomy, a state vocabulary, a label
-  table, a precedence order lives in exactly one place. A second copy in
-  another layer is duplication even when it is "just strings".
-- **No abstraction without a second concrete caller, an external boundary, or
-  an accepted ADR** ([abstractions and deferred capabilities](docs/engineering.md#abstractions-and-deferred-capabilities)).
-  A wrapper, result record, flag, or optional parameter added so one call site
-  can carry something past a design constraint is a smell: fix the constraint
-  or use the host's own mechanism.
-- **The existing convention wins.** A new way to do something the codebase
-  already does (a notice, a header, a refresh, a fake) needs a reason recorded
-  in the ticket plan, not a preference.
-- **Facts are checked, not argued.** When a plan's premise is a fact about the
-  world — production data, a caller's existence, a deployed shape — run the
-  read-only check (permitted without approval) and record it, instead of
-  reasoning it away in a research document.
-- **Plans are proportional to their diff** — a plan longer than the change it
-  describes, or carrying ritual steps, is itself over-engineered
-  ([plan sizing](docs/engineering.md#plan-sizing)).
-- **Operator-facing explanation is a defect.** Labels, values, and at most
-  one consequence sentence on a destructive action; no field hints, no
-  how-it-works copy, no empty-state panels in read-only view. The design
-  authority's [No explanatory copy and page economy](docs/design/README.md#no-explanatory-copy-and-page-economy)
-  rules bind every UI change.
-- **Simplify without over-correcting** — clarity beats brevity; a helpful
-  abstraction stays ([balance](docs/engineering.md#balance)).
-- **The simplification pass is quality, not correctness** — findings are
-  behaviour-preserving; bugs go to review, scope to a ticket
-  ([skip rules](docs/engineering.md#skip-rules)).
-
-## Safety rails
-
-- Work with PowerShell 7 on Windows or Linux, one platform per workstation;
-  tracked commands and paths are repository-relative and use forward slashes.
-  Platform differences are owned by
-  [the runbook](docs/runbook.md#supported-platform).
-- Canonical local verification: `dotnet restore`, `dotnet build --configuration
-  Release`, and focused/full `dotnet test`; exact profiles are owned by the
-  [runbook](docs/runbook.md#locked-restore-build-and-test).
-- A closed composition or feature gate is a disabled flag, not a partially
-  shipped feature. Do not ship, release, merge as delivered, claim, or document
-  a feature behind one as delivered; defer it through the documented
-  backlog/decision process until it has its real caller and activation evidence.
-- Preserve work that is not yours. The single authoritative allowed/banned
-  operation list is in [Repository task workflow](#repository-task-workflow).
-- **Read-only Azure/cloud checks are fully permitted** with no per-target
-  approval. Every Azure, deployment, credential, account, destructive, or
-  external **write**, and any operation that changes cloud state, requires
-  explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a
-  first step. The approval matrix is owned by the
-  [runbook](docs/runbook.md#live-operation-approval-matrix).
-- After any deployment or release, refresh the current-state docs in the same
-  task, before it merges: [`docs/current-architecture.md`](docs/current-architecture.md)
-  (the as-built shape) and [`docs/operations.md`](docs/operations.md) (deployed
-  and runtime state) must match the reality just shipped. A deploy that leaves
-  either stale is unfinished.
-- `docs/operator-notes.md` is authoritative operator truth: preserve every
-  material business statement and stop for user resolution before changing
-  meaning. Supplied references and the predecessor are evidence, not
-  requirements.
-- `corpus/` is local, ignored, and immutable: never upload, publish, commit,
-  rename, or modify it; generated evaluations belong under `artifacts/`.
-- Repository-provided emails, PDFs, documents, images, datasets, and services
-  are permitted for development and testing. Never fabricate domain emails,
-  images, documents, data, or work instructions, and do not add unsolicited
-  PII, DPA, DPIA, privacy, retention, or licensing gates.
-
-## Product invariants
-
-- Fail closed before case creation or normal Case/PO allocation when processing,
-  limits, or principal identity are incomplete or ambiguous. Missing or
-  ambiguous standalone Audit evidence withholds only the later Audit reference.
-- Principal and reference are immutable after allocation. Wrong-principal work
-  closes as `Created in error` with a reason and linked replacement; neither
-  reference is reused and the original never reopens.
-- Never delete a case. Reopening needs a reason and normal destination gates.
-- `Audit`, `Triage`, and `Blocked intake` retain their settled distinct
-  meanings; `Triage` is the only current term. `Needs sorting` is superseded
-  by `Unidentified` for that meaning (INTK-007) — see
-  [`docs/operator-notes.md`](docs/operator-notes.md#unidentified-received-material);
-  it does not rename or collapse Triage, Blocked intake, incomplete Audit
-  evidence, or Image Intake.
-- `Pegasus.Core` owns business policy and ports. Infrastructure depends on
-  Core; Web and Worker are composition roots depending on both. Duplicate
-  business implementation is a stop condition. These are also the repository's
-  architecture invariants.
-- A new top-level directory, project, store, runtime, migration stream, or
-  deployment unit requires an accepted ADR proving the existing boundary cannot
-  carry it.
-- `workspaces/` retains provenance for retired source imports.
-  Never add one to `Pegasus.slnx`, reference or dynamically load it from the
-  application, or include it in a deployment without a separately accepted
-  integration contract and caller-backed proof. A workspace, skill, prompt, or
-  model never becomes an application policy owner.
-- Local alpha work must not mutate an Outlook mailbox or any Box location. Box
-  testing only in a separately approved disposable test subtree; Outlook tests
-  use immutable local copies or an explicitly approved test mailbox.
-
-## Repository task workflow
-
-### V1 remediation authority
-
-The three-stream implementation was integrated through PR 674 on 7 September
-2026. PLAT-075, CASE-047 and INTK-060 retain its source and review evidence;
-their former branch-sharing exception has ended. Do not replay that workflow
-or infer unfinished product work solely from an old ticket's stage.
-
-The operator's subsequent remediation request authorizes implementation,
-independent review, merge and deployment to complete v1. EPIC-014 records the
-scope, remaining work, credentials exclusions and named host verifier. That
-authorization supersedes the former open-unmerged release stop. Record and
-verify each exact candidate and its deployment targets before acting. Test
-email may be sent only to `digital@collisionengineers.co.uk`, using the
-requested `pegasustest` customer. It does not authorize an intake-data wipe.
-
-The intake-data wipe script requires a separately approved maintenance window
-with the Worker stopped. It advances the persisted receive-time cutoff as
-part of SQL deletion; it never replays mail from original onboarding merely
-because occurrence rows were cleared. See the runbook's explicit wipe procedure.
-
-One verification owner per host coordinates focused checks and reuses matching
-CI evidence; no competing whole-repository builds or capacity/soak runs are
-part of this remediation. Product behavior and runtime state remain owned by
-the documents routed from [the documentation index](docs/index.md).
-
-### Ordinary task rules
-
-The managed Kanmer block owns ticket stages, leases, gates and ordinary
-worktree naming. Use that convention and branch from the configured integration
-branch (`dev` for this repository).
-Record and reuse the exact branch and worktree on the owner ticket.
-
-Implement only the claimed scope. Put research, plans, checklists, review and
-verification records in the owning ticket. Apply the engineering
-simplification pass to the actual diff and record each finding's disposition.
-Commit and push reviewed logical slices on the owned branch. Open the task PR
-against `dev`; an independent reviewer assesses the requirements, code,
-tests and simplification dispositions. The author never merges its own PR.
-
-Ordinary integration proof is written after the authorized merge at the exact
-configured `get_status.delivery.integrationBranch` SHA. A branch test run is
-pre-merge validation, not that proof. Deployment and live operator acceptance
-are separate evidence. Only a separately authorized exact-SHA `dev` to `main`
-promotion may update the release branch. When the current task has not already
-granted release authority, obtain `MERGE AUTH GRANTED` for that candidate
-immediately before the update.
-
-Preserve other agents' branches, commits, worktrees and dirty files. Never
-force-push, rewrite `dev` or `main`, manually push the board branch, or
-stash/reset/clean another owner's work. Reconcile an expired lease through
-Kanmer's owner-checked recovery; age alone never authorizes discarding work.
-Archive task evidence. Closeout or removal of preserved work follows its
-explicit scoped authorization, never an automatic maintenance push.
-
-Git regression fixtures must remove inherited `GIT_*` variables from child
-process environments, prove the resolved temporary repository root before
-writing, and check absolute cleanup targets remain inside their own temporary
-fixture. Tests must not mutate the invoking checkout's HEAD, index or config.
-CI change routing has one conditional infrastructure-plan owner; an empty diff
-is a supported no-change result. Whole-solution verification remains serialized
-behind the named host verifier.
-
-Do not add horizontal Common/Helpers/Utilities packages or version-suffixed
-replacement components. Classifier/extraction precedence must be explicit and
-covered by contradiction tests. Preserve terminal, transient and unknown
-provider outcomes; metrics count successful effects separately from attempts.
+[The index](docs/index.md) owns documentation placement, formatting and routing.
+Use task-relevant owners rather than reading every document or copying rules.
+Kanmer owns stages, claims, gates, review, proof and current work allocation.
+Active task grants and the host verifier belong to the owning execution context;
+their expiry and exact targets are not permanent repository permissions.

@@ -1,0 +1,1054 @@
+{
+  "basis": "September 5 supplied audit compared with pinned dev documentation; resolved means the cited wording is repaired, not live behavior certified.",
+  "source_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94",
+  "prior_scope": {
+    "review_date": "2026-09-05",
+    "repository": "collisionengineers/pegasus",
+    "primary_snapshot": {
+      "branch": "dev",
+      "sha": "6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8"
+    },
+    "comparison_snapshot": {
+      "branch": "main",
+      "sha": "32f8679d3695e0dcab8f310a1c20f8b129d20190"
+    },
+    "method": "Repository-tree inventory, main/dev comparison, targeted document reads and cross-checks against later accepted requirements, code, configuration and selected PR/deployment records through the GitHub connector.",
+    "limitations": [
+      "This is a repository-wide discovery and targeted-content audit, not a certified line-by-line read of every tracked byte.",
+      "Large documents were read in relevant sections; not every historical paragraph was inspected.",
+      "Binary reference documents, every changelog entry, every generated UI snapshot, all vendored/plugin content, all historical branches and every Kanmer ticket document were not individually audited.",
+      "The kanmer-board branch was identified, but its complete ticket-document corpus was not audited.",
+      "No tests, builds, deployments, external integrations or live administrative operations were executed. Operational claims are attributed to the repository evidence rather than independently re-proved.",
+      "The list is the exact set of confirmed findings established in this review; it is not a guarantee that no additional stale material exists."
+    ],
+    "repository_changes": false
+  },
+  "counts": {
+    "Resolved wording": 36,
+    "Partially resolved": 15,
+    "Still outstanding": 20
+  },
+  "observations": [
+    {
+      "id": "A01.1",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "The managed block requires .worktrees/<id> and <id>-<slug>, while Repository task workflow requires ../pegasus-worktrees/<slug> and task/<slug> based on origin/dev.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The current managed/workflow instructions use recorded ticket worktrees and configured integration delivery. Do not replay the old ../pegasus-worktrees versus task/<slug> instruction as the normal ticket convention.",
+      "current_evidence": "AGENTS.md — Kanmer operating instructions; Repository task workflow",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A01.2",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "The managed block says proof is written on merged main, but task PRs target dev and the newer kanmer-verify skill binds verification to the exact PR merge SHA, not the moving main checkout.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "Proof now names the configured integration branch; kanmer-verify binds execution to the exact merged PR SHA in a detached worktree. This is not a claim that every historical proof was repaired.",
+      "current_evidence": "AGENTS.md — Verification; .agents/skills/kanmer-verify/SKILL.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A01.3",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "Agent conduct forbids merging one's own PR, while Allowed operations permits merging one's independently reviewed, green PR into dev. The responsible implementation/review/merge roles are not reconciled.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The current workflow separates implementer handoff from independent review/merge and forbids author self-merge. Remaining generic conduct duplication is a different issue.",
+      "current_evidence": "AGENTS.md — Repository task workflow",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A01.4",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "Workflow step 6 says to remove the worktree/branch and move to the final stage after merge. The newer verification/closeout contract retains the implementation worktree through verification and owns final cleanup separately.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "Current verification/closeout wording preserves the implementation worktree while disposing the verification worktree separately.",
+      "current_evidence": "AGENTS.md — Repository task workflow; .agents/skills/kanmer-verify/SKILL.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A01.5",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "Two Agent conduct blocks have diverged: the first rule 22 includes obsolete-after-change dispositions, the superseding commit and root-cause grouping; the second retains the older shorter rule. Board/runtime conventions are duplicated too.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The managed conduct text contains the newer disposition/root-cause rule. AGENTS still repeats workflow and evidence policy outside the managed block; consolidate the owners rather than preserving two rule sets.",
+      "current_evidence": "AGENTS.md — Kanmer operating instructions; Pegasus repository instructions",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A01.6",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "Product invariants still describe workspaces as containing buildable imports, although both imports have been retired.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "AGENTS now identifies workspaces as provenance for retired imports, not active build units.",
+      "current_evidence": "AGENTS.md — Architecture map",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A01.7",
+      "original_group": "A01",
+      "original_priority": "High",
+      "original_observation": "The Audit invariant says missing or ambiguous standalone Audit evidence withholds only the later Audit reference. FRD-01 instead withholds Case creation/reference allocation when the required original report or its literal verdict is unresolved.",
+      "original_paths": [
+        "AGENTS.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The specific AGENTS/FRD-01 disagreement is repaired: normal Case/PO allocation precedes the evidence-dependent Audit reference. The same old gate survives in FRD-02 and INT-25; see AUD-01.",
+      "current_evidence": "docs/frd/frd-01-case-identity-and-lifecycle.md; docs/frd/frd-02-intake-and-source-identity.md — Mandatory pre-case gates",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A02.1",
+      "original_group": "A02",
+      "original_priority": "High",
+      "original_observation": "Needs sorting is still defined as the destination for unclassifiable email and Triage requests awaiting a registration; the current Unidentified/U-reference meaning is missing from the glossary.",
+      "original_paths": [
+        "CONTEXT.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "CONTEXT now defines Unidentified and its distinction from Triage and Blocked intake.",
+      "current_evidence": "CONTEXT.md — Unidentified; Blocked intake",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A02.2",
+      "original_group": "A02",
+      "original_priority": "High",
+      "original_observation": "Audit says a definitive instruction creates the normal Case/PO first and the a./ap. reference is derived later, contrary to FRD-01's original-report/verdict allocation gate.",
+      "original_paths": [
+        "CONTEXT.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "CONTEXT and current FRD-01 now agree on normal Case/PO followed by the later Audit reference. FRD-02 remains contradictory.",
+      "current_evidence": "CONTEXT.md — Audit; docs/frd/frd-01-case-identity-and-lifecycle.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A02.3",
+      "original_group": "A02",
+      "original_priority": "High",
+      "original_observation": "The repair-estimate AI Proposal definition describes a separate immutable proposal pending application to the Case; current assessment requirements instead describe attributed working-data writes and named draft estimates. The glossary does not distinguish that current estimate route from genuinely proposal-based future features.",
+      "original_paths": [
+        "CONTEXT.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The glossary still needs to distinguish an immutable AI Proposal from direct, unconfirmed working-data writes and named draft estimates. Do not remove future proposal semantics indiscriminately.",
+      "current_evidence": "CONTEXT.md — AI Proposal; Send to AI; docs/frd/frd-10-mcp-automation-and-actor-boundary.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A03.1",
+      "original_group": "A03",
+      "original_priority": "Medium",
+      "original_observation": "Describes workspaces/ as containing independently maintained and buildable source imports, despite retirement of both imports.",
+      "original_paths": [
+        "README.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The closing README passage now explicitly calls both imports retired and not active projects or deployment units.",
+      "current_evidence": "README.md — workspaces paragraph",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A04.1",
+      "original_group": "A04",
+      "original_priority": "Medium",
+      "original_observation": "The opening calls the directories buildable source imports; the conclusion says both are retired and no live workspace exists.",
+      "original_paths": [
+        "workspaces/README.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The current workspace index opens with retirement and states that no live workspace exists. Its future import-admission rules do not reactivate an import.",
+      "current_evidence": "workspaces/README.md — opening; Source provenance",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A05.1",
+      "original_group": "A05",
+      "original_priority": "Medium",
+      "original_observation": "Still refers to NOW.md claim-line maintenance although the current claim mechanism is a taken Kanmer ticket and NOW.md is absent from the reviewed tree.",
+      "original_paths": [
+        "docs/engineering.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The reviewed engineering guide no longer requires NOW.md claim-line maintenance. Claims are on Kanmer. Expired DELIV transition instructions remain a separate cleanup.",
+      "current_evidence": "docs/engineering.md — Branches and delivery",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A05.2",
+      "original_group": "A05",
+      "original_priority": "Medium",
+      "original_observation": "The evidence ladder describes DOC/MSG as later approved formats even though FRD-05 and the integrated extractor decision now include them.",
+      "original_paths": [
+        "docs/engineering.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The evidence ladder now explicitly includes EML/PDF/DOCX/DOC/MSG.",
+      "current_evidence": "docs/engineering.md — Required evidence tiers",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A06.1",
+      "original_group": "A06",
+      "original_priority": "High",
+      "original_observation": "Presents old navigation and optional shell directions as current guidance rather than deferring to the selected integrated workspace.",
+      "original_paths": [
+        ".stitch/DESIGN.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The Stitch guide now has a historical-comparison warning and points to current design authority.",
+      "current_evidence": ".stitch/DESIGN.md — opening status",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A06.2",
+      "original_group": "A06",
+      "original_priority": "High",
+      "original_observation": "Its blanket bans/prescriptions, including no gradients and old compact record layout guidance, have not been reconciled with the selected design and D29/D30 scrolling Case record.",
+      "original_paths": [
+        ".stitch/DESIGN.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The new status warning explicitly subordinates conflicting layout to the accepted v3 design and later decisions. Do not rewrite its historical body into a second active guide.",
+      "current_evidence": ".stitch/DESIGN.md — opening status",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "A06.3",
+      "original_group": "A06",
+      "original_priority": "High",
+      "original_observation": "Its explanatory hints and disabled-action guidance conflict with newer no-explanatory-copy/component rules. Some of the old record-layout guidance is also still in operator-notes, so this is a cross-document authority conflict, not merely a reason to ignore the operator.",
+      "original_paths": [
+        ".stitch/DESIGN.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The historic guide is no longer presented as binding. Current operator-notes/FRD copy and layout conflicts remain separate active findings.",
+      "current_evidence": ".stitch/DESIGN.md — opening status; docs/operator-notes.md — Interface language",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.1",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "The absent-callers list says automated DOC/MSG extraction is absent, while the integrated extraction contract and later architecture material include it.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The absent-callers section now says DOC/MSG readers are implemented.",
+      "current_evidence": "docs/current-architecture.md — Implemented production targets and absent callers",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.2",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "The same list calls Provider API deferred and the Operations caller paragraph calls it separately planned. Operations records its endpoint mounted in production from release 37.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The production-target paragraph acknowledges Provider API ingress activation, but another caller paragraph still calls it planned. Remove the remaining mixed-time description.",
+      "current_evidence": "docs/current-architecture.md — Staff Web callers; Implemented production targets and absent callers",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.3",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "The same list says Automation MCP is gated off outside DevelopmentOffline; Operations records production activation from release 9.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The relevant architecture production-target paragraph now acknowledges the enabled ingress flags. Other files still contain the old local-only claim.",
+      "current_evidence": "docs/current-architecture.md — Implemented production targets and absent callers",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.4",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "The stated 33-tool MCP inventory and scope list omit the newer AI-job tools and automation.jobs scope present in code and FRD-10.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The old 33-tool figure has been replaced by a 43-plus-import development-assembly claim, but the scope/inventory narrative still needs reconciliation with automation.jobs and the integrated candidate. A fresh executable inventory was not run in this audit.",
+      "current_evidence": "docs/current-architecture.md — v1 development assembly; Provider API and Automation MCP; docs/frd/frd-10-mcp-automation-and-actor-boundary.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.5",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "Manual upload is described as a one-file path, with old request/redirect assumptions. UploadModel accepts a file array and routes multi-member submissions to UploadGroupStatus; the shared maximum batch count is 20.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "Accepted local inputs now state 20 files, 100 MiB per file and 200 MiB aggregate. Exact current group-status redirect behavior was not re-executed; do not certify all entry-point prose from the corrected limit table alone.",
+      "current_evidence": "docs/current-architecture.md — Accepted local inputs; Local development procedure",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.6",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "The workspace inventory continues to describe two live imports despite their retirement.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The workspace list says the imports are retired, but remaining statements about independent builds/current imports still need removal or explicit future-only scope.",
+      "current_evidence": "docs/current-architecture.md — Workspaces; Source and generated-material roles",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B01.7",
+      "original_group": "B01",
+      "original_priority": "High",
+      "original_observation": "The diagram labels Graph, Blob/queues, Box and DVLA/DVSA as target connections, despite the same document identifying deployed adapters. Local SQL is also labelled only LocalDB despite the documented Linux container route.",
+      "original_paths": [
+        "docs/current-architecture.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The diagram still uses target edges for integrations that later prose describes as deployed, and its local database label omits Linux SQL Server containers.",
+      "current_evidence": "docs/current-architecture.md — System shape diagram",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B02.1",
+      "original_group": "B02",
+      "original_priority": "Medium",
+      "original_observation": "The Automation MCP narrative still says 33 tools and omits automation.jobs from the scopes it enumerates.",
+      "original_paths": [
+        "docs/operations.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The operational narrative still enumerates scopes without automation.jobs and mixes historical tool counts with current-sounding descriptions. Preserve the release-9 fifteen-tool observation as dated evidence; do not overwrite it with a dev inventory.",
+      "current_evidence": "docs/operations.md — Automation MCP is implemented and enabled in production",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B02.2",
+      "original_group": "B02",
+      "original_priority": "Medium",
+      "original_observation": "The Automation MCP evidence table lists separately approved activation as outstanding without distinguishing the already-completed ingress activation from genuinely outstanding external-client/transport evidence.",
+      "original_paths": [
+        "docs/operations.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Separate the already-observed ingress activation from still-unproved external-client acceptance and v1 certificate rollout. Generic activation-pending wording remains misleading.",
+      "current_evidence": "docs/operations.md — Local and live evidence boundaries",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B02.3",
+      "original_group": "B02",
+      "original_priority": "Medium",
+      "original_observation": "StorageWorker still says to activate only with the first real storage adapter and Worker trigger, although those adapters and trigger callers already exist.",
+      "original_paths": [
+        "docs/operations.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The StorageWorker profile now describes exercising the existing adapters and triggers.",
+      "current_evidence": "docs/operations.md — Evidence profiles",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B03.1",
+      "original_group": "B03",
+      "original_priority": "High",
+      "original_observation": "Says Playwright browser binaries are a browser-acceptance prerequisite, not an application-runtime dependency. The report renderer actually creates Playwright and launches Chromium, and the production Web image carries Chromium for that purpose.",
+      "original_paths": [
+        "docs/runbook.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The runbook now explicitly states that integrated report rendering needs pinned Chromium at application runtime. Package presence is still distinct from browser execution.",
+      "current_evidence": "docs/runbook.md — Offline development profile",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B04.1",
+      "original_group": "B04",
+      "original_priority": "Medium",
+      "original_observation": "The introductory active-ID total is 233 while the summary total is 234. They cannot both describe the same inventory.",
+      "original_paths": [
+        "docs/capabilities.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The exact 233/234 discrepancy is gone: there are 244 unique rows. New internal errors remain: 205 versus 215 planned, 153/27 versus 154/26 horizons, and two v1 targets inconsistent with the exact-SemVer rule. See metrics.json.",
+      "current_evidence": "docs/capabilities.md — Historical allocation provenance; Allocation summary; INT-16; EXT-12",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.1",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "Provider API tenancy/wire-contract row still says to keep the API absent and asks for routes, headers, encoding, limits and administration that FRD-09 now specifies.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The row now acknowledges API-01, but still asks a broadly already-settled wire-contract question. Retain only genuinely new tenancy/client choices; move issuance and live proof to delivery work.",
+      "current_evidence": "docs/open-decisions.md — External data, submission, and report contracts; docs/frd/frd-09-provider-and-intermediary-routes.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.2",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "DVLA/DVSA row still directs keeping live lookup disabled and treats provider/caller selection as unresolved, despite the deployed adapter record.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Keep-live-disabled wording remains, even while the question concedes the adapters are selected and composed. Distinguish source contract, credentials, last observed deployment and new acceptance evidence.",
+      "current_evidence": "docs/open-decisions.md — DVLA/DVSA vehicle and MOT lookup",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.3",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "AI-job catalogue/lifecycle questions have not been reconciled with ADR-0035, the FRD-11 job model and implemented MCP job tools.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The opening now says the catalogue/lifecycle are settled by ADR-0035. Implementation and real-client evidence still reside in this decision register and should move out.",
+      "current_evidence": "docs/open-decisions.md — Future AI Operations boundary",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.4",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "The interim telemetry cap remains 0.1 GB/day in this register, whereas the current architecture records release 35 raising both component and workspace caps to 0.5 GB.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The register now records the 0.5 GB/day deployed setting. A full-day workload and any further increase remain separate evidence/decision questions.",
+      "current_evidence": "docs/open-decisions.md — QDOS alpha activation details; App Insights daily cap",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.5",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "The resolved EVA API section retains an unqualified at-most-once submission rule; D36 now permits explicit manual re-send while keeping automatic submission at most once.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The resolved section still says at-most-once. ADR-0038 and FRD-07 now retain only staff-initiated sends and permit an explicit With Engineer re-send; do not preserve the older automatic-send rationale as current.",
+      "current_evidence": "docs/open-decisions.md — EVA API activation; docs/adr/0038-manual-only-eva-api-submission.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.6",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "The assessment-markup questions retain fee placement and valuation storage questions after the later Report-section and valuation requirements settled at least those portions.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "Split the old broad question into already-specified fee/valuation placement and any genuinely uncontracted vendor-field semantics. The former is not an open decision.",
+      "current_evidence": "docs/open-decisions.md — Send-to-AI transport and assessment toolset; docs/frd/frd-06-vehicle-and-engineering-evidence.md; docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "B05.7",
+      "original_group": "B05",
+      "original_priority": "High",
+      "original_observation": "Upload-link one-time-versus-reuse remains listed as open, although FRD-02 D20 now specifies a fixed 15-minute add/replace session beginning with the first accepted file.",
+      "original_paths": [
+        "docs/open-decisions.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The session question is settled; the register now also records the v1 100 MiB/20-file/200 MiB limits. Move this accepted policy to the FRD and repair its surviving 10 MiB clause.",
+      "current_evidence": "docs/open-decisions.md — INT-31 upload-link limits; docs/frd/frd-02-intake-and-source-identity.md — Request-scoped upload links",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C01.1",
+      "original_group": "C01",
+      "original_priority": "High",
+      "original_observation": "The active interface-language section still requires one-record screens with tabs rather than stacked sections and core content visible without scrolling. FRD-12 D29/D30 explicitly requires an eleven-section scrolling Case record.",
+      "original_paths": [
+        "docs/operator-notes.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The old tabs/no-scroll rule remains in the alleged binding authority beneath a newer v1 override. Migrate current Case layout to FRD-12/design and preserve the old statement as dated provenance only.",
+      "current_evidence": "docs/operator-notes.md — Interface language; Current v1 decisions",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C01.2",
+      "original_group": "C01",
+      "original_priority": "High",
+      "original_observation": "The interface-language definition limits Unidentified to unmatched email, while the earlier Unidentified received material section covers retained documents, images, messages and groups.",
+      "original_paths": [
+        "docs/operator-notes.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Its interface section still narrows Unidentified to email despite its earlier all-material definition.",
+      "current_evidence": "docs/operator-notes.md — Unidentified received material; Interface language",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C01.3",
+      "original_group": "C01",
+      "original_priority": "High",
+      "original_observation": "The August 19 estimate commentary says none of the external/AI/drop routes is built. The code now exposes pegasus_estimate_save and the FRDs specify the AI-draft estimate route.",
+      "original_paths": [
+        "docs/operator-notes.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The August estimate passage still says no routes exist. Label the observation historical rather than allowing it to define current source status.",
+      "current_evidence": "docs/operator-notes.md — Repair estimates",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C01.4",
+      "original_group": "C01",
+      "original_priority": "High",
+      "original_observation": "The absolute statement that repair-cost figures are not entered by hand conflicts with the later manual line-entry estimate requirements. The quoted operator statement itself says generally imported; the blanket derived prohibition needs an explicit reconciliation.",
+      "original_paths": [
+        "docs/operator-notes.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Preserve the original generally-imported statement and distinguish it from the stronger derived prohibition. Reconcile the allowed manual estimate interactions in the owning FRD; do not silently rewrite the quotation.",
+      "current_evidence": "docs/operator-notes.md — Repair estimates; docs/frd/frd-06-vehicle-and-engineering-evidence.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C01.5",
+      "original_group": "C01",
+      "original_priority": "High",
+      "original_observation": "CAP-010 and the EVA system row still say the API path is non-functional while waiting on EVA developers. FRD-07 records a built contract and distinguishes the outstanding first Pegasus-to-EVA call and live-credential change.",
+      "original_paths": [
+        "docs/operator-notes.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The vendor-waiting claims remain in CAP-010 and the EVA row. Current FRD-07 already specifies the API contract; lack of a first accepted live call is a different fact.",
+      "current_evidence": "docs/operator-notes.md — Required product capabilities; External systems",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C02.1",
+      "original_group": "C02",
+      "original_priority": "High",
+      "original_observation": "The opening and automatic-creation paragraph send a Triage request with no registration to Unidentified; the normal-workflow paragraph still says it remains Needs sorting.",
+      "original_paths": [
+        "docs/frd/frd-03-triage.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The normal Triage workflow now uses Unidentified. Remaining non-email completion semantics are a separate coverage question.",
+      "current_evidence": "docs/frd/frd-03-triage.md — Normal workflow and completion evidence",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C03.1",
+      "original_group": "C03",
+      "original_priority": "High",
+      "original_observation": "Still says no approved source selects the live DVLA/DVSA provider/API, response fields, credentials, limits, target or caller proof. That blanket pre-selection state is incompatible with the documented deployed adapters.",
+      "original_paths": [
+        "docs/frd/frd-06-vehicle-and-engineering-evidence.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The broader problem remains the conflation of selected adapters with outstanding live credentials/response acceptance. Do not describe the provider as unselected where current source and operational records select it. The exact live service was not queried by this audit.",
+      "current_evidence": "docs/frd/frd-06-vehicle-and-engineering-evidence.md — Vehicle data and MOT enrichment; docs/operations.md — Local and live evidence boundaries",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C04.1",
+      "original_group": "C04",
+      "original_priority": "High",
+      "original_observation": "Export and API-submission paragraphs say the Case state/version do not change. FRD-01 and FRD-12 D44 say Send to EVA is the implicit Review action that moves the Case to With Engineer.",
+      "original_paths": [
+        "docs/frd/frd-07-eva-and-external-engineering-handoff.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The current FRD-07 acknowledges the Review-to-With Engineer handoff.",
+      "current_evidence": "docs/frd/frd-07-eva-and-external-engineering-handoff.md — Focused EVA manual handoff",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C04.2",
+      "original_group": "C04",
+      "original_priority": "High",
+      "original_observation": "Saving Case data is said to invalidate the prior completeness confirmation and return the Case to Not ready; this is not reconciled with D44 removing staff-review flags and FRD-01 prohibiting unchanged/unrelated saves from resetting readiness or lifecycle.",
+      "original_paths": [
+        "docs/frd/frd-07-eva-and-external-engineering-handoff.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The blanket save-invalidates-readiness claim still conflicts with the D44 distinction for unchanged/unrelated saves. Replace it with the authoritative affected-field/state rule.",
+      "current_evidence": "docs/frd/frd-07-eva-and-external-engineering-handoff.md; docs/frd/frd-01-case-identity-and-lifecycle.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C04.3",
+      "original_group": "C04",
+      "original_priority": "High",
+      "original_observation": "External boundary still describes the EVA API route as awaiting a usable contract, although the same file documents the built August 27 contract.",
+      "original_paths": [
+        "docs/frd/frd-07-eva-and-external-engineering-handoff.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The external-boundary tail still retains future/unaccepted-contract descriptions after the same document specifies the accepted API.",
+      "current_evidence": "docs/frd/frd-07-eva-and-external-engineering-handoff.md — External boundary",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C05.1",
+      "original_group": "C05",
+      "original_priority": "High",
+      "original_observation": "The Source limitation paragraph says routes, headers, schema, encoding, limits and administration are undefined; the Accepted API-01 submission contract immediately below defines them.",
+      "original_paths": [
+        "docs/frd/frd-09-provider-and-intermediary-routes.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "API-01 now supplies the named contract rather than leaving the former generic undefined-contract sentence as the governing limitation.",
+      "current_evidence": "docs/frd/frd-09-provider-and-intermediary-routes.md — Provider API principal and contract boundary",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C05.2",
+      "original_group": "C05",
+      "original_priority": "High",
+      "original_observation": "The QDOS route policy is labelled v3 and the Triage classification contract v4, whereas the reviewed code constants are route v4 and classification v5.",
+      "original_paths": [
+        "docs/frd/frd-09-provider-and-intermediary-routes.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The document now uses the principal-wide version-1 policy owners. Do not update it mechanically to the old review’s v4/v5 target: that target is itself historical.",
+      "current_evidence": "docs/frd/frd-09-provider-and-intermediary-routes.md; docs/principal-rules-and-mappings/qdos.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C06.1",
+      "original_group": "C06",
+      "original_priority": "High",
+      "original_observation": "The Case workspace says another editor's holder and expiry are shown. FRD-01 says non-holders are never given a time because the holder can keep renewing the lease.",
+      "original_paths": [
+        "docs/frd/frd-12-operator-experience.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Expiry-display wording still conflicts with a continuously renewed edit session for which non-holders receive no reliable availability time.",
+      "current_evidence": "docs/frd/frd-12-operator-experience.md — Case workspace; docs/frd/frd-01-case-identity-and-lifecycle.md — Case edit authority and recovery",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C06.2",
+      "original_group": "C06",
+      "original_priority": "High",
+      "original_observation": "The route description still sends users to image records from Not-ready Image-initiated rows. Its own later D38 rule puts those rows in Awaiting instruction and reserves Not ready for formal instructed Cases.",
+      "original_paths": [
+        "docs/frd/frd-12-operator-experience.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The old Not-ready Image-initiated route wording remains inconsistent with Awaiting instruction and formal-Case-only Not ready.",
+      "current_evidence": "docs/frd/frd-12-operator-experience.md — Shell and routes; Cases queues",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C06.3",
+      "original_group": "C06",
+      "original_priority": "High",
+      "original_observation": "Explicit display examples include Image intake registered and Blocked intake chips, contrary to the operator-facing ban on intake and the Blocked display mapping.",
+      "original_paths": [
+        "docs/frd/frd-12-operator-experience.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Internal intake labels remain in staff-facing examples despite CONTEXT and design mappings.",
+      "current_evidence": "docs/frd/frd-12-operator-experience.md — display examples; CONTEXT.md — Interface vocabulary",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C06.4",
+      "original_group": "C06",
+      "original_priority": "High",
+      "original_observation": "The blanket rule permits disabled controls only for ticketed integration seams, while the same FRD requires disabled real actions for missing Engineer's Value, absent address values and per-Principal API permission. Operator-notes also requires visible disabled future-permitted actions.",
+      "original_paths": [
+        "docs/frd/frd-12-operator-experience.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Separate an unfinished integration preview from an implemented action disabled for eligibility, permission or missing values. The blanket sentence conflicts with its own required real controls.",
+      "current_evidence": "docs/frd/frd-12-operator-experience.md — disabled-control rule",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "C07.1",
+      "original_group": "C07",
+      "original_priority": "High",
+      "original_observation": "Says missing/ambiguous standalone Audit evidence withholds only the later Audit reference, referring to CLAUDE.md. FRD-01 requires the original report and determinable verdict before that email-route Audit can allocate a Case/reference.",
+      "original_paths": [
+        "docs/principal-rules-and-mappings/qdos.md",
+        "docs/frd/frd-01-case-identity-and-lifecycle.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The QDOS companion and FRD-01 now both allocate the normal Case/PO before the evidence-dependent Audit reference. FRD-02 is the remaining conflicting owner, not this old pair.",
+      "current_evidence": "docs/principal-rules-and-mappings/qdos.md — Case type; docs/frd/frd-01-case-identity-and-lifecycle.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D01.1",
+      "original_group": "D01",
+      "original_priority": "Medium",
+      "original_observation": "Defines current architecture as the accepted set, but lists ADR-0004 staff-MCP authentication and ADR-0007 deployment without their later partial supersession.",
+      "original_paths": [
+        "docs/adr/README.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The index now identifies partial supersession for ADR-0004 and ADR-0007.",
+      "current_evidence": "docs/adr/README.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D01.2",
+      "original_group": "D01",
+      "original_priority": "Medium",
+      "original_observation": "ADR-0002's table entry points to ADR-0032, although the same index marks 0032 superseded by 0033.",
+      "original_paths": [
+        "docs/adr/README.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The ADR-0002 pointer still requires a current transitive view through ADR-0032 to ADR-0033, not a claim that the intermediate record is active.",
+      "current_evidence": "docs/adr/README.md; docs/adr/0002-dotnet-modular-monolith-on-azure.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D02.1",
+      "original_group": "D02",
+      "original_priority": "Medium",
+      "original_observation": "Remains accepted with original App Service, environment, MCP and activation assumptions that subsequent decisions changed; existing partial-supersession guidance does not map all changed clauses to the current decisions.",
+      "original_paths": [
+        "docs/adr/0002-dotnet-modular-monolith-on-azure.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "ADR-0002 is still a mixed bundle. Its active clauses must be distinguishable from replaced hosting/environment/identity/scheduling assumptions without rewriting its historical rationale.",
+      "current_evidence": "docs/adr/0002-dotnet-modular-monolith-on-azure.md — Status; Decisions",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D02.2",
+      "original_group": "D02",
+      "original_priority": "Medium",
+      "original_observation": "The trigger/polling supersession pointer stops at ADR-0032 rather than its replacement ADR-0033.",
+      "original_paths": [
+        "docs/adr/0002-dotnet-modular-monolith-on-azure.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "Follow the scheduling successor chain through ADR-0033 in the current-decision view. A historical link to ADR-0032 may remain as provenance.",
+      "current_evidence": "docs/adr/0002-dotnet-modular-monolith-on-azure.md; docs/adr/0033-warm-unified-work-queue-for-five-second-intake.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D03.1",
+      "original_group": "D03",
+      "original_priority": "High",
+      "original_observation": "Still presents the per-staff MCP authentication model as an accepted current decision with no superseding metadata, despite ADR-0011 explicitly replacing that boundary with the Automation Actor.",
+      "original_paths": [
+        "docs/adr/0004-provider-api-and-staff-mcp-authentication.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "ADR-0004 now marks the staff-MCP boundary as superseded by ADR-0011. Its separate Provider API decision survives.",
+      "current_evidence": "docs/adr/0004-provider-api-and-staff-mcp-authentication.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D04.1",
+      "original_group": "D04",
+      "original_priority": "High",
+      "original_observation": "Retains the three-environment development/test/production model even though ADR-0014 selects local development plus production.",
+      "original_paths": [
+        "docs/adr/0007-direct-terminal-azure-deployment.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The current partial-supersession note identifies ADR-0014 as the environment successor.",
+      "current_evidence": "docs/adr/0007-direct-terminal-azure-deployment.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D04.2",
+      "original_group": "D04",
+      "original_priority": "High",
+      "original_observation": "Retains App Service/F1-B1/Web ZIP assumptions replaced by the Container Apps/OCI Web-host decision.",
+      "original_paths": [
+        "docs/adr/0007-direct-terminal-azure-deployment.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The partial-supersession note identifies the Container Apps/OCI successor. Release workstation policy subsequently reaches ADR-0039 through ADR-0037.",
+      "current_evidence": "docs/adr/0007-direct-terminal-azure-deployment.md; docs/adr/0039-windows-and-linux-release-workstations.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D04.3",
+      "original_group": "D04",
+      "original_priority": "High",
+      "original_observation": "Its original alpha recovery-proof requirement is not reconciled with the current PRD marking OPS-09 deferred and not a release gate.",
+      "original_paths": [
+        "docs/adr/0007-direct-terminal-azure-deployment.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The surviving recovery/alpha-gate implication must be scoped against the current PRD’s explicitly non-blocking OPS-09. Do not resurrect it through a legacy acceptance runner.",
+      "current_evidence": "docs/adr/0007-direct-terminal-azure-deployment.md; docs/prd/pegasus-product.md — Quality; scripts/Invoke-QdosAlphaAcceptance.ps1",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "D05.1",
+      "original_group": "D05",
+      "original_priority": "Medium",
+      "original_observation": "ADR-0011 declares that it replaces the earlier staff-MCP boundary, ADR-0014 changes the earlier environment policy, and ADR-0015 changes the earlier Web hosting/deployment policy; their supersedes arrays remain empty.",
+      "original_paths": [
+        "docs/adr/0011-restrict-mcp-to-automation-actor.md",
+        "docs/adr/0014-local-to-production-deployment.md",
+        "docs/adr/0015-host-web-on-container-apps-consumption.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The three successor records now populate their supersedes relationships. Other missing or overbroad relationships remain elsewhere in the ADR graph.",
+      "current_evidence": "docs/adr/0011-restrict-mcp-to-automation-actor.md; docs/adr/0014-local-to-production-deployment.md; docs/adr/0015-host-web-on-container-apps-consumption.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "E01.1",
+      "original_group": "E01",
+      "original_priority": "Medium",
+      "original_observation": "Still queues PR #592 as unmerged work. GitHub records that PR as merged on 2026-08-28, so the plan cannot be used as a current resume instruction. Its old branch/board snapshot has no clear historical-only status.",
+      "original_paths": [
+        ".zcode/plans/plan-sess_18294ee2-592f-4647-910c-54c5a5e0a0ab.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The resume plan now explicitly says historical session evidence, retired from execution, and forbids replaying its worktrees/merges as authority.",
+      "current_evidence": ".zcode/plans/plan-sess_18294ee2-592f-4647-910c-54c5a5e0a0ab.md — opening",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "E02.1",
+      "original_group": "E02",
+      "original_priority": "Medium",
+      "original_observation": "Proposes changing Kanmer's cwd to .worktrees/kanmer, but the reviewed .zcode/config.json already contains that corrected configuration. The plan has no completed/historical disposition.",
+      "original_paths": [
+        ".zcode/plans/plan-sess_485ec446-cbcd-46a2-bb5a-511a9255e9c5.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The configuration plan now has the same explicit retirement warning. It correctly does not claim a fresh process restart was verified.",
+      "current_evidence": ".zcode/plans/plan-sess_485ec446-cbcd-46a2-bb5a-511a9255e9c5.md — opening",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F01.1",
+      "original_group": "F01",
+      "original_priority": "High",
+      "original_observation": "Says this repository uses docs/product/prd/**, docs/functional/frd/** and docs/architecture/adr/**, while Pegasus uses docs/prd/, docs/frd/ and docs/adr/.",
+      "original_paths": [
+        ".agents/skills/kanmer-docs/SKILL.md",
+        ".grok/skills/kanmer-docs/SKILL.md",
+        ".opencode/skills/kanmer-docs/SKILL.md"
+      ],
+      "current_disposition": "Still outstanding",
+      "current_assessment": "The copied skill still says this repository uses the Kanmer-source product/functional/architecture subtrees. Keep only resolved target-board globs and Pegasus navigation.",
+      "current_evidence": ".agents/skills/kanmer-docs/SKILL.md — Where the documents live",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F01.2",
+      "original_group": "F01",
+      "original_priority": "High",
+      "original_observation": "Refers to this project's FRD-014 R2/R8b shaping history and to docs/contributing/doc-structure.md as present, importing Kanmer-source context into the Pegasus consumer.",
+      "original_paths": [
+        ".agents/skills/kanmer-docs/SKILL.md",
+        ".grok/skills/kanmer-docs/SKILL.md",
+        ".opencode/skills/kanmer-docs/SKILL.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The FRD-014 R2/R8b foreign-project example remains. The doc-structure asset is now target-neutral; do not mistake its generation template for an assertion that the target file already exists.",
+      "current_evidence": ".agents/skills/kanmer-docs/SKILL.md — Granularity test; .agents/skills/kanmer-docs/assets/doc-structure.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F01.3",
+      "original_group": "F01",
+      "original_priority": "High",
+      "original_observation": "States a fixed leaving-Backlog link-or-create gate without qualifying it by the current profile-resolved model; also calls board.yml the source of truth where the managed instructions specifically warn that its profiles block is not the effective requirement set.",
+      "original_paths": [
+        ".agents/skills/kanmer-docs/SKILL.md",
+        ".grok/skills/kanmer-docs/SKILL.md",
+        ".opencode/skills/kanmer-docs/SKILL.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "The main requirements paragraph is profile-resolved, but the description and Backlog workflow still imply every ticket must link/create a document. Remove that residue upstream and reconcile mirrors.",
+      "current_evidence": ".agents/skills/kanmer-docs/SKILL.md — description; Workflow; Governing-document requirements",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F02.1",
+      "original_group": "F02",
+      "original_priority": "Medium",
+      "original_observation": "Describes proof as evidence gathered on merged main, contradicting exact-PR-merge-SHA verification on the configured integration target.",
+      "original_paths": [
+        ".agents/skills/kanmer-docs/assets/doc-structure.md",
+        ".grok/skills/kanmer-docs/assets/doc-structure.md",
+        ".opencode/skills/kanmer-docs/assets/doc-structure.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "The proof row now uses the exact configured integration-branch SHA after review and merge.",
+      "current_evidence": ".agents/skills/kanmer-docs/assets/doc-structure.md — Ticket documents",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F03.1",
+      "original_group": "F03",
+      "original_priority": "High",
+      "original_observation": "All three proof templates say merged main rather than the reviewed PR's exact merge SHA.",
+      "original_paths": [
+        ".agents/skills/kanmer-execute/assets/proof-template.md",
+        ".agents/skills/kanmer-execute/assets/proof-test-template.md",
+        ".agents/skills/kanmer-execute/assets/proof-visual-template.md",
+        ".grok/skills/kanmer-execute/assets/proof-template.md",
+        ".grok/skills/kanmer-execute/assets/proof-test-template.md",
+        ".grok/skills/kanmer-execute/assets/proof-visual-template.md",
+        ".opencode/skills/kanmer-execute/assets/proof-template.md",
+        ".opencode/skills/kanmer-execute/assets/proof-test-template.md",
+        ".opencode/skills/kanmer-execute/assets/proof-visual-template.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "All three templates now use the configured integration branch rather than requiring main.",
+      "current_evidence": ".agents/skills/kanmer-execute/assets/proof-template.md; proof-test-template.md; proof-visual-template.md",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F03.2",
+      "original_group": "F03",
+      "original_priority": "High",
+      "original_observation": "They omit the versioned proof-record frontmatter and attempt history required by the current verification skill: kind, merged_sha, environment, verified_at, result and attempts.",
+      "original_paths": [
+        ".agents/skills/kanmer-execute/assets/proof-template.md",
+        ".agents/skills/kanmer-execute/assets/proof-test-template.md",
+        ".agents/skills/kanmer-execute/assets/proof-visual-template.md",
+        ".grok/skills/kanmer-execute/assets/proof-template.md",
+        ".grok/skills/kanmer-execute/assets/proof-test-template.md",
+        ".grok/skills/kanmer-execute/assets/proof-visual-template.md",
+        ".opencode/skills/kanmer-execute/assets/proof-template.md",
+        ".opencode/skills/kanmer-execute/assets/proof-test-template.md",
+        ".opencode/skills/kanmer-execute/assets/proof-visual-template.md"
+      ],
+      "current_disposition": "Partially resolved",
+      "current_assessment": "All three now add identity and attempt instructions in prose, but none provides the required versioned proof-record YAML frontmatter. Align them with kanmer-verify without creating a second format.",
+      "current_evidence": ".agents/skills/kanmer-execute/assets/proof-*.md; .agents/skills/kanmer-verify/SKILL.md — Whole-file proof record",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    },
+    {
+      "id": "F04.1",
+      "original_group": "F04",
+      "original_priority": "Medium",
+      "original_observation": "Some clauses allow only PASS to reach Done and say never move a non-PASS ticket to Done. Other clauses and the handoff explicitly permit the operator-only WAIVED_BY_OPERATOR outcome to reach Done.",
+      "original_paths": [
+        ".agents/skills/kanmer-verify/SKILL.md",
+        ".grok/skills/kanmer-verify/SKILL.md",
+        ".opencode/skills/kanmer-verify/SKILL.md"
+      ],
+      "current_disposition": "Resolved wording",
+      "current_assessment": "WAIVED_BY_OPERATOR is now explicitly a non-PASS human disposition; terminal retirement stays Verifying and is archived. Only PASS reaches Done.",
+      "current_evidence": ".agents/skills/kanmer-verify/SKILL.md — Whole-file proof record; Terminal retirement; final handoff",
+      "reviewed_revision": "26ba4ed408317cccdb354dc1e115b0297f15df94"
+    }
+  ],
+  "historical_records_to_preserve": [
+    {
+      "path": "docs/adr/0010-adopt-single-context-domain-documentation.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0010-adopt-single-context-domain-documentation.md",
+      "successors": [
+        "AGENTS.md",
+        "docs/index.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0012-conservative-mot-mileage-estimation.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0012-conservative-mot-mileage-estimation.md",
+      "successors": [
+        "docs/frd/frd-06-vehicle-and-engineering-evidence.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0013-qdos-alpha-implementation-contract.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0013-qdos-alpha-implementation-contract.md",
+      "successors": [
+        "docs/adr/0029-image-initiated-case-projection.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0020-accepted-qdos-case-association-predicates.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0020-accepted-qdos-case-association-predicates.md",
+      "successors": [
+        "docs/frd/frd-09-provider-and-intermediary-routes.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0021-automation-actor-direct-write-assessment-contract.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0021-automation-actor-direct-write-assessment-contract.md",
+      "successors": [
+        "docs/adr/0031-automation-actor-contract-without-eva-export-tools.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0022-approved-mailbox-identity-and-enablement-database-setting.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0022-approved-mailbox-identity-and-enablement-database-setting.md",
+      "successors": [
+        "docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md",
+        "docs/frd/frd-08-email-mailbox-and-background-processing.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0023-restructure-repository-documentation-and-reference-evidence.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0023-restructure-repository-documentation-and-reference-evidence.md",
+      "successors": [
+        "AGENTS.md",
+        "docs/index.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    },
+    {
+      "path": "docs/adr/0032-near-real-time-durable-intake-triggering.md",
+      "url": "https://github.com/collisionengineers/pegasus/blob/6e79f33d30c0d4b757fefe58bf5c0a9e9684a8d8/docs/adr/0032-near-real-time-durable-intake-triggering.md",
+      "successors": [
+        "docs/adr/0033-warm-unified-work-queue-for-five-second-intake.md"
+      ],
+      "action": "Preserve as an explicitly superseded historical decision; use the successor for current policy."
+    }
+  ]
+}

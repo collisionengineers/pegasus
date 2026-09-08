@@ -1,0 +1,37 @@
+--- a/docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md
++++ b/docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md
+@@ -3,7 +3,7 @@
+ status: accepted
+ date: 2026-08-10
+ supersedes: [ADR-0022]
+-superseded_by: []
++superseded_by: [ADR-0044]
+ related_capabilities: []
+ related_frd: [frd-08]
+ tags: [mailbox, identity]
+@@ -76,17 +76,19 @@
+ specified in
+ [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
+ 
+-### 3. Launch receipt-identity model
++### 3. Receipt occurrence identity (partially superseded)
+ 
+-There is no v1-to-v2 receipt backfill in this launch model. Inbound receipt
+-identity is the stable `(ApprovedMailbox.Id, Graph ImmutableMessageId)`
+-occurrence, so changing Graph coordinates cannot create a second receipt for the
+-same message.
++ADR-0044 separates this occurrence identity from mailbox-scoped business
++identity. `(ApprovedMailbox.Id, Graph ImmutableMessageId)` identifies a retained
++provider occurrence; it is not the business duplicate key. Preserve repeated
++receipt provenance while shared intake identity prevents duplicate business
++work. The remaining mailbox policy, fresh activation and control-layer clauses
++of this ADR remain accepted.
+ 
+ A one-time reset of obsolete pre-launch inbound operational data (old poll and
+ receipt state) is an operational procedure requiring its own exact-target
+ approval under the [runbook live-operation approval
+-matrix](../runbook.md#live-operation-approval-matrix); it is not authorised by
++matrix](../runbook.md#operational-authority); it is not authorised by
+ this ADR or by a deployment switch, and it may never delete a Case, a
+ Case-linked record, or retained business evidence.
+ 

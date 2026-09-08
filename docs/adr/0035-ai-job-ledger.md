@@ -16,7 +16,9 @@ tags: [ai, mcp, automation, ledger]
 Accepted, 2026-08-28. Refines ADR-0011/ADR-0031 by adding one scope and one
 store to the Automation Actor boundary; it changes neither the actor identity
 nor the existing tool contract. It supersedes the "shared AI usage ledger"
-exclusion recorded in the AI assistance row of `docs/boundaries.md`.
+earlier exclusion of a shared AI usage ledger. FRD-11 owns the current job
+behavior, including MarketResearch completion by the Automation Actor after
+its research files are attached. Completion does not adopt an Engineer value.
 
 ## Context
 
@@ -61,7 +63,9 @@ owned by `Pegasus.Core`.
 4. **Creation has two callers.** Staff create jobs from the Web application;
    external schedulers create jobs through the Actor's `create` tool. Pegasus
    runs no timer for AI work (D5).
-5. **Results are pointers or drafts, never applied.** A completed job points
+5. **Results retain evidence without silently adopting professional findings.**
+   MarketResearch points to the retained Case files and completes through the
+   Automation Actor under FRD-11. A reviewed-proposal job points
    at a draft the client wrote through the existing attributed Actor tools,
    or carries a proposal for staff to confirm through the existing staff
    action. The ledger never mutates case, Unidentified, or correspondence
@@ -88,9 +92,8 @@ first.
   action, a drafted reply is text offered to the composer.
 - Operations and Administration read one ledger for the AI Job List and the
   active/failed counts; there is no second AI usage record to reconcile.
-- `docs/boundaries.md`'s exclusion of a shared AI usage ledger no longer
-  holds; the row is amended under UIIMP-007 to cite this record.
-- Wave-3 implementation carries the `AiJobs` migration, its grants, the Core
+- Product boundaries do not exclude this accepted ledger.
+- Implementation carries the `AiJobs` migration, its grants, the Core
   ledger, and the Actor tools together; a Web-only or tool-only slice is not
   the decided shape.
 
@@ -118,4 +121,4 @@ withdrew the earlier exclusion for exactly that reason.
 - [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
 - [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md)
 - [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md)
-- [Boundaries — AI assistance](../boundaries.md)
+- [Boundaries — AI assistance](../prd/pegasus-product.md#permanent-boundaries)

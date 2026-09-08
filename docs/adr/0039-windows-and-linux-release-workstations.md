@@ -51,6 +51,6 @@ This decision establishes support, not native execution or deployment proof.
 - Superseded choice: [ADR-0037](0037-linux-authorised-release-workstation.md).
 - Direct terminal: [ADR-0007](0007-direct-terminal-azure-deployment.md).
 - Environment boundary: [ADR-0014](0014-local-to-production-deployment.md).
-- Procedure: [Runbook](../runbook.md#deployment-and-release).
+- Procedure: [Runbook](../../.agents/skills/pegasus-release/SKILL.md).
 - Microsoft [EF migration bundles](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)
   and [SDK container publishing](https://learn.microsoft.com/en-us/dotnet/core/containers/sdk-publish).

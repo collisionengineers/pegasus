@@ -11,7 +11,7 @@ Pegasus must:
 
 - preserve source bytes before deriving content;
 - isolate parsing and enforce depth, count, size, decompression, relationship,
-  and cancellation limits — manual upload currently remains bounded at 10 MiB
+  and cancellation limits — manual upload currently remains bounded at 100 MiB
   per file; future intake bounds require the research and operator decision in
   `INTK-052`, while the Provider API envelope stays at 30 MB and is owned by
   [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary);
@@ -53,7 +53,9 @@ Receipt/staging and accepted case custody are different states.
 - Box is the required accepted case-file custody system for the day-one alpha. Every allocated Case/PO uses its immutable reference for its Box case folder, then retains its source emails, instruction documents, images, correspondence, and reports there.
 - A Box failure after Case/PO allocation retains the Case as `Not ready` with explicit failure and staff-initiated retry/recovery evidence. It does not roll back, reuse, or reallocate the reference, and no background or automatic business retry is permitted.
 - Staff may add manually received WhatsApp evidence with its source/channel provenance; this does not activate a WhatsApp integration.
-- A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
+- Case/file mutations use normal role, lease and version guards. Completed
+  status does not permanently lock correspondence or files; query receipt or
+  attachment follows FRD-01. Box offers no bypass of application authorization.
 - Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](../operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
 
@@ -75,3 +77,26 @@ case root's image evidence location) and the emptied folder is removed; the
 removal is non-recursive, so unexpected content fails the fold closed
 instead of being destroyed. The Image-initiated lifecycle state and
 merge/closure history remain in SQL regardless of custody.
+
+## Custody and staging distinctions
+
+Box is durable file custody. Azure processing bytes and the 24-hour idle cache
+are temporary; SQL retains arrival, idempotency and provenance identities.
+Receipt, logical access and definitive association are separate claims. A
+temporary file or cache hit does not establish an accepted Case association.
+
+A secondary Audit folder nests under its original Inspection folder. It is
+not a sibling of that Inspection folder. Image-origin references remain
+distinct from formal Case/PO identity while their custody is resolved.
+
+
+## Custody and derived reads
+
+Box owns durable Case-document custody. Existing intake staging retains original
+bytes until verified custody handoff; SQL retains identity, version and
+provenance. A derived image/cache copy serves processing or presentation and
+can be rebuilt from retained source evidence; it is not a second custody owner.
+Read through the logical occurrence/version interface so current authorization
+and exact version checks apply regardless of physical source. Do not erase
+staging before verified handoff or invent a new store for this separation
+(ADR-0045).

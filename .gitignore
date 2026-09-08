@@ -22,7 +22,6 @@ appsettings.*.local.json
 **/artifacts/
 /artifacts/
 # Tool and editor working state
-/.codex/config.toml
 /.mcp.json
 /opencode.json
 /.claude/
@@ -80,5 +79,7 @@ ds-bundle/
 docs/design/system/node_modules/
 docs/design/system/dist/
 ~$*
-.codex/config.toml
 .mcp.json
+opencode.json
+.opencode/skills/
+/pegasus_pack/

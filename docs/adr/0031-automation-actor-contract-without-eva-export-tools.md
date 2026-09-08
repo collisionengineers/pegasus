@@ -16,6 +16,10 @@ tags: [mcp, automation, ai, eva]
 Accepted. Supersedes ADR-0021; ADR-0026 and ADR-0027 still refine production
 enablement and external connector authentication.
 
+## Current applicability
+
+Direct unconfirmed working-data writes are permitted within the current FRD-10 guards. AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants confirmation or outward dispatch.
+
 ## Context
 
 ADR-0021 included separate Automation MCP tools for generating an EVA bundle

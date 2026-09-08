@@ -1,20 +1,25 @@
 # Repository runbook
 
-## Unidentified queue operations
+Use the procedure for the operation at hand. Product requirements belong to the
+FRDs; engineering policy belongs to [engineering](engineering.md). Current task
+authorization and verification ownership belong to Kanmer.
 
-The Unidentified queue is the operator destination for safely retained material that
-cannot be read, identified, owned, or routed. Use the immutable U-reference shown in
-the queue/detail page when investigating; never allocate a Case/PO or Audit reference
-as a placeholder. Conflicting VRMs use the explicit conflicting-identification reason.
-Retryable processing is not Unidentified; terminal technical failure after custody
-is. Resolution is an authorised, version-checked action and never reuses a U number.
+- [Local setup](runbook.md#local-setup-and-run)
+- [Build and test commands](runbook.md#locked-restore-build-and-test)
+- [Reference authoring](runbook.md#provider-domain-reference-authoring)
+- [Mailbox operations](runbook.md#approved-mailbox-estate)
+- [OAuth certificate operations](runbook.md#automation-oauth-certificate-operation)
+- [Monitoring](runbook.md#monitoring-and-diagnosis) and [recovery](runbook.md#recovery)
+- [Configuration reference](engineering/configuration.md)
+- [Release procedure](../.agents/skills/pegasus-release/SKILL.md)
+- [Intake wipe procedure](../.agents/skills/pegasus-wipe-intake-data/SKILL.md)
 
-This file owns executable setup, local development, database, testing, release,
-approval, monitoring, recovery, and maintenance procedures. Current production,
-release, evidence, monitoring, and recovery state is recorded in
-[operations](operations.md). The task operating procedure is owned by
-[`AGENTS.md`](../AGENTS.md#repository-task-workflow); engineering evidence
-tiers are owned by [engineering](engineering.md#required-evidence-tiers).
+## Operational authority
+
+Read-only inventory is permitted. Writes require authorization covering the
+operation and targets. Use the current task grant; a past example, credential,
+or tool's availability is not permission. Current test data is disposable;
+this does not itself direct an agent to clear an environment.
 
 ## Supported platform
 
@@ -117,7 +122,7 @@ not.
 the profile needs no container runtime. *Linux:* the database is a per-run SQL
 Server container, so a reachable Docker daemon and the pinned image are
 prerequisites; `Invoke-Doctor.ps1` checks both and never pulls. See
-[local database](#local-database).
+[local database](runbook.md#local-database).
 
 Pegasus has one supported database-provider contract: SQL Server. The local
 development and integration-acceptance provider for persistence, migrations,
@@ -220,417 +225,6 @@ establish screen-reader interoperability, complete WCAG conformance, subjective
 usability, or operator acceptance. Production identity/session behavior,
 external services, deployment, and operator acceptance remain separate evidence
 boundaries.
-
-## Optional approved live-work profile
-
-These tools are not offline prerequisites. Check, install, or authenticate them only after the exact live operation has been approved.
-
-| Tool or module | Supported version |
-| --- | --- |
-| Azure CLI | 2.88 |
-| Azure Developer CLI | 1.28.0 |
-| Bicep CLI | 0.45.15 |
-| GitHub CLI | 2.88 |
-| Infisical CLI | 0.43.104 |
-| Box CLI | 4.9.2 |
-| SqlServer PowerShell module | 22.4.5.1 |
-| ExchangeOnlineManagement PowerShell module | 3.10.0 |
-
-Install PowerShell modules only at `CurrentUser` scope and only for selected live work:
-
-```powershell
-Install-Module SqlServer -Scope CurrentUser -RequiredVersion 22.4.5.1 -Force -AllowClobber -Repository PSGallery
-Install-Module ExchangeOnlineManagement -Scope CurrentUser -RequiredVersion 3.10.0 -Force -AllowClobber -Repository PSGallery
-```
-
-`az login`, `azd auth login`, Exchange connection, Box login, credential changes, deployment, and Azure operations each retain a separate exact-target approval boundary.
-
-<a id="approved-box-integration-test-target"></a>
-
-### Approved Box custody root
-
-The approved production and controlled integration-test roots, authentication
-mechanism, and current deployed custody state are recorded in
-[operations](operations.md#approved-box-custody-root). Before any invocation,
-apply the exact scope, approval, and evidence checks in this runbook's
-[live-operation approval matrix](#live-operation-approval-matrix).
-Before every Box invocation, verify target ancestry and the target/action
-allowlist, and retain the stable source identity, target identity, and outcome.
-
-### Azure SQL runtime-role bootstrap
-
-`scripts/Invoke-AzureDatabaseBootstrap.ps1` implements the explicit
-post-provision, post-migration user/role operation. It creates only the fixed
-external-user aliases from the Web/Worker managed-identity client-ID SIDs,
-rejects broad roles or direct DDL, and compares the live object permission set
-with the exhaustive grant and `DELETE`-denial matrix defined across every
-grant-carrying migration (the 2026-07-29 reconciliation plus the four
-2026-08-03 migrations below). It is not an automatic `azure.yaml` hook. It ran
-against production on 2026-08-02 as part of the executed release and verified
-the then-current matrix; any further execution is a separately approved
-exact-target cloud write.
-
-Migration `20260729176000_AzureSqlRuntimeLeastPrivilege` creates and owns the
-fixed custom roles `pegasus_web_runtime_role` and
-`pegasus_worker_runtime_role`. Role-reconciliation migration
-`20260729199000_RuntimeRoleReconciliation` first removes every direct
-object-level DML permission for those roles across the complete application
-table census, then grants the exhaustive caller-derived matrix. As of the 2026-07-29
-reconciliation migration it explicitly denies `DELETE` on every table except
-the four Web workflows that require it (`AspNetUserRoles`, `CaseDataFields`,
-`OrganizationRoles`, and `TriageResponseEvidenceLinks`); Worker has no
-`DELETE` grant. Later migrations extend the matrix: `ImageIntakeRegistration`
-grants both roles the image-intake tables with `DELETE` denied;
-`MailClassificationDecisions` grants the Worker `SELECT/INSERT/UPDATE/DELETE`
-on `IntakeMailClassificationDecisions` (re-evaluation replaces the decision
-row after snapshotting it to history) and the Web read-only with `DELETE`
-denied;
-`CaseMatchDecisionsAndAssociationPolicy` grants the Web
-`SELECT/INSERT/UPDATE/DELETE` on `CaseMatchIndex` (the acceptance-path
-projector replaces index rows in place), the Worker
-`SELECT/INSERT/UPDATE/DELETE` on `IntakeCaseMatchDecisions` (the same
-replace-after-snapshot reason), the opposite role read-only on each with
-`DELETE` denied, and the Worker insert/update association and insert-only
-history writes with `DELETE` denied; `AutomationActorOpenIddict` grants the
-Web the four OpenIddict tables with `DELETE` denied to both roles. Neither role
-receives DDL, schema-wide access, `db_datareader`, `db_datawriter`, or
-`db_owner`. Web owns staff identity and administration, case editing,
-document-custody, request-upload, and operator intake persistence. Worker owns
-mailbox polling, queued intake, due-work and sent-evidence processing, and
-vehicle-observation persistence. Runtime migration tests compare the complete
-schema census, grants, and delete denials rather than sampling named tables.
-The bootstrap owns only the fixed external-user aliases
-`pegasus_web_runtime` and `pegasus_worker_runtime`, created from the
-corresponding managed-identity client-ID SID.
-
-Before execution, the production runbook must identify the exact server,
-database, principal, approval evidence, least-privilege matrix, rollback, and
-caller-backed verification. Migration tests and the script implementation are
-local evidence only; they neither create an Azure principal nor authorise a
-cloud write.
-
-## Locked restore, build, and test
-
-Run focused owning projects while iterating. Before delivery, run the canonical solution commands exactly (`--locked-mode` enforces the committed package locks):
-
-```powershell
-dotnet restore ./Pegasus.slnx --locked-mode
-dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
-```
-
-These commands are identical on both platforms; `pwsh` runs them either way.
-
-The focused forms are below; the two integration filters are a complement pair, so
-their union with the two unit projects is exactly the canonical selection:
-
-```powershell
-dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
-dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
-```
-
-Test classes run in parallel. The integration project caps concurrency at four
-in `tests/Pegasus.IntegrationTests/xunit.runner.json`: several agents may run
-suites at once against one LocalDB instance, and the cap is what bounds the
-concurrent restores. The browser selection halves it again on the command line,
-because each of its tests starts a Chromium and a loopback host beside its own
-database. Test UI capture applies the same split in two passes: browser tests at
-the halved cap, then non-browser tests at the project cap. Leave
-`parallelAlgorithm` at its default `conservative`; `aggressive`
-installs a fixed-thread synchronization context, and the web factory builds its
-host synchronously, which together deadlock.
-
-Each test-run process migrates one template database once and restores every
-disposable test database from its backup instead of migrating each one. A
-process that cannot build the template says so on standard error and falls back
-to migrating each database; `LocalDbTemplateDatabaseTests` fails rather than
-letting that fallback pass quietly. The backup is deleted on process exit and
-stray `Pegasus_Test_*.bak` files older than a day are swept from the server's
-data directory on the next run.
-
-A run killed before its tests dispose leaves its databases attached, so the
-same sweep also drops `Pegasus_Test_*` databases older than a day. Both guards
-matter: only the exact disposable name shape is eligible, and the one-day floor
-keeps a suite running now — including one in another worktree against the same
-LocalDB instance — out of range. To see what is attached without changing
-anything:
-
-```powershell
-$pipe = (sqllocaldb info MSSQLLocalDB | Select-String 'Instance pipe name:').ToString().Split(':', 2)[1].Trim()
-sqlcmd -S $pipe -Q "SELECT name, create_date FROM sys.databases WHERE name LIKE 'Pegasus[_]Test[_]%' ORDER BY create_date"
-```
-
-Never drop a test database that a running suite may own; the sweep's one-day
-floor exists for exactly that reason.
-
-**Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
-Windows that is LocalDB and needs no configuration. On Linux, point the tests at
-a SQL Server container before running them:
-
-```powershell
-$env:PEGASUS_TEST_SQL_DATASOURCE = '127.0.0.1,<port>'
-$env:PEGASUS_TEST_SQL_USER = 'sa'
-$env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
-```
-
-Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
-Windows command is unchanged. Without it on Linux, exclude the lane with
-`--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
-not run. The template database never engages when
-`PEGASUS_TEST_SQL_DATASOURCE` is set: its guard tests skip themselves there,
-and an unverified template is worse than
-the slower migrate-per-test path the container falls back to.
-
-These commands prove repository compilation and the selected non-corpus tests only. Genuine corpus, browser, LocalDB/Azurite/Functions, cloud, recovery, and operator evidence are separate caller-specific gates.
-
-### Imported source workspaces
-
-No live source workspace currently exists; both imported snapshots were
-integrated and retired under ADR-0025 (see
-[workspaces](../workspaces/README.md) for the provenance records). A future
-workspace validates independently with its own solution and is never part of
-the application solution.
-
-Report rendering is part of the application solution. After a Release build,
-install its pinned Playwright Chromium and run the Browser-tagged integration proof:
-
-```powershell
-pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportRendererTests"
-```
-
-## Provider-domain reference authoring
-
-Provider-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only:
-
-```text
-reference/workproviders-and-repairers/initial.xlsx
-```
-
-The published package retains its original
-`docs/reference/workproviders-and-repairers/initial.xlsx` source identity as
-immutable provenance. The authoring helper maps that identity to the physical
-path above only while regenerating or verifying the same bytes; it never
-republishes `provider-domains-v1` with a new path or hash.
-
-It retains:
-
-- the provider code from column A; and
-- the final lowercase `@domain` suffix from each semicolon-separated column-E observation.
-
-It ignores columns B–D and all later columns. It never edits the workbook or emits an email local part, full email address, inspection location, default, Case ID, or opaque source value.
-
-Close the workbook, then run from PowerShell 7 at the repository root:
-
-```powershell
-pwsh ./scripts/Build-ProviderReferenceData.ps1
-pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify
-```
-
-Before discovering Python or reading source bytes, the wrapper rejects:
-
-- the selected workbook’s exact sibling Office lock marker; and
-- an exclusive-read failure;
-
-as `source-locked`.
-
-The helper requires Python 3.11+ and uses only `zipfile` and `xml.etree.ElementTree`. There is no virtual environment, pip installation, dependency lock, package cache, recursive workbook discovery, network operation, or second manifest.
-
-The command stages beneath:
-
-```text
-artifacts/reference-data-staging/
-```
-
-and publishes:
-
-```text
-src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
-```
-
-Publication rules are immutable:
-
-- generation completes in staging before publication;
-- an absent output is moved atomically into place;
-- a byte-identical existing output is a no-op;
-- a different existing output fails `immutable-output` and is not replaced;
-- `-Verify` requires the output and byte-compares a regenerated staged package without mutating it.
-
-Future versions use a new cumulative workbook, version, output, and the previously validated package:
-
-```powershell
-pwsh ./scripts/Build-ProviderReferenceData.ps1 `
-  -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
-  -Version provider-domains-v2 `
-  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
-  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
-```
-
-Every previous provider/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
-
-Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
-
-Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
-
-## Principal-identification corpus authoring
-
-The tracked principal-identification corpus is review evidence for all 49
-operational principals. It is generated from the retained Pegasus sources, an
-immutable local corpus, and a read-only CollisionSpike checkout. It is never
-loaded by the application and cannot activate a route, classification,
-association, or extraction policy.
-
-Inject both untracked source roots and run from PowerShell 7:
-
-```powershell
-$collisionSpikeRoot = "path-to-read-only-collisionspike-checkout"
-$corpusRoot = "path-to-immutable-pegasus-corpus"
-pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
-  -CollisionSpikeRoot $collisionSpikeRoot `
-  -CorpusRoot $corpusRoot
-pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
-  -CollisionSpikeRoot $collisionSpikeRoot `
-  -CorpusRoot $corpusRoot `
-  -Verify
-```
-
-Generation reads originals without modifying them, deduplicates by SHA-256,
-groups messages by thread root then stable case key then source hash, and
-assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
-regenerates canonical JSON and byte-compares the tracked package. The
-tracked text-source snapshots declare `normalized-lf` hashing and byte counts
-so Git checkout line endings cannot create false drift; email, PDF, Office, workbook, and
-fixture evidence retains raw-byte hashes. The
-non-corpus tests validate its 49 dossiers, lifecycle counts, crosswalks,
-criterion states, deterministic split, and tracked Pegasus source hashes. The
-focused corpus lane additionally hashes every locally present original and
-runs it through the real MIME/PDF/Office reader.
-
-CollisionSpike confidence, priorities, thresholds, and winner selection are
-not copied into the normalized criteria. Dormant, unknown, conflicting, and
-multiple candidates remain review-only. A new runtime policy still requires
-the operator to select one principal and accept its development and untouched
-holdout outcomes.
-
-## Provider inspection-mode setting
-
-Each Principal row carries an `InspectionMode` setting
-(`physical_address` or `image_based_assessment`) under
-[ADR-0018](adr/0018-provider-inspection-mode-database-setting.md). It is not
-part of the provider-domain reference package above and never will be: that
-package remains domain evidence only. QDOS is seeded `image_based_assessment`
-by migration; principal creation and replacement carry the setting, and a
-successor inherits its predecessor's mode.
-
-Changing an existing Principal's mode in production is a runbook action until
-a dedicated administration operation is justified. With recorded change
-authority, run against the production database:
-
-```sql
-UPDATE [Principals] SET [InspectionMode] = 'image_based_assessment' -- or 'physical_address'
-WHERE [Code] = '<PRINCIPAL-CODE>';
-```
-
-The change affects only cases accepted after it. An acceptance replayed
-across a mode change fails closed with an operation conflict instead of
-deduplicating, and an acceptance in flight during the change is rejected and
-must be retried from a reloaded intake receipt.
-
-## Approved mailbox estate
-
-The v1 source implements mailbox onboarding in `/Administration/Mailboxes`.
-It is not a deployment or a tenant permission grant. The deployed estate and
-its dated observations remain in [operations](operations.md#production-environment).
-Use this procedure only after the reviewed v1 candidate, schema, runtime roles
-and approved provider configuration have been deployed.
-
-### Runbook: admitting a new mailbox to the tenant
-
-1. A Microsoft 365 administrator creates the mailbox in Microsoft 365
-   administration, if it does not already exist. Pegasus creates no mailbox.
-2. During the separately authorized one-time infrastructure setup, admit the
-   Web and Worker application identities to the intended mailbox scope using
-   Exchange Application RBAC. Configure the read permissions for resolution,
-   Inbox and Sent observation. Staff sending additionally requires scoped
-   `Mail.ReadWrite` and `Mail.Send`. RBAC and unscoped application grants are
-   additive: remove unintended tenant-wide mail grants and record both a
-   permitted-mailbox check and a denied-mailbox check. Record tenant,
-   application identities, mailbox scope, administrator and approval time.
-3. In Pegasus Administration, add the mailbox address. The Web identity
-   resolves its stable Graph identity and performs a read-only folder access
-   check. Select Intake, Sent observation and staff-send capabilities. A saved
-   row does not grant Exchange access. Enable staff-send only after recording
-   the verified effective encoded-message byte ceiling for that mailbox.
-4. Enable the mailbox. Pegasus records its own UTC start boundary and
-   generation. Earlier mail does not become a historic backlog. Check the
-   capability state, last successful poll, last error, activation time and
-   subscription expiry in Mailboxes. The fixed freshness threshold is
-   15 minutes. A Graph subscription notification wakes a direct immutable
-   Inbox-message read; the periodic delta sweep remains the recovery path.
-5. Prove a post-activation Inbox/Sent read in the separately authorized
-   operator acceptance run. A successful administration access check alone
-   proves neither continuing polling nor a real send. Staff initiate any send;
-   Graph acceptance is Submitted until the matching retained Sent item is
-   observed. No unattended chaser initiates mail.
-
-The same UI supports instructions, info, desk and engineers mailboxes once the
-operator has admitted each to the application scope. Unknown sender work still
-fails closed through intake policy; approval of a mailbox is not approval of
-all its senders. Operators do not edit SQL rows or raw environment settings to
-add an already-authorized mailbox.
-
-### Disabling a mailbox
-
-Disable prevents new mailbox work and preserves retained material. Re-enable
-or replacement of a disabled target checks access again, establishes a new
-start boundary and advances the mailbox generation. Old workers and
-subscriptions cannot advance the replacement generation's cursor. Do not
-clear cursors manually to manufacture a backfill. Opening or filtering retained
-mail in Pegasus changes no Outlook read state, folder, flag or category.
-
-Global Worker containment, individual Function activation and per-mailbox
-capabilities are independent. Keep Worker functions disabled during the
-approved migration/grant/bootstrap sequence; turn them on only through the
-reviewed release procedure. Development agents do not perform these live
-mailbox, tenant, permission or send operations.
-
-## Automation OAuth certificate operation
-
-v1 production uses separate persistent signing and encryption certificates
-from the existing Key Vault. The Web managed identity reads the passwordless
-PFX secret versions. The release operator must include each named certificate
-secret in the exact-secret census and grant Web secret-read access at that
-secret's scope; the repository prohibits a vault-wide secret-read grant. The
-application fails closed when the configured certificates cannot be loaded or
-are invalid. Development explicitly uses isolated process keys through
-`AutomationMcp:UseDevelopmentKeys`; that setting is rejected in Production.
-
-The approved release operator supplies these deployment inputs:
-
-| Input | Value |
-| --- | --- |
-| `AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned Key Vault secret URIs for the current and retained signing certificates. |
-| `AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned secret URIs for the separate encryption certificates. |
-| `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for non-Case sources. |
-
-Bicep supplies the configured vault origin and indexed certificate URI settings
-to the Web container. These are references, never PFX bytes or passwords in the
-repository. Initial certificate creation and the initial alex Glass's account
-configuration are separately authorized operator actions; no secret is seeded.
-
-For rotation, publish new certificate secret versions, then deploy all replicas
-with both the new and still-required old versions. Verify token issue,
-validation and refresh across a process restart and a second replica before
-removing old versions. Retain old decryption/signature material through the
-maximum lifetime of every token issued with it: access tokens last 10 minutes,
-refresh tokens at most 14 days with sliding expiration disabled. Base removal
-on the last old-key issuance plus that lifetime, not on certificate upload
-time. Emergency invalidation is an explicit operator action and must record
-which grants/tokens were revoked. Certificate rotation, external connector
-round-trip and live provider acceptance are later proof; local cryptographic
-replica tests do not claim that operator run occurred.
 
 ## Local setup and run
 
@@ -750,147 +344,97 @@ removes only that run directory. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
 
-## Configuration and secrets
+## Locked restore, build, and test
 
-Configuration ownership is:
-
-| Boundary | Owner |
-| --- | --- |
-| Web composition and named SQL Server connection | `src/Pegasus.Web/Program.cs` and environment configuration |
-| Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
-| Ignored local state | `artifacts/` |
-| Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
-| Which mailboxes inbound Intake polls, and their exact tenant identities | The `ApprovedMailboxes` allowlist, edited on `/Administration/Mailboxes` ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)). v1 poll and Sent claims use each persisted mailbox identity, folder, capability and generation; a global Graph coordinate is not the current mailbox authority. Historical deployment settings are recorded in operations. |
-
-Tool availability does not authorize external action.
-
-The optional Production Worker OCR adapter reads `DocumentIntelligence:Endpoint`
-as an absolute HTTPS URI and reuses the credential selected by
-`AzureIdentity:WorkerClientId`. It adds no API-key setting. An absent endpoint
-leaves the provider and processor unregistered; an OCR work row then fails
-closed through the existing external-work dispatcher. `DevelopmentOffline`
-rejects the endpoint setting and composes no OCR provider. The durable OCR
-store remains available to both hosts. Configuration, resource permission,
-deployment and live provider proof require their separately approved targets;
-local composition tests do not establish any of them.
-
-The production Bicep module declares one `FormRecognizer` S0 account with a
-custom subdomain, disabled local authentication and a resource-scoped
-`Cognitive Services User` assignment for the existing Worker identity only
-([ADR-0040](adr/0040-qualified-document-intelligence-ocr.md)). It supplies the
-Worker endpoint; Web receives neither the setting nor that role. The
-`DOCUMENT_INTELLIGENCE_ACCOUNT_ID` and `DOCUMENT_INTELLIGENCE_ENDPOINT`
-deployment outputs identify the exact account for release readback. Current
-target, pricing and activation evidence belong in
-[operations](operations.md#document-intelligence-activation).
-
-Use the existing authorized release and preview procedure. Read back the
-account's SKU, custom subdomain, `disableLocalAuth`, scoped assignment and
-Worker endpoint before the approved qualified-page canary. Retain the OCR
-operation/API/model identity and result hash; replay the same operation to
-prove retained-output recovery, not a new provider submission. Web denial
-needs an actual identity-scoped check, not just an absent setting. If OCR
-activation must be rolled back, remove the Worker endpoint through the
-approved configuration route while preserving the account and retained
-operation evidence. Keep local authentication disabled; never use keys as a
-fallback. Infrastructure readback alone does not prove accepted extraction.
-
-Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
-
-## Testing model
-
-### QDOS offline candidate runner
-
-`scripts/Invoke-QdosAlphaAcceptance.ps1` is the Checkpoint 12 offline
-acceptance orchestrator. Its only profile is `OfflineCandidate`; it runs the
-`Category=QdosAlphaAcceptance` lane of `Pegasus.IntegrationTests` at the exact
-supplied 40-character source revision and writes content-safe evidence beneath
-`artifacts/qdos-alpha-acceptance/<run-id>/`. No workflow schedules it; the
-former nightly `CiPressure` probe was retired on 2026-08-18 (DELIV-007).
+Run focused owning projects while iterating. When full solution verification is required, run the canonical solution commands exactly (`--locked-mode` enforces the committed package locks):
 
 ```powershell
-./scripts/Invoke-QdosAlphaAcceptance.ps1 `
-  -Profile OfflineCandidate `
-  -SourceRevision (git rev-parse HEAD) `
-  -CapacityDatasetManifest <path> `
-  -CallerEvidenceManifest <path> `
-  -LocalRunManifest <path>
+dotnet restore ./Pegasus.slnx --locked-mode
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
-The runner requires Git metadata and a clean working tree, resolves the
-supplied revision to the exact checked-out `HEAD`, and rejects a mismatch
-before creating the run evidence directory or compiling tests. It also
-requires the caller manifest to identify that exact revision and run.
+These commands are identical on both platforms; `pwsh` runs them either way.
 
-`OfflineCandidate` is deliberately fail closed. It requires the
-operator-approved immutable 2,000-case dataset and hash, the complete
-QDOS-owned caller-evidence manifest, and the exact run-owned
-`artifacts/local-development/<run-id>/run-manifest.json`. That local manifest
-must identify the same clean source revision and acceptance run ID, remain
-`Running`, record completed fixed local identity initialization, and contain
-`Passed` readiness and smoke observations from the current start attempt in
-timestamp order. The runner also re-hashes the exact Web and Worker runtime
-paths recorded at initialization, so missing or altered local binaries fail
-before any acceptance tests execute.
+The focused forms are below; the two integration filters are a complement pair, so
+their union with the two unit projects is exactly the canonical selection:
 
-The runner itself owns the caller-manifest coverage check; nothing in the
-running application takes part, and there is no acceptance gate in
-`Pegasus.Core` or in Web composition. The capabilities an offline candidate
-must evidence are the rows of [`docs/capabilities.md`](capabilities.md) whose
-"Target release" column is `0.1.0-alpha.1`, read at run time rather than kept
-as a second list. Each needs exactly one observation with a caller, an outcome
-of `passed` or `deferredToExternalGate`, and an evidence file the runner
-re-hashes; only the external-gate capabilities (OPS-10, OPS-24, OPS-25) may
-defer, and both offline external gates must carry an approval reference and
-hashed evidence. Release acceptance is recorded, not enforced: the evidence
-file lists the remaining release blockers.
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
+```
 
-### Stable invariants
+Test classes run in parallel. The integration project caps concurrency at four
+in `tests/Pegasus.IntegrationTests/xunit.runner.json`: one named heavy verifier runs whole-solution suites on this host. The per-process
+cap bounds that run’s concurrent restores; it is not permission for competing
+whole-repository verification. The browser selection halves it again on the command line,
+because each of its tests starts a Chromium and a loopback host beside its own
+database. Test UI capture applies the same split in two passes: browser tests at
+the halved cap, then non-browser tests at the project cap. Leave
+`parallelAlgorithm` at its default `conservative`; `aggressive`
+installs a fixed-thread synchronization context, and the web factory builds its
+host synchronously, which together deadlock.
 
-- The current Web upload is a thin caller of Core-owned behavior; any future Worker trigger must call the same Core owner rather than duplicate policy.
-- A test-only or registered-only path is not a caller.
-- Current SQL persistence contains pre-case receipts, typed drafts, evidence, and events. The application outbox is a release dependency, not current source evidence.
-- When a storage queue is activated, it carries identifiers rather than file content.
-- Delete-after-Box-confirmation is a target transient-Blob invariant.
-- Any future external side effect must be idempotent.
-- Every local run isolates databases, ports, storage state, and ignored artifacts.
-- Cleanup operates only on resources owned by that run.
-- Local emulators and mocks do not prove managed identity, RBAC, vendor behavior, cloud durability, scaling, alert delivery, recovery objectives, or operator acceptance.
-- Tests must not invent normative behavior for a rule withheld in [open decisions](open-decisions.md).
-- Product behavior remains owned by the relevant Core use case; [engineering](engineering.md#required-evidence-tiers) owns evidence classification and gates, [operations](operations.md) records current operational evidence, and this runbook owns tools, process lifecycle, and isolation.
+Each test-run process migrates one template database once and restores every
+disposable test database from its backup instead of migrating each one. A
+process that cannot build the template says so on standard error and falls back
+to migrating each database; `LocalDbTemplateDatabaseTests` fails rather than
+letting that fallback pass quietly. The backup is deleted on process exit and
+stray `Pegasus_Test_*.bak` files older than a day are swept from the server's
+data directory on the next run.
 
-### Common failure and observability rules
+A run killed before its tests dispose leaves its databases attached, so the
+same sweep also drops `Pegasus_Test_*` databases older than a day. Both guards
+matter: only the exact disposable name shape is eligible, and the one-day floor
+keeps a suite running now — including one in another worktree against the same
+LocalDB instance — out of range. To see what is attached without changing
+anything:
 
-A selected profile fails visibly if it encounters:
+```powershell
+$pipe = (sqllocaldb info MSSQLLocalDB | Select-String 'Instance pipe name:').ToString().Split(':', 2)[1].Trim()
+sqlcmd -S $pipe -Q "SELECT name, create_date FROM sys.databases WHERE name LIKE 'Pegasus[_]Test[_]%' ORDER BY create_date"
+```
 
-- a missing required tool;
-- an occupied port;
-- a failed readiness check;
-- a skipped required test;
-- a leaked child process; or
-- failed run-scoped cleanup.
+Never drop a test database that a running suite may own; the sweep's one-day
+floor exists for exactly that reason.
 
-Each run records its profile, command, exit result, input class, run identifier, evidence path, cleanup result, and evidence limitation without recording secret values or document content.
+**Platform delta.** The `SqlServer` test lane needs a reachable SQL Server. On
+Windows that is LocalDB and needs no configuration. On Linux, point the tests at
+a SQL Server container before running them:
 
-Tests distinguish transient, terminal, and unknown/manual-review outcomes. Retries are bounded, exhaustion is visible, and duplicate delivery must not create a second case, reference, or external side effect.
+```powershell
+$env:PEGASUS_TEST_SQL_DATASOURCE = '127.0.0.1,<port>'
+$env:PEGASUS_TEST_SQL_USER = 'sa'
+$env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
+```
 
-Before retention, scan logs, TRX, screenshots, traces, and evaluation artifacts for credentials, document text, and unnecessary personal data.
+Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
+Windows command is unchanged. Without it on Linux, exclude the lane with
+`--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
+not run. The template database never engages when
+`PEGASUS_TEST_SQL_DATASOURCE` is set: its guard tests skip themselves there,
+and an unverified template is worse than
+the slower migrate-per-test path the container falls back to.
 
-Controlled synthetic fixtures may prove protocols, security controls, and resource limits. They are not operational business evidence.
+These commands prove compilation and the tests actually selected and executed. Browser/SQL traits included in that run are not separately omitted evidence. Record unavailable or excluded environments explicitly; corpus, cloud, recovery and operator acceptance are separate only when not exercised by the selected run.
 
-## Live-operation approval matrix
+### Imported source workspaces
 
-| Action | Exact scope required | Required approval and evidence |
-| --- | --- | --- |
-| Read Azure state (inventory, config, diagnostics) | Subscription, resource group, resource | **Permitted — no per-target approval.** Read-only `az`/ARM/portal reads that change no state and incur no material cost |
-| Change or use an Azure service (write/mutation/cost) | Subscription, resource group, resource, operation | Explicit approval for the exact target, fresh inventory, least-privilege identity |
-| Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
-| Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
-| Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller under the decided root `405543781910` |
-| Send a document to OCR, vision, AI, or another processor | Service, region, model, input class | Data, licence, cost, and security approval; corpus remains prohibited unless separately authorised |
-| Deploy, restore, fail over, or retire | Exact environment (isolated local development or production only, per ADR-0014) and recoverable target | Explicit operation approval for the exact target, fresh inventory, rollback path, retained source data |
+No live source workspace currently exists; both imported snapshots were
+integrated and retired under ADR-0025 (see
+[workspaces](../workspaces/README.md) for the provenance records). A future
+workspace validates independently with its own solution and is never part of
+the application solution.
 
-Offline profiles contain no live credentials. A selected live profile must require an allowlisted tenant, subscription, account, mailbox, folder, resource, and action, and reject missing or broader scope before constructing the external client.
+Report rendering is part of the application solution. After a Release build,
+install its pinned Playwright Chromium and run the Browser-tagged integration proof:
+
+```powershell
+pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportRendererTests"
+```
 
 ## Corpus safety and evaluation
 
@@ -922,7 +466,7 @@ These are dated observations, not an evergreen inventory.
 - A passing sample does not establish every provider, layout, or format.
 - Keep repository consistency, caller behavior, corpus evidence, deployment evidence, and acceptance as separate conclusions.
 
-The former `$collisionspike-corpus-evaluation` label is predecessor history, not a current repository command. Use the focused Pegasus corpus lane below when its genuine ignored input and approval conditions are satisfied.
+Use the focused Pegasus corpus lane only with its supplied immutable input and applicable authorization.
 
 Run the focused corpus lane only when genuine ignored input is present and required:
 
@@ -930,60 +474,212 @@ Run the focused corpus lane only when genuine ignored input is present and requi
 dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 ```
 
-## Release dependency order
+## Provider-domain reference authoring
 
-Release allocation does not waive technical prerequisites. [Delivery dependencies](capabilities.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
+Provider-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only:
 
-Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. The Automation MCP ingress stays composition-gated off outside local evidence runs, and its live caller remains a separately approved activation. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
+```text
+reference/workproviders-and-repairers/initial.xlsx
+```
 
-## Release validation rules
+The published package retains its original
+`docs/reference/workproviders-and-repairers/initial.xlsx` source identity as
+immutable provenance. The authoring helper maps that identity to the physical
+path above only while regenerating or verifying the same bytes; it never
+republishes `provider-domains-v1` with a new path or hash.
 
-The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; the [FRDs](frd/README.md) remain the behaviour owner:
+It retains:
 
-- positive, contradictory/ambiguous, transient, terminal, and unknown outcomes produce the ordered decision, persisted result, action history or telemetry, and operator-visible result;
-- definitive intake creates one idempotent case or links the definitive existing case, enters `Review` only after both completeness gates pass or are explicitly confirmed, otherwise enters `Not ready`, and preserves reversible source associations and both origins;
-- principal/reference edits fail immediately after allocation;
-- wrong-principal handling makes the original case terminal `Created in error`, creates exactly one linked replacement, reuses neither number, and refuses reopening the original;
-- direct edits to used principal codes fail;
-- Administrator cutover creates one linked successor, atomically deactivates the predecessor, continues the cutover-year next/exhausted state, starts later years at `001`, records reason/history, and survives stale, concurrent, and fault-injected transaction tests;
-- the first chase occurs at the same London local time after the configured chase interval (one global whole-calendar-day value, 1 to 365, default 7 — D23);
-- `Held` preserves and resumes the remaining chase duration;
-- reopening requires a reason and returns to an otherwise valid nonterminal state;
-- London-midnight and Monday dashboard boundaries are correct;
-- preparing, viewing, or copying a manual chaser is not sent evidence;
-- explicit staff confirmation stores actor, time, case, channel, outcome, and optional note exactly once, performs no outbound call, rejects unauthorised, stale, closed, or `Held` submissions, and stores no message body;
-- the separate Triage state, finding, correction, reopen, and link contract is complete;
-- a Triage request without a registration remains `Unidentified` without Triage or Case/reference creation;
-- reply-chain evidence uses the exact allowlist and does not fall back to subject, registration, or manual selection;
-- the in-house upload caller proves authenticated staff creation, isolated request-local upload/result presentation, expiry, revocation, bounded retry/abuse behavior, durable custody, and cross-request/non-disclosing failures without a Box File Request route;
-- Case and later-Audit custody use the immutable business reference hierarchy with the database-stored remote folder id as the identity authority (no marker files inside folders), and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
-- manual EVA generation is refused outside `Review` or without readable bytes for an eligible Case image; there is no separate EVA activation, mapping-acceptance or custody-readiness gate, and download is an authenticated, idempotent command over the reviewed case that records permanent history;
-- the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
-- EVA API submission is refused outside `Review`, without an eligible Case image, for a Principal that has not enabled the attempted act, and for a case that already reached EVA — the last enforced by a unique index as well as by policy, because EVA has no idempotency and a second accepted instruction creates a second claim that no call can withdraw;
-- an EVA API submission records one of four distinct outcomes and only an unknown one is retried; a succeeded, rejected or partial outcome is never resent, and the export stays the only route by which a changed case reaches EVA again;
-- repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
-- absent or ambiguous automatic report evidence requires an exact manual link and reason;
-- `sentDateTime` is authoritative while discovery and link times remain distinct;
-- unlink/relink recomputes events and counts;
-- later Outlook move/delete does not erase confirmed finality;
-- there is no pre-send review gate;
-- permanent action history contains settled material actions, denials/failures, accepted external evidence, and downloads/exports;
-- sign-ins use the security log;
-- routine views, search, refresh, polling, retries, leases, heartbeats, and adapter mechanics use telemetry only;
-- duplicate and concurrent requests create one business effect;
-- stale editors and wrong-role/wrong-scope actors are refused before side effects;
-- every Case mutation presents the current server lease token and loaded version, exposes holder/recovery state, and refuses the second editor before a side effect;
-- opening and returning from Intake/Case supporting detail preserves the same context and unsaved edits without an implicit save;
-- corrupt, encrypted, unsupported, oversized, and expansion-bound input remains visible without case/reference creation or silent truncation;
-- actual Web and Worker callers reach the same Core policy;
-- genuine cohort and holdout reports state field-level results and false case/reference outcomes without exposing source content;
-- every live result records target, time, configuration class, input class, and limitation;
-- no local result is relabelled deployed, live verified, or accepted;
-- repository consistency and product behavior are reported separately.
+- the provider code from column A; and
+- the final lowercase `@domain` suffix from each semicolon-separated column-E observation.
 
-Automatic mailbox categorisation and email matching await the single combined research decision in [open decisions](open-decisions.md), except the accepted QDOS-direct case-association predicates and recorded-only classification of [ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md). Tests must not invent policy beyond that acceptance.
+It ignores columns B–D and all later columns. It never edits the workbook or emits an email local part, full email address, inspection location, default, Case ID, or opaque source value.
 
-Image association stays conservative when evidence is not definitive. Inspection address accepts confirmed physical data, or the exact value `Image Based Assessment` autofilled from the accepted Principal's inspection-mode setting with provider-setting provenance; no address text is ever inferred from a provider, spreadsheet, geocoder or model, and a physical-address Principal fails closed without confirmed address evidence. `0.1.0-alpha.1` email operations remain explicitly unsupported unless required. Reversible EVA wire mapping is an owning integration contract validated with operator acceptance, not an unresolved product rule.
+Close the workbook, then run from PowerShell 7 at the repository root:
+
+```powershell
+pwsh ./scripts/Build-ProviderReferenceData.ps1
+pwsh ./scripts/Build-ProviderReferenceData.ps1 -Verify
+```
+
+Before discovering Python or reading source bytes, the wrapper rejects:
+
+- the selected workbook’s exact sibling Office lock marker; and
+- an exclusive-read failure;
+
+as `source-locked`.
+
+The helper requires Python 3.11+ and uses only `zipfile` and `xml.etree.ElementTree`. There is no virtual environment, pip installation, dependency lock, package cache, recursive workbook discovery, network operation, or second manifest.
+
+The command stages beneath:
+
+```text
+artifacts/reference-data-staging/
+```
+
+and publishes:
+
+```text
+src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+```
+
+Publication rules are immutable:
+
+- generation completes in staging before publication;
+- an absent output is moved atomically into place;
+- a byte-identical existing output is a no-op;
+- a different existing output fails `immutable-output` and is not replaced;
+- `-Verify` requires the output and byte-compares a regenerated staged package without mutating it.
+
+Future versions use a new cumulative workbook, version, output, and the previously validated package:
+
+```powershell
+pwsh ./scripts/Build-ProviderReferenceData.ps1 `
+  -SourcePath ./reference/workproviders-and-repairers/provider-domains-v2.xlsx `
+  -Version provider-domains-v2 `
+  -PackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v2.json `
+  -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json
+```
+
+Every previous provider/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
+
+Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
+
+Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
+
+## Principal-identification corpus authoring
+
+The tracked principal-identification corpus is review evidence for all 49
+operational principals. It is generated from the retained Pegasus sources, an
+immutable local corpus, and a read-only CollisionSpike checkout. It is never
+loaded by the application and cannot activate a route, classification,
+association, or extraction policy.
+
+Inject both untracked source roots and run from PowerShell 7:
+
+```powershell
+$collisionSpikeRoot = "path-to-read-only-collisionspike-checkout"
+$corpusRoot = "path-to-immutable-pegasus-corpus"
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CollisionSpikeRoot $collisionSpikeRoot `
+  -CorpusRoot $corpusRoot
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CollisionSpikeRoot $collisionSpikeRoot `
+  -CorpusRoot $corpusRoot `
+  -Verify
+```
+
+Generation reads originals without modifying them, deduplicates by SHA-256,
+groups messages by thread root then stable case key then source hash, and
+assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
+regenerates canonical JSON and byte-compares the tracked package. The
+tracked text-source snapshots declare `normalized-lf` hashing and byte counts
+so Git checkout line endings cannot create false drift; email, PDF, Office, workbook, and
+fixture evidence retains raw-byte hashes. The
+non-corpus tests validate its 49 dossiers, lifecycle counts, crosswalks,
+criterion states, deterministic split, and tracked Pegasus source hashes. The
+focused corpus lane additionally hashes every locally present original and
+runs it through the real MIME/PDF/Office reader.
+
+CollisionSpike confidence, priorities, thresholds, and winner selection are
+not copied into the normalized criteria. Dormant, unknown, conflicting, and
+multiple candidates remain review-only. A new runtime policy still requires
+the operator to select one principal and accept its development and untouched
+holdout outcomes.
+
+## Approved mailbox estate
+
+The v1 source implements mailbox onboarding in `/Administration/Mailboxes`.
+It is not a deployment or a tenant permission grant. The deployed estate and
+its dated observations remain in [operations](operations.md).
+Use this procedure only after the reviewed v1 candidate, schema, runtime roles
+and approved provider configuration have been deployed.
+
+### Runbook: admitting a new mailbox to the tenant
+
+1. A Microsoft 365 administrator creates the mailbox in Microsoft 365
+   administration, if it does not already exist. Pegasus creates no mailbox.
+2. During the separately authorized one-time infrastructure setup, admit the
+   Web and Worker application identities to the intended mailbox scope using
+   Exchange Application RBAC. Configure the read permissions for resolution,
+   Inbox and Sent observation. Staff sending additionally requires scoped
+   `Mail.ReadWrite` and `Mail.Send`. RBAC and unscoped application grants are
+   additive: remove unintended tenant-wide mail grants and record both a
+   permitted-mailbox check and a denied-mailbox check. Record tenant,
+   application identities, mailbox scope, administrator and approval time.
+3. In Pegasus Administration, add the mailbox address. The Web identity
+   resolves its stable Graph identity and performs a read-only folder access
+   check. Select Intake, Sent observation and staff-send capabilities. A saved
+   row does not grant Exchange access. Enable staff-send only after recording
+   the verified effective encoded-message byte ceiling for that mailbox.
+4. Enable the mailbox. Pegasus records its own UTC start boundary and
+   generation. Earlier mail does not become a historic backlog. Check the
+   capability state, last successful poll, last error, activation time and
+   subscription expiry in Mailboxes. The fixed freshness threshold is
+   15 minutes. A Graph subscription notification wakes a direct immutable
+   Inbox-message read; the periodic delta sweep remains the recovery path.
+5. Prove a post-activation Inbox/Sent read in the separately authorized
+   operator acceptance run. A successful administration access check alone
+   proves neither continuing polling nor a real send. Staff initiate any send;
+   Graph acceptance is Submitted until the matching retained Sent item is
+   observed. No unattended chaser initiates mail.
+
+The same UI supports instructions, info, desk and engineers mailboxes once the
+operator has admitted each to the application scope. Unknown sender work still
+fails closed through intake policy; approval of a mailbox is not approval of
+all its senders. Operators do not edit SQL rows or raw environment settings to
+add an already-authorized mailbox.
+
+### Disabling a mailbox
+
+Disable prevents new mailbox work and preserves retained material. Re-enable
+or replacement of a disabled target checks access again, establishes a new
+start boundary and advances the mailbox generation. Old workers and
+subscriptions cannot advance the replacement generation's cursor. Do not
+clear cursors manually to manufacture a backfill. Opening or filtering retained
+mail in Pegasus changes no Outlook read state, folder, flag or category.
+
+Global Worker containment, individual Function activation and per-mailbox
+capabilities are independent. Keep Worker functions disabled during the
+approved migration/grant/bootstrap sequence; turn them on only through the
+reviewed release procedure. Development agents do not perform these live
+mailbox, tenant, permission or send operations.
+
+## Automation OAuth certificate operation
+
+v1 production uses separate persistent signing and encryption certificates
+from the existing Key Vault. The Web managed identity reads the passwordless
+PFX secret versions. The release operator must include each named certificate
+secret in the exact-secret census and grant Web secret-read access at that
+secret's scope; the repository prohibits a vault-wide secret-read grant. The
+application fails closed when the configured certificates cannot be loaded or
+are invalid. Development explicitly uses isolated process keys through
+`AutomationMcp:UseDevelopmentKeys`; that setting is rejected in Production.
+
+The approved release operator supplies these deployment inputs:
+
+| Input | Value |
+| --- | --- |
+| `AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned Key Vault secret URIs for the current and retained signing certificates. |
+| `AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned secret URIs for the separate encryption certificates. |
+| `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for non-Case sources. |
+
+Bicep supplies the configured vault origin and indexed certificate URI settings
+to the Web container. These are references, never PFX bytes or passwords in the
+repository. Initial certificate creation and the initial alex Glass's account
+configuration are separately authorized operator actions; no secret is seeded.
+
+For rotation, publish new certificate secret versions, then deploy all replicas
+with both the new and still-required old versions. Verify token issue,
+validation and refresh across a process restart and a second replica before
+removing old versions. Retain old decryption/signature material through the
+maximum lifetime of every token issued with it: access tokens last 10 minutes,
+refresh tokens at most 14 days with sliding expiration disabled. Base removal
+on the last old-key issuance plus that lifetime, not on certificate upload
+time. Emergency invalidation is an explicit operator action and must record
+which grants/tokens were revoked. Certificate rotation, external connector
+round-trip and live provider acceptance are later proof; local cryptographic
+replica tests do not claim that operator run occurred.
 
 ## Monitoring and diagnosis
 
@@ -997,257 +693,22 @@ health, and redaction. Only deployed live evidence can prove ingestion,
 sampling, KQL, retention, alert rules, and recipient delivery. Bicep
 compilation proves syntax and type consistency only.
 
-Refresh the live Azure inventory under separate authorization immediately
-before any cloud decision. The current monitoring state and deployed end state
-are recorded in [operations](operations.md#monitoring-and-diagnosis) and
-[operations § Production environment](operations.md#production-environment);
+Refresh read-only Azure inventory immediately before a cloud decision; read-only
+inventory does not require a new per-target grant. External writes require
+authorization for the actual operation and targets. The current monitoring state and deployed end state
+are recorded in [operations](operations.md) and
+[operations § Production environment](operations.md);
 dated names are not current identity proof.
-
-## Deployment and release
-
-The accepted Windows/Linux direct-terminal Azure design is indexed by
-[architecture](current-architecture.md) and the
-[decision register](adr/README.md). The target files are `infra/`,
-`azure.yaml`, and `.azure/deployment-plan.md`.
-
-`azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
-
-The deployed production target and dated release evidence are recorded in
-[operations § Production environment](operations.md#production-environment).
-
-### Release artifacts and bootstrap
-
-The release scripts are `Build-ReleaseArtifacts.ps1` (immutable packages from
-a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
-pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
-and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
-`Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial,
-https-redirect, exact Worker activation, and inbox intake liveness
-assertions — an activated intake mailbox, an unexpired `Active` Graph
-subscription, and a completed inbound poll within 15 minutes, read from the
-production database with the bootstrap access-token pattern). The
-executed 2026-08-02 sequence and its evidence gates are recorded in the retired
-runbook (git history, `azure-production-replacement-plan.md`). The one-off
-predecessor archive/retirement scripts completed their purpose in that run and
-are also recoverable from git history.
-
-The deployed Web and Worker packages have carried native ONNX Runtime and
-SkiaSharp binaries on the Linux runtimes since release 8
-(`Microsoft.ML.OnnxRuntime`, SkiaSharp with the `NoDependencies` Linux native
-asset, models embedded in the Infrastructure assembly). Both hosts start and
-serve; until a deployed vision path is exercised, native inference on the
-deployed runtime remains unverified evidence.
-
-The schema-3 manifest records `migrationRuntimeIdentifier` and
-`migrationBundleName` for the release workstation. Artifact validation rejects
-an incompatible workstation or filename/runtime pair, verifies all four hashes
-and the Linux OCI identity, and checks owner-execute permission only on Linux.
-Use `migrationBundleName` from the validated manifest when invoking the bundle;
-do not rename it or switch workstation OS midway through the release.
-
-Route facts recorded by release 9 and subsequent corrections (details in
-operations):
-
-- The manifest's migration bundle builds the Web host, so run it from
-  `src/Pegasus.Web` with
-  the Production process environment (`ASPNETCORE_ENVIRONMENT=Production`,
-  `Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
-  `AzureIdentity__WebClientId`, the two storage account names and the custody
-  service URI, `Box__BaseUri`/`Box__UploadUri`/`Box__RootFolderId`, and
-  shape-valid placeholder values for `Box__ConfigJson`/`Box__ClientSecret`
-  (the config must parse as Box JWT JSON:
-  `{"boxAppSettings":{"clientID":…,"clientSecret":…,"appAuth":{"publicKeyID":…,"privateKey":…,"passphrase":…}},"enterpriseID":…}`
-  with placeholder strings; a bare JSON object fails host construction — found
-  at release 12) —
-  the host is built, never started) and `AZURE_TOKEN_CREDENTIALS=AzureCliCredential`
-  so `Authentication=Active Directory Default` uses the release operator's CLI
-  sign-in. The migration bundle uses only `--connection`.
-- Deploy the Worker with `az functionapp deployment source config-zip
-  --resource-group rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
-  ./artifacts/releases/<version>/worker.zip`; `azd deploy worker
-  --from-package` triggers a remote Oryx build that rejects the pre-published
-  package and crash-loops the host until a good package lands. Before
-  provisioning, confirm every `*_SECRET_URI` azd input names
-  `pegasusprodkv252ow37g` — the local azd environment is not authoritative and
-  once carried the retired adopted vaults.
-- EXT-04 added six `Eva:*` keys to the Production fail-fast list, so a host
-  without them refuses to start and the whole app crash-loops, not only the
-  EVA route. The first release carrying EXT-04 must, before provisioning,
-  create the `eva-client-id` and `eva-client-secret` secrets in
-  `pegasusprodkv252ow37g` and `azd env set` the four inputs that have no
-  default: `EVA_CLIENT_ID_SECRET_URI`, `EVA_CLIENT_SECRET_SECRET_URI`,
-  `EVA_REQUEST_FROM` and `EVA_INSTRUCTION_EMAIL`. `EVA_BASE_URI` and
-  `EVA_INSPECTION_TYPE` default correctly. The credential pair alone decides
-  whether the deployment addresses EVA test or live.
-
-### Durable Worker activation and rollback
-
-The currently implemented production Worker gate is fail-closed and two-state.
-`PEGASUS_WORKER_ACTIVATION` maps to the infrastructure input with a default of
-`disabled`; only the exact value `approved-live-worker` renders the seven
-`AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
-misspelled value, and every other value render them as `true`.
-
-Before the unified Worker release, the exact production Worker is **enabled**:
-all nine deployed settings read
-`false`, all nine function definitions remain discoverable, and the azd input
-`PEGASUS_WORKER_ACTIVATION` reads `approved-live-worker`. Every later release
-must retain that input (the enabled-estate preflight below). The dated
-evidence and its limits are owned by
-[operations § Production environment](operations.md#production-environment).
-
-Accepted
-[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
-keeps global Worker containment but separates it from the exact individual
-Function settings and each mailbox's own enablement and activation time. It
-does not equate normal inbound operation with all nine Functions enabled:
-`SentEvidencePollFunction` requires separate approval — given by the operator
-on 2026-08-19 (release 12, DELIV-012) and applied through the
-`/Administration/Mailboxes` page, which recorded the Sent folder identity and
-enabled the SentEvidence route scope for the approved mailbox; before that
-approval the enabled function had failed once a minute against the
-unapproved mailbox. The
-activation validator owns the exact supporting dispatch, queue, recovery and
-reconciliation Function census. Worker activation tests and the Local
-deployment-plan check verify its disabled migration boundary; actual trigger
-indexing and post-deployment execution need the later operator proof.
-
-Every Worker readback passes subscription
-`e6076573-23a5-46a8-acef-7e22d264e5db` explicitly and targets the
-non-overridable Worker `pegasus-prod-worker-252ow37gij`. Pre-provision also
-requires the selected azd environment to record those exact identities; the
-active Azure CLI default is never trusted as the target.
-
-The default is a safety boundary, not a normal enabled-estate release input.
-Under the current two-state implementation, an intentionally enabled estate
-must explicitly retain `approved-live-worker` on every infrastructure release.
-An absent or unexpected value is a stop condition before provision. While the
-current containment is intentional, `disabled` is the required value and must
-not be interpreted as a release regression.
-
-Run each procedure below from a fresh authorised terminal. Execute the exact
-environment and subscription assignments at the start of that procedure;
-never rely on variables or azd selection inherited from an earlier terminal.
-
-V1 source implements stable mailbox identity, per-mailbox fresh-start generations
-and separate Worker controls. Source validation does not activate that candidate
-in production. The operator must approve the exact production provision, verify
-the intended mailbox scope and start from a fresh inventory. The two-state
-commands below control the Worker; mailbox approval and activation use the
-Administration flow described above.
-
-```powershell
-$pegasusAzdEnvironment = 'pegasus-prod'
-$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
-
-azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
-  -e $pegasusAzdEnvironment
-./scripts/Test-AzureDeploymentPlan.ps1 `
-  -Mode PreProvision `
-  -Environment $pegasusAzdEnvironment `
-  -WorkerActivation approved-live-worker `
-  -ExpectedLiveWorkerActivation disabled
-```
-
-`PreProvision` is read-only. It requires the Box holding folder and both
-certificate URI lists, validates versioned HTTPS Key Vault secret addresses,
-and checks the certificate vault against the environment's vault when recorded.
-It binds the selected azd environment to the exact
-production subscription, tenant, resource group, and Worker, then confirms the
-deployed Worker's settings consistently match the expected activation. It does
-not require the previous release to already use the new release's function
-names. The post-provision smoke below enforces the new release's exact
-seven-setting census and one-minute recovery schedule. Do not provision if the
-fresh inventory or activation baseline differs.
-
-Only after the separately approved exact-target gate passes, provision with
-the already reviewed release inputs, then read back the Worker state:
-
-```powershell
-azd provision -e $pegasusAzdEnvironment --no-prompt
-./scripts/Invoke-ProductionSmoke.ps1 `
-  -WorkerOnly `
-  -SubscriptionId $pegasusSubscription `
-  -ResourceGroupName rg-pegasus-prod `
-  -ExpectedWorkerActivation approved-live-worker
-```
-
-For every later release of an enabled estate, preflight requires both the
-desired and live states to remain enabled:
-
-```powershell
-$pegasusAzdEnvironment = 'pegasus-prod'
-$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
-
-azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
-  -e $pegasusAzdEnvironment
-./scripts/Test-AzureDeploymentPlan.ps1 `
-  -Mode PreProvision `
-  -Environment $pegasusAzdEnvironment `
-  -WorkerActivation approved-live-worker `
-  -ExpectedLiveWorkerActivation approved-live-worker
-```
-
-In the same later-release terminal, the full post-release smoke adds the same
-readback and the inbox intake liveness gate (activated intake mailbox,
-unexpired `Active` subscription, poll completed within 15 minutes) to the
-existing Web gates; it needs the `SqlServer` module and an Azure CLI identity
-that can read `pegasus`:
-
-```powershell
-./scripts/Invoke-ProductionSmoke.ps1 `
-  -BaseUri $pegasusApprovedBaseUri `
-  -ExpectedSourceRevision $pegasusReleaseSourceRevision `
-  -ExpectedVersion $pegasusReleaseVersion `
-  -SubscriptionId $pegasusSubscription `
-  -ResourceGroupName rg-pegasus-prod `
-  -ExpectedWorkerActivation approved-live-worker
-```
-
-Populate the three release variables from the approved immutable manifest and
-fresh exact Web inventory; do not trust stale local azd outputs as deployed
-evidence.
-
-Rollback is an explicit production mutation that disables all seven functions.
-It requires fresh inventory, exact-target approval, an accepted reason and
-recovery path, and confirmation that stopping polling, dispatch, poison,
-reconciliation, sent-evidence, due-work, and unified-work triggers is the
-intended outcome. The `-AllowWorkerDisable` switch is valid only for this
-reviewed enabled-to-disabled transition:
-
-```powershell
-$pegasusAzdEnvironment = 'pegasus-prod'
-$pegasusSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
-
-azd env set PEGASUS_WORKER_ACTIVATION disabled -e $pegasusAzdEnvironment
-./scripts/Test-AzureDeploymentPlan.ps1 `
-  -Mode PreProvision `
-  -Environment $pegasusAzdEnvironment `
-  -WorkerActivation disabled `
-  -ExpectedLiveWorkerActivation approved-live-worker `
-  -AllowWorkerDisable
-azd provision -e $pegasusAzdEnvironment --no-prompt
-./scripts/Invoke-ProductionSmoke.ps1 `
-  -WorkerOnly `
-  -SubscriptionId $pegasusSubscription `
-  -ResourceGroupName rg-pegasus-prod `
-  -ExpectedWorkerActivation disabled
-```
-
-A setting readback proves intended live configuration only. Activation does
-not prove that a trigger ran, mailbox mail was received, intake persisted, a
-Case/PO was allocated, or Box custody completed. Those require separately
-approved live caller and operator acceptance evidence.
 
 ## Recovery
 
 Current recovery state is recorded in
-[operations § Recovery](operations.md#recovery). The procedures below are the
+[operations § Recovery](operations.md). The procedures below are the
 accepted method for a future exercise, not evidence that one has run.
 
 ### Local recovery
 
-- Ignored local artifacts and disposable databases are Development evidence, but the application exposes no receipt/artifact deletion command. Remove only an exact run-owned database and ignored directory after diagnosis and the checks under [Stop and reset](#stop-and-reset).
+- Ignored local artifacts and disposable databases are Development evidence, but the application exposes no receipt/artifact deletion command. Remove only an exact run-owned database and ignored directory after diagnosis and the checks under [Stop and reset](runbook.md#stop-and-reset).
 - Preserve `corpus/` unchanged.
 - Restore LocalDB backups only into a new disposable database.
 - Never overwrite the source database during a recovery test.
@@ -1258,51 +719,49 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 ### Production recovery
 
-Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and, **from cutover**, must remain compatible with the supported prior application artifact or have an accepted recovery strategy. Before cutover that compatibility requirement is relaxed by [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md), on the terms in [rollback step 3](#previous-artifact-rollback-web-and-worker).
+Retain the previous immutable application artifact for an authorized rollback.
+Check it against the actual schema and current preservation requirements.
+Current disposable test data creates no cutover-based compatibility obligation;
+[rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
+compatible artifact rollback from an authorized reset or roll-forward.
 
 #### Previous-artifact rollback (Web and Worker)
 
 Rolling production back to the previous release's artifacts is a production
 mutation under the live-operation approval matrix: obtain exact-target
-approval first. The inputs are the previous release's row in
-[operations § Production environment](operations.md#production-environment)
-and its retained folder `artifacts/releases/release-<n>-<sha>` (kept on the
-release workstation; the image also remains in the production ACR by digest).
+approval first. Select the retained previous release manifest and its verified
+artifacts from the release workstation; match its hashes, image digest, source
+revision and version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+Read the current target and Worker activation before choosing any mutation.
 
-1. Web: from an authorised terminal, `azd env set PEGASUS_WEB_IMAGE_DIGEST
-   <previous digest> -e pegasus-prod`, `azd env set
-   PEGASUS_WEB_REVISION_SUFFIX <previous sha12> -e pegasus-prod`, then
-   `azd provision -e pegasus-prod --preview --no-prompt` — stop unless the
-   only change is the web revision — then `azd provision -e pegasus-prod
-   --no-prompt`.
+1. Web: set `PEGASUS_WEB_IMAGE_DIGEST` to the retained manifest's digest and
+   `PEGASUS_WEB_REVISION_SUFFIX` to a valid **unused 12-character suffix** in
+   the selected azd environment. Inventory existing revisions to confirm it
+   is unused; do not reuse the previous release's suffix. Run
+   `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision
+   -Environment <environment> -ManifestPath <retained-manifest>
+   -WorkerActivation <desired-activation>
+   -ExpectedLiveWorkerActivation <observed-activation>` and require exit 0.
+   Activation values come from the approved recovery plan and live readback,
+   not a copied example. Preview with `azd provision -e <environment>
+   --preview --no-prompt`; stop if changes exceed the approved recovery scope.
+   Then provision once with `azd provision -e <environment> --no-prompt` and
+   verify the active digest, revision and traffic against the retained artifact.
 2. Worker: `az functionapp deployment source config-zip --resource-group
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
    ./artifacts/releases/release-<n>-<sha>/worker.zip`.
-3. Database: schema is roll-forward only. **From cutover**, releases keep
-   migrations additive so the previous application runs against the newer
-   schema; a migration that cannot honour that must ship an accepted recovery
-   strategy instead. **Before cutover that requirement does not apply**, by
-   [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md): until
-   the full QDOS cutover — step 7 of the ordered critical path in
-   [open decisions](open-decisions.md) — production carries only alpha cases
-   the operator has twice approved wiping, so a migration may drop a dead
-   column outright rather than staging an expand/contract pair. What is
-   required instead is honesty about the consequence: a non-additive migration
-   breaks the retained previous artifact wherever it writes the removed shape,
-   and — because migrations are applied before the new packages are activated —
-   breaks the currently running revision for that window too. So **name the
-   affected capability in that release's record** in `operations.md`, and roll
-   forward rather than back. Recovering the case data is the operator-approved
-   selective wipe already recorded in `operations.md` — which preserves
-   identity, principal, mailbox configuration and **the sequence tables, so no
-   reference is reused** — never an unqualified rebuild. Restoring data is a
-   [Production recovery](#production-recovery) exercise with its own
-   approvals, never part of an artifact rollback.
+3. Database: establish the intended current schema with the normal migration
+   mechanism. Current test data is disposable; no historical cutover milestone
+   imposes compatibility preservation. A schema change still identifies its
+   effect on the running and retained artifacts. Use an authorized reset or
+   roll-forward where a prior artifact is incompatible; do not call an
+   incompatible artifact rollback successful. Any real preservation requirement
+   must name the data/consumer and the recovery procedure.
 4. Smoke: `Invoke-ProductionSmoke.ps1` with the previous release's exact
    source revision and version, and the current Worker activation value.
 5. Record the rollback and its reason in operations in the same task.
 
-A production recovery exercise must:
+When data must be preserved, a production recovery exercise must:
 
 1. obtain exact-target approval and a fresh inventory;
 2. identify the immutable application package, migration identity, database recovery source, and corresponding source/custody evidence before changing anything;
@@ -1313,31 +772,18 @@ A production recovery exercise must:
 7. record achieved recovery point, restoration duration, missing data, limitations, and rollback result; and
 8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
 
-Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+Stop after one failed recovery attempt and report the exact read-back. Do not
+improvise a second deployment with unreviewed inputs, schema down-migration,
+or deletion of source evidence/shared resources. An authorized disposable-data
+reset uses its own exact scope, not this data-preserving recovery procedure.
 
 ### Explicit intake-data wipe
 
-Use `scripts/Invoke-IntakeDataWipe.ps1` for a read-only inventory. Execution
-requires separate exact-target wipe approval, a maintenance window excluding
-application writes, and `pegasus-prod-worker-252ow37gij` already stopped.
-The script checks that Worker state before its first destructive operation;
-it does not stop or restart any service itself.
+Use [the existing wipe skill](../.agents/skills/pegasus-wipe-intake-data/SKILL.md), including
+its exact-target, Worker maintenance and reference-preservation constraints.
 
-`-Execute` records one UTC cutoff before clearing blobs, then advances or
-seeds Inbox poll boundaries in the same SQL transaction as row deletion.
-Mailbox identities, approval, original activation times, subscriptions and
-reference sequences stay intact. Old cursors and leases are cleared; their
-next normal claim binds current Graph scope without lowering the cutoff.
-Old mail stays excluded even after Graph cursor expiry or delayed notification,
-while newly received or forwarded messages remain eligible. Deployment and
-ordinary restarts do not perform this reset.
+## Point-in-time restore commands
 
-Record the committed cutoff with the existing wipe inventory and post-run
-checks in `operations.md`. Resume the previously approved Worker only after
-successful verification. A failed wipe is not a successful reset: retain its
-failure and keep the maintenance window in place until resolved.
-
-#### Point-in-time restore commands
 
 These commands implement contract steps 2–7 above for the production
 database `pegasus` on server `pegasus-prod-sql-252ow37gij`
@@ -1359,7 +805,7 @@ Confirm the requested restore time is at or after `earliestRestoreDate` and
 inside the short-term retention window before proceeding.
 
 **2. Restore into a new, isolated target (write — requires exact-target
-approval per [Live-operation approval matrix](#live-operation-approval-matrix),
+approval per [Live-operation approval matrix](runbook.md#operational-authority),
 row "Deploy, restore, fail over, or retire"; never overwrites `pegasus`):**
 
 ```powershell
@@ -1414,19 +860,3 @@ The allocated [OPS-09](capabilities.md) capability and its [product-quality obje
 Repeat the proof after material persistence or release changes where required. Recurring quarterly recovery is `Not planned`.
 
 A recovery, restore, failover, or retirement exercise requires exact target approval, fresh inventory, a recoverable target, retained source data, and a rollback path.
-
-Predecessor retirement executed on 2026-08-02 through the exact verified manifest, and completed on 2026-08-03 by the vault consolidation: once the six live secrets were serving from `pegasusprodkv252ow37g` and independent readback proved no live Pegasus reference pointed at either adopted vault, `cespkboxkvv76a47` and `cespkenrichkvgi62sd` were soft-deleted and the then-empty `rg-collisionspike-dev` was deleted (absence confirmed 2026-08-04). The soft-deleted vaults still hold recoverable secret material until their platform purge dates; a purge, a recovery, or any other action against them requires separately approved exact targets.
-
-## Repository and delivery operations
-
-Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
-
-The current work queue is the Kanmer board (`.kanmer/`); task execution, tracking,
-staleness, and Git safety are owned by the
-[repository task workflow](../AGENTS.md#repository-task-workflow).
-
-## Maintenance
-
-Reconcile this procedure whenever requirements, accepted decisions, production callers, external contracts, supported platforms, evidence boundaries, or deployment architecture change.
-
-Add a tool, service, profile, or release gate only with its real caller or named release invariant. Remove replaced test infrastructure in the same change. Record dated command results and limitations in the owning change or task, not as an evergreen status ledger.

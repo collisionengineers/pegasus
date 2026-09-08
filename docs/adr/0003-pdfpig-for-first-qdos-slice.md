@@ -14,6 +14,10 @@ tags: [extraction, pdf]
 - Date: 2026-07-23
 - Owners: Pegasus development team
 
+## Current applicability
+
+PdfPig remains the embedded-PDF reader. Initial local-only activation and dated benchmark results describe that slice, not the current deployed custody path. Qualified OCR follows ADR-0040.
+
 ## Context
 
 ADR-0001 requires a genuine-QDOS comparison before an embedded PDF engine enters
