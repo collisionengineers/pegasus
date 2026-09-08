@@ -31,5 +31,5 @@ all implementation items complete, pending independent review. No self-merge.
 - [x] Preserve and hash-verify all five TRXs in pegasus_pack/current/proofs/CASE-031; append final retention/closeout proof.
 - [x] Record reachable merge commit, PR, not-deployed and Outcome.
 - [x] Validate clean exact author/detached roots, common Git, tips and no other claim using either target.
-- [ ] Remove only the two validated worktrees and the exact merged local/remote branch; recheck Git registrations.
+- [x] Remove only the two validated worktrees and the exact merged local/remote branch; recheck Git registrations.
 - [ ] Release the claim last and verify Done/unclaimed readback.

@@ -146,3 +146,14 @@ HEAD. Only those validated Git targets are authorized for cleanup.
 
 Ticket traceability now records the reachable merge, PR694, integrated/dev
 and not-deployed; Outcome is populated. Git removal and release follow.
+
+Closeout Git commands completed with exit0: normal worktree remove for each
+exact validated root, normal branch -d, and scoped remote branch deletion.
+Git noted the squash author branch was merged to its upstream rather than
+the stale shared HEAD; prior PR/merge evidence established the squash merge.
+No force, reset, broad prune or other workspace/branch deletion was used.
+Readback confirms both directories/registrations and local/remote author
+branch are absent. All five retained TRXs still match the manifest. Shared
+source remains on dev at3284f93fc3ea9fd3bbbea9405ec92dc7818378f2.
+Only temporary checkout/build artifacts were removed; source remains in the
+merge and test evidence is retained. Claim release is the final cleanup step.

@@ -29,3 +29,7 @@ Focused Integration filter remains:
 FullyQualifiedName~ImageIntakePersistenceTests|FullyQualifiedName~StagedArtifactReconciliationFunctionIntegrationTests|FullyQualifiedName~ImageCaseCustodyIntegrationTests.RegistrationStoresEveryGroupImageAndMergeFoldsThemIntoTheCase|FullyQualifiedName~AzureSqlRuntimeRoleMigrationTests.WorkerReconcilesRegisteredImageUsingCurrentCaseIdentityExactlyOnce
 
 GroupRegistrationAndInterruptedPairingPreserveEveryMember is four bounded cases (automatic/staff-origin × intact/reversed sibling), not the old stress fixture. It now includes partial manual completion, origin unlink/relink to the SAME Case between read/write, stale-origin final merge refusal, prior sibling history refusal and actual timer replay; staff provenance assertions use retained JSON history. Other new persistence checks cover eligible-before-cap lost merge recovery, current VRM/principal/ambiguity/stale version/lease/post-report, and current staff destination override. Existing ReceiptLinkEnforcesEligibilityOnceAnImageIntakeExists proves the actual changed LinkIntake caller. Restricted Worker test uses real stores/SQL role, owner-seeded registered state (no registration execution or cloud claim). Root owns all runtime evidence. No UI snapshot requested: no Razor route or rendering changed.
+
+## Transitions
+
+- 2026-09-08T03:46:38.450Z lease-phase implementing → running-command (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 10; expires 2026-09-08T04:16:38.438Z)
