@@ -219,3 +219,43 @@ Use that immutable hash-bound OCR output through the existing Core OCR-read
 mapping, explicitly attributed as supplied corpus evidence, not a fresh Azure
 provider response. Preserve the scan and all expected fields. No original or
 OCR file is modified or committed; no synthetic email wrapper is introduced.
+
+
+## Focused second-attempt diagnosis — 7 September UTC
+
+Root correction build passed (56.38s, zero warnings/errors), Core mapping9
+passed; Integration5 had3 PASS/2 FAIL. MP RequiresOcr was false and genuine
+ALS initial state was Review rather than fixture's NotReady. No assertion was
+removed to turn these into passes. The same bytes were inspected read-only
+with the already-built reader/PdfPig under PowerShell .NET10, no build/test.
+
+MP source has no embedded text, /Rotate270, a3507x2480 full-page raster and
+crop841.68x595.2. PdfPig reports its rotated image Top0/Bottom841.68. Existing
+Coverage reads those non-axis-aligned properties and compares to unrotated
+CropBox: resulting coverage0. Reuse installed PdfPig CropBox.GetVisibleBounds
+and GeometryExtensions.Normalise/Intersect; keep80-character/0.8 thresholds.
+[PdfPig CropBox source](https://raw.githubusercontent.com/UglyToad/PdfPig/v0.1.15/src/UglyToad.PdfPig/Content/CropBox.cs)
+and [geometry source](https://raw.githubusercontent.com/UglyToad/PdfPig/v0.1.15/src/UglyToad.PdfPig/Geometry/GeometryExtensions.cs)
+verify their coordinate contracts. Current dev PdfOcrQualification owns only
+anonymous Type3 text-map evidence, explicitly not scan geometry. It has no
+second scan helper to reuse; reader file is unchanged between this base and
+dev. Keep that distinct qualification owner untouched.
+
+Actual reader plus InstructionEvidenceImages.Select on the four immutable
+originals yielded ALS4, YML18, FW0, SBL0 selected assets. ALS has images-cvd.pdf;
+YML has vehicle/report photographs; FW only inline signatures; SBL only a
+1128x191 banner. Pin exact selected counts and Review/Review/NotReady/NotReady
+in actual allocation assertions, and inspect persisted completeness as well.
+One diagnostic command used an incorrect custody enum namespace and printed
+invalid empty counts; it was discarded, corrected to Core.Intake, and rerun
+with Stop-on-error. The4/18/0/0 counts are from the successful corrected call.
+
+Independent pre-review identified two actual correction gaps: a conflict on
+PCH's unused phone alternative must not veto the already-selected unique typed
+source; and QDOS's old blanket nested-message classifier exclusion contradicts
+the now-proved original boundary. Root authorized both bounded corrections.
+Keep selected-source conflicts/duplicate matching-source refusals. QDOS must
+reuse CurrentInstructionContent across classification and Audit evidence,
+retaining body-only/Triage and chaser/reply predicates. The intermediary OCR
+question was resolved without change: durable processing always begins OCR
+from retained ScannedPdfPages, regardless of initial route disposition.

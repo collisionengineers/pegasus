@@ -85,3 +85,28 @@ base, not scope to reopen. Root owns all heavy verification and live actions.
 
 No schema, stored JSON migration, alternative provenance, provider call or
 OCR-provider implementation change is authorized by this correction.
+
+
+## Second-attempt and independent-review correction map
+
+Additional changed production file:
+- src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs:
+  replace existing Coverage geometry with installed PdfPig visible bounds,
+  normalization and intersection; no threshold or reader-policy duplication.
+Existing changed files:
+- Core/Intake/Classification/PrincipalMailClassificationPolicy.cs: one current
+  content boundary for QDOS as well as generic classification/Audit evidence.
+- Infrastructure/Persistence/CaseDataSnapshotFactory.cs: exact selected typed
+  phone source determines conflict; unused alternative cannot veto it.
+Focused tests:
+- tests/Pegasus.IntegrationTests/StructuredIntakeSourceReaderTests.cs: small
+  non-domain PdfPig geometry probes for quarter-turns and outside-crop bounds.
+- tests/Pegasus.IntegrationTests/CaseDataCompletenessPersistenceTests.cs:
+  direct existing factory caller tests for typed PCH alternative selection,
+  selected conflict and duplicate equal-source rejection; no new harness.
+- tests/Pegasus.Core.Tests/Intake/Qdos/QdosMailClassificationPolicyTests.cs:
+  proved original vs arbitrary nested/chaser boundaries, preserving body Triage.
+- Existing Top15InstructionCorpusTests same MP scan/OCR path unchanged;
+  QdosAllocationRecoveryTests pins inspected4/18/0/0 asset counts and readiness.
+Read-only coordination: current dev PdfOcrQualification/Tests (TICK041) are
+Type3-only, no scan geometry and no reader-file overlap; no edit to that owner.

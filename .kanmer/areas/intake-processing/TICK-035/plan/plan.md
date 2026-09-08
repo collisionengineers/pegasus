@@ -173,3 +173,27 @@ After author static checks, root reruns only the two failed integration cases,
 new pure mapping cases and affected existing acceptance/provenance regressions.
 The earlier 224/12 Core and 21/2 integration results remain in the report; no
 repeat of unchanged 224 passing Core tests is needed.
+
+
+## Second focused correction approved by root
+
+1. Replace existing reader Coverage geometry, not scan thresholds: use the
+   installed PdfPig crop visible/display bounds and rectangle normalization/
+   intersection. Expose only the existing geometric calculation internally for
+   direct non-domain quarter-turn/outside-crop probes; actual MP reader test
+   still must qualify the unchanged hash-bound original before supplied OCR.
+   PdfOcrQualification is Type3-only and remains untouched.
+2. Remove unused canonical-source conflict veto. Select exact typed source
+   uniquely; keep selected conflict/missing candidates/duplicate-source refusal.
+   Use direct CaseDataSnapshotFactory tests in the existing fixture class.
+3. Route QDOS body/document/Audit classification through the existing
+   CurrentInstructionContent boundary, preserving generated grammar and
+   reply/chaser/body-only Triage behavior. Add proved nested original and
+   arbitrary nested negatives; no domain-data envelope fabrication.
+4. Pin ALS/YML/FW/SBL original selected image counts4/18/0/0 and respective
+   Review/Review/NotReady/NotReady outcomes; assert persisted factual
+   completeness and existing source provenance, not merely a different string.
+5. Freeze after static checks. Root runs only failed2 integration originals,
+   new geometry/provenance probes, affected QDOS classifier cases and existing
+   unreadable-source boundary. Preserve all previous results; no repeated
+   unchanged224 Core cohort or live OCR call.
