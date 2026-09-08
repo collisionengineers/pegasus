@@ -2,24 +2,25 @@
 id: TICK-085
 type: ticket
 title: Complete Glass's repair-estimate import from a representative export
-status: implementing
+status: review
 area: engineering-assessment
 order: 1140
 assignee: principal_delivery_audit
 profile: feature
 stageEntered:
   preparing: '2026-09-07T21:28:21.905Z'
+  review: '2026-09-08T04:58:36.336Z'
 taken_at: '2026-09-08T03:02:52.244Z'
 branch: TICK-085-glass-pdf-import
 worktree: .worktrees/tick-085
-claim_expires_at: '2026-09-08T05:56:56.150Z'
+claim_expires_at: '2026-09-08T05:28:37.791Z'
 claim_controller: principal_delivery_audit
 lease_id: 7c250788-4f65-4278-8df1-367330d21dd7
-lease_revision: 13
+lease_revision: 14
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-085'
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-08T04:56:56.150Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T04:58:37.791Z'
 labels:
   - capability
   - EXT-12
@@ -45,7 +46,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/698'
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-08T04:58:07.668Z'
+updated: '2026-09-08T04:58:37.791Z'
 ---
 
 ## What

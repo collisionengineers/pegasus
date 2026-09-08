@@ -391,3 +391,8 @@ pushed normally on TICK-085-glass-pdf-import, with [skip ci] explicitly
 approved by root. Diff: 29 files, +1692/-464. The scoped staged diff check
 passed exit 0, and the worktree is clean. This is an author head, not an
 integrated/delivered SHA; independent review and merge are still required.
+
+PR: https://github.com/collisionengineers/pegasus/pull/698 (open, base dev).
+GitHub head, local HEAD and origin/TICK-085-glass-pdf-import all read back as
+1fb0a7a1d907e6a82a586ea8ba14d4a9c58d75b4. The author stops in Review for
+intake_audit; no self-review, merge or source changes are authorized here.
