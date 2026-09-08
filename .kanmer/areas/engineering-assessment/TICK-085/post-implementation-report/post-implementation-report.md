@@ -116,3 +116,10 @@ no-bytes/no-OCR/no-Draft negative, then perform native Engineer handoff and
 acquire fresh authority for its positive path. The existing SQL store test must
 also refuse direct imported save in read-only states. No unrelated writer,
 schema, route, contract flag, Core vocabulary or test framework is authorized.
+
+
+Third pre-runtime finding (minor), root approved: the Web raw-import dialog
+uses the design authority's provider-plus-sequence default, without an initial
+Name field or handler parameter. Pass an empty name into the existing canonical
+command. Keep Core/MCP explicit names and the ordinary estimate-name editor.
+Update the initial Web expectation to Audatex 1, not an arbitrary supplied name.
