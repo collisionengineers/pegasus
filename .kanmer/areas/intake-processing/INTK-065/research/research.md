@@ -8,7 +8,7 @@ obsolete policies or weakening verification?
 
 ## Starting evidence
 
-Read-only source base: dev `96777888bfa7ee7f85d63979a4a09ae10cda7d13`.
+Current approved execution base: origin/dev `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`.
 PR700 head `f86054c0e7cc73cb6245355dd21c03e58196d582` changes none of
 the manifest, generator, test or affected policy files relative to that base.
 Root supplied the CI failure in
@@ -124,3 +124,17 @@ replacement inputs and were not modified/copied. Both documented environment
 overrides are unset. Therefore the full original-input regeneration remains
 unavailable on this host, not PASS. Root requested this distinction before
 reviewing the final source-inventory-only proposal.
+
+
+## Approved execution boundary (8 September 2026)
+
+Root approved the supplemental EPIC-014 handoff and the inventory-only evidence
+boundary. The first execution phase may modify the existing generator and Core
+test and relocate `docs/principal-rules-and-mappings/README.md` and `qdos.md`
+byte-identically to `docs/principal-profiles/`, with the corresponding
+`docs/index.md` link repair. It must not execute scripts or tests and must not
+regenerate or edit the tracked JSON package. A later root-held verifier slot is
+the only authority to run the existing helper, materialize the JSON, and run
+the recorded checks. This handoff does not alter INTK-060, historical
+A/Foundation, Closed or C/Domain claims, original inputs, historical
+cohorts/evaluations, or the frozen roster.

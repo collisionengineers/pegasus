@@ -1,6 +1,6 @@
 # Research — DELIV-056: definitive instruction fixture alignment
 
-*The research. Not the files document — this records why the scoped test inputs need correction.*
+*This records why the scoped test inputs need correction.*
 
 ## Question
 
@@ -8,20 +8,22 @@ Why did the D2 failures in PR #700 run 34196369756 stop before their existing as
 
 ## Findings
 
-- The failed CI run's checkout was PR #700 merge SHA `98f4b701b0814900006a424719c17645b7288197`. Its D2 failures are fixture setup failures distinct from the unrelated migration and ENG fixture failures in the same run.
-- `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` defines the current QDOS instruction document signature: `QDOS`, `Registration:`, and `Our Client’s Vehicle:`; the selector requires every signal and does not use sender identity.
-- The 13 ticket-named integration-test files still create automatic-allocation inputs with the old `QDOS instruction` / `Vehicle Registration:` shorthand. Such material no longer selects the QDOS profile, so its expected `CaseCreated` result cannot be reached.
-- `tests/Pegasus.IntegrationTests/RetainedInstructionAnalysisTests.cs` supplies the established in-repository QDOS-shaped evidence pattern: the signature signals plus ordinary claimant and claim fields. Its use confirms the replacement is document evidence, not a transport or test-only bypass.
-- `docs/frd/frd-02-intake-and-source-identity.md` requires a definitive instruction to use normal automatic allocation; it does not permit a sender or filename to stand in for document evidence.
-- `tests/Pegasus.IntegrationTests/SendToAiIntegrationTests.cs` has a separate stale assertion for a gated disabled Send to Claude control. The current pre-handoff markup omits the control and dialog; its existing absence and unauthorized-POST checks remain the applicable access assertions.
-- Ownership census: UIIMP-012 lists `QdosTriageIntegrationTests.cs`, but its lease expired on 2026-09-02 and its separate Notes assertion is already in current source. CASE-045 lists `TriageQueuesWebTests.cs` and `ImageIntakeWebTests.cs`, but is in review with an expired lease and owns unrelated image-principal coverage. No live current owner holds the fixture lines in this ticket.
+- The failed CI checkout was PR #700 merge SHA `98f4b701b0814900006a424719c17645b7288197`. Its D2 failures are fixture setup failures, distinct from the migration and ENG fixture failures in the same run.
+- QDOS extraction selects an instruction document only when its document content contains all of `QDOS`, `Registration:`, and `Our Client’s Vehicle:`; sender identity, filename, and email body text do not select the profile.
+- Classification is a separate normal-policy decision. An auto-allocating QDOS instruction also needs a formal request title, such as `ENGINEER NOTIFICATION`, in `DocumentContent` or `PdfContent`. A title placed only in an email body is not definitive.
+- The 13 ticket-named integration tests retain old `QDOS instruction` / `Vehicle Registration:` body shorthand. It cannot establish either the selected document profile or the document-based definitive classification.
+- The documented QDOS instruction structure is sufficient for self-contained test evidence; its generated MIME or document bytes are not represented as received production emails. The existing pipeline paths, MIME/PDF/DOCX builders and parser remain under test.
+- A small extension to the existing `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs` helper is proportionate: `IntakeTestEvidence.DefinitiveQdosInstructionDocument(...)` provides the documented formal-document text while callers retain their scenario identity/data and put it in actual document content.
+- `AllocationTestData.StoreDefinitiveReceiptAsync` is appropriate only for display/setup paths whose claim is an already accepted case, not an intake-pipeline regression.
+- `SendToAiIntegrationTests.cs` separately expects a disabled gated Send to Claude control. Current pre-handoff markup omits both dialog and control; its absence and denied-POST checks remain the relevant access boundary.
+- No current live owner holds these fixture lines. UIIMP-012 and CASE-045 have expired leases and separate current scope.
 
 ## Implications
 
-- Update only the listed test fixtures so each automatic-allocation scenario supplies all three current QDOS signature signals while preserving its scenario-specific fields, assets, and assertions.
-- Do not alter QDOS policy, intake production code, schemas, shared test infrastructure, source inventory, or historical ticket worktrees/claims.
-- Align only the stale Send to Claude display expectation; retain the security boundary checks and do not make the action visible early.
+- Every intake-pipeline scenario must use the existing transport and format path, but attach or upload a document whose content carries both the QDOS signature and `ENGINEER NOTIFICATION`.
+- No sender/body shortcut, corpus gate, source-policy change, schema change, or production change is permitted.
+- Preserve existing scenario identities, routes, lifecycle, access and destination assertions; report an exposed defect rather than weaken it.
 
 ## Open questions
 
-- None. The ticket body, governing FRD, current policy, supplied in-repository evidence, CI inventory, and parent execution authority fix the required outcome.
+- None.
