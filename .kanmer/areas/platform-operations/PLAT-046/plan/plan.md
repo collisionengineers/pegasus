@@ -3,14 +3,17 @@
 ## Objective
 Establish the operator-selected short-outage release route: destructive migration
 is recognized during planning and both old runtimes are stopped before SQL changes,
-then only compatible approved new packages resume.
+then only compatible approved new packages resume. Disabled Worker package staging
+before SQL is permitted solely to avoid an undocumented stopped-Flex deployment
+assumption; this is not business activation and both hosts must be stopped for SQL.
 
 ## Starting state
-Baseline origin/dev 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c, isolated untaken fix.
-Evidence: `research/research.md`@`6e6613d4c3606741`, `files/files.md`@`d8b67e022854fd51`.
+Baseline origin/dev 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c, isolated taken fix in .worktrees/plat-046 on PLAT-046-destructive-migration-shutdown.
+Evidence: `research/research.md`@`9c3f0e67cf9c3ddc`, `files/files.md`@`d8b67e022854fd51`.
 Current release section6 already migrates before provisioning/deploying packages.
 Original per-tick schema service plan is superseded by 8 September operator policy.
 No live state has been changed/read for this work; no host verification grant exists.
+The four-script canonical-census slice is implemented but untested; preserve it.
 Preserve shared checkout foreign Principal-document changes.
 
 ## Governing docs
@@ -21,6 +24,9 @@ and ADR index. Do not rewrite historical observations. Current pre-release princ
 do not demand preservation machinery; actual released users/data obligations must be
 assessed when they exist. A release is not inferred from alpha infrastructure.
 Canonical release skill owns commands; runbook/AGENTS summarize and link.
+ADR0046 also records the bounded disabled Worker package-staging exception below:
+normal additive releases still migrate before package deployment; destructive
+releases stage the disabled Worker before both-host stop and SQL, never activate early.
 
 ## Required changes
 - Planning (before outage approval or SQL) inspects candidate migrations against
@@ -35,13 +41,22 @@ Canonical release skill owns commands; runbook/AGENTS summarize and link.
 - Before destructive SQL require fresh intended subscription/resource/app inventory,
   Web Single mode and exactly one active revision and approved exact revision name.
   Refuse unexpected mode/count/revision instead of touching additional targets.
-- Worker first: use canonical script-produced Disabled names to directly set every
-  setting true on the exact approved Function App; suppress settings response to avoid
-  printing secrets. Native command exit must succeed. Run existing full WorkerOnly
-  smoke ExpectedWorkerActivation disabled WITHOUT ActivationOnly to verify exact
-  names and values. Then az functionapp stop and bounded read-back state Stopped.
-  Disabled flags alone do not prove shutdown (master-key REST invocation remains
-  possible); prior host state is not assumed to survive configuration/deployment.
+- Worker preparation before SQL: require plan-specific Flex Recreate/default update
+  strategy (refuse observed RollingUpdate; do not change strategy), same exact
+  candidate function census and no schema-dependent startup/background work outside
+  disabled functions. Use canonical names to set each Disabled=true on approved
+  target, suppress full settings response, check native exit and full WorkerOnly
+  smoke ExpectedWorkerActivation disabled WITHOUT ActivationOnly.
+  While old schema is still intact, deploy the exact approved manifest Worker ZIP
+  via existing config-zip (supported by current Flex how-to), check successful
+  package deployment and re-read full disabled census. Then az functionapp stop
+  and bounded read-back state Stopped. ZIP success is NOT shutdown evidence.
+  This is intentionally before migration so provisioning after SQL cannot restart
+  incompatible OLD bytes. No package redeployment is needed later in this route.
+  Disabled flags are only trigger suppression; prohibit all master-key/portal
+  invocation until final activation, and require whole-host stop during SQL.
+  Do not claim no host initialization occurs while staging; candidate startup
+  proof is required. If unknown, stop before live approval rather than improvise.
 - Web: direct az containerapp revision deactivate on inventoried exact revision,
   then bounded polls for that revision inactive and az containerapp replica list
   --revision exact-name returning a valid empty array. Check all native exits and
@@ -52,19 +67,12 @@ Canonical release skill owns commands; runbook/AGENTS summarize and link.
 - Recheck both shutdown facts immediately before existing manifest-bound migration
   recipe, then existing runtime grants/bootstrap and exact migration-head check.
   SQL/native failure leaves old runtimes stopped and Worker settings disabled.
-- After verified schema, deploy the exact manifest Worker ZIP while its existing
-  disabled settings remain true, BEFORE azd provision can rewrite Worker settings.
-  Check deployment completion and exact package identity through the existing route;
-  verify full disabled census and actual host state. Do not start the old package
-  merely to make deployment work; if the supported ZIP route cannot replace bytes
-  while stopped, stop/report the deployment limitation before a live run is approved.
-  Only approved new Worker bytes are eligible for start after this boundary.
-  Then set desired Worker disabled in the azd environment and run PreProvision
-  -WorkerActivation disabled -ExpectedLiveWorkerActivation disabled, same approved
-  Web digest/revision suffix, azd provision and read new Web.
-  Configuration/deployment may restart a host; do not assume stopped state persists.
-  Destructive route intentionally deploys Worker before Web provisioning to avoid
-  configuration-restarting the incompatible old Worker after SQL.
+- After verified SQL/grants/head, set desired Worker disabled in the azd environment.
+  PreProvision -WorkerActivation disabled -ExpectedLiveWorkerActivation disabled,
+  with same approved Web digest/revision suffix, then azd provision and read new Web.
+  Re-read Worker full disabled census and state: configuration may restart the host,
+  but its approved NEW package was already installed before SQL. Do not repeat ZIP
+  or restore old bytes. Keep normal additive route's package ordering unchanged.
 - Explicit approved activation: desired approved-live-worker; PreProvision with
   observed disabled; provision keeping identical Web digest/suffix, ensure exact
   new Worker Running (explicit approved start if stopped), then full enabled census
@@ -134,8 +142,9 @@ The whole ticket packet is the execution boundary, not per-step constrained disp
 - Shared function is used by two current runtime script callers and skill direct-write
   recipe; missing/extra/duplicate settings/wrong values still fail full smoke.
 - Static semantic review traces every failure boundary from approval/inventory
-  through true stopped/zero-replica evidence, migration/grants/head, new packages
-  disabled, explicit activation and full final smoke. Unknown state fails closed.
+  through disabled new Worker staging, true stopped/zero-replica evidence,
+  migration/grants/head, new Web provision with Worker disabled, explicit activation
+  and full final smoke. Unknown state fails closed.
 - Both old runtimes stopped before destructive SQL, not merely unhealthy or
   trigger-disabled; no config/provision restarts old package after SQL changes.
 - No acceptance of old-runtime fault window remains authoritative for this path.
@@ -151,6 +160,8 @@ From recorded ticket worktree, PowerShell7, granted verifier only:
   without whole application rebuild; otherwise record static semantic validation
   and exact-head qualifying CI, not invented successful executable evidence.
 - git diff --check is lightweight static and may run without host slot.
+- pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local (existing offline Bicep
+  compilation and deployment contract only, no provisioning).
 Native Azure/azd examples are reviewed against Microsoft primary documentation,
 NOT executed. No packaging, Bicep provisioning or database test for this ticket.
 

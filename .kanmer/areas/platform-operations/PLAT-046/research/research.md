@@ -186,3 +186,33 @@ Additional source inspection at dev 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c:
 No live state or shutdown behavior was experimentally tested. The verification
 claim is bounded source/procedure consistency and local contract tests, not a
 completed migration or an observed outage-free deployment.
+
+## Resolved Flex package boundary — 8 September 2026, 17:57 UTC
+
+The declared Worker plan is FC1/FlexConsumption. Generic ZIP guidance conflicts
+with the newer plan-specific Flex how-to, which explicitly prescribes config-zip.
+Use the plan-specific source, not a categorical unsupported claim.
+[Flex deployment](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-how-to).
+Neither page proves stopped-app deployment semantics. The safe route avoids that
+assumption: after exact disabled readback, install the approved new Worker ZIP
+while the old schema still exists, recheck disabled state, then stop the Worker
+and drain old Web before SQL. This is a bounded destructive-route exception to
+migrate-before-package order, NOT early business activation. No master-key or
+portal invocation is permitted during the maintenance procedure.
+
+Flex Recreate applies changes before restarting instances; it is the default.
+Require observed Recreate/default, not RollingUpdate; no strategy mutation is
+authorized. The documentation says there is no update completion signal, so a ZIP
+success is NOT shutdown evidence. Explicit whole-app stop/Stopped readback still
+follows deployment and is required through SQL.
+[Flex update strategy](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-site-updates).
+After SQL/grants/head, provisioning can only restart the already-replaced new
+Worker, still trigger-disabled until explicit activation. Do not deploy ZIP again.
+
+Root read Worker Program and searched Worker/shared registration: no custom
+AddHostedService/IHostedService/BackgroundService performs schema work; existing
+database adapters resolve through functions. Planning must recheck this property
+and exact function census for the actual candidate. This route does not promise
+that a disabled host cannot initialize; only that business triggers are disabled,
+manual invocation forbidden, and the whole Worker is stopped during SQL.
+Missing candidate evidence blocks this route rather than adds runtime machinery.

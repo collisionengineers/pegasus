@@ -20,3 +20,5 @@ Release procedure/ADR work is paused awaiting a supported exact Flex Worker
 package-replacement state proof. Conflicting generic and Flex Microsoft guidance
 does not establish that a stopped host can receive new bytes without old-code
 startup, so no unsupported safety guarantee has been written.
+
+Root disposition of stopped-Flex deployment uncertainty: use researched supported config-zip with exact triggers disabled BEFORE whole-app stop and SQL, not against a stopped app after SQL. Then full disabled census, Worker stop/Stopped plus Web inactive/zero replicas, SQL/grants/head, new Web provisioning with NEW Worker still disabled, explicit activation/smoke. This bounded staging exception modifies old migrate-before-packages wording only for destructive Worker preparation, not permission for early business invocation; master-key/portal invocation forbidden during maintenance. Current research9c3f0e67cf9c3ddc and amended whole plan govern. Author may resume remaining mapped docs/procedure after fresh exact resumed packet. Four-script slice preserved, no host grant/no live approval. No stopped-app deployment support assertion or obsolete-worker restart allowed.
