@@ -177,3 +177,17 @@ The failed 16:40 verify-first attempt is retained. Independent read-only diagnos
 The governing writer/conflict acceptance and committed snapshot remain unchanged. Root authorizes the sole host verifier, after its active D56 lane finishes, to capture ONLY that existing exact method at merge SHA 05995d325cc4c1ccd44096bf69d05fd42eeda3d2 using the same capture-only environment and a unique TRX. Preserve the original 20 files and their hashes: TestUiResponseCapture uses request-plus-HTML hash identities and write-once output, so adding the missing input needs no deletion, replacement, repeated default/unavailable capture or source change. Then run the same `Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details` against the unchanged committed bytes, followed by `Test-UiCatalogue.ps1` only on PASS. Stop and report a remaining mismatch; do not update snapshots, change the state matcher/normalizer, broaden selectors or claim F-005 visual PASS. The earlier failed attempt remains a failed verification-input selection and is not reclassified as transient.
 
 Authority clarification: the controlled earlier build retry was authorized by root/the coordinating agent under the existing task, not by a fresh operator message.
+
+## Exact-merge capture-selector correction — PASS — 2026-09-08
+
+Root/controller authorized one additional exact capture method after read-only mismatch diagnosis established that the first three-method selection did not produce the committed Save-conflict candidate. No source or baseline update was authorized.
+
+Preflight 2026-09-08T16:50:05.7007305Z–2026-09-08T16:50:06.0765828Z confirmed the retained canonical capture set had exactly 20 files with unchanged ordered manifest SHA-256 `6D863F150A2496C8C96E28E65047061B177C2991E26B27D16FE1789C54C8F1F0` and no scoped process.
+
+- 2026-09-08T16:50:37.8438438Z–2026-09-08T16:51:14.0683968Z — `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName=Pegasus.IntegrationTests.CaseDetailsWebTests.AStaleVersionRefusalRequiresEditModeToBeEnteredAgain" --logger "trx;LogFileName=eng-029-capture-stale-version-05995d325cc4c1ccd44096bf69d05fd42eeda3d2.trx" --results-directory ./artifacts/verification`, exit 0: 1 passed, 0 failed, 0 skipped, 33s. Session `26266` retained to actual exit; capture environment restored. Write-once census: original 20 changed 0/missing 0; six new files (three response pairs), final count 26.
+- 2026-09-08T16:51:25.7184396Z–2026-09-08T16:51:33.8913251Z — `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details`, exit 0: 3 passed, 0 failed, 0 skipped.
+- 2026-09-08T16:51:48.6582129Z–2026-09-08T16:51:50.5667176Z — `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1`, exit 0: 60 routed sources, 67 prototypes, 0 broken local references.
+
+Additional capture TRX SHA-256: `CEAC3F40243BFF3FD5DF3EE93B3390B2ED110847777AADFE0D1EE5D55CA06647`. Final 26-file ordered capture manifest SHA-256: `FF9EF56AEBC4165249A8ACA3A24EBD81ED9EC685C0B41090AAB44528086F5796`. Final Git status remained only `## HEAD (no branch)`.
+
+The earlier verify-first failure remains retained and is explained by incomplete capture selection, not erased. No snapshot update/new baseline, source edit, broad recapture, build, manual waiver/workaround, proof, stage move or cleanup occurred. Runtime + scoped snapshot/catalogue obligations now PASS at the exact merge SHA; mandatory F005 multi-width manual inspection remains separately outstanding.
