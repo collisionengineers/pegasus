@@ -203,3 +203,15 @@ After INTK-065 generation recorded explicit IDLE and all processes exited, /root
 ## Transitions
 
 - 2026-09-08T15:16:17.827Z lease-phase implementing → verifying (lease 820e4f1a-1e6e-4d12-82be-f2082dffa481 rev 11; expires 2026-09-08T15:46:17.818Z)
+
+## Host-slot reconciliation — explicit idle — 2026-09-08
+
+The preceding canonical `Sole host verification queue active` entry is complete and superseded for current ownership state. Its granted lanes have finished; exact results remain in each owning ticket record. ENG-029 `scratch/execution` version `60b067038e354908` explicitly records that every granted verifier command completed, the sole host verifier is idle, and no execution grant remains outstanding. Its final schema-2 proof remains INCONCLUSIVE solely for manual F-005 visual acceptance; this idle reconciliation does not waive, rerun, or alter that result.
+
+Current preparation-only census:
+
+- PLAT-046 is implementing in `.worktrees/plat-046`; its execution context contains only the operator planning decision. Plan `5973528712b0ab92` assigns script/document verification to the sole verifier only after a fresh explicit canonical grant. No such grant exists.
+- INTK-066 is implementing in `.worktrees/INTK-066`; it has no `scratch/execution` document yet. Plan `61d7d16e3dadf6a0` assigns build/test/SQL/browser/snapshot work to the sole verifier only after a fresh explicit grant and idle transfer. No such grant exists.
+- No verifier-owned host command/session is running. No test, build, script, browser, capture, product edit, or author-worktree operation was started during this reconciliation.
+
+Canonical CEALEX-May25 host verification slot is now explicitly **IDLE / unassigned**. PLAT-046 and INTK-066 remain queued only in expectation; neither has frozen exact inputs or execution authority in this record. Root must append a fresh exact-input canonical grant before either lane begins.
