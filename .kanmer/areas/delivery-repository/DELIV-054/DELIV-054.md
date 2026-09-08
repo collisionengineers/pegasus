@@ -29,12 +29,17 @@ refs:
   - .agents/skills/pegasus-release/SKILL.md
   - docs/adr/0039-windows-and-linux-release-workstations.md
 commits:
-  - ca6ecb0253b0b5ed9884320e4883ceb9621829fe
+  - 6509746913eda16d2c4440add20e7f6793500f0b
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/703'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 6509746913eda16d2c4440add20e7f6793500f0b
+delivery_recorded_at: '2026-09-08T14:27:34.008Z'
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T14:25:48.558Z'
+updated: '2026-09-08T14:27:34.008Z'
 ---
 
 ## What
@@ -53,7 +58,20 @@ The corrective-release plan D1 requires .azurefunctions at the Worker ZIP root. 
 
 ## Verification
 
-- [ ] One host verifier checks ZIP entries and existing platform/script contracts; no parallel build/test commands.
-- [ ] Independent review, draft PR to dev, exact provenance to #676 and DELIV-048.
+- [x] One host verifier checked ZIP entries and existing platform/script contracts.
+- [x] Independent review and exact-merge verification passed.
 
 ## Outcome
+
+PR #703 squash-merged into `dev` as
+`6509746913eda16d2c4440add20e7f6793500f0b`; schema-2 proof records three
+authoritative PASS attempts. The author commit
+`ca6ecb0253b0b5ed9884320e4883ceb9621829fe` remains provenance, while the
+merged SHA is the reachable integration record. This ticket is the bounded
+successor to [[DELIV-048]] and reuses only PR #676's unique ZIP correction
+(`80acaf56e65d45c53f46bda75924f1a5f0dd3ed2`); DELIV-048 and PR #676 were not
+altered.
+
+No deployment or actual release package occurred. D6 remains the boundary for
+immutable release packaging and any release evidence; this Done result proves
+the merged three-script correction only.
