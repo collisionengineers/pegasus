@@ -3,7 +3,7 @@
 - [x] Extend the existing Core API payload/mapping and one submission policy for accepted canonical claimant address, with focused status/precedence/value tests and API-only mapping version 2.
 - [x] Wire exact ClmAdd and the actual EvaSubmissionStore guard after known replay, before image/transport work; prove no calls/mutations for invalid values and replay while retaining manual outcome/version/lease tests.
 - [x] After root clears FRD-07 ownership, document only the API prerequisite and complete the bounded source/consumer/ZIP-unchanged review.
-- [ ] Freeze for root's exact focused commands; retain every failure/pass, complete the post-implementation report and stop for independent review.
+- [x] Freeze for root's exact focused commands; retain every failure/pass, complete the post-implementation report and stop for independent review.
 
 ## Progress notes
 
@@ -20,3 +20,7 @@ was performed; root must sequence FRD-07 with TICK-085 before execution.
 Root-approved supplied-QDOS derived fixture correction then passed its actual
 caller1/1 with no skip after incremental build PASS. All three TRX hashes and
 original failure disposition are in the report. Publication/Review remains.
+
+
+Published PR694 at9863dd4264440ef228a0766d3e2949faf6a4e12b to dev;
+all implementation items complete, pending independent review. No self-merge.

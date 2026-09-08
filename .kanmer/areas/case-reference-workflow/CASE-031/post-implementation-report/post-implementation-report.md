@@ -128,8 +128,7 @@ additional document scope. Both deviations are retained rather than hidden.
 
 ## Remaining boundary
 
-Root focused verification is complete. Author is finalizing report/checklist
-and authorized commit/push/PR for independent review. No self-review/merge. Post-merge proof
+Root focused verification is complete. Author published the scoped commit and PR694 for independent review. No self-review/merge. Post-merge proof
 must bind the actual integration SHA and reuse or rerun appropriate exact-source
 checks honestly. No deployment has occurred.
 
@@ -198,3 +197,14 @@ corrected root build/test; git diff --check and ten-file census remain clean.
 Current correction authority: plan ecb1dab6abfa296b/files77b89acba62aface,
 amended before source edit under root approval. Next: publish the ten-file
 commit and dev PR, fresh gates to Review, then stop for an independent reviewer.
+
+
+## Published handoff
+
+Commit 9863dd4264440ef228a0766d3e2949faf6a4e12b, parent/base
+56566371a5b80ef59c4f98e377c8e8ff6469b5f7. Exactly ten scoped files committed;
+source remained unchanged after root verification. Normal push succeeded,
+branch CASE-031-eva-claimant-address, clean .worktrees/case-031.
+PR https://github.com/collisionengineers/pegasus/pull/694 targets dev and
+contains Kanmer: CASE-031. No self-review, merge, cleanup or deployment.
+All three local TRXs stay outside the commit under artifacts/verification.
