@@ -1,156 +1,196 @@
-# Plan — ENG-041
+# Plan — ENG-041 post-merge custody correction
 
 ## Objective
 
-Recover interrupted Glass launches safely and make estimate-save retries retain
-submitted intent without duplicating provider work or reverting later edits.
+Restore the normal Glass's callback to one Completed session and one imported
+Draft, without consuming the Engineer's authority while retaining its source
+documents, while keeping report snapshots safe against concurrent source changes.
 
 ## Starting state
 
-Base origin/dev 1d972f05c0f10c2ecf804f271a4fd3155242f1ef.
-Evidence: `research/research.md`@`ee71a48bec3203bf`,
-`files/files.md`@`9eb56be81f06f9a0`. Material holes are resolved in research.
-Prepared/Launching can strand the account; lost provider IDs cannot be queried.
-Estimate replay currently enriches/hash-checks mutable state and forgets K2's
-result after K3.
+Status Implementing, retained author branch ENG-041-glass-recovery and worktree
+.worktrees/eng-041. Root prepares the resume/base refresh from accepted dev
+19e6f523bf6760cab39104b4dca3674b0ac8a512; validate the exact resume packet before
+any Git/source action. Original author head is
+8bbceb4fd190ae80a8b656540fd0ae5973f49895; merged PR683 is
+baafa29e0f7002b8235aa43bf333f5d9bb172828.
+
+Evidence: files/files.md@ad7bd622031ac01b;
+proof/proof.md@73d3327f6364834c;
+post-implementation-report/post-implementation-report.md@f437cfd8a750979b;
+prior plan/plan.md@f387a6a84dfa1f21. The prior implementation and review rounds
+remain historical evidence, not permission to edit their eighteen files again.
+
+Exact merged verification: locked restore/build PASS, Core 56 PASS, Integration
+157 PASS / 2 FAIL. Both failures are actual Glass callback journeys expecting
+Completed but receiving AwaitingImport. All prior failures and passes remain
+in the existing proof/report; this plan is not new verification evidence.
+
+Confirmed cause: DOCS-020's source-confirmation helper calls
+CaseMutationGuard.Complete for each confirmed XML/PDF, incrementing the Case
+version and clearing its live lease even when no report exists. Glass correctly
+retains its original launch version/token, so the subsequent import refuses.
+The gateway, guard and failing tests are unchanged between author and merge.
+
+EPIC-014 context binds scope and root-only heavy verification. Live sources
+resolution declared no external sources. This is existing-source inspection,
+not a cloud/provider investigation.
 
 ## Governing docs
 
-Meets FRD-06 engineer-owned source-labelled drafts and provenance retention.
-Clarifies interrupted Glass recovery and current-aggregate operation replay in
-that FRD under the operator's explicit v1 remediation authority. No architectural
-decision or new mechanism warrants an ADR. Existing Razor form conventions and
-design/README no-explanatory-copy rules apply to the approved Close session
-action, which has a required reason and explicit confirmation.
+Meets linked FRD-06: an Engineer-owned Glass estimate lands as a source-labelled
+Draft, with custody and replay retained and no duplicate external calculation.
+Meets FRD-11 immutable/current report inputs and atomic stale-generation rules.
+Under the current v1 remediation authority, clarify only FRD-11's existing
+snapshot-freshness paragraph: complete source census is rechecked at freeze;
+automatic custody confirmation is not a staff edit consuming its lease.
+No product mechanism needs a new ADR. Preserve operator-notes meaning.
 
 ## Required changes
 
-Persist protected callback identity before work, vehicle identity immediately
-after its response, and an estimate-start marker before the external write.
-Resume Prepared and known provider stages using CAS and the original identities.
-A lost provider write response remains Unknown and account-occupying; cancellation
-settles durably and unknown state never silently expires into a new launch.
-Expose existing resume stages through the Case page. Add an own-Unknown closure
-command with CAS, reason and explicit engineer confirmation that no external
-estimate remains open; record permanent content-safe action history.
-
-Carry submitted Case version and line identities unchanged from the save form.
-After hash replay detection, apply existing-line provenance/rate/source retention
-and amendment timestamps through EstimatePolicy. Resolve replay results from the
-existing permanent operation action record, returning the same estimate Id in its
-current state without reapplying the operation.
+1. In EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync, remove the
+   workflow load and CaseMutationGuard.Complete. Keep SourceDocumentChangedAsync
+   and SaveChanges in the same existing serializable confirmation transaction;
+   both immediate confirmation and pending reconciliation use this one helper.
+   Preserve exact replay, atomic stale history, pending/retry semantics, and
+   generated-artifact operation-identity exemption. Do not modify explicit
+   staff document addition/removal, which remain real Case mutations.
+2. Extract the current confirmed-document query and its existing two mappings
+   from EfAssessmentReportProjectionSource to internal static helpers in that
+   class. Retain the existing ConfirmedDocumentRow, exposing it internally only
+   if required by these two callers; add no DTO/interface/store. Preserve the
+   exact occurrence/version join, matching DocumentId, CaseId scope, IsCurrent,
+   not-removed, Confirmed, actual GeneratedCaseArtifact operation exclusion, and
+   occurrence-ordinal ordering. Projection uses the same helpers.
+3. FreezeAsync uses that query in its existing serializable transaction after
+   the existing authorization/version guards and before readiness, generation
+   lookup/reuse or writes. Compare the complete mapped ordered Sources and the
+   full occurrence-keyed ConfirmedImageSources dictionary with the captured
+   inputs. Both contain all confirmed rows in the production source, not only
+   prepared photos. Compare count, occurrence membership and existing mapped
+   identities/metadata: document/version IDs, logical version, filename, media
+   type, content length, hash, Box file/version, currentness and custody status.
+   Dictionary order is not identity; compare by key and record value. A mismatch
+   throws an ordinary content-safe InvalidOperationException instructing retry,
+   like the existing signatory-race refusal, and writes no generation/artifact.
+   Do not manufacture a CaseVersionConflict when the Case version did not change.
+4. Preserve outside Case-version guards for staff edits, current signatory
+   recheck, image preparation/version guards and genuine lost/foreign/expired
+   lease refusal. Never refresh provider version/token, bypass a guard,
+   automatically acquire a lease, special-case Glass source labels, or suppress
+   source invalidation. Report rendering and bytes stay outside the transaction.
 
 ## Expected files
 
 | Action | Repo-root-relative path | Responsibility |
 | --- | --- | --- |
-| Modify | `src/Pegasus.Core/Assessment/GlassRepairEstimates.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Core/Assessment/Estimates.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Infrastructure/Glass/GlassMvaClient.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Infrastructure/Persistence/EfGlassRepairEstimateSessionStore.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `tests/Pegasus.Core.Tests/Assessment/EstimateTests.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimatePersistenceTests.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateCallbackWebTests.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs` | Bounded recovery, replay, caller or regression evidence |
-| Modify | `tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs` | Bounded recovery, replay, caller or regression evidence |
-| Generate (root verifier) | `docs/design/test-ui/pages/case-details--*.html` | Captured changed Case estimate UI |
-| Generate (root verifier) | `docs/design/test-ui/index.html` | Existing snapshot catalogue |
+| Modify | `src/Pegasus.Infrastructure/Custody/EfCaseArtifactCustody.cs` | Preserve staff authority during atomic source confirmation. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfAssessmentReportProjectionSource.cs` | One shared confirmed-source query and mappings. |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfCaseReportGenerationStore.cs` | Transaction-bound full source-census refusal before freeze. |
+| Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateCallbackWebTests.cs` | Actual callback Completed/import/custody/replay assertions. |
+| Modify | `tests/Pegasus.IntegrationTests/CaseArtifactCustodyRecoveryTests.cs` | Immediate/recovered custody and replay preserve live authority. |
+| Modify | `tests/Pegasus.IntegrationTests/Reports/CaseReportGenerationPersistenceTests.cs` | Real-shaped source fixture and focused source-race/invalidation evidence. |
+| Modify | `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Existing snapshot-freshness paragraph only. |
 
 ## Do not modify
 
-- `src/Pegasus.Core/Cases/CaseContracts.cs`
-- `src/Pegasus.Infrastructure/Persistence/EfDocumentRequestStore.cs`
 - `src/Pegasus.Infrastructure/Persistence/EfDocumentCustodyStore.cs`
+- `src/Pegasus.Infrastructure/Persistence/CaseMutationGuard.cs`
+- `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs`
+- `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs`
+- `src/Pegasus.Web/Pages/Cases/**`
+- `src/Pegasus.Web/Presentation/**`
+- `src/Pegasus.Core/**`
 - `docs/operator-notes.md`
+- `docs/design/test-ui/**`
 
 ## Constraints
 
-No new provider APIs, dependency, schema, history table, migration or generic
-recovery infrastructure. Use existing ports, transaction/history and Core policy.
-Never reveal credentials, callback tokens or raw provider payloads in history.
-Keep unrelated report/intake code untouched. Do not launch provider/cloud calls.
+No new dependency, schema, grants, runtime, provider API, source identity,
+framework, generic comparison layer, UI change or generated snapshot edit.
+Use existing fixture documents and identities; no fabricated domain corpus.
+Root-only heavy checks. Preserve the exact-merge FAIL proof and both TRXs.
+
+Current scope removes prior Case Details/assessment edit ownership. Live
+CASE-049 files/files.md@4689efb462748ddf intersects only FRD-11. Reserve its
+freshness paragraph explicitly with root before concurrent execution; do not
+touch CASE-049 native access text. DOCS-020 is Done and its claim is released.
 
 ## Ordered steps
 
-1. Extend the existing Glass contracts/gateway/store with durable known-stage
-   recovery, explicit owner-only Unknown closure and content-safe transition
-   history; preserve callback and import idempotency.
-2. Make estimate requests stable, move editor carry-forward behind replay
-   detection, and resolve all estimate operation results by permanent recorded Id.
-3. Wire submitted version, known-state Resume and explicit Close session into
-   existing Case estimate forms/handlers/labels; update FRD-06 behavior.
-4. Add focused scripted-provider, SQL, Core and Web regression cases. Run only
-   lightweight diff checks locally; give root exact focused test and case-details
-   snapshot capture filters with the candidate implementation.
+1. After root approval, validate/reuse the fresh resume packet and exact retained
+   branch/worktree, integrate the root-approved accepted base without rewriting
+   earlier commits, and refresh the correction checklist. If ownership or merge
+   differs, stop before source changes.
+2. Extract/reuse the source query/mappings and add the transaction-bound
+   complete-census check, then remove only automatic custody's version/lease
+   mutation while preserving its atomic invalidation and replay.
+3. Update the existing report SQL fixture to capture all three seeded confirmed
+   rows through the production query/mappings, not its old PDF-only Sources and
+   photo-only readiness dictionary. Capture the census before race mutation;
+   do not make a supposedly stale fixture reread current sources at assertion
+   time. Keep explicit source/hash/currentness assertions independently of the
+   reused mapping, and preserve the existing stale staff-version negative.
+4. Add/adjust the focused assertions below and clarify the reserved FRD-11
+   paragraph. Freeze source and return exact filters/files to root; no author
+   build/test. After root evidence, the author updates the report and follows
+   the approved new-PR review route for this post-merge correction.
 
 ## Acceptance checks
 
-Prepared interruption resumes without credential reset; interrupted create/start
-without a returned Id stays Unknown and does not repeat provider writes. Known
-vehicle and estimate checkpoints survive a recreated scope. Same launch op
-returns the prior session. Different-user/stale/unconfirmed closure fails and
-does not release the account; approved own closure is permanently reasoned.
-Case page exposes the named recovery caller. Unknown is not silently expired.
-
-Identical save POST uses the original version/intent; later mutable edits do not
-change its fingerprint. K1 create/K2 update/K3 update/K2 replay returns the same
-estimate Id at K3 state with no extra history/workflow/line write. Changed intent
-under one key conflicts; stale new operation still fails. Imported provenance,
-rate and amendment evidence remain correct on legitimate edits.
+- Existing actual callback tests
+  TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession and
+  TheSameReturnDeliveredTwiceRecordsNothingASecondTime pass unchanged in meaning:
+  Completed, one Draft, both retained documents, no duplicate session/import.
+- Actual immediate and recovered automatic custody preserve existing Case
+  version and exact live holder/token/expiry; replay preserves the same document
+  identities and does not invalidate or consume authority again. Subsequent
+  authorized import still consumes authority through its normal Case mutation.
+- Retaining a non-report source invalidates any current report and prepared
+  delivery atomically; generated report/fee-note outputs do not invalidate their
+  own generation. Web and Worker runtime-role checks still exercise the real
+  helper. Replace their arbitrary version-2 expectation with exact unchanged
+  version/live-lease plus meaningful staleness/history assertions.
+- Deterministic pre-freeze races add or remove a confirmed source between captured
+  inputs and transaction without relying on a changed Case version; no generation
+  or artifact is written. Current-version/current-lease still pass the outside
+  guard, proving refusal comes from source currentness.
+- Bounded theory cases cover same-count occurrence replacement and changed
+  source identity/hash/filename/media/length/Box identity/current eligibility;
+  no subset-only comparison can pass. Unchanged complete sources pass.
+- Retain existing readiness, source addition/removal, stale staff-version,
+  signatory-race and generated-output exemption assertions. Genuine Case edits,
+  expired/foreign leases, archive/terminal refusal and provider replay are not
+  relaxed. No transport/network provider write is permitted in local evidence.
 
 ## Commands
 
-Author: `git diff --check` and bounded source inspection only, Windows PowerShell.
-Root sole verifier: focused Core EstimateTests; Integration filters
-GlassRepairEstimateGatewayTests, GlassRepairEstimatePersistenceTests,
-GlassRepairEstimateCallbackWebTests, AssessmentEstimateImportWebTests and
-AssessmentPersistenceIntegrationTests (SQL category as applicable). Root owns
-case-details snapshot capture using the capturing Web cohort and verify/catalogue.
-No duplicate build/test invocation by this worker.
+Author: read-only source/caller checks and `git diff --check` only.
+Root at the retained correction worktree, PowerShell 7, performs the build
+needed for focused checks once and records exact switches/results. Proposed
+focused Integration filter (author confirms new methods remain in these classes):
+
+`FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheSameReturnDeliveredTwiceRecordsNothingASecondTime|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.FailedWriteLeavesOnePendingIntentAndReplayUsesTheSameVersionIdentity|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.AutomaticCustodyPreservesLiveCaseAuthority|FullyQualifiedName~Pegasus.IntegrationTests.Reports.CaseReportGenerationPersistenceTests`
+
+Use the existing Integration project command with --configuration Release,
+--no-build after root's successful build, and a uniquely named correction TRX.
+No broad rerun of the already passing 157 cases solely for this fix. New source
+needs independent exact-head review and focused exact-follow-up merge proof.
+The original merge proof's missing three default/conflict/unavailable capture
+inputs remain a separate root-owned evidence obligation, using the actual
+PEGASUS_TEST_UI_CAPTURE_DIR variable; no UI change/recapture in this author batch.
 
 ## Failure and deviation rules
 
-Report failing checks, unowned shared files, unknown provider identities, missing
-history association, conflicting authority or required scope expansion before
-proceeding. Unknown outcomes are not success. Do not weaken tests to pass.
+Do not weaken Completed, freshness, source identity or authority assertions to
+pass. A missing mapped source input, permission difference, additional caller,
+overlapping active file, package/schema need or scope expansion is a stop and
+report, not a bypass. Retain every failed attempt and do not infer deployed
+status from an integrated correction.
 
 ## Stop condition
 
-Initial author stop was code ready for root verification. Root supplied final
-focused PASS evidence on 2026-09-07 and explicitly authorized the next handoff:
-record all attempts, commit scoped changes with [skip ci], push a PR to dev and
-move to Review. Stop for independent review; do not self-review, merge or deploy.
-
-## Remediation round 1 — PR683 review findings
-
-Independent attestation scratch/review@cc5b9a51b2e4e5d3 names F-001 and F-002
-against 1ac8bc428e0432b510b745342fdadd849d726878. Both are accepted for fixing;
-retain the review/history unchanged. Root explicitly assigned this bounded batch.
-
-F-001: before Resume continues Prepared or a known vehicle with no estimate ID,
-require the supplied Case version/live edit lease through the existing
-IGlassRepairEstimateCaseAuthority port, under the current Engineer actor. Retain
-that regained version/token in protected provider state for subsequent import.
-Do not duplicate CaseMutationGuard in Web or alter known-ID-only reconciliation.
-F-002: preserve the existing outcomeUnknown classification through the bounded
-provider-response reader. An oversized response after create/start remains Unknown
-and account-occupying; keep response bounds and definite pre-write refusals.
-
-Touch only GlassRepairEstimateGateway.cs, GlassMvaClient.cs and focused existing
-GlassRepairEstimateGatewayTests.cs/GlassRepairEstimatePersistenceTests.cs as
-needed. No Razor changes or new snapshot capture unless an actual page changes.
-Tests cover Prepared/known-vehicle missing, stale, expired and foreign authority,
-valid recovery/import authority, and create/start response overflow with recreated
-gateway, expiry and no repeated external creation. Root remains sole verifier.
-
-Round-1 root verification completed: corrected Integration project build PASS
-49.39 s and all ten correction cases PASS in 53 s. Root authorizes recording
-both attempts, commit [skip ci], push existing PR683 and return Review for the
-independent delta review. Stop there; no self-review, merge or deployment.
+Planning stops after root reads this whole proposed plan and file scope.
+No implementation, checklist mutation, Git mutation, test/build, provider/cloud
+call, review or merge is authorized by this planning action. After explicit
+approval, root assigns the author under the existing retained ENG-041 claim.
