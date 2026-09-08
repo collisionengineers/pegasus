@@ -52,7 +52,7 @@ public sealed class AssignCaseEngineerTests
     }
 
     [Fact]
-    public async Task EnabledEngineerCanBeAssignedAndExactReplayDoesNotRecheckEligibility()
+    public async Task NativeHandoffEntersReportPreparationAndExactReplayDoesNotRecheckEligibility()
     {
         var store = new RecordingWorkflowStore();
         var eligibility = new StubEligibility(new(true, true, true));
@@ -69,6 +69,7 @@ public sealed class AssignCaseEngineerTests
 
         Assert.Equal(EngineerId, assigned.AssignedEngineerId);
         Assert.Equal(EngineerId, assigned.SignOffEngineerId);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, assigned.State);
         Assert.Equal(1L, assigned.Version);
         Assert.Equal(assigned, replay);
         Assert.Equal(1, eligibility.CallCount);
@@ -166,9 +167,11 @@ public sealed class AssignCaseEngineerTests
         public Task<CaseWorkflowRecord> AssignEngineerAsync(
             AssignCaseEngineerRequest request,
             Guid? signOffEngineerId,
+            CaseLifecycleState targetState,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Assert.Equal(CaseLifecycleState.ReportPreparation, targetState);
             AssignmentCount++;
             if (_appliedOperationKey is not null)
             {
@@ -186,6 +189,7 @@ public sealed class AssignCaseEngineerTests
             {
                 AssignedEngineerId = request.EngineerId,
                 SignOffEngineerId = signOffEngineerId,
+                State = targetState,
                 Version = Current.Version + 1
             };
             return Task.FromResult(Current);
