@@ -2,12 +2,13 @@
 
 ## State
 
-Source frozen for root verification on 2026-09-08, not verified or delivered.
+Source frozen after the approved four-failure fixture correction on
+2026-09-08. Partial runtime evidence exists below; not fully verified or delivered.
 Branch TICK-085-glass-pdf-import; worktree .worktrees/tick-085.
 HEAD/base cdaa02584c38ecc27d3bd24784f59da189138bc1.
 No author build, test, capture, commit, PR, provider or cloud call.
-Plan 9ba1a1686461dd62; files 43b95919921e9630, both read back.
-28 source/doc/test paths: 25 modified, 3 added; generated UI still owed root.
+Plan 1432dbe470b90de2; files 53c037ca57c47e28, both read back.
+29 source/doc/test paths: 26 modified, 3 added; generated UI still owed root.
 
 ## Implementation
 
@@ -34,7 +35,7 @@ Plan 9ba1a1686461dd62; files 43b95919921e9630, both read back.
   versions remain allowed. No custody mutation or IsCurrent narrowing.
 - FRD-06/10 describe actual behavior and preserve provider/live evidence limits.
 
-## Focused coverage authored, not yet run
+## Focused coverage authored
 
 - Core source/format/actor checks, persisted-authority-before-replay seam,
   Pending/Unknown durable identity, completed/missing-page protocol.
@@ -179,3 +180,93 @@ Only those four mapped test files changed in this correction. No production,
 contract, parser, source fixture or assertion meaning changed. Bounded git diff
 --check passes exit 0. Source frozen for root incremental Integration build
 and the first still-unrun Core/Integration cohorts, using the same filters.
+
+## Second root runtime attempt — retained partial PASS and FAIL
+
+Root session 24236 exited 1. After the fixture-only compiler correction,
+`dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+--configuration Release --no-restore` passed in 17.71 seconds, zero warnings
+or errors. The preceding session 80403 used
+`dotnet restore ./Pegasus.slnx --locked-mode` (PASS), then
+`dotnet build ./Pegasus.slnx --configuration Release --no-restore` (FAIL).
+No first-attempt tests ran, and its five errors remain above.
+
+The second attempt ran the exact Core and Integration filters already recorded
+under Root commands, with --configuration Release --no-build and the existing
+PEGASUS_REFERENCE_PACK_ROOT pointing to ignored pegasus_pack. Unique TRXs were
+read from their real project TestResults directories without alteration:
+
+Root confirmed the actual session 24236 test invocations: dotnet test used
+./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj or
+./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj respectively,
+--configuration Release --no-build, --filter with the exact corresponding
+Core/Integration filter under Root commands, and respectively
+--logger 'trx;LogFileName=tick-085-core-compile-corrected.trx' or
+--logger 'trx;LogFileName=tick-085-integration-compile-corrected.trx'. There was
+no --results-directory argument; per-project TestResults is the actual default.
+
+
+| Artifact | Actual result | UTC run start / finish |
+| --- | --- | --- |
+| tests/Pegasus.Core.Tests/TestResults/tick-085-core-compile-corrected.trx | 61 executed, 61 passed, 0 failed, 0 skipped; root reported 186 ms | 2026-09-08T04:22:16.7076980Z / 04:22:18.3287734Z |
+| tests/Pegasus.IntegrationTests/TestResults/tick-085-integration-compile-corrected.trx | 117 executed, 113 passed, 4 failed, 0 skipped; root reported 1m58s | 2026-09-08T04:22:19.8336705Z / 04:24:20.2772707Z |
+
+SHA-256, in the same order:
+
+```text
+E75A52450E4A99CEFEBA665D6C4B21B291FA55E5AB4E72E90314E3C4C6658FB2
+2AE32A27F7B0E8B526D5D199C2FC89278C46B3423884DA6B779A94125A74194D
+```
+
+The actual passing TRX entries include all four
+EveryReadableOriginalMatchesItsIndependentFullOrderedRowOracle cases:
+LT72PYX 102/45, ML23OXR 46/8, LG73ZCJ 66/9 and VX21TZD 30/3 main/parts rows.
+All 244 main rows and 65 parts entries passed their independently authored
+hash-bound oracles. TheFifthOriginalPositivelyQualifiesItsSixPagesWithoutFabricatedOcrCompletion
+also passed: this proves qualification only, not retained OCR or fifth parsing.
+No snapshot, manual visual, CI, merged or deployed evidence is claimed.
+
+### Consolidated four-failure disposition
+
+1. CanonicalEstimateImportThroughMcpPersistsUnconfirmedSourceBackedRowsAndRejectsForeignOrStaleAuthority
+   and EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnUnconfirmedAiDraft
+   stopped at AutomationMcpTestSupport.SeedAcceptedCaseAsync: expected
+   CaseCreated, actual NeedsSorting. The old minimal fabricated QDOS email
+   lacks current work-type evidence. Do not alter intake policy or invent an
+   instruction to make MCP setup succeed. Root approved reuse of unchanged
+   AllocationTestData.StoreDefinitiveReceiptAsync through real
+   IIntakeReceiptStore in the same host, retaining the CaseCreated assertion,
+   real IAcceptIntake, version 0, SeedPrincipalAsync, AB12CDE and completeness
+   override. This is processed-receipt/allocation setup, not classification or
+   source-byte/custody evidence. The actual MCP authority/native-handoff/import
+   assertions remain unchanged. No corpus dependency, new helper or host.
+2. EstimateImportInvokesCanonicalTypedBoundaryAndSurfacesPendingOcr used
+   GetProperty for a null estimateId. Existing MCP 1.4.0 default options use
+   WhenWritingNull (official installed package XML, McpJsonUtilities.DefaultOptions).
+   The assertion now requires omission through TryGetProperty == false.
+   Operation ID, Unknown state and exactly two canonical calls remain checked.
+3. OnlyAnEngineerCanImport expected an old import-specific refusal string.
+   It now checks the reused guard's existing Only an Engineer can change an
+   estimate wording. Redirect, zero added documents and zero saved estimates
+   remain checked; no authorization or response production code changed.
+
+Only AutomationMcpTestSupport.cs was added to the scope map, before edits.
+The batch changes that file and the already-mapped
+AutomationAssessmentIngressTests.cs / AssessmentEstimateImportWebTests.cs.
+The exact 17 helper consumers across five classes are recorded in files.md.
+Root approved checking those consumers plus the two assertion-only methods;
+unchanged Core 61 and 113 passing Integration results are retained, not rerun.
+The three-file correction is frozen; no author build/test/capture/PR occurred.
+
+### Exact correction filter for root (19 methods)
+
+```text
+FullyQualifiedName=Pegasus.IntegrationTests.AutomationMcpIngressTests.CaseGetUsesTheBoundedHeaderAndCursorSubLists|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAdministrationWebTests.ActivityRendersCaseReferencesAndNoFilterNarration|FullyQualifiedName=Pegasus.IntegrationTests.AutomationDocumentIngressTests.AddAndDownloadOverHttpReplayAndAttributeHistory|FullyQualifiedName=Pegasus.IntegrationTests.AutomationDocumentIngressTests.ExportRefusesWhenTheCaseIsNotInReview|FullyQualifiedName=Pegasus.IntegrationTests.AutomationDocumentIngressTests.ExportSucceedsAfterReturnToReview|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAiJobIngressTests.MarketResearchCompletesOverHttpWithCaseLeaseDocumentValuationAndActorHistory|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAiJobIngressTests.MarketResearchCompletionSucceedsWhileAutomationIsSwitchedOff|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAiJobIngressTests.MarketResearchCompletionReplaySurvivesStaffConfirmation|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAiJobIngressTests.MarketResearchCompletionRefusesAMissingCaseLeaseWithoutChangingTheJob|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.CanonicalEstimateImportThroughMcpPersistsUnconfirmedSourceBackedRowsAndRejectsForeignOrStaleAuthority|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.AssessmentUpdateRejectsDirectWritesToDerivedImpactFields|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.AssessmentUpdateOverHttpMutatesUnderLeaseWithCorrelatedAttribution|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.CaseUpdateDetailsOverHttpMutatesUnderLeaseWithLoggingParityAndReopensCompleteness|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.AStaffHeldLeaseRefusesAutomationBeginWriteAndEndOverHttp|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.AnAutomationHeldLeaseRefusesTheStaffClaimAndLeavesTheWorkspaceReadOnly|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.CaseUpdateDetailsRefusesAMissingEditLeaseWithFailedHistoryAndNoTokenDisclosed|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnUnconfirmedAiDraft|FullyQualifiedName=Pegasus.IntegrationTests.AutomationAssessmentIngressTests.EstimateImportInvokesCanonicalTypedBoundaryAndSurfacesPendingOcr|FullyQualifiedName=Pegasus.IntegrationTests.AssessmentEstimateImportWebTests.OnlyAnEngineerCanImport
+```
+
+Root uses the incremental Integration-project Release --no-restore build,
+then the same project with --configuration Release --no-build, the exact
+filter above and a new uniquely named TRX. This correction run is not yet
+executed. Fresh scoped Case captures/snapshot verification and the genuine
+fifth OCR acceptance remain outstanding. Author git -c core.safecrlf=false
+diff --check passed exit 0 after the batch; no other source correction.

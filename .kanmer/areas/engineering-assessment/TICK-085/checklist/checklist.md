@@ -24,3 +24,19 @@ Root first verification attempt 80403: restore PASS, Release build FAIL
 58.02 seconds / 0 warnings / 5 test compile errors; no tests or TRX. Four mapped
 fixture-only corrections are frozen for root rerun. All acceptance boxes stay
 unchecked; the failure remains in the post-implementation report.
+
+## Second root attempt and approved fixture correction
+
+Session 24236: incremental Integration build PASS 17.71s / zero warnings;
+Core 61 PASS and Integration 113 PASS / 4 FAIL, no skips. Both unique TRXs and
+hashes are retained in the report, including all four full-row oracle passes
+and only the fifth sample's six-page qualification. No fifth OCR PASS claim.
+
+Root-approved three-file fixture correction is implemented and frozen:
+existing processed-receipt setup reuse (real acceptance/version/completeness
+preserved), omitted-null response assertion and existing Engineer refusal
+wording. Plan 1432dbe470b90de2 / files 53c037ca57c47e28 were read back before
+editing. Exact 17 consumers plus two assertion-only methods are the 19-method
+root follow-up; no repeat of unchanged 113 passes. Bounded diff check PASS.
+All acceptance boxes remain unchecked until root checks and remaining genuine
+OCR/snapshot acceptance are disposed. No author build/test/PR or live call.
