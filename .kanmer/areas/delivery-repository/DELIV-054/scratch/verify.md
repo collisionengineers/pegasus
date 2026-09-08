@@ -36,3 +36,21 @@ Azure deployment plan validation passed (Local; Worker Disabled settings render 
 ```
 
 Disposition: **PASS** at the exact merged SHA. The Bicep update notice was informational; no upgrade ran. No full artifact/package build, application build/test/restore, Azure/live operation, deployment, migration, browser/capture host, source edit or child agent ran.
+
+## Typed-proof timestamp addendum — original invocation records
+
+No command was rerun. The three checks were separate, strictly ordered invocations. Their persisted original invocation timestamps are:
+
+1. `attempted_at: 2026-09-08T14:21:53.758059Z`
+   - Command: `pwsh -NoProfile -Command '$files = @("scripts/Build-ReleaseArtifacts.ps1", "scripts/Test-AzureDeploymentPlan.ps1", "scripts/Test-PegasusPlatform.ps1"); foreach ($file in $files) { $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $file), [ref]$tokens, [ref]$errors); if ($errors.Count -ne 0) { $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $file, $_.Message) }; exit 1 }; Write-Output ("PARSE PASS: {0}" -f $file) }'`
+   - Exit: `0`
+
+2. `attempted_at: 2026-09-08T14:22:00.253693Z`
+   - Command: `pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1`
+   - Exit: `0`
+
+3. `attempted_at: 2026-09-08T14:22:08.230106Z`
+   - Command: `pwsh -NoProfile -File ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`
+   - Exit: `0`
+
+These timestamps come from the original command-invocation records, not estimates derived from command durations. Exact outputs remain in the preceding exact-merge verification record. Canonical host slot remains **IDLE / unassigned**.
