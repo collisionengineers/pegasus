@@ -29,15 +29,7 @@ $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
 $releaseArtifactPath = Join-Path $repositoryRoot 'scripts/Build-ReleaseArtifacts.ps1'
-$expectedWorkerSettings = @(
-    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.UnifiedWorkFunction.Disabled',
-    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
-    'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
-    'AzureWebJobs.InboxRecoveryFunction.Disabled',
-    'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled'
-)
+$expectedWorkerSettings = @(Get-PegasusWorkerDisabledSettingNames)
 # The executed production runbook (azure-production-replacement-plan.md) and
 # the one-off predecessor archive/retirement scripts were retired after the
 # 2026-08-02 release; their content assertions retired with them (git history).
