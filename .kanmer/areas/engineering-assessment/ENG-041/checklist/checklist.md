@@ -34,7 +34,7 @@ root/another independent agent must review the follow-up, not that author.
 - [x] Align the existing SQL fixture and add meaningful custody/replay/source-race assertions; clarify FRD-06 only.
 - [x] Freeze source and report exact focused filter to root without author build/test; retain original FAIL and prior attempts.
 - [x] Record root focused verification, all attempts, source-census/custody PASS, corrected five-caller PASS and fresh scoped snapshot/catalogue PASS.
-- [ ] Submit the authorized new dev-targeting follow-up PR for independent review; exact-merge proof remains the later verification stage.
+- [x] Submit authorized PR691 at b253306f048dfb8e1dd635e9994835b32c0090d1 for independent review; exact-merge proof remains the later verification stage.
 
 ## Post-merge correction attempt 1 disposition
 
@@ -43,3 +43,11 @@ root/another independent agent must review the follow-up, not that author.
 
 Root verification, snapshot completion and new follow-up PR remain unchecked
 above. This correction changes the observation target, not production behavior.
+
+## Final author handoff
+
+Root correction build and all five affected helper cases PASS; scoped fresh
+snapshot verification2 PASS, catalogue60/67/0. Attempt1's failure is retained.
+PR691 is open against dev; author tree is clean and claim remains retained.
+Independent exact-head review and later exact-merge proof are not author
+checklist completion claims. Stop for the independent reviewer.

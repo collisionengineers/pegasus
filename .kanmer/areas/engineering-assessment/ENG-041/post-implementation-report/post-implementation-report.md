@@ -437,3 +437,17 @@ Independent exact-new-head review is next. This author must not review or
 merge this follow-up. A later verifier needs the exact follow-up merge SHA and
 proportionate custody/report/Glass caller checks, comparing immutable source
 inputs before reusing the unchanged47. No Done, deployment or cleanup claim.
+
+## New follow-up PR handoff
+
+PR691: https://github.com/collisionengineers/pegasus/pull/691
+Exact pushed head: b253306f048dfb8e1dd635e9994835b32c0090d1.
+GitHub and origin branch read-back agree; OPEN against dev, same retained
+ENG-041-glass-recovery branch and .worktrees/eng-041, clean after push.
+Seven files, +210/-71. The scoped root-authorized commit includes [skip ci].
+PR683 stays recorded as merged historical work; PR691 is the new post-merge
+correction and is also recorded in prs[]. No history rewriting or extra scope.
+
+Root owns review/merge scheduling. Stop after fresh gates to Review and hand
+this exact head to an independent reviewer. Original FAIL proof73d3327f6364834c
+is unchanged; no self-review, merge, Done, deployment or cleanup by this author.
