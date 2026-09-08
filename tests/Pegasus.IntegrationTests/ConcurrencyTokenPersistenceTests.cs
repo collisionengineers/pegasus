@@ -51,7 +51,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                 "Concurrency token persistence fixture",
                 CaseType.Inspection,
                 "QDOS",
-                new(true, true, true, true),
+                new(true, true),
                 new(true, "concurrency-test-policy", 1),
                 CaseInspectionMode.ImageBasedAssessment),
             CancellationToken.None);

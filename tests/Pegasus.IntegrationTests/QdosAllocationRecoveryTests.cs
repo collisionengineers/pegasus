@@ -332,7 +332,7 @@ public sealed class QdosAllocationRecoveryTests
             // receipt is seeded with no assets, so it is false (CASE-021). It
             // was a hardcoded true here because it was a hardcoded true in the
             // production path.
-            new(true, false, false, false),
+            new(true, false),
             null,
             receipt.InstructionDraft?.InspectionDate);
         var actor = ActionActor.SystemWorker("system-worker:intake-processing");

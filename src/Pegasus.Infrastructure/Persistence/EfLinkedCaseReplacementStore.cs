@@ -158,8 +158,6 @@ public sealed class EfLinkedCaseReplacementStore(
             AcceptedInspectionDeadline = original.Case.AcceptedInspectionDeadline,
             InstructionComplete = original.Case.InstructionComplete,
             ImagesComplete = original.Case.ImagesComplete,
-            InstructionConfirmedByStaff = original.Case.InstructionConfirmedByStaff,
-            ImagesConfirmedByStaff = original.Case.ImagesConfirmedByStaff,
             CreatedAtUtc = now,
             Version = 0
         };

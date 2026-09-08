@@ -437,7 +437,7 @@ public sealed class CaseMatchIntegrationTests
                     "Accepted case-match fixture case",
                     CaseType.Inspection,
                     "QDOS",
-                    new(true, true, false, false),
+                    new(true, true),
                     AcceptedInspectionDeadline: FixtureInspectionDate),
                 CancellationToken.None);
 

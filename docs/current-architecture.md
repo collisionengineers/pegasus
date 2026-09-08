@@ -217,7 +217,11 @@ The following boundaries distinguish source capability from live proof:
   and retained re-analysis enqueue qualified persisted pages through the
   durable OCR operation. Live provider execution and later operator activation
   remain unproved. Neither the Web nor `DevelopmentOffline` composes the
-  provider.
+  provider. The production Bicep module now declares the single S0 account,
+  custom subdomain, disabled local authentication and account-scoped Worker
+  role, and supplies only the Worker's endpoint. This source declaration is
+  not a deployed-resource claim; [operations](operations.md#document-intelligence-activation)
+  owns the exact observed state.
 - DOC/MSG extraction is implemented by the bounded in-process readers below;
   format recognition is not proof for every genuine sample.
 - Provider API and Automation MCP are composed, with their production ingress
@@ -347,6 +351,13 @@ endpoint is configured. Source composition and dispatch are implemented; no
 live OCR call, configured production endpoint, deployment, or operator
 acceptance is claimed. Document- and attachment-level OCR-required state
 remains visible during review.
+
+The same durable operation also supports an exact retained Case document
+version, binding its Case, occurrence, hash, length and selected pages before
+the Worker reads it through the logical-document reader. Its output is
+retained without running intake analysis. ADR-0040's narrow PdfPig
+unusable-text-map qualification helper is implemented; the Glass's PDF import
+caller that consumes it and the retained OCR output remains TICK-085 work.
 
 The reader constructs no network client, launches no process, and does not retrieve external links, images, relationships, keys, or other remote content. Graph, Box, Blob, OCR, DVLA/DVSA, EVA, workspace extractors, and any other external service remain outside the reader; bounded production adapters attach only at the Web and Worker composition roots.
 

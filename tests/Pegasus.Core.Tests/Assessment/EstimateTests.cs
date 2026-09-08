@@ -13,6 +13,31 @@ namespace Pegasus.Core.Tests.Assessment;
 /// </summary>
 public sealed class EstimateTests
 {
+    [Fact]
+    public void EditorEvidenceIsResolvedWithoutChangingTheSubmittedIntent()
+    {
+        var sourceLine = Line("repair", workUnits: 2m, materials: 7m) with
+        {
+            SourceRowIdentity = "repair-row-1", AmendedBy = Engineer.SubjectId, AmendedAtUtc = Now,
+        };
+        var existing = Estimate(Details(), sourceLine);
+        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        {
+            EstimateId = existing.SpecificationId, ExistingLineIds = [sourceLine.Id],
+            Lines = [LineInput("repair") with { Description = sourceLine.Description, WorkUnits = 3m }],
+        };
+        var resolved = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+        Assert.Null(submitted.Lines[0].AmendedAtUtc);
+        Assert.Null(submitted.Lines[0].SourceRowIdentity);
+        Assert.Equal(sourceLine.SourceRowIdentity, resolved.Lines[0].SourceRowIdentity);
+        Assert.Equal(7m, resolved.Lines[0].Materials);
+        Assert.Equal(Now.AddMinutes(1), resolved.Lines[0].AmendedAtUtc);
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ApplyEditorEvidence(
+            submitted with { ExistingLineIds = [Guid.NewGuid()] }, existing, Now));
+        Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateSave(submitted with { ExistingLineIds = [] }));
+    }
+
     private static readonly DateTimeOffset Now = new(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly ActionActor Engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);

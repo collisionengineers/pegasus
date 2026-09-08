@@ -19,6 +19,57 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class GlassRepairEstimatePersistenceTests
 {
+    [Fact]
+    public async Task OnlyTheOwnerCanConfirmUnknownClosureAndTheReasonIsPermanent()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var material = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Unknown, "uncertain-launch"), default);
+        var session = material.Session;
+        var owner = ActionActor.Staff(harness.UserId, [StaffRole.Engineer]);
+        var request = new GlassRepairEstimateCloseRequest(owner, session.Id, session.Version, true,
+            "Checked Glass's and closed the calculation.");
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Store.CloseAsync(
+            request with { Actor = ActionActor.Staff(harness.OtherUserId, [StaffRole.Engineer]) }, default));
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Store.CloseAsync(
+            request with { ExternalSessionClosed = false }, default));
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Store.CloseAsync(
+            request with { Reason = " " }, default));
+        await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() => harness.Store.CloseAsync(
+            request with { ExpectedVersion = session.Version + 1 }, default));
+        Assert.NotNull(await harness.ActiveAccountKeyAsync(session.Id));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE USER [glass_close_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [glass_close_web];");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'glass_close_web';");
+        try
+        {
+            var factory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
+            var closed = await new EfGlassRepairEstimateSessionStore(factory, TimeProvider.System).CloseAsync(request, default);
+            Assert.Equal(GlassRepairEstimateSessionState.Cancelled, closed.State);
+            Assert.Equal(session.Version + 1, closed.Version);
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+        Assert.Null(await harness.ActiveAccountKeyAsync(session.Id));
+        var history = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateId == session.Id.ToString("D")).ToListAsync();
+        Assert.Equal(2, history.Count);
+        var closure = Assert.Single(history, item => item.EventKind == "glass_session_closed");
+        Assert.Equal(request.Reason, closure.Reason);
+        Assert.Equal(owner.SubjectId, closure.ActorSubjectId);
+        Assert.NotNull(closure.AfterJson);
+        Assert.DoesNotContain(ProtectedState, closure.AfterJson, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() => harness.Store.CloseAsync(request, default));
+        await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "after-closure"), default);
+    }
+
     private const string ProtectedState = "protected:v1:mE1kZXNpZ25hdGVkLW9wYXF1ZQ";
 
     /// <summary>

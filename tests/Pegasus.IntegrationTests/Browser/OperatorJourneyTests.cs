@@ -347,7 +347,7 @@ public sealed class OperatorJourneyTests
                 "Controlled browser evidence is complete for the custody and EVA journey.",
                 CaseType.Inspection,
                 QdosPrincipal.Code,
-                new(true, true, true, true),
+                new(true, true),
                 null,
                 null),
             CancellationToken.None);
@@ -636,7 +636,7 @@ public sealed class OperatorJourneyTests
                 now,
                 version,
                 CaseLifecycleState.Review,
-                new(new(true, true, true, true), new(true, "browser-completeness", 1)),
+                new(new(true, true), new(true, "browser-completeness", 1)),
                 new(CaseField(fixture.WorkProvider)),
                 new(CaseField(fixture.ClaimantName), EmptyCaseField<string>(), EmptyCaseField<string>()),
                 new(CaseField(fixture.Reference)),

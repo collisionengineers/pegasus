@@ -1,16 +1,18 @@
 ---
 id: ADR-0001
-status: accepted
+status: superseded
 date: 2026-07-23
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0040]
 related_capabilities: []
 related_frd: [frd-05]
 tags: [extraction, pdf]
 ---
 # ADR-0001: Hybrid PDF extraction
 
-- Status: Accepted; embedded engine selected by ADR-0003; scan qualification refined by ADR-0005
+- Status: Superseded by [ADR-0040](0040-qualified-document-intelligence-ocr.md).
+  The historical decision below is retained; ADR-0003 and ADR-0005 remain
+  accepted within their scopes.
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
 
