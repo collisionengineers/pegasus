@@ -16,6 +16,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -873,6 +877,54 @@ internal sealed record UploadFormTokens(string AntiforgeryToken, string External
 
 internal static class IntakeTestEvidence
 {
+    /// <summary>
+    /// A documented QDOS definitive instruction represented as an actual PDF
+    /// document. Callers place it in their existing intake transport instead
+    /// of relying on email-body text to select or classify an instruction.
+    /// </summary>
+    public static byte[] CreateDefinitiveQdosInstructionDocument(
+        string? claimantName = null,
+        string? claimNumber = null,
+        string? registration = null,
+        string? vehicle = null,
+        string notificationTitle = "ENGINEER NOTIFICATION",
+        IEnumerable<string>? additionalLines = null,
+        bool addSignatureLines = true)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        var page = builder.AddPage(PageSize.A4);
+        var lines = new List<string> { notificationTitle };
+        if (addSignatureLines)
+        {
+            lines.Add("QDOS");
+            lines.Add($"Our Client’s Vehicle: {vehicle ?? string.Empty}");
+            lines.Add($"Registration: {registration ?? string.Empty}");
+        }
+        if (!string.IsNullOrWhiteSpace(claimantName))
+        {
+            lines.Add($"Claimant Name: {claimantName}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(claimNumber))
+        {
+            lines.Add($"Claim Number: {claimNumber}");
+        }
+
+        if (additionalLines is not null)
+        {
+            lines.AddRange(additionalLines
+                .SelectMany(line => line.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
+        }
+
+        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
+        {
+            page.AddText(line, 10, new PdfPoint(36, 780 - (index * 16)), font);
+        }
+
+        return builder.Build();
+    }
+
     // The retained QDOS Engineer Triage request shape. It is classified by the
     // real mail-classification policy, which is the sole owner of Triage
     // eligibility (INTK-033).

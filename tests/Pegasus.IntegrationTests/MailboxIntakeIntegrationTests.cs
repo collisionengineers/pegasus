@@ -1446,18 +1446,20 @@ public sealed class MailboxIntakeIntegrationTests
 
     private static byte[] CreateInlineForwardedProtocolMessage()
     {
-        var outer = new MimeMessage
+        var outer = new MimeMessage { Subject = "Forwarded protocol container" };
+        var body = new BodyBuilder
         {
-            Subject = "Forwarded protocol container",
-            Body = new TextPart("plain")
-            {
-                Text = "From: QDOS Instructions <instructions@qdosassist.co.uk>\r\n"
-                    + "Sent: 11 August 2031 09:00\r\n"
-                    + "To: Instructions <instructions@collisionengineers.co.uk>\r\n"
-                    + "Subject: Protocol instruction\r\n\r\n"
-                    + "Protocol-only outer content."
-            }
+            TextBody = "From: QDOS Instructions <instructions@qdosassist.co.uk>\r\n"
+                + "Sent: 11 August 2031 09:00\r\n"
+                + "To: Instructions <instructions@collisionengineers.co.uk>\r\n"
+                + "Subject: Protocol instruction\r\n\r\n"
+                + "Protocol-only outer content."
         };
+        body.Attachments.Add(
+            "instruction.pdf",
+            IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(),
+            ContentType.Parse("application/pdf"));
+        outer.Body = body.ToMessageBody();
         outer.From.Add(new MailboxAddress("Desk", "desk@collisionengineers.co.uk"));
         outer.To.Add(new MailboxAddress("Approved Inbox", "instructions@collisionengineers.co.uk"));
 
