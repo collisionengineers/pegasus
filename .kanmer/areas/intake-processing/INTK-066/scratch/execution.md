@@ -100,3 +100,33 @@ Preserve full nonbrowser 75f FAIL(1969 pass,5 fail) and every prior failure; the
 Sole verifier owns lease heartbeats. Same exact-owned-node cleanup authority after completed parent exit, DateTimeOffset identity comparisons; no foreign/broad process termination. LocalDB and immutable corpus only, no external SQL/cloud/Outlook/Box, packaging, commit/push/PR. Stop first genuine failure and return both records explicit IDLE/lease implementing; no autonomous retry/source/test/snapshot fixes. Generated changes are limited to pages/upload-status--*,upload-group-status--*,case-create--*,queues--*.html; any index/other tracked drift stops. Record all command results, capture phases and state/file census for root review.
 
 - 2026-09-08T22:49:30.840Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 69; expires 2026-09-08T23:19:30.832Z)
+
+## Sole-host corrected-consumer and snapshot result — 2026-09-08 — commands PASS, acceptance blocked by static defect
+
+Verifier `/root/final_verifier` held the sole CEALEX-May25 slot against frozen clean `.worktrees/INTK-066`, branch `INTK-066-manual-upload-confirmation`, HEAD `137230ca4f9b5115e1176f387fd360dac7370d65`. Fresh resumed packet and preflight passed at `2026-09-08T22:37:40.2762456Z`: exact worktree/branch/head/common repository, no competing host process or worktree, external SQL variables unset, LocalDB available.
+
+1. `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — exit 0, 0 warnings/errors, 00:01:45.40.
+2. Parent PID 15364 exited; exact reusable nodes 28584, 13804, 25472, 18044, 8412 and 31172 matched parent/start/executable/`MSBuild.dll /nodemode:1 /nodeReuse:true`, were stopped by exact PID, and none remained at `2026-09-08T22:40:12.8255946Z`.
+3. `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "(FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~InstructionDraftWebTests)&Category!=Browser&Category!=Corpus"` — exit 0: 9 passed, 0 failed/skipped, 55s. This closes the five corrected assertions only; prior full nonbrowser result remains retained as 1,969 passed/5 failed and is not relabelled as a new-head full-suite pass.
+4. Before capture, the exact absolute `artifacts/test-ui-capture` target was absent, inside the worktree, and its worktree/artifacts parents were ordinary link-free directories. Declared inventory was exactly nine files across upload-status, upload-group-status, case-create and queues.
+5. `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope upload-status,upload-group-status,case-create,queues -CaptureFilter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~TriageQueuesWebTests|FullyQualifiedName~UploadCaseSearchBrowserTests"` — exit 0. Browser capture: 4 passed, 0 failed/skipped, phase 1m21s. Nonbrowser capture: 60 passed, 0 failed/skipped, phase 2m43s. Snapshot update: 3 passed, 0 failed/skipped, phase 3s. Internal build nodes were `/nodeReuse:false` and exited naturally.
+6. `pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope upload-status,upload-group-status,case-create,queues` — exit 0: snapshot verify 3 passed, 0 failed/skipped, phase 11s.
+7. `pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1` — exit 0: 60 routed sources, 67 prototypes, 0 broken local references.
+8. `pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1` — exit 0: 140 files checked, all relative links resolve.
+9. `pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c -Head 137230ca4f9b5115e1176f387fd360dac7370d65` — exit 0.
+10. `git diff --check` — exit 0, line-ending warnings only.
+
+Final inventory at `2026-09-08T22:49:10.3065769Z`: HEAD/branch unchanged; retained non-linked capture exists; exactly nine declared scope files; seven actual generated diffs and no undeclared actual diff:
+- `case-create--default.html`
+- `queues--empty.html`
+- `upload-group-status--default.html`
+- `upload-group-status--needs-decision.html`
+- `upload-group-status--processing.html`
+- `upload-status--default.html`
+- `upload-status--needs-decision.html`
+
+Git porcelain marked the two unchanged scope files and `docs/design/test-ui/index.html` modified through stat/line-ending state. Read-only proof showed index worktree and cached diff exits 0 and raw/filtered worktree blob exactly equals HEAD `4e463fe695dd302661b57e21b2e7e41b2a0456da`; no index bytes or staged content changed. No host process remained.
+
+After every queued command had already completed, root's static generated-HTML review found a concrete existing requirement defect: `upload-group-status--processing` renders a per-file Attach form because compact mode is set only for `OpenGroupDecision`, which is false while a sibling is Working. The existing test checked only group-form labels and missed per-file controls. Root requires a narrow source/test correction after this IDLE handoff. Therefore all invoked commands passed, but this capture is **not accepted as final UI evidence** and the ticket remains blocked for correction. No autonomous source/test/snapshot hand-edit or retry occurred after the finding.
+
+All invoked processes exited. Lease returned to `implementing` revision 69. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.

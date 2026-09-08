@@ -498,3 +498,17 @@ Sequential exact queue after preflight and relevant skills/runbook:
 Preserve full nonbrowser 75f FAIL(1969 pass,5 fail) and every prior failure; the fresh two-class PASS can close those five corrected assertions but is not a claim that an entire new-head full suite was rerun. Core1955pass14skip/Architecture116pass at75f and fullBrowser140pass at e843 have unchanged application inputs; no unnecessary repeat of unrelated suites for test-only changes. Existing plan proportional verification scope applies.
 
 Sole verifier owns lease heartbeats. Same exact-owned-node cleanup authority after completed parent exit, DateTimeOffset identity comparisons; no foreign/broad process termination. LocalDB and immutable corpus only, no external SQL/cloud/Outlook/Box, packaging, commit/push/PR. Stop first genuine failure and return both records explicit IDLE/lease implementing; no autonomous retry/source/test/snapshot fixes. Generated changes are limited to pages/upload-status--*,upload-group-status--*,case-create--*,queues--*.html; any index/other tracked drift stops. Record all command results, capture phases and state/file census for root review.
+
+## Canonical host-slot handoff — INTK-066 corrected consumer and snapshots — 2026-09-08
+
+Sole verifier `/root/final_verifier` completed every granted command against frozen HEAD `137230ca4f9b5115e1176f387fd360dac7370d65`.
+
+PASS results: Release build 0 warnings/errors (1m45.40); exact six reusable build nodes validated/stopped; focused QdosIntake/InstructionDraft cohort 9/9 (55s); scoped capture browser 4/4, nonbrowser 60/60, snapshot update 3/3; retained snapshot verify 3/3; UI catalogue 60 sources/67 prototypes/0 broken references; documentation links 140 files; Markdown placement; git diff check. No skips/failures in selected runtime cohorts.
+
+Capture containment passed. Inventory retained exactly nine declared states with seven actual generated diffs, all inside the four allowed prefixes. `docs/design/test-ui/index.html` had porcelain-only stat state, but both Git diff modes exited 0 and raw/filtered blob exactly equalled HEAD; no index content/stage drift. No host process remained.
+
+After all commands completed, root static review found a concrete requirement defect in the generated processing state: upload-group-status processing renders a per-file Attach form while a sibling is Working because compact mode is limited to OpenGroupDecision; the existing test did not assert absence of per-file controls. Thus commands PASS but capture is **not final accepted UI evidence**. Root owns the narrow source/test correction after this handoff. No verifier retry or source/snapshot hand-edit occurred.
+
+Prior full nonbrowser 75f result remains retained FAIL (1,969 passed/5 failed); the focused 9/9 closes only those corrected assertions, not a new full-suite aggregate.
+
+All processes exited. INTK-066 lease returned to `implementing`, revision 69. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
