@@ -33,3 +33,11 @@ GroupRegistrationAndInterruptedPairingPreserveEveryMember is four bounded cases 
 ## Transitions
 
 - 2026-09-08T03:46:38.450Z lease-phase implementing → running-command (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 10; expires 2026-09-08T04:16:38.438Z)
+
+## Root verification attempt 1 and bounded compilation correction
+
+Root sole heavy session 65450: locked restore all seven projects PASS (maximum 1.60 seconds); solution Release build FAILED exit 1 after 69.39 seconds, zero warnings, one CS0103 at EfImageIntakeStore.cs:1274, missing CultureInfo namespace. No tests/TRX executed. Root reported host 13.9 GiB total / 2.8 GiB free during the run and confirmed no other heavy session active when it stopped. This failure remains part of the record.
+
+After root explicitly released the source, added only using System.Globalization to the existing mapped store file. No author build/test was run.
+
+Read-only initial-principal hypothesis inspection: ImageIntakeOrigin has no PrincipalId (receipt/source/hash/evaluation only); its actual EF resolver exposes no principal. RegisterAsync's new entity initializer never assigns PrincipalId; SetPrincipalAsync is the sole production setter, after registration. Consequently an already-known principal at the initial origin boundary is not currently representable; no new inferred origin/provenance field was invented. Existing initial tests explicitly allow the accepted truncated-read completion. Already registered records instead take the early replay path and retain their known principal and immutable VRM. Root has this distinction for disposition before the combined rerun.
