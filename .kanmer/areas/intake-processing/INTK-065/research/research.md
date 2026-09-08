@@ -109,3 +109,18 @@ four-path handoff and fresh overlap census; never retake/clear INTK-060.
 This follow-up is supplemental to EPIC-014. The original frozen 218 roster and
 all prior source/proof histories remain unchanged. No runtime policy, reader,
 taxonomy value, schema, UI, mailbox or cloud write belongs here.
+
+### Follow-up bounded source-root inventory
+
+At root's request, checked the known sibling GitHub repositories
+collisionsuite, collision-claude, collision-evidence-engine and collisioncheck,
+plus this repository's workspaces and existing wrapper/runbook/environment
+root conventions. No whole-drive crawl. The suite manifest/workspace still
+names active/collisionspike, but that directory is absent. No required
+provider-corpus.csv or cedocumentmapper_v2/providers.json was found in these
+bounded roots. collision-evidence-engine contains four copied emailevals
+example documents, not the required historical cohort/tree; they are not
+replacement inputs and were not modified/copied. Both documented environment
+overrides are unset. Therefore the full original-input regeneration remains
+unavailable on this host, not PASS. Root requested this distinction before
+reviewing the final source-inventory-only proposal.
