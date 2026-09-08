@@ -11,15 +11,15 @@ stageEntered:
 taken_at: '2026-09-08T02:44:23.546Z'
 branch: INTK-063-image-link-recovery
 worktree: .worktrees/intk-063
-claim_expires_at: '2026-09-08T03:50:06.349Z'
+claim_expires_at: '2026-09-08T03:55:11.692Z'
 claim_controller: root
 lease_id: 96040972-2231-4565-8a48-d176ea4c6aec
-lease_revision: 5
+lease_revision: 6
 lease_worker_run: pack_reconcile
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-063'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T03:20:06.349Z'
+lease_heartbeat_at: '2026-09-08T03:25:11.692Z'
 labels:
   - image-intake
   - pairing
@@ -37,7 +37,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T03:20:06.349Z'
+updated: '2026-09-08T03:25:11.692Z'
 ---
 
 ## What
