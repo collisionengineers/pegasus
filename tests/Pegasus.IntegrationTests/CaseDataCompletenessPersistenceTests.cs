@@ -4,6 +4,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -529,7 +530,9 @@ public sealed class CaseDataCompletenessPersistenceTests
                     acceptanceStore,
                     configuration,
                     new EfProviderInspectionModeStore(factory),
-                    new CommittedWorkPublisherDouble());
+                    new CommittedWorkPublisherDouble(),
+                    new TriageCasePairing(new EfTriageStore(factory,
+                        [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
                 var outcome = await accept.ExecuteAsync(
                     new(
                         receiptId,
