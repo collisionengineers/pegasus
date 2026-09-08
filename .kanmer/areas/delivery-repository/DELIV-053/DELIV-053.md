@@ -29,13 +29,17 @@ links: []
 refs:
   - docs/engineering.md
 commits:
-  - f9f9cc0a9a66da15306b49ffa34f1d5b253c524d
+  - ed20af4275d0312c963a6fc86c330f563141c98c
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/704'
 deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: ed20af4275d0312c963a6fc86c330f563141c98c
+delivery_recorded_at: '2026-09-08T15:27:37.692Z'
 archived: false
 created: '2026-09-08T13:17:44.781Z'
-updated: '2026-09-08T15:26:09.281Z'
+updated: '2026-09-08T15:27:37.692Z'
 ---
 
 ## What
@@ -55,8 +59,22 @@ The operator approved the corrective-release/subagent plan on 8 September 2026 a
 
 ## Verification
 
-- [ ] Strict Codex configuration diagnostics and named-agent discovery/model evidence.
-- [ ] Confirm tracked configuration preserves Kanmer and contains no secrets.
-- [ ] Independent semantic/configuration review; no parallel tests/builds.
+- [x] Strict Codex configuration diagnostics and named-agent discovery/model evidence.
+- [x] Confirm tracked configuration preserves Kanmer and contains no secrets.
+- [x] Independent semantic/configuration review; no parallel tests/builds.
 
 ## Outcome
+
+PR #704 squash-merged into `dev` as
+`ed20af4275d0312c963a6fc86c330f563141c98c`. The author commit
+`f9f9cc0a9a66da15306b49ffa34f1d5b253c524d` remains provenance; the merged
+SHA is the reachable integration record. The schema-2 proof records PASS for
+strict configuration diagnostics (20 ok, 0 fail), actual fresh acceptance of
+all five named role profiles, a fresh Kanmer connection, and 140 resolved
+documentation links. Earlier harness failures remain retained in proof-linked
+scratch evidence rather than being erased.
+
+This integrated configuration change is non-deployable (`n/a`): no application
+build/test, source edit, cloud write, promotion, or deployment occurred. The
+canonical verifier host ledger in `scratch/verify` remains in place for the
+separate D56 lane and was not altered.
