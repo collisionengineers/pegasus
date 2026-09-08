@@ -14,6 +14,17 @@ tags: [architecture, stack, hosting]
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
 
+
+## Current applicability
+
+The modular-monolith decision remains accepted. ADR-0043 partially supersedes
+the reusable-vendor-secret clause only for per-Engineer credentials and their
+protected session state in existing SQL. Other secret ownership is unchanged.
+
+## Current applicability
+
+The modular-monolith and Core ownership choices survive. Hosting follows ADR-0015, environment shape ADR-0014, and current intake scheduling ADR-0033. Schema compatibility is bounded by the actual supported data/consumer contract; ADR-0030’s historical alpha milestone is not a new development-data obligation.
+
 ## Context
 
 Pegasus is a staff case-management application for approximately eight

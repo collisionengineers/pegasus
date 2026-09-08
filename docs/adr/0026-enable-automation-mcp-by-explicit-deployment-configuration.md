@@ -15,6 +15,10 @@ tags: [mcp, automation, deployment]
 
 Accepted.
 
+## Current applicability
+
+This owns explicit deployment activation, not the full current authorization contract. FRD-10 owns current scopes and grant behavior; persistent certificate operation is specified separately from the initial activation decision.
+
 ## Context
 
 The Automation MCP ingress is already an HTTPS Web boundary with OAuth

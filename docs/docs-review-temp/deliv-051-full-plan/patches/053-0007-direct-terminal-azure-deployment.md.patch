@@ -1,0 +1,13 @@
+--- a/docs/adr/0007-direct-terminal-azure-deployment.md
++++ b/docs/adr/0007-direct-terminal-azure-deployment.md
+@@ -17,6 +17,10 @@
+   does not prove a current release or recovery run.
+ - Date: 2026-07-25
+ - Supersedes: ADR-0002 deployment mechanism only
++
++## Current applicability
++
++Direct terminal execution remains applicable. Read the current environment and platform contract through ADR-0014, ADR-0015 and ADR-0039; ADR-0037 is an intermediate superseded workstation decision.
+ 
+ ## Context
+ 

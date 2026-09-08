@@ -3,7 +3,7 @@ id: ADR-0027
 status: accepted
 date: 2026-08-18
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0041]
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-06]
 related_frd: [frd-10]
 tags: [mcp, automation, oauth]

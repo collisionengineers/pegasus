@@ -1,12 +1,11 @@
 # Product requirements (PRD)
 
-A product requirements document states **what the product must do and why** —
-the business need, users, outcomes, scope, permanent boundaries, quality and
-capacity targets, and the acceptance model. A PRD states no mechanics; *how* a
-capability behaves is owned by the [FRDs](../frd/README.md), and technical
-choices by the [ADRs](../adr/README.md). Business truth is owned upstream by
-[`operator-notes.md`](../operator-notes.md); the schedule and capability-ID
-registry by [`capabilities.md`](../capabilities.md).
+A PRD owns product need, users, outcomes, scope, permanent exclusions, quality
+targets and acceptance. [FRDs](../frd/README.md) own behavior and
+[ADRs](../adr/README.md) own technical choices. Current operator instructions
+can amend intent; record the resulting requirement here with its provenance.
+[Capabilities](../capabilities.md) links stable identities to these owners;
+Kanmer owns work allocation. The [index](../index.md) owns document conventions.
 
 ## Documents
 

@@ -1,0 +1,10 @@
+--- a/docs/adr/0039-windows-and-linux-release-workstations.md
++++ b/docs/adr/0039-windows-and-linux-release-workstations.md
+@@ -51,6 +51,6 @@
+ - Superseded choice: [ADR-0037](0037-linux-authorised-release-workstation.md).
+ - Direct terminal: [ADR-0007](0007-direct-terminal-azure-deployment.md).
+ - Environment boundary: [ADR-0014](0014-local-to-production-deployment.md).
+-- Procedure: [Runbook](../runbook.md#deployment-and-release).
++- Procedure: [Runbook](../../.agents/skills/pegasus-release/SKILL.md).
+ - Microsoft [EF migration bundles](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying)
+   and [SDK container publishing](https://learn.microsoft.com/en-us/dotnet/core/containers/sdk-publish).

@@ -13,6 +13,12 @@ tags: [hosting, containerapps]
 **Status:** Accepted (2026-08-01)
 **Supersedes:** ADR-0002's App Service hosting, tier, and fixed-compute clauses; ADR-0007's Web ZIP deployment mechanism
 
+## Current applicability
+
+Web warm/minimum-replica values are operator configuration choices recorded
+in operations, not a fixed architectural minimum. The current test data is
+disposable. Other hosting choices remain within this ADR's accepted scope.
+
 ## Context
 
 The approved local-to-production replacement route originally selected Linux
