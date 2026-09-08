@@ -2,7 +2,8 @@
 
 ## Summary and current stop
 
-Author source-complete, not runtime-verified, integrated or deployed.
+Author source-complete with root's focused pre-merge runtime PASS; not yet
+integrated or deployed.
 The isolated branch is INTK-064-triage-link-recovery at .worktrees/intk-064,
 still based on aefe4c32d078ad79c0368666b5666032e6865248. No source commit or
 PR yet. Root remains the sole heavy verification owner.
@@ -85,9 +86,8 @@ direct-constructor/interface-implementation census completed. Static review
 corrected an undefined clock in the direct Provider API fixture before freeze.
 
 No restore, build, test, provider call, capture or CI has been run by the
-author. Runtime acceptance is NOT YET RUN, not PASS. Root must append every
-actual attempt, failure, correction and exit before publication. This is not
-merged proof.
+author. The following actual root-owned attempts are retained; later PASS
+does not erase the first compile failure. This is not merged proof.
 
 ### Root attempt 1 — retained FAIL
 
@@ -100,6 +100,33 @@ returning null for a missing/non-unique decision rather than dereferencing or
 suppressing nullability. Only that source expression changed; no assertion,
 matcher contract, policy or file scope was altered. Author diff --check PASS
 exit 0 after the correction. Fresh source freeze; root owns the retry.
+
+### Root attempt 2 — focused PASS
+
+2026-09-08 UTC, root session 39568: corrected-source Release build with
+--no-restore PASS, exit 0, 91.22 seconds, zero warnings/errors.
+Root session 62911 ran the exact two filters below using Release --no-build:
+Core 32/32 PASS (90 ms), integration 14/14 PASS (59 seconds), zero skips.
+Author independently read both complete TRX counters, times and hashes.
+
+- artifacts/verification/intk-064-core.trx:
+  SHA256 6AC9B8A24C302230F659FEF561656BA13FB393880562E96E5F877784CBBED7FC;
+  start 2026-09-08T05:55:54.3281705Z;
+  finish 2026-09-08T05:55:55.8948561Z.
+- artifacts/verification/intk-064-integration.trx:
+  SHA256 F47E0DA8540ECB09C8636A1B925A95DAD937B2BC51497BB63751AADC8C767AA1;
+  start 2026-09-08T05:55:57.3119103Z;
+  finish 2026-09-08T05:56:58.2264624Z.
+
+TRX timestamps are stored with +01:00; the times above are their exact UTC
+conversion. All outcomes executed, none skipped or notRunnable. Integration
+includes both genuine arrival orders, actual restricted Worker, pending
+selection, completed replay, manual/identity/version/lease guards, concurrency
+and the actual timer fixture. No external mailbox/provider call is claimed.
+Root DocumentationLinks check: 127 PASS, exit 0 at 05:57 UTC.
+No capture/generated UI delta or CI rerun. Root authorizes one [skip ci] PR
+to dev under the remediation run's one-final-CI policy; exact merged proof
+remains outstanding after independent review/integration.
 
 ## Root verification handoff
 
@@ -122,9 +149,9 @@ files are partial members of QdosTriageIntegrationTests.
 
 ## Risks, boundaries and next step
 
-Required actual SQL/Worker verification remains with root; any discovered
-permission/schema requirement is a stop for root review, not authority for
-a grant. Read-only context and original provider grammar are unchanged.
+The required focused SQL/Worker checks passed under root without a grant.
+Any later newly evidenced permission/schema need still requires root review. Read-only context and original provider grammar are unchanged.
 This adds no live deployment or external provider acceptance claim.
-After root supplies actual PASS, finalize report/checklist and publish for
-independent review; do not self-review, merge, clean up or start another ticket.
+Root supplied actual PASS and authorized publication after the independent
+static preflight. Publish once for independent exact-head review; do not
+self-review, merge, clean up or start another ticket.
