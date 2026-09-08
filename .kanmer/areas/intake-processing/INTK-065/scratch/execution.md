@@ -19,3 +19,35 @@ Step 2 PASS (static source inspection only): root authorized the necessary suppo
 Final materialization slot completed once under the canonical D53 grant. Command: `python artifacts/intk-065-refresh.py`; exit 0. JSON SHA-256 changed from `b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284` to final frozen `494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251` (Git blob `f65930bdc27a5984e6b9e2dde684a68d64f9e081`). The harness proved historical-section hashes unchanged, the approved-delta projection, and published-byte/canonical-byte equality before/after its single write. It is materialization evidence, not independent verification PASS; Step 3 remains unticked for the root-scheduled independent content/determinism/test checks. D53 now records explicit IDLE; no Python/dotnet/MSBuild/testhost/vstest process remained.
 
 - 2026-09-08T14:26:20.500Z lease-phase running-command → implementing (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 5; expires 2026-09-08T14:56:20.490Z)
+
+## Host serialized verification — PASS (2026-09-08)
+
+Verifier: `/root/agent_config_verifier`
+Queue lane: 1/4 (`INTK-065 → DELIV-057 → ENG-029 → DELIV-056`)
+Frozen worktree: `.worktrees/intk-065`
+Frozen branch: `INTK-065-principal-evidence-inventory`
+Frozen head: `7b6aa189b9d00d772819e3d3f21022be549ee229`
+
+Preflight completed `2026-09-08T14:28:32.6603718Z`: no competing scoped build/test processes; source diff matched the planned nine logical paths (including two renames); generated JSON SHA-256 was `494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251`.
+
+### Attempts and commands
+
+1. `2026-09-08T14:36:43.304316Z` — verifier-owned ignored harness, exit **1**. The harness incorrectly hashed compact JSON sections instead of using the generator's canonical byte function. This was a harness defect, not a product failure. Root explicitly authorized a harness-only correction; no source was changed.
+2. `2026-09-08T14:37:35.729996Z` — corrected verifier-owned ignored harness, exit **0**:
+   - generator syntax: PASS
+   - canonical bytes: PASS
+   - final JSON SHA-256: exact expected value
+   - historical sections unchanged: 7 (also byte-semantically equal to `HEAD`)
+   - current snapshots valid: 5
+   - approved evidence-ref replacements: 26
+   - allowed JSON delta: PASS
+3. `python -m unittest tests/test_generate_principal_identification_evidence.py` — attempted `2026-09-08T14:37:45.141971Z`, exit **0**, 2 passed.
+4. `python scripts/verify_docs_links.py` — attempted `2026-09-08T14:37:54.580170Z`, exit **0**, 140 files checked.
+5. `pwsh -NoProfile -File scripts/Test-MarkdownPlacement.ps1` — attempted `2026-09-08T14:38:04.486740Z`, exit **0**.
+6. `dotnet restore tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --locked-mode` — attempted `2026-09-08T14:38:31.003382Z`, exit **0**.
+7. `dotnet build tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj -c Release --no-restore` — attempted `2026-09-08T14:38:41.851408Z`, exit **0**, 0 warnings, 0 errors.
+8. `dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj -c Release --no-build --filter FullyQualifiedName~PrincipalIdentificationCorpusTests --logger "trx;LogFileName=INTK-065.trx" --results-directory artifacts/test-results/INTK-065` — attempted `2026-09-08T14:39:25.076420Z`, exit **0**, 7 passed.
+
+Postcheck completed `2026-09-08T14:39:44.7920238Z`: no scoped processes remained; source status was unchanged from preflight; generated JSON retained the exact expected SHA-256. The ignored verifier harness was removed after the run.
+
+Disposition: **PASS**. No fix, rerun of product commands, full rail, or source write was performed.
