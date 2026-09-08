@@ -136,3 +136,5 @@ Core, Web, Infrastructure, Worker and ArchitectureTests compiled before the Inte
 Per stop-first-failure, there was no second build retry or source fix. Core tests, focused non-browser SQL tests and conditional UploadCaseSearch browser tests are **NOT RUN**. No snapshot, SQL fixture, browser, cloud, Outlook, Box, commit, push or PR action occurred.
 
 Postcheck at `2026-09-08T19:19:37.4338836Z` exited 0: exact HEAD/branch remained clean. The retry created six reusable MSBuild nodes (PIDs 22280, 26136, 26840, 27528, 29136 and 29728; parent PID 7436; created 19:18:26.365448–.473165Z); no testhost or vstest remained. They were not terminated without a new bounded disposition.
+
+- 2026-09-08T19:20:39.590Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 13; expires 2026-09-08T19:50:39.580Z)
