@@ -6,8 +6,8 @@ Current state: remediation round1 for sole open review finding F-003.
 The earlier frozen source passed the recorded focused runtime checks, but
 independent exact-head review29da3f33c888cb13 correctly found a missing
 non-QDOS selected-profile guard before matching. That PASS does not close the
-finding. The authorized two-file correction is now source-frozen; root's
-focused rerun and same-PR delta review remain pending. All previous failures,
+finding. The authorized two-file correction is now source-complete and root's focused
+rerun PASS is recorded below. Same-PR independent delta review remains pending. All previous failures,
 passes and fixed F-001/F-002 findings are preserved below.
 
 Root-owned final focused verification PASS on the frozen TICK-035 source:
@@ -656,3 +656,45 @@ UIIMP-017 conditional generation in the amended plan/files. TICK-035 will not
 edit/regenerate the index, Settings snapshots or other UI in this remediation.
 Prior byte-identical Settings capture/verify/catalogue evidence is retained.
 Ticket branch/worktree/lease ownership is unchanged.
+
+
+## Remediation round 1 — root verification PASS
+
+Root job80003 executed the frozen two-file F-003 correction on8 September2026:
+- Whole incremental Release build PASS, exit0,111.42 seconds,0 warnings/errors.
+- Core2/2 PASS, exit0,217ms.
+- Integration2/2 PASS, exit0,42 seconds,0 skips. The ALS case includes the
+  selected-profile real allocation/repeat association positive and structural
+  no-profile/otherwise-unique-existing-Case refusal including durable replay.
+  The other case proves actual declared Provider API creation followed by
+  existing-Case rejection without mutation/duplicate allocation.
+
+Exact commands, with PEGASUS_REFERENCE_PACK_ROOT pointing to the existing
+ignored root pack; no UI capture or generated-file change:
+
+```powershell
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~ProcessIntakeTests.AConflictingSelectedPrincipalCannotExtractClassifyOrAssociate|FullyQualifiedName~ProcessIntakeTests.AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage" --logger "trx;LogFileName=tick-035-profile-guard-core.trx" --results-directory ./artifacts/verification
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "(FullyQualifiedName~QdosAllocationRecoveryTests.GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions&DisplayName~ALS)|FullyQualifiedName~ProviderApiSubmissionTests.ASubmissionMatchingAnExistingCaseIsRejectedWithoutMutationOrDuplicateAllocation" --logger "trx;LogFileName=tick-035-profile-guard-destinations.trx" --results-directory ./artifacts/verification
+```
+
+Author independently read both TRX counters/names/times and recomputed hashes
+without running tests:
+- artifacts/verification/tick-035-profile-guard-core.trx:
+  SHA25683934F6E1BD4482DA1D477F48C46717F4CF7915E3637B18221C6C37E697AC2EE;
+  2 executed/2 passed/0 failed/0 not-executed.
+  Start2026-09-08T03:01:13.2975607+01:00;
+  finish2026-09-08T03:01:15.1708901+01:00.
+- artifacts/verification/tick-035-profile-guard-destinations.trx:
+  SHA2565EDA51724AB4818C34CF69FEB70E114D4E5DC13A0536D583362DF9C5925E0026;
+  2 executed/2 passed/0 failed/0 not-executed.
+  Start2026-09-08T03:01:16.5555366+01:00;
+  finish2026-09-08T03:02:01.3615320+01:00.
+  Named case durations: ALS42.8566268s and Provider API42.1882173s;
+  these ran in the same integration invocation, not sequential42s claims.
+
+Root authorizes commit/push of only the two scoped files to the same PR692,
+then fresh gates and Review. No further source/test/build, UI generation,
+self-review, merge, deployment or cleanup. All earlier failed attempts remain
+in this whole report, and needs-changes29da3f33c888cb13 remains the historical
+review until pack_reconcile binds its delta attestation to the new pushed head.

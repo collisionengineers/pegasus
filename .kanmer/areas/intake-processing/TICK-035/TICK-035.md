@@ -14,17 +14,17 @@ stageEntered:
 taken_at: '2026-09-07T22:43:36.690Z'
 branch: TICK-035-principal-routes
 worktree: .worktrees/tick-035
-claim_expires_at: '2026-09-08T02:27:28.173Z'
+claim_expires_at: '2026-09-08T02:35:02.848Z'
 claim_controller: /root
 review_round: 1
 lease_id: 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744
-lease_revision: 27
+lease_revision: 28
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: intake_audit
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-035'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T01:57:28.173Z'
+lease_heartbeat_at: '2026-09-08T02:05:02.848Z'
 labels:
   - capability
   - INT-04
@@ -40,7 +40,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/692'
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T01:57:28.173Z'
+updated: '2026-09-08T02:05:02.848Z'
 ---
 
 ## What

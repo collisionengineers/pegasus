@@ -19,7 +19,7 @@ earlier preparation phase.
 ## Remediation round 1 — F-003
 
 - [x] Apply only existing selected-profile match guard and the genuine-derived durable existing-Case negative; preserve QDOS/Provider API and fixed provenance findings.
-- [ ] Root runs the bounded ALS/QDOS/Provider API checks; retain all outcomes in the report.
+- [x] Root runs the bounded ALS/QDOS/Provider API checks; retain all outcomes in the report.
 - [ ] After root PASS, commit/push to existing PR692 and return to Review for pack_reconcile delta review; no self-merge.
 
 Generated index ownership is relinquished to UIIMP-017 as recorded in plan/files;
