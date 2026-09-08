@@ -30,9 +30,10 @@ groups:
 links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T01:37:33.139Z'
+updated: '2026-09-08T01:38:23.042Z'
 ---
 
 ## What
