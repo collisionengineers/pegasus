@@ -53,3 +53,13 @@ Root session52531: existing Integration project Release build --no-restore PASS,
 Capture script source inspection shows it deliberately uses artifacts/test-ui-capture, ignoring an externally supplied alternate directory. Root safely renamed the initial failed-run capture directory to artifacts/test-ui-capture-initial-failed (resolved exact paths within author artifacts, no overwrite) and made a new empty canonical capture directory before corrected tests. This preserves old evidence without accidentally regenerating from it. Session59742 scoped Update -SkipCapture -Scope case-details PASS3checks,exit0, fresh outputs; verify/catalogue session38933 is still pending.
 
 Manual CUA local-file navigation was rejected by browser URL security policy; no workaround used. Manual1580/1100/760visual inspection is INCONCLUSIVE, no process execution/exit code. Existing offline1440 snapshot render checks are not a substitute for a claimed human visual review. Record this boundary in report; do not mark the ticket Done unless remaining plan acceptance is genuinely satisfied. This does not erase source/runtime acceptance or authorize deployment.
+
+## F-004 source-frozen focused handoff
+
+Root only: incremental Integration Release build, then the two existing actual failing callers with a unique correction TRX (no author execution):
+
+```text
+FullyQualifiedName~Pegasus.IntegrationTests.Browser.AssessmentReadinessSummaryBrowserTests.NotReadyReportDraftControlsStateTheConditionAndTheShellRenders|FullyQualifiedName~Pegasus.IntegrationTests.AssessmentEstimateImportWebTests.UseEstimateRecordsTheEngineersAcceptance
+```
+
+Both files use existing fixture/production owners, all prior assertions preserved. Browser source adds one positive metadata-read assertion and aligns current state; accepted estimate fake records one computed breakdown/basis and retains already accepted totals. No Razor/source/snapshot delta in this correction, so no automatic broad capture or screenshot regeneration is requested. Existing manual visual acceptance remains outstanding. Source freeze+diffcheckPASS is not runtime PASS. Preserve prior root TRXs and all CI34196369756 failures; do not rerun their unrelated cohorts.

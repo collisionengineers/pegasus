@@ -255,3 +255,24 @@ the same two failures, not four defects. Test-UI stopped during capture.
 Reviewer/root own retained job logs; author independently read the settled
 GitHub job statuses but did not rerun/download/replace their evidence.
 All earlier local failed/pass TRXs and report sections remain intact.
+
+### F-004 source freeze — root runtime still pending
+
+Exactly two existing files changed, +32/-10, after ready resumed packet:
+Browser/AssessmentReadinessSummaryBrowserTests uses its same fake as the
+ICaseReportSnapshotSource metadata reader, with Case/assessment/workspace and
+existing access fake consistently ReportPreparation but missing all required
+report facts. One positive metadata-read assertion is added; every existing
+condition/disabled/no-preview/shell/empty-estimate/axe assertion is untouched.
+AssessmentEstimateImportWebTests.RecordingStores.SetCurrentEstimate computes
+one EstimateTotals result only when accepting a Draft, sets its BasisFor and
+RecordedTotals, then marks Current. An already Accepted candidate keeps its
+frozen breakdown. The existing acceptance test is unchanged.
+
+Production Core/store/Web, source manifests, intake fixtures, documents and
+snapshots are untouched in this correction. Native git diff --check PASSexit0
+(line-ending warnings only), complete diff reviewed by author; no compiler,
+runtime/browser/capture or import/provider call was run. Source stays at
+f86054c0e7cc73cb6245355dd21c03e58196d582 plus these two uncommitted files.
+No corrected runtime PASS or finding closure is claimed. Root receives the
+exact two-test filter in scratch/verify and owns the only verification lane.

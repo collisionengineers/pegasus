@@ -61,3 +61,7 @@ Root corrected its shorthand: the intended shared index is docs/design/test-ui/i
 - 2026-09-08T07:21:12.143Z stage review → implementing by codex-mcp-client; reason: needs-changes on f86054c0e7cc73cb6245355dd21c03e58196d582: F-004; whole attestation e636932136f144cc and public exact-head review 5138568230. One bounded two-fixture caller adaptation batch; retain prior fixes, all failed CI/local attempts, and mandatory manual visual acceptance. Same PR700, branch, worktree and claim.; review_round 1
 
 - 2026-09-08T07:24:46.840Z lease-phase review → implementing (lease 000b26b8-fb8d-4e16-809f-8127f200cd4e rev 12; expires 2026-09-08T07:54:46.834Z)
+
+## F-004 correction source freeze
+
+Whole reviewe636932136f144cc read; reviewer returned samePR700 to Implementing round1. Amended plan07f29f3b2342f40f/mapa281f33f3168d3bb read back before ready exact resumed packet. Packet base26ba4ed408317cccdb354dc1e115b0297f15df94; actual retained author HEADf86054c0e7cc73cb6245355dd21c03e58196d582, clean before edits, correct commonGit/source root/branch and sole recorded workspace owner. No branch creation/take/base merge. Existing reference directory absent (read-only rg reported missing; no supplied artifact omitted). Lease12 Implementing expires07:54:46.834Z. Exactly two mapped fixtures+32/-10 now frozen; diffcheck0, no build/test/capture/push. No source-manifest/intake/production/snapshot/document change. All original review/CI/local failures preserved; root owns focused verification. PLAT050 narrow Principal paragraph/generated-index handoff remains in effect.

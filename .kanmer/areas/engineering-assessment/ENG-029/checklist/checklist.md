@@ -50,7 +50,7 @@ was removed, and historical preparation notes above are preserved as history.
 
 - [x] Read whole consolidated review e636932136f144cc and preserve all prior
   local/CI failures; amend current plan/map for only the two missed fixtures.
-- [ ] Adapt the existing browser metadata/current-state fixture and existing
+- [x] Adapt the existing browser metadata/current-state fixture and existing
   SetCurrentEstimate fake's frozen breakdown without weakening assertions.
 - [ ] Freeze for root's two named caller checks, record every result, and
   publish the correction only to existing PR700 after root authorization.

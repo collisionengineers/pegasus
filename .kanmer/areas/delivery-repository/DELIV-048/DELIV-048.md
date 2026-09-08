@@ -14,14 +14,14 @@ stageEntered:
 taken_at: '2026-09-07T20:58:55.907Z'
 branch: DELIV-048-portable-release
 worktree: .worktrees/deliv-048
-claim_expires_at: '2026-09-08T07:49:20.159Z'
+claim_expires_at: '2026-09-08T07:56:24.234Z'
 claim_controller: principal_delivery_audit
 lease_id: 3c8db85f-4398-4b63-9133-6f8a1b49830a
-lease_revision: 43
+lease_revision: 44
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-048'
 lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T07:19:20.159Z'
+lease_heartbeat_at: '2026-09-08T07:26:24.234Z'
 labels:
   - ci
   - tests
@@ -46,7 +46,7 @@ delivery_sha: 26ba4ed408317cccdb354dc1e115b0297f15df94
 delivery_recorded_at: '2026-09-08T07:14:53.200Z'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-08T07:19:20.159Z'
+updated: '2026-09-08T07:26:24.234Z'
 ---
 
 ## What

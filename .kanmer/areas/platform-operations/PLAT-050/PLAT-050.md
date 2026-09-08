@@ -12,15 +12,15 @@ stageEntered:
 taken_at: '2026-09-08T07:19:28.448Z'
 branch: PLAT-050-principal-contact
 worktree: .worktrees/plat-050
-claim_expires_at: '2026-09-08T07:49:28.448Z'
+claim_expires_at: '2026-09-08T07:56:23.263Z'
 claim_controller: codex-v1-remediation-root
 lease_id: f6595bc8-36a0-4f6f-a2a9-4d3b2f5750a1
-lease_revision: 1
+lease_revision: 2
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: root-plat050
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-050'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T07:19:28.448Z'
+lease_heartbeat_at: '2026-09-08T07:26:23.263Z'
 labels:
   - ui
   - wave-4
@@ -39,7 +39,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-28T08:35:24.106Z'
-updated: '2026-09-08T07:19:28.448Z'
+updated: '2026-09-08T07:26:23.263Z'
 ---
 
 ## What
