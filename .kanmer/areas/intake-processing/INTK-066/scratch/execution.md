@@ -368,3 +368,13 @@ Using PowerShell7/Windows and local disposable LocalDB (no external SQL override
 Require fresh exact-head, clean-tree and other-context/host-process preflight. Record/revalidate only this exact restore/build invocation's reusable MSBuild PID/start/parent/expected nodemode command, then stop those exact owned nodes AFTER their parent exits; no foreign or broad name-based termination. Stop remaining commands at first genuine failure, retain it, report/no autonomous retry or fix. Browser installation is pinned local test runtime only, not an application dependency change.
 
 No source/snapshot edits, capture, packaging, cloud/live/Outlook/Box action, push/PR. Four-scope generated snapshots and documentation checks follow under a separate grant. Record every command/exit/count (skips distinct), postcheck exact frozen clean input and empty owned-host activity, then explicit canonical IDLE. Root retains earlier failures; new passes do not erase them.
+
+- 2026-09-08T20:48:22.306Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 35; expires 2026-09-08T21:18:22.287Z)
+
+## Interrupted verifier recovery — 8 September 2026
+
+Operator requested continuation and available subagents. Prior live subagents no longer exist after the interruption. Root read canonical full Release ACTIVE record b173dacb0546b5e2. Read-only host process census now returned no dotnet/testhost/vstest processes; former test session27819 is unavailable. Source worktree remains clean at frozen500b86a9b21adbd7a8fe56a65ddd52782630ce21. No process was terminated or foreign work modified.
+
+Preserve reported full Release locked restore/build (0 warnings/errors), Core1955pass14skip and Architecture116pass. Nonbrowser integration reported five failures before interruption: ImageViewing gallery obsolete manual allocation/association fixture; two Custody private accepted-queue fixture allocation failures; Qdos claimant extraction coverage94/160 below60%; AzureSQL runtime-role automatic image reconciliation fixture classified manual. No final nonbrowser exit/count was observed: aggregate INCONCLUSIVE with five observed FAIL results, not PASS. Remaining full Browser/install not run. Prior focused127 and Browser10 passes remain valid at this head. No new source changes yet.
+
+Canonical CEALEX-May25 host slot is now explicitly IDLE/unassigned. Old grant is closed; any new verifier requires a fresh explicit assignment and frozen-input preflight. Claim retained/renewed implementing. Extraction threshold/corpus/category must remain untouched; it directly uses unchanged reader/route/extraction code and is a separate reported issue, not waived.
