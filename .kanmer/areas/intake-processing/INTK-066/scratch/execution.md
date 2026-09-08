@@ -152,3 +152,23 @@ Retain full internal browser/nonbrowser/update results. The nonbrowser selection
 Root just validated existing absolute capture target C:/Users/Alex/Documents/GitHub/pegasus/.worktrees/INTK-066/artifacts/test-ui-capture inside recorded worktree; target and artifacts are nonlinked directories. Freshly revalidate before the normal script removes this disposable capture directory. Prior captured defect is retained in committed snapshot/history; new capture replaces the disposable input for current verification. No other cleanup target permitted. Use same exact-owned-node cleanup only after invocation parent exit if needed, never foreign/broad process termination. Lease heartbeats owned by verifier, source frozen, no live/cloud/externalSQL/Outlook/Box, packaging or commit/push/PR. Stop first genuine failure, record all commands and return both records IDLE/lease implementing; no retry or fixes. Root will inspect the corrected rendered diff and own final report/commit/PR.
 
 - 2026-09-08T23:00:23.103Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 72; expires 2026-09-08T23:30:23.094Z)
+
+## Operator-cancelled final group capture — 2026-09-09 — INCONCLUSIVE
+
+Verifier `/root/final_verifier` held the sole CEALEX-May25 slot against frozen clean `.worktrees/INTK-066`, branch `INTK-066-manual-upload-confirmation`, HEAD `684ddce42c6a8535d603adb54354c9b3c2bca6b5`. Fresh packet and preflight passed at `2026-09-08T22:54:21.8446200Z`: exact clean head/worktree/common repository, no host processes or external SQL overrides, exactly three existing upload-group-status generated states. Existing capture target and both parents were contained ordinary non-linked directories. Static source confirmed the strengthened group-processing Theory has both `InlineData(false)` and `InlineData(true)`.
+
+The exact command started:
+`pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope upload-group-status -CaptureFilter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~UploadCaseSearchBrowserTests"`.
+
+Partial retained result:
+- Affected Web/Integration build completed within the script. Observed MSBuild nodes used `/nodeReuse:false`.
+- Browser capture completed PASS: 4 passed, 0 failed/skipped, test duration 1m11s, phase duration 2m53s.
+- Non-browser capture started and selected one test assembly, but no final count/result was produced before cancellation.
+
+The operator explicitly cancelled the running Test UI snapshot/browser-capture pipeline and revoked all remaining capture grants. Ctrl-C was sent only to the owned session; command exited 1 with no additional output. The non-browser phase is **INCONCLUSIVE due to operator cancellation**. Snapshot update was NOT RUN. Retained Verify, catalogue, DocumentationLinks, MarkdownPlacement and diff check were NOT RUN.
+
+Post-cancel process inspection identified the exact still-observed owned chain: dotnet test PID 20040 (created `2026-09-08T23:57:52.574396+01:00`, command bound to this INTK worktree/filter), vstest PID 7136 (parent 20040, correlation id `20040_c1ac791d-3b07-4967-9145-64c9eb9c2279`) and testhost PID 32124 (parent 7136). Before exact-PID cleanup could run, all three self-exited; the cleanup validator observed zero of three and therefore stopped no process. No foreign process was touched. A first census helper also produced a PowerShell diagnostic error by attempting to assign read-only automatic variable `$Host`; its owned-candidate output remained usable, but its oversized serialization was truncated. This harness diagnostic did not alter repository or process state.
+
+Final postcheck at `2026-09-08T22:59:59.1905583Z`: exact HEAD/branch unchanged, tracked status clean, no dotnet/MSBuild/testhost/vstest process, disposable capture target retained. No source/generated cleanup or hand-edit occurred.
+
+All capture/test grants are revoked. Lease returned to `implementing` revision 72. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
