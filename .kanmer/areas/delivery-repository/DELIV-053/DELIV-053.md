@@ -2,13 +2,14 @@
 id: DELIV-053
 type: ticket
 title: Pin reusable Codex subagents and serialize host verification
-status: review
+status: verifying
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:17:57.073Z'
   review: '2026-09-08T14:17:44.269Z'
+  verifying: '2026-09-08T14:38:09.858Z'
 taken_at: '2026-09-08T13:21:11.661Z'
 branch: DELIV-053-codex-agents
 worktree: .worktrees/deliv-053
@@ -33,7 +34,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-09-08T13:17:44.781Z'
-updated: '2026-09-08T14:17:44.269Z'
+updated: '2026-09-08T14:38:09.858Z'
 ---
 
 ## What
