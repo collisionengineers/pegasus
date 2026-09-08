@@ -486,25 +486,23 @@ signal exists during it — no row is ticked ahead of what the response
 actually proved. No mechanics narration ("receipt", "submission group", or
 similar internal vocabulary) appears on the Upload or status surfaces.
 
-Once a file's processing resolves, the status surface shows a confirmation
-outcome rather than a passive label: what already happened automatically
-(reported, with a link to open it and, where relevant, the existing reversal
-path — never re-offered as a choice), or the staff decision that is
-genuinely open. Where it is open, the surface offers the decision itself:
-the suggested action (create a case from what was uploaded, or — for a
-just-registered vehicle-image case — the registration is reported with its
-reference and link), **Add to an existing case**, and **Cancel**. Add to an
-existing case opens a case search that suggests matching cases as the
-operator types (keyboard-operable, with the active suggestion marked by more
-than colour); choosing a case and confirming with a reason attaches the
-uploaded material to it as an explicit staff decision. Cancel changes
-nothing — the material stays retained with its state honestly shown. The
-exact decision table and the attach contract are owned by
+Once a manual upload's processing resolves, the status surface shows an
+explicit destination decision rather than a passive label. Even one matching
+Case requires staff confirmation: the screen offers viable existing Cases and
+an editable new-Case proposal, whose acceptance is the only point at which a
+formal Case/PO may be allocated. The proposal states that it creates nothing
+until accepted; reject/cancel changes nothing and leaves the material retained.
+**Add to an existing case** is keyboard-operable (the active suggestion is
+marked by more than colour) and requires a reason. Search failures are visibly
+different from no matches, and a response for an earlier query cannot replace a
+newer input. A grouped upload has one server-bound submission decision and
+reports partial completion honestly. The exact decision table and attach
+contract are owned by
 [FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
-A grouped upload shows one submission decision with the per-file processing and
-outcome details beneath it (D20); the per-file confirmation decisions stay per
-file, so members of the same group resolve independently and are never
-collapsed into one group-wide confirmation outcome.
+A grouped upload shows one server-bound submission decision with the per-file
+processing and outcome details beneath it (D20). Its target and reason are
+shared, while each member keeps its own reviewed receipt version and durable
+result; a partial outcome is reported rather than represented as success.
 
 ### Dashboard freshness and reconciliation
 

@@ -16,6 +16,118 @@ namespace Pegasus.IntegrationTests;
 public sealed class CasesIndexWebTests
 {
     [Fact]
+    public async Task AwaitingImageSelectionCarriesTheExactOriginReceiptIntoConfirmation()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "AWAITING-ORIGIN-01");
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "awaiting-origin.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var image = await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(image);
+
+        using var response = await client.GetAsync(
+            $"/Cases?tab=awaiting&selected={image!.Record.Id:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"name=\"receiptId\" value=\"{receiptId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"receiptVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("Add to an existing case", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(stagedReceiptId.ToString("D"), html, StringComparison.Ordinal);
+
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var workflow = await scope.ServiceProvider.GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(receipt);
+        Assert.NotNull(workflow);
+        var operationId = Guid.NewGuid();
+        var fields = new Dictionary<string, string>
+        {
+            ["id"] = image.Record.Id.ToString("D"),
+            ["receiptId"] = receiptId.ToString("D"),
+            ["operationId"] = operationId.ToString("D"),
+            ["receiptVersion"] = receipt!.Version.ToString(),
+            ["caseId"] = caseId.ToString("D"),
+            ["caseVersion"] = workflow!.Version.ToString(),
+            ["reference"] = string.Empty,
+            ["reason"] = "Staff matched the reviewed image to the instructed case."
+        };
+
+        using var first = await PostImageAttachAsync(client, fields);
+        using var replay = await PostImageAttachAsync(client, fields);
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+
+        var forged = new Dictionary<string, string>(fields)
+        {
+            ["receiptId"] = Guid.NewGuid().ToString("D")
+        };
+        using var rejected = await PostImageAttachAsync(client, forged);
+        Assert.Equal(HttpStatusCode.Redirect, rejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task AwaitingManualImageGroupLinksToItsSubmissionConfirmation()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client, form.AntiforgeryToken, form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
+
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var registration = await client.PostAsync(
+            $"/Upload/Group/{groupId:D}?handler=RegisterGroup",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["vehicleRegistration"] = "AB12CDE",
+                ["reason"] = "Staff read the registration from the photographs."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, registration.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var image = await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(image);
+        using var page = await client.GetAsync($"/Cases?tab=awaiting&selected={image!.Record.Id:D}");
+        var html = await page.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Contains($"/Upload/Group/{groupId:D}", html, StringComparison.Ordinal);
+        Assert.Contains("Continue with this submission", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("?handler=Attach", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SearchUsesAuthorizedCoreQueryAndPreservesEveryFilterInPagingUrl()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -216,6 +328,14 @@ public sealed class CasesIndexWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+
+    private static async Task<HttpResponseMessage> PostImageAttachAsync(
+        HttpClient client,
+        Dictionary<string, string> fields)
+    {
+        fields["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        return await client.PostAsync("/Cases?handler=Attach", new FormUrlEncodedContent(fields));
+    }
 
     private sealed class RecordingSearchCases : ISearchCases
     {

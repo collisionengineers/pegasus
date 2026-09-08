@@ -2,10 +2,13 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -335,9 +338,33 @@ internal static class ImageIntakeTestData
             ]);
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, email.FileName, email.MediaType, email.Content);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            Assert.NotNull(receipt);
+            var allocation = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptStaffCreateAsync(
+                    new(
+                        receipt!.Id,
+                        receipt.Version,
+                        ActionActor.Staff(
+                            DevelopmentOfflineIdentity.AdministratorId,
+                            [StaffRole.Administrator]),
+                        $"image-intake-test-seed:{receipt.Id:N}",
+                        "Fixture explicitly accepted the processed instruction.",
+                        receipt.MailClassificationDecision?.CaseType ?? CaseType.Inspection,
+                        receipt.InstructionDraft?.SuggestedPrincipalCode ?? QdosPrincipal.Code,
+                        new(InstructionComplete: true, ImagesComplete: true),
+                        null,
+                        receipt.InstructionDraft?.InspectionDate),
+                    CancellationToken.None);
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, allocation.State.Status);
+        }
         return await PromoteAllocatedCaseAsync(
             factory.Services,
-            IntakeWebDriver.ReceiptId(upload),
+            receiptId,
             nameof(CaseLifecycleState.Review));
     }
 

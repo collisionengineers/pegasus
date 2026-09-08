@@ -51,7 +51,13 @@ public sealed record UploadOutcomeAction(string Label, string Url);
 /// applies to: for a registered Image-initiated Case that is its origin
 /// receipt, so the existing link path also runs the merge transition.
 /// </summary>
-public sealed record UploadOutcomeAttach(Guid ReceiptId);
+public sealed record UploadOutcomeAttach(
+    Guid ReceiptId,
+    long ReceiptVersion,
+    IReadOnlyList<UploadCaseSuggestion>? Suggestions = null)
+{
+    public IReadOnlyList<UploadCaseSuggestion> SuggestedDestinations => Suggestions ?? [];
+}
 
 public sealed record UploadOutcomeView(
     UploadOutcomeKind Kind,
@@ -72,7 +78,8 @@ public sealed record UploadOutcomeView(
     public bool IsOpenDecision => Kind
         is UploadOutcomeKind.NeedsReview
         or UploadOutcomeKind.PossibleMatch
-        or UploadOutcomeKind.ReadyToCreate;
+        or UploadOutcomeKind.ReadyToCreate
+        or UploadOutcomeKind.ImageCaseRegistered;
 
     /// <summary>
     /// The label passed to <c>Shared/_StatusChip</c> for this outcome's tone
@@ -138,7 +145,8 @@ public interface IUploadOutcomeQueries
 public sealed class UploadOutcomeQueries(
     IGetIntake getIntake,
     IImageIntakeQueries imageIntakeQueries,
-    IUnidentifiedStore unidentifiedStore) : IUploadOutcomeQueries
+    IUnidentifiedStore unidentifiedStore,
+    IIntakeAssociationDestinationQueries destinations) : IUploadOutcomeQueries
 {
     public async Task<UploadOutcomeView> BuildAsync(
         QueuedIntakeStatus status,
@@ -183,7 +191,7 @@ public sealed class UploadOutcomeQueries(
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
-        var view = await BuildForReceiptAsync(receipt, receiptId, submissionGroupId, cancellationToken);
+        var view = await BuildForReceiptAsync(receipt, receiptId, submissionGroupId, actor, cancellationToken);
         return receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
             ? view with { ThumbnailReceiptId = receipt.Id }
             : view;
@@ -193,6 +201,7 @@ public sealed class UploadOutcomeQueries(
         IntakeReceipt receipt,
         Guid receiptId,
         Guid? submissionGroupId,
+        ActionActor actor,
         CancellationToken cancellationToken)
     {
         // The receipt's own CurrentCaseId is Core's reconciliation of the
@@ -246,9 +255,35 @@ public sealed class UploadOutcomeQueries(
                     new("View", $"/VehicleImages/{detail.Record.Id:D}"),
                     null,
                     detail.State == ImageInitiatedCaseState.AwaitingInstruction
-                        ? new UploadOutcomeAttach(detail.Record.Origin.ReceiptId)
+                        ? new UploadOutcomeAttach(
+                            detail.Record.Origin.ReceiptId,
+                            receipt.Version,
+                            await SuggestionsAsync(receipt, actor, cancellationToken))
                         : null);
             }
+        }
+
+        // A manual upload never treats even a unique recorded match as an
+        // automatic destination. Keep the retained material here until staff
+        // either confirm a viable existing Case or explicitly accept the
+        // extracted new-Case proposal. This comes before Unidentified so the
+        // intake status page reports the real pending decision rather than a
+        // separate queue's automatic-routing result.
+        if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+            && (receipt.Decision == IntakeDecision.OcrRequired
+                || receipt.Decision == IntakeDecision.NeedsSorting
+                || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)))
+        {
+            return new(
+                UploadOutcomeKind.ReadyToCreate,
+                "Choose a case destination",
+                "Review the extracted details, then add this to an existing case or create a new case.",
+                new("Create a new case", $"/Cases/Create?receiptId={receipt.Id:D}"),
+                null,
+                new UploadOutcomeAttach(
+                    receipt.Id,
+                    receipt.Version,
+                    await SuggestionsAsync(receipt, actor, cancellationToken)));
         }
 
         var unidentified = await unidentifiedStore.GetByOriginAsync(
@@ -303,7 +338,7 @@ public sealed class UploadOutcomeQueries(
                 "More than one case could match this. Review the candidates and choose where it belongs.",
                 new("Review and attach", $"/Received/{receipt.Id:D}"),
                 null,
-                new UploadOutcomeAttach(receipt.Id));
+                new UploadOutcomeAttach(receipt.Id, receipt.Version));
         }
 
         // Mirrors Cases/Create.cshtml.cs's own eligibility check exactly:
@@ -320,7 +355,7 @@ public sealed class UploadOutcomeQueries(
                 "No existing case matched this. Create one from what was uploaded.",
                 new("Create a case", $"/Cases/Create?receiptId={receipt.Id:D}"),
                 null,
-                new UploadOutcomeAttach(receipt.Id));
+                new UploadOutcomeAttach(receipt.Id, receipt.Version));
         }
 
         return new(
@@ -330,4 +365,18 @@ public sealed class UploadOutcomeQueries(
             new("View", $"/Received/{receipt.Id:D}"),
             null);
     }
+
+    private async Task<IReadOnlyList<UploadCaseSuggestion>> SuggestionsAsync(
+        IntakeReceipt receipt,
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        (await destinations.GetSuggestedAsync(receipt, actor, cancellationToken))
+            .Select(item => new UploadCaseSuggestion(
+                item.CaseId,
+                item.Reference,
+                item.Registration,
+                item.Claimant,
+                OperatorLabels.CaseStage(item.State),
+                item.Version))
+            .ToArray();
 }

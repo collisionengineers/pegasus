@@ -27,9 +27,19 @@ public sealed class UploadConfirmationWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "SEARCH-001");
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "receipt-scoped-search.eml",
+            "message/rfc822",
+            IntakeTestEvidence.CreateEmail(
+                "receipt-scoped-search.eml",
+                "QDOS instruction\r\nClaimant Name: Search Claimant\r\nClaim Number: SEARCH-DOC\r\nVehicle Registration: ZZ99 ZZZ").Content);
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
 
         using var response = await client.GetAsync(
-            $"/Upload/Status/{Guid.NewGuid():D}?handler=CaseSearch&term=AB12%20CDE");
+            $"/Upload/Status/{stagedReceiptId:D}?handler=CaseSearch&receiptId={receiptId:D}&term=AB12%20CDE");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var suggestions = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
@@ -45,7 +55,7 @@ public sealed class UploadConfirmationWebTests
         // A term shorter than two characters returns nothing rather than the
         // whole case list.
         using var shortTerm = await client.GetAsync(
-            $"/Upload/Status/{Guid.NewGuid():D}?handler=CaseSearch&term=A");
+            $"/Upload/Status/{stagedReceiptId:D}?handler=CaseSearch&receiptId={receiptId:D}&term=A");
         Assert.Equal(HttpStatusCode.OK, shortTerm.StatusCode);
         Assert.Equal(
             0,
@@ -96,16 +106,21 @@ public sealed class UploadConfirmationWebTests
         var receiptId = IntakeWebDriver.ReceiptId(processed);
 
         var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("No existing case matched this", statusPage, StringComparison.Ordinal);
+        Assert.Contains("Choose a case destination", statusPage, StringComparison.Ordinal);
         Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
         Assert.Contains("Cancel", statusPage, StringComparison.Ordinal);
+        var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
+        var operationId = Guid.NewGuid();
 
         var redirect = await PostAttachAsync(
             client,
             $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
             receiptId,
             caseId: caseId,
-            reason: "Staff matched the instruction to the existing case.");
+            reason: "Staff matched the instruction to the existing case.",
+            operationId: operationId,
+            receiptVersion: receiptVersion,
+            caseVersion: caseVersion);
         Assert.Equal(HttpStatusCode.Redirect, redirect);
 
         await AssertLinkedAsync(factory, receiptId, caseId);
@@ -127,7 +142,10 @@ public sealed class UploadConfirmationWebTests
             $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
             receiptId,
             caseId: caseId,
-            reason: "Staff matched the instruction to the existing case.");
+            reason: "Staff matched the instruction to the existing case.",
+            operationId: operationId,
+            receiptVersion: receiptVersion,
+            caseVersion: caseVersion);
         Assert.Equal(HttpStatusCode.Redirect, replay);
         await AssertLinkedAsync(factory, receiptId, caseId);
     }
@@ -179,16 +197,18 @@ public sealed class UploadConfirmationWebTests
         var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.Contains("registered as a new vehicle-image case", groupPage, StringComparison.Ordinal);
         Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
+        // The group card owns the confirmation and carries every actual
+        // member receipt, not the registered image record's origin repeated
+        // for each file.
+        Assert.Equal(2, SplitOccurrences(groupPage, "receiptVersions[").Count());
 
-        // The typed-reference route: the form works without script, so the
-        // reference alone must resolve to exactly one case.
-        var redirect = await PostAttachAsync(
-            client,
-            $"/Upload/Group/{groupId:D}?handler=Attach",
-            originReceiptId,
-            reference: caseReference,
-            reason: "Staff matched the vehicle images to the instructed case.");
-        Assert.Equal(HttpStatusCode.Redirect, redirect);
+        // Typed input takes a server-rendered confirmation step before the
+        // write, binding every member's reviewed receipt version and the
+        // target Case version.
+        var confirmation = await ConfirmGroupAttachAsync(
+            factory, client, groupId, caseId, caseReference,
+            "Staff matched the vehicle images to the instructed case.");
+        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -206,7 +226,7 @@ public sealed class UploadConfirmationWebTests
     }
 
     [Fact]
-    public async Task AutomaticallyAssociatedUploadIsReportedNotReOffered()
+    public async Task ManualUploadWithAUniqueImageMatchStillRequiresStaffConfirmation()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -225,13 +245,13 @@ public sealed class UploadConfirmationWebTests
         var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
 
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("automatically associated with case", statusPage, StringComparison.Ordinal);
-        // Automation at the accepted bar is reported, never re-offered: the
-        // surface carries no add-to-case decision for this file.
-        Assert.DoesNotContain("Add to an existing case", statusPage, StringComparison.Ordinal);
-        Assert.Contains("Not the right case?", statusPage, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/Details/{caseId:D}", statusPage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("registered as a new vehicle-image case", statusPage, StringComparison.Ordinal);
+        Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
+        Assert.Contains(caseReference, statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("automatically associated with case", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain($"/Cases/Details/{caseId:D}", statusPage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -248,17 +268,30 @@ public sealed class UploadConfirmationWebTests
         var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         var receiptId = IntakeWebDriver.ReceiptId(processed);
+        var (receiptVersion, _) = await AttachmentVersionsAsync(factory, receiptId, null);
 
-        var redirect = await PostAttachAsync(
-            client,
+        var operationId = Guid.NewGuid();
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var response = await client.PostAsync(
             $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
-            receiptId,
-            reference: "NO-SUCH-CASE",
-            reason: "Staff tried a reference that matches nothing.");
-        Assert.Equal(HttpStatusCode.Redirect, redirect);
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["receiptId"] = receiptId.ToString("D"),
+                ["reference"] = "NO-SUCH-CASE",
+                ["reason"] = "Staff tried a reference that matches nothing.",
+                ["operationId"] = operationId.ToString("D"),
+                ["receiptVersion"] = receiptVersion.ToString()
+            }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var failedPage = await response.Content.ReadAsStringAsync();
+        Assert.Contains("No single viable case matched", failedPage, StringComparison.Ordinal);
+        Assert.Contains("NO-SUCH-CASE", failedPage, StringComparison.Ordinal);
+        Assert.Contains("Staff tried a reference that matches nothing.", failedPage, StringComparison.Ordinal);
+        Assert.Contains(operationId.ToString("D"), failedPage, StringComparison.Ordinal);
 
-        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("No single case matched that reference", page, StringComparison.Ordinal);
+        // The failed typed first step is a recoverable form error, not a
+        // redirect that drops the staff decision they need to correct.
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = await scope.ServiceProvider
             .GetRequiredService<IIntakeReceiptQueries>()
@@ -435,15 +468,10 @@ public sealed class UploadConfirmationWebTests
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
         }
 
-        var redirect = await PostGroupHandlerAsync(
-            client,
-            $"/Upload/Group/{groupId:D}?handler=AttachGroup",
-            new Dictionary<string, string>
-            {
-                ["reference"] = caseReference,
-                ["reason"] = "Staff matched the whole submission to the instructed case."
-            });
-        Assert.Equal(HttpStatusCode.Redirect, redirect);
+        var confirmation = await ConfirmGroupAttachAsync(
+            factory, client, groupId, caseId, caseReference,
+            "Staff matched the whole submission to the instructed case.");
+        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
         var confirmationPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("could not be added", confirmationPage, StringComparison.Ordinal);
         Assert.DoesNotContain("No single case matched", confirmationPage, StringComparison.Ordinal);
@@ -469,15 +497,23 @@ public sealed class UploadConfirmationWebTests
             }
         }
 
-        // Replay-safe: the same submission decision reports success again.
+        // Replay the original HTTP form after every member is complete.  The
+        // handler must not discard this exact reviewed roster merely because
+        // the page now has no open decision card.
+        var replayFields = new Dictionary<string, string>
+        {
+            ["caseId"] = caseId.ToString("D"),
+            ["reference"] = caseReference,
+            ["reason"] = "Staff matched the whole submission to the instructed case.",
+            ["operationId"] = confirmation.OperationId.ToString("D"),
+            ["caseVersion"] = confirmation.CaseVersion.ToString()
+        };
+        foreach (var receiptVersion in confirmation.ReceiptVersions)
+        {
+            replayFields[$"receiptVersions[{receiptVersion.Key:D}]"] = receiptVersion.Value.ToString();
+        }
         var replay = await PostGroupHandlerAsync(
-            client,
-            $"/Upload/Group/{groupId:D}?handler=AttachGroup",
-            new Dictionary<string, string>
-            {
-                ["reference"] = caseReference,
-                ["reason"] = "Staff matched the whole submission to the instructed case."
-            });
+            client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", replayFields);
         Assert.Equal(HttpStatusCode.Redirect, replay);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
@@ -560,15 +596,27 @@ public sealed class UploadConfirmationWebTests
         Guid receiptId,
         Guid? caseId = null,
         string? reference = null,
-        string? reason = null)
+        string? reason = null,
+        Guid? operationId = null,
+        long? receiptVersion = null,
+        long? caseVersion = null)
     {
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         var fields = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
             ["receiptId"] = receiptId.ToString("D"),
-            ["reason"] = reason ?? string.Empty
+            ["reason"] = reason ?? string.Empty,
+            ["operationId"] = (operationId ?? Guid.NewGuid()).ToString("D")
         };
+        if (receiptVersion is { } reviewedReceiptVersion)
+        {
+            fields["receiptVersion"] = reviewedReceiptVersion.ToString();
+        }
+        if (caseVersion is { } reviewedCaseVersion)
+        {
+            fields["caseVersion"] = reviewedCaseVersion.ToString();
+        }
         if (caseId is { } chosen)
         {
             fields["caseId"] = chosen.ToString("D");
@@ -581,6 +629,107 @@ public sealed class UploadConfirmationWebTests
         using var response = await client.PostAsync(url, new FormUrlEncodedContent(fields));
         return response.StatusCode;
     }
+
+    private static async Task<(long ReceiptVersion, long? CaseVersion)> AttachmentVersionsAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        Guid? caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(receipt);
+        if (caseId is null)
+        {
+            return (receipt!.Version, null);
+        }
+
+        var workflow = await scope.ServiceProvider
+            .GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId.Value, CancellationToken.None);
+        Assert.NotNull(workflow);
+        return (receipt!.Version, workflow!.Version);
+    }
+
+    private static async Task<GroupAttachConfirmation> ConfirmGroupAttachAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        Guid groupId,
+        Guid caseId,
+        string reference,
+        string reason)
+    {
+        var operationId = Guid.NewGuid();
+        var receiptVersions = new Dictionary<Guid, long>();
+        var fields = new Dictionary<string, string>
+        {
+            ["reference"] = reference,
+            ["reason"] = reason,
+            ["operationId"] = operationId.ToString("D")
+        };
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var group = await scope.ServiceProvider
+                .GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId, CancellationToken.None);
+            Assert.NotNull(group);
+            var statuses = scope.ServiceProvider.GetRequiredService<IQueuedIntakeStatusQueries>();
+            var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+            foreach (var member in group!.Members)
+            {
+                var status = await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None);
+                Assert.NotNull(status);
+                var receiptId = status!.ProcessedReceiptId ?? status.StagedReceiptId;
+                var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
+                Assert.NotNull(receipt);
+                fields[$"receiptVersions[{receiptId:D}]"] = receipt!.Version.ToString();
+                receiptVersions[receiptId] = receipt.Version;
+            }
+        }
+
+        var prepare = await PostGroupHandlerAsync(
+            client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields);
+        Assert.Equal(HttpStatusCode.OK, prepare);
+
+        var caseVersion = await CaseVersionAsync(factory, caseId);
+        fields["caseId"] = caseId.ToString("D");
+        fields["caseVersion"] = caseVersion.ToString();
+        var statusCode = await PostGroupHandlerAsync(
+            client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields);
+        return new(statusCode, operationId, receiptVersions, caseVersion);
+    }
+
+    private static async Task<long> CaseVersionAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var workflow = await scope.ServiceProvider
+            .GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(workflow);
+        return workflow!.Version;
+    }
+
+    private static async Task<string> CaseReferenceAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var workflow = await scope.ServiceProvider
+            .GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(workflow);
+        return workflow!.Case.Reference;
+    }
+
+    private sealed record GroupAttachConfirmation(
+        HttpStatusCode StatusCode,
+        Guid OperationId,
+        IReadOnlyDictionary<Guid, long> ReceiptVersions,
+        long CaseVersion);
 
     private static async Task AssertLinkedAsync(
         IntakeWebApplicationFactory factory,
@@ -616,6 +765,6 @@ public sealed class UploadConfirmationWebTests
                     "This needs a staff decision.",
                     new("Review", $"/Unidentified/{Guid.NewGuid():D}"),
                     null,
-                    new(status.ProcessedReceiptId ?? status.StagedReceiptId)));
+                    new(status.ProcessedReceiptId ?? status.StagedReceiptId, 0)));
     }
 }

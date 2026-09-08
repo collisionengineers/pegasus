@@ -83,9 +83,52 @@ public sealed class UploadGroupStatusModel(
     /// <summary>The still-open members' processed receipt ids, in member order.</summary>
     public IReadOnlyList<Guid> OpenMemberReceiptIds { get; private set; } = [];
 
+    /// <summary>Every current group member in durable submission order.</summary>
+    public IReadOnlyList<Guid> GroupMemberReceiptIds { get; private set; } = [];
+
+    /// <summary>Rendered receipt versions for the current one-submission decision.</summary>
+    public IReadOnlyDictionary<Guid, long> OpenMemberReceiptVersions { get; private set; } =
+        new Dictionary<Guid, long>();
+
+    public IReadOnlyList<UploadCaseSuggestion> GroupSuggestedDestinations { get; private set; } = [];
+
+    /// <summary>Original per-member versions retained while an error is re-rendered.</summary>
+    public IReadOnlyDictionary<Guid, long>? GroupConfirmationReceiptVersions { get; private set; }
+
+    /// <summary>
+    /// The original Case version and roster remain on an error render.  A
+    /// partial retry is the same staff decision, not a new one based on the
+    /// page's now-smaller set of open members.
+    /// </summary>
+    public long? GroupConfirmationCaseVersion { get; private set; }
+
     public bool OfferGroupRegistration { get; private set; }
 
     private Guid _firstOpenImageReceiptId;
+
+    // This surface owns the group-only handler below. Refusing the inherited
+    // single-file handler prevents a forged post from treating a group id as a
+    // receipt route.
+    protected override Task<bool> SurfaceContainsReceiptAsync(
+        Guid surfaceId,
+        Guid receiptId,
+        CancellationToken cancellationToken) => Task.FromResult(false);
+
+    protected override async Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken)
+    {
+        // The search endpoint is invoked independently of the page GET.
+        // Rebuild the same open decision roster, rather than sending every
+        // historical group member to the destination policy (settled members
+        // are correctly no longer viable and would otherwise empty the
+        // intersection for the whole submission).
+        if (await LoadAsync(surfaceId, cancellationToken) is not null)
+        {
+            return [];
+        }
+        return OpenMemberReceiptIds;
+    }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) =>
         await LoadAsync(id, cancellationToken) ?? Page();
@@ -161,6 +204,9 @@ public sealed class UploadGroupStatusModel(
         Guid? caseId,
         string? reference,
         string? reason,
+        Guid operationId,
+        Dictionary<Guid, long>? receiptVersions,
+        long? caseVersion,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -171,21 +217,69 @@ public sealed class UploadGroupStatusModel(
         {
             return notFound;
         }
-        if (!OpenGroupDecision)
-        {
-            return RedirectToSurface(id);
-        }
-        if (string.IsNullOrWhiteSpace(reason))
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
         {
             TempData["UploadConfirmationError"] = "A reason is required to add this to a case.";
-            return RedirectToSurface(id);
+            PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+            return await RenderSurfaceAsync(id, cancellationToken);
         }
 
         try
         {
+            if (operationId == Guid.Empty
+                || !TryGetPostedRoster(receiptVersions, out var roster))
+            {
+                TempData["UploadConfirmationError"] = "This confirmation is incomplete. Refresh and try again.";
+                PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+                return await RenderSurfaceAsync(id, cancellationToken);
+            }
+
+            if (caseId is null)
+            {
+                var firstReceiptId = roster[0];
+                var confirmation = await _caseDecision.PrepareAsync(
+                    firstReceiptId, reference, reason, operationId, receiptVersions[firstReceiptId], actor, cancellationToken);
+                var allViable = confirmation is not null
+                    && (await _caseDecision.SearchForUploadsAsync(
+                        roster, confirmation.Reference, actor, cancellationToken))
+                    .Any(candidate => candidate.CaseId == confirmation.CaseId
+                        && candidate.Version == confirmation.Input.ExpectedCaseVersion);
+                if (!allViable)
+                {
+                    TempData["UploadConfirmationError"] = "No single viable case matched every file in this submission. Search and choose a case from the suggestions.";
+                    PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+                    return await RenderSurfaceAsync(id, cancellationToken);
+                }
+
+                UploadCaseConfirmation = confirmation;
+                GroupConfirmationReceiptVersions = receiptVersions;
+                GroupConfirmationCaseVersion = confirmation.Input.ExpectedCaseVersion;
+                return await RenderSurfaceAsync(id, cancellationToken);
+            }
+            if (caseVersion is not { } reviewedCaseVersion || reviewedCaseVersion < 0)
+            {
+                TempData["UploadConfirmationError"] = "This confirmation is incomplete. Choose the case again.";
+                PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+                return await RenderSurfaceAsync(id, cancellationToken);
+            }
+
             var result = await _caseDecision.AttachGroupAsync(
-                id, OpenMemberReceiptIds, caseId, reference, reason, actor, cancellationToken);
-            TempData[result.Succeeded ? "Confirmation" : "UploadConfirmationError"] = result.Message;
+                id, roster, caseId, reference, reason, operationId,
+                receiptVersions, reviewedCaseVersion, actor, cancellationToken);
+            if (!result.Succeeded)
+            {
+                GroupConfirmationReceiptVersions = receiptVersions;
+                GroupConfirmationCaseVersion = reviewedCaseVersion;
+                UploadCaseConfirmation = new(
+                    roster[0],
+                    caseId.Value,
+                    reference?.Trim() ?? "Selected case",
+                    reason,
+                    new(operationId, receiptVersions[roster[0]], reviewedCaseVersion));
+                TempData["UploadConfirmationError"] = result.Message;
+                return await RenderSurfaceAsync(id, cancellationToken);
+            }
+            TempData["Confirmation"] = result.Message;
         }
         catch (StaffAuthorizationException)
         {
@@ -235,17 +329,35 @@ public sealed class UploadGroupStatusModel(
             GroupRegistrationOutcome = outcomes[0];
         }
 
+        // A registered image group is reported once through
+        // GroupRegistrationOutcome but AwaitingInstruction still has one
+        // submission-level destination decision.  Its Image record's origin
+        // is lifecycle data, not the posted receipt for every member.
         var open = memberResults
-            .Where(result => result.outcome is { IsOpenDecision: true })
+            .Where(result => result.outcome is { IsOpenDecision: true, Attach: not null })
             .ToArray();
-        OpenGroupDecision = GroupRegistrationOutcome is null
-            && !RefreshAutomatically
+        OpenGroupDecision = !RefreshAutomatically
             && open.Length > 0;
         OpenMemberReceiptIds = open
             .Select(result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId)
             .ToArray();
+        GroupMemberReceiptIds = memberResults
+            .Select(result => result.status?.ProcessedReceiptId ?? result.status?.StagedReceiptId)
+            .Where(receiptId => receiptId is not null)
+            .Select(receiptId => receiptId!.Value)
+            .ToArray();
+        OpenMemberReceiptVersions = open.ToDictionary(
+            result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId,
+            result => result.outcome!.Attach!.ReceiptVersion);
+        if (haveActor && OpenMemberReceiptIds.Count > 0)
+        {
+            GroupSuggestedDestinations = await _caseDecision.GetSuggestionsForUploadsAsync(
+                OpenMemberReceiptIds, actor!, cancellationToken);
+        }
         var firstOpenImage = open.FirstOrDefault(result => result.outcome!.ThumbnailReceiptId is not null);
-        OfferGroupRegistration = OpenGroupDecision && firstOpenImage.outcome is not null;
+        OfferGroupRegistration = OpenGroupDecision
+            && GroupRegistrationOutcome is null
+            && firstOpenImage.outcome is not null;
         _firstOpenImageReceiptId = firstOpenImage.outcome?.ThumbnailReceiptId ?? Guid.Empty;
 
         return null;
@@ -253,4 +365,63 @@ public sealed class UploadGroupStatusModel(
 
     protected override IActionResult RedirectToSurface(Guid id) =>
         RedirectToPage("/UploadGroupStatus", new { id });
+
+    protected override async Task<IActionResult> RenderSurfaceAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken) =>
+        (await LoadAsync(surfaceId, cancellationToken)) ?? Page();
+
+    private bool TryGetPostedRoster(
+        IReadOnlyDictionary<Guid, long>? receiptVersions,
+        out IReadOnlyList<Guid> roster)
+    {
+        roster = [];
+        if (receiptVersions is null || receiptVersions.Count == 0
+            || receiptVersions.Any(pair => pair.Key == Guid.Empty || pair.Value < 0))
+        {
+            return false;
+        }
+
+        // Form keys can be reordered by the binder.  The group is the only
+        // source of execution order, and it also prevents a post from naming
+        // a receipt outside this submission.  The roster must include every
+        // member that remains open now; completed members from an unchanged
+        // retry are allowed in addition, never as a replacement.
+        var ordered = GroupMemberReceiptIds
+            .Where(receiptVersions.ContainsKey)
+            .ToArray();
+        if (ordered.Length != receiptVersions.Count)
+        {
+            return false;
+        }
+        if (OpenMemberReceiptIds.Any(member => !receiptVersions.ContainsKey(member)))
+        {
+            return false;
+        }
+
+        roster = ordered;
+        return true;
+    }
+
+    private void PreserveGroupForm(
+        IReadOnlyDictionary<Guid, long>? receiptVersions,
+        long? caseVersion,
+        Guid operationId,
+        Guid? caseId,
+        string? reference,
+        string? reason)
+    {
+        GroupConfirmationReceiptVersions = receiptVersions;
+        GroupConfirmationCaseVersion = caseVersion;
+        if (receiptVersions is { Count: > 0 })
+        {
+            var first = GroupMemberReceiptIds.FirstOrDefault(receiptVersions.ContainsKey);
+            if (first != Guid.Empty)
+            {
+                UploadCaseDraft = new(
+                    first, operationId, receiptVersions[first], caseId, caseVersion,
+                    reference, reason ?? string.Empty);
+            }
+        }
+    }
 }

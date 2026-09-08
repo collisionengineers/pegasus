@@ -82,4 +82,27 @@ public sealed class UploadStatusModel(
 
     protected override IActionResult RedirectToSurface(Guid id) =>
         RedirectToPage("/UploadStatus", new { id });
+
+    protected override Task<IActionResult> RenderSurfaceAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken) =>
+        OnGetAsync(surfaceId, duplicate: false, cancellationToken: cancellationToken);
+
+    protected override async Task<bool> SurfaceContainsReceiptAsync(
+        Guid surfaceId,
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var status = await queries.GetAsync(surfaceId, cancellationToken);
+        return status is not null
+            && (status.ProcessedReceiptId ?? status.StagedReceiptId) == receiptId;
+    }
+
+    protected override async Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken)
+    {
+        var status = await queries.GetAsync(surfaceId, cancellationToken);
+        return status is null ? [] : [status.ProcessedReceiptId ?? status.StagedReceiptId];
+    }
 }

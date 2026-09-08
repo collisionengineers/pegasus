@@ -10,10 +10,13 @@ public sealed class AutomaticImageIntakeTests
     private static readonly byte[] ImageBytes = [1, 2, 3, 4, 5];
     private static readonly string ImageHash = Convert.ToHexString(SHA256.HashData(ImageBytes));
 
-    [Fact]
-    public async Task OneConfidentReadRegistersAndAssociatesTheSingleEligibleCase()
+    [Theory]
+    [InlineData(IntakeSourceChannel.Mailbox)]
+    [InlineData(IntakeSourceChannel.ProviderApi)]
+    public async Task NonManualConfidentReadRegistersAndAssociatesTheSingleEligibleCase(
+        IntakeSourceChannel sourceChannel)
     {
-        var harness = new Harness();
+        var harness = new Harness(sourceChannel: sourceChannel);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates =
         [
@@ -34,6 +37,25 @@ public sealed class AutomaticImageIntakeTests
         Assert.Contains(
             harness.SuggestionStore.Dispositions,
             disposition => disposition.Disposition == ImageVrmSuggestionDisposition.Confirmed);
+    }
+
+    [Fact]
+    public async Task ManualUploadRegistersItsRetainedImageButDefersTheCandidateUntilStaffAssociation()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE")];
+
+        await harness.ApplyAsync();
+        await harness.ApplyAsync();
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal(harness.Receipt.Id, registration.Origin.ReceiptId);
+        Assert.Equal(harness.Receipt.SourceIdentity, registration.Origin.SourceIdentity);
+        Assert.Equal(harness.Receipt.SourceHash.ToLowerInvariant(), registration.Origin.SourceHash);
+        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, harness.ImageIntakeQueries.Existing!.State);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+        Assert.Equal(1, harness.ImageIntakeQueries.EnsureRegisteredCalls);
     }
 
     [Fact]
@@ -131,7 +153,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task TruncatedReadCompletesFromTheSingleCandidatesConfirmedRegistration()
     {
-        var harness = new Harness();
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("BX69YL", 0.95));
         harness.CaseCandidates.Candidates =
         [
@@ -152,7 +174,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task ExactCandidateBeatsAOneCharacterMissingCandidate()
     {
-        var harness = new Harness();
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         var exactCaseId = Guid.NewGuid();
         harness.CaseCandidates.Candidates =
@@ -172,7 +194,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task AnInsertedFifthPositionOneCompletesFromTheConfirmedRegistration()
     {
-        var harness = new Harness();
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("PK201YHR", 0.95));
         harness.CaseCandidates.Candidates =
         [
@@ -190,7 +212,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task TwoOneCharacterMissingCandidatesAreAmbiguous()
     {
-        var harness = new Harness();
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("BX69YL", 0.95));
         harness.CaseCandidates.Candidates =
         [
@@ -222,7 +244,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task ExistingRegistrationShortCircuitsTheScanAndRetriesPairingExactlyOnce()
     {
-        var harness = new Harness();
+        var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
         harness.ImageIntakeQueries.Existing = new ImageIntakeDetail(
             new(
                 Guid.NewGuid(),
@@ -251,7 +273,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task OneEligibleCaseRegistersTheGroupOnceAndAssociatesEveryMember()
     {
-        var harness = new GroupHarness(memberCount: 2);
+        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         var caseId = Guid.NewGuid();
@@ -383,14 +405,11 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task AOneMemberGroupKeepsTheSingleImageAssociationRule()
     {
-        // Every manual upload is a submission group (INTK-005), so a single
-        // uploaded image arrives as a one-member group — and now that the
-        // ordinal-0 lookup finds it (INTK-012), the automation must still
-        // apply the single-image candidate rule: an exact confirmed match
-        // beats a one-character-longer fuzzy candidate and associates. The
-        // group decision table would count two eligible cases and fail
-        // closed — that table scopes itself to more than one image.
-        var harness = new GroupHarness(memberCount: 1);
+        // A one-member non-manual image submission uses the single-image
+        // candidate rule: an exact confirmed match beats a one-character-
+        // longer fuzzy candidate and associates. The group decision table
+        // scopes itself to more than one image.
+        var harness = new GroupHarness(memberCount: 1, sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         var exactCaseId = Guid.NewGuid();
         harness.CaseCandidates.Candidates =
@@ -428,7 +447,8 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new GroupHarness(
             memberCount: 2,
-            mediaTypeByOrdinal: new Dictionary<int, string> { [1] = "application/pdf" });
+            mediaTypeByOrdinal: new Dictionary<int, string> { [1] = "application/pdf" },
+            sourceChannel: IntakeSourceChannel.Mailbox);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26012", 1, "AB12CDE")];
 
@@ -451,7 +471,8 @@ public sealed class AutomaticImageIntakeTests
         public Harness(
             int assetCount = 1,
             string mediaType = "image/jpeg",
-            Guid? manualLinkedCaseId = null)
+            Guid? manualLinkedCaseId = null,
+            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload)
         {
             var assets = Enumerable.Range(0, assetCount)
                 .Select(index => new IntakeAssetRecord(
@@ -475,7 +496,7 @@ public sealed class AutomaticImageIntakeTests
                 mediaType,
                 ImageBytes.Length,
                 ImageHash,
-                new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "receipt-token"),
+                new IntakeSourceIdentity(sourceChannel, "receipt-token"),
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
                 IntakeDecision.NeedsSorting,
@@ -926,7 +947,8 @@ public sealed class AutomaticImageIntakeTests
         public GroupHarness(
             int memberCount,
             int? expectedMemberCount = null,
-            IReadOnlyDictionary<int, string>? mediaTypeByOrdinal = null)
+            IReadOnlyDictionary<int, string>? mediaTypeByOrdinal = null,
+            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload)
         {
             const string submissionToken = "group-token";
             var groupId = Guid.NewGuid();
@@ -961,7 +983,7 @@ public sealed class AutomaticImageIntakeTests
                     mediaType,
                     ImageBytes.Length,
                     ImageHash,
-                    new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, token),
+                    new IntakeSourceIdentity(sourceChannel, token),
                     DateTimeOffset.UtcNow,
                     DateTimeOffset.UtcNow,
                     IntakeDecision.NeedsSorting,
@@ -991,7 +1013,7 @@ public sealed class AutomaticImageIntakeTests
 
             GroupStore.Group = new IntakeSubmissionGroup(
                 groupId,
-                IntakeSourceChannel.ManualUpload,
+                sourceChannel,
                 submissionToken,
                 expectedMemberCount ?? memberCount,
                 "staff:test",

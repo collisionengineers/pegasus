@@ -2,6 +2,8 @@
 @model Pegasus.Web.Pages.UploadGroupStatusModel
 @{
     ViewData["Title"] = "Upload received";
+    var groupConfirmation = Model.UploadCaseConfirmation;
+    var groupReceiptVersions = Model.GroupConfirmationReceiptVersions ?? Model.OpenMemberReceiptVersions;
     if (Model.OpenGroupDecision)
     {
         // The submission-level card owns the decision; per-file outcomes
@@ -59,32 +61,66 @@
                         </div>
                     </form>
                 }
-                <details class="upload-attach" data-refresh-hold>
+                <details class="upload-attach" data-refresh-hold open="@(Model.GroupSuggestedDestinations.Count > 0 ? "open" : null)">
                     <summary class="btn">Add to an existing case</summary>
                     <form method="post"
                           asp-page-handler="AttachGroup"
                           class="upload-attach__form"
                           data-case-search
                           data-case-search-url="@Url.Page(null, "CaseSearch")">
-                        <input type="hidden" name="caseId" value="" data-case-search-value />
+                        <input type="hidden" name="operationId" value="@(groupConfirmation?.Input.OperationId ?? Model.UploadCaseDraft?.OperationId ?? Guid.NewGuid())" />
+                        @foreach (var member in groupReceiptVersions)
+                        {
+                            <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
+                        }
+                        <input type="hidden" name="caseId" value="@(groupConfirmation?.CaseId ?? Model.UploadCaseDraft?.CaseId)" data-case-search-value />
+                        <input type="hidden" name="caseVersion" value="@(Model.GroupConfirmationCaseVersion ?? groupConfirmation?.Input.ExpectedCaseVersion)" data-case-search-version />
+                        @if (groupConfirmation is null && Model.GroupSuggestedDestinations.Count > 0)
+                        {
+                            <div class="field">
+                                <span class="field-label">Possible existing case@(Model.GroupSuggestedDestinations.Count == 1 ? string.Empty : "s")</span>
+                                <div class="button-row">
+                                    @foreach (var suggestion in Model.GroupSuggestedDestinations)
+                                    {
+                                        <button type="button"
+                                                class="btn btn--small"
+                                                data-case-search-suggestion
+                                                data-case-id="@suggestion.CaseId"
+                                                data-case-reference="@suggestion.Reference"
+                                                data-case-version="@suggestion.Version">
+                                            @suggestion.Reference
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
                         <div class="field">
                             <label for="group-attach-input">Case</label>
-                            <input id="group-attach-input"
-                                   name="reference"
-                                   type="text"
-                                   maxlength="60"
-                                   required
-                                   autocomplete="off"
-                                   spellcheck="false"
-                                   data-case-search-input />
-                            <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                            @if (groupConfirmation is not null)
+                            {
+                                <input id="group-attach-input" name="reference" type="text" value="@groupConfirmation.Reference" readonly />
+                                <p class="field-hint">Confirm that every file in this submission belongs on this case.</p>
+                            }
+                            else
+                            {
+                                <input id="group-attach-input"
+                                       name="reference"
+                                       type="text"
+                                       value="@(Model.UploadCaseDraft?.Reference ?? (Model.GroupSuggestedDestinations.Count == 1 ? Model.GroupSuggestedDestinations[0].Reference : null))"
+                                       maxlength="60"
+                                       required
+                                       autocomplete="off"
+                                       spellcheck="false"
+                                       data-case-search-input />
+                                <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                            }
                         </div>
                         <div class="field">
                             <label for="group-attach-reason">Reason</label>
-                            <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                            <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required>@(groupConfirmation?.Reason ?? Model.UploadCaseDraft?.Reason)</textarea>
                         </div>
                         <div class="button-row">
-                            <button type="submit" class="btn">Add the submission to this case</button>
+                            <button type="submit" class="btn">@(groupConfirmation is null ? "Add the submission to this case" : "Confirm and add the submission")</button>
                         </div>
                     </form>
                 </details>
@@ -147,6 +183,19 @@
                             @if (memberOutcome is not null)
                             {
                                 <partial name="Shared/_UploadOutcome" model="@memberOutcome" />
+                                @* The existing create proposal remains a
+                                   receipt-level acceptance: a submission can
+                                   share one destination choice, but it cannot
+                                   fabricate a group allocator or silently
+                                   create Cases for every file. *@
+                                @if (memberOutcome is
+                                    { Kind: UploadOutcomeKind.ReadyToCreate,
+                                      PrimaryAction: { } createAction })
+                                {
+                                    <div class="button-row">
+                                        <a class="btn btn--small" href="@createAction.Url">@createAction.Label</a>
+                                    </div>
+                                }
                             }
                         </span>
                         <span>

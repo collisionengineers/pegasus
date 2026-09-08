@@ -2,6 +2,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
 
@@ -108,12 +109,12 @@ public sealed class UploadOutcomeQueriesTests
 
         Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
         Assert.NotNull(result.PrimaryAction);
-        Assert.Equal("Create a case", result.PrimaryAction!.Label);
+        Assert.Equal("Create a new case", result.PrimaryAction!.Label);
         Assert.Equal($"/Cases/Create?receiptId={receiptId:D}", result.PrimaryAction!.Url);
     }
 
     [Fact]
-    public async Task AmbiguousCandidateMatchOffersToReviewAndAttachWithOverride()
+    public async Task ManualAmbiguousMatchOffersTheRecordedViableDestinationsForConfirmation()
     {
         var receiptId = Guid.NewGuid();
         var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
@@ -131,12 +132,46 @@ public sealed class UploadOutcomeQueriesTests
             1);
         var receipt = MakeReceipt(receiptId, IntakeDecision.NeedsSorting, caseMatchDecision: caseMatch);
 
-        var result = await BuildAsync(status, receipt);
+        var firstCaseId = caseMatch.Candidates[0].CaseId;
+        var secondCaseId = caseMatch.Candidates[1].CaseId;
+        var result = await BuildAsync(status, receipt, suggestions:
+        [
+            new(firstCaseId, "QDO31001", null, "Smith", CaseLifecycleState.NotReady, 7),
+            new(secondCaseId, "QDO31002", null, "Smith", CaseLifecycleState.Review, 3)
+        ]);
 
-        Assert.Equal(UploadOutcomeKind.PossibleMatch, result.Kind);
-        Assert.NotNull(result.PrimaryAction);
-        Assert.Equal("Review and attach", result.PrimaryAction!.Label);
-        Assert.Equal($"/Received/{receiptId:D}", result.PrimaryAction!.Url);
+        Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
+        Assert.NotNull(result.Attach);
+        Assert.Equal([firstCaseId, secondCaseId], result.Attach!.SuggestedDestinations.Select(item => item.CaseId));
+        Assert.All(result.Attach.SuggestedDestinations, item => Assert.NotNull(item.Version));
+    }
+
+    [Fact]
+    public async Task ManualUniqueMatchIsShownAsOneSuggestionRatherThanAttached()
+    {
+        var receiptId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            caseMatchDecision: new(
+                CaseMatchOutcome.UniqueMatch,
+                caseId,
+                null,
+                new(null, "AB12CDE", null, null, null),
+                [new(caseId, ["registration"], [])],
+                "One case matched.",
+                "test-policy",
+                1));
+
+        var result = await BuildAsync(
+            StatusOf(QueuedIntakeStatusKind.Complete, receiptId),
+            receipt,
+            suggestions: [new(caseId, "QDO31003", "AB12 CDE", null, CaseLifecycleState.Review, 12)]);
+
+        Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
+        Assert.Equal(caseId, Assert.Single(result.Attach!.SuggestedDestinations).CaseId);
+        Assert.Null(receipt.CurrentCaseId);
     }
 
     [Fact]
@@ -432,12 +467,14 @@ public sealed class UploadOutcomeQueriesTests
         Guid? submissionGroupId = null,
         ImageIntakeDetail? imageIntakeDetail = null,
         UnidentifiedItem? unidentifiedByReceipt = null,
-        UnidentifiedItem? unidentifiedByGroup = null)
+        UnidentifiedItem? unidentifiedByGroup = null,
+        IReadOnlyList<IntakeAssociationDestination>? suggestions = null)
     {
         var queries = new UploadOutcomeQueries(
             new FakeGetIntake(receipt),
             new FakeImageIntakeQueries(imageIntakeDetail),
-            new FakeUnidentifiedStore(unidentifiedByReceipt, unidentifiedByGroup));
+            new FakeUnidentifiedStore(unidentifiedByReceipt, unidentifiedByGroup),
+            new FakeDestinations(suggestions));
         return queries.BuildAsync(status, submissionGroupId, StaffActor);
     }
 
@@ -446,6 +483,21 @@ public sealed class UploadOutcomeQueriesTests
         public Task<IntakeReceipt?> ExecuteAsync(
             GetIntakeQuery query, CancellationToken cancellationToken = default) =>
             Task.FromResult(receipt);
+    }
+
+    private sealed class FakeDestinations(IReadOnlyList<IntakeAssociationDestination>? suggestions) : IIntakeAssociationDestinationQueries
+    {
+        public Task<IReadOnlyList<IntakeAssociationDestination>> GetSuggestedAsync(
+            IntakeReceipt receipt, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult(suggestions ?? (IReadOnlyList<IntakeAssociationDestination>)[]);
+
+        public Task<IReadOnlyList<IntakeAssociationDestination>> SearchAsync(
+            IntakeReceipt receipt, string term, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IntakeAssociationDestination>>([]);
+
+        public Task<IntakeAssociationDestination?> GetAsync(
+            IntakeReceipt receipt, Guid caseId, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeAssociationDestination?>(null);
     }
 
     private sealed class FakeImageIntakeQueries(ImageIntakeDetail? detail) : IImageIntakeQueries

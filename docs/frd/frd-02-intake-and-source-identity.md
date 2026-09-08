@@ -170,7 +170,10 @@ not form another pre-Case acceptance gate. For standalone Audit, allocate the
 normal Case/PO once Principal and Audit case type are definitive. Missing or
 ambiguous original-report outcome withholds only the later `a.` or `ap.` Audit
 reference, as defined in FRD-01. Supported email and Provider API Audit routes
-use that same distinction; this does not add Audit to manual case creation.
+use that same distinction. A manual proposal may create an Audit only when its
+own retained receipt is already classified Audit and has its existing
+standalone-Audit evidence; the existing acceptance gate verifies that evidence
+belongs to that receipt.
 If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
@@ -349,22 +352,18 @@ itself was accepted or refused — with the per-file processing and outcome
 details beneath it (D20, 2026-09-01). The submission decision is never a
 summary that hides a per-file outcome.
 
-Once a manually uploaded file's processing resolves (Complete or Failed), the
-operator sees a confirmation decision rather than a passive status label. That
-confirmation decision is per file — a grouped upload's members can
-terminal-decide independently, so the surface never assumes one confirmation
-outcome for a whole group.
+Once a manually uploaded file's processing resolves, the operator sees an
+explicit destination decision rather than a passive status label. Manual upload
+retains the source and its extraction but never automatically associates it,
+allocates a formal Case/PO, or treats a unique match as staff consent. Mailbox
+and Provider routes retain their own automatic policy.
 
-The decision table, evaluated once per file:
+The decision table, evaluated against the current retained material:
 
-1. **A case is already associated** (`CurrentCaseId` set). This is always a
-   report of something automation already did — the "linked automatically
-   only on a definitive match" rule (the accepted requirement) means a unique
-   `CaseMatchOutcome` match or the grouped-image-routing unique match above
-   is written before Complete is ever reached, so the confirmation step never
-   re-offers this as a choice. The operator sees the case reference, a link
-   to open it, and the existing reversal path (staff link/unlink) rather than
-   a second association mechanism.
+1. **A case is already associated** (`CurrentCaseId` set). This is a report of
+   an already committed decision. The operator sees the case reference and the
+   existing reversal path; the confirmation surface does not invent another
+   association mechanism.
 2. **Registered as a new Image-initiated Case** (`ImageIntakeRegistered`).
    Also always automatic (a usable VRM with no unique existing-Case match);
    reported with a link to its own searchable surface, never re-offered as a
@@ -375,44 +374,45 @@ The decision table, evaluated once per file:
    that decision links the registration's origin receipt, which carries the
    Image-initiated Case through its normal merge transition. Once merged,
    the surface reports the destination case instead of the registration.
-3. **Routed to Unidentified.** Automation abstained (no usable/conflicting
-   VRM, or no identifiable match at all); reported with a link to the
-   existing Unidentified resolution surface, which is where the staff
-   decision for that item actually happens.
-4. **Possible matching cases found** (`CaseMatchOutcome.Ambiguous`).
-   Automation found candidates but none met the unique-match bar — this is
-   the genuine staff decision the confirmation step offers: review the
-   candidates and attach, freely choosing a different destination than any
-   suggested candidate (the operator's "they can override").
-5. **No matching case at all**, and the file is otherwise eligible to become
-   one. The staff decision offered here is to create a case from what was
-   uploaded — Instruction-initiated, seeded from the file — reusing the
-   existing creation screen.
-6. **Cannot become a case** (blocked, unsupported, or a technical failure) or
+3. **A manual non-image file eligible to become a Case.** Staff must either
+   confirm one viable existing Case or open the extracted new-Case proposal.
+   A unique match is one suggestion, not an automatic selection. The proposal
+   is editable; reject/cancel changes nothing and leaves the source
+   unallocated. Acceptance alone runs the existing allocation path and may
+   allocate the Case/PO.
+4. **Cannot become a case** (blocked, unsupported, or a technical failure) or
    **the file itself failed to process.** Reported plainly; no offer, since
    none is genuine.
 
-Where the staff decision is genuinely open — rows 2 (still Awaiting
-instruction), 4 and 5 — the surface also carries the decision itself:
+Where the staff decision is genuinely open — rows 2 and 3 — the surface also
+carries the decision itself:
 
-- **Add to an existing case.** A case search that suggests matching cases as
-  the operator types (the existing staff case-search query; reference,
-  registration, claimant and stage shown — never an internal identifier).
-  Selecting a case and confirming, with a required reason, is an explicit
-  staff decision: it acquires the case's edit lease and links the receipt
-  through the existing staff link path, which also runs the Image-initiated
-  Case merge transition where one is registered. The decision is replay-safe
-  (deterministic per receipt and case), and fails closed — an unresolved or
-  ambiguous typed reference, a version or lease conflict, or a receipt that
-  already has a case all report an honest error and change nothing. Nothing
-  is ever attached silently beyond the automatic bar above.
+  - **Add to an existing case.** The retained match candidates are shown
+   first, including a sole viable candidate; typed receipt-scoped search adds
+   only current viable Cases (reference, registration, claimant and stage
+   shown — never an internal identifier). A unique candidate is never an
+   automatic selection. Selecting a Case and confirming with a nonblank
+   reason of at most 500 characters acquires that
+   Case's edit lease and links through the existing staff link path, which also
+   runs the Image-initiated Case merge transition where one is registered. The
+   route and group membership are loaded server-side; a posted receipt id is
+   not authority. The page operation id, reviewed receipt version and reviewed
+   target Case version bind the decision. A typed non-script reference first
+   renders that exact target for confirmation before any write. A replay is
+   successful only for the identical committed staff decision (actor, target,
+   reason and reviewed input), not merely the same target. A stale version,
+   changed decision, competing lease, unavailable
+   destination or incomplete group reports an honest conflict and changes
+   nothing further.
 - **Cancel.** Returns to the Upload screen and changes nothing: the material
   stays retained and its state stays honestly reported.
 
-Every other action the confirmation surface offers routes to an existing
-surface that already performs it (case details, the received-item screen's
-attach/reverse controls, the case-creation screen, the Image-initiated Case
-and Unidentified detail screens).
+For a group, the operator makes one submission-level choice. Completed members
+must prove the same decision; missing, elsewhere-associated or failed members
+are reported rather than silently counted as success. Every other action the
+confirmation surface offers routes to an existing surface that already performs
+it (case details, the received-item screen's attach/reverse controls, the
+case-creation screen, the Image-initiated Case and Unidentified detail screens).
 
 ### Global vehicle and value checks
 
