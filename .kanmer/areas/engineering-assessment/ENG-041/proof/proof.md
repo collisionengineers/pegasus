@@ -1,32 +1,177 @@
 ---
 kind: proof-record
-merged_sha: "baafa29e0f7002b8235aa43bf333f5d9bb172828"
-environment: ".worktrees/verify-eng-041-baafa29e0f7002b8235aa43bf333f5d9bb172828; Windows x64; PowerShell 7"
-verified_at: "2026-09-08T00:26:34Z"
-result: FAIL
-failure_class: implementation
+merged_sha: "cc441645b0a62a806e34367ad75e9eaff4df8b11"
+environment: ".worktrees/verify-eng-041-cc441645b0a62a806e34367ad75e9eaff4df8b11; Windows x64; PowerShell 7"
+verified_at: "2026-09-08T01:53:38Z"
+result: PASS
 attempts:
   - attempted_at: "2026-09-08T00:20:40Z"
     command: "dotnet restore ./Pegasus.slnx --locked-mode"
     exit_code: 0
     result: PASS
-    summary: "Locked restore succeeded in clean exact-merge detached worktree."
+    summary: "Original PR683 exact merge: locked restore."
   - attempted_at: "2026-09-08T00:20:40Z"
     command: "dotnet build ./Pegasus.slnx --configuration Release --no-restore"
     exit_code: 0
     result: PASS
-    summary: "61.48 seconds; zero warnings/errors."
+    summary: "Original PR683 exact merge:61.48s, zero warnings/errors."
   - attempted_at: "2026-09-08T00:21:54Z"
-    command: "Focused Core EstimateTests command below"
+    command: "Original Core56 command retained below"
     exit_code: 0
     result: PASS
-    summary: "56 passed, zero failed/skipped; 212 ms."
+    summary: "Original exact merge:56 passed,0 failed/skipped,212ms."
   - attempted_at: "2026-09-08T00:21:58Z"
-    command: "Focused integrated Glass/estimate/capture command below"
+    command: "Original Integration159 command retained below"
     exit_code: 1
     result: FAIL
-    summary: "159 total, 157 passed, 2 failed, zero skipped; 2m42s."
+    summary: "Original exact merge:157 passed,2 failed callbacks AwaitingImport,0skips,2m42s. Implementation defect fixed by PR691; original artifacts retained."
+  - attempted_at: "2026-09-08T01:41:00Z"
+    command: "dotnet restore ./Pegasus.slnx --locked-mode"
+    exit_code: 0
+    result: PASS
+    summary: "Clean detached cc441645b exact merge, locked restore. Approximate observed start minute."
+  - attempted_at: "2026-09-08T01:41:00Z"
+    command: "dotnet build ./Pegasus.slnx --configuration Release --no-restore"
+    exit_code: 0
+    result: PASS
+    summary: "125.81s, zero warnings/errors; no other heavy verifier."
+  - attempted_at: "2026-09-08T01:43:20Z"
+    command: "dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheSameReturnDeliveredTwiceRecordsNothingASecondTime|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheRealCaseAuthorityRequiresTheExactVersionAndLiveLease|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheRealCaseAuthorityRefusesIncompleteVehicleFacts|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.FailedWriteLeavesOnePendingIntentAndReplayUsesTheSameVersionIdentity|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.AutomaticCustodyPreservesLiveCaseAuthority|FullyQualifiedName~Pegasus.IntegrationTests.Reports.CaseReportGenerationPersistenceTests|FullyQualifiedName~CaseDetailsWebTests.CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey|FullyQualifiedName~CaseDetailsWebTests.ARefusedCompletenessChangeKeepsUncheckedProposalsBesideTheCurrentValues|FullyQualifiedName~TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor' --logger 'trx;LogFileName=eng-041-merged-correction.trx' --results-directory ./artifacts/verification"
+    exit_code: 0
+    result: PASS
+    summary: "51 passed,0failed/0skipped,3m9s. Actual callback, source-race, automatic custody authority and route captures."
+  - attempted_at: "2026-09-08T01:46:33Z"
+    command: "dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~TestUiSnapshotTests' --logger 'trx;LogFileName=eng-041-merged-snapshots.trx' --results-directory ./artifacts/verification"
+    exit_code: 1
+    result: FAIL
+    summary: "1passed/1failed: default snapshot differed. Verification input defect: old capture selection supplied one-off Edit mode is active notice, not canonical default."
+  - attempted_at: "2026-09-08T01:49:54Z"
+    command: "dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~CaseDetailsWebTests.NativeHandoffDialogPostsWithoutEvaOrASeparateReviewAction' --logger 'trx;LogFileName=eng-041-canonical-handoff-capture.trx' --results-directory ./artifacts/verification"
+    exit_code: 0
+    result: PASS
+    summary: "Canonical current default capture,1passed/0failed/0skipped,35s; no rebuild/source change."
+  - attempted_at: "2026-09-08T01:50:34Z"
+    command: "dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~TestUiSnapshotTests' --logger 'trx;LogFileName=eng-041-canonical-snapshots.trx' --results-directory ./artifacts/verification"
+    exit_code: 1
+    result: FAIL
+    summary: "Default now matched;1passed/1failed conflict. Old completeness-refusal input is not current Lease gone canonical conflict. No expected-output update."
+  - attempted_at: "2026-09-08T01:52:30Z"
+    command: "dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~CaseDetailsWebTests.WorkflowPageBindsReviewReturnEngineerAssignmentFindingAndLinkedReplacement' --logger 'trx;LogFileName=eng-041-canonical-conflict-capture.trx' --results-directory ./artifacts/verification"
+    exit_code: 0
+    result: PASS
+    summary: "Exact existing canonical conflict caller;1passed/0failed/0skipped,34s; no rebuild/source change."
+  - attempted_at: "2026-09-08T01:53:09Z"
+    command: "dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~TestUiSnapshotTests' --logger 'trx;LogFileName=eng-041-final-snapshots.trx' --results-directory ./artifacts/verification"
+    exit_code: 0
+    result: PASS
+    summary: "2passed/0failed/0skipped,7s against unchanged committed output; fresh exact-merge captures."
+  - attempted_at: "2026-09-08T01:53:00Z"
+    command: "pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1"
+    exit_code: 0
+    result: PASS
+    summary: "60routed sources,67prototypes,0broken local references. Approximate observed minute."
+  - attempted_at: "2026-09-08T01:53:00Z"
+    command: "git status --porcelain; git rev-parse HEAD; TRX counter/time/SHA256 census"
+    exit_code: 0
+    result: PASS
+    summary: "Clean exact cc441645b; all six merged proof artifacts read and hashed. Approximate observed minute."
 ---
+
+# ENG-041 final exact integrated acceptance
+
+PASS at confirmed dev follow-up merge cc441645b0a62a806e34367ad75e9eaff4df8b11
+(PR691, mergedAt2026-09-08T01:39:46Z). Root read whole independent final
+review6abcbc32911d7b8b/public5136361089 at authorb253306f048dfb8e1dd635e9994835b32c0090d1,
+plan c096b7ddf32366de/report66303a1fa5639466, and refreshed unchanged head,
+plan/ticket, complete-empty live review threads/checks/rules and synchronized
+board before guarded normal merge. No forced merge or CI-green inference.
+Review author and verifier roles are distinct; principal_delivery_audit wrote
+the correction, pack_reconcile reviewed it, root verified this merge.
+
+The full author-to-merge diff is the already accepted disjoint CASE-049 native
+handoff. Exact detached root and common Git were checked before execution;
+postflight remained clean and at the exact same SHA. No mutable author/shared
+checkout was used as merged evidence. Root was the sole heavy verifier.
+
+## Proven actual callers and invariants
+
+Both original failed callback journeys now complete with one imported Draft
+and retained XML/PDF sources; repeated delivery creates no additional import
+or workflow mutation. Real current-version/live-lease and missing-vehicle
+refusals remain. Immediate and recovered automatic custody preserve active
+Case authority and replay identities while atomically marking report source
+changes stale. Explicit staff custody remains a Case mutation.
+
+The actual report projection/freeze owner detects complete source membership,
+identity, logical version, hash, name, media, length, Box identity, currentness
+and custody changes inside its serializable transaction before writes/reuse.
+Every tested stale-capture race refuses without a new generation/artifact;
+ordinary lease/version/signatory requirements and generated-output identity
+exclusion remain. The 51-case merged cohort passed, with no skips. The two
+additional canonical Case caller cases passed and supplied current default/
+conflict captures. Final snapshot verification2/2 and catalogue60/67/0 passed.
+
+No production or expected snapshot changed during verification. Earlier
+Core56/Integration157 passing cases at baafa29e remain source-scoped evidence,
+not a claim that the entire original159 cohort reran at cc441645b. The changed
+custody/report/callback paths and newly integrated native UI callers were
+exercised here. Final converged CI/release remains a separate controller task.
+
+## Two preserved verification-input failures
+
+The first snapshot attempt used an old Case capture selection from before
+CASE-049. Its default capture was the first GET following edit-mode entry,
+with the transient success notice, whereas accepted default is the native
+handoff test's subsequent normal GET. Adding that one existing canonical test
+(no rebuild) made default match; the conflict still differed. Read-only HTML
+comparison then identified old completeness refusal versus accepted workflow
+lost-lease refusal (reason Lease gone, review-evidence-1). The exact existing
+WorkflowPageBindsReviewReturnEngineerAssignmentFindingAndLinkedReplacement
+caller supplied that state. Both originate in CaseWorkflowWebTests.cs, whose
+partial class is CaseDetailsWebTests. This is why file-name guesses are not
+capture filters. After that one caller, final verification passed unchanged.
+
+These are real failed attempts, retained above and in their TRXs; they are not
+silently turned green, source regressions, nor justification to update the
+expected page or weaken the predicate. The initial51 functional passes remain
+valid. Catalogue was not attempted after either guarded snapshot failure.
+
+All merged commands used .worktrees/verify-eng-041-cc441645b0a62a806e34367ad75e9eaff4df8b11. During capture,
+PEGASUS_TEST_UI_CAPTURE_DIR was its absolute artifacts/eng-041-merged-capture,
+PEGASUS_TEST_UI_SCOPE=case-details and MODE unset. Each snapshot check set
+PEGASUS_TEST_UI_MODE=verify against that same retained directory. Exact UTC TRX
+instants below convert their recorded +01:00 offsets; restore/build/catalogue
+minutes are approximate observations, not fabricated precise timestamps.
+
+## Retained merged artifacts
+
+Artifacts currently reside in this exact verification root's artifacts/verification.
+Closeout must copy and hash-check them before removing any temporary workspace.
+
+| TRX | SHA256 | UTC start–finish, 8 September |
+| --- | --- | --- |
+| eng-041-merged-correction.trx | 28718553E2FB3E07ADF7EE966ED15CF629972E15FF5E046A36E7FD6B7621CB55 | 01:43:20.1066928Z–01:46:31.7224463Z |
+| eng-041-merged-snapshots.trx | 342FB3ED27F4FDB91935AC9393AE1944FB7ED8A772FEA0BE0E7682440F24F8B0 | 01:46:33.6509526Z–01:46:36.9127559Z |
+| eng-041-canonical-handoff-capture.trx | D5578D04E34F3A493EE6BB7CE6420C436418CA0B007A69FA24F8F21F6B609BD9 | 01:49:54.9569479Z–01:50:32.3715555Z |
+| eng-041-canonical-snapshots.trx | 95169B16CAE8CD4AC7F91B38B19CB7A3ECF849D2AF3C55EF4E5487222F90B052 | 01:50:34.6156228Z–01:50:37.6308566Z |
+| eng-041-canonical-conflict-capture.trx | B8D1476C566C5D62A5BD14DA4B06622EB545E007170ED30C48DA5F243BE10C3F | 01:52:30.4075307Z–01:53:07.4195151Z |
+| eng-041-final-snapshots.trx | 25779A7788529929AED38AEF7D71F19C723C4BAFC5DFC134A0C8E808CDBC8BC8 | 01:53:09.1704000Z–01:53:18.7569321Z |
+
+The original two merged TRXs, plus three author-correction TRXs named in
+report66303a1fa5639466/review6abcbc32911d7b8b, must also be preserved at closeout.
+No live Glass, Azure, mailbox write, send, wipe or deployment occurred.
+This is integrated functional acceptance, not production activation. The board
+reports this existing legacy proof-record format as untyped under report mode;
+that is not a typed-schema validation claim. Root read this whole record before
+Done. Canonical full-solution CI/artifact/deployment acceptance remains separate.
+
+## Original exact-merge failed proof preserved
+
+The following body is retained verbatim from proof73d3327f6364834c. Its original
+frontmatter attempts and FAIL outcome are retained in the attempt list above;
+its pending diagnosis/CASE-049 statements are historical, superseded by the
+confirmed correction and final acceptance above, not current blockers.
+
 
 # ENG-041 exact integrated verification — attempt 1
 
