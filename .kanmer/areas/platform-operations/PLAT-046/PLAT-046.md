@@ -1,9 +1,7 @@
 ---
 id: PLAT-046
 type: ticket
-title: >-
-  The Worker serves before migrations complete, so a column-adding release
-  throws until they land
+title: Stop old Web and Worker before planned destructive migrations
 status: preparing
 area: platform-operations
 order: 90
@@ -22,7 +20,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-09-01T14:50:16.744Z'
+updated: '2026-09-08T17:50:42.299Z'
 ---
 
 ## What
@@ -60,29 +58,46 @@ Two things are wrong:
 2. A predictable two-minute deployment window pages at Sev1, which trains
    people to ignore the alert that would matter.
 
-## Approach
+## Current operator-selected approach — 8 September 2026
 
-- Establish the actual ordering the release performs today: whether migrations
-  run before, during, or alongside Worker startup, and whether readiness gates
-  the timers. `GET /health/ready` also showed 47 failures in the same period,
-  which suggests readiness knows about pending migrations but does not hold the
-  timers back.
-- Decide the fix: hold timer execution until migrations are confirmed applied,
-  or sequence the release so the Worker is not serving until they are. Prefer
-  whichever the existing readiness check already knows.
-- Consider whether a schema-shaped `SqlException` during startup deserves its
-  own handling rather than escaping as an unclassified fault.
-- Re-check the alert rule so a bounded deployment window does not page at Sev1
-  while a sustained fault still does.
+Current release tooling already applies migrations/grants before new Web/Worker
+packages. Complete the remaining old-runtime hazard through release procedure,
+not a new per-tick runtime readiness service.
 
-## Verification
+Identify destructive migrations during planning. Temporarily stop BOTH old Web
+and Worker before the database changes, accepting a short outage. In the current
+unreleased project no compatibility infrastructure is invented; after actual
+release schedule the migration outside typical usage hours. Record a concrete
+approved window then, not hardcoded hours now.
 
-- [ ] A release adding a column its own code reads produces no exception
-      storm.
-- [ ] The alert still fires for a sustained exception rate.
-- [ ] `docs/runbook.md` records the ordering guarantee.
+Use fresh exact-target inventory, persistent Worker Disabled settings plus whole
+Function App stop/read-back, exact Web revision deactivation and zero-replica
+read-back. Migrate/bootstrap/verify head, deploy new approved bytes with Worker
+disabled, then explicitly activate and smoke. No old incompatible runtime restart
+after destructive migration begins; recover forward only.
 
-## Notes
+This replaces the historical plan's per-tick schema check and ADR0030's transient
+old-runtime-error allowance for this condition. Reconcile an ADR, canonical release
+skill, migration recipe, runbook and AGENTS. Centralize only the existing script
+Worker Disabled-setting name list; no new control plane or Bicep activation flag.
+The alert thresholds remain unchanged; source investigation found they correctly
+reported the sustained storm. No alert suppression is part of this ticket.
+
+## Acceptance
+
+- [ ] Planning identifies destructive/non-additive changes and affected capability.
+- [ ] Exact Worker stopped and old Web inactive/zero replicas are mandatory evidence
+      before destructive SQL; failures/unknown state block the migration.
+- [ ] Approved manifest migration/grants/head precede new Web/Worker activation;
+      Worker disabled through new-package deployment, explicit safe re-enable.
+- [ ] Short outage and post-release outside-usage scheduling are explicit; forward-only
+      recovery and separately authorized live operations remain clear.
+- [ ] Canonical Worker setting census retains missing/extra/duplicate/value failures.
+- [ ] Local scoped script/document checks pass; no claim of a live migration test.
+- [ ] No runtime schema polling, dependencies, alert weakening or historical rewrite.
+
+## Original incident notes
+
 
 - Incident evidence: workspace `0e4342c1-73ea-48d8-8571-8bca88991b21`,
   `AppExceptions` between 02:56Z and 02:59Z on 2026-08-28.
