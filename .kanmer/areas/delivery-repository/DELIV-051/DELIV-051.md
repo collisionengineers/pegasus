@@ -2,12 +2,13 @@
 id: DELIV-051
 type: ticket
 title: Consolidate Pegasus instructions and reconcile Kanmer skills
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T08:16:37.944Z'
+  review: '2026-09-08T08:26:45.656Z'
 taken_at: '2026-09-08T08:16:57.989Z'
 branch: DELIV-051-instructions
 worktree: .worktrees/deliv-051
@@ -22,11 +23,16 @@ labels:
   - documentation
   - kanmer
   - governance
-links: []
+links:
+  - DELIV-052
+commits:
+  - d1854b4730615fae51fdc0fd2f1b8233eba5d4fa
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/702'
 deployment: n/a
 archived: false
 created: '2026-09-08T08:15:33.723Z'
-updated: '2026-09-08T08:25:35.808Z'
+updated: '2026-09-08T08:26:45.656Z'
 ---
 
 ## What
