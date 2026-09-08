@@ -194,7 +194,9 @@ status from an integrated correction.
 
 ## Stop condition
 
-Planning stops after root reads this whole proposed plan and file scope.
-No implementation, checklist mutation, Git mutation, test/build, provider/cloud
-call, review or merge is authorized by this planning action. After explicit
-approval, root assigns the author under the existing retained ENG-041 claim.
+Root approved plan f0aa4318d6dca111 and files 1d4c177e23c8d8b9 in full and
+assigned /root/principal_delivery_audit as correction author. Implement these
+seven files only, then freeze for root's focused verification. No author
+build/test/provider/cloud call, self-review, merge or deployment. Root later
+authorizes report/commit/push and a NEW dev-targeting follow-up PR because
+PR683 is already merged; the previous review attestation remains historical.
