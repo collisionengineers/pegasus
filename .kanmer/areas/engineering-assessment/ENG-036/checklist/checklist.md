@@ -1,20 +1,38 @@
-- [ ] Step 1: verify the eight hand-offs — ENG-035 vocabulary (no `type`), ENG-035 per-zone report snapshot collection, ENG-034 shell, ENG-029 writer, CASE-038 `site.js` calling `window.pegasusDamageDiagram.init` on initial and lazy mount, the ENG-035 two-line report insertion contract, PLAT-070 (no surviving staff-review flag or control — D44), and the `open-questions` answer on snapshot ownership.
-- [ ] Step 1: confirm `report.css` is held by no other open lane.
-- [ ] Step 2: add the single shared SVG geometry asset; embed it in Infrastructure and add the one explicit static-web-asset item in `Pegasus.Web.csproj` (no existing Web convention fits).
-- [ ] Step 2: assert `GET /img/damage-diagram.svg` returns the embedded bytes as `image/svg+xml`.
-- [ ] Step 3: add `damage-diagram.js` exposing an idempotent `window.pegasusDamageDiagram.init(root)`; diagram zones plus `underside`/`interior`/`mechanical` chips; add, remove, severity change and note change each rewrite the hidden `damage.impacts` JSON, marker class, `aria-pressed`, accessible name, row list and focus.
-- [ ] Step 4: compose the lease-bound, type-free Damage section (diagram, chips, impact rows, tyre/belt cards, spare tyre, centre belt, unrelated damage and deduction, material transfer, `derived` impact location and severity) with the 1180px/760px rules.
-- [ ] Step 5: add `DamageDiagramMarkup.cs` and the `report.css` marker rules; hand ENG-035 the two verbatim insertions for its renderer and template.
-- [ ] Step 5: `AssessmentReportDamageDiagramTests.cs` — structural marker assertion (marked set equals projected set, with an unmarked control and an individual wheel), PDF text assertion for the diagram section and Zone/Severity/Note with no type wording, and caller evidence that a saved `damage.impacts` reaches the snapshot.
-- [ ] Step 5: `tests/Pegasus.Core.Tests/Assessment/DamageZoneTests.cs` — canonical zones, unique zones, highest-severity derivation, individual wheels, no `type` member.
-- [ ] Step 6: simplification pass over the branch diff (reuse, simplification, efficiency, altitude) with findings and dispositions recorded in the plan under a dated heading.
-- [ ] Step 6: supply UIIMP-014's assertions — click and Enter from diagram and chips, initialization on initial and lazy mount, read-only has no toggle, no overflow at 1580/1100/760.
-- [ ] `dotnet restore ./Pegasus.slnx --locked-mode`
-- [ ] `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
-- [ ] `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
-- [ ] `pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium`
-- [ ] `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportDamageDiagramTests"`
-- [ ] `./scripts/Update-TestUiSnapshots.ps1 -Verify` (verify only; update mode writes UIIMP-014's `docs/design/test-ui/**` — stop and hand off any drift)
-- [ ] `./scripts/Test-UiCatalogue.ps1`
-- [ ] post-implementation report written
-- [ ] PR opened with Kanmer: ENG-036
+# Checklist — ENG-036 current continuation
+
+This 2026-09-08 checklist supersedes the unexecuted steps in
+checklist@fdf70d4c2ec01844; their version and prior research/review history
+remain retained. Preparation is not implementation evidence.
+
+- [ ] [pre-review] Root approves the whole current plan and exact path
+  handoffs/sequence with ENG-029, ENG-031 and applicable historical claims;
+  fresh gates/packet then exact isolated take/worktree from accepted dev.
+- [ ] [pre-review] One supplied embedded geometry and two actual Case/PDF
+  callers; canonical ReportImpact identities, all consumers and existing
+  TemplateVersion agree; no second vocabulary, SVG or resource loader.
+- [ ] [pre-review] Native Damage rows/scalars use the accepted global
+  SaveCaseWorkspace, existing authority/lease/version and refusal retention;
+  clear, omission and malformed submissions have the planned distinct outcomes.
+- [ ] [pre-review] Existing actual Save and SQL report source/freeze prove
+  saved Damage, one atomic mutation, stale current generation and unchanged
+  older snapshot; structural markers and one actual PDF prove printed output.
+- [ ] [pre-review] Existing browser harness proves click/Enter/Space,
+  severity/note/removal, Save/Discard/dirty behavior and read-only boundaries
+  at 1580/1100/760; actual editable Damage visual evidence is inspected.
+- [ ] [pre-review] Root runs the planned focused commands once per source
+  state, retains every failed attempt and actual exit/artifact evidence;
+  no skip or default Review capture substitutes for editing/PDF proof.
+- [ ] [pre-review] Exact three canonical Case captures, scoped snapshot
+  update/verify, catalogue and documentation links pass; only changed mapped
+  generated files accompany the page change.
+- [ ] [pre-review] Current bounded diff/consumer/simplification review,
+  complete post-implementation report and independent dev PR handoff;
+  stop at Review, no self-review/merge.
+- [ ] [post-merge] Separately assigned exact-merge verification/proof and
+  ordinary closeout; no deployment claim from premerge evidence.
+
+## Progress notes
+
+2026-09-08 intake_audit: read-only current-state preparation completed.
+No source edit, take/branch, tests/builds/captures or claimed runtime PASS.
+Root owns subsequent implementation authorization and heavy verification.

@@ -1,397 +1,286 @@
-# Plan — ENG-036 (2026-09-03, gpt-5.6-terra xhigh; corrected 2026-09-03 after gpt-5.6-sol review)
+# Plan — ENG-036: edit and print the Case damage diagram
 
 ## Objective
 
-Deliver the D39 Damage Case section and a single shared SVG geometry source:
-editable under the existing Case lease, read-only once Complete, and marked in
-the rendered report. A damage entry is exactly `zone`, `severity`, and `note`;
-no type field, label, JSON member, UI control, or report column exists.
+Complete the existing Damage section: a keyboard-operable diagram, severity
+and note per recorded region, existing tyre/restraint and narrative fields,
+all through the single global workspace Save; print the same marked geometry
+from the accepted frozen report data. No Type or image-preparation feature.
 
 ## Starting state
 
-Evidence was rechecked read-only at `origin/dev`/HEAD
-`07ac7f1be9fc9fc04814fd5347ae5da30aff62da`. The ENG-036 ticket remains
-Preparing; ENG-035 is implementing, while ENG-034, CASE-038, ENG-029, and
-UIIMP-014 are Preparing. The Kanmer tunnel was unavailable (HTTP 404) during
-the original planning run, so execution must refresh live gates before any
-ticket move.
+Evidence: research@c56007a0e80d6697; files@66f9e028c99fd81e.
+Prepared 2026-09-08 by intake_audit against accepted dev aefe4c32 and the
+separately identified prospective ENG-029 writer. Root later reported
+INTK-064 merge 96777888; execution must pin fresh accepted dev after ownership
+release. No source edit, take, build or test is authorized by this document.
 
-`damage-diagram.js`, `_CaseDamage.cshtml`, and `damage-diagram.svg` do not
-exist. The existing reusable seams are `AssessmentVocabulary`,
-`ISaveAssessment`, `CaseMutationPageModel.NewOperationKey`,
-`data-edit-save`, `ResourceText`, `Encode`, `BrowserTestSupport`, and
-`AssessmentReportRendererTests`. `Pegasus.Infrastructure.csproj` carries
-`<InternalsVisibleTo Include="Pegasus.IntegrationTests" />`, so a new
-internal Infrastructure type is directly assertable from an integration test.
+Core already owns 23 detailed regions, eight broad regions and three
+auxiliary regions, five severities, validation, derived headlines and typed
+CaseWorkspaceDamage. The Case partial only shows three read-only values.
+The report has an impacts collection/table but loses canonical identities
+during projection and prints no diagram. ENG-029 supplies the required
+single SaveCaseWorkspace Web writer; its implementation must be integrated
+or explicitly handed off before this ticket begins.
 
-## Governing documents
+This current plan supersedes obsolete execution premises in
+plan@f5a5ac268914babd (2026-09-03, terra/sol/Claude Opus).
+That complete version and its nine review dispositions remain attributable
+history; their requirements are either already met or explicitly dispositioned
+below. The original research is preserved before the current continuation.
 
-- FRD-06: damage is structured engineering evidence and the two scalar impact
-  values are derived by Core.
-- FRD-11: the assessment report includes the marked diagram through the
-  existing `GenerateAssessmentReportDraft` caller.
-- FRD-12: Damage is always viewable, editable only through the one Case edit
-  lease, and read-only once Complete.
-- EPIC-012 D39/D45 override the stale "type" wording in the ticket body, the
-  FRDs, and `docs/design/README.md` (its Damage bullet at `origin/dev` still
-  reads "each with Severity, Type, Note"): zones hold only zone, severity,
-  and note. ENG-036 does not edit governing documents; the correction is
-  raised in `open-questions`.
-- D44: no staff act of reviewing instructions or images exists. PLAT-070 owns
-  removing the surviving review flags and controls; see hand-off 7.
-- No explanatory copy; web labels live only in
-  `Presentation/OperatorLabels.cs`; exact state labels come from the existing
-  state-label owner; excluded controls are absent, not disabled.
-- Core owns validation, code sets, JSON normalization, and derived impact
-  values. No package, migration, table, second writer, or compatibility path
-  is added.
+## Governing docs
 
-## Required hand-offs before implementation
+- **Meets** FRD-06 Damage: detailed/broad independence, severity/note,
+  tyres/restraints, narratives, Core-derived location/severity.
+- **Meets** FRD-11 report content and frozen-generation history.
+- **Meets** FRD-12: one always-viewable Case, one Save/Discard/lease;
+  existing authorized engineering edit states, including PostReport.
+- **Clarifies only** the design README's Damage bullet to match the existing
+  FRD-06 23 detailed/eight broad/three auxiliary model. No new requirement.
+- D39 is read as corrected by D45 (no Type). Astra B02/B05 apply;
+  B06 image preparation remains ENG-031. No ADR or package is necessary.
 
-1. ENG-035 must be merged and expose its D45-conformant `damage.impacts`
-   contract: the canonical zone codes (the eleven body/interior codes plus
-   the four individual wheel codes), existing severity codes, unique zones,
-   no `type`, and Core-derived `impact_location`/`impact_severity`
-   (severity = the highest zone severity).
+## Required changes and constraints
 
-2. ENG-035 must additionally expose the **per-zone collection** on
-   `AssessmentReportSnapshot` and `AssessmentReportProjection`. At
-   `origin/dev` the snapshot carries only the scalar `ImpactSeverity` and
-   `ImpactLocation` (`AssessmentReportRendering.cs`,
-   `AssessmentReportProjection.cs`), which cannot mark a diagram. Without a
-   named, merged, test-backed zone collection on the snapshot, Step 5 stops.
-
-3. ENG-034 and CASE-038 must be merged with the Case Damage shell,
-   `DetailsModel` Damage projection, `AssessmentIsReadOnly`, lazy-section
-   composition, and one lease-bearing Case form.
-
-4. ENG-029 must extend its sole `OnPostSaveAssessmentAsync` Case writer to
-   accept the submitted D39 fields for `section=damage`, still forwarding raw
-   values through `ISaveAssessment`. ENG-036 must not edit
-   `Details.cshtml.cs` or create a second save path.
-
-5. CASE-038 must hand off the `site.css` and `OperatorLabels.cs` locks and
-   must **keep** `site.js`. ENG-036 does not edit `site.js`. The contract
-   CASE-038 must have merged, verified by name in Step 1:
-   - the layout loads `~/js/damage-diagram.js` once (deferred), and
-   - CASE-038's section-mount code calls
-     `window.pegasusDamageDiagram.init(sectionRoot)` after the initial render
-     **and** after every lazy Damage mount, exactly once per mount.
-   If the merged `site.js` does not call that initializer, ENG-036 stops for
-   coordination rather than shipping an unreachable component or taking the
-   `site.js` lock.
-
-6. Report files. ENG-035 keeps whole-file ownership of
-   `PlaywrightAssessmentReportRenderer.cs`, `assessment_report.scriban`, and
-   `AssessmentReportRendererTests.cs`. ENG-036 owns the **damage partial**
-   instead — a new `DamageDiagramMarkup.cs`, the shared SVG, `report.css`
-   marker rules, and a new test file — and hands ENG-035 exactly two named
-   insertions:
-   - `assessment["damage_diagram"] = DamageDiagramMarkup.Compose(snapshot.DamageZones);`
-     in the renderer's assessment context, and
-   - one `{{ assessment.damage_diagram }}` slot plus the Zone/Severity/Note
-     rows in `assessment_report.scriban`.
-   Both are ENG-035 edits inside ENG-035-owned files. Without those two
-   insertions recorded as accepted, Step 5's report claim stops; the
-   component, the SVG and the marker composition still ship and are proved by
-   ENG-036's own tests.
-
-7. PLAT-070 must be merged and the staff-review surface gone. At `origin/dev`
-   `_ReadinessHiddenFields.cshtml` still posts `instructionsReviewedByStaff`
-   and `imagesReviewedByStaff`, and `_CaseWorkflow.cshtml` still renders the
-   "Instructions staff-reviewed" and "Images staff-reviewed" checkboxes.
-   Those are `Pages/Cases/Shared/*` files ENG-036 must not touch. Step 1 fails
-   closed unless the merged Case form, its handlers, its retained-value logic
-   and its history carry no instruction/image review flag or act (D44).
-
-8. UIIMP-014 owns the generated Case snapshots and the three-width browser
-   walk. It must add the D39 interaction assertions and own any snapshot
-   changes. ENG-036 does not edit `docs/design/test-ui/**` or its browser-test
-   files. The unresolved consequence — the repository requires regenerated
-   snapshots to ship in the same change set as a routed Razor-page change,
-   while `docs/design/test-ui/**` is a capacity-one lock held by UIIMP-014 —
-   is raised in `open-questions` and must be answered before implementation.
+1. Keep Core's sole code/display/parent/validation owner. Controls read the
+   existing vocabularies and field Definitions; no JavaScript taxonomy,
+   Infrastructure parser, severity ranking or duplicate label-to-code map.
+   Keep broad and auxiliary entries visible without expanding them to
+   selected detailed children.
+2. Transcribe the hash-bound v3 geometry into one embedded SVG asset.
+   Preserve exact supplied coordinates; use existing canonical wheel keys.
+   A narrow shared markup composer serves the actual Razor partial and
+   existing Playwright renderer. Reuse the existing resource loader/cache;
+   no second loader, static endpoint, SVG copy or service registration.
+   All caller values are encoded; input never becomes arbitrary SVG markup.
+3. Keep ReportImpact's three properties, but Zone/Severity carry canonical
+   codes through projection/freezing. Existing Presentation methods produce
+   visible labels at rendering. Update all three fixture consumers and bump
+   the current TemplateVersion (v3 at research); no extra code/display fields,
+   reverse labels, dual projection or rewrite of issued history.
+4. Add native form-associated controls to case-edit-form. Bind an indexed
+   impacts collection to existing AssessmentImpact/CaseWorkspaceDamage;
+   the DOM retains one entirely blank add row, allowing an explicit empty
+   list even after removal. All-empty row is ignored; partially filled rows
+   are refused. Posted collection keys distinguish explicit clearing from
+   an omitted Damage section. Do not require JavaScript to serialize JSON
+   for the only persistence path. Native selects/inputs remain usable.
+5. Extend ENG-029's one OnPostSaveAsync: include Damage in engineering
+   submission/state checks, pass the submitted lease/version unchanged, route
+   supported Damage scalar fields via the existing editor-path membership,
+   and let Core validate the complete typed impacts. Null/unposted fields
+   preserve accepted facts; explicit empties clear. No second Save handler,
+   server-side derived input, silent invalid-data dropping or rebase.
+6. Extend existing retained-proposal labels for bounded indexed damage fields
+   and scalar editors. Preserve valid failed submissions, including clears,
+   in the existing comparison UI. Keep existing oversize reporting and never
+   retain/replay authority tokens or offer an automatic apply action.
+7. Case-only JS enhances the server-rendered SVG only inside the lawful edit
+   host: click/Enter/Space toggle a region and corresponding native row,
+   focus remains meaningful, severity/note edits update markers and native
+   input events reach existing dirty tracking. Bind once through the existing
+   convention. Read-only diagrams are visible but not toggleable/focusable.
+   Damage is eager; do not add a loader or lazy-mount contract.
+8. Render all existing Damage values in read-only mode, and their controls
+   only under the existing Engineer/state/live-lease boundary. Four tyre/belt
+   cards, spare, centre belt, unrelated text/deduction, material transfer and
+   Nature of incident use their current Core definitions. Derived headlines
+   remain read-only. Labels/values only, no explanatory or empty-state prose.
+   No image crop/rotation/ordering, estimates or settlement duplication.
 
 ## Expected files
 
-| Action | Path | Responsibility |
+| Action | Repo-root-relative path | Responsibility |
 | --- | --- | --- |
-| Add | `docs/design/assets/report-renderer/templates/damage-diagram.svg` | Single owner of zone geometry and marker anchors; no visible labels or business policy. |
-| Modify | `src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj` | Embed that SVG beside the existing report templates. |
-| Modify | `src/Pegasus.Web/Pegasus.Web.csproj` | Add the one static-web-asset item that publishes the same SVG source under `wwwroot`; no copy in the tree. |
-| Add | `src/Pegasus.Web/wwwroot/js/damage-diagram.js` | One direct-event component initializer exposed as `window.pegasusDamageDiagram.init`. |
-| Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseDamage.cshtml` | Replace ENG-034's shell after it merges. |
-| Modify, after lock hand-off | `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add only required D39 web labels; no type labels. |
-| Modify, after lock hand-off | `src/Pegasus.Web/wwwroot/css/site.css` | Component layout and the 1180px/760px reflow. |
-| Add | `src/Pegasus.Infrastructure/Reports/DamageDiagramMarkup.cs` | Internal: read the embedded SVG and return marked report HTML for the projected zones. New file — no ENG-035 overlap. |
-| Modify | `docs/design/assets/report-renderer/templates/report.css` | Marker and diagram print rules. Unclaimed by any EPIC-012 lane; Step 1 stops if a concurrent lane holds it. |
-| Add | `tests/Pegasus.IntegrationTests/Reports/AssessmentReportDamageDiagramTests.cs` | Prove the marker composition and the printed PDF. New file — ENG-035 keeps `AssessmentReportRendererTests.cs`. |
-| Add | `tests/Pegasus.Core.Tests/Assessment/DamageZoneTests.cs` | Prove the D39/D45 contract ENG-036 consumes: canonical zone set, unique zones, highest-severity derivation, individual wheels, and no `type` member. New file — ENG-035 keeps `AssessmentPolicyTests.cs`. |
+| Add | `docs/design/assets/report-renderer/templates/damage-diagram.svg` | Single supplied 23-region geometry; current Core data-zone keys. |
+| Modify | `src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj` | Embed that one asset with existing report resources. |
+| Add | `src/Pegasus.Infrastructure/Reports/DamageDiagramMarkup.cs` | Narrow encoded composition reused by the actual Case and PDF callers; reuse existing resource loader. |
+| Modify | `src/Pegasus.Core/Reports/AssessmentReportRendering.cs` | Keep ReportImpact's three members, retain canonical codes; advance existing TemplateVersion. |
+| Modify | `src/Pegasus.Core/Reports/AssessmentReportProjection.cs` | BuildDamage retains accepted canonical identities; existing presentation owner supplies labels later. |
+| Modify | `src/Pegasus.Infrastructure/Reports/PlaywrightAssessmentReportRenderer.cs` | Call shared diagram composer and convert impact labels through existing Presentation methods. |
+| Modify | `docs/design/assets/report-renderer/templates/assessment_report.scriban` | One marked-diagram slot in the existing Damage block; retain table and other report content. |
+| Modify | `docs/design/assets/report-renderer/templates/report.css` | Bounded print sizing and visible selected markers. |
+| Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseDamage.cshtml` | Full recorded Damage view and native form-associated engineering editor. |
+| Modify | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Extend accepted ENG-029 OnPostSaveAsync with typed Damage, posted-presence and existing authority checks. |
+| Modify | `src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs` | Retain bounded proposed damage row/scalar values in existing refusal UI; never authority tokens. |
+| Modify | `src/Pegasus.Web/Presentation/CaseWorkspaceLabels.cs` | Extend existing editor-path and retained-label ownership; reuse Core zone/severity/code vocabularies. |
+| Modify | `src/Pegasus.Web/wwwroot/js/case-workspace.js` | Idempotent diagram editing enhancement; native controls and existing form dirty events. |
+| Modify | `src/Pegasus.Web/wwwroot/css/case-workspace.css` | Case-only responsive diagram, impact rows, tyre cards and focus states. |
+| Modify | `tests/Pegasus.Core.Tests/Reports/AssessmentReportProjectionTests.cs` | Canonical-code projection and saved-impact semantics. |
+| Modify | `tests/Pegasus.Core.Tests/Reports/AssessmentReportRenderingTests.cs` | Existing contract/version and all fixture consumers updated without extra fields. |
+| Modify | `tests/Pegasus.IntegrationTests/Reports/AssessmentReportRendererTests.cs` | Existing harness: exact SVG marker membership/encoding and actual rendered PDF. |
+| Modify | `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | Existing actual Save route: typed fields, explicit clear versus omission, refusal/authority retention. |
+| Modify | `tests/Pegasus.IntegrationTests/CaseEngineerSectionsWebTests.cs` | Existing recorded-value fixture: full read-only Damage and lawful edit-state controls. |
+| Modify | `tests/Pegasus.IntegrationTests/Reports/CaseReportGenerationPersistenceTests.cs` | Existing SQL harness: saved canonical Damage reaches frozen report; edits stale current output without rewriting prior snapshot. |
+| Add | `tests/Pegasus.IntegrationTests/Browser/CaseDamageDiagramBrowserTests.cs` | Existing BrowserTestSupport/estate: click/Enter/Space, Save/Discard and 3-width editable/read-only evidence; no new host. |
+| Modify | `docs/design/README.md` | Only Damage bullet: current 23 detailed, 8 broad, 3 auxiliary scope and severity/note; retain current global Save layout. |
+| Generated | `docs/design/test-ui/pages/case-details--default.html` | Regenerate only canonical default Case capture. |
+| Generated | `docs/design/test-ui/pages/case-details--conflict.html` | Regenerate only canonical conflict capture. |
+| Generated | `docs/design/test-ui/pages/case-details--unavailable.html` | Regenerate canonical unavailable capture if bytes change. |
+| Generated if changed | `docs/design/test-ui/index.html` | Scoped catalogue generation only, after explicit index ownership handoff. |
 
-Do not modify Core production code, persistence, migrations, Case handler
-files, `site.js`, `_ReadinessHiddenFields.cshtml`, `_CaseWorkflow.cshtml`,
-`PlaywrightAssessmentReportRenderer.cs`, `assessment_report.scriban`,
-`AssessmentReportRendererTests.cs`, report-image paths, governing documents,
-Test UI artefacts, or any path listed as another ticket's exclusion (see
-`files/files.md`'s "Files ENG-036 must not touch").
+The files document includes context-only owners and exclusions. No other
+path is implicitly authorized; even a fixture omission requires an amended
+whole plan/map before edits.
+
+## Ownership prerequisite
+
+Do not take until root approves this complete plan and records exact shared
+path release/handoff from ENG-029 and any applicable historical ENG-034 /
+CASE-038 claims. Keep their verification debts and records untouched.
+Serialize the overlapping Details/labels/Case JS/CSS/report-generation
+fixture/README/capture work with ENG-031. A technical dependency already
+integrated is not an authority to release another ticket's claim.
+The generated index needs its own precise handoff. No blanket docs/UI claim.
 
 ## Ordered steps
 
-### Step 1 — Confirm merged contracts and acquire only transferred locks
+### Step 1 — Shared geometry and canonical report data
 
-- Files: none.
-- Reuses: the Kanmer live gate report, ENG-035's `AssessmentVocabulary` and
-  report snapshot, ENG-034's Damage partial contract, CASE-038's lazy-section
-  lifecycle, and ENG-029's single `ISaveAssessment` handler.
-- Change: verify all eight hand-offs above against merged `origin/dev` and
-  record the result of each. Specifically:
-  - grep the merged tree for `type` inside the damage contract, for
-    `instructionConfirmedByStaff` / `imagesConfirmedByStaff` /
-    `instructionsReviewedByStaff` / `imagesReviewedByStaff` /
-    `RequireStaffImageReviewBeforeEngineerAssignment` / `ImagesReviewedByStaff`
-    (D44/D45 must return nothing), and for the per-zone collection on
-    `AssessmentReportSnapshot`;
-  - grep the merged `site.js` for `pegasusDamageDiagram` and confirm it is
-    invoked on the initial render and on lazy mount;
-  - confirm `report.css` is held by no other open lane.
-- Preserved behaviour: one Case edit mode, one lease, and one assessment
-  writer.
-- Forbidden: a `type` member, direct writes to derived impact fields, a
-  second handler, an extra stylesheet, a new package, or a migration.
-- Done when: every dependency is present and every file in the steps below is
-  owned by ENG-036.
-- Deviation stop: any failed check above — missing vocabulary, missing zone
-  collection, missing writer support, a missing loader hook, a surviving
-  review flag, a held `report.css`, or an unanswered open question — stops
-  the ticket for coordination.
+- Preconditions: approved packet, exact isolated recorded worktree from fresh
+  accepted dev, resolved path handoffs.
+- Files: mapped SVG, Infrastructure project, DamageDiagramMarkup,
+  AssessmentReportRendering, AssessmentReportProjection,
+  PlaywrightAssessmentReportRenderer, assessment_report.scriban, report.css
+  and the three mapped report fixture classes.
+- Change: one embedded geometry/composer; canonical ReportImpact data and
+  TemplateVersion; existing display conversion and report diagram slot.
+- Preserved behaviour: report table, existing fields, escaping, immutable
+  older artifacts/snapshots and production renderer resource conventions.
+- Negative cases: no Type member/control; no marker for unselected regions;
+  broad/auxiliary entries do not light detailed children; four wheels stay
+  independent; malformed/unknown code is refused rather than mislabelled.
+- Done when: source census has exactly one geometry owner and both named
+  production consumers, and every current ReportImpact fixture agrees.
 
-### Step 2 — Add one shared, publishable vehicle SVG
+### Step 2 — One native Case editor and writer
 
-- Files: `docs/design/assets/report-renderer/templates/damage-diagram.svg`,
-  `src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj`,
-  `src/Pegasus.Web/Pegasus.Web.csproj`.
-- Reuses: the existing embedded-resource entries in
-  `Pegasus.Infrastructure.csproj`, which already include the report templates
-  from `..\..\docs\design\assets\report-renderer\templates\`.
-- No existing convention fits the Web side: `Pegasus.Web.csproj` today only
-  removes `wwwroot\lib\**` and has no linked external static asset. The new
-  item is therefore a single explicit static-web-asset entry
-  (`Content Include="..\..\docs\design\assets\report-renderer\templates\damage-diagram.svg"`
-  with `Link="wwwroot\img\damage-diagram.svg"` and
-  `CopyToPublishDirectory="PreserveNewest"`), stated here as new rather than
-  claimed as existing.
-- Change: create a static top-down SVG whose `data-zone` identifiers match
-  ENG-035's canonical codes, including the four individual wheel codes. It
-  owns paths, marker anchors, and fixed presentation attributes only; it
-  contains no zone/severity labels, no user values, no code validation list,
-  no `style` attribute (CSP is `default-src 'self'` with no
-  `unsafe-inline`), and no executable content.
-- Preserved behaviour: report assets remain embedded; browser and renderer use
-  exactly one geometry file.
-- Done when: the embedded resource resolves from Infrastructure and an
-  integration assertion proves `GET /img/damage-diagram.svg` returns the same
-  bytes with `image/svg+xml`.
+- Files: _CaseDamage, DetailsModel, CaseMutationPageModel,
+  CaseWorkspaceLabels, case-workspace.js/css, design README and the mapped
+  Case Web/section/browser tests.
+- Change: implement the required native rows/scalars, lawful read-only/edit
+  rendering, diagram enhancement and typed Damage contribution to the
+  accepted global Save. Reuse the current dirty/lease/refusal behavior.
+- Preserved behaviour: ENG-029 fields, global atomic save, version/lease,
+  PostReport edit policy, recorded values in all lifecycle states and
+  ENG-031 image module behavior if integrated before this work.
+- Negative cases: duplicate/unknown zone, unsupported severity, incomplete
+  row, 201-character note, forged engineering submission, stale version or
+  lease mismatch cannot partly save; omitted differs from explicit clear.
+- Done when: actual route tests capture the canonical Damage request without
+  replacing the existing writer or dropping other posted sections.
 
-### Step 3 — Implement the accessible diagram component
+### Step 3 — Focused actual-caller and visual evidence
 
-- Files: `src/Pegasus.Web/wwwroot/js/damage-diagram.js`.
-- Reuses: targeted `data-*` hooks and `addEventListener`; no general action
-  dispatcher exists to extend (the only `data-action` use is the
-  `tr[data-action]` row selector in `site.js`).
-- Change: expose one narrow initializer, `window.pegasusDamageDiagram.init(root)`,
-  for CASE-038's loader, idempotent per mount. It fetches the same-origin SVG
-  once, clones it per mount, receives server-rendered labels and the current
-  records from a Razor-emitted `application/json` script block, and renders
-  markers from the Core-normalized records.
-- Interaction contract, stated completely:
-  - **Add**: click, Enter or Space on a zone group, or on one of the three
-    non-geometric zone chips (`underside`, `interior`, `mechanical` — they
-    have no top-down geometry, so they are `OperatorLabels`-backed toggle
-    buttons beside the diagram, as the design README's zone list requires),
-    appends `{zone, severity: "moderate", note: ""}`.
-  - **Remove**: the same toggle, or the row's remove control, deletes that
-    entry.
-  - **Severity change / note change**: the row's `select` and `input` write
-    straight back into the same entry.
-  - After every one of those four events the component rewrites the single
-    hidden `damage.impacts` JSON field, updates the zone's marker class,
-    `aria-pressed` and accessible name, updates the row list, and returns
-    focus to the control that was activated.
-- Preserved behaviour: all label text and ARIA names come from Razor-provided
-  `OperatorLabels` values; JSON validation, canonicalization, and derivation
-  remain in Core. The `moderate` default is a UI seed value for a new row,
-  not a policy decision — Core still validates and derives.
-- Forbidden: hard-coded labels, a damage-type control, duplicate Core codes,
-  inline scripts/styles, a new edit mode, or silently discarding a malformed
-  server value.
-- Negative cases: unknown zones are not rendered; read-only diagrams expose
-  markers but no focusable/toggleable zone or chip; Enter and Space do not
-  scroll the page.
-- Done when: the component initializes each Damage mount exactly once and
-  maintains the posted impacts value across all four events.
+- Files: only the mapped existing tests/new browser class; no new host or
+  evidence framework. No production change merely to make a test pass.
+- Tests: extend the existing SQL report-generation harness with a global
+  Save of Damage, read via the existing assessment/projection source and
+  freeze through the actual store. Assert canonical values in the frozen
+  report, later edit stales the current generation, prior snapshot unchanged.
+  Reuse existing one-workspace-save/replay/rollback tests, not new duplicates.
+- Tests: deterministic SVG membership equals selected detailed zones,
+  including a wheel and unselected control, encoding and broad independence.
+  Render one actual PDF with the existing renderer provider; retain the
+  established report text assertions and inspect an actual rendered page
+  for visible correct markers. Text extraction alone is not visual proof.
+- Tests: one browser cohort at 1580/1100/760 exercises click, Enter, Space,
+  severity/note, explicit removal, Save/Discard and dirty behavior. Read-only
+  states have no diagram mutator; native controls have labels and visible
+  focus, no overflow. Capture the actual editable Damage fixture as extra
+  visual evidence; default Review snapshot is not that proof.
+- Commands: root alone owns locked restore/build and the focused filters in
+  Commands below. Author freezes and supplies exact final method names.
+- Done when: actual commands exit zero with no skipped claimed acceptance,
+  artifacts and all failures retained, independent visual inspection
+  completed. Missing runtime/provider/browser evidence is not PASS.
 
-### Step 4 — Compose the Damage section into the existing Case form
+### Step 4 — Scoped snapshots and publication boundary
 
-- Files: `src/Pegasus.Web/Pages/Cases/Shared/_CaseDamage.cshtml`,
-  `src/Pegasus.Web/Presentation/OperatorLabels.cs`,
-  `src/Pegasus.Web/wwwroot/css/site.css`.
-- Reuses: the merged `DetailsModel`, ENG-029's
-  `OnPostSaveAssessmentAsync`/`ISaveAssessment` route, Case partial form
-  conventions, `CaseMutationPageModel` lease fields, `data-edit-save`, and
-  existing panel/form responsive rules.
-- Change: replace the shell with the diagram, the three non-geometric zone
-  chips, impact rows, four tyre/belt cards, spare tyre, centre belt,
-  unrelated-damage deduction, and material-transfer fields. Bind only ENG-035
-  vocabulary paths. Show Core-derived impact location and severity as
-  `derived` values, never editable fields. Render the form only for an active
-  editable Case lease; otherwise render recorded values and a
-  non-interactive marked diagram.
-- Change: add only the web labels needed for headings, zones, severity,
-  tyres, belts, derived values, and "Not recorded" — no type labels. Add the
-  1180px one-column and 760px single-column rules using the existing
-  stylesheet, under the `damage-diagram` / `impact` / `tyre-card` / `derived`
-  class vocabulary the design README already carries.
-- Preserved behaviour: Complete remains viewable and read-only; save posts
-  only the Case's existing expected-version, operation-key, lease, and D39
-  values to the one writer.
-- Forbidden: explanatory or empty-state copy, a disabled inert edit surface,
-  type labels/inputs/columns, CSS in Razor, calculations in Razor/JavaScript,
-  or a crop/image feature.
-- Done when: all D39 fields render through the one Case section and the
-  component's hidden field reaches ENG-029's writer.
-
-### Step 5 — Render the same marked geometry in the report
-
-- Preconditions: hand-offs 2 and 6 are recorded as accepted.
-- Files: `src/Pegasus.Infrastructure/Reports/DamageDiagramMarkup.cs`,
-  `docs/design/assets/report-renderer/templates/report.css`,
-  `tests/Pegasus.IntegrationTests/Reports/AssessmentReportDamageDiagramTests.cs`,
-  `tests/Pegasus.Core.Tests/Assessment/DamageZoneTests.cs`.
-- Reuses: `ResourceText`, `Encode`, the existing Scriban context, embedded
-  template loading, Playwright `SetContentAsync`/`PdfAsync`, PdfPig test
-  extraction, and `InternalsVisibleTo Pegasus.IntegrationTests`.
-- Change: `DamageDiagramMarkup.Compose` reads the embedded shared SVG and
-  returns HTML in which exactly the projected zones carry the `impact` marker
-  class and severity modifier, notes stay HTML-encoded, and nothing else in
-  the document changes. `report.css` gains the marker and print rules. ENG-035
-  performs the two named insertions from hand-off 6; ENG-036 supplies them
-  verbatim and does not edit those two files.
-- Preserved behaviour: user notes remain HTML-encoded, Chromium prints with
-  backgrounds, and no template performs policy or calculation.
-- Negative cases: unmarked records do not fabricate markers; each of the four
-  wheels uses its own canonical wheel geometry; no type wording appears in
-  the HTML or the PDF.
-- Tests, in `AssessmentReportDamageDiagramTests.cs`:
-  1. **Marker composition (deterministic, structural).** Call
-     `DamageDiagramMarkup.Compose` directly with a body zone, one individual
-     wheel, and at least one deliberately unselected zone; parse the returned
-     SVG and assert the marked set is exactly the projected set — selected
-     anchors present with the right severity modifier, unselected anchors
-     present and unmarked. This is the assertion that proves the marker, which
-     PdfPig text extraction cannot.
-  2. **Printed output.** Render the report through
-     `GenerateAssessmentReportDraft` from a snapshot carrying those zones and
-     assert the extracted PDF text contains the diagram section heading and
-     the Zone/Severity/Note evidence, and contains no type wording.
-  3. **Caller evidence.** Assert that a saved `damage.impacts` value reaches
-     the snapshot through ENG-035's projection, so the printed diagram is
-     driven by the saved record and not by a hand-built snapshot.
-- Tests, in `DamageZoneTests.cs`: canonical zone set, unique zones,
-  highest-severity derivation, the four individual wheels, and the absence of
-  any `type` member.
-- Done when: the PDF is derived from the exact SVG asset the browser uses and
-  the assertions above pass.
-
-### Step 6 — Simplification pass, delegated visual proof, rails, and hand-off
-
-- Files: no additional ENG-036 files.
-- Simplification pass (required before the PR, AGENTS.md step 4): run
-  `/simplify` plus the `code-simplifier` agent over this branch's own diff
-  across the four lenses — reuse, simplification, efficiency, altitude — apply
-  the behaviour-preserving fixes, and record every finding and its
-  disposition in this plan under a dated "Simplification pass" heading.
-  Unapplied findings are named with a reason or a follow-up ticket.
-- Reuses: UIIMP-014's `BrowserTestSupport`, seeded Case walk, three-width
-  layout checks, and snapshot tooling.
-- Change: give UIIMP-014 the exact D39 assertions: click and Enter create
-  rows from both the diagram and the three zone chips; the component
-  initializes on the initial render **and** on a lazy Damage mount;
-  severity/note save through the Case writer; read-only has no toggle; and the
-  layout has no overflow at 1580, 1100, and 760.
-- Snapshots: ENG-036 runs `./scripts/Update-TestUiSnapshots.ps1 -Verify` only.
-  The update-mode run rewrites `docs/design/test-ui/**`
-  (`TestUiSnapshotTests` writes the catalogue root in `update` mode), which is
-  UIIMP-014's capacity-one lock. If verify reports drift, stop and hand the
-  drift to UIIMP-014 under the answer recorded in `open-questions`.
-- Acceptance: no test is weakened; ENG-036's own tests prove the marker
-  composition and the printed diagram; UIIMP-014 provides the
-  interaction/snapshot proof.
-- Migration: none is in scope. If one becomes necessary, stop and assign it
-  to the serialized migration owner; only then run
-  `./scripts/Test-MigrationGrants.ps1` with its grants in the same diff.
-- Stop condition: all owned tests and hand-off evidence pass, the
-  simplification pass is recorded, the post-implementation report is written,
-  the PR targeting `dev` is open, and ENG-036 is in Review. Do not merge,
-  write proof, or begin another ticket.
+- Files: only the three listed Case snapshots and conditional index.
+- Change: root runs the exact canonical capture inputs below, scoped update,
+  verify reusing that capture, and catalogue/doc-link checks. Commit only
+  generated files whose bytes changed alongside this page change.
+- Preserved behaviour: no other Case route/prototype or generated page
+  changes; editable Damage evidence is separate from those three baselines.
+- Done when: final source/consumer/simplification review is complete, failures
+  are dispositioned without erasure, root runtime evidence is recorded, and
+  author report/checklist/PR to dev reach independent Review. No self-merge.
 
 ## Commands
 
-The canonical delivery gate, exactly as the runbook states it:
+Future execution only; root is the sole heavy owner. PowerShell on this
+Windows host, cwd the recorded ENG-036 worktree. No build or capture is run
+during preparation. Use the existing locked restore and one Release build:
 
 ```powershell
 dotnet restore ./Pegasus.slnx --locked-mode
 dotnet build ./Pegasus.slnx --configuration Release --no-restore
-dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
-Then the pinned Chromium and the report proof, and the read-only Test UI
-checks:
+Proposed bounded runtime cohort, final new names fixed at code freeze:
+
+- Core: existing AssessmentPolicyTests damage tests and the two mapped
+  report projection/contract classes; no new damage-policy test class.
+- Integration: new Damage-specific Web/global Save/retention cases,
+  existing OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce,
+  one saved-Damage freeze/staleness case, structural SVG cases and one actual
+  renderer case. Use existing supplied/seeded estate; no fabricated email.
+- Browser: only CaseDamageDiagramBrowserTests. Existing BrowserTestSupport
+  and pinned installed browser; no new framework or speculative installs.
+- Keep unique TRX/artifact paths per attempt. Stop a failed cohort, diagnose,
+  and rerun only failures plus affected regressions under root scheduling.
+
+Canonical snapshot capture inputs (default/conflict/unavailable only):
 
 ```powershell
-pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportDamageDiagramTests"
-./scripts/Update-TestUiSnapshots.ps1 -Verify
-./scripts/Test-UiCatalogue.ps1
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests.ARefusedCompletenessChangeKeepsUncheckedProposalsBesideTheCurrentValues|FullyQualifiedName~CaseDetailsWebTests.CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey|FullyQualifiedName~TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor"
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details
+pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1
+pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1
 ```
 
-`./scripts/Update-TestUiSnapshots.ps1` without `-Verify` is **not** run by
-ENG-036: it writes `docs/design/test-ui/**`, which UIIMP-014 owns.
-`./scripts/Test-MigrationGrants.ps1` is not run unless a migration enters
-scope; that is a stop-and-reassign condition.
+No repeated broad CI/build/capture loop. After independent review and merge,
+exact-merge verification is separately assigned; neither this plan nor
+premerge evidence claims integration/deployment.
 
-## Plan review (2026-09-03, gpt-5.6-sol xhigh; dispositions Claude Opus)
+## Historical review dispositions carried forward
 
-Read at `origin/dev` `07ac7f1b`. Verdict: REQUEST CHANGES; nine findings, all
-dispositioned below. The reviewer's read-only checkout was clean afterwards.
+The original nine-finding review and Claude Opus dispositions remain in
+plan@f5a5ac268914babd and the original research (unchanged before the current
+continuation). Current disposition, without rewriting those authors:
 
-| # | Severity | Finding | Disposition | Evidence |
-| --- | --- | --- | --- | --- |
-| 1 | blocker | Report ownership left as two alternatives; Expected files still overlap ENG-035, and the current snapshot carries only scalar `ImpactSeverity`/`ImpactLocation`, which cannot mark a diagram. | **Fixed.** The report work is decomposed into an ENG-036-owned damage partial (`DamageDiagramMarkup.cs`, the SVG, `report.css`, a new test file) plus two named insertions ENG-035 makes in its own files (hand-off 6). ENG-035 keeps the renderer, template and its test whole. Hand-off 2 now requires a merged, test-backed per-zone collection on `AssessmentReportSnapshot`, and Step 5 stops without it. | Confirmed: `AssessmentReportRendering.cs` / `AssessmentReportProjection.cs` expose only the two scalars; ENG-035's `files/files.md` claims all three report files. |
-| 2 | blocker | The `damage-diagram.js` loader was required of CASE-038 but appeared in no step and no Expected file, so the component could ship unreachable. | **Fixed.** Hand-off 5 now states the exact contract (layout loads the script; `window.pegasusDamageDiagram.init(sectionRoot)` called once per initial and lazy mount), Step 1 greps merged `site.js` for it and stops otherwise, and Step 6 delegates a browser assertion covering both mount paths. `site.js` stays with CASE-038 — ENG-036 does not take the lock. | Confirmed: `_Layout.cshtml` loads only `site.css` and `site.js`. |
-| 3 | blocker | `Update-TestUiSnapshots.ps1` mutates `docs/design/test-ui/**`, which the plan assigns exclusively to UIIMP-014, while the repository requires snapshots to ship with a routed-page change. | **Fixed in part, escalated in part.** Fixed: the checklist and Commands now run `-Verify` only, with a stop-and-hand-off on drift. Escalated: the underlying conflict between the same-change-set snapshot rule and the capacity-one lock is an operator/coordination decision, raised as an unticked question in `open-questions`. | Confirmed: `TestUiSnapshotTests` writes the catalogue root in `update` mode; `AGENTS.md` requires snapshots in the same change set. |
-| 4 | blocker | Commands omitted the canonical `Category!=Corpus` gate and the pinned Playwright Chromium install. | **Fixed.** Commands and checklist now carry the exact canonical three commands plus `playwright.ps1 install chromium` before the report proof. | Confirmed against `docs/runbook.md` "Locked restore, build, and test" and its report-rendering section. |
-| 5 | blocker | D44 was never a prerequisite, yet the staff-review flags and controls survive on `origin/dev`. | **Fixed.** D44 added to Governing documents; new hand-off 7 requires PLAT-070 merged; Step 1 fails closed on any surviving review flag or control, by name. The two files are `Pages/Cases/Shared/*` and stay excluded from ENG-036. | Confirmed: `_ReadinessHiddenFields.cshtml` posts `instructionsReviewedByStaff` / `imagesReviewedByStaff`; `_CaseWorkflow.cshtml` renders both staff-reviewed checkboxes. |
-| 6 | should-fix | `underside`, `interior` and `mechanical` have no top-down geometry and had no stated control; the add/remove/severity/note event contract was not wired to the posted JSON. | **Fixed.** Step 3 now specifies `OperatorLabels`-backed zone chips for the three non-geometric zones and states all four events and what each rewrites (hidden JSON, marker class, `aria-pressed`, accessible name, row list, focus). Step 4 renders the chips. | Confirmed: the mockup uses `zone-chip` controls for exactly those three; `docs/design/README.md` requires a marker per zone including them. |
-| 7 | should-fix | The task's owned paths include `tests/Pegasus.Core.Tests` damage zone tests, but the plan carried no Core proof of the contract it consumes. | **Fixed.** New ENG-036-owned file `tests/Pegasus.Core.Tests/Assessment/DamageZoneTests.cs` proves canonical zones, uniqueness, highest-severity derivation, individual wheels and the absence of `type`. ENG-035 keeps `AssessmentPolicyTests.cs`. | New file; no overlap with ENG-035's `files/files.md`. |
-| 8 | blocker | PdfPig text extraction cannot prove a marker was rendered, and the proposed test bypassed the saved-record caller. | **Fixed.** Step 5 names three assertions: a deterministic structural assertion on `DamageDiagramMarkup.Compose` output (marked set exactly equals the projected set, including an unmarked control and an individual wheel), a PDF text assertion for the diagram section and Zone/Severity/Note, and caller evidence that a saved `damage.impacts` reaches the snapshot. | Confirmed: `Pegasus.Infrastructure.csproj` has `InternalsVisibleTo Pegasus.IntegrationTests`, so the internal composer is directly assertable. |
-| 9 | should-fix | The Web "SDK content-item convention" does not exist in this repository, and the mandatory pre-PR simplification pass was missing. | **Fixed.** Step 2 states plainly that no Web linked-asset example exists, names the exact item and a publish/HTTP assertion; Step 6 and the checklist carry the dated simplification pass with dispositions. | Confirmed: `Pegasus.Web.csproj` contains only `<Content Remove="wwwroot\lib\**" />`. |
+1. Report overlap/absent collection: ENG-035 collection is now integrated;
+   ENG-029 overlap is an explicit execution stop, canonical-code correction
+   and two actual consumers now specified.
+2. Missing loader: current Case-only module already loads; use it and the
+   existing binder, no new script/loader handoff.
+3. Snapshot ownership: retain the 2026-09-03 resolved same-PR rule, exact
+   generated ownership and root serial capture, not verify-only.
+4. Verification omission: root's current focused one-heavy-owner contract
+   replaces the old broad repeated commands; actual renderer/browser proof
+   remains required, not a speculative reinstall.
+5. D44 flags: accepted PLAT-072/CASE-049 state already removed dead flags;
+   do not restore a review checkbox or add this unrelated scope.
+6. Auxiliary controls: all three auxiliary and eight broad values are
+   selectable/retained independently, plus 23 detailed regions.
+7. Core proof: reuse existing AssessmentPolicyTests instead of duplicating
+   accepted policy in a new DamageZoneTests class.
+8. Marker/saved caller proof: structural SVG, actual saved-data freeze and
+   actual PDF plus visual marker evidence all remain mandatory.
+9. Web asset/simplification: embedded SVG serves both real callers with no
+   linked static Web item; bounded independent source/simplification review
+   remains owed. D45 residue is corrected in current body, not restored.
 
-Two further items the reviewer did not raise, found during disposition and
-fixed here: `docs/design/README.md` at `origin/dev` still describes a damage
-zone as "each with Severity, Type, Note" (a D45 residue in the design
-authority) and ENG-035's `files/files.md` still says "zone/type structures".
-ENG-036 owns neither file; the README correction is raised in
-`open-questions`, and hand-off 1 already refuses a non-D45 contract.
+## Failure and stop conditions
 
-## Resolutions (2026-09-03)
+Stop on an unresolved claim, changed predecessor contract, unlisted file,
+new abstraction beyond the two-caller markup boundary, schema/package need,
+new business choice or failed test. Report and amend before proceeding;
+do not clear a historical claim, weaken assertions or invent fixtures.
 
-1. **Snapshots.** ENG-036 regenerates the Test UI snapshots its own page
-   change affects and commits `docs/design/test-ui/` with the change:
-   `./scripts/Update-TestUiSnapshots.ps1`, then
-   `./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture` and
-   `./scripts/Test-UiCatalogue.ps1`. It is serial in wave 4 and holds the
-   capacity-one lock while it runs. [[UIIMP-014]] adds new states, catalogue
-   entries and the browser walk in wave 5. Step 1 no longer stops here.
-2. **Design authority.** [[PLAT-070]] removes the damage `Type` from
-   `docs/design/README.md` in wave 1; ENG-036 edits no governing document and
-   builds against the corrected authority.
+Current stop: **Preparing, untaken; root full-plan review and path handoffs
+outstanding**. Next is kanmer-execute only after explicit root authorization
+and fresh gates/packet. Future author execution stops at independent Review,
+never self-review, merge or Done.

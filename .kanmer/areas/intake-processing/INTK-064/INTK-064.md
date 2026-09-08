@@ -2,7 +2,7 @@
 id: INTK-064
 type: ticket
 title: Automatically associate Triage with its uniquely matched formal Case
-status: verifying
+status: done
 area: intake-processing
 assignee: intake_audit
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-07T23:51:19.646Z'
   review: '2026-09-08T06:07:49.364Z'
   verifying: '2026-09-08T06:17:25.019Z'
+  done: '2026-09-08T06:35:05.182Z'
 taken_at: '2026-09-08T05:16:20.212Z'
 branch: INTK-064-triage-link-recovery
 worktree: .worktrees/intk-064
@@ -49,7 +50,7 @@ delivery_sha: 96777888bfa7ee7f85d63979a4a09ae10cda7d13
 delivery_recorded_at: '2026-09-08T06:26:18.051Z'
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T06:31:17.259Z'
+updated: '2026-09-08T06:35:05.182Z'
 ---
 
 ## What

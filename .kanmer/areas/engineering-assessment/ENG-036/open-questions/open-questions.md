@@ -30,6 +30,17 @@ already recorded; the operator may veto either in review.
   coordination only: no contract admitting `type` may ship, and ENG-036's
   hand-off 1 already refuses one.
 
+## Current execution prerequisites — 2026-09-08
+
+Historical resolutions above remain attributable. Their old wave/claim
+timings are not current release authority.
+
+- [ ] Root has fully reviewed the refreshed plan and recorded exact release
+  or narrow handoff of overlapping ENG-029 / historical ENG-034 and CASE-038
+  paths, plus serialized ENG-031 and generated-index ownership. This is an
+  execution dependency, not an unresolved D45 business rule; do not take
+  while it is outstanding.
+
 ## Parked (explicitly deferred)
 
 none
