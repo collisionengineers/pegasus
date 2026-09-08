@@ -24,3 +24,14 @@ earlier preparation phase.
 
 Generated index ownership is relinquished to UIIMP-017 as recorded in plan/files;
 TICK-035 will make no further UI or snapshot changes.
+
+## Closeout — TICK-035
+
+- [ ] PR merge verified at the exact GitHub merge SHA/date.
+- [ ] Whole PASS proof and all15 TRXs/40 captures finalized and rehashed before cleanup.
+- [x] Root moved to Done after full proof read and fresh gates.
+- [ ] Outcome, merged commit reachability and integrated-dev/not-deployed traceability recorded.
+- [ ] Remove only the two expressly authorized clean author/verifier roots.
+- [ ] Delete the exact TICK-035-principal-routes local/remote branch normally, without force.
+- [ ] Fetch/prune and confirm no other worktree or claim was changed.
+- [ ] Release the TICK-035 claim last.
