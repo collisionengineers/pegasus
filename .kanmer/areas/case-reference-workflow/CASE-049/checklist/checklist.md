@@ -19,7 +19,14 @@ Exact merge3a5ce645c: locked restore/build55.36s,56Core,32Integration,2snapshot 
 - [x] Moved to Done on exact integrated PASS.
 - [x] Outcome and integrated traceability recorded in the ticket body.
 - [x] Four author/merged TRXs copied to pegasus_pack/current/proofs/CASE-049 and source/destination SHA256 verified.
-- [ ] Remove only approved clean author and detached verification worktrees.
-- [ ] Delete only CASE-049-native-handoff with normal git branch -d.
-- [ ] Fetch/prune and confirm scoped Git cleanup.
-- [ ] Release claim last.
+- [x] Remove only approved clean author and detached verification worktrees.
+- [x] Delete only CASE-049-native-handoff with normal git branch -d.
+- [x] Fetch/prune and confirm scoped Git cleanup.
+- [x] Release claim last (after evidence preservation, record completion and scoped Git cleanup).
+
+Cleanup commands exited 0. Exact worktrees were clean and their HEAD/branch/
+Git-common-directory matched before removal. Normal branch -d succeeded
+with its expected stale shared-HEAD warning; no force was used. The exact
+remote ticket branch was deleted; fetch/prune and an empty dry-run worktree
+prune completed. Both directories/registrations and local/remote ticket refs
+are absent; archived TRX hashes still match. All foreign worktrees remain.

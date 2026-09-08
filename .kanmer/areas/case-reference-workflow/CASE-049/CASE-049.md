@@ -11,18 +11,6 @@ stageEntered:
   review: '2026-09-08T01:12:38.095Z'
   verifying: '2026-09-08T01:19:58.256Z'
   done: '2026-09-08T01:27:22.294Z'
-taken_at: '2026-09-08T00:45:33.045Z'
-branch: CASE-049-native-handoff
-worktree: .worktrees/case-049
-claim_expires_at: '2026-09-08T01:51:51.024Z'
-claim_controller: codex-mcp-client
-lease_id: e470faea-e8e9-4b06-bea3-408641c00770
-lease_revision: 5
-lease_controller_run: 20260907T231141Z-native-handoff
-lease_worker_run: pack_reconcile-case049
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\case-049'
-lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T01:21:51.024Z'
 labels: []
 groups:
   - EPIC-014
@@ -46,7 +34,7 @@ delivery_sha: 3a5ce645cfc0872d7a4324c6818497360c39cca4
 delivery_recorded_at: '2026-09-08T01:32:04.173Z'
 archived: false
 created: '2026-09-07T23:11:41.757Z'
-updated: '2026-09-08T01:32:04.173Z'
+updated: '2026-09-08T01:33:41.035Z'
 ---
 
 ## What

@@ -64,3 +64,5 @@ PR https://github.com/collisionengineers/pegasus/pull/690 targets dev at exact h
 ## Transitions
 
 - 2026-09-08T01:21:51.030Z lease-phase implementing → verifying (lease e470faea-e8e9-4b06-bea3-408641c00770 rev 5; expires 2026-09-08T01:51:51.024Z)
+
+Closeout: root-authorized exact CASE-049 author and detached verification worktrees were clean and removed normally after preserving all four TRXs under pegasus_pack/current/proofs/CASE-049 with source/destination SHA256 checks. Local CASE-049-native-handoff branch -d succeeded (warning: merged to its remote tracking branch but stale shared HEAD); no force, reset or stash. Exact remote branch deleted; fetch/prune and empty dry-run worktree prune succeeded. No foreign workspace/claim changed. Body four acceptance boxes and integrated dev3a5ce645cfc0872d7a4324c6818497360c39cca4 traceability now match final PASS proof c9b63f3798849fdf. Pre-merge autopush guard exit1 and limits preserved. Claim release is the final ownership action; FRD-01 note remains TICK-035 scope.
