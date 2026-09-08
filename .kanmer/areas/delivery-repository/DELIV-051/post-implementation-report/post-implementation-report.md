@@ -1,45 +1,34 @@
-# Post-implementation report — DELIV-051
-
-> SUPERSEDED FOR EXECUTION by the operator's expanded scope on 2026-09-08.
-> The ticket body and new checklist define the current requested outcome.
-> The previous post-implementation-report below is retained as historical evidence, not a completed
-> full-repository audit or authority to restore removed local Kanmer skills.
-> Research, file mapping and the implementation plan must be refreshed for
-> AGENTS.md, docs/**, CONTEXT.md, README.md and operator skill/removal changes.
-> New documentation is allowed as required. Current-head regression validation
-> is required; the prior build cancellation is not a waiver for the expanded work.
+# DELIV-051 implementation report
 
 ## Result
-Consolidated Pegasus guide to 409 lines (496 on fetched dev base; 552 in the originally reviewed stale shared checkout). Preserved the canonical managed block and current v1 remediation authority, ADR-0039 Windows/Linux support, release commands, product constraints and all added command/CI/fixture safeguards. Added condensed development/compatibility principles. Removed repeated prose and expired DELIV-003/046 engineering exceptions. Both local mirrors now exactly match all 39 verified Kanmer 0.4.2 distribution files.
 
-## Traceability and scope
-Base: 26ba4ed408317cccdb354dc1e115b0297f15df94.
-Implementation: d1854b4730615fae51fdc0fd2f1b8233eba5d4fa.
-Branch: DELIV-051-instructions.
-Worktree: .worktrees/deliv-051.
-Modified AGENTS.md, docs/engineering.md, docs/index.md, docs/runbook.md; 12 content files and one stamp in each .agents/.grok Kanmer mirror. Generic skill content copied unchanged from installed bundle (same bytes as Codex plugin); no custom fork. No code, schema, CI, release mechanism, operator-note meaning, board config or shared checkout changes.
+Implemented the amended operator plan at d90820295be68b7632012568879555f21fed5dcc in .worktrees/deliv-051 / DELIV-051-instructions, pushed to PR 702 targeting dev. Baseline 26ba4ed408317cccdb354dc1e115b0297f15df94; amendment package baseline af1625fae8ac8018054c95e988907f6c44fa4639.
 
-## Governing requirements
-Implements user-approved amendment, adjusted to preserve newer authoritative dev instructions. See scratch/rule-dispositions for full pre-edit inventory and fetched-base correction. Existing fix gates require no new PRD/FRD/ADR. Documentation governance remains AGENTS; index retains authority chain.
+AGENTS is 157 lines / 12,982 UTF-8 bytes; managed Kanmer block preserved. Index owns documentation placement/formatting; Kanmer retains lifecycle/allocation. Migrated operator rules into PRD/FRDs, retired operator-notes and boundaries, removed scheduling columns, separated source architecture from observed operations. Amended all fourteen answers and vetoed every proposed new skill. Existing release supports Windows/Linux. ADR-0041 through 0045 record existing/accepted technical mechanisms and partial successors. All operator vendor moves/additions and temporary review material are committed.
 
-## Verification
-Windows PowerShell 7, ticket worktree:
-- git diff --check and staged diff --check: exit 0.
+## File mapping and reasons
+
+Exact per-file inventory with hashes/actions and text patches: docs/docs-review-temp/deliv-051-full-plan/{02-affected-files.md,03a-proposed-diffs.md,baseline-and-patches.json}. These cover every outside-temp change. PR commit d90820295 additionally contains all temporary reports/review inputs. Canonical changes cover AGENTS, CONTEXT, README, docs/index, engineering/configuration, runbook, operations/current-architecture, capabilities/open-decisions, PRD, all 12 FRDs, ADR applicability/index and five records, design presentation, principal companions and reference links. Existing release/troubleshooting and Razor skill docs are reconciled; alternate older skill files retired. Vendor evidence moved by the operator is preserved. Documentation placement/link tooling and placement fixtures reflect the new owners; unused Invoke-QdosAlphaAcceptance wrapper removed because its six-column release roster and historical cohort are obsolete. Actual integration-test assertions remain unchanged.
+
+## Validation
+
+Windows PowerShell 7, implementation worktree:
 - Test-TestMarkdownPlacement.ps1: exit 0.
-- Test-DocumentationLinks.ps1: exit 0, 127 files.
-- Test-UiCatalogue.ps1: exit 0, 60 routed sources, 67 prototypes, zero broken references.
-- Managed block content parity: PASS, unchanged from base after line-ending normalization.
-- Both local skill mirrors: 39/39 files byte-for-byte equal to 0.4.2 bundle and Codex plugin; version stamps identify 0.4.2 and 12 skills.
-- dotnet restore ./Pegasus.slnx --locked-mode: exit 0, artifacts/deliv-051/restore.log.
-- dotnet build ./Pegasus.slnx --configuration Release --no-restore: cancelled, exit 1; artifacts/deliv-051/build.log. Not PASS.
-- Non-Corpus dotnet tests: NOT RUN.
-The user questioned the disproportionate .NET build for docs/skills; assistant stopped it and scoped completion to relevant documentation checks. No assertion or test behavior changed.
+- Test-MarkdownPlacement.ps1 -Base af1625fae8ac8018054c95e988907f6c44fa4639 -Head HEAD: exit 0 at d90820295.
+- Test-DocumentationLinks.ps1: exit 0, 140 files including added files and existing skills; excludes supplied vendor sources and temporary review artifacts.
+- Additional multiline relative-link/heading inspection: one stale ADR-0024 approval anchor found and repaired; initial single-line scan was insufficient.
+- Test-UiCatalogue.ps1: exit 0, 60 routed sources / 67 prototypes / no broken local references.
+- Test-CiChangeFlags.ps1: exit 0. No src/tests/infra/build-input changes; application build lane is legitimately not selected.
+- Managed block normalized parity: PASS, 157 total lines / 12,982 bytes.
+- Capability identity check: initial exact-set assertion flagged 22 CAP source IDs added to preserve prior identity references, not lost IDs. All 244 original capability IDs remain; CAP source provenance is intentional.
+- Scoped staged diff --check: exit 0 excluding supplied vendor/review artifacts. Earlier authored EOF blank-line errors fixed. Unscoped check reports preserved Markdown hard breaks, raw unified-diff context and vendor YAML whitespace; these are not rewritten at the expense of source fidelity.
 
-## Independent audit
-/root/amendment_audit found no blocking rule-loss, scope or release-behavior issues against the fetched base. Verified 39-file parity and preservation of newer safeguards. Pre-existing generic engineering MERGE AUTH wording versus task-specific grant preservation retained with reason in scratch/audit; no release-policy expansion. This audit is not a current-head Kanmer review attestation.
+Historical evidence retained: earlier locked restore exit 0; .NET build cancelled exit 1; non-Corpus tests not run. No current application execution or deployment claim follows. This diff modifies documentation and its consumers, not application behavior or renderer assets, so documentation/PowerShell/CI routing checks are the relevant regressions. No cloud writes, release, data wipe or integration performed.
 
-## Limits and follow-up
-[[DELIV-052]] records mismatch between default Kanmer receipt contract and Pegasus CI. Source-root get_status will still report old local skills until this PR integrates and the checkout is updated; ticket-worktree parity is proven. A fresh Codex host reload has not been observed and is not claimed. No deployment or post-merge proof.
+## Review round 1 / operator expansion
+
+The earlier Review-to-Implementing move was explicit operator scope expansion, not a reviewer finding return. This head therefore needs a full independent documentation review of the new scope against the amended plan and all answers. Any implementation/spec discrepancy is reported honestly; this ticket does not implement new application features.
 
 ## Next
-Independent kanmer-review of PR at d1854b4730615fae51fdc0fd2f1b8233eba5d4fa, then authorized integration and exact-merge verification/closeout. Do not rerun application rails solely for this documentation diff; document checks and skill/block parity are the relevant obligations. Retain implementation worktree and claim until closeout.
+
+Independent subagent review and comment on PR mergeability. Recheck current PR head/checks; no author merge, deployment, postmerge proof or Done transition. For eventual merged verification, rerun the documentation/placement/catalogue/CI routing checks and inspect all accepted answer contracts; preserve exact merge identity under Kanmer's configured dev integration branch.

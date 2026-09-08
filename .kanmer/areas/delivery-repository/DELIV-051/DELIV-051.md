@@ -2,7 +2,7 @@
 id: DELIV-051
 type: ticket
 title: Revamp repository documentation and agent context
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
@@ -30,12 +30,13 @@ links:
 commits:
   - d1854b4730615fae51fdc0fd2f1b8233eba5d4fa
   - af1625fae8ac8018054c95e988907f6c44fa4639
+  - d90820295be68b7632012568879555f21fed5dcc
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/702'
 deployment: n/a
 archived: false
 created: '2026-09-08T08:15:33.723Z'
-updated: '2026-09-08T12:08:46.000Z'
+updated: '2026-09-08T12:12:37.067Z'
 ---
 
 ## What
@@ -70,6 +71,6 @@ Observed additions are .agents/skills/pegasus-release/SKILL (2).md and .agents/s
 
 ## Current state
 
-Explicit operator return from Review to Implementing on 2026-09-08. Reuse branch DELIV-051-instructions and worktree .worktrees/deliv-051; continue PR #702. Prior implementation and checks are historical evidence only. Immediate request: update tracking, comment on PR and commit/push the supplied worktree changes; full audit/replanning and regression validation remain pending. Related receipt-contract follow-up: [[DELIV-052]]; no CI/board-policy change is implied.
+Implemented the amended full documentation plan and all fourteen operator answers at d90820295be68b7632012568879555f21fed5dcc, pushed to PR #702 on DELIV-051-instructions. All new skills vetoed; useful procedures remain in documentation and existing owners. All supplied worktree changes, including vendor relocations, are committed. Documentation placement/link/catalogue/classifier regressions passed; no compiled code or renderer asset changed. Current-head independent review and mergeability comment are the final requested actions. [[DELIV-052]] remains separate. No merge, deployment, data wipe or Done transition is authorized by this task.
 
 ## Outcome
