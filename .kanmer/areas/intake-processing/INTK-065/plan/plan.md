@@ -16,8 +16,9 @@ v7. Full original-input regeneration is unavailable on this host and is not
 PASS.
 
 Root approved a narrow supplemental EPIC-014 handoff: phase 1 may edit the
-generator and Core test and perform the exact byte-identical documentation
-relocation plus index repair. The generated package and every command remain
+generator and Core test, relocate both documents preserving their starting
+bytes, add the narrow planned historical-versus-current clarification to README,
+and repair the index. The generated package and every command remain
 for the root-held verifier slot. INTK-060 and historical A/Foundation, Closed,
 and C/Domain records remain untouched.
 
@@ -43,8 +44,9 @@ Correct the existing generator/test inventory for:
 
 The first three replace deleted QDOS paths; extraction changes only its ID;
 shared taxonomy changes only bytes/hash. Preserve all historical v5 evaluation
-and evidence objects. Relocate README.md and qdos.md exactly, then repair only
-the index target. Use the existing helper for the tracked JSON only after root
+and evidence objects. Relocate README.md and qdos.md preserving their starting
+bytes; then add the narrow historical-v1/current-source clarification to README
+only, leave qdos.md byte-identical, and repair only the index target. Use the existing helper for the tracked JSON only after root
 grants the verifier slot; add no CLI, refresh framework, source copy, or
 compatibility alias.
 
@@ -56,7 +58,7 @@ compatibility alias.
 | Modify | `tests/Pegasus.Core.Tests/ReferenceData/PrincipalIdentificationCorpusTests.cs` | Matching expectations and diagnostics; no test run in phase 1. |
 | Rename from | `docs/principal-rules-and-mappings/README.md` | Byte-identical source. |
 | Rename from | `docs/principal-rules-and-mappings/qdos.md` | Byte-identical source. |
-| Rename to | `docs/principal-profiles/README.md` | Byte-identical destination. |
+| Rename to and clarify | `docs/principal-profiles/README.md` | Preserve moved bytes, then add only the planned historical-v1/current-source clarification. |
 | Rename to | `docs/principal-profiles/qdos.md` | Byte-identical destination. |
 | Modify | `docs/index.md` | Replace only the moved README target. |
 | Modify (verifier slot only) | `reference/workproviders-and-repairers/principal-identification-corpus.v1.json` | Existing-helper output only. |
@@ -87,12 +89,12 @@ deviation stop.
 
 - Preconditions: fresh ticket worktree from the approved dev base and the recorded narrow handoff.
 - Files: `scripts/reference_data/build_principal_identification_corpus.py`, `tests/Pegasus.Core.Tests/ReferenceData/PrincipalIdentificationCorpusTests.cs`, `docs/principal-rules-and-mappings/README.md`, `docs/principal-rules-and-mappings/qdos.md`, `docs/principal-profiles/README.md`, `docs/principal-profiles/qdos.md`, `docs/index.md`.
-- Change: correct the five source declarations/expectations; rename the two docs byte-identically; change only the matching index link.
+- Change: correct the five source declarations/expectations; relocate both documents from their starting bytes; add only the approved historical-v1/current-source clarification to README; keep qdos.md byte-identical; change only the matching index link.
 - Preserved behavior: all existing test assertions, historical package objects, evaluation/cohort data, runtime source, and original inputs.
 - Forbidden: script/test execution, JSON generation/edit, historical-document rewrite, policy alias, or unapproved path.
 - Commands: none; phase 1 explicitly runs no project script or test command.
 - Negative cases: a stale/missing source declaration, wrong policy ID/version, or changed rename bytes is recorded as a failure, never fixed by an alias or rewritten history.
-- Expected output: seven declared phase-1 paths only; each moved document has identical bytes at its new path; the index has one target replacement.
+- Expected output: seven declared phase-1 paths only; qdos.md is byte-identical at its new path; README differs from its moved starting bytes only by the approved clarification; the index has one target replacement.
 - Tests: none; reserved for Step 2.
 - Done when: the seven phase-1 paths are the only worktree changes and byte equality of each documentation rename has been established.
 - Deviation stop: any content change in a relocated document other than its path, any unexpected index diff, or any package/runtime change.
@@ -132,9 +134,10 @@ deviation stop.
    and the only index modification points to the new README path.
 3. Manual: historical evaluation summaries, evidence items, cohorts,
    crosswalks, and criterion states remain unchanged.
-4. The verifier slot, if granted, supplies real exits for the named focused
-   checks. Full original-input regeneration remains unavailable and is not
-   claimed.
+4. The next verifier slot must rematerialize the final generator output once;
+   materialization 0 is superseded by this source clarification and is not final
+   accepted evidence. Full original-input regeneration remains unavailable and
+   is not claimed.
 
 ## Commands
 
@@ -149,7 +152,8 @@ pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1
 ```
 
 Record every invocation and exit; preserve failures. The existing helper
-invocation is recorded verbatim in the implementation report.
+invocation is recorded verbatim in the implementation report. Materialization 0
+precedes the final clarification and is retained as superseded, not accepted.
 
 ## Failure and deviation rules
 
@@ -161,6 +165,6 @@ INCONCLUSIVE, never a substituted PASS.
 ## Stop condition
 
 Stop phase 1 with the bounded source/test/document diff frozen for root's
-verifier decision. After root grants the verifier slot and Step 2 succeeds,
+next verifier-slot decision; materialization 0 remains retained but superseded. After root grants the verifier slot and Step 2 succeeds,
 stop at a draft PR in Review for independent review; do not self-review, merge,
 write proof, close out, or start another ticket.
