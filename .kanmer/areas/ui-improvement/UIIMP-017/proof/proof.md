@@ -181,5 +181,11 @@ merge cdaa02584c38ecc27d3bd24784f59da189138bc1 reachable from origin/dev.
 All six delivered file blobs equal reviewed author inputs; no full-tree
 identity claim is made. Both exact owned worktrees were clean, had the correct
 heads/branch or detached state and common source Git directory; no other
-ticket claims either path or branch. Only the authorized two roots/local and
-remote branch will be removed normally; claim release remains last.
+ticket claims either path or branch. Only the authorized two roots and exact local/remote branch were removed
+normally without force from the shared checkout. Local branch deletion used
+`-d`; Git noted its upstream had the same head although the stale shared HEAD
+is not its ancestor. Reachable squash merge and delivered six-file equality
+were checked separately above. Fresh path, worktree-registration and local/
+remote-ref checks confirm absence. No broad prune touched other registrations.
+All 15 retained files were hash/length checked again after cleanup. Claim
+release remains the final ownership action.
