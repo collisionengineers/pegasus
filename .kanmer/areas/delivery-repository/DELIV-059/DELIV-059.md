@@ -2,10 +2,12 @@
 id: DELIV-059
 type: ticket
 title: Restore release-39 history to the canonical operations record
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-08T16:08:50.581Z'
 labels:
   - documentation
   - release-evidence
@@ -21,7 +23,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-09-08T16:07:49.662Z'
-updated: '2026-09-08T16:07:49.662Z'
+updated: '2026-09-08T16:08:50.581Z'
 ---
 
 ## What
