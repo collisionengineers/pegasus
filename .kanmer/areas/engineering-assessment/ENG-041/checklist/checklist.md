@@ -30,7 +30,7 @@ Root approved the seven-file correction and assigned principal_delivery_audit;
 root/another independent agent must review the follow-up, not that author.
 
 - [x] Validate exact retained clean worktree/branch/common Git and live lease; obtain root approval and bounded correction scope.
-- [ ] Reuse source query/mappings and reject changed complete census at freeze; preserve lease/version during atomic automatic custody invalidation.
-- [ ] Align the existing SQL fixture and add meaningful custody/replay/source-race assertions; clarify FRD-06 only.
-- [ ] Freeze source and report exact focused filter to root without author build/test; retain original FAIL and prior attempts.
+- [x] Reuse source query/mappings and reject changed complete census at freeze; preserve lease/version during atomic automatic custody invalidation.
+- [x] Align the existing SQL fixture and add meaningful custody/replay/source-race assertions; clarify FRD-06 only.
+- [x] Freeze source and report exact focused filter to root without author build/test; retain original FAIL and prior attempts.
 - [ ] Record root focused verification and submit a new dev-targeting follow-up PR for independent review, then exact-merge proof.

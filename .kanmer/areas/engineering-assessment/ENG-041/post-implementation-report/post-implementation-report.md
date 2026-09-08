@@ -230,3 +230,95 @@ reviewed head without rewriting it. Same PR683/branch, dev target; three files,
 commit. Root-authorized [skip ci] avoids duplicate speculative rails; independent
 review/checks and later exact-merge verification remain separate obligations.
 Worktree is clean after push. Hand off for independent SHA-bound delta review.
+
+## Post-merge correction — frozen for root verification
+
+Root's exact merged proof73d3327f6364834c is FAIL at
+baafa29e0f7002b8235aa43bf333f5d9bb172828: locked restore/build and Core56 passed;
+Integration157 passed and two actual Glass callback tests failed, expecting
+Completed but receiving AwaitingImport. The full proof/TRXs, original failures,
+review findings and earlier passes remain unchanged. No deployment claim.
+
+Root approved correction planf0aa4318d6dca111/files1d4c177e23c8d8b9 and assigned
+principal_delivery_audit as AUTHOR for this follow-up. That agent's earlier
+independent PR683 review is historical and cannot review this correction.
+Approved execution stop is plan c096b7ddf32366de. The retained claim/root/
+branch/common Git were validated; only ENG-041 names this worktree.
+
+### Base refresh and explicit merge exception
+
+Normal non-rewriting merge of accepted dev
+19e6f523bf6760cab39104b4dca3674b0ac8a512 into the clean retained author8bbceb4
+paused at one generated snapshot conflict. Root inspected and authorized
+merge-only resolution to the exact accepted-dev blob, performed with apply_patch:
+docs/design/test-ui/pages/case-details--conflict.html.
+Resolved and accepted blob both97f00094f956f20e37a873125150cb9c1f0ce17c.
+Auto-merged application/test paths and then the whole tree compared equal to
+accepted dev; no unmerged path remained. Normal merge commit
+188d3e16fd0b93a78e37a0dbc5483f5bd06410f5 preserves parents
+8bbceb4fd190ae80a8b656540fd0ae5973f49895 and19e6f523bf6760cab39104b4dca3674b0ac8a512.
+This exception is not future snapshot edit authority; the correction has no UI
+change and no generated-file delta against accepted dev.
+
+### Correction and actual callers
+
+Seven files, +208/-69, uncommitted over that merge; source is frozen.
+
+- EfCaseArtifactCustody removes automatic workflow load/version increment/lease
+  clearing. The existing immediate and reconciliation confirmation transactions
+  still atomically save source staleness/history and exempt actual report-output
+  operation identities. Explicit staff Add/Remove commands stay unchanged.
+- EfAssessmentReportProjectionSource extracts its exact existing confirmed
+  occurrence/version query and two mappings into internal static helpers in the
+  same class. Its existing row is reused, not a new DTO/interface/store. Query
+  preserves Case scope, matching document/version, current/not removed/Confirmed,
+  generated-output operation exclusion and ordinal order.
+- EfCaseReportGenerationStore uses those helpers inside its existing serializable
+  freeze transaction, after ordinary authority/version checks, before readiness,
+  generation reuse and writes. Ordered full source records and all occurrence-
+  keyed confirmed metadata must equal captured inputs. A content-safe ordinary
+  refusal writes nothing on mismatch. Existing Case-version/signatory guards
+  remain; no provider version refresh, guard bypass or lease reacquisition.
+- GlassRepairEstimateCallbackWebTests preserves both failing journey assertions
+  and adds Case-version accounting: only imported Draft is a Case mutation;
+  duplicate callback adds none.
+- CaseArtifactCustodyRecoveryTests proves actual immediate/recovered custody
+  preserves current Case version/live token/holder/expiry and exact identity
+  replay. Existing pending/reconciliation/removed-document tests retain meaning.
+- Reports/CaseReportGenerationPersistenceTests snapshots the complete mapped
+  fixture census once, preserving stale-input behavior. Independent persisted
+  mutation cases exercise addition, removal, equal-size changed occurrence,
+  logical version, hash, name, media, length, Box file/version, currentness and
+  custody state. Outside authority still passes at unchanged Case version, while
+  freeze refuses with no generation/artifact. Existing runtime-role assertions
+  now prove stale output and preserved authority, not arbitrary version2.
+  Frozen sources explicitly include all three seeded documents with exact IDs.
+- FRD-06 Glass's section states own artifact retention preserves valid authority;
+  genuine intervening edits/expired or lost lease still defer import. FRD-11 and
+  CASE-049 handoff/access files are unchanged; no current file overlap.
+
+The production route remains callback -> Glass ExportAsync ->
+registered EfCaseArtifactCustody -> FinishAsync -> ImportRawEstimate ->
+existing estimate mutation. Report generation uses its existing projection and
+freeze port. No new package/schema/grants/runtime/provider/cloud call.
+
+### Author checks and requested root evidence
+
+Author `git diff --check` exit0 (CRLF normalization warnings only), plus bounded
+source/caller/metadata inspection. No build, test, snapshot capture, CI, provider
+or cloud call. Code inspection and authored assertions are not runtime PASS.
+
+Exact requested Integration filter:
+
+FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheSameReturnDeliveredTwiceRecordsNothingASecondTime|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.FailedWriteLeavesOnePendingIntentAndReplayUsesTheSameVersionIdentity|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.AutomaticCustodyPreservesLiveCaseAuthority|FullyQualifiedName~Pegasus.IntegrationTests.Reports.CaseReportGenerationPersistenceTests
+
+Root owns the needed build and focused Integration project test command with
+--configuration Release --no-build and its uniquely named correction TRX.
+Do not rerun unchanged157 just for this fix. Original proof's missed
+default/conflict/unavailable captures remain root's separate final evidence
+obligation using PEGASUS_TEST_UI_CAPTURE_DIR, not incorrect former variables.
+
+Stop before commit/push/Review until root supplies actual results. Since PR683
+is merged, the later approved handoff needs a NEW dev-targeting follow-up PR,
+not an update claimed against a closed PR. Independent review and exact-follow-up
+merged verification remain owed. Worktree/claim and original FAIL are retained.
