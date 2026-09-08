@@ -220,3 +220,14 @@ The separately reported obsolete `scripts/PegasusPlatform.ps1` browser-evidence 
 Canonical prior IDLE9674519a8465b055 read; current clean HEAD e8bc3fcb47b2b47e405c806d17314cccefc71e26. /root/final_verifier sole ACTIVE CEALEX-May25 slot. This head commits the exact already-tested generated Integration lock plus one textual Linux certificate repair hint in scripts/PegasusPlatform.ps1; no application/test/CI/doc logic changed since last PASS. Run ONLY pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1, PowerShell Parser for scripts/PegasusPlatform.ps1, and git diff --check, each with exact exits. No build/restore/application tests/browser/capture/installer/cleanup/source edits/PR. Fresh packet/root/process checks as usual. First failure stop. Record results and BOTH IDLE promptly, return lease implementing. Reuse prior 80PASS6skip/build/doc/script evidence truthfully for unchanged inputs.
 
 - 2026-09-08T23:34:54.551Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 78; expires 2026-09-09T00:04:54.538Z)
+
+## Final text-only runtime hint verification result — 2026-09-09 — PASS
+
+Sole verifier `/root/final_verifier` read the fresh resumed packet and both final grants, then preflighted clean frozen HEAD `e8bc3fcb47b2b47e405c806d17314cccefc71e26` on the exact recorded INTK-066 worktree/branch/common repository with no host process. The delta from tested `6c58bdf1cfa5f238d505956e9ab4e59a9eb32035` was exactly the committed Integration lock regeneration plus the one-line `scripts/PegasusPlatform.ps1` Linux certificate hint change.
+
+Only the three authorized checks ran:
+1. `pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1` — exit 0: release workstation/manifest contract passed for win-x64, Windows/Linux mappings checked, LocalDB state classification passed.
+2. PowerShell Parser on `scripts/PegasusPlatform.ps1` — exit 0, 0 parse errors.
+3. `git diff --check` — exit 0.
+
+Final census `2026-09-08T23:34:47.4638803Z`: exact head/branch, clean tracked and untracked status, no dotnet/MSBuild/testhost/vstest process. No restore, build, application test, browser, capture, installer, cleanup, edit, commit, push or PR action occurred. Prior build and 80-pass/6-skip focused evidence remains the applicable evidence for unchanged application inputs. Lease returned to `implementing`, revision 78. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
