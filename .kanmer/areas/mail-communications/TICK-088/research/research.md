@@ -82,3 +82,168 @@ TICK-088 should execute after TICK-054 (MAIL-13), which itself follows TICK-049/
 ## Open questions and assumptions
 
 The operator has already settled full feature scope, configured signatures, approved live recipient and the exact just-in-time approval requirement. No further product question is required for planning: the existing administrator-approved-mailbox setting is the narrow owner for per-mailbox signature content/version and outbound-send enablement. Missing signature/configuration fails closed. Provider/tenant attachment ceilings are runtime facts and visible adapter outcomes, not a fabricated Pegasus limit.
+
+## Current v1 residual audit — 2026-09-08, intake_audit
+
+Evidence base: accepted dev
+`96777888bfa7ee7f85d63979a4a09ae10cda7d13`, read with `git show` /
+`git grep`; no checkout/source mutation. TICK-088 remains Preparing and
+untaken. Research/plan/files/checklist/questions from 2026-08-20 were read
+fully and are retained in history; this continuation supersedes their
+as-built premises, not the recorded operator answers. EPIC-006 context and
+current FRD-08/ADR-0036 were read in full, relevant protected operator notes,
+design mail rules, Astra A03/C08 and coverage review were inspected.
+No build, test, capture, Graph call, mailbox or cloud write occurred.
+
+### Scope and authority reconciliation
+
+The checked 2026-08-19 answers in open-questions@dd41e2942e0b64b3 require
+Bcc, saved drafts, configured per-mailbox correspondence signatures and exact
+send confirmation. A missing/disabled signature must fail closed; report
+signatory image assets are not correspondence signatures.
+Astra A03/C08 implemented a narrower To/Cc, Case/Triage-context transport
+slice. `v1_implementation_plans/review/coverage-review.md:34` explicitly
+defers generic composer behavior. Therefore neither a historical broad
+activation nor Astra's implemented transport alone proves full MAIL-12
+acceptance. Root has assigned this residual preparation; implementation
+scope still needs the proposed plan's explicit decisions.
+
+Current FRD-08 says no autonomous, scheduled or Automation Actor send.
+That current authority supersedes the old ticket sentence permitting
+Automation submission. MAIL-17 report delivery/readiness and MAIL-19
+scheduled chasing stay separate. Non-Case composition remains excluded
+under root's current instruction; no nullable-context redesign is proposed.
+Only `digital@collisionengineers.co.uk` is a positive test recipient and
+this preparation authorizes no actual messages.
+
+### Verified production path and missing behavior
+
+1. **Existing durable transport is real.**
+   `Core/Operations/StaffMailSend.cs:26–32` carries mode, original,
+   Case/Triage context/version, To/Cc, body, attachments and operation key.
+   `StaffMailSendEngine.cs:154–239` validates staff, persists Prepared,
+   obtains the existing execution lock, validates exact attachment bytes
+   and encoded size, creates or recovers a provider draft, attaches and
+   sends. Same-key changed payload conflicts. Submitted is not Sent and
+   Unknown never blindly resends. The existing Sent poll and operation
+   correlation are not replaced.
+2. **A provider draft is not a saved composer draft.**
+   `EfStaffMailSendStore.PrepareAsync:92–130` already stores To/Cc JSON,
+   subject, body, selected attachment references, original identities,
+   actor/context, payload hash, state, version and concurrency token in
+   `StaffMailSendOperationEntity` (V1FoundationEntities). However,
+   `IStaffMailSend` exposes Send/Get/GetLatest/Reconcile/Cancel only;
+   it has no user Save, editable load/update or draft-list contract.
+   Send creates Prepared and proceeds toward Graph in the same call.
+   GET returns operation status, not editable composition.
+3. **Bcc is absent end to end.** No Bcc member in command, persisted
+   Recipients, either composer binding, or
+   `GraphStaffMailSender.BuildMimeMessage:140–175` (To and Cc only).
+   The adapter already uses MimeKit and the chosen Graph base64 MIME route.
+   Microsoft documents BCC as an applicable MIME header for that existing
+   endpoint; no SDK/new API is needed:
+   [Create message](https://learn.microsoft.com/en-us/graph/api/user-post-messages?view=graph-rest-1.0).
+   The [message resource](https://learn.microsoft.com/en-us/graph/api/resources/message?view=graph-rest-1.0)
+   also has bccRecipients. These public docs were checked on 2026-09-08;
+   they do not supply Pegasus acceptance or authorize any write.
+4. **No mailbox signature configuration exists.**
+   `ApprovedMailbox` and UpdateApprovedMailboxRequest expose StaffSend,
+   Generation and VerifiedEncodedMessageSizeLimit but no correspondence
+   signature. AdministrationPolicyEntities/ModelConfiguration and
+   EfApprovedMailboxStore agree. The existing Administrator-owned mailbox
+   update, optimistic Version and history are the correct extension point.
+   A signature-only change must not restart Inbox/Sent retention or increment
+   their activation generation. No report signature asset may be borrowed.
+5. **No exact saved-version confirmation.**
+   `Compose.cshtml` renders a form directly targeting Send;
+   `ComposeModel.OnPostSendAsync:115–211` directly calls IStaffMailSend.
+   Message.cshtml lines 227–300 contains another inline editable form whose
+   Send button targets Reply/ReplyAll/Forward. It is not a confirmation
+   dialog. MessageModel.SendCorrespondenceAsync checks current retained
+   context and calls the same send port. Neither path previews and confirms
+   an exact persisted version. The earlier audit shorthand calling this a
+   confirmation dialog was corrected to root before this document.
+6. **New compose lacks a production entry.** A whole Web source search
+   found no link to `/Mail/Compose` or `/Inbox/Compose`; the route exists
+   and tests call it directly. Message's header exposes Reply/Reply all/
+   Forward only. `_CaseCorrespondence.cshtml` is query-mail rows, not a
+   New-mail action, and is conditional on those rows existing. A Case-context
+   entry and draft resumption must be wired without relying on manual URLs
+   or exposing a raw Case GUID input.
+7. **Current source and context checks need preserving and completing.**
+   Reply defaults use retained Reply-To, or original From only when that
+   header is absent; missing/unusable targets refuse, and ReplyAll excludes
+   the approved sender. Forward accepts explicit To/Cc. These predicates
+   currently live in MessageModel and must move intact if one composer
+   replaces the duplicate forms.
+   The Web checks Case version before sending, but
+   `EfStaffMailSendStore.MapExecutionAsync:394–432` only validates
+   CaseReport generation/artifacts. GeneralCorrespondence's final Core
+   provider boundary has no persisted Case-version/current-association
+   recheck. Exact draft confirmation cannot rely solely on that earlier
+   Web read.
+8. **Known source restrictions remain.** The attachment resolver already
+   lists/resolves retained Case versions and Intake asset identities through
+   the existing logical-document boundary; no upload framework is required.
+   Report/Triage purposes already share the transport but their eligibility
+   remains owned by their current callers. No email-specific Case edit lease
+   or lifecycle effect is invented.
+
+### Smallest candidate design, not approved execution
+
+Reuse the existing operation row/body/recipient fields and existing
+EfStaffMailSendStore rather than creating a second mail table/store. An
+explicit pre-confirmation `Composing` state can make that row mutable only
+while it has no provider attempt. Save/GET remain local SQL actions.
+Confirmation atomically freezes its version/hash into the existing Prepared
+state; provider workflow then uses the existing operation identity/lock.
+The active-original SEND exclusion must ignore editable draft rows but still
+allow only one frozen/in-flight send across actors. A saved draft is owned
+by its staff author and cannot be edited by another actor or after freezing.
+Existing current-role/version/history checks and safe oversize reporting apply.
+
+This needs a narrow current schema migration for the state constraint,
+mailbox signature content/version and its frozen identity on the operation;
+no new table, migration stream, grant or worker is justified. Existing
+StaffMailSendOperations grants are already SELECT/INSERT/UPDATE for the Web
+and Worker; the actual restricted Web caller and Worker negative command
+authorization still need focused proof. Bootstrap's existing table census
+is context, not an excuse to broaden permissions.
+
+A local SQL save is the recommended minimal interpretation of resumable
+drafts. Earlier research described provider-native editable draft updates.
+No current requirement proves that editing must be visible in Outlook before
+staff confirms sending, so this distinction is an explicit root decision,
+not a silent compatibility path. Also decide the bounded signature application
+scope (proposed: this human-authored GeneralCorrespondence composer;
+MAIL-17/Triage semantics stay separate).
+
+### Existing owners and evidence
+
+- MAIL-026/MAIL-027 remain Backlog, untaken, and describe partly integrated
+  original UI/transport plus separate Flag/Delete/EVA-detection work. Preserve
+  links/history; do not absorb their unrelated behaviors or claim them Done.
+- MAIL-030 is the explicit owner of the approved default outbound mailbox
+  setting. FRD-08 requires that default for New; current Compose instead
+  offers a selector. Do not invent a first-mailbox fallback or duplicate the
+  setting. Root must sequence that owner or authorize a precise handoff.
+- ENG-029/ENG-031/ENG-036 share prospective Case action/generated/README
+  paths; TICK-085 still has a Verifying DI claim. No claim is released by
+  this audit. A fresh exact path census is required before execution.
+- Reuse StaffMailSendTests, StaffMailSendPersistenceTests,
+  StaffCorrespondenceWebTests, ProductionGraphSourceTests,
+  ApprovedMailboxAdministrationWebTests and AzureSqlRuntimeRoleMigrationTests.
+  Existing attachment/thread/Unknown/replay assertions remain. Use recording
+  HTTP only; positive recipient digital@collisionengineers.co.uk, no sends.
+  Tests written around the old direct Send must be updated to the actual
+  save/confirm caller, not deleted.
+- The configured Kanmer source survey returned zero declarations. No missing
+  plugin, provider install, Entra grant or live activation is requested.
+
+### Open decisions before dispatch
+
+Root must confirm the bounded Case-only v1 residual, local resumable draft
+state on the existing row, signature format/scope and exact MAIL-030 default
+sender sequencing. Explicit current FRD/design/capability synchronization
+and path handoffs must be approved before take. Those are plan stops, not a
+false Done or credential-block claim.
