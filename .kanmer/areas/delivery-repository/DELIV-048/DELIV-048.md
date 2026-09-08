@@ -2,7 +2,7 @@
 id: DELIV-048
 type: ticket
 title: Restore Windows and Linux release workstation support
-status: review
+status: verifying
 area: delivery-repository
 assignee: principal_delivery_audit
 profile: fix
@@ -41,7 +41,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/701'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-08T07:10:27.921Z'
+updated: '2026-09-08T07:11:44.472Z'
 ---
 
 ## What
