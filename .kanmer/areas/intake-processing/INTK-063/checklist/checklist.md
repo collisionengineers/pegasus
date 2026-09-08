@@ -35,11 +35,11 @@ root's subsequent responsibility.
 
 ## Closeout — INTK-063
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`).
-- [ ] Whole proof finalised (PR URL, merge date and retained failure artifacts).
-- [ ] Moved to final stage by root from accepted whole PASS proof.
-- [ ] Outcome and reachable integrated-dev traceability recorded in ticket body.
-- [ ] Rehash all five retained/source TRXs and confirm exclusive clean exact roots.
+- [x] PR merge verified (`gh pr view --json state,mergedAt`).
+- [x] Whole proof finalised (PR URL, merge date and retained failure artifacts).
+- [x] Moved to final stage by root from accepted whole PASS proof.
+- [x] Outcome and reachable integrated-dev traceability recorded in ticket body.
+- [x] Rehash all five retained/source TRXs and confirm exclusive clean exact roots.
 - [ ] From shared source root, normal removal of only author and exact merged verification worktrees.
 - [ ] Delete only INTK-063-image-link-recovery local/remote branch (normal -d first; squash fallback only if justified).
 - [ ] Verify exact refs/worktree registrations absent; omit global prune to preserve all foreign records.

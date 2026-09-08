@@ -2,13 +2,15 @@
 
 ## State
 
-Source frozen after the approved four-failure fixture correction on
-2026-09-08. Partial runtime evidence exists below; not fully verified or delivered.
+Local integration milestone passed on 2026-09-08; source frozen for publication
+and independent review. Four readable originals and canonical callers passed;
+genuine fifth OCR/full-row and exact-merge acceptance remain outstanding.
 Branch TICK-085-glass-pdf-import; worktree .worktrees/tick-085.
 HEAD/base cdaa02584c38ecc27d3bd24784f59da189138bc1.
 No author build, test, capture, commit, PR, provider or cloud call.
-Plan 1432dbe470b90de2; files 53c037ca57c47e28, both read back.
-29 source/doc/test paths: 26 modified, 3 added; generated UI still owed root.
+Plan 94560a72b43c9aad; files 53c037ca57c47e28, both read back.
+29 source/doc/test paths: 26 modified, 3 added. Three scoped UI snapshots and
+index were regenerated; all four generated blobs are unchanged against HEAD.
 
 ## Implementation
 
@@ -270,3 +272,113 @@ filter above and a new uniquely named TRX. This correction run is not yet
 executed. Fresh scoped Case captures/snapshot verification and the genuine
 fifth OCR acceptance remain outstanding. Author git -c core.safecrlf=false
 diff --check passed exit 0 after the batch; no other source correction.
+
+## Third root runtime attempt — corrected cohort PASS
+
+Root session 30380 exited 0. Incremental Integration-project Release build
+passed in 24.32 seconds, zero warnings or errors. The exact 19-method filter
+above then passed 19/19, no skipped cases, in 1m54s. This closes all four prior
+runtime failures while exercising every shared-helper consumer. Unchanged
+Core 61 and the original 113 passing Integration cases were not rerun.
+
+Actual read-back evidence:
+
+- tests/Pegasus.IntegrationTests/TestResults/tick-085-mcp-fixture-corrected.trx
+- SHA-256 F433320506201D247CFCD02990361D8F2CA1E134526982B0E389BDD2957FFAD3
+- UTC start 2026-09-08T04:44:44.6868213Z;
+  finish 2026-09-08T04:46:41.9300965Z.
+- Counters: total/executed/passed 19; failed/notExecuted 0.
+
+Root used dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
+--configuration Release --no-restore, then dotnet test on the same project
+--configuration Release --no-build --filter with the exact 19-method block
+above and --logger 'trx;LogFileName=tick-085-mcp-fixture-corrected.trx'.
+No source correction followed this PASS.
+
+## Fresh scoped Case capture and snapshot PASS
+
+Root session 4872 exited 0. The following three actual Integration methods
+passed (37s, no skips), with PEGASUS_TEST_UI_CAPTURE_DIR set to this worktree's
+absolute artifacts/test-ui-capture path, PEGASUS_TEST_UI_SCOPE=case-details
+and PEGASUS_TEST_UI_MODE unset. Root verified the capture directory was absent
+before creating it. Actual capture command used the Integration project,
+--configuration Release --no-build, the three selectors below prefixed with
+FullyQualifiedName= (exact equality), joined by |, and
+--logger 'trx;LogFileName=tick-085-case-capture.trx'. No --results-directory:
+project TestResults is the default.
+
+```text
+Pegasus.IntegrationTests.CaseDetailsWebTests.NativeHandoffDialogPostsWithoutEvaOrASeparateReviewAction
+Pegasus.IntegrationTests.CaseDetailsWebTests.WorkflowPageBindsReviewReturnEngineerAssignmentFindingAndLinkedReplacement
+Pegasus.IntegrationTests.TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor
+```
+
+Actual read-back evidence:
+
+- tests/Pegasus.IntegrationTests/TestResults/tick-085-case-capture.trx
+- SHA-256 F732D7D897C3F0E0D407329096A89411867C41356BE78A104E78136028AD3BAB
+- UTC start 2026-09-08T04:49:58.6557720Z;
+  finish 2026-09-08T04:50:38.1385033Z.
+- Counters: total/executed/passed 3; failed/notExecuted 0.
+
+Root ran the existing scoped scripts, without any author recapture:
+
+```powershell
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -SkipCapture -Scope case-details
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details
+pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1
+```
+
+Update: 3 PASS (225ms). Verify: 3 PASS (6s). Catalogue: 60 routes,
+67 prototypes, 0 broken references, PASS. No manual visual pass is claimed.
+
+### Exact generated-output read-back
+
+All four regenerated files have identical Git blob identities to HEAD; their
+actual scoped delta is empty. There is no artificial snapshot/index change.
+
+| Path below docs/design/test-ui/ | Git blob equal to HEAD | Raw file SHA-256 |
+| --- | --- | --- |
+| index.html | 4e463fe695dd302661b57e21b2e7e41b2a0456da | 1BE76F3D947FD8960E344A7FD639CEAE730CCD253C4895463C7E038771D7B774 |
+| pages/case-details--conflict.html | db0dca6eaab240a063c28dd755810b1e4cae355a | BC16152E6627794B49D13E2D51B71528798CC10E9F670D6A823A3C98757318D6 |
+| pages/case-details--default.html | c5f876a698b7f61db94619521f9a95cd0698535c | B615BD4EB8601178A4B1A61A0D0C667F089FE3BAE730DAFA4115ACA71F416F9A |
+| pages/case-details--unavailable.html | 3ad1889e4f34e240922560c492058689c9a7663d | CE0D0A707F319734AC927AD4602CB32D1655BE8326C78B505DE54F7834CBCD9E |
+
+### Retained raw capture census
+
+All 12 response pairs (24 files) are retained under artifacts/test-ui-capture.
+The directory is local ignored evidence; the following binds both response
+files in each directory without publishing source bytes or identifiers.
+
+| Directory | response.html SHA-256 | response.json SHA-256 |
+| --- | --- | --- |
+| 05b320db6df724062b22f7164c55db116eff24484491c118e1bd9c57f399dfba | E9FF3E1170FBBECDB5F7F1B5BC965FC38E2A3C738738CE2E5895D2D0DFDC59B5 | C74E959F23F8988E22E05009E2F26E17583D2F4CF35FE3A38FF2234574133437 |
+| 06c323dda0e925277fcd5fe6e2b913c9888dda456d05be0ea63dd590afb6f052 | FDCF81702A2349C3180AB071C5E5B93EADD3E1F58A7893F83310BD3723022A3B | 5930994A826E2E8246986FA04A47BDBF0D90B8B0A3FC8EAD565D2735EFC3E31C |
+| 1a56a58e106e61883b492684fbde2decf5e8883f3904849b4103ab7d64d62119 | C4296F0CA742928EABA5788E201A90A28958355FC3635E84C1385629808C0F0F | 5930994A826E2E8246986FA04A47BDBF0D90B8B0A3FC8EAD565D2735EFC3E31C |
+| 2af1762fd61f4eacbe37cc26a5c324904efc1c968a5bc5aedef3049b29b9e255 | A8B9BC5F367B2093A67E819B399BC22359587C48E560EBADFF76D7BF685A9578 | 686CF1940BA9B2A8F8C620C4E11517AB58EF2C29E6E8333C97BB92340D203A0E |
+| 2caea859ec8aa4def4041bb30cbee7657ef77522cda0a7b67c8ff753db9237a3 | A6C6D823C6798557E0D4C469A5E943AC1F957A7DCA8CC8A7CBBF618B0562787C | AB99805CDECA6E92BD422BD6C44877138E56A035EA7731F3C9F61F3456890CB9 |
+| 4df81c46be2b6f757271bad3cefa53e0cabc8dd3a61591eed67c8f1403051908 | 58ECDB23535656F1BB516BB7BBEFCD8CFD8622C92359DA92D230879341149449 | AB99805CDECA6E92BD422BD6C44877138E56A035EA7731F3C9F61F3456890CB9 |
+| 539add1cc4a0e7c65757e7fd901921db85bd905f1c6cad5dbba5ec6f4bc1ba91 | 3C614646BBB37ED474B7F22BFBC629BC892A8FB262B770339B4DC535C83B4E71 | 5930994A826E2E8246986FA04A47BDBF0D90B8B0A3FC8EAD565D2735EFC3E31C |
+| 62f3850261f0e8f4b2f7d16df405fc396c602e3b651961ab49e7e0a5295bc4a7 | E90D0D5CC15DAAD3159A758A2A5E9F460034B56B3924F6B3B47E27376BD649A7 | 3CD4662C834B8AB31EFCC6A304E21438E3936F3BF74DBFC85A33DBE430955D6F |
+| abc5f0db472d58e2ce2973146321ed6287e931a22383661d33486104ceebbbfd | C6499962D957FE03D9D50FE4A2A4932D205673FAEA589B147EECD4DD52BE9701 | AB99805CDECA6E92BD422BD6C44877138E56A035EA7731F3C9F61F3456890CB9 |
+| b0a5c93ccc3cd176f4aaec213ff7baf7bb93662481c2e7ac3aff69f5014f19da | 4AEDE10FF5C2094E5D0189F8BB5DFF114AE2007DA9A957221C6C7D1A4FD26910 | 5930994A826E2E8246986FA04A47BDBF0D90B8B0A3FC8EAD565D2735EFC3E31C |
+| b18155bccf7bb91842308d3ec3a26ed67ae76508900a893472275b11ccd54d99 | 2BC3015B0D8D4AC59D08D548EB632C5B1C8553647A5999E609479F239CBD6632 | AB99805CDECA6E92BD422BD6C44877138E56A035EA7731F3C9F61F3456890CB9 |
+| f5efefdaf02aa4ae3022ba3f4f153f1385246bdccd9b66cb6c37466818bab98e | A5895ED1BA866ACE9ECF8B3A8BCFBB87FA8EE2E1A639717E79580AE16D2DEB92 | AB99805CDECA6E92BD422BD6C44877138E56A035EA7731F3C9F61F3456890CB9 |
+
+## Integration approval and remaining final acceptance
+
+Root approved one [skip ci] dev PR after these local caller/four-readable-source
+checks. Independent exact-head source review is required before integration.
+The skip instruction follows EPIC-014's single converged final-CI policy: no
+claim of CI PASS and no authority to bypass a live required check.
+
+The integrated caller and deployed Worker are prerequisites for the genuine
+YL69YFO Azure canary. Therefore TICK-085 may enter Review/integrate now, but it
+must remain Verifying after merge until retained real Azure output and the
+independently reviewed full ordered fifth oracle pass alongside exact-merge
+proof. Coordinate this same acceptance with PLAT-065/TICK-041 release; no
+synthetic fifth result, all-five/provider PASS, Done or final v1 claim.
+
+Publication does not change the technical contract, source evidence threshold,
+Draft/Engineer acceptance rule or final five-document acceptance. All prior
+failed attempts above are retained. No author build/test/capture/cloud call.
