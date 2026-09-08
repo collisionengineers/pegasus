@@ -69,7 +69,13 @@ public sealed partial class QdosTriageIntegrationTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(
             "ordinary-instruction.eml",
-            "QDOS instruction\r\nClaimant Name: Ordinary Claimant\r\nClaim Number: ORDINARY-001\r\nVehicle Registration: AB12 CDE");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: "Ordinary Claimant", claimNumber: "ORDINARY-001", registration: "AB12 CDE"))
+            ]);
 
         var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
         email.MediaType,
@@ -106,7 +112,13 @@ public sealed partial class QdosTriageIntegrationTests
             "This retained correspondence contains no supported instruction evidence.");
         var missingRegistration = IntakeTestEvidence.CreateEmail(
             "missing-registration.eml",
-            "QDOS instruction\r\nClaimant Name: No Registration\r\nClaim Number: TRIAGE-002");
+            "Please see the attached instruction.",
+            attachments:
+            [
+                ("instruction.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: "No Registration", claimNumber: "TRIAGE-002", registration: ""))
+            ]);
 
         var sortingUpload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, "needs-sorting.eml",
         "message/rfc822",

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -115,11 +116,28 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(2, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(2 * firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(4, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        var sharedCaseId = Assert.IsType<Guid>(firstReceipt.CurrentCaseId);
+        Assert.Equal(sharedCaseId, secondReceipt.CurrentCaseId);
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, secondReceipt.CaseMatchDecision?.Outcome);
+        Assert.Equal(
+            IntakeAllocationProjectionStatus.Succeeded,
+            Assert.IsType<IntakeAllocationState>(firstReceipt.AllocationState).Status);
+        Assert.Null(secondReceipt.AllocationState);
+        Assert.Equal(
+            2,
+            await ScalarAsync<int>(
+                factory,
+                "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_receipt_recorded'"));
+        Assert.Equal(
+            1,
+            await ScalarAsync<int>(
+                factory,
+                "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_allocation_succeeded'"));
+        Assert.Equal(3, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
-    public async Task UploadAndReviewPersistsTypedFieldsAndRecordsMissingCaseTypeWithoutAutomaticAllocation()
+    public async Task UploadAndReviewPersistsTypedFieldsAndAutomaticallyAllocatesTheInstructedCase()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -134,8 +152,11 @@ public sealed class InstructionDraftWebTests
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var allocation = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
-        Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, allocation.FailureKind);
-        Assert.Equal(IntakeAllocationProjectionStatus.FailedBlocked, allocation.Status);
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, allocation.Status);
+        Assert.Equal(CaseType.Inspection, allocation.AttemptedCaseType);
+        Assert.Null(allocation.FailureKind);
+        var caseId = Assert.IsType<Guid>(allocation.CaseId);
+        Assert.Equal(caseId, receipt.CurrentCaseId);
         var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Controlled Claimant", typed.ClaimantName);
@@ -170,12 +191,11 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        // Manual uploads have no persisted mailbox classification. The
-        // definitive processing decision is durable, but allocation fails
-        // closed rather than inventing a case type or reference.
-        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
-        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
-        Assert.Equal(0, await ScalarAsync<int>(factory, "SELECT COUNT(*) FROM CaseIntakeLinks"));
+        // The formal document supplies its current work type, so the normal
+        // allocation transaction creates exactly one instructed case.
+        Assert.Equal(1, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(1, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(1, await ScalarAsync<int>(factory, "SELECT COUNT(*) FROM CaseIntakeLinks"));
     }
 
     [Fact]
@@ -190,9 +210,10 @@ public sealed class InstructionDraftWebTests
             MediaType,
             CreateEmail(
                 """
-                QDOS instruction
+                QDOS
+                Our Client’s Vehicle:
                 Claim Number: PROTOCOL-INVALID
-                Vehicle Registration: AB12 CDE
+                Registration: AB12 CDE
                 Vehicle Mileage: awaiting confirmation
                 Date of Incident: 04/03/2031
                 Date of Incident: 05/03/2031
@@ -207,9 +228,9 @@ public sealed class InstructionDraftWebTests
         var mileage = Assert.Single(receipt.Fields, field => field.Name == "Vehicle mileage");
         Assert.Equal("awaiting confirmation", mileage.SuggestedValue);
         var mileageCandidate = Assert.Single(mileage.Candidates);
-        Assert.Equal(IntakeEvidenceSource.EmailBody, mileageCandidate.Source);
+        Assert.Equal(IntakeEvidenceSource.PdfContent, mileageCandidate.Source);
         Assert.Equal(
-            "uploaded controlled-invalid-values.eml, message body",
+            "uploaded controlled-invalid-values.eml, attachment 1: instruction.pdf, page 1",
             mileageCandidate.SourceLabel);
         var incidentDate = Assert.Single(receipt.Fields, field => field.Name == "Date of incident");
         Assert.True(incidentDate.HasConflict);
@@ -222,15 +243,19 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(HttpStatusCode.OK, review.StatusCode);
         Assert.Contains("awaiting confirmation", html, StringComparison.Ordinal);
         Assert.Contains("Conflicting suggestions", html, StringComparison.Ordinal);
-        Assert.Contains("uploaded controlled-invalid-values.eml, message body", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "uploaded controlled-invalid-values.eml, attachment 1: instruction.pdf, page 1",
+            html,
+            StringComparison.Ordinal);
     }
 
     private static string CompleteBody() =>
         """
-        QDOS instruction
+        QDOS
         Claimant Name: Controlled Claimant
         Claim Number: PROTOCOL-2031-001
-        Vehicle Registration: AB12 CDE
+        Registration: AB12 CDE
+        Our Client’s Vehicle:
         Vehicle Make: Example Make
         Vehicle Model: Example Model
         Vehicle Mileage: 12,345 miles
@@ -246,10 +271,23 @@ public sealed class InstructionDraftWebTests
         {
             Subject = "Controlled QDOS protocol fixture",
             Date = new DateTimeOffset(2031, 3, 5, 10, 30, 0, TimeSpan.Zero),
-            Body = new TextPart("plain") { Text = body }
+            Body = new TextPart("plain") { Text = "Please see the attached instruction." }
         };
         message.From.Add(new MailboxAddress("QDOS protocol sender", "instructions@qdosassist.co.uk"));
         message.To.Add(new MailboxAddress("Intake", "intake@example.invalid"));
+        var document = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            additionalLines: [body], addSignatureLines: false);
+        message.Body = new Multipart("mixed")
+        {
+            (MimeEntity)message.Body,
+            new MimePart("application", "pdf")
+            {
+                Content = new MimeContent(new MemoryStream(document)),
+                ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                ContentTransferEncoding = ContentEncoding.Base64,
+                FileName = "instruction.pdf"
+            }
+        };
         using var stream = new MemoryStream();
         message.WriteTo(stream);
         return stream.ToArray();
