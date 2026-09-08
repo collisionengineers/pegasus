@@ -115,7 +115,8 @@ Root approved the [skip ci] implementation commit to avoid repeating whole
 suites; this does not waive required checks or the final converged release gate.
 Exact merged validation and live acceptance belong to root after review.
 
-Executed root commands, Windows PowerShell 7, in the recorded worktree:
+Reproduction commands for the verified root scope, Windows PowerShell 7,
+in the recorded worktree (root's retained result is cited above):
 
 ```powershell
 pwsh -NoProfile -File scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
