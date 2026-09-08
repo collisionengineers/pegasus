@@ -3,6 +3,9 @@
 ## Status and source
 
 Implementation is frozen for root-owned compiler and focused runtime checks.
+Current combined local head: b47d8cc27aeba391e6cd650db3dc30d382f7e06e.
+Root authorized an unverified checkpoint and normal dev merge before the next
+build; the worktree is clean. No pushed PR or review PASS is claimed.
 Final verification is pending, not PASS. Root's builds and corrected Core
 checks passed; the first Integration run failed on two genuine-source paths,
 recorded below. The actual acceptance defect and MP OCR fixture are corrected
@@ -298,3 +301,24 @@ Root rerun request (actual outcomes pending):
 - Integration FullyQualifiedName~GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions|FullyQualifiedName~OneGenuineInstructionPerPrincipalProvesSelectedWorkTypeAndMatchKeys|FullyQualifiedName~FullPageRasterCoverageUsesRotatedVisibleCoordinates|FullyQualifiedName~RasterCoverageClipsImagesOutsideTheVisibleCrop|FullyQualifiedName~TypedPhoneSource|FullyQualifiedName~ACorruptDocumentIsRefusedRatherThanPartlyRead.
   Expected14 cases:2 originals,7 geometry,4 provenance,1 corrupt-source boundary.
 Settings focused capture/verify/catalogue remains root-owned and pending.
+
+
+## Accepted dev integration before final focused check
+
+Root requested current dev integration before another build so tests target the
+accepted two-fact completeness model, not obsolete confirmation booleans.
+Unverified checkpoint2ac4696b7006527def9bff08e45d67c208ca690e retains the
+source on original parent522e67f270ab4d6086d9fba04095988db3598888.
+Normal merge9556650430a4c4e778af5b1ab8d0fd907f2638e0 joined that checkpoint
+and freshly fetched dev19e6f523bf6760cab39104b4dca3674b0ac8a512 without
+conflicts. Final local commitb47d8cc27aeba391e6cd650db3dc30d382f7e06e changes
+only the new provenance probe constructor to new(true, false).
+
+Starting-state plan263fee3359d70b73 preceded the Git operations; scratch
+records exact parents and root authority. Board/worktree census was checked;
+foreign historic claims and other peer worktrees were untouched. No rebase,
+reset, force, push or cloud write. Source matches dev exactly in infra, scripts,
+Core CaseContracts/IntakeOcr, PdfOcrQualification and migrations, preserving
+accepted PLAT-072, TICK-041 and PLAT-065. git diff --check exit0; clean worktree;
+origin/dev is an ancestor; no unresolved files. Runtime checks remain pending
+at this combined source, and earlier failures remain above as attempt history.
