@@ -2,12 +2,13 @@
 id: DOCS-019
 type: ticket
 title: Design README still asserts the embedded Andy signature resource (D18-era)
-status: implementing
+status: review
 area: documents-reports
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-09-08T04:17:00.364Z'
+  review: '2026-09-08T04:30:53.583Z'
 taken_at: '2026-09-08T04:28:12.024Z'
 branch: DOCS-019-signature-documentation
 worktree: .worktrees/docs-019
@@ -31,9 +32,13 @@ links:
   - DOCS-017
 refs:
   - docs/design/README.md
+commits:
+  - c72f0df959de5de07f0ca15cda87c04e3b8879cd
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/697'
 archived: false
 created: '2026-09-03T19:35:41.384Z'
-updated: '2026-09-08T04:28:12.024Z'
+updated: '2026-09-08T04:30:53.583Z'
 ---
 
 ## What
@@ -76,8 +81,8 @@ refresh from `origin/dev` before editing.
 
 ## Verification
 
-- [ ] `docs/design/README.md` contains no claim that a signature is embedded
+- [x] `docs/design/README.md` contains no claim that a signature is embedded
       by Infrastructure.
-- [ ] `grep -rn "brand.signatures" src/` returns nothing, matching the doc.
-- [ ] `./scripts/Test-DocumentationLinks.ps1` and `./scripts/Test-UiCatalogue.ps1`
+- [x] `grep -rn "brand.signatures" src/` returns nothing, matching the doc.
+- [x] `./scripts/Test-DocumentationLinks.ps1` and `./scripts/Test-UiCatalogue.ps1`
       still pass.
