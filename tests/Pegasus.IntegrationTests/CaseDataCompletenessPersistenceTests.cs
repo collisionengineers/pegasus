@@ -320,8 +320,11 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.False(saved.Completeness.Values.InstructionComplete);
         Assert.Equal(saved, replayedSave);
         Assert.Equal("Jane Example", saved.Claimant.Name.Fact?.Value);
-        Assert.Equal("Jane Example", saved.Claimant.Name.Confirmed?.Value);
-        Assert.Equal("AB12CDE", saved.Vehicle.Registration.Confirmed?.Value);
+        Assert.Equal(initial.Claimant.Name.Fact, saved.Claimant.Name.Fact);
+        Assert.Null(saved.Claimant.Name.Confirmed);
+        Assert.Equal("AB12CDE", saved.Vehicle.Registration.Fact?.Value);
+        Assert.Equal(initial.Vehicle.Registration.Fact, saved.Vehicle.Registration.Fact);
+        Assert.Null(saved.Vehicle.Registration.Confirmed);
         Assert.Equal(initial.Identity, saved.Identity);
         Assert.Equal(initial.Origin, saved.Origin);
         Assert.Equal(2, await harness.HistoryCountAsync());

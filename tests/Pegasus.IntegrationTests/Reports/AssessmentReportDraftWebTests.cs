@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
@@ -12,6 +13,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests.Reports;
 
@@ -68,7 +70,7 @@ public sealed partial class AssessmentReportDraftWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-        Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=GenerateReportDraft&section=report",
@@ -171,6 +173,159 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CaseGetUsesMetadataReadinessWithoutOpeningPreviewOrRendering(bool eligibleSignatory)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        if (!eligibleSignatory)
+        {
+            source.Readiness = source.Readiness with { EligibleSignOffEngineers = [] };
+        }
+        var renderer = new FakeRenderer([1]);
+        using var factory = Compose(baseFactory, new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId), source, renderer);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        var readiness = CaseReportReadiness.Evaluate(source.Readiness);
+        Assert.Equal(eligibleSignatory, readiness.IsReady);
+        Assert.Equal(1, source.MetadataReads);
+        Assert.Equal(0, source.PreviewReads);
+        Assert.Null(renderer.Snapshot);
+        Assert.DoesNotContain(CaseReportReadiness.CurrentEstimateRequirement, html, StringComparison.Ordinal);
+        foreach (var reason in readiness.Reasons)
+        {
+            Assert.Contains(WebUtility.HtmlEncode(reason.Requirement), html, StringComparison.Ordinal);
+        }
+        if (eligibleSignatory)
+        {
+            Assert.Contains("Ed Mawdsley", html, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WorkspaceSavedReportAndSettlementFieldsReachTheActualPreview(bool overrideDate)
+    {
+        await using var harness = await CaseDataCompletenessPersistenceTests.CaseDataHarness.CreateAsync();
+        var engineer = ActionActor.Staff(Guid.Parse(harness.StaffActor.SubjectId), [StaffRole.Engineer]);
+        var existing = ReadyInput(harness.CaseId);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)} WHERE CaseId = {harness.CaseId}");
+            // Arrange already accepted assessment inputs; this field-edit test must
+            // not pretend that a workspace save can adopt an Engineer's Value.
+            context.CaseAssessmentFields.AddRange(existing.Assessment.Fields.Select(field => new CaseAssessmentFieldEntity
+            {
+                CaseId = harness.CaseId,
+                FieldPath = field.Path,
+                Value = field.Value,
+                RecordedByKind = nameof(ActorKind.Staff),
+                RecordedBy = engineer.SubjectId,
+                RecordedAtUtc = ReportFixtureAtUtc,
+                ConfirmedBy = engineer.SubjectId,
+                ConfirmedAtUtc = ReportFixtureAtUtc
+            }));
+            await context.SaveChangesAsync();
+        }
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-preview-fields");
+        var saved = await harness.WorkspaceStore.SaveAsync(new(
+            harness.CaseId, initial.Version, engineer, "save-preview-fields", "Recorded the Case workspace", lease.Token)
+        {
+            // The minimal intake harness has no incident/instruction dates.
+            // Record the existing report fixture's dates through the real writer.
+            Overview = new(initial.Claimant.Name.Current?.Value,
+                initial.Claimant.ContactNumber.Current?.Value, initial.Claimant.Address.Current?.Value,
+                initial.Claim.Number.Current?.Value, initial.Contact.Name.Current?.Value,
+                initial.Contact.EmailAddress.Current?.Value, initial.Contact.PhoneNumber.Current?.Value,
+                existing.Assessment.CaseOwned.IncidentDate, initial.Accident.Circumstances.Current?.Value,
+                existing.Assessment.CaseOwned.InstructionDate, initial.Instruction.VatStatus.Current?.Value,
+                initial.Inspection.RepairerAddress?.Current?.Value, initial.Workspace?.ClaimSource),
+            Vehicle = new(initial.Vehicle.Registration.Current?.Value,
+                initial.Vehicle.Make.Current?.Value, initial.Vehicle.Model.Current?.Value,
+                null, new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.HistoryCheck] = "History clear"
+                }),
+            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.SettlementExcess] = "250.00",
+                [AssessmentVocabulary.SettlementBetterment] = "0.00",
+                [AssessmentVocabulary.SettlementClaimantVatRegistered] = "false"
+            }),
+            Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.EngineersComments] = "Scuffed",
+                [AssessmentVocabulary.AgreedFee] = "120.00",
+                [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
+                [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
+                [AssessmentVocabulary.ReportValuationCommentary] = "false",
+                [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "false",
+                [AssessmentVocabulary.ReportDateOverride] = overrideDate ? "true" : "false"
+            }, Guid.Parse(engineer.SubjectId), new DateOnly(2026, 8, 19))
+        }, CancellationToken.None);
+        var assessmentStore = new EfCaseAssessmentStore(harness.Factory, harness.TimeProvider,
+            new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
+        var persisted = await assessmentStore.GetAsync(harness.CaseId, CancellationToken.None);
+        Assert.NotNull(persisted);
+        Assert.Equal(saved.Version, persisted.CaseVersion);
+        var input = existing with
+        {
+            Assessment = persisted,
+            ClaimantName = saved.Data.Claimant.Name.Current?.Value,
+            OurReference = saved.Data.Identity.Reference,
+            YourReference = saved.Data.Claim.Number.Current?.Value,
+            ReportDate = null
+        };
+        var source = new FakeProjectionSource(input);
+        var renderer = new FakeRenderer([4, 3, 2, 1]);
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = Compose(baseFactory, new FakeGetCase(harness.CaseId), persisted, source, renderer)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(new ReportClock(new DateTimeOffset(2026, 9, 6, 23, 30, 0, TimeSpan.Zero)));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        using var response = await client.GetAsync($"/Cases/{harness.CaseId:D}?handler=PreviewReportDraft&section=report");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(1, source.PreviewReads);
+        var snapshot = Assert.IsType<AssessmentReportSnapshot>(renderer.Snapshot);
+        Assert.Equal(AssessmentReportProjection.BuildSettlement(persisted, input.CurrentEstimate), snapshot.Settlement);
+        Assert.Equal(250m, snapshot.Settlement.Excess);
+        Assert.False(snapshot.Settlement.ClaimantVatRegistered);
+        Assert.Equal("History clear", snapshot.HistoryCheck);
+        Assert.Equal("Scuffed", snapshot.EngineerComments);
+        Assert.Equal(120m, snapshot.AgreedFee);
+        Assert.Equal(["Assessment report"], snapshot.FeeDescriptionLines);
+        Assert.Equal(new CaseReportContentSwitches(true, false, false), snapshot.Content);
+        Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
+        Assert.Equal(overrideDate ? new DateOnly(2026, 8, 19) : new DateOnly(2026, 9, 7), snapshot.ReportDate);
+        Assert.Equal(overrideDate, snapshot.ReportDateOverridden);
+        Assert.Equal("2026-08-19", persisted.Field(AssessmentVocabulary.ReportDate)?.Value);
+    }
+
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory,
         IGetCase getCase,
@@ -189,6 +344,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IAssessmentReportProjectionSource>();
+                services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IAssessmentReportRenderer>();
                 services.RemoveAll<IDocumentContentStore>();
                 if (generateReport is not null)
@@ -212,6 +368,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
                     AssessmentWorkspaceTestData.Create(assessment)));
                 services.AddSingleton(projectionSource);
+                services.AddSingleton((ICaseReportSnapshotSource)projectionSource);
                 services.AddSingleton(renderer);
                 services.AddSingleton<IDocumentContentStore>(new ThrowingDocumentContentStore());
             }));
@@ -374,11 +531,55 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     private sealed class FakeProjectionSource(AssessmentReportProjectionInput input)
-        : IAssessmentReportProjectionSource
+        : IAssessmentReportProjectionSource, ICaseReportSnapshotSource
     {
+        public int MetadataReads { get; private set; }
+        public int PreviewReads { get; private set; }
+        public CaseReportReadinessInput Readiness { get; set; } = Metadata(input);
+
         public Task<AssessmentReportProjectionInput?> GetAsync(
-            Guid caseId, ActionActor actor, CancellationToken cancellationToken = default) =>
-            Task.FromResult<AssessmentReportProjectionInput?>(input);
+            Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
+        {
+            PreviewReads++;
+            return Task.FromResult<AssessmentReportProjectionInput?>(input);
+        }
+
+        Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
+            Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+        {
+            MetadataReads++;
+            return Task.FromResult<CaseReportFreezeInputs?>(new(
+                input with { Photos = [] }, Readiness, input.OurReference, input.Assessment.CaseVersion));
+        }
+
+        private static CaseReportReadinessInput Metadata(AssessmentReportProjectionInput projection)
+        {
+            var signatoryId = Guid.NewGuid();
+            var preparations = new List<CaseAssetPreparation>();
+            var sources = new Dictionary<Guid, DocumentVersion>();
+            var photo = Assert.Single(projection.Photos);
+            foreach (var role in new[] { CaseAssetReportRole.CloseUp, CaseAssetReportRole.Overview })
+            {
+                var occurrenceId = Guid.NewGuid();
+                var documentId = Guid.NewGuid();
+                var versionId = Guid.NewGuid();
+                preparations.Add(new(projection.Assessment.CaseId, occurrenceId, documentId, versionId,
+                    1, photo.Sha256, photo.ContentType, role, null, CaseAssetRotation.None,
+                    CaseAssetCrop.Full, 1, "engineer-1", ReportFixtureAtUtc));
+                sources.Add(occurrenceId, new(versionId, documentId, 1, photo.CustodyReference,
+                    photo.ContentType, photo.Content.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,
+                    ReportFixtureAtUtc, "engineer-1", true, false, null));
+            }
+            var signatory = projection.Signatory!;
+            return new(projection.Assessment, signatoryId, null,
+                [new(signatoryId, signatory.PrintedName, signatory.Qualifications,
+                    signatory.SignatureContent, signatory.SignatureContentType, IsDefault: true)],
+                projection.CurrentEstimate,
+                new AppliedValuation(Guid.NewGuid(), projection.Assessment.CaseId, 1, Guid.NewGuid(),
+                    ReportFixtureAtUtc, new(5000m, false, 0m, 5000m, null, 0m, [], 0m, 0m, 5000m),
+                    5000m, "engineer-1", ReportFixtureAtUtc, "Accepted the guide value", "case-valuation-calculation/v1"),
+                preparations, sources);
+        }
     }
 
     private sealed class FakeRenderer(byte[] pdfBytes) : IAssessmentReportRenderer

@@ -7,6 +7,8 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -31,11 +33,13 @@ public sealed class CaseEngineerSectionsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
+                services.AddSingleton<ICaseReportSnapshotSource>(source);
                 services.AddSingleton<IListCaseEstimates>(source);
                 services.AddSingleton<ISendToAiControl>(new EnabledSendToAiControl());
             }));
@@ -89,11 +93,13 @@ public sealed class CaseEngineerSectionsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
                 services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
+                services.AddSingleton<ICaseReportSnapshotSource>(source);
                 services.AddSingleton<IListCaseEstimates>(source);
                 services.AddSingleton<ISendToAiControl>(new EnabledSendToAiControl());
             }));
@@ -115,6 +121,7 @@ public sealed class CaseEngineerSectionsWebTests
         IGetCase,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
+        ICaseReportSnapshotSource,
         IListCaseEstimates
     {
         private readonly CaseDetails details;
@@ -175,6 +182,7 @@ public sealed class CaseEngineerSectionsWebTests
                 Data = workspace.Data
             };
             estimate = Estimate(CaseId);
+            estimate = estimate with { RecordedTotals = EstimateTotals.Compute(estimate) };
             workspace = workspace with
             {
                 Header = workspace.Header with { State = state },
@@ -205,6 +213,13 @@ public sealed class CaseEngineerSectionsWebTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 caseId == CaseId ? [estimate] : []);
+
+        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
+                new(workspace.Assessment, details.Summary.Claimant, workspace.Assessment.Reference,
+                    "P-100", [], null, [], [], estimate),
+                new(workspace.Assessment, null, null, [], estimate, null, [], new Dictionary<Guid, DocumentVersion>()),
+                workspace.Assessment.Reference, details.Workflow.Version));
 
         private static IReadOnlyList<AssessmentFieldValue> Fields()
         {

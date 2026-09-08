@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Vehicle
+@using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
 @{
     var details = Model.Case!;
@@ -90,5 +91,17 @@
             <dl><dt>Mileage source</dt><dd>@Value(mileageSource)</dd></dl>
             <dl><dt>@CaseWorkspaceLabels.Vehicle.LookupMileage</dt><dd>@Value(lookupMileage)</dd></dl>
         </div>
+        @if (Model.CanEditAssessmentField(AssessmentVocabulary.HistoryCheck))
+        {
+            <div class="field">
+                <label for="edit-vehicle-history">Vehicle history</label>
+                <textarea id="edit-vehicle-history" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck)"
+                          form="case-edit-form" rows="4" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.HistoryCheck].MaximumLength">@Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)</textarea>
+            </div>
+        }
+        else
+        {
+            <dl class="detail-list"><div><dt>Vehicle history</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</dd></div></dl>
+        }
     </div>
 </section>

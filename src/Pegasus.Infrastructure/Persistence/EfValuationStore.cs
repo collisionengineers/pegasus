@@ -537,8 +537,7 @@ public sealed class EfValuationStore(
             || !AssessmentPolicy.IsWritableState(state))
         {
             throw new InvalidOperationException(
-                "An Engineer's Value can be recorded only while the assessment is open: "
-                + "a Not ready, Review, or Report preparation case.");
+                "An Engineer's Value cannot be recorded in the Case's current state.");
         }
 
         var engineersValue = ValuationSource.EngineersValue.ToString();
