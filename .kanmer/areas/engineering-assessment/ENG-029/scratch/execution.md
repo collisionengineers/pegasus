@@ -29,3 +29,9 @@ Actual TRX stdout establishes three author-slice causes: the existing CaseEngine
 All corrections stay within the current approved file map. No new schema, binding framework, command, test host, or source-policy fallback. Root alone will rerun the failed cases plus focused unknown-key/proposed-retention and the three capture inputs after the combined source freeze.
 
 - 2026-09-08T06:10:52.055Z lease-phase running-command → implementing (lease 000b26b8-fb8d-4e16-809f-8127f200cd4e rev 7; expires 2026-09-08T06:40:52.048Z)
+
+## Shared writer provenance correction — source freeze
+
+Root-approved whole plan 24256b3baa6994ca and file map 4b2258b967332368 were read back before editing. Added only CaseDataFieldWriter.SetConfirmed's exact value/type accepted-value no-op in EfCaseDataStore: Confirmed first, otherwise Fact; Suggestion excluded. Null/clear and changed values retain the existing logic and source metadata. Existing workspace and SaveCase/MCP callers share this owner. git diff --check PASS, no author runtime. This production correction is frozen for root's newly authored SQL proof.
+
+The separate exact CaseDataCompletenessPersistenceTests assertion consumer is mapped but NOT edited: wait for INTK-064 integration/source handoff, preserving its constructor change. Root owns CaseWorkspacePersistenceTests, including SubmittedOverviewPreservesAcceptedProvenanceAndDoesNotConfirmAnUnpostedSuggestion and the adjusted existing OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce; both exact methods join the correction filter. No current SQL provenance PASS is claimed.
