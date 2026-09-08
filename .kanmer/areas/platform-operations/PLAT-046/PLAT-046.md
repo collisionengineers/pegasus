@@ -12,13 +12,13 @@ stageEntered:
 taken_at: '2026-09-08T17:52:41.849Z'
 branch: PLAT-046-destructive-migration-shutdown
 worktree: .worktrees/plat-046
-claim_expires_at: '2026-09-08T19:04:41.093Z'
+claim_expires_at: '2026-09-08T19:05:58.113Z'
 claim_controller: codex-mcp-client
 lease_id: f52130e7-d7ab-40ac-aa69-edb643bda825
-lease_revision: 8
+lease_revision: 9
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\plat-046'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T18:34:41.093Z'
+lease_phase: running-command
+lease_heartbeat_at: '2026-09-08T18:35:58.113Z'
 labels:
   - release
   - worker
@@ -30,7 +30,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-09-08T18:34:41.093Z'
+updated: '2026-09-08T18:35:58.113Z'
 ---
 
 ## What
