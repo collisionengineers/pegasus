@@ -33,3 +33,7 @@ No verification command was in flight and no build/test had started. Therefore t
 No source fix, snapshot update, retry, dotnet process, SQL fixture, browser, cloud, Outlook, Box, commit, push, or PR action occurred. The exact worktree/branch/claim remain the implementation resume target for the bounded author correction.
 
 - 2026-09-08T18:59:15.052Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 5; expires 2026-09-08T19:29:15.041Z)
+
+## Same-root correction dispatch after IDLE
+
+Canonical DELIV-053 IDLE version1bf95e7dd6d779f6 reread; verifier ran no runtime command and returned INTK lease to implementing rev5. Author read-only audit found same group-binding bypass at direct /Upload/{stagedId}: queued status lacks group metadata, BuildAsync gets null group, and single handler/search accepts member. Root authorized correction across existing scoped Index and UploadStatus models plus relevant existing integration tests. Reuse existing group store FindForMemberSourceAsync, HasSiblingMembers and authorized receipt read; GET grouped member redirects to existing group route, both single-surface POST and scoped/unscoped search reject manual multi-member group. No new service/port/schema or group orchestrator. Preserve lone/nonmanual exact replay. Author to locally commit/re-freeze; no host command/push/PR until fresh grant.
