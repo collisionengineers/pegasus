@@ -317,3 +317,11 @@ At exact clean HEAD `4b3329675f48faede428a9c97212d1a610584136`, sole verifier `/
 Core, focused non-browser SQL and browser tests are NOT RUN; no retry or fix occurred. The head remained clean. Six new reusable MSBuild nodes (PIDs 13640, 14296, 17400, 17848, 24080 and 28952; parent 7104; created 19:23:44.918616–19:23:45.043171Z) remain untouched, with no active testhost/vstest or verification command.
 
 Canonical CEALEX-May25 host verification slot is explicitly **IDLE / unassigned**.
+
+## Sole host re-grant — INTK-066 invariant test formatting
+
+Root reread canonical IDLE b526a49928cc4793 and ready packet. Observed clean HEAD cc826889407b97dc2d951219c70b59e619de70f2 in same ticket worktree/branch. Four test-file correction only: correct derived factory client creation and12 invariant numeric version conversions. Sole verifier /root/agent_config_verifier ACTIVE; lease renewed running-command60min.
+
+Before original build, validate then stop only previous granted build nodes13640,14296,17400,17848,24080,28952 if still exact owned identities: parent7104, created2026-09-08T19:23:44.918616–19:23:45.043171Z, ProgramFiles dotnet/MSBuild.dll /nodemode:1 /nodeReuse:true. Use proven UTC DateTimeOffset comparison and native exact-ID Stop-Process. Missing exited nodes are harmless; identity mismatch stops. No broad name-based cleanup.
+
+Then same original build and complete initial queue (Core --no-build; existing focused nonbrowser SQL; UploadCaseSearch browser only if earlier pass). Preserve all prior failures. After this build exits, this grant ALSO permits cleanup of new reusable MSBuild nodes demonstrably spawned by THIS exact build: record PID, start time, parent and expected MSBuild nodemode command at creation/postcheck, stop only exact matching owned nodes after parent build exited. This prevents another retained DLL lock and does not authorize foreign process termination. No source edits, snapshot generation, autonomous retry, assertion/filter weakening, push/PR/live operations. First genuine failure stops tests and returns canonical IDLE with exact evidence; owned resource cleanup may complete before handoff.
