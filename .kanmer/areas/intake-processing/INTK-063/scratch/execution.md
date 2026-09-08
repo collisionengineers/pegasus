@@ -53,3 +53,5 @@ Extended the existing grouped-store test: exact request/key replay succeeds, cha
 The missing System.Globalization import correction remains. Root's initial-principal hypothesis is explicitly disposed as not established at this boundary; no origin provenance was invented, and the registered PrincipalId guard remains. Build attempt 1 (69.39 seconds, CS0103, no tests) remains recorded above.
 
 Source is frozen again for one root rerun. Current plan/files are unchanged (10543d55d4090f66/a2712472fca53cc9), as this is their existing replay contract. Readback confirmed the exact anonymous projection now carries the conditional component. git diff --check PASS exit 0. No author build/test. Fresh resumed packet showed current lease revision 10; successful CAS renewal is revision 11, implementing, expiry 04:22:15.266Z. Same worktree/branch/base.
+
+- 2026-09-08T04:00:54.723Z lease-phase implementing → running-command (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 12; expires 2026-09-08T04:30:54.717Z)
