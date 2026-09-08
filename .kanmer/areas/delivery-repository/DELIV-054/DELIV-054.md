@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-08T13:31:44.019Z'
 branch: DELIV-054-hidden-runtime-zips
 worktree: .worktrees/deliv-054
-claim_expires_at: '2026-09-08T14:01:44.019Z'
+claim_expires_at: '2026-09-08T14:14:37.179Z'
 claim_controller: codex-mcp-client
 lease_id: 2c3e2ccd-235a-47fa-b707-4b718c061e6a
-lease_revision: 1
+lease_revision: 2
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-054'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T13:31:44.019Z'
+lease_heartbeat_at: '2026-09-08T13:44:37.179Z'
 labels:
   - release
   - corrective
@@ -27,7 +27,7 @@ refs:
   - docs/adr/0039-windows-and-linux-release-workstations.md
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:31:44.019Z'
+updated: '2026-09-08T13:44:37.179Z'
 ---
 
 ## What
