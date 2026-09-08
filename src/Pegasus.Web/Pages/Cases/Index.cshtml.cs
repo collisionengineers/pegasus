@@ -416,7 +416,7 @@ public sealed class IndexModel(
         Guid surfaceId,
         CancellationToken cancellationToken)
     {
-        Queue = "awaiting";
+        TabFilter = "awaiting";
         SelectedId = surfaceId;
         return await OnGetAsync(cancellationToken);
     }

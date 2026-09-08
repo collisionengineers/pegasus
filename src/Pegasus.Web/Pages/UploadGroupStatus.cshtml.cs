@@ -227,6 +227,7 @@ public sealed class UploadGroupStatusModel(
         try
         {
             if (operationId == Guid.Empty
+                || receiptVersions is null
                 || !TryGetPostedRoster(receiptVersions, out var roster))
             {
                 TempData["UploadConfirmationError"] = "This confirmation is incomplete. Refresh and try again.";
@@ -239,12 +240,11 @@ public sealed class UploadGroupStatusModel(
                 var firstReceiptId = roster[0];
                 var confirmation = await _caseDecision.PrepareAsync(
                     firstReceiptId, reference, reason, operationId, receiptVersions[firstReceiptId], actor, cancellationToken);
-                var allViable = confirmation is not null
-                    && (await _caseDecision.SearchForUploadsAsync(
+                if (confirmation is null
+                    || !(await _caseDecision.SearchForUploadsAsync(
                         roster, confirmation.Reference, actor, cancellationToken))
                     .Any(candidate => candidate.CaseId == confirmation.CaseId
-                        && candidate.Version == confirmation.Input.ExpectedCaseVersion);
-                if (!allViable)
+                        && candidate.Version == confirmation.Input.ExpectedCaseVersion))
                 {
                     TempData["UploadConfirmationError"] = "No single viable case matched every file in this submission. Search and choose a case from the suggestions.";
                     PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
@@ -372,7 +372,7 @@ public sealed class UploadGroupStatusModel(
         (await LoadAsync(surfaceId, cancellationToken)) ?? Page();
 
     private bool TryGetPostedRoster(
-        IReadOnlyDictionary<Guid, long>? receiptVersions,
+        Dictionary<Guid, long>? receiptVersions,
         out IReadOnlyList<Guid> roster)
     {
         roster = [];
@@ -404,7 +404,7 @@ public sealed class UploadGroupStatusModel(
     }
 
     private void PreserveGroupForm(
-        IReadOnlyDictionary<Guid, long>? receiptVersions,
+        Dictionary<Guid, long>? receiptVersions,
         long? caseVersion,
         Guid operationId,
         Guid? caseId,
