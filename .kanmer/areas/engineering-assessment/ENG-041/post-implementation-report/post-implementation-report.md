@@ -369,3 +369,19 @@ was run by this author. Exact root command strings will accompany the final
 reported rerun; earlier 47 passes are not erased or silently presented as a
 fully passing cohort. Remain Implementing with claim/tree retained until root
 supplies the focused correction result and authorizes the new follow-up PR.
+
+### Root attempt 1 exact commands
+
+Working directory: .worktrees/eng-041, PowerShell 7 on Windows.
+Root supplied and author records the actual commands (not an author rerun):
+
+```powershell
+dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession|FullyQualifiedName~GlassRepairEstimateCallbackWebTests.TheSameReturnDeliveredTwiceRecordsNothingASecondTime|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.FailedWriteLeavesOnePendingIntentAndReplayUsesTheSameVersionIdentity|FullyQualifiedName~CaseArtifactCustodyRecoveryTests.AutomaticCustodyPreservesLiveCaseAuthority|FullyQualifiedName~Pegasus.IntegrationTests.Reports.CaseReportGenerationPersistenceTests|FullyQualifiedName~CaseDetailsWebTests.CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey|FullyQualifiedName~CaseDetailsWebTests.ARefusedCompletenessChangeKeepsUncheckedProposalsBesideTheCurrentValues|FullyQualifiedName~TestUiFocusedRenderTests.CaseUnavailableAndErrorStatesRenderThroughRazor' --logger 'trx;LogFileName=eng-041-custody-correction.trx' --results-directory ./artifacts/verification
+```
+
+Build exit0/51.75s; test exit1 with the counters/retained hash above.
+PEGASUS_TEST_UI_CAPTURE_DIR was the absolute resolved
+.worktrees/eng-041/artifacts/eng-041-correction-capture;
+PEGASUS_TEST_UI_SCOPE=case-details; PEGASUS_TEST_UI_MODE unset.
+No snapshot verification/catalogue command ran after that guarded failure.
