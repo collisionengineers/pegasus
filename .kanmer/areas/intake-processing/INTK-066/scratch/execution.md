@@ -172,3 +172,5 @@ Post-cancel process inspection identified the exact still-observed owned chain: 
 Final postcheck at `2026-09-08T22:59:59.1905583Z`: exact HEAD/branch unchanged, tracked status clean, no dotnet/MSBuild/testhost/vstest process, disposable capture target retained. No source/generated cleanup or hand-edit occurred.
 
 All capture/test grants are revoked. Lease returned to `implementing` revision 72. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
+
+Removal dependency census: Browser-tagged tests also exist in ReadinessEndpointTests, MultiFormatIntakeWebTests and Reports/AssessmentReportRendererTests. Remove those browser-dependent cases and obsolete helpers while retaining HTTP/domain tests plus non-rendering renderer composition/resource checks. scripts/Initialize-LocalDevelopment.ps1 and scripts/Invoke-Doctor.ps1 currently locate runtime Chromium installer through the test output: additional necessary affected callers, authorized only to point to the actual Infrastructure package output and remove obsolete browser-test guidance. Runtime Chromium remains required for PDF generation; no application renderer changes.
