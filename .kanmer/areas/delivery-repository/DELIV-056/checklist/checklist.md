@@ -25,3 +25,16 @@ The earlier D56 formal-document conversion remains recorded in scratch/notes.md.
 - `git diff --check` passed at final hash `bdbe80e82a6569a4a79ee57f44998f98f679eef2` (LF-to-CRLF advisories only).
 - The designated host's incremental Release build passed. The exact two-Audit delta passed 2/2; the prior exact-seven run provides the five unchanged-source passes. Earlier broad/exact non-PASS attempts remain recorded and are not superseded.
 - [[INTK-066]] owns the unresolved UploadConfirmation Attach/browser current-contract decision. It remains unmodified and is not a DELIV-056 pass claim.
+
+---
+
+## Closeout — DELIV-056
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date appended)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-056`
+- [ ] `git branch -d DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
