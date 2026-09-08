@@ -278,6 +278,18 @@ public sealed partial class QdosTriageIntegrationTests
             operationKey => Assert.Single(
                 final.History,
                 history => history.OperationKey == operationKey));
+
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, final.Record.Origin.ReceiptId);
+        var pairing = services.GetRequiredService<ITriageCasePairing>();
+        Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
+        var paired = await GetTriageAsync(factory.Services, triageId);
+        Assert.Equal(TriageState.Completed, paired.Record.State);
+        Assert.Equal(final.Record.Reference, paired.Record.Reference);
+        Assert.Equal(final.Findings, paired.Findings);
+        Assert.Equal(caseId, paired.Record.LinkedCaseId);
+        Assert.Equal(9, paired.Record.Version);
+        Assert.Equal(completed, await complete.ExecuteAsync(completeRequest, CancellationToken.None));
+        Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
     }
 
     private static Task SeedReplyCandidateAsync(

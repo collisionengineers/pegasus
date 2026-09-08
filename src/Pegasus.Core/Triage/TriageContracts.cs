@@ -484,8 +484,28 @@ public sealed record TriageOperationReplay(TriageRecord Result);
 /// before each mutation. Replay probes must verify the complete request fingerprint and
 /// return the historical post-operation result.
 /// </summary>
+public sealed record TriageCaseLinkCandidate(
+    Guid TriageId, long TriageVersion, Guid CaseId, long CaseVersion,
+    string MatchPolicyKey, int MatchPolicyVersion);
+
+public sealed record TriageCasePairingResult(
+    int Candidates, int Linked, int Failures, string? FirstFailure = null);
+
+public interface ITriageCasePairing
+{
+    Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken);
+    Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken);
+}
+
 public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidateQueries
 {
+    Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
+        Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken);
+
+    Task<bool> LinkAutomaticallyAsync(
+        TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken);
+
     Task<TriageOperationReplay?> ProbeRecordFindingReplayAsync(
         RecordTriageFindingRequest request,
         CancellationToken cancellationToken);

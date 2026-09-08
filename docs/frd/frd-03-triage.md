@@ -2,8 +2,9 @@
 
 ## Boundary with Unidentified
 
-Triage remains a separate pre-Case workflow. An **open** Triage follows the Triage
-states and does not receive a U reference merely because it is awaiting
+Triage is a Case with a distinct referencing system and workflow. An **open**
+Triage follows the Triage states and does not receive a U reference merely
+because it is awaiting
 information. A classified Triage request with no registration yet has no Triage to
 follow: it is held in Unidentified with its canonical reason until a registration is
 known, and opening the Triage resolves that item. Holding it there is what stops it
@@ -21,12 +22,29 @@ Each Triage has a global increasing `T-00001`, `T-00002` reference, with no
 yearly or Principal reset and no reuse. Formal instructions allocate a normal
 Case/PO and link the existing Triage; Triage itself allocates neither.
 
-Triage begins when the exact accepted route policy classifies a provider request as an assessment request, when an authenticated Principal declares one over the Provider API, or when an authorised staff member manually classifies safely retained, attributable material as Triage. Classification is how a Triage usually arrives, not the only way it may: a declared Triage carries the Principal's own declaration as its accepted match evidence, stamped with that policy's key and version, and opens exactly as a classified one does (operator decision, 2026-08-28). It allocates no Case/PO. Manual classification records the source, available route evidence, actor, time, reason, and policy version; it neither invents Principal identity nor creates a Case. Material whose route or category remains unaccepted stays `Unidentified` and never becomes Triage or a Case by fallback. A Triage request stays separate pre-Case work: without a VRM it remains `Unidentified`; with a VRM it opens as `Open`, may move to `Awaiting information`, records an accepted finding as `Finding recorded`, and reaches `Completed` only after the required response evidence is confirmed. An acknowledgement, request for information, Draft, queue action, or other correspondence may be retained but is not itself a finding or completion evidence.
+Triage begins when the exact accepted route policy classifies a provider
+request as an assessment request, when an authenticated Principal declares one
+over the Provider API, or when an authorised staff member manually classifies
+safely retained, attributable material as Triage. Classification is how a
+Triage usually arrives, not the only way it may: a declared Triage carries the
+Principal's own declaration as its accepted match evidence, stamped with that
+policy's key and version, and opens exactly as a classified one does (operator
+decision, 2026-08-28). It allocates no Case/PO. Manual classification records
+the source, available route evidence, actor, time, reason, and policy version;
+it neither invents Principal identity nor creates a formal Case/PO. Material
+whose route or category remains unaccepted stays `Unidentified` and never
+becomes Triage or a Case by fallback. A Triage request is a Case with its own
+reference and workflow: without a VRM it remains `Unidentified`; with a VRM it
+opens as `Open`, may move to `Awaiting information`, records an accepted
+finding as `Finding recorded`, and reaches `Completed` only after the required
+response evidence is confirmed. An acknowledgement, request for information,
+Draft, queue action, or other correspondence may be retained but is not itself
+a finding or completion evidence.
 
 Automatic creation from intake follows exactly that rule and adds nothing to it.
 When the accepted route classification records a received message as a Triage request,
-processing does not treat it as an instruction: it is pre-case work, no case is
-allocated from it automatically, and the accepted route classification decision is itself the accepted
+processing does not treat it as a formal instruction: no normal Case/PO is
+allocated from it, and the accepted route classification decision is itself the accepted
 Triage-match evidence — the same route policy the paragraph above names, with its policy
 key and version stamped on the record. A known vehicle registration opens the Triage as
 `Open`; no known registration registers the material as Unidentified with its canonical
@@ -57,3 +75,26 @@ Every `Completed` Triage has one exact reply-chain Sent item from an approved ma
 Triage may have an optional assignee but no due date or chase schedule. It may link to at most one current case; a case may have many Triages. The [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix) permits every staff role to reasonedly unlink or relink; the exact prior/current Case identities, actor, time, reason, and evidence remain in permanent history.
 
 Cancellation and reopen require reasons. Reopen always returns to `Open` and never erases the prior finding, reply, actor, or chronology.
+
+### Automatic association with a formal Case
+
+Known Principal and accepted Triage registration, corroborated by the retained
+typed source identity, may identify exactly one formal Case through the same
+principal-scoped matcher used by intake. A contradictory registration,
+unknown Principal, competing identity, cancelled Triage, archived or terminal
+target, or live staff Case edit lease withholds automatic linkage. A
+Created-in-error replacement must independently match and retain the Triage's
+known Principal. Completed Triages may link without reopening.
+
+Both arrival orders and creation/acceptance replay attempt the same link.
+The existing reconciliation timer retries eligible unlinked records, choosing
+oldest current matches before applying its batch limit. Nonmatches remain
+retryable when new evidence or a formal Case arrives. Recoverable failures are
+visible and do not prevent unrelated links.
+
+The automatic write rechecks origin/evaluation, Principal, full candidate
+uniqueness, target identity and versions inside its transaction. It records
+one SystemWorker-attributed link in Triage and Case history, preserving the
+Triage reference, findings and state and allocating no new Case/PO. Deliberate
+staff unlink or reassignment is never reversed by recovery. Manual linking
+retains its existing staff authority, reason and current Case edit lease.

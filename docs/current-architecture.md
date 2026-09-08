@@ -397,6 +397,16 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 
 ### Idempotency and persisted semantics
 
+`TriageCasePairing` is called by `CreateTriageFromIntake` after creation or
+replay, by `AcceptIntake` after acceptance or replay, and by the existing
+`StagedArtifactReconciliationFunction`. It uses the existing principal case
+matcher and current match index. `EfTriageStore` rechecks the complete match
+and replacement lookup on the same serializable transaction context as its
+attributed Triage/Case link, preserving manual unlink, known Principal,
+versions, state and staff lease guards. Pending matches are selected before
+the batch cap; failures remain visible and retryable. This source wiring is
+not a deployment or live-acceptance claim.
+
 - Replaying the same source occurrence returns the existing receipt.
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.

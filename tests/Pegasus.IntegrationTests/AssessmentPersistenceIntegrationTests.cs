@@ -12,6 +12,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
@@ -2355,7 +2356,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                         acceptanceStore,
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory),
-                        new CommittedWorkPublisherDouble()),
+                        new CommittedWorkPublisherDouble(),
+                        new TriageCasePairing(new EfTriageStore(factory,
+                            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
