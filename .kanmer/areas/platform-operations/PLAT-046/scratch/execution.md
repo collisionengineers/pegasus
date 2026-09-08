@@ -146,3 +146,7 @@ Overall frozen corrected-head verification result: **PASS** when combined with t
 ## Review hand-off — 2026-09-08
 
 Pushed exact reviewed head `7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08` and opened draft PR https://github.com/collisionengineers/pegasus/pull/711 to configured integration branch `dev`. PR verification confirmed open/draft, base `dev`, head branch `PLAT-046-destructive-migration-shutdown`, exact head SHA, and standalone `Kanmer: PLAT-046` footer. The ticket records both reachable implementation commits and is now in Review. No merge, deployment, cloud, SQL, source change, or additional test command occurred in this hand-off.
+
+## Primary PR readback — 2026-09-08 18:51 UTC
+
+Root independently read PR711: OPEN DRAFT, base dev, head branch PLAT-046-destructive-migration-shutdown, exact head 7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08. `gh pr checks 711` exit0: changes, documentation, local-development-scripts, reference-data and infrastructure PASS in repository-check run34264394009; unit/SQL/browser/test-ui/coverage skipped by scope. This supplements retained local evidence; no formal review, merge, deployment or release verification is claimed. Implementation stop condition reached at PR handoff; no further task action authorized here.
