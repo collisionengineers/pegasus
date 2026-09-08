@@ -6,7 +6,10 @@ Root focused runtime/snapshot evidence PASS; ready for independent review.
 Not merged, deployed, live-tested or CI-verified.
 Fresh isolated branch `UIIMP-017-health-display`, worktree
 `.worktrees/uiimp-017`, accepted base
-`cc441645b0a62a806e34367ad75e9eaff4df8b11`. Commit/PR traceability is recorded with the ticket at publication.
+`cc441645b0a62a806e34367ad75e9eaff4df8b11`.
+Published PR https://github.com/collisionengineers/pegasus/pull/693 targets dev;
+exact pushed head `3e585f6e0f43ed0d90773be967ead867bc5e76f1`.
+GitHub head/branch/base read-back matched; worktree clean.
 Packet plan 0b651b4eb610041b/files cc4555712d217bf6 and EPIC014 context
 apply. Root is the sole heavy verifier.
 

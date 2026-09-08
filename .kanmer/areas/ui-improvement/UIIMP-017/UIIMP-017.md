@@ -2,12 +2,13 @@
 id: UIIMP-017
 type: ticket
 title: Use one office-time display and one reproducible Health snapshot state
-status: implementing
+status: review
 area: ui-improvement
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T00:42:19.213Z'
+  review: '2026-09-08T02:33:30.782Z'
 taken_at: '2026-09-08T01:56:09.050Z'
 branch: UIIMP-017-health-display
 worktree: .worktrees/uiimp-017
@@ -27,9 +28,13 @@ links:
   - PLAT-069
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - 3e585f6e0f43ed0d90773be967ead867bc5e76f1
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/693'
 archived: false
 created: '2026-09-08T00:39:38.232Z'
-updated: '2026-09-08T02:22:23.848Z'
+updated: '2026-09-08T02:33:30.782Z'
 ---
 
 ## What
@@ -42,4 +47,4 @@ The five metrics instants use the same Europe/London display as the service rows
 
 ## Scope and preservation
 
-Historical UIIMP-005 implemented the underlying Test UI gate via merged PR609 but retains an old foreign claim and superseded PR588 pointer. Preserve it; this ticket owns only the newly diagnosed remaining Health defect. Root alone verifies. No live/cloud/mail changes.
+Historical UIIMP-005 implemented the underlying Test UI gate via merged PR609 but retains an old foreign claim and superseded PR588 pointer. Preserve it; this ticket owns only the newly diagnosed remaining Health defect. Root alone verifie
