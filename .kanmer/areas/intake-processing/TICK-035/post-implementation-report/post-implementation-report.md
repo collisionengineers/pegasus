@@ -8,12 +8,16 @@ receipt-provenance roundtrips all passed. Earlier focused passes and failures
 are preserved as attempt history below; no whole-repository test-suite pass
 or deployment is claimed.
 
-Current clean checkpoint: 7fcd4c662c5457024d1d20c5fe0c02c842e98a63,
-committing the seven mapped author files after root's passing focused checks. Root authorized a checkpoint commit after these
-results, but PR/base integration is explicitly on hold until CASE-049 merges
-its FRD-01 ownership. No edit to that document is authorized yet. No PR,
-independent review PASS, merge, exact-merge proof or live deployment is claimed.
-Stop remains independent review after the forthcoming approved doc alignment.
+Final author head: 006b556ff3e995c5a2aac0cdb2a4d508ada5be23.
+Root-authorized normal merge636555159b3fee61179dcce579d5173ca7e1ed0a
+joins verified checkpoint7fcd4c662c5457024d1d20c5fe0c02c842e98a63 and
+accepted dev3a5ce645cfc0872d7a4324c6818497360c39cca4 (CASE-049).
+The only final author increment is the approved FRD-01 association paragraph.
+No runtime source/test changes followed root's final focused PASS. Source
+identity checks confirm the disjoint accepted CASE-049 implementation is
+unchanged. This is not a whole-tree test reuse or exact-merge proof claim.
+PR publication and independent exact-head review are the remaining handoff;
+no self-review, integration merge or live deployment is claimed.
 
 Worktree: `.worktrees/tick-035`. Branch: `TICK-035-principal-routes`.
 Fresh execution base: `522e67f270ab4d6086d9fba04095988db3598888`.
@@ -547,3 +551,34 @@ provenance corrections at this exact checkpoint and found both F-P01/F-P02
 fixed with no remaining material delta finding; original preflight
 7074751553d263d8 is preserved. This bounded source check is not formal
 exact-final-PR approval. No push, PR or FRD-01 edit has occurred.
+
+
+## Final author integration and canonical paragraph
+
+CASE-049 Done/closeout released FRD-01. Root authorized this exact bounded
+paragraph change; plana29f6fa6041932cc and filese9ca25221233b6ab were amended
+before editing. Normal merge636555159b3fee61179dcce579d5173ca7e1ed0a
+completed without conflict, with parents7fcd4c662c5457024d1d20c5fe0c02c842e98a63
+and3a5ce645cfc0872d7a4324c6818497360c39cca4. The final paragraph-only
+commit006b556ff3e995c5a2aac0cdb2a4d508ada5be23 uses [skip ci].
+
+Read-only Git source checks, exit0:
+- All52 changed TICK-035 runtime paths (src/tests census against accepted
+  dev19e6f523) match verified checkpoint7fcd4c662 exactly.
+- All22 CASE-049 runtime paths match accepted dev3a5ce645 exactly.
+- Their runtime path intersection is empty. Native handoff source is untouched.
+- The final author commit changes only FRD-01's incoming-cancellation paragraph.
+  git diff --check and clean status passed; no unresolved merge files.
+
+FRD-01 now points to current FRD-02 for supported current-instruction profiles
+and principal-scoped typed keys, retains QDOS's accepted correspondence and
+cancellation boundaries, excludes quoted historical instructions, and preserves
+authorized manual Case-state actions and permanent history. It does not promise
+blanket non-QDOS correspondence classification or association. The existing FRD
+was updated and linked, not supplemented with a competing policy document.
+Kanmer docs skill directed this bounded edit of the existing governing owner.
+
+No new builds/tests were run for the document-only increment, per root's
+explicit instruction. Earlier runtime cohorts remain source-scoped evidence,
+not a test execution at the merge or final documentation commit. Full integrated
+verification belongs to kanmer-verify after independent review and merge.
