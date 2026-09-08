@@ -19,8 +19,8 @@ public static class EvaInstructionDefaults
 }
 
 /// <summary>
-/// Maps one case's thirteen exported values into EVA's instruction shape
-/// (EXT-04).
+/// Maps one case's thirteen exported values and its accepted claimant address
+/// into EVA's instruction shape (EXT-04).
 ///
 /// This is deliberately a *second* mapping layered on the first, not a rival
 /// to it. <see cref="CaseEvaMapping.MapForOperatorExport"/> stays the one
@@ -52,7 +52,7 @@ public static class EvaInstructionDefaults
 public static class CaseEvaApiMapping
 {
     public const string MappingKey = "qdos-eva-api-instruction-mapping";
-    public const int MappingVersion = 1;
+    public const int MappingVersion = 2;
 
     /// <summary>
     /// The exported values EVA's instruction model has no field for, in the
@@ -74,6 +74,7 @@ public static class CaseEvaApiMapping
         EvaReplayFields fields,
         string caseReference,
         string principalCode,
+        string claimantAddress,
         EvaInstructionSettings settings,
         IReadOnlyList<EvaInstructionFile> files)
     {
@@ -82,6 +83,7 @@ public static class CaseEvaApiMapping
         ArgumentNullException.ThrowIfNull(files);
         ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
+        ArgumentNullException.ThrowIfNull(claimantAddress);
 
         // The export's own normalisation, reused rather than repeated: this is
         // what guarantees the API and the ZIP carry byte-identical values.
@@ -93,6 +95,7 @@ public static class CaseEvaApiMapping
             caseReference.Trim(),
             Text(normalized.Reference),
             Text(normalized.ClaimantName),
+            claimantAddress,
             Text(normalized.Vrm),
             Text(normalized.VehicleModel),
             ParseExportDate(normalized.IncidentDate),
