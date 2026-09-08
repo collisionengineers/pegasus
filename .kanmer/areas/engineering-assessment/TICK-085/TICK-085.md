@@ -39,9 +39,13 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+commits:
+  - 1fb0a7a1d907e6a82a586ea8ba14d4a9c58d75b4
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/698'
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-08T04:56:56.150Z'
+updated: '2026-09-08T04:58:07.668Z'
 ---
 
 ## What
