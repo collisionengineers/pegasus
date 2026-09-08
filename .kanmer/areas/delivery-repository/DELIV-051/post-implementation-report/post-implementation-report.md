@@ -32,3 +32,13 @@ The earlier Review-to-Implementing move was explicit operator scope expansion, n
 ## Next
 
 Independent subagent review and comment on PR mergeability. Recheck current PR head/checks; no author merge, deployment, postmerge proof or Done transition. For eventual merged verification, rerun the documentation/placement/catalogue/CI routing checks and inspect all accepted answer contracts; preserve exact merge identity under Kanmer's configured dev integration branch.
+
+## Remediation round 2 — final head 351f345df21aa7bc86e6ac2de494f93d210162b1
+
+The independent consolidated review at d90820295 found F-001/F-002 major and F-003 minor. All accepted and corrected in commit 351f345df, pushed to the same PR.
+
+- F-001: propagated generated-password and MarketResearch requirements into capability rows; clarified mutually exclusive mailbox routes versus extraction evidence ordering; routed scoped secrets to ADR-0043; restored the normative 0.80 recognition threshold to FRD-06 and linked exact historical cohort evidence; restored the unique HDUK-issued/YML-principal instruction rule in FRD-09. Split mixed source ledger OP-007/128 into actual canonical clause owners versus expired execution grants. Corrected roadmap/skill labels and removed misleading old runtime/readiness narration and 'release 38 below'. Regenerated package inventories/patches; preserve both sides of operator relocations.
+- F-002: canonical runbook rollback now requires a verified retained manifest, an unused valid 12-character Web suffix, PreProvision with explicit manifest/environment/desired and observed Worker activation, approved preview, and exact digest/revision/traffic readback. Retained stop-after-one-failed-recovery rule. Removed obsolete blanket cutover compatibility wording and distinguished real preservation/recovery from an authorized disposable-data reset in runbook and engineering.
+- F-003: accepted ADR-0041/0042 no longer call themselves proposals; release completion updates observed operations and source architecture only within their respective ownership.
+
+Validation after this batch: documentation links exit0 (140 files), UI catalogue exit0 (60/67), scoped Git whitespace exit0, targeted text/command contract checks passed. An edit helper first stopped on an exact old-label mismatch before applying remaining changes; corrected it and completed the batch, not an application failure. No src/tests/infra/renderer asset changed. Prior CI run34224704480 selected lanes passed; fresh CI and exact-head delta review pending for 351f345df. No merge/deployment.

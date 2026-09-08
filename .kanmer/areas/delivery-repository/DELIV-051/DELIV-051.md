@@ -2,7 +2,7 @@
 id: DELIV-051
 type: ticket
 title: Revamp repository documentation and agent context
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
@@ -32,12 +32,13 @@ commits:
   - d1854b4730615fae51fdc0fd2f1b8233eba5d4fa
   - af1625fae8ac8018054c95e988907f6c44fa4639
   - d90820295be68b7632012568879555f21fed5dcc
+  - 351f345df21aa7bc86e6ac2de494f93d210162b1
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/702'
 deployment: n/a
 archived: false
 created: '2026-09-08T08:15:33.723Z'
-updated: '2026-09-08T12:17:03.092Z'
+updated: '2026-09-08T12:21:38.486Z'
 ---
 
 ## What
@@ -72,6 +73,6 @@ Observed additions are .agents/skills/pegasus-release/SKILL (2).md and .agents/s
 
 ## Current state
 
-Implemented the amended full documentation plan and all fourteen operator answers at d90820295be68b7632012568879555f21fed5dcc, pushed to PR #702 on DELIV-051-instructions. All new skills vetoed; useful procedures remain in documentation and existing owners. All supplied worktree changes, including vendor relocations, are committed. Documentation placement/link/catalogue/classifier regressions passed; no compiled code or renderer asset changed. Current-head independent review and mergeability comment are the final requested actions. [[DELIV-052]] remains separate. No merge, deployment, data wipe or Done transition is authorized by this task.
+Implemented the amended full documentation plan and all fourteen operator answers at 351f345df21aa7bc86e6ac2de494f93d210162b1 after independent review corrections F-001–F-003, pushed to PR #702 on DELIV-051-instructions. All new skills vetoed; useful procedures remain in documentation and existing owners. All supplied worktree changes, including vendor relocations, are committed. Documentation placement/link/catalogue/classifier regressions passed; no compiled code or renderer asset changed. Current-head independent review and mergeability comment are the final requested actions. [[DELIV-052]] remains separate. No merge, deployment, data wipe or Done transition is authorized by this task.
 
 ## Outcome
