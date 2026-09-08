@@ -1,0 +1,13 @@
+--- a/docs/adr/0021-automation-actor-direct-write-assessment-contract.md
++++ b/docs/adr/0021-automation-actor-direct-write-assessment-contract.md
+@@ -18,6 +18,10 @@
+ `Features:AutomationMcp` (decision 1's final consequence) is amended by
+ [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md);
+ every other clause of this record stands.
++
++## Current applicability
++
++ADR-0031 owns the current Automation rights contract. ADR-0035 defines the distinct pull job ledger; old tool counts and initial activation state are not current inventories.
+ 
+ ## Context
+ 

@@ -39,3 +39,19 @@ Read [references/razor-patterns.md](references/razor-patterns.md) when choosing 
 ## Verify proportionately
 
 Run the repository's focused tests and build checks. Exercise the changed journey with realistic states and validate generated HTML, form behavior, keyboard use, responsive layout, and asset loading where relevant. Do not treat a successful build as proof of usable UI.
+
+## Pegasus snapshot verification
+
+For a routed Razor page change, use the repository’s existing capture script
+with the owning test cohort and page scope, then verify and check the catalogue:
+
+```powershell
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Scope case-details -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"
+pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 -Verify -SkipCapture -Scope case-details
+pwsh -NoProfile -File ./scripts/Test-UiCatalogue.ps1
+```
+
+The Case-details scope/cohort is an example tied to that page; select the actual
+owning cohort for another routed page. Commit the affected generated snapshots
+with the page change. Verification without SkipCapture performs a fresh capture.
+Ordinary prose changes do not require snapshot generation.

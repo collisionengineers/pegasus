@@ -13,6 +13,10 @@ tags: [vrm, onnx, image]
 - Date: 2026-08-03
 - Status: accepted
 
+## Current applicability
+
+The ONNX boundary survives. FRD-06 owns the specific accepted automatic recognition/matching exception; this record’s general suggestion wording must not erase that exception or expand it into blanket autonomous confirmation.
+
 ## Context
 
 `INT-17` allocates suggestion-first automatic vehicle-registration reading
@@ -85,13 +89,13 @@ A future engine change — an external adapter, a retrained detector, or a
 replacement recogniser — is a new decision against the same cohort and
 gate, not a silent swap. Automatic image-led/instruction-led matching
 (`INT-28`/`INT-32`) remains separately gated: reading a plate is not
-associating a record. Open decision 1 retains only the still-open
-threshold acceptance from the operator-reviewed cohort.
+associating a record. The threshold was accepted in the update below.
 
 ## Update — 2026-08-03 threshold accepted
 
-The engine selection above is unchanged. The cohort evaluation it names has
-since run and the operator accepted the **0.80** threshold with the
-`INT-28`/`INT-32` match rules; former open decision 1 is closed. The accepted
-full-cohort and holdout numbers and their qualification are owned by
-[operations § dated evidence](../operations.md#dated-evidence-qualifications).
+The engine selection above is unchanged. The accepted recognition threshold
+and automatic matching limits are owned by
+[FRD-06](../frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis).
+The former threshold question is resolved. Full-cohort and holdout results
+remain in the [dated baseline evidence](https://github.com/collisionengineers/pegasus/blob/af1625fae8ac8018054c95e988907f6c44fa4639/docs/operations.md);
+that historical evidence is not a new runtime observation.

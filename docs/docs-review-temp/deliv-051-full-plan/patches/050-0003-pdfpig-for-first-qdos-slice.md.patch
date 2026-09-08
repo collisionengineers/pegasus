@@ -1,0 +1,13 @@
+--- a/docs/adr/0003-pdfpig-for-first-qdos-slice.md
++++ b/docs/adr/0003-pdfpig-for-first-qdos-slice.md
+@@ -13,6 +13,10 @@
+ - Status: Accepted for the first local QDOS slice
+ - Date: 2026-07-23
+ - Owners: Pegasus development team
++
++## Current applicability
++
++PdfPig remains the embedded-PDF reader. Initial local-only activation and dated benchmark results describe that slice, not the current deployed custody path. Qualified OCR follows ADR-0040.
+ 
+ ## Context
+ 

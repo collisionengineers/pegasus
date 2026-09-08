@@ -2,7 +2,7 @@
 id: ADR-0008
 status: accepted
 date: 2026-07-27
-supersedes: []
+supersedes: [ADR-0006]
 superseded_by: []
 related_capabilities: []
 related_frd: [frd-08, frd-09]
@@ -14,6 +14,10 @@ tags: [email, routing]
 - Status: accepted
 - Owners: Collision Engineers product owner and Pegasus development team
 - Supersedes: ADR-0006's single-policy selection and no-provider-registry/table limits; preserves its provider-neutral transport, provenance, storage, and fail-closed boundaries
+
+## Current applicability
+
+This refines ADR-0006’s route/principal boundary. Current accepted principal behavior is in FRD-09; original QDOS-only allocation context does not limit it.
 
 ## Context
 

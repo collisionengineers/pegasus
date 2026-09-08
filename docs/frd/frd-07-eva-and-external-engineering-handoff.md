@@ -5,7 +5,7 @@
 
 ### Focused EVA manual handoff
 
-There are two send-to-Engineer routes. The export downloads one package for
+There are two optional EVA handoff routes. Native Hand to Engineer is owned by FRD-01 and does not require either route. The export downloads one package for
 staff to import into EVA; that import is the operational handoff to
 engineering, although Pegasus cannot prove EVA receipt or a named-Engineer
 assignment. The API submission (EXT-04) sends the same case to EVA directly and
@@ -20,9 +20,9 @@ Export is first available while the case is in `Review`, and again from
 business readiness decision: reaching it requires complete instructions and
 at least one eligible case image. Staff-review flags cannot override missing
 completeness. The export does not repeat a second field, evidence-status, Case
-custody, or Audit custody readiness policy. Saving case data invalidates the
-previous completeness confirmation, returns the case to `Not ready`, and tells
-the operator that completeness must be confirmed again.
+custody, or Audit custody readiness policy. Completeness invalidation follows FRD-01: an actual relevant change invalidates
+the affected confirmation. Unchanged or unrelated saves do not reset readiness;
+EVA does not define a second completeness policy.
 
 Pressing Export confirms the values currently populated on the reviewed case.
 A populated suggestion is therefore exportable and keeps its `Suggested`
@@ -30,7 +30,7 @@ provenance. VAT and mileage are optional. Mileage and mileage unit must be
 saved together when mileage is present. If Inspection Date is blank, the
 export date is emitted as the named system default. Export has no separate EVA
 activation or mapping-acceptance switch; the API submission does, and it is
-per principal — see [Direct EVA API submission](#direct-eva-api-submission).
+per principal — see [Direct EVA API submission](frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission).
 
 The package contains deterministic UTF-8 JSON in this exact key order and every
 eligible retained Case-vehicle image:
@@ -83,13 +83,10 @@ Pegasus never truncates it or substitutes an inspection or other party's
 address. This is an API request prerequisite, not another Case-readiness or ZIP
 export gate; the thirteen-field package remains unchanged.
 
-**Pegasus has not yet called EVA.** The contract below is proved against the
-vendor's own recorded traffic and against its published request model; no
-submission has been made to any EVA environment, so nothing here establishes
-that EVA accepts this payload, that images land, or what it returns. That is a
-deliberate deferral (operator decision, 2026-08-27), not an oversight, and it
-is why every Principal setting defaults to off. Live credentials are a further,
-separately gated change.
+Vendor schema and recorded traffic establish contract evidence, not acceptance
+of an actual Pegasus submission. Dated deployment and external-call evidence
+belongs in operations. The per-Principal API setting remains off by default;
+credentials, enabling it and a live acceptance run are separately authorized.
 
 Each Principal carries one manual API-submission setting, off by default. When
 enabled, an operator may submit a case in `Review` from the Send to EVA dialog
@@ -155,48 +152,12 @@ the instruction arrives.
 
 ### External boundary
 
-#### Retained PDF estimates
+The manual EVA package and direct EVA API are optional external handoff routes.
+Native estimates, imported provider estimates and accepted AI estimates remain
+Pegasus-owned engineering behavior. Read [FRD-06](frd-06-vehicle-and-engineering-evidence.md#retained-pdf-estimate-import)
+for estimate imports; this adapter does not define another calculation policy.
 
-The canonical estimate-import command accepts the supplied Glass's calculation
-and Audatex full-report PDFs through their deterministic provider mappings.
-It retains the original document and source hash before importing a Draft;
-the same Case and source hash replay the same import. Printed totals, rates,
-line structure and provider identity must agree. PDF net labour is not reduced
-again by an XML-specific overlap rule.
-
-Embedded text is the first source. A positively established unusable font map
-or a qualified scan-like page may use the existing page-restricted OCR path
-under [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) and
-[FRD-05](frd-05-documents-extraction-and-custody.md#qualified-ocr). Mere parser
-failure is not qualification. A pending or uncertain OCR operation is not an
-imported estimate. Retained output may be consumed later by the same command
-under the current Case version and edit lease; no background OCR completion
-can overwrite the Engineer's current work or select a Current estimate.
-
-#### Integration routes
-
-Three routes are planned:
-
-1. the current manual package import into EVA;
-2. the EVA API when EVA supplies a usable contract; and
-3. direct integrations with estimating systems such as Audatex and Glass's,
-   replacing EVA.
-
-Some AI-generated estimates remain in Pegasus for Engineer review and report
-generation. That is a distinct Pegasus-owned route, not a reason to redefine
-the EVA export as something other than sending to an Engineer.
-
-Direct estimating integrations remain deferred until their actual contracts,
-authentication, idempotency, failure/recovery behaviour, current-version
-handling, real callers, and operator acceptance exist. A supplied vendor schema
-is reference evidence, not proof that an API works and not authorization to
-infer an operation. External success, rejection, partial or unknown outcomes
-must remain distinct when those routes are implemented.
-
-The EVA API route was built on 2026-08-27 by operator direction, with its
-contract, authentication, failure behaviour, callers and outcome model recorded
-above, and Pegasus owns the idempotency EVA does not provide. It has made no
-call: the route is proved against recorded vendor traffic only, and no
-submission to a live or test EVA environment forms part of its evidence. Both
-that first submission and the live-credential swap remain separately gated on
-the operator.
+A vendor schema is evidence, not a real-call acceptance result or permission to
+perform an operation. Keep external success, rejection, partial and unknown
+outcomes distinct. Explicit staff re-send is new confirmed work; it does not
+authorize blind retry of an uncertain submission.

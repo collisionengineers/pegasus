@@ -66,4 +66,4 @@ only; it does not grant promotion or Azure/database write authority.
 - Direct terminal and release order:
   [ADR-0007](0007-direct-terminal-azure-deployment.md).
 - Environment boundary: [ADR-0014](0014-local-to-production-deployment.md).
-- Procedure: [Deployment and release](../runbook.md#deployment-and-release).
+- Procedure: [Deployment and release](../../.agents/skills/pegasus-release/SKILL.md).

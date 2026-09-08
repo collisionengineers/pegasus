@@ -14,6 +14,10 @@ tags: [intake, email, queues, reliability]
 - Date: 2026-08-25
 - Owners: Alex and the Pegasus development team
 
+## Current applicability
+
+ADR-0033 owns the current scheduling choice. The durable commit-before-publication, source identity and recovery requirements remain in FRD-02; supersession does not delete those invariants.
+
 ## Context
 
 Pegasus already commits original source custody and a stable processing-work

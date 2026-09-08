@@ -1,0 +1,14 @@
+--- a/docs/adr/0030-non-additive-schema-changes-before-cutover.md
++++ b/docs/adr/0030-non-additive-schema-changes-before-cutover.md
+@@ -13,6 +13,11 @@
+ - Status: Accepted
+ - Date: 2026-08-24
+ - Supersedes: ADR-0002 expand-and-contract schema clause, before cutover only
++
++
++## Current requirement amendments
++
++Development-data preservation and historical alpha cohort gates do not constrain the current disposable test estate; current validation follows engineering verification policy.
+ 
+ ## Status
+ 

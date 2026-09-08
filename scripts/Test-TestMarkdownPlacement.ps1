@@ -104,7 +104,10 @@ try {
         'docs/adr/new.md',
         'docs/design/new.md',
         '.design-sync/new.md',
-        '.grok/skills/example/SKILL.md',
+        '.agents/skills/pegasus-release/references/example.md',
+        'docs/engineering/configuration.md',
+        'docs/external-component-documents/vendor/contract.md',
+        'docs/docs-review-temp/review.md',
         '.stitch/DESIGN.md',
         'design/planning-and-old-designs/new.md',
         'workspaces/document-extraction/docs/new.md'

@@ -1,0 +1,53 @@
+--- a/docs/adr/0036-outbound-mail-via-approved-mailbox.md
++++ b/docs/adr/0036-outbound-mail-via-approved-mailbox.md
+@@ -3,7 +3,7 @@
+ status: accepted
+ date: 2026-08-28
+ supersedes: []
+-superseded_by: []
++superseded_by: [ADR-0042]
+ related_capabilities: []
+ related_frd: [frd-08]
+ tags: [mailbox, outbound-mail, graph]
+@@ -17,6 +17,10 @@
+ decision D4). Acceptance authorises this technical decision only; the
+ production activation it names is a separately approved step.
+ 
++## Current applicability
++
++FRD-08 distinguishes durable send-operation attempts/recovery from authoritative observed Sent evidence. A tracked operation does not itself assert that mail was sent. ADR-0042 records the persistence clarification.
++
+ ## Context
+ 
+ Until now Pegasus has read approved mailboxes and never written to one:
+@@ -24,7 +28,7 @@
+ untouched, and the one mutation seam that exists — the confirmed folder move
+ through `IRetainedMailFolderMover` — is composed only by explicit
+ configuration and is otherwise the unavailable implementation. The
+-[boundaries](../boundaries.md) listed automated correspondence as excluded
++[boundaries](../prd/pegasus-product.md#permanent-boundaries) listed automated correspondence as excluded
+ until activation.
+ 
+ The operator has asked for staff to reply to, forward and compose mail from
+@@ -57,18 +61,18 @@
+ surfaces carry no send, flag or delete control at all. Local alpha and every
+ test profile use the unavailable implementation and never mutate a mailbox.
+ Enabling it in production is a separately approved live write under the
+-[runbook approval matrix](../runbook.md#live-operation-approval-matrix).
++[runbook approval matrix](../runbook.md#operational-authority).
+ 
+ ## Consequences
+ 
+ - The application registration needs Graph `Mail.Send` and `Mail.ReadWrite`
+   for the approved mailboxes, granted as a separately approved tenant change
+-  under the [runbook approval matrix](../runbook.md#live-operation-approval-matrix)
++  under the [runbook approval matrix](../runbook.md#operational-authority)
+   and kept apart from the read/intake scopes.
+ - The Sent-evidence poll (`SentEvidencePollFunction`, ADR-0024 §4) is part of
+   the activation set: a send whose Sent item is never polled has no evidence,
+   so activation without it is refused.
+-- The [boundaries](../boundaries.md) correspondence row now reads
++- The [boundaries](../prd/pegasus-product.md#permanent-boundaries) correspondence row now reads
+   staff-initiated send from an approved mailbox as in scope; autonomous or
+   automated sending, template campaigns, and sending from any non-approved
+   identity remain excluded. No autonomous send exists after this decision.

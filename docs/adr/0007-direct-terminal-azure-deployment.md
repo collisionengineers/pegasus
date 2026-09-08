@@ -18,6 +18,10 @@ tags: [deployment]
 - Date: 2026-07-25
 - Supersedes: ADR-0002 deployment mechanism only
 
+## Current applicability
+
+Direct terminal execution remains applicable. Read the current environment and platform contract through ADR-0014, ADR-0015 and ADR-0039; ADR-0037 is an intermediate superseded workstation decision.
+
 ## Context
 
 Pegasus has committed Bicep and an `azd` service manifest, but neither
