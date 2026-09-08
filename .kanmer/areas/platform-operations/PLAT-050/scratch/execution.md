@@ -1,0 +1,7 @@
+## 2026-09-08 ENG-029 / PLAT-050 narrow documentation handoff
+
+Root explicitly releases ENG-029's future edit authority over docs/design/README.md and docs/index.md to PLAT-050. ENG-029's committed design README changes at f86054c0e7cc73cb6245355dd21c03e58196d582 remain frozen and must be preserved when integrating; its current correction will touch only the declared browser-readiness fixture after independent needs-changes review. docs/index.md was never in ENG-029's approved write map and has no ENG-029 change. This handoff changes no source, claims, stage, acceptance or historical ownership; it does not transfer ENG-029's whole worktree. The separately named generated docs/design/test-ui/index.html is not silently treated as docs/index.md; root clarification is requested for that distinct path.
+
+## Exact generated-index handoff correction
+
+Root corrected its shorthand: the intended shared index is docs/design/test-ui/index.html, not docs/index.md. Release that generated Test UI index to root-owned PLAT-050's scoped output, and release only the Principal paragraph in docs/design/README.md. Preserve ENG-029's frozen committed Case design changes through normal integration; root will carry the exact committed README changes before its later merge. No ENG-029 claim/worktree release or waiver of manual visual/caller acceptance. Current ENG-029 remediation has no documentation/source-index edit. This clarifies, rather than expands, the preceding handoff.
