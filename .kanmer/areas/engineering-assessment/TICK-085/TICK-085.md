@@ -14,14 +14,14 @@ stageEntered:
 taken_at: '2026-09-08T03:02:52.244Z'
 branch: TICK-085-glass-pdf-import
 worktree: .worktrees/tick-085
-claim_expires_at: '2026-09-08T05:50:00.138Z'
+claim_expires_at: '2026-09-08T05:56:37.179Z'
 claim_controller: principal_delivery_audit
 lease_id: 7c250788-4f65-4278-8df1-367330d21dd7
-lease_revision: 16
+lease_revision: 17
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-085'
 lease_phase: verifying
-lease_heartbeat_at: '2026-09-08T05:20:00.138Z'
+lease_heartbeat_at: '2026-09-08T05:26:37.179Z'
 labels:
   - capability
   - EXT-12
@@ -52,7 +52,7 @@ delivery_sha: aefe4c32d078ad79c0368666b5666032e6865248
 delivery_recorded_at: '2026-09-08T05:04:57.503Z'
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-09-08T05:20:00.138Z'
+updated: '2026-09-08T05:26:37.179Z'
 ---
 
 ## What
