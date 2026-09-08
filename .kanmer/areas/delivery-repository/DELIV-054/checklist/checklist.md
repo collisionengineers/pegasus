@@ -17,3 +17,16 @@ checks exited 0; `pwsh -NoProfile -File ./scripts/Test-PegasusPlatform.ps1`
 exited 0; and `pwsh -NoProfile -File
 ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` exited 0. No package
 build occurred; immutable actual-release packaging remains D6 work.
+
+---
+
+## Closeout — DELIV-054
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date confirmed)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-054`
+- [ ] `git branch -d DELIV-054-hidden-runtime-zips` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`

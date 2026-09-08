@@ -17,3 +17,5 @@ Step 2 PASS (static source inspection only): root authorized the necessary suppo
 - 2026-09-08T14:25:21.241Z lease-phase implementing → running-command (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 4; expires 2026-09-08T14:40:21.230Z)
 
 Final materialization slot completed once under the canonical D53 grant. Command: `python artifacts/intk-065-refresh.py`; exit 0. JSON SHA-256 changed from `b2af195e38107033c83c4999b0bcde30f14fb3ba90aa11cb967fb91f3a071284` to final frozen `494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251` (Git blob `f65930bdc27a5984e6b9e2dde684a68d64f9e081`). The harness proved historical-section hashes unchanged, the approved-delta projection, and published-byte/canonical-byte equality before/after its single write. It is materialization evidence, not independent verification PASS; Step 3 remains unticked for the root-scheduled independent content/determinism/test checks. D53 now records explicit IDLE; no Python/dotnet/MSBuild/testhost/vstest process remained.
+
+- 2026-09-08T14:26:20.500Z lease-phase running-command → implementing (lease 67bf01af-2c70-47df-a295-5ddca0f3fd7e rev 5; expires 2026-09-08T14:56:20.490Z)
