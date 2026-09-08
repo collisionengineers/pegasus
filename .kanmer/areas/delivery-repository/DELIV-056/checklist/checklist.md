@@ -30,3 +30,9 @@ The earlier D56 formal-document conversion remains recorded in scratch/notes.md 
 - [ ] After root approval, in `SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude` replace the obsolete positive gated-control regex with the precise negative assertion that the interactive `data-dialog-open="send-to-claude-dialog"` launcher is absent; retain the existing dialog-absence and POST-404 assertions, and change no fixture, helper, runtime path or other file.
 
 - 2026-09-08: designated-host verification must extend the existing exact six-method equality filter with only `SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude` (seven named methods). The earlier 269-case pass of this method predates the stronger assertion and is not proof of it.
+
+## Audit acceptance-version correction addendum
+
+- [ ] After root approval, add only `expectedVersion: evidence.ReceiptVersion` to the existing `AcceptAsync` calls in `CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody` and `AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments`. Preserve their evidence query/type assertion and every existing acceptance, custody, review, identity and document assertion; do not refresh the receipt, seed/upsert evidence, or change production concurrency handling.
+
+- 2026-09-08: designated-host delta verification is an incremental Release build followed by exactly those two Audit methods. The 5 stable PASS results from the prior seven-method run on full-diff hash `bfa477f890e1da5fb570c0bdecfd0825459a3f7c` remain recorded because their sources are unchanged; both failed TRXs remain evidence.
