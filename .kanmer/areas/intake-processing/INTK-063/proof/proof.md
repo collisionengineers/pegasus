@@ -258,3 +258,44 @@ the shared checkout's unrelated edits, all other claims and root's lease are
 unchanged. No cleanup or release yet. If accepted, closeout may update current
 traceability to the reachable squash merge and remove only explicitly
 authorized clean owned worktrees after rehashing this retained archive.
+
+## Closeout record — 2026-09-08
+
+Root read the entire PASS proof above and the retained manifest, then moved
+INTK-063 Done at 04:53:34.162Z. Current commits/delivery now name the reachable
+squash merge `a022fc4b2db87d4d2eeb14437b41f6d8344d63e6`, integrated on dev by
+PR696; not deployed. Author SHA remains historical review provenance only.
+The board's legacy-proof-format warning was read, not presented as typed
+validation: root accepted the actual whole evidence, not structural existence.
+
+Fresh include-archived census found only INTK-063 claiming this exact branch/
+worktree, no batch or shared claim. Both resolved absolute cleanup targets
+matched the recorded roots/common Git/expected author or detached merge head
+and were clean. Ignored content was generated bin/obj plus the five already-
+retained TRXs; no additional user/foreign artifact was found. All source and
+archive hashes matched before removal.
+
+From the shared source root, invoked normal `git worktree remove` for ONLY
+`.worktrees/intk-063` and
+`.worktrees/verify-intk-063-a022fc4b2db87d4d2eeb14437b41f6d8344d63e6`, followed
+by normal `git branch -d INTK-063-image-link-recovery`. The initial output wait
+ended before the command's final text was forwarded, so its aggregate exit
+was not captured; subsequent read-only inspection confirmed both paths and
+registrations and the local branch absent, with no cleanup process remaining.
+No `-D`, worktree force, recursive shell deletion or global prune was used.
+
+Fresh GitHub MERGED/exact merge and remote author SHA checks then preceded
+`git push origin --delete INTK-063-image-link-recovery` (exit 0). Exact remote
+and local ref/path/registration absence checks PASS, and all five archive
+hashes were rechecked again (exit 0). Global fetch/prune and worktree prune
+were deliberately omitted under root's instruction to preserve all foreign
+records. No unrelated root, branch, artifact, source or claim was touched.
+The five retained TRXs and manifest remain at the archive paths above; source
+checkout files are recoverable from Git and proof artifacts from that archive.
+
+At this record's write the complete cleanup and claim-release safety gate are
+satisfied. The final `take_ticket action: release` follows record-keeping;
+its actual outcome is recorded by live ticket claim metadata and the handoff,
+not inferred here. No implementation scope remains; [[INTK-064]] may use the
+released ownership after that final call. All original failure attempts and
+runtime evidence above remain unchanged.

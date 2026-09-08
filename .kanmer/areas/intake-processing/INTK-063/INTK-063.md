@@ -11,18 +11,6 @@ stageEntered:
   review: '2026-09-08T04:17:33.123Z'
   verifying: '2026-09-08T04:37:40.981Z'
   done: '2026-09-08T04:53:34.162Z'
-taken_at: '2026-09-08T02:44:23.546Z'
-branch: INTK-063-image-link-recovery
-worktree: .worktrees/intk-063
-claim_expires_at: '2026-09-08T05:38:53.019Z'
-claim_controller: root
-lease_id: 96040972-2231-4565-8a48-d176ea4c6aec
-lease_revision: 17
-lease_worker_run: pack_reconcile
-lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-063'
-lease_provider: codex
-lease_phase: running-command
-lease_heartbeat_at: '2026-09-08T04:38:53.019Z'
 labels:
   - image-intake
   - pairing
@@ -48,7 +36,7 @@ delivery_sha: a022fc4b2db87d4d2eeb14437b41f6d8344d63e6
 delivery_recorded_at: '2026-09-08T04:55:49.534Z'
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T04:55:49.534Z'
+updated: '2026-09-08T04:59:50.481Z'
 ---
 
 ## What
@@ -103,8 +91,10 @@ remain in proof; all five TRXs are retained with verified hashes at
 `pegasus_pack/current/proofs/intk-063/manifest.json` (manifest SHA256
 `FCC14EF2269BD14D1F17890D549C344B88DA685E8F75AF2A4B11A51724AE784F`).
 
-Only this ticket's clean roots/branch are authorized for closeout; claim
-release is last. [[INTK-064]] may use the released acceptance/timer/matcher
-ownership after cleanup. This does not transfer or close historical
+Only this ticket's two clean owned roots and local/remote branch were removed;
+all five retained hashes still match. No force/global prune/foreign cleanup.
+The claim-release safety gate is satisfied and release is the final call.
+[[INTK-064]] may use the released acceptance/timer/matcher ownership once live
+claim metadata confirms release. This does not transfer or close historical
 [[TICK-042]], [[INTK-039]], [[INTK-060]] or [[INTK-061]] claims. Final v1
 release/live acceptance remains with [[EPIC-014]].

@@ -40,7 +40,21 @@ root's subsequent responsibility.
 - [x] Moved to final stage by root from accepted whole PASS proof.
 - [x] Outcome and reachable integrated-dev traceability recorded in ticket body.
 - [x] Rehash all five retained/source TRXs and confirm exclusive clean exact roots.
-- [ ] From shared source root, normal removal of only author and exact merged verification worktrees.
-- [ ] Delete only INTK-063-image-link-recovery local/remote branch (normal -d first; squash fallback only if justified).
-- [ ] Verify exact refs/worktree registrations absent; omit global prune to preserve all foreign records.
-- [ ] Release claim last (`take_ticket action: "release"`).
+- [x] From shared source root, normal removal of only author and exact merged verification worktrees.
+- [x] Delete only INTK-063-image-link-recovery local/remote branch (normal -d first; squash fallback only if justified).
+- [x] Verify exact refs/worktree registrations absent; omit global prune to preserve all foreign records.
+- [x] Claim-release safety gate satisfied: all record-keeping and Git cleanup complete; final operational call is `take_ticket action: "release"`.
+
+## Closeout evidence
+
+Root accepted whole merged proof and moved Done at 04:53:34.162Z. Current
+traceability is reachable dev merge a022fc4b2db87d4d2eeb14437b41f6d8344d63e6,
+PR696, integrated/not-deployed. All five retained TRXs rehashed before and
+after cleanup; manifest SHA256 FCC14EF2269BD14D1F17890D549C344B88DA685E8F75AF2A4B11A51724AE784F.
+Only the two exact clean owned worktrees and ticket local/remote branch were
+removed. Normal -d only; no force or global pruning. The initial cleanup
+command's aggregate exit was not forwarded after its first wait window;
+subsequent exact absence/process checks confirmed completion. Remote deletion
+and final archive/ref checks exited 0. Full detail and retained earlier
+failures remain in proof. The release checkbox above records its now-satisfied
+safety gate; actual final release is visible in ticket claim metadata.
