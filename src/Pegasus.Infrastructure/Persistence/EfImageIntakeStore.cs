@@ -1,12 +1,15 @@
 using System.Data;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -504,6 +507,7 @@ public sealed class EfImageIntakeStore(
             "merged_into_instruction_case",
             ImageInitiatedCaseState.MergedIntoInstructionCase,
             request.CaseId,
+            request.ExpectedStaffOriginAssociationVersion,
             cancellationToken);
     }
 
@@ -521,7 +525,76 @@ public sealed class EfImageIntakeStore(
             "staff_closed",
             ImageInitiatedCaseState.StaffClosed,
             null,
+            null,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// The known principal is casework metadata, not registration identity and
+    /// not a lifecycle transition: it writes no lifecycle event. The equality
+    /// check runs before the active-principal check deliberately — a value that
+    /// was legitimately recorded while its principal was active must survive a
+    /// re-submission after that principal is deactivated, as a no-op. Only an
+    /// actual change requires an active principal.
+    /// </summary>
+    /// <remarks>
+    /// The write is guarded by <c>LifecycleVersion</c> rather than a token of
+    /// its own: one Image Intake, one optimistic token. A principal save
+    /// therefore does invalidate a concurrently-open Merge or Close form,
+    /// which is the intended trade — those forms are reloaded, and a second
+    /// token would let two staff members write the same record while each
+    /// believed they held the current version. A same-value re-submission
+    /// leaves the version alone, so the only edits that can invalidate a form
+    /// are ones that genuinely changed the record.
+    /// </remarks>
+    public async Task<ImageIntakeRecord> SetPrincipalAsync(
+        SetImageIntakePrincipalRequest request,
+        CancellationToken cancellationToken)
+    {
+        ImageIntakeLifecycleRules.ValidateSetPrincipal(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var entity = await context.ImageIntakes.SingleOrDefaultAsync(
+            item => item.Id == request.ImageIntakeId,
+            cancellationToken)
+            ?? throw new KeyNotFoundException($"Image intake '{request.ImageIntakeId}' was not found.");
+        if (entity.LifecycleVersion != request.ExpectedVersion)
+        {
+            throw new DbUpdateConcurrencyException(
+                "This Image Intake changed before the principal assignment.");
+        }
+
+        if (entity.PrincipalId == request.PrincipalId)
+        {
+            return Map(entity);
+        }
+
+        if (request.PrincipalId is { } principalId
+            && !await context.Principals.AsNoTracking().AnyAsync(
+                principal => principal.Id == principalId && principal.IsActive,
+                cancellationToken))
+        {
+            throw new InvalidOperationException("The selected principal is not active.");
+        }
+
+        entity.PrincipalId = request.PrincipalId;
+        entity.LifecycleVersion++;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    public async Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var principals = await context.Principals.AsNoTracking()
+            .Where(principal => principal.IsActive)
+            .OrderBy(principal => principal.Code)
+            .ToArrayAsync(cancellationToken);
+        return principals.Select(EfOrganizationAdministration.ToPrincipal).ToArray();
     }
 
     public async Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
@@ -546,12 +619,14 @@ public sealed class EfImageIntakeStore(
         string eventType,
         ImageInitiatedCaseState targetState,
         Guid? caseId,
+        long? expectedStaffOriginAssociationVersion,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         var operation = operationKey.Trim();
-        var fingerprint = TransitionFingerprint(imageIntakeId, eventType, actor, reason, caseId);
+        var fingerprint = TransitionFingerprint(imageIntakeId, eventType, actor, reason, caseId,
+            expectedStaffOriginAssociationVersion);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var replay = await context.ImageIntakeLifecycleEvents.AsNoTracking()
@@ -580,12 +655,55 @@ public sealed class EfImageIntakeStore(
         string? caseReference = null;
         if (caseId is { } targetCaseId)
         {
-            caseReference = await context.Cases
-                .AsNoTracking()
-                .Where(item => item.Id == targetCaseId)
-                .Select(item => item.Reference)
-                .SingleOrDefaultAsync(cancellationToken)
+            var workflow = await context.CaseWorkflows.Include(item => item.Case)
+                .SingleOrDefaultAsync(item => item.CaseId == targetCaseId, cancellationToken)
                 ?? throw new KeyNotFoundException($"Case '{targetCaseId}' does not exist.");
+            ArchivedCaseGuard.RequireNotArchived(workflow);
+            if (!ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
+                    Enum.Parse<CaseLifecycleState>(workflow.State), workflow.ReportSentEvidenceId is not null))
+            {
+                throw new ImageIntakeCaseNotEligibleException(targetCaseId);
+            }
+            var currentTime = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+            if (workflow.EditLeaseExpiresAtUtc > currentTime)
+            {
+                throw new IntakeAssociationConflictException("The Case is being edited; image merge yields.");
+            }
+
+            var images = await ListImagesAsync(context, entity.OriginReceiptId, entity.SubmissionGroupId, cancellationToken);
+            var memberIds = images.Select(image => image.ReceiptId).Prepend(entity.OriginReceiptId).Distinct().ToArray();
+            var associations = await context.IntakeManualAssociations.AsNoTracking()
+                .Where(item => memberIds.Contains(item.IntakeReceiptId)).ToArrayAsync(cancellationToken);
+            if (associations.Length != memberIds.Length
+                || associations.Any(item => !item.IsActive || item.CaseId != targetCaseId))
+            {
+                throw new IntakeAssociationConflictException(
+                    "Every registered image receipt must still be linked to the merge destination.");
+            }
+            // The recorded association owns the decision, not the actor running
+            // this retry. A reasoned staff override remains valid; automatic
+            // links must still agree with the complete current identity set.
+            var originAssociation = associations.Single(item => item.IntakeReceiptId == entity.OriginReceiptId);
+            var staffDecision = originAssociation.ActorKind == nameof(ActorKind.Staff)
+                && !string.IsNullOrWhiteSpace(originAssociation.Reason);
+            if (staffDecision
+                ? expectedStaffOriginAssociationVersion != originAssociation.Version
+                : expectedStaffOriginAssociationVersion is not null)
+            {
+                throw new IntakeAssociationConflictException("The originating staff decision changed before merge.");
+            }
+            if (!staffDecision)
+            {
+                var candidates = await EfImageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
+                    context, entity.NormalizedVehicleRegistration, cancellationToken);
+                var memberCount = await GroupExpectedMemberCountAsync(context, entity.SubmissionGroupId, cancellationToken);
+                if (ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
+                        entity.NormalizedVehicleRegistration, entity.PrincipalId, memberCount)?.CaseId != targetCaseId)
+                {
+                    throw new IntakeAssociationConflictException("The automatic image association is no longer unambiguous.");
+                }
+            }
+            caseReference = workflow.Case.Reference;
         }
 
         var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
@@ -666,6 +784,72 @@ public sealed class EfImageIntakeStore(
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
+        int maximumItems,
+        Guid? caseId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var eligible = await EfImageIntakeCaseCandidates.EligibleQuery(context)
+            .ToArrayAsync(cancellationToken);
+        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+        var leasedCases = await context.CaseWorkflows.AsNoTracking()
+            .Where(workflow => workflow.EditLeaseExpiresAtUtc > now)
+            .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
+        var awaiting = ToCode(ImageInitiatedCaseState.AwaitingInstruction);
+        var rows = await ProjectAsync(
+            context.ImageIntakes.AsNoTracking()
+                .Where(intake => intake.LifecycleState == awaiting
+                    && !context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == intake.OriginReceiptId && !association.IsActive))
+                .OrderBy(intake => intake.CreatedAtUtc).ThenBy(intake => intake.Id),
+            context, cancellationToken);
+
+        // The established near-miss rule is not SQL-translatable. Evaluate
+        // current eligibility before the bound, never permanently mark a
+        // no-match row: a later Case or correction can make it actionable.
+        var associations = await context.IntakeManualAssociations.AsNoTracking().ToDictionaryAsync(
+            association => association.IntakeReceiptId, cancellationToken);
+        var pending = new List<ImageIntakeSummary>();
+        foreach (var intake in rows)
+        {
+            var matches = eligible.Where(candidate => VrmRegistrationMatching.IsMatch(
+                intake.NormalizedVehicleRegistration, candidate.ConfirmedRegistration)).ToArray();
+            var automaticTarget = ImageIntakeCasePairing.SelectRegisteredTarget(matches,
+                intake.NormalizedVehicleRegistration, intake.PrincipalId, intake.GroupExpectedMemberCount);
+            var target = automaticTarget;
+            var staffDecision = false;
+            if (intake.AssociatedCaseId is { } linkedCaseId)
+            {
+                staffDecision = associations.TryGetValue(intake.OriginReceiptId, out var association)
+                    && association.ActorKind == nameof(ActorKind.Staff)
+                    && !string.IsNullOrWhiteSpace(association.Reason);
+                target = staffDecision
+                    ? eligible.SingleOrDefault(candidate => candidate.CaseId == linkedCaseId)
+                    : target?.CaseId == linkedCaseId ? target : null;
+            }
+            if (target is null || (caseId is not null && target.CaseId != caseId)
+                || leasedCases.Contains(target.CaseId))
+            {
+                continue;
+            }
+            var images = await ListImagesAsync(intake.Id, cancellationToken);
+            if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
+                    ? !association.IsActive || association.CaseId != target.CaseId
+                    : !staffDecision && automaticTarget?.CaseId != target.CaseId))
+            {
+                continue;
+            }
+            pending.Add(intake);
+            if (pending.Count == maximumItems)
+            {
+                break;
+            }
+        }
+        return pending;
+    }
+
     public async Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -695,7 +879,9 @@ public sealed class EfImageIntakeStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
-        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+        return entity is null
+            ? null
+            : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
     }
 
     /// <summary>
@@ -706,13 +892,14 @@ public sealed class EfImageIntakeStore(
     /// its staged receipt, the staged receipt names its group member row,
     /// and the group id names the group-stamped intake).
     /// </summary>
-    private static async Task<ImageIntakeEntity?> FindForReceiptAsync(
+    internal static async Task<ImageIntakeEntity?> FindForReceiptAsync(
         PegasusDbContext context,
         Guid intakeReceiptId,
         CancellationToken cancellationToken)
     {
         var entity = await context.ImageIntakes
             .AsNoTracking()
+            .Include(item => item.Principal)
             .SingleOrDefaultAsync(
                 item => item.OriginReceiptId == intakeReceiptId,
                 cancellationToken);
@@ -726,7 +913,7 @@ public sealed class EfImageIntakeStore(
             where evaluation.ProcessedReceiptId == intakeReceiptId
             join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
                 on evaluation.StagedReceiptId equals member.StagedReceiptId
-            join intake in context.ImageIntakes.AsNoTracking()
+            join intake in context.ImageIntakes.AsNoTracking().Include(item => item.Principal)
                 on (Guid?)member.GroupId equals intake.SubmissionGroupId
             select intake)
             .FirstOrDefaultAsync(cancellationToken);
@@ -777,26 +964,31 @@ public sealed class EfImageIntakeStore(
             return [];
         }
 
+        return await ListImagesAsync(context, intake.OriginReceiptId, intake.SubmissionGroupId, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
+        PegasusDbContext context,
+        Guid originReceiptId,
+        Guid? submissionGroupId,
+        CancellationToken cancellationToken)
+    {
         var receiptIds = await ResolveOrderedImageReceiptIdsAsync(
             context,
-            intake.OriginReceiptId,
-            intake.SubmissionGroupId,
+            originReceiptId,
+            submissionGroupId,
             cancellationToken);
-        var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         // The image rule's owner is ImageIntakeLifecycle.IsImageOnlyMaterial;
-        // this projection cites its prefix because SQL cannot run it.
+        // this projection cites its prefix because SQL cannot run it. Durable
+        // group membership, not a mutable queue decision, defines the images:
+        // a reversed/reassigned sibling must not disappear from merge guards.
         var rows = await context.IntakeAssets
             .AsNoTracking()
             .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
                 && asset.Kind == "source"
                 && asset.Disposition == "source"
                 && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix))
-            .Join(
-                context.IntakeReceipts.AsNoTracking()
-                    .Where(receipt => receipt.Decision == registeredDecision),
-                asset => asset.IntakeReceiptId,
-                receipt => receipt.Id,
-                (asset, receipt) => new { asset.IntakeReceiptId, asset.FileName, asset.MediaType })
+            .Select(asset => new { asset.IntakeReceiptId, asset.FileName, asset.MediaType })
             .ToArrayAsync(cancellationToken);
         var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId);
         var images = new List<ImageIntakeImage>(rows.Length);
@@ -830,20 +1022,34 @@ public sealed class EfImageIntakeStore(
             cancellationToken);
     }
 
+    /// <summary>
+    /// The principal code comes out of the same read as a LEFT JOIN through the
+    /// navigation rather than a follow-up lookup, so a detail read stays one
+    /// round trip whether or not a principal is recorded.
+    /// </summary>
     private static async Task<ImageIntakeDetail?> GetDetailAsync(
         PegasusDbContext context,
         System.Linq.Expressions.Expression<Func<ImageIntakeEntity, bool>> predicate,
         CancellationToken cancellationToken)
     {
-        var entity = await context.ImageIntakes
+        var row = await context.ImageIntakes
             .AsNoTracking()
-            .SingleOrDefaultAsync(predicate, cancellationToken);
-        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+            .Where(predicate)
+            .Select(intake => new
+            {
+                Intake = intake,
+                PrincipalCode = intake.Principal != null ? intake.Principal.Code : null
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        return row is null
+            ? null
+            : await ToDetailAsync(context, row.Intake, row.PrincipalCode, cancellationToken);
     }
 
     private static async Task<ImageIntakeDetail> ToDetailAsync(
         PegasusDbContext context,
         ImageIntakeEntity entity,
+        string? principalCode,
         CancellationToken cancellationToken)
     {
         var association = await AssociationAsync(context, entity.OriginReceiptId, cancellationToken);
@@ -852,15 +1058,23 @@ public sealed class EfImageIntakeStore(
             entity.CreatedAtUtc,
             association?.CaseId,
             association?.CaseReference,
-            ParseCustodyState(entity.CustodyState));
+            ParseCustodyState(entity.CustodyState),
+            principalCode,
+            await GroupExpectedMemberCountAsync(context, entity.SubmissionGroupId, cancellationToken),
+            association?.CaseVersion);
     }
+
+    internal static async Task<int> GroupExpectedMemberCountAsync(
+        PegasusDbContext context, Guid? groupId, CancellationToken cancellationToken) =>
+        groupId is null ? 1 : await context.IntakeSubmissionGroups.AsNoTracking()
+            .Where(group => group.Id == groupId).Select(group => group.ExpectedMemberCount)
+            .SingleAsync(cancellationToken);
 
     private static async Task<IReadOnlyList<ImageIntakeSummary>> ProjectAsync(
         IQueryable<ImageIntakeEntity> query,
         PegasusDbContext context,
         CancellationToken cancellationToken)
     {
-        var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         var rows = await query
             .Select(intake => new
             {
@@ -873,6 +1087,14 @@ public sealed class EfImageIntakeStore(
                 intake.CustodyState,
                 intake.LifecycleState,
                 intake.ClosureReason,
+                intake.PrincipalId,
+                GroupExpectedMemberCount = context.IntakeSubmissionGroups
+                    .Where(group => group.Id == intake.SubmissionGroupId)
+                    .Select(group => (int?)group.ExpectedMemberCount).FirstOrDefault() ?? 1,
+                // The one set-based projection carries the principal code as a
+                // LEFT JOIN: no per-row read, so the queue's read count does not
+                // grow with the number of rows.
+                PrincipalCode = intake.Principal != null ? intake.Principal.Code : null,
                 Association = context.IntakeManualAssociations
                     .Where(association => association.IntakeReceiptId == intake.OriginReceiptId)
                     .Select(association => new { association.IsActive, association.CaseId })
@@ -885,9 +1107,6 @@ public sealed class EfImageIntakeStore(
                     asset.Kind == "source"
                     && asset.Disposition == "source"
                     && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix)
-                    && context.IntakeReceipts.Any(receipt =>
-                        receipt.Id == asset.IntakeReceiptId
-                        && receipt.Decision == registeredDecision)
                     && (asset.IntakeReceiptId == intake.OriginReceiptId
                         || (intake.SubmissionGroupId != null
                             && context.IntakeEvaluations.Any(evaluation =>
@@ -936,12 +1155,15 @@ public sealed class EfImageIntakeStore(
                     ParseState(row.LifecycleState),
                     row.ClosureReason,
                     row.ImageCount,
-                    ParseChannel(row.SourceChannel));
+                    ParseChannel(row.SourceChannel),
+                    row.PrincipalCode,
+                    row.PrincipalId,
+                    row.GroupExpectedMemberCount);
             })
             .ToArray();
     }
 
-    private static async Task<(Guid CaseId, string CaseReference)?> AssociationAsync(
+    private static async Task<(Guid CaseId, string CaseReference, long CaseVersion)?> AssociationAsync(
         PegasusDbContext context,
         Guid originReceiptId,
         CancellationToken cancellationToken)
@@ -962,12 +1184,11 @@ public sealed class EfImageIntakeStore(
             return null;
         }
 
-        var reference = await context.Cases
-            .AsNoTracking()
-            .Where(item => item.Id == caseId.Value)
-            .Select(item => item.Reference)
+        var target = await context.CaseWorkflows.AsNoTracking()
+            .Where(item => item.CaseId == caseId.Value)
+            .Select(item => new { item.Case.Reference, item.Version })
             .SingleAsync(cancellationToken);
-        return (caseId.Value, reference);
+        return (caseId.Value, target.Reference, target.Version);
     }
 
     /// <summary>
@@ -1039,7 +1260,8 @@ public sealed class EfImageIntakeStore(
         string eventType,
         ActionActor actor,
         string reason,
-        Guid? caseId) =>
+        Guid? caseId,
+        long? expectedStaffOriginAssociationVersion) =>
         Hash(string.Join(
             '|',
             "image_intake_transition",
@@ -1048,7 +1270,9 @@ public sealed class EfImageIntakeStore(
             actor.Kind.ToString(),
             actor.SubjectId,
             reason.Trim(),
-            caseId?.ToString("N") ?? string.Empty));
+            caseId?.ToString("N") ?? string.Empty)
+            + (expectedStaffOriginAssociationVersion is { } version
+                ? $"|staff-origin:{version.ToString(CultureInfo.InvariantCulture)}" : string.Empty));
 
     private static string Snapshot(IntakeReceiptEntity receipt) => JsonSerializer.Serialize(new
     {
@@ -1090,7 +1314,7 @@ public sealed class EfImageIntakeStore(
         _ => throw new InvalidDataException($"Unknown Image-initiated state '{state}'.")
     };
 
-    private static ImageInitiatedCaseState ParseState(string state) => state switch
+    internal static ImageInitiatedCaseState ParseState(string state) => state switch
     {
         "awaiting_instruction" => ImageInitiatedCaseState.AwaitingInstruction,
         "merged_into_instruction_case" => ImageInitiatedCaseState.MergedIntoInstructionCase,
@@ -1141,7 +1365,8 @@ public sealed class EfImageIntakeStore(
         entity.ClosureReason,
         entity.ClosedAtUtc,
         entity.LifecycleVersion,
-        entity.SubmissionGroupId);
+        entity.SubmissionGroupId,
+        PrincipalId: entity.PrincipalId);
 }
 
 public sealed class EfImageIntakeOriginResolver(
@@ -1197,8 +1422,34 @@ public sealed class EfImageIntakeOriginResolver(
 public sealed class EfImageIntakeCaseCandidates(
     IDbContextFactory<PegasusDbContext> contextFactory) : IImageIntakeCaseCandidates
 {
-    private static readonly string[] EligibleStates =
-        ["NotReady", "Held", "Review", "ReportPreparation"];
+    private static readonly string[] EligibleStates = Enum.GetValues<CaseLifecycleState>()
+        .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
+        .Select(state => state.ToString())
+        .ToArray();
+
+    internal static IQueryable<ImageIntakeCaseCandidate> EligibleQuery(PegasusDbContext context) =>
+        from workflow in context.CaseWorkflows.AsNoTracking()
+        join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
+        join index in context.CaseMatchIndex.AsNoTracking() on caseEntity.Id equals index.CaseId into indices
+        from index in indices.DefaultIfEmpty()
+        where EligibleStates.Contains(workflow.State)
+            && workflow.ReportSentEvidenceId == null
+            && workflow.ArchivedAtUtc == null
+        orderby caseEntity.Reference
+        select new ImageIntakeCaseCandidate(
+            caseEntity.Id, caseEntity.Reference, workflow.Version,
+            index == null ? string.Empty : index.NormalizedVrm ?? string.Empty, caseEntity.PrincipalId);
+
+    internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
+        PegasusDbContext context,
+        string read,
+        CancellationToken cancellationToken)
+    {
+        // Keep the accepted one-missing-character rule in its Core owner.
+        var eligible = await EligibleQuery(context).ToArrayAsync(cancellationToken);
+        return eligible.Where(candidate =>
+            VrmRegistrationMatching.IsMatch(read, candidate.ConfirmedRegistration)).ToArray();
+    }
 
     public async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
         string normalizedVehicleRegistration,
@@ -1211,45 +1462,7 @@ public sealed class EfImageIntakeCaseCandidates(
 
         var read = normalizedVehicleRegistration.Trim().ToUpperInvariant();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The one-missing-character rule cannot translate to SQL; the
-        // eligible pre-report set is small, so match in memory over the
-        // normalised confirmed registrations.
-        var eligible = await (
-            from workflow in context.CaseWorkflows.AsNoTracking()
-            join caseEntity in context.Cases.AsNoTracking()
-                on workflow.CaseId equals caseEntity.Id
-            join draft in context.InstructionDrafts.AsNoTracking()
-                on caseEntity.OriginIntakeReceiptId equals draft.IntakeReceiptId
-            where EligibleStates.Contains(workflow.State)
-                && workflow.ReportSentEvidenceId == null
-                && workflow.ArchivedAtUtc == null
-                && draft.VehicleRegistration != null
-            orderby caseEntity.Reference
-            select new
-            {
-                caseEntity.Id,
-                caseEntity.Reference,
-                workflow.Version,
-                Registration = draft.VehicleRegistration!
-            })
-            .ToArrayAsync(cancellationToken);
-        return eligible
-            .Select(candidate => new
-            {
-                candidate,
-                Normalized = new string(candidate.Registration
-                    .ToUpperInvariant()
-                    .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
-                    .ToArray())
-            })
-            .Where(item => item.Normalized.Length > 0
-                && VrmRegistrationMatching.IsMatch(read, item.Normalized))
-            .Select(item => new ImageIntakeCaseCandidate(
-                item.candidate.Id,
-                item.candidate.Reference,
-                item.candidate.Version,
-                item.Normalized))
-            .ToArray();
+        return await FindEligibleByRegistrationAsync(context, read, cancellationToken);
     }
 }
 

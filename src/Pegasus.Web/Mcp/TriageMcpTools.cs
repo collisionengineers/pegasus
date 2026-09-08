@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 
@@ -8,18 +9,17 @@ namespace Pegasus.Web.Mcp;
 
 internal sealed record TriageListToolResult(
     IReadOnlyList<TriageSummary> Items,
-    int Page,
-    int PageSize,
-    int TotalCount,
-    int TotalPages,
+    string? NextCursor,
+    int Limit,
     string CorrelationId);
 
 internal sealed record TriageDetailToolResult(TriageDetail Detail, string CorrelationId);
 
 [McpServerToolType]
 internal sealed class TriageMcpTools(
-    IListTriage listTriage,
+    IListTriagePage listTriage,
     IGetTriage getTriage,
+    IGetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
     IAwaitTriageInformation awaitInformation,
     IRecordTriageFinding recordFinding,
@@ -35,11 +35,11 @@ internal sealed class TriageMcpTools(
     AutomationMcpAuditor auditor)
 {
     [McpServerTool(Name = "pegasus_triage_list", Title = "List Triage work", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Lists Triage records through the same paged Core query as the staff application.")]
+    [Description("Lists a bounded page of Triage records through the protected Core continuation query.")]
     public async Task<TriageListToolResult> ListAsync(
         string? state = null,
-        int page = 1,
-        int pageSize = 25,
+        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
+        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -56,10 +56,14 @@ internal sealed class TriageMcpTools(
                     }
                     parsedState = parsed;
                 }
+                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var result = await listTriage.ExecuteAsync(
-                    new(context.Actor, parsedState, page, pageSize), cancellationToken);
-                return new TriageListToolResult(result.Items, result.Page, result.PageSize, result.TotalCount,
-                    result.TotalPages, context.TraceIdentifier);
+                    new(context.Actor, parsedState, cursor, effectiveLimit), cancellationToken);
+                return new TriageListToolResult(
+                    result.Items,
+                    result.NextCursor,
+                    effectiveLimit,
+                    context.TraceIdentifier);
             }), cancellationToken);
     }
 
@@ -89,7 +93,7 @@ internal sealed class TriageMcpTools(
                 AutomationMcpErrors.RequireId(triageId, "Triage identifier");
                 var detail = await getTriage.ExecuteAsync(new(triageId, context.Actor), cancellationToken)
                     ?? throw new McpException("The Triage record was not found.");
-                return await IntakeSourceMcpContent.DownloadAsync(downloadSource,
+                return await IntakeSourceMcpContent.DownloadAsync(getSourceMetadata, downloadSource,
                     detail.Record.Origin.ReceiptId, context.Actor, maxInlineBytes,
                     context.TraceIdentifier, cancellationToken);
             }), cancellationToken);
@@ -147,9 +151,9 @@ internal sealed class TriageMcpTools(
 
     private Task<TriageDetailToolResult> MutateAsync(
         string tool, Guid triageId, string operationKey,
-        Func<string, string, Task> action, CancellationToken cancellationToken) =>
-        MutateWithActorAsync(tool, triageId, operationKey,
-            (actor, key) => action(actor.SubjectId, key), cancellationToken);
+        Func<Pegasus.Core.Identity.ActionActor, string, Task> action,
+        CancellationToken cancellationToken) =>
+        MutateWithActorAsync(tool, triageId, operationKey, action, cancellationToken);
 
     private async Task<TriageDetailToolResult> MutateWithActorAsync(
         string tool, Guid triageId, string operationKey,

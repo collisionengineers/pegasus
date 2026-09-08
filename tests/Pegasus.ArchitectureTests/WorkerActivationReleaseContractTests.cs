@@ -96,7 +96,75 @@ public sealed class WorkerActivationReleaseContractTests
     }
 
     [Fact]
-    public async Task LocalDeploymentPlanRejectsAppendedRogueHardCodedWorkerSetting()
+    public void DocumentIntelligenceTemplateUsesWorkerOnlyKeylessAccess()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var platformBicep = File.ReadAllText(Path.Combine(
+            repositoryRoot, "infra", "modules", "platform.bicep"));
+        var mainBicep = File.ReadAllText(Path.Combine(repositoryRoot, "infra", "main.bicep"));
+        var account = Regex.Match(
+            platformBicep,
+            @"(?ms)^resource documentIntelligence 'Microsoft\.CognitiveServices/accounts@2026-05-01' = \{.*?^\}",
+            RegexOptions.CultureInvariant).Value;
+
+        Assert.NotEmpty(account);
+        Assert.Matches(@"name:\s*documentIntelligenceName", account);
+        Assert.Matches(@"location:\s*location", account);
+        Assert.Matches(@"kind:\s*'FormRecognizer'", account);
+        Assert.Matches(@"sku:\s*\{\s*name:\s*'S0',\s*tier:\s*'Standard'\s*\}", account);
+        Assert.Matches(@"customSubDomainName:\s*documentIntelligenceName", account);
+        Assert.Matches(@"disableLocalAuth:\s*true", account);
+        Assert.DoesNotContain("identity:", account, StringComparison.Ordinal);
+        Assert.Contains("var documentIntelligenceName = '${prefix}-ocr-${suffix}'", platformBicep);
+        Assert.Contains(
+            "var cognitiveServicesUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')",
+            platformBicep);
+
+        var roles = Regex.Matches(
+                platformBicep,
+                @"(?ms)^resource \w+ 'Microsoft\.Authorization/roleAssignments@[^']+' = \{.*?^\}",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Value)
+            .Where(value => value.Contains("documentIntelligence", StringComparison.Ordinal)
+                || value.Contains("cognitiveServicesUserRole", StringComparison.Ordinal))
+            .ToArray();
+        var role = Assert.Single(roles);
+        Assert.Matches(@"scope:\s*documentIntelligence\s", role);
+        Assert.Contains("guid(documentIntelligence.id, workerIdentity.id, cognitiveServicesUserRole)", role);
+        Assert.Contains("roleDefinitionId: cognitiveServicesUserRole", role);
+        Assert.Contains("principalId: workerIdentity.properties.principalId", role);
+        Assert.Contains("principalType: 'ServicePrincipal'", role);
+        Assert.DoesNotContain("webIdentity", role, StringComparison.Ordinal);
+
+        var worker = Regex.Match(
+            platformBicep, @"(?ms)^resource workerApp .*?^\}", RegexOptions.CultureInvariant).Value;
+        Assert.Contains(
+            "{ name: 'DocumentIntelligence__Endpoint', value: documentIntelligence.properties.endpoint }", worker);
+        Assert.Matches(@"dependsOn:\s*\[[^\]]*\bworkerDocumentIntelligenceUser\b", worker);
+        Assert.Single(Regex.Matches(platformBicep, "name: 'DocumentIntelligence__Endpoint'"));
+        var web = Regex.Match(
+            platformBicep, @"(?ms)^resource webContainerApp .*?^\}", RegexOptions.CultureInvariant).Value;
+        Assert.NotEmpty(web);
+        Assert.DoesNotContain("DocumentIntelligence", web, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("output documentIntelligenceAccountId string = documentIntelligence.id", platformBicep);
+        Assert.Contains("output documentIntelligenceEndpoint string = documentIntelligence.properties.endpoint", platformBicep);
+        Assert.Contains(
+            "output DOCUMENT_INTELLIGENCE_ACCOUNT_ID string = activationAllowed ? platform!.outputs.documentIntelligenceAccountId : ''",
+            mainBicep);
+        Assert.Contains(
+            "output DOCUMENT_INTELLIGENCE_ENDPOINT string = activationAllowed ? platform!.outputs.documentIntelligenceEndpoint : ''",
+            mainBicep);
+    }
+
+    [Theory]
+    [InlineData("worker", "exact seven-function disabled-setting name census")]
+    [InlineData("account-kind", "Only the FormRecognizer Document Intelligence account kind is approved.")]
+    [InlineData("extra-account", "Additional Cognitive Services resources are prohibited.")]
+    [InlineData("foundry", "Deferred Azure services are prohibited")]
+    [InlineData("maps", "Deferred Azure services are prohibited")]
+    [InlineData("vision", "Deferred Azure services are prohibited")]
+    [InlineData("staticwebapp", "Deferred Azure services are prohibited")]
+    public async Task LocalDeploymentPlanRejectsUnapprovedTemplateChanges(string mutation, string expectedFailure)
     {
         var repositoryRoot = FindRepositoryRoot();
         var testRoot = Path.Combine(
@@ -105,6 +173,7 @@ public sealed class WorkerActivationReleaseContractTests
         Directory.CreateDirectory(testRoot);
         try
         {
+            AssertTemporaryFixtureRoot(testRoot);
             CopyValidationFixtureFile(repositoryRoot, testRoot, "azure.yaml");
             CopyValidationFixtureFile(repositoryRoot, testRoot, "infra/main.bicep");
             CopyValidationFixtureFile(repositoryRoot, testRoot, "infra/main.parameters.json");
@@ -123,6 +192,10 @@ public sealed class WorkerActivationReleaseContractTests
             CopyValidationFixtureFile(
                 repositoryRoot,
                 testRoot,
+                "scripts/PegasusPlatform.ps1");
+            CopyValidationFixtureFile(
+                repositoryRoot,
+                testRoot,
                 "scripts/Test-AzureDeploymentPlan.ps1");
 
             var platformBicepPath = Path.Combine(
@@ -133,11 +206,19 @@ public sealed class WorkerActivationReleaseContractTests
             var platformBicep = File.ReadAllText(platformBicepPath);
             const string marker =
                 "        { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled'";
-            var mutatedPlatformBicep = platformBicep.Replace(
-                marker,
-                "        { name: 'AzureWebJobs.Rogue-Function.Disabled', value: 'false' }" +
-                Environment.NewLine + marker,
-                StringComparison.Ordinal);
+            var mutatedPlatformBicep = mutation switch
+            {
+                "worker" => platformBicep.Replace(
+                    marker,
+                    "        { name: 'AzureWebJobs.Rogue-Function.Disabled', value: 'false' }" +
+                    Environment.NewLine + marker,
+                    StringComparison.Ordinal),
+                "account-kind" => platformBicep.Replace(
+                    "kind: 'FormRecognizer'", "kind: 'OpenAI'", StringComparison.Ordinal),
+                "extra-account" => platformBicep + Environment.NewLine +
+                    "resource unapprovedAccount 'Microsoft.CognitiveServices/accounts@2026-05-01' = { name: 'extra' }",
+                _ => platformBicep + Environment.NewLine + $"var unapprovedService = '{mutation}'"
+            };
             Assert.NotEqual(platformBicep, mutatedPlatformBicep);
             File.WriteAllText(platformBicepPath, mutatedPlatformBicep);
 
@@ -160,6 +241,7 @@ public sealed class WorkerActivationReleaseContractTests
             startInfo.ArgumentList.Add("Local");
             startInfo.ArgumentList.Add("-WorkerActivation");
             startInfo.ArgumentList.Add("disabled");
+            ScrubInheritedGitEnvironment(startInfo);
 
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException(
@@ -188,13 +270,14 @@ public sealed class WorkerActivationReleaseContractTests
             Assert.NotEqual(0, process.ExitCode);
             Assert.True(
                 diagnostic.Contains(
-                    "exact seven-function disabled-setting name census",
+                    expectedFailure,
                     StringComparison.Ordinal),
                 diagnostic);
             Assert.DoesNotContain("Rogue-Function", diagnostic, StringComparison.Ordinal);
         }
         finally
         {
+            AssertTemporaryFixtureRoot(testRoot);
             Directory.Delete(testRoot, recursive: true);
         }
     }
@@ -358,6 +441,83 @@ public sealed class WorkerActivationReleaseContractTests
         Assert.DoesNotContain("false", output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PreProvisionRejectsEveryMissingOrEmptyRequiredConfigurationBeforeSmoke()
+    {
+        foreach (var key in new[]
+                 {
+                     "BOX_HOLDING_FOLDER_ID",
+                     "AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS",
+                     "AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS"
+                 })
+        {
+            foreach (var value in new string?[] { null, string.Empty, "   " })
+            {
+                var environment = ValidPreProvisionEnvironment();
+                if (value is null)
+                {
+                    environment.Remove(key);
+                }
+                else
+                {
+                    environment[key] = value;
+                }
+
+                var result = RunPreProvisionValidation(environment);
+
+                Assert.NotEqual(0, result.ExitCode);
+                Assert.Contains($"missing {key}", result.Diagnostic, StringComparison.Ordinal);
+                Assert.DoesNotContain("functionapp config appsettings list", result.AzureArguments, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void PreProvisionRejectsMalformedOrCrossVaultCertificateUrisBeforeSmoke()
+    {
+        foreach (var value in new[]
+                 {
+                     "http://pegasusprodkv252ow37g.vault.azure.net/secrets/signing/version",
+                     "https://operator@pegasusprodkv252ow37g.vault.azure.net/secrets/signing/version",
+                     "https://pegasusprodkv252ow37g.vault.azure.net:444/secrets/signing/version",
+                     "https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing/version?query=value",
+                     "https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing/version#fragment",
+                     "https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing"
+                 })
+        {
+            var environment = ValidPreProvisionEnvironment();
+            environment["AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS"] = value;
+
+            var result = RunPreProvisionValidation(environment);
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains(
+                "AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS must contain",
+                result.Diagnostic,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("functionapp config appsettings list", result.AzureArguments, StringComparison.Ordinal);
+        }
+
+        var crossVault = ValidPreProvisionEnvironment();
+        crossVault["AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS"] =
+            "https://another-vault.vault.azure.net/secrets/encryption/version";
+        var crossVaultResult = RunPreProvisionValidation(crossVault);
+
+        Assert.NotEqual(0, crossVaultResult.ExitCode);
+        Assert.Contains("same Azure Key Vault", crossVaultResult.Diagnostic, StringComparison.Ordinal);
+        Assert.DoesNotContain("functionapp config appsettings list", crossVaultResult.AzureArguments, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PreProvisionAcceptsVersionedSameVaultCertificatesAndReachesSmoke()
+    {
+        var result = RunPreProvisionValidation(ValidPreProvisionEnvironment());
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("Azure deployment plan validation passed (PreProvision", result.Diagnostic, StringComparison.Ordinal);
+        Assert.Contains("functionapp config appsettings list", result.AzureArguments, StringComparison.Ordinal);
+    }
+
     private static void AssertCensusRejected(
         IReadOnlyCollection<WorkerSetting> settings,
         string protectedSettingName)
@@ -378,6 +538,128 @@ public sealed class WorkerActivationReleaseContractTests
         ExpectedSettingNames
             .Select(name => new WorkerSetting(name, value))
             .ToList();
+
+    private static Dictionary<string, string> ValidPreProvisionEnvironment() => new(StringComparer.Ordinal)
+    {
+        ["AZURE_SUBSCRIPTION_ID"] = "e6076573-23a5-46a8-acef-7e22d264e5db",
+        ["AZURE_TENANT_ID"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+        ["AZURE_RESOURCE_GROUP"] = "rg-pegasus-prod",
+        ["WORKER_APP_NAME"] = "pegasus-prod-worker-252ow37gij",
+        ["PEGASUS_WORKER_ACTIVATION"] = "disabled",
+        ["BOX_HOLDING_FOLDER_ID"] = "test-holding-folder",
+        ["AZURE_KEY_VAULT_NAME"] = "pegasusprodkv252ow37g",
+        ["AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS"] =
+            "https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing-current/version-one," +
+            "https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing-retained/version-two",
+        ["AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS"] =
+            "https://pegasusprodkv252ow37g.vault.azure.net/secrets/encryption/version-three"
+    };
+
+    private static PreProvisionResult RunPreProvisionValidation(
+        IReadOnlyDictionary<string, string> environment)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var testRoot = Path.Combine(Path.GetTempPath(), $"pegasus-preprovision-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(testRoot);
+        try
+        {
+            AssertTemporaryFixtureRoot(testRoot);
+            var environmentPath = Path.Combine(testRoot, "environment.txt");
+            var settingsPath = Path.Combine(testRoot, "worker-settings.json");
+            var compiledTemplatePath = Path.Combine(testRoot, "compiled-template.json");
+            var azureArgumentsPath = Path.Combine(testRoot, "azure-arguments.txt");
+            File.WriteAllLines(environmentPath, environment.Select(item => $"{item.Key}={item.Value}"));
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(ExactSettings("true")));
+            File.WriteAllText(compiledTemplatePath, CompiledWorkerTemplate());
+            WriteFakePreProvisionCommands(testRoot);
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                WorkingDirectory = repositoryRoot
+            };
+            ScrubInheritedGitEnvironment(startInfo);
+            startInfo.ArgumentList.Add("-NoLogo");
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(Path.Combine(repositoryRoot, "scripts", "Test-AzureDeploymentPlan.ps1"));
+            startInfo.ArgumentList.Add("-Mode");
+            startInfo.ArgumentList.Add("PreProvision");
+            startInfo.ArgumentList.Add("-Environment");
+            startInfo.ArgumentList.Add("test");
+            startInfo.ArgumentList.Add("-WorkerActivation");
+            startInfo.ArgumentList.Add("disabled");
+            startInfo.ArgumentList.Add("-ExpectedLiveWorkerActivation");
+            startInfo.ArgumentList.Add("disabled");
+            startInfo.Environment["PATH"] = testRoot + Path.PathSeparator + startInfo.Environment["PATH"];
+            startInfo.Environment["PEGASUS_TEST_AZD_VALUES_PATH"] = environmentPath;
+            startInfo.Environment["PEGASUS_TEST_AZ_SETTINGS_PATH"] = settingsPath;
+            startInfo.Environment["PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH"] = compiledTemplatePath;
+            startInfo.Environment["PEGASUS_TEST_AZ_ARGUMENTS_PATH"] = azureArgumentsPath;
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start mocked PreProvision validation.");
+            var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+            var standardErrorTask = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(30_000))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                throw new TimeoutException("Mocked PreProvision validation did not finish within 30 seconds.");
+            }
+
+            return new(
+                process.ExitCode,
+                NormalizeDiagnosticWhitespace(
+                    standardOutputTask.GetAwaiter().GetResult() + Environment.NewLine +
+                    standardErrorTask.GetAwaiter().GetResult()),
+                File.Exists(azureArgumentsPath) ? File.ReadAllText(azureArgumentsPath) : string.Empty);
+        }
+        finally
+        {
+            AssertTemporaryFixtureRoot(testRoot);
+            Directory.Delete(testRoot, recursive: true);
+        }
+    }
+
+    private static string CompiledWorkerTemplate() =>
+        "{\"resources\":[" + string.Join(",", ExpectedSettingNames.Select(name =>
+            $"{{\"name\":\"{name}\",\"value\":\"[if(variables('workerActivationApproved'), 'false', 'true')]\"}}")) +
+        "],\"variables\":{\"workerActivationApproved\":\"[equals(parameters('workerActivation'), 'approved-live-worker')]\"}," +
+        "\"parameters\":{\"workerActivation\":{\"type\":\"string\",\"defaultValue\":\"disabled\"}}}";
+
+    private static void WriteFakePreProvisionCommands(string testRoot)
+    {
+        AssertTemporaryFixtureRoot(testRoot);
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllText(
+                Path.Combine(testRoot, "az.cmd"),
+                "@echo off\r\n" +
+                ">> \"%PEGASUS_TEST_AZ_ARGUMENTS_PATH%\" echo %*\r\n" +
+                "echo %* | findstr /c:\"bicep build\" >nul && (type \"%PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH%\" & exit /b 0)\r\n" +
+                "type \"%PEGASUS_TEST_AZ_SETTINGS_PATH%\"\r\n");
+            File.WriteAllText(
+                Path.Combine(testRoot, "azd.cmd"),
+                "@echo off\r\n" +
+                "type \"%PEGASUS_TEST_AZD_VALUES_PATH%\"\r\n");
+            return;
+        }
+
+        var azPath = Path.Combine(testRoot, "az");
+        File.WriteAllText(
+            azPath,
+            "#!/bin/sh\n" +
+            "printf '%s\\n' \"$*\" >> \"$PEGASUS_TEST_AZ_ARGUMENTS_PATH\"\n" +
+            "case \"$*\" in *'bicep build'*) cat \"$PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH\";; *) cat \"$PEGASUS_TEST_AZ_SETTINGS_PATH\";; esac\n");
+        File.SetUnixFileMode(azPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var azdPath = Path.Combine(testRoot, "azd");
+        File.WriteAllText(azdPath, "#!/bin/sh\ncat \"$PEGASUS_TEST_AZD_VALUES_PATH\"\n");
+        File.SetUnixFileMode(azdPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+    }
 
     private static string NormalizeDiagnosticWhitespace(string value) =>
         Regex.Replace(
@@ -409,6 +691,7 @@ public sealed class WorkerActivationReleaseContractTests
                 UseShellExecute = false,
                 WorkingDirectory = repositoryRoot
             };
+            ScrubInheritedGitEnvironment(startInfo);
             startInfo.ArgumentList.Add("-NoLogo");
             startInfo.ArgumentList.Add("-NoProfile");
             startInfo.ArgumentList.Add("-File");
@@ -453,12 +736,14 @@ public sealed class WorkerActivationReleaseContractTests
         }
         finally
         {
+            AssertTemporaryFixtureRoot(testRoot);
             Directory.Delete(testRoot, recursive: true);
         }
     }
 
     private static void WriteFakeAzureCli(string testRoot)
     {
+        AssertTemporaryFixtureRoot(testRoot);
         if (OperatingSystem.IsWindows())
         {
             File.WriteAllText(
@@ -492,8 +777,33 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var sourcePath = Path.Combine(repositoryRoot, relativePath);
         var destinationPath = Path.Combine(testRoot, relativePath);
+        AssertTemporaryFixtureRoot(testRoot, destinationPath);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
         File.Copy(sourcePath, destinationPath);
+    }
+
+    private static void ScrubInheritedGitEnvironment(ProcessStartInfo startInfo)
+    {
+        foreach (var name in startInfo.Environment.Keys
+                     .Where(name => name.StartsWith("GIT_", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            startInfo.Environment.Remove(name);
+        }
+    }
+
+    private static void AssertTemporaryFixtureRoot(string testRoot, string? target = null)
+    {
+        var root = Path.GetFullPath(testRoot).TrimEnd(Path.DirectorySeparatorChar);
+        var temporaryParent = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        Assert.StartsWith(temporaryParent, root + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
+        if (target is not null)
+        {
+            Assert.StartsWith(root + Path.DirectorySeparatorChar, Path.GetFullPath(target),
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private sealed record WorkerSetting(
@@ -505,6 +815,8 @@ public sealed class WorkerActivationReleaseContractTests
         string StandardOutput,
         string StandardError,
         string AzureArguments);
+
+    private sealed record PreProvisionResult(int ExitCode, string Diagnostic, string AzureArguments);
 
     private static string FindRepositoryRoot()
     {

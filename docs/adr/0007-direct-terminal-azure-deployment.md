@@ -2,17 +2,25 @@
 id: ADR-0007
 status: accepted
 date: 2026-07-25
-supersedes: []
-superseded_by: []
+supersedes: [ADR-0002]
+superseded_by: [ADR-0014, ADR-0015, ADR-0037]
 related_capabilities: []
 related_frd: []
 tags: [deployment]
 ---
 # ADR-0007: Direct authorised-terminal Azure deployment
 
-- Status: Accepted
+- Status: Accepted for direct authorized-terminal deployment. Environment
+  clauses are superseded by ADR-0014, Web ZIP/hosting clauses by ADR-0015,
+  and the Windows-only release-workstation restriction by ADR-0037.
+  `superseded_by` records these partial relationships; the retained principle
+  does not prove a current release or recovery run.
 - Date: 2026-07-25
 - Supersedes: ADR-0002 deployment mechanism only
+
+## Current applicability
+
+Direct terminal execution remains applicable. Read the current environment and platform contract through ADR-0014, ADR-0015 and ADR-0039; ADR-0037 is an intermediate superseded workstation decision.
 
 ## Context
 

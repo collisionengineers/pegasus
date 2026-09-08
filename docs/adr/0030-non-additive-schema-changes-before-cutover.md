@@ -14,6 +14,11 @@ tags: [deployment, schema, migrations, cutover]
 - Date: 2026-08-24
 - Supersedes: ADR-0002 expand-and-contract schema clause, before cutover only
 
+
+## Current requirement amendments
+
+Development-data preservation and historical alpha cohort gates do not constrain the current disposable test estate; current validation follows engineering verification policy.
+
 ## Status
 
 Accepted. This ADR supersedes the expand-and-contract requirement in ADR-0002

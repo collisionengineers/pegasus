@@ -1,5 +1,5 @@
 using Pegasus.Core.Operations;
-using Pegasus.Web.Pages;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -21,7 +21,7 @@ public sealed class WorkCentreLabelTests
 
         // The same words the Operations table's Work column already shows for
         // this exact field — one list per concept, not a second map.
-        Assert.Equal("Document custody", IndexModel.TitleLabel(item));
+        Assert.Equal("Document custody", NeedsAttentionPresentation.TitleLabel(item));
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class WorkCentreLabelTests
             title: "document_custody",
             attempts: 2);
 
-        Assert.Equal("2 attempts", IndexModel.DetailLabel(item));
+        Assert.Equal("2 attempts", NeedsAttentionPresentation.DetailLabel(item));
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public sealed class WorkCentreLabelTests
             attempts: null,
             detail: "QDOS");
 
-        Assert.Equal("Mr A Claimant", IndexModel.TitleLabel(item));
-        Assert.Equal("QDOS", IndexModel.DetailLabel(item));
+        Assert.Equal("Mr A Claimant", NeedsAttentionPresentation.TitleLabel(item));
+        Assert.Equal("QDOS", NeedsAttentionPresentation.DetailLabel(item));
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ public sealed class WorkCentreLabelTests
     [Fact]
     public void ExternalWorkOpensTheOperationsPageByItsPageName()
     {
-        Assert.Equal("/Operations/Index", IndexModel.RecordPage(NeedsAttentionKind.ExternalWork));
+        Assert.Equal("/Operations/Index", NeedsAttentionPresentation.RecordPage(NeedsAttentionKind.ExternalWork));
     }
 
     /// <summary>
@@ -76,7 +76,7 @@ public sealed class WorkCentreLabelTests
     [InlineData(NeedsAttentionKind.Triage, "/Triage/Details")]
     public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
     {
-        Assert.Equal(expected, IndexModel.RecordPage(kind));
+        Assert.Equal(expected, NeedsAttentionPresentation.RecordPage(kind));
     }
 
     private static NeedsAttentionItem NewItem(

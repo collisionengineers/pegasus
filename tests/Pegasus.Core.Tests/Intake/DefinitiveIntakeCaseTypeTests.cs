@@ -13,7 +13,7 @@ public sealed class DefinitiveIntakeCaseTypeTests
         string document,
         CaseType expected)
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [new(IntakeEvidenceSource.DocumentContent, "retained instruction", document)],
             [],
@@ -27,7 +27,7 @@ public sealed class DefinitiveIntakeCaseTypeTests
     [Fact]
     public void AmbiguousInstructionCarriesNoCaseType()
     {
-        var result = new QdosMailClassificationPolicy().Classify(new(
+        var result = new PrincipalMailClassificationPolicy("QDOS").Classify(new(
             IntakeSourceReadStatus.Readable,
             [
                 new(IntakeEvidenceSource.EmailBody, "message body", "Triage Only Request"),

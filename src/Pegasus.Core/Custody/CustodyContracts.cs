@@ -37,7 +37,8 @@ public sealed record CustodyDocumentVersion(
     Guid CaseId,
     string RemoteId,
     string ContentHash,
-    string ETag);
+    string ETag,
+    string? BoxVersionId = null);
 
 /// <summary>
 /// Fail-closed authority carried through a multi-effect custody adapter call.
@@ -706,4 +707,41 @@ public sealed class ReconcilePoisonedExternalWork(
 public interface IProcessQueuedCustody
 {
     Task ExecuteAsync(Guid workId, CancellationToken cancellationToken);
+}
+
+public enum CaseArtifactCustodyDisposition { Confirmed, Pending, Failed, Unknown }
+public sealed record CaseArtifactCustodyRequest(
+    ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
+    string OperationKey, string FileName, string MediaType, long ContentLength,
+    string Sha256, Stream Content);
+public sealed record CaseArtifactCustodyResult(
+    CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
+    string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,
+    string? MediaType, string? FailureCode, string? PendingContentStorageKey);
+public interface ICaseArtifactCustody
+{
+    Task<CaseArtifactCustodyResult> RetainAsync(
+        CaseArtifactCustodyRequest request, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Reads the durable state of an exact Case artifact occurrence and version. A pending result
+/// retains its logical identities so callers can retry after process restart.
+/// This is custody state, not report readiness or permission to send.
+/// </summary>
+public interface ICaseArtifactCustodyStatus
+{
+    Task<CaseArtifactCustodyResult> GetAsync(
+        ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Finds an accepted intent after a response was lost, without offering
+    /// content again. Null means no committed intent was observed; it does not
+    /// authorize a new operation key or prove an in-flight call cannot commit.
+    /// Request links may read only intents accepted through that exact link.
+    /// </summary>
+    Task<CaseArtifactCustodyResult?> FindByOperationKeyAsync(
+        ActionActor actor, Guid caseId, string operationKey,
+        CancellationToken cancellationToken);
 }

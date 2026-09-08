@@ -48,6 +48,21 @@ function Get-PegasusPlatform {
     throw "Pegasus supports Windows and Linux with PowerShell 7. It does not support $described."
 }
 
+function Get-PegasusMigrationBundle {
+    # The migration runs on the release workstation; deployed hosts stay Linux.
+    $platform = Get-PegasusPlatform
+    if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne
+        [Runtime.InteropServices.Architecture]::X64) {
+        throw 'Release artifacts require a Windows x64 or Linux x64 workstation.'
+    }
+
+    return [pscustomobject]@{
+        RuntimeIdentifier = if ($platform.IsWindows) { 'win-x64' } else { 'linux-x64' }
+        Name = if ($platform.IsWindows) { 'efbundle.exe' } else { 'efbundle' }
+        IsLinux = $platform.IsLinux
+    }
+}
+
 function Get-PegasusPathComparison {
     <#
         .SYNOPSIS
@@ -965,7 +980,7 @@ $script:PegasusRepairHints = @{
         Linux = 'curl -fsSL https://aka.ms/install-azd.sh | sudo bash'
     }
     'oras' = @{
-        Windows = 'The authorised release terminal is Linux; install ORAS there.'
+        Windows = 'Install ORAS 1.3.4 from https://oras.land/docs/installation/'
         Linux = 'Install ORAS 1.3.4 from https://oras.land/docs/installation/'
     }
     'bicep' = @{

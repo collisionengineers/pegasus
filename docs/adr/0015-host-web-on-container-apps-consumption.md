@@ -2,7 +2,7 @@
 id: ADR-0015
 status: accepted
 date: 2026-08-01
-supersedes: []
+supersedes: [ADR-0002, ADR-0007]
 superseded_by: []
 related_capabilities: []
 related_frd: []
@@ -12,6 +12,12 @@ tags: [hosting, containerapps]
 
 **Status:** Accepted (2026-08-01)
 **Supersedes:** ADR-0002's App Service hosting, tier, and fixed-compute clauses; ADR-0007's Web ZIP deployment mechanism
+
+## Current applicability
+
+Web warm/minimum-replica values are operator configuration choices recorded
+in operations, not a fixed architectural minimum. The current test data is
+disposable. Other hosting choices remain within this ADR's accepted scope.
 
 ## Context
 

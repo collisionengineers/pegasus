@@ -98,6 +98,49 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task NotificationBeforeTheMailboxBoundaryIsNotCountedAsHandled()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Notified = Message("historic", "unused") with
+        {
+            ReceivedAtUtc = FirstMailbox.ActivatedAtUtc.AddMinutes(-1)
+        };
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "historic",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(0, handled);
+        Assert.Empty(harness.Source.Reads);
+        Assert.Equal([FirstMailbox.ApprovedMailboxId], harness.PollStore.CompletedNotifications);
+    }
+
+    [Fact]
+    public async Task NotificationProcessesOnlyItsMessageWithoutScanningOrAdvancingTheRecoveryCursor()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.PollStore.Cursors[FirstMailbox.GraphMailboxId] = "existing-recovery-cursor";
+        harness.Source.Notified = DisplayableMessage("notified", "not-a-scan-cursor");
+        harness.Source.Fail(FirstMailbox.GraphMailboxId, new IOException("A recovery scan must not run."));
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "notified",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Source.Reads);
+        Assert.Equal("existing-recovery-cursor", harness.PollStore.Cursors[FirstMailbox.GraphMailboxId]);
+        Assert.Equal([FirstMailbox.ApprovedMailboxId], harness.PollStore.CompletedNotifications);
+        Assert.Empty(harness.PollStore.Releases);
+    }
+
+    [Fact]
     public async Task EachMailboxReadsUnderItsOwnInboxFolderIdentity()
     {
         var harness = new Harness(FirstMailbox, SecondMailbox);
@@ -397,6 +440,23 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task TooManyReplyToAddressesIsRefusedAsMalformedMetadata()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage(
+                "a-1",
+                "cursor-a1",
+                Metadata(replyToAddresses:
+                    [.. Enumerable.Range(0, 51).Select(index => $"reply{index}@example.invalid")])));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
     public async Task MissingInternetMessageIdentityIsRefusedAsMalformedMetadata()
     {
         var harness = new Harness(FirstMailbox);
@@ -451,7 +511,8 @@ public sealed class PollApprovedInboxTests
     private static RetainedMailboxMessageMetadata Metadata(
         string? subject = "An instruction",
         IReadOnlyList<string>? toAddresses = null,
-        string? internetMessageIdentity = "<message-1@example.invalid>") =>
+        string? internetMessageIdentity = "<message-1@example.invalid>",
+        IReadOnlyList<string>? replyToAddresses = null) =>
         new(
             "inbox-a",
             "conversation-1",
@@ -460,6 +521,7 @@ public sealed class PollApprovedInboxTests
             "A Sender",
             toAddresses ?? ["intake@collisionengineers.co.uk"],
             [],
+            replyToAddresses ?? ["sender@example.invalid"],
             subject,
             "Body",
             [new("estimate.pdf", "application/pdf", 2048)],
@@ -563,6 +625,8 @@ public sealed class PollApprovedInboxTests
 
         internal List<(string MailboxId, string FailureCode)> Releases { get; } = [];
 
+        internal List<Guid> CompletedNotifications { get; } = [];
+
         internal void WithholdLease(string mailboxId) => withheld.Add(mailboxId);
 
         internal void FailClaim(string mailboxId, Exception exception) =>
@@ -633,6 +697,15 @@ public sealed class PollApprovedInboxTests
             return Task.CompletedTask;
         }
 
+        public Task CompleteNotificationAsync(
+            Guid approvedMailboxId,
+            string leaseToken,
+            CancellationToken cancellationToken)
+        {
+            CompletedNotifications.Add(approvedMailboxId);
+            return Task.CompletedTask;
+        }
+
         public Task ReleaseAsync(
             Guid approvedMailboxId,
             string leaseToken,
@@ -658,6 +731,8 @@ public sealed class PollApprovedInboxTests
         private readonly Dictionary<string, Exception> failures = new(StringComparer.Ordinal);
 
         internal List<(string MailboxId, string InboxFolderIdentity)> Reads { get; } = [];
+
+        internal ApprovedInboxMessage? Notified { get; set; }
 
         internal void Enqueue(string mailboxId, ApprovedInboxMessage message)
         {
@@ -693,6 +768,12 @@ public sealed class PollApprovedInboxTests
             messages.RemoveRange(0, page.Length);
             return Task.FromResult(new ApprovedInboxPage(page, page[^1].NextCursor));
         }
+
+        public Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+            ApprovedInboxPollLease lease,
+            string immutableMessageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Notified);
     }
 
     private sealed class ArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
@@ -801,11 +882,14 @@ public sealed class PollApprovedInboxTests
             TimeSpan leaseDuration,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+        public Task CompleteProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IntakeEvaluationRevision> RecordEvaluationAsync(
             Guid workItemId,
             string leaseToken,
             Guid processedReceiptId,
             DateTimeOffset completedAtUtc,
+            bool isReevaluation,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(

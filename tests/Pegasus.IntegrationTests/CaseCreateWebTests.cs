@@ -106,6 +106,10 @@ public sealed partial class CaseCreateWebTests
         // Nothing was extracted, so every box is empty and there is no address
         // suggestion to fingerprint.
         Assert.Equal(string.Empty, form.Values["AddressSuggestionFingerprint"]);
+        Assert.Contains("name=\"InstructionComplete\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ImagesComplete\"", form.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("InstructionConfirmedByStaff", form.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImagesConfirmedByStaff", form.Html, StringComparison.Ordinal);
         Assert.Contains("Nothing in this file said where the vehicle is", form.Html, StringComparison.Ordinal);
 
         using var response = await PostCreateAsync(client, form, KeyedFields());
@@ -546,9 +550,7 @@ public sealed partial class CaseCreateWebTests
         ["InspectionAddress"] = "1 Example Street, Exampleton EX1 1EX",
         ["AddressChoice"] = nameof(Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress),
         ["InstructionComplete"] = bool.TrueString,
-        ["ImagesComplete"] = bool.TrueString,
-        ["InstructionConfirmedByStaff"] = bool.TrueString,
-        ["ImagesConfirmedByStaff"] = bool.TrueString
+        ["ImagesComplete"] = bool.TrueString
     };
 
     private static async Task<CreateForm> OpenCreateScreenAsync(HttpClient client, Guid receiptId)
@@ -693,6 +695,12 @@ public sealed partial class CaseCreateWebTests
 
     private static async Task SeedPrincipalAsync(IServiceProvider services, string principalCode)
     {
+        if (principalCode == QdosPrincipal.Code)
+        {
+            _ = await SeededPrincipals.QdosAsync(services);
+            return;
+        }
+
         var organizationId = Guid.NewGuid();
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();

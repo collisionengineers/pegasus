@@ -72,6 +72,7 @@ internal static class WorkerAzureClientFactory
     internal const string WorkerClientIdKey = "AzureIdentity:WorkerClientId";
     internal const string IntakeStorageServiceUriKey = "IntakeStorage:ServiceUri";
     internal const string IntakeQueueServiceUriKey = "IntakeQueue:ServiceUri";
+    internal const string DocumentIntelligenceEndpointKey = "DocumentIntelligence:Endpoint";
 
     private const string DevelopmentStorageKey = "AzureWebJobsStorage";
     private const string IntakeStorageConnectionStringKey = "IntakeStorage:ConnectionString";
@@ -83,7 +84,8 @@ internal static class WorkerAzureClientFactory
     [
         WorkerClientIdKey,
         IntakeStorageServiceUriKey,
-        IntakeQueueServiceUriKey
+        IntakeQueueServiceUriKey,
+        DocumentIntelligenceEndpointKey
     ];
 
     internal static WorkerAzureClientRegistration CreateProduction(IConfiguration configuration)

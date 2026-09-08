@@ -49,23 +49,26 @@ One Case in which Collision Engineers completes its standard Inspection and then
 _Avoid_: Combined report, two-spec Inspection
 
 **Triage**:
-A distinct staff workflow for a recorded matter requiring a finding and, where applicable, exact reply-chain Sent evidence.
-_Avoid_: Inbox sorting, generic sorting
+A separate pre-Case assessment with a global increasing T-reference. Completion
+records a decided outcome; Reply with outcome is optional editable email.
+It allocates no normal Case/PO and does not provide definitive instructions.
 
-**Needs sorting**:
-A safe pre-case routing state for persisted material that cannot yet progress: unclassifiable email, and recorded Triage material awaiting a vehicle registration. It is never a pre-Case Image intake or `Not ready`.
+**Unidentified**:
+Safely retained material or an inseparable submission group whose identity, meaning, ownership or destination cannot be established. It receives an immutable U-reference under FRD-02. It is distinct from Triage, Blocked intake, incomplete Audit evidence, Image Intake and a formal Case in Not ready.
 _Avoid_: Triage, Blocked intake
 
 **Blocked intake**:
 A pre-Case failure boundary where required processing, identity, limits, custody, or evidence is incomplete or unsafe.
-_Avoid_: Needs sorting, Triage
+_Avoid_: Unidentified, Triage
 
 **Held**:
 A nonterminal Case state that pauses progression and recurring chasers pending a named staff resolution. A cancellation message creates `Held pending staff decision`; it does not itself cancel the Case.
 _Avoid_: Cancelled, closed
 
 **Created in error**:
-The terminal outcome for a Case created against the wrong Principal; the original reference remains consumed and links to its replacement.
+A reasoned disposition for a Case created against the wrong Principal; its
+immutable reference remains consumed and links to its replacement. It does not
+create a terminally closed Case.
 _Avoid_: Delete, reopen
 
 **Associated**:
@@ -81,11 +84,11 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable user-triggered domain action that creates a later AI work request and may return a proposed repair specification for named-Engineer review. Provider wording does not rename the action or permit direct Case mutation.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed unconfirmed working-data writes through Core. It never confirms professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:
-The once-per-Case proxy event recorded when the Case's first successful EVA export bundle is generated. It is generation evidence, never receipt, delivery, or report-sent evidence, and it never repeats for the same Case.
+The once-per-Case handoff proxy governed by FRD-01. Native handoff and optional EVA are distinct supported routes; the proxy is not external receipt, delivery or report-sent evidence.
 _Avoid_: Sent to Engineer (the activity count), report sent
 
 **Sent to Engineer today/week**:
@@ -93,12 +96,12 @@ The Operations activity count of `First sent to Engineer` proxy events within th
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:
-The Operations metric for instructed Cases created since Europe/London midnight, including Cases later closed that day and excluding Image intakes, Triage, `Needs sorting`, and `Blocked intake`.
+The Operations metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage, `Unidentified`, and `Blocked intake`.
 _Avoid_: In today, Due today, received today
 
 **Not ready**:
 A created Case state for an instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`; pre-Case Image intake is not a Case state.
-_Avoid_: Needs sorting, Blocked intake
+_Avoid_: Unidentified, Blocked intake
 
 **Review**:
 A Case state in which staff manually review its readiness and accepted evidence before Engineer-queue eligibility or direct Engineer assignment.
@@ -144,3 +147,10 @@ operator sees, not on how the code is named.
 
 The word “intake” never appears in operator-facing text (operator decision
 2026-08-04). `Review` and `Ready to review` denote the Case stage only.
+
+
+**Completed / Query**:
+
+Reversible post-report Case states. A query received for or attached to a
+Completed Case moves it to Query; replying moves it back to Completed.
+There is no terminally closed Case state (FRD-01).

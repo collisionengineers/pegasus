@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -13,45 +14,38 @@ public sealed class AssessmentPolicyTests
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
     [Theory]
-    [InlineData(CaseLifecycleState.NotReady, 4L, 4L, false)]
-    [InlineData(CaseLifecycleState.Review, 4L, 4L, false)]
-    [InlineData(CaseLifecycleState.Held, 4L, 4L, false)]
-    [InlineData(CaseLifecycleState.CreatedInError, 4L, 4L, false)]
-    [InlineData(CaseLifecycleState.ReportPreparation, 4L, null, false)]
-    [InlineData(CaseLifecycleState.ReportPreparation, 4L, 3L, false)]
-    [InlineData(CaseLifecycleState.ReportPreparation, 4L, 4L, true)]
-    [InlineData(CaseLifecycleState.ReportPreparation, 4L, 5L, true)]
-    [InlineData(CaseLifecycleState.PostReport, 4L, 4L, true)]
-    [InlineData(CaseLifecycleState.PostReportComplete, 4L, 4L, true)]
-    [InlineData(CaseLifecycleState.PostReportComplete, 4L, 3L, false)]
-    public void AssessmentAccessRequiresWithEngineerOrOnwardsAndACurrentCycleExport(
+    [InlineData(CaseLifecycleState.NotReady, false)]
+    [InlineData(CaseLifecycleState.Review, false)]
+    [InlineData(CaseLifecycleState.Held, false)]
+    [InlineData(CaseLifecycleState.CreatedInError, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true)]
+    [InlineData(CaseLifecycleState.PostReport, true)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true)]
+    public void NativeAssessmentActionsRequireWithEngineerOrCompleteWithoutAnExport(
         CaseLifecycleState state,
-        long latestReviewVersion,
-        long? latestExportVersion,
         bool expected)
     {
-        var access = new AssessmentAccessState(
-            state,
-            latestReviewVersion,
-            latestExportVersion);
+        var access = new AssessmentAccessState(state);
 
         Assert.Equal(expected, access.CanOpen);
     }
 
     /// <summary>
-    /// D11 (FRD-11): editable in Report preparation and Post report,
-    /// read-only in Post-report complete; the opening states before
-    /// Report preparation are refused outright so never reach the question.
+    /// FRD-11: retained content remains read-only outside With Engineer.
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation, false)]
     [InlineData(CaseLifecycleState.PostReport, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, true)]
-    public void AssessmentAccessIsReadOnlyOnlyOnceComplete(
+    [InlineData(CaseLifecycleState.NotReady, true)]
+    [InlineData(CaseLifecycleState.Review, true)]
+    [InlineData(CaseLifecycleState.Held, true)]
+    [InlineData(CaseLifecycleState.CreatedInError, true)]
+    public void AssessmentAccessIsReadOnlyOutsideWithEngineer(
         CaseLifecycleState state,
         bool expected)
     {
-        var access = new AssessmentAccessState(state, 4L, 4L);
+        var access = new AssessmentAccessState(state);
 
         Assert.Equal(expected, access.IsReadOnly);
     }
@@ -140,11 +134,52 @@ public sealed class AssessmentPolicyTests
                 Request(new() { ["incident.assessed"] = "03/08/2026" })));
     }
 
+    [Theory]
+    [InlineData("th-TH")]
+    [InlineData("ar-SA")]
+    [InlineData("en-GB")]
+    public void DateValuesUseTheGregorianCalendarRegardlessOfCurrentCulture(string cultureName)
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+        try
+        {
+            var dateFields = AssessmentVocabulary.Definitions.Values
+                .Where(definition => definition.Type == AssessmentFieldType.Date
+                    && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
+                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path))
+                .ToArray();
+            Assert.NotEmpty(dateFields);
+            foreach (var definition in dateFields)
+            {
+                // Calendar probes, not new case evidence.
+                foreach (var value in new[] { "2027-01-02", "2028-02-29" })
+                {
+                    var normalized = AssessmentPolicy.ValidateAndNormalize(
+                        Request(new() { [definition.Path] = value }, Engineer));
+                    Assert.Equal(value, normalized.Fields[definition.Path]);
+                }
+
+                foreach (var value in new[] { "2027-02-29", "02/01/2027", "0001-01-01" })
+                {
+                    Assert.Throws<ArgumentException>(() =>
+                        AssessmentPolicy.ValidateAndNormalize(
+                            Request(new() { [definition.Path] = value }, Engineer)));
+                }
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
     [Fact]
     public void EveryWritableVocabularyPathRoundTripsThroughItsCoreNormalizer()
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
-            .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)))
+            .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
+                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
             {
@@ -213,6 +248,93 @@ public sealed class AssessmentPolicyTests
     {
         Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateAndNormalize(
             Request(new() { [path] = "front" })));
+    }
+
+    [Fact]
+    public void AGenericFieldSaveNeverWritesOrClearsTheAdoptedEngineerValue()
+    {
+        // AUTO-015: the accepted Engineer's value is adopted only by the
+        // valuation Apply command, which records the suggested and the chosen
+        // amounts together. A Web or MCP field save that touched it would
+        // rewrite a professional finding with no such evidence, so both a
+        // value and a clearance fail closed — for an Engineer too.
+        foreach (var actor in new[] { Engineer, Automation, PlainStaff })
+        {
+            foreach (var value in new string?[] { "4500.00", null })
+            {
+                var exception = Assert.Throws<InvalidOperationException>(() =>
+                    AssessmentPolicy.ValidateAndNormalize(
+                        Request(new() { [AssessmentVocabulary.ValueEngineer] = value }, actor)));
+                Assert.Contains("Apply", exception.Message, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void EveryDetailedZoneMapsToExactlyOneHeadlineParent()
+    {
+        Assert.Equal(23, AssessmentVocabulary.DetailedDamageZones.Count);
+        Assert.Equal(8, AssessmentVocabulary.BroadDamageZones.Count);
+        foreach (var zone in AssessmentVocabulary.DetailedDamageZones)
+        {
+            Assert.True(AssessmentVocabulary.DamageZones.ContainsKey(zone), zone);
+            Assert.DoesNotContain(zone, AssessmentVocabulary.BroadDamageZones);
+        }
+
+        foreach (var broad in AssessmentVocabulary.BroadDamageZones)
+        {
+            // A broad region is its own headline.
+            Assert.Equal(broad, AssessmentVocabulary.DamageZones[broad].ImpactLocation);
+        }
+
+        Assert.Equal("left_front", AssessmentVocabulary.DamageZones["front_left_corner"].ImpactLocation);
+        Assert.Equal("front", AssessmentVocabulary.DamageZones["bonnet"].ImpactLocation);
+        Assert.Equal("rear", AssessmentVocabulary.DamageZones["tailgate"].ImpactLocation);
+        Assert.Equal("wheel", AssessmentVocabulary.DamageZones["wheel_left_rear"].ImpactLocation);
+        Assert.All(
+            AssessmentVocabulary.DamageZones.Values,
+            zone => Assert.Contains(
+                zone.ImpactLocation,
+                AssessmentVocabulary.Definitions[AssessmentVocabulary.ImpactLocation].Codes!));
+    }
+
+    [Fact]
+    public void BroadZonesAndTheirDetailedRegionsAreIndependentEntries()
+    {
+        // A broad impact recorded before the detailed diagram existed stays a
+        // broad fact: nothing splits it into detailed regions, and a detailed
+        // region recorded beside its broad parent is a second impact, not a
+        // replacement for the first.
+        const string json =
+            "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Broad\"},"
+            + "{\"zone\":\"front_centre\",\"severity\":\"heavy\",\"note\":\"Detailed\"}]";
+
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
+
+        Assert.Equal(json, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+        Assert.Equal(
+            ("multiple", "heavy"),
+            AssessmentPolicy.DeriveImpactValues(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
+
+        var broadAlone = AssessmentPolicy.DeriveImpactValues(
+            "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Broad\"}]");
+        Assert.Equal(("front", "light"), broadAlone);
+    }
+
+    [Fact]
+    public void PostReviewReadinessNoLongerAsksForTheRetiredEngineerIdentityFields()
+    {
+        // ENG-038 / D18: the signing Engineer is the selected sign-off
+        // account, so typed copies of that account's name, qualifications and
+        // signature are no longer readiness items.
+        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));
+        var requirements = readiness.Select(item => item.Requirement).ToArray();
+
+        Assert.DoesNotContain("Engineer name", requirements);
+        Assert.DoesNotContain("Engineer qualifications", requirements);
+        Assert.DoesNotContain("Signature", requirements);
+        Assert.Contains("Agreed fee", requirements);
     }
 
     [Fact]
@@ -305,14 +427,18 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void EstimateLinesValidateTypeStepAndUnpricedRules()
+    public void EstimateLinesValidateTypePrecisionAndUnpricedRules()
     {
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(lines: [Line("unknown_type")])));
+        // Hours are kept at the provider's own precision (B04): a quarter of
+        // an hour is a real time, a seventh decimal place is not.
+        AssessmentPolicy.ValidateAndNormalize(
+            Request(lines: [Line("repair") with { WorkUnits = 1.25m }]));
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(lines: [Line("repair") with { WorkUnits = 1.25m }])));
+                Request(lines: [Line("repair") with { WorkUnits = 1.2345678m }])));
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(lines: [Line("new_part") with { Unpriced = true, Price = 10m }])));

@@ -29,6 +29,24 @@ public sealed class PublicUploadTelemetryInitializerTests
     }
 
     [Fact]
+    public void GlassCallbackRequestUrlDropsTheCorrelationQueryAndFragment()
+    {
+        var telemetry = new RequestTelemetry
+        {
+            Name = "POST Integrations/Glass/Callback/{correlation}",
+            Url = new Uri(
+                "https://pegasus.example/Integrations/Glass/Callback/secret-correlation?state=secret#fragment")
+        };
+
+        new PublicUploadTelemetryInitializer().Initialize(telemetry);
+
+        Assert.Equal(
+            "https://pegasus.example/Integrations/Glass/Callback/%7Bcorrelation%7D",
+            telemetry.Url.AbsoluteUri);
+        Assert.Equal("POST Integrations/Glass/Callback/{correlation}", telemetry.Name);
+    }
+
+    [Fact]
     public void NonUploadRequestUrlIsUnchanged()
     {
         var url = new Uri("https://pegasus.example/Cases/123?tab=documents");

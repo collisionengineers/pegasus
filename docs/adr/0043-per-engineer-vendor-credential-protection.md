@@ -1,0 +1,54 @@
+---
+id: ADR-0043
+status: accepted
+date: 2026-09-08
+supersedes: [ADR-0002]
+superseded_by: []
+related_capabilities: []
+related_frd: [FRD-04, FRD-06]
+tags: [security, credentials]
+---
+# ADR-0043: Per-Engineer vendor credential protection
+
+## Status
+
+Accepted. Partially supersedes ADR-0002 only for per-Engineer vendor
+credentials and their protected session state. Other application secrets and
+Automation OAuth certificates retain their existing owners.
+
+## Context
+
+FRD-04 requires per-Engineer/provider/generation credential protection, no stored
+password reveal, invalidation on replacement/removal, and denial for disabled
+staff. FRD-06 requires resumable attributed Glass’s sessions and explicit handling
+of an unknown external write. Source uses Data Protection for persisted credential
+and session material; ADR-0002 instead describes vendor secrets in Key Vault.
+
+## Decision
+
+Keep encrypted per-user vendor credential and session material in existing SQL
+persistence, protected with the application Data Protection provider and distinct
+purposes. Bind use to the named user, provider and credential generation. Never
+return stored passwords to Administration; replacing or clearing a credential
+invalidates prior sessions. Retain explicit unknown-operation holds rather than
+retrying an uncertain vendor write or releasing its account on elapsed time alone.
+
+The Data Protection key ring must remain available to authorized replicas and
+across restarts for as long as protected credentials/session state is retained.
+Recover its keys together with the matching database; losing the keys requires
+explicit credential replacement and invalidation, not a fallback to plaintext.
+Current disposable test data may be reset under operator authority. This is a
+required recovery contract, not a claim that a restore has been exercised.
+
+## Consequences
+
+This is a narrow exception for attributed per-user vendor material, not a
+general relocation of application secrets to SQL. Stored passwords remain
+non-retrievable from Administration; the separate generated staff-password
+reset workflow is governed by FRD-04.
+
+## Links
+
+- [Existing secret rule](0002-dotnet-modular-monolith-on-azure.md)
+- [Functional credential contract](../frd/frd-04-parties-accounts-and-access.md)
+- [Glass’s session behavior](../frd/frd-06-vehicle-and-engineering-evidence.md)

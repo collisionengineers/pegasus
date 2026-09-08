@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -31,7 +32,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal("EXAMPLE", row.NormalizedSurname);
         Assert.Equal("J", row.NormalizedFirstInitial);
         Assert.Equal(new DateOnly(2031, 4, 1), row.IncidentDate);
-        Assert.Equal("qdos_case_match", row.MatchPolicyKey);
+        Assert.Equal("principal_case_match", row.MatchPolicyKey);
         Assert.Equal(1, row.MatchPolicyVersion);
     }
 
@@ -102,7 +103,7 @@ public sealed class CaseMatchIntegrationTests
         var request = new AutomaticCaseAssociationRequest(
             chaserReceiptId,
             caseId,
-            "qdos_case_match",
+            "principal_case_match",
             1,
             "system-worker:intake-processing",
             "case-match-association:test-op-1",
@@ -129,7 +130,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(caseId, association.CaseId);
         Assert.Equal(nameof(ActorKind.SystemWorker), association.ActorKind);
         Assert.Equal("system-worker:intake-processing", association.ActorSubjectId);
-        Assert.Equal("qdos_case_match", association.MatchPolicyKey);
+        Assert.Equal("principal_case_match", association.MatchPolicyKey);
         Assert.Equal(1, association.MatchPolicyVersion);
         Assert.Equal(1, await context.IntakeMutationHistory
             .CountAsync(item => item.IntakeReceiptId == chaserReceiptId
@@ -160,7 +161,7 @@ public sealed class CaseMatchIntegrationTests
             new(
                 chaserReceiptId,
                 caseId,
-                "qdos_case_match",
+                "principal_case_match",
                 1,
                 "system-worker:intake-processing",
                 "case-match-association:while-leased",
@@ -198,7 +199,7 @@ public sealed class CaseMatchIntegrationTests
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             await seed.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, UnlinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey, MatchPolicyKey, MatchPolicyVersion) VALUES ({chaserReceiptId}, {caseId}, {false}, {1L}, {StartUtc}, {StartUtc.AddMinutes(5)}, {"Staff"}, {Guid.NewGuid().ToString()}, {"[]"}, {"Staff reversed a mistaken automatic match"}, {"case-match-association:reversed-op"}, {"qdos_case_match"}, {1})");
+                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, UnlinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey, MatchPolicyKey, MatchPolicyVersion) VALUES ({chaserReceiptId}, {caseId}, {false}, {1L}, {StartUtc}, {StartUtc.AddMinutes(5)}, {"Staff"}, {Guid.NewGuid().ToString()}, {"[]"}, {"Staff reversed a mistaken automatic match"}, {"case-match-association:reversed-op"}, {"principal_case_match"}, {1})");
         }
 
         var store = new EfIntakeMutationStore(harness.Factory);
@@ -206,7 +207,7 @@ public sealed class CaseMatchIntegrationTests
             new(
                 chaserReceiptId,
                 caseId,
-                "qdos_case_match",
+                "principal_case_match",
                 1,
                 "system-worker:intake-processing",
                 "case-match-association:new-evaluation-op",
@@ -311,7 +312,7 @@ public sealed class CaseMatchIntegrationTests
                     [])
             ],
             "Exactly one candidate case survived with no contradictory identity evidence.",
-            "qdos_case_match",
+            "principal_case_match",
             1);
 
         await using var scope = database.CreateAsyncScope();
@@ -352,7 +353,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(new DateOnly(2026, 6, 18), audit.Keys.IncidentDate);
         var candidate = Assert.Single(audit.Candidates);
         Assert.Equal(["claim-reference", "vehicle-registration"], candidate.HitKeys);
-        Assert.Equal("qdos_case_match", audit.PolicyKey);
+        Assert.Equal("principal_case_match", audit.PolicyKey);
         Assert.Equal(1, audit.PolicyVersion);
     }
 
@@ -402,7 +403,7 @@ public sealed class CaseMatchIntegrationTests
                 var staffActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
                 await SeedAsync(factory, receiptId);
 
-                IProviderCaseMatchPolicy[] matchPolicies = [new QdosCaseMatchPolicy()];
+                IProviderCaseMatchPolicy[] matchPolicies = [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())];
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider, matchPolicies);
                 var dataStore = new EfCaseDataStore(factory, timeProvider, matchPolicies);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
@@ -416,7 +417,9 @@ public sealed class CaseMatchIntegrationTests
                         acceptanceStore,
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory),
-                        new CommittedWorkPublisherDouble()),
+                        new CommittedWorkPublisherDouble(),
+                        new TriageCasePairing(new EfTriageStore(factory,
+                            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore));
             }
@@ -437,7 +440,7 @@ public sealed class CaseMatchIntegrationTests
                     "Accepted case-match fixture case",
                     CaseType.Inspection,
                     "QDOS",
-                    new(true, true, false, false),
+                    new(true, true),
                     AcceptedInspectionDeadline: FixtureInspectionDate),
                 CancellationToken.None);
 
@@ -513,20 +516,15 @@ public sealed class CaseMatchIntegrationTests
             Guid receiptId)
         {
             await using var context = await factory.CreateDbContextAsync();
-            var organizationId = Guid.NewGuid();
-            var lineageId = Guid.NewGuid();
-            var principalId = Guid.NewGuid();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var organizationId = principal.OrganizationId;
+            var lineageId = principal.SequenceLineageId;
+            var principalId = principal.Id;
             var sourceHash = new string('b', 64);
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Mrs Jane Example","candidates":[{"value":"Mrs Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"ABC/DEF/12345/1","candidates":[{"value":"ABC/DEF/12345/1","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Date of incident","suggestedValue":"2031-04-01","candidates":[{"value":"2031-04-01","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"QDOS case-match provider"}, {0L})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, InspectionMode, Version) VALUES ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {"image_based_assessment"}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"case-match-item-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(

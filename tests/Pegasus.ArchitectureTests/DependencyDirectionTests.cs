@@ -201,10 +201,21 @@ public sealed class DependencyDirectionTests
         Assert.Contains(typeof(IInstructionExtractionPolicy), parameters);
         Assert.DoesNotContain(typeof(QdosInstructionExtractionPolicy), parameters);
 
+        // One policy per instruction profile, so the SET is not frozen - INTK-060
+        // C03 adds fourteen more beside QDOS. What must hold is where they live
+        // and what reaches them: every implementation is Core's, none is
+        // duplicated in Infrastructure, and the orchestrator above depends on
+        // the interface rather than on any of them.
         var implementations = typeof(CoreAssembly).Assembly.GetTypes()
             .Where(type => !type.IsAbstract && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type))
             .ToArray();
-        Assert.Equal([typeof(QdosInstructionExtractionPolicy)], implementations);
+        Assert.Contains(typeof(QdosInstructionExtractionPolicy), implementations);
+        Assert.Contains(typeof(PchInstructionExtractionPolicy), implementations);
+        Assert.All(implementations, type =>
+            Assert.Equal("Pegasus.Core.Intake", type.Namespace));
+        Assert.DoesNotContain(
+            typeof(InfrastructureAssembly).Assembly.GetTypes(),
+            type => !type.IsAbstract && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type));
     }
 
     [Fact]
@@ -286,18 +297,26 @@ public sealed class DependencyDirectionTests
         var message = UnifiedWorkQueueMessage.FormatMailbox(
             mailboxId,
             subscriptionId,
-            MailboxWakeKind.SubscriptionRemoved);
+            7,
+            MailboxWakeKind.SubscriptionRemoved,
+            null);
 
         Assert.True(UnifiedWorkQueueMessage.TryParseMailbox(
             message,
             out var parsedMailboxId,
             out var parsedSubscriptionId,
-            out var parsedKind));
+            out var parsedGeneration,
+            out var parsedKind,
+            out var parsedMessageId));
         Assert.Equal(mailboxId, parsedMailboxId);
         Assert.Equal(subscriptionId, parsedSubscriptionId);
+        Assert.Equal(7, parsedGeneration);
         Assert.Equal(MailboxWakeKind.SubscriptionRemoved, parsedKind);
+        Assert.Null(parsedMessageId);
         Assert.False(UnifiedWorkQueueMessage.TryParseMailbox(
             message.ToUpperInvariant(),
+            out _,
+            out _,
             out _,
             out _,
             out _));

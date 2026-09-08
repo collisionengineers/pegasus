@@ -18,32 +18,33 @@ public sealed partial class SentEvidencePollFunction(
         [TimerTrigger("%SentEvidencePollSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        var result = await pollSentEvidence.ExecuteAsync(
+        var result = await pollSentEvidence.ExecuteBatchAsync(
+            maximumMailboxes: 25,
             maximumPages: 5,
             maximumItemsPerPage: 50,
             WorkerActor,
             cancellationToken);
         LogPollOutcome(
             logger,
+            result.MailboxesAttempted,
+            result.MailboxesFailed,
             result.PagesRead,
             result.ItemsHandled,
-            result.TriageResponsesRecorded,
             result.ReportEvidenceRetained,
-            result.UnlinkedItems,
-            result.QuarantinedItems);
+            result.FirstFailure);
     }
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Polled {PageCount} approved-Sent pages and handled {ItemCount} immutable items: {TriageResponseCount} exact Triage responses, {ReportEvidenceCount} retained report evidence items, {UnlinkedCount} items left unlinked, and {QuarantineCount} quarantined items. No outbound email was sent and no receipt or delivery was claimed.")]
+        Message = "Polled {MailboxCount} approved Sent mailboxes ({FailureCount} failed), read {PageCount} pages, handled {ItemCount} immutable items, and retained {ReportEvidenceCount} report evidence items. First failure: {FirstFailure}. No outbound email was sent and no receipt or delivery was claimed.")]
     private static partial void LogPollOutcome(
         ILogger logger,
+        int mailboxCount,
+        int failureCount,
         int pageCount,
         int itemCount,
-        int triageResponseCount,
         int reportEvidenceCount,
-        int unlinkedCount,
-        int quarantineCount);
+        string? firstFailure);
 }
 
 public sealed partial class DueWorkSweepFunction(

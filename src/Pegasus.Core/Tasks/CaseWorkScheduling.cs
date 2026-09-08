@@ -77,24 +77,22 @@ public static class CaseChaseSchedule
     public const int PolicyVersion = 1;
     public const string PolicyIdentity = PolicyKey + "/v1";
 
-    private static readonly TimeZoneInfo LondonTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-
     public static DateTimeOffset FirstChaseAt(DateTimeOffset enteredNotReadyAtUtc)
     {
-        var local = TimeZoneInfo.ConvertTime(enteredNotReadyAtUtc, LondonTimeZone).DateTime;
+        var local = LondonCalendar.TimeAt(enteredNotReadyAtUtc);
         return LondonCalendar.ToUtc(local.Date.AddDays(7).Add(local.TimeOfDay));
     }
 
     public static DateTimeOffset NextChaseAt(DateTimeOffset previousChaseAtUtc)
     {
-        var local = TimeZoneInfo.ConvertTime(previousChaseAtUtc, LondonTimeZone).DateTime;
+        var local = LondonCalendar.TimeAt(previousChaseAtUtc);
         return LondonCalendar.ToUtc(local.Date.AddDays(7).Add(local.TimeOfDay));
     }
 
     public static TimeSpan RemainingInterval(DateTimeOffset nextChaseAtUtc, DateTimeOffset heldAtUtc)
     {
-        var nextLocal = TimeZoneInfo.ConvertTime(nextChaseAtUtc, LondonTimeZone).DateTime;
-        var heldLocal = TimeZoneInfo.ConvertTime(heldAtUtc, LondonTimeZone).DateTime;
+        var nextLocal = LondonCalendar.TimeAt(nextChaseAtUtc);
+        var heldLocal = LondonCalendar.TimeAt(heldAtUtc);
         return nextLocal <= heldLocal ? TimeSpan.Zero : nextLocal - heldLocal;
     }
 
@@ -107,7 +105,7 @@ public static class CaseChaseSchedule
                 "The held chase interval cannot be negative.");
         }
 
-        var releasedLocal = TimeZoneInfo.ConvertTime(releasedAtUtc, LondonTimeZone).DateTime;
+        var releasedLocal = LondonCalendar.TimeAt(releasedAtUtc);
         return LondonCalendar.ToUtc(releasedLocal + remainingInterval);
     }
 

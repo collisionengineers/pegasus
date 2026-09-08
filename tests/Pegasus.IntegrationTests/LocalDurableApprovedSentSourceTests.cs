@@ -319,7 +319,10 @@ public sealed class LocalDurableApprovedSentSourceTests
         "instructions@example.test",
         "sent-items",
         Cursor: null,
-        "lease-token");
+        "lease-token",
+        Guid.Parse("10000000-0000-0000-0000-000000000001"),
+        1,
+        new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
     private static byte[] CreateCopy(
         string immutableItemIdentity,

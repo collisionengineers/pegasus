@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Image-initiated Case AB12CDE-01 · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -195,7 +196,7 @@
     <div class="record-accent"></div>
 
     <div class="record-bar">
-        <a class="btn" href="received-details--default.html">
+        <a class="btn" href="#">
             <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
             <span>Open the origin receipt</span>
         </a>
@@ -224,12 +225,49 @@
                             <dd>Merged into Instruction-initiated Case</dd>
                         </dl>
                         <dl class="definition">
+                            <dt>Principal</dt>
+                            <dd>Not known</dd>
+                        </dl>
+                        <dl class="definition">
                             <dt>Case association</dt>
                             <dd>
-                                    <a href="case-details--default.html">QDOS31001</a>
+                                    <a href="#">QDOS31001</a>
                             </dd>
                         </dl>
                     </div>
+                </div>
+            </section>
+
+            <section class="panel" aria-labelledby="image-intake-principal-title">
+                <div class="panel-head"><h2 id="image-intake-principal-title">Principal</h2></div>
+                <div class="panel-body">
+                    <form method="post" action="#">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label for="image-intake-principal">Principal</label>
+                                <select id="image-intake-principal" name="principalId">
+                                    <option value="" selected="selected">Not known</option>
+                                        <option value="test-ui-guid-4">ALS</option>
+                                        <option value="test-ui-guid-5">AX</option>
+                                        <option value="test-ui-guid-6">BC</option>
+                                        <option value="test-ui-guid-7">BLACK</option>
+                                        <option value="test-ui-guid-8">DFD</option>
+                                        <option value="test-ui-guid-9">FW</option>
+                                        <option value="test-ui-guid-10">KBS</option>
+                                        <option value="test-ui-guid-11">MP</option>
+                                        <option value="test-ui-guid-12">OAK</option>
+                                        <option value="test-ui-guid-13">PCH</option>
+                                        <option value="test-ui-guid-14">QCL</option>
+                                        <option value="test-ui-guid-15">QDOS</option>
+                                        <option value="test-ui-guid-16">RJS</option>
+                                        <option value="test-ui-guid-17">SBL</option>
+                                        <option value="test-ui-guid-18">YML</option>
+                                </select>
+                            </div>
+                        </div>
+                        <input type="hidden" name="expectedVersion" value="1" />
+                        <button type="submit" class="btn btn--primary">Save</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
                 </div>
             </section>
 
@@ -404,10 +442,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

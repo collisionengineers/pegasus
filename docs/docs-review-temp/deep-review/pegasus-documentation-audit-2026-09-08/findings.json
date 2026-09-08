@@ -1,0 +1,211 @@
+{
+  "revision": "26ba4ed408317cccdb354dc1e115b0297f15df94",
+  "date": "2026-09-08",
+  "kind": "documentation_audit_not_delivery_state",
+  "findings": [
+    {
+      "id": "AUD-01",
+      "priority": "P1",
+      "finding": "Standalone Audit allocation still has two incompatible contracts.",
+      "correction_and_evidence": "FRD-01, PRD, CONTEXT and the QDOS companion allocate normal Case/PO before the later Audit reference. FRD-02 Mandatory pre-case gates still makes the original report and literal outcome prerequisites to allocation. Correct FRD-02, capability INT-25 and current-architecture's old descriptions to the accepted contract."
+    },
+    {
+      "id": "AUD-02",
+      "priority": "P1",
+      "finding": "Final, retained report generation coexists with a draft-only, save-nothing action description.",
+      "correction_and_evidence": "FRD-11 Initial renderer activation now specifies immutable generated artifacts and custody, but Report-draft entry point says “Generate report draft” and nothing is saved. Separate preview, generation, approval and sending precisely; use the accepted Generate report label."
+    },
+    {
+      "id": "AUD-03",
+      "priority": "P1",
+      "finding": "Native engineering/report scope is still constrained by earlier mandatory-EVA statements.",
+      "correction_and_evidence": "The PRD and 6 September decisions make EVA optional. Operator-notes Report readiness after Review , architecture's EVA section and capability narratives preserve older dependencies. Replace those current-facing constraints; keep dated deployed limitations separately."
+    },
+    {
+      "id": "AUD-04",
+      "priority": "P1",
+      "finding": "Accepted source upload limits disagree across normative files.",
+      "correction_and_evidence": "Open-decisions records 100 MiB/file, 20 files and 200 MiB aggregate plus 64 KiB multipart overhead. FRD-02, FRD-05, FRD-12 and engineering/capability descriptions retain 10 MiB or pending-research wording. Move the settled contract to FRD-02 and reference it elsewhere. Do not change the distinct Provider API envelope or historical release-37 limits."
+    },
+    {
+      "id": "AUD-05",
+      "priority": "P1",
+      "finding": "capabilities.md is executable acceptance input, despite describing itself as allocation-only.",
+      "correction_and_evidence": "scripts/Invoke-QdosAlphaAcceptance.ps1 parses its six-column table and treats every alpha-targeted row as required evidence. Structural edits must update this consumer/tests. Allocation is not a sufficient acceptance-scope predicate."
+    },
+    {
+      "id": "AUD-06",
+      "priority": "P1",
+      "finding": "A legacy acceptance runner can resurrect expressly deferred evidence work.",
+      "correction_and_evidence": "The same script requires an approved dataset of exactly 2,000 cases, while the current programme excludes that cohort/soak run and OPS-09 gates no release. Identify the runner as an optional legacy/evidence profile or revise its scope deliberately; it is not proof that current CI already blocks all v1 work."
+    },
+    {
+      "id": "AUD-07",
+      "priority": "P1",
+      "finding": "Password-reset and account-review requirements conflict.",
+      "correction_and_evidence": "FRD-04's generated temporary-password workflow conflicts with FRD-12/capability wording about an Administrator-entered password. FRD-12/older operator role text retain account-review actions after periodic reviews were removed. Reconcile the functional and UI contracts together."
+    },
+    {
+      "id": "AUD-08",
+      "priority": "P1",
+      "finding": "Current readiness rules are contradicted by blanket “any save returns Not ready” prose.",
+      "correction_and_evidence": "FRD-01's D44 rules distinguish actual relevant changes from unchanged/unrelated saves. FRD-07 and architecture retain broader invalidation statements. Describe exactly which changes invalidate which gate, not an unconditional reset."
+    },
+    {
+      "id": "AUD-09",
+      "priority": "P1",
+      "finding": "EVA re-send rules remain contradictory.",
+      "correction_and_evidence": "ADR-0038 selects manual-only submission, including explicit re-send. The resolved EVA entry in open-decisions and older runbook/capability prose retain at-most-once or automatic-submission language. Retain unknown-outcome protection without prohibiting the separately confirmed re-send."
+    },
+    {
+      "id": "AUD-10",
+      "priority": "P1",
+      "finding": "Persistent OAuth keys and grant attribution lack a reconciled active technical decision.",
+      "correction_and_evidence": "ADR-0027 describes ephemeral keys and restart invalidation, while FRD-10/runbook specify persistent certificate material and distinct grant attribution. Write the technical successor and update its consumers."
+    },
+    {
+      "id": "AUD-11",
+      "priority": "P1",
+      "finding": "Mail occurrence identity differs between the technical decision and functional contract.",
+      "correction_and_evidence": "ADR-0024's immutable Graph-item-based occurrence identity differs from FRD-08's mailbox/RFC Message-ID duplicate boundary. Record the intended identities and exactly where each deduplicates; do not conflate transport identity, arrival occurrence and thread identity."
+    },
+    {
+      "id": "AUD-12",
+      "priority": "P1",
+      "finding": "Image-reference Box custody contradicts ADR-0029's exclusions.",
+      "correction_and_evidence": "FRD-05 specifies a dedicated image-reference folder and merge behavior, whereas ADR-0029 explicitly withholds that folder pending another decision. Record the custody successor; do not erase either identity's history."
+    },
+    {
+      "id": "AUD-13",
+      "priority": "P1",
+      "finding": "The durable staff-send operation journal is not reconciled with the outbound-mail ADR.",
+      "correction_and_evidence": "FRD-08 describes durable draft/upload/submission recovery. ADR-0036 says no new store/second outbound record. Explain the journal as operational state, separate from authoritative observed Sent evidence, and record the changed persistence choice."
+    },
+    {
+      "id": "AUD-14",
+      "priority": "P1",
+      "finding": "A mutable, derived operator-notes.md is still treated as absolute upstream truth.",
+      "correction_and_evidence": "The document combines original statements, interpretations, future scope and implementation claims. Retire it through a statement-preservation map; do not simply move it to another umbrella “business truth” file."
+    },
+    {
+      "id": "AUD-15",
+      "priority": "P1",
+      "finding": "The allowed-document rule prevents the intended cleanup.",
+      "correction_and_evidence": "AGENTS/index permit only new PRDs, FRDs and technical ADRs. Explicitly permit scoped engineering/reference/procedure and skill-support files in named locations while keeping ticket plans/reviews/proof on Kanmer."
+    },
+    {
+      "id": "AUD-16",
+      "priority": "P2",
+      "finding": "AGENTS makes a whole-solution build the gate for every delivery.",
+      "correction_and_evidence": "Current AGENTS Commands/Verification and runbook Locked restore, build, and test conflict with path-routed CI, focused evidence and the one-heavy-verifier policy. Adopt the change-sensitive policy in section 4."
+    },
+    {
+      "id": "AUD-17",
+      "priority": "P2",
+      "finding": "Startup context is close to the default Codex instruction-byte budget.",
+      "correction_and_evidence": "Current AGENTS is 31,557 bytes, not the uploaded 27 KB version. Under an unchanged 32 KiB project-instruction cap that leaves only 1,211 bytes. This is a configurable combined budget, not a universal per-file hard maximum."
+    },
+    {
+      "id": "AUD-18",
+      "priority": "P2",
+      "finding": "The authority ladder makes schedule outrank technical decisions and hides question-specific ownership.",
+      "correction_and_evidence": "Replace the linear chain in docs/index.md with the owner matrix in section 3. Code can establish as-built behavior; passing tests cannot establish that the required behavior is correct or accepted."
+    },
+    {
+      "id": "AUD-19",
+      "priority": "P2",
+      "finding": "open-decisions.md is mainly a mixture of policy, history and evidence work.",
+      "correction_and_evidence": "Remove settled decisions after moving any unique content; retain only an actual unanswered question, its decision owner and the precise work it blocks. See section 6."
+    },
+    {
+      "id": "AUD-20",
+      "priority": "P2",
+      "finding": "Capability totals and release identities are internally inconsistent.",
+      "correction_and_evidence": "The current table has 244 unique IDs, 215 planned and 29 Not planned. Actual horizons are 154/26/35/29; two targets are v1 , contrary to the exact-SemVer rule. See section 8 and metrics.json."
+    },
+    {
+      "id": "AUD-21",
+      "priority": "P2",
+      "finding": "boundaries.md uses deferred work and approvals as product exclusions.",
+      "correction_and_evidence": "Provider API endpoints, OCR composition, vehicle lookup and production deployment are not permanently absent. Classify product exclusions, technical constraints, allocation and exact-target authorization separately."
+    },
+    {
+      "id": "AUD-22",
+      "priority": "P2",
+      "finding": "Architecture mixes dev assembly, deployed state and historical narrative.",
+      "correction_and_evidence": "Replace the old three-stream pending assembly and legacy “not deployed” statements with a pinned source snapshot, and link to dated operations evidence. Do not infer deployment from the integrated source."
+    },
+    {
+      "id": "AUD-23",
+      "priority": "P2",
+      "finding": "Operations mixes current observations, old releases, procedures and product boundaries.",
+      "correction_and_evidence": "Keep a small dated current-state record. Preserve release failures and evidence in immutable history/owned release records, move procedures to their owners and remove its deferred-seam policy table."
+    },
+    {
+      "id": "AUD-24",
+      "priority": "P2",
+      "finding": "The documentation-update instruction itself creates duplicate state.",
+      "correction_and_evidence": "The release skill tells maintainers to put SHA, manifest, digest, revision and migration in both architecture and operations. Change that instruction: operational identities belong in operations; architecture changes only for changed source structure."
+    },
+    {
+      "id": "AUD-25",
+      "priority": "P2",
+      "finding": "The release-trigger rule is incorrectly limited to changes under src/ .",
+      "correction_and_evidence": "Operations says a source revision is a release claim only if src/ changed. The existing release skill correctly includes deployable infrastructure, dependencies, migration and runtime configuration. Use the broader deployable-input rule."
+    },
+    {
+      "id": "AUD-26",
+      "priority": "P2",
+      "finding": "Several accepted ADRs are only partly current, without a usable active-clause map.",
+      "correction_and_evidence": "ADR-0002/0005/0006/0007/0008/0018/0026 need precise successor relationships; ADR-0013/0029 overstate full supersession. Preserve IDs and original decision meaning."
+    },
+    {
+      "id": "AUD-27",
+      "priority": "P2",
+      "finding": "Some FRDs contain implementation-stage and ticket-plan prose.",
+      "correction_and_evidence": "Remove expired stream A/B/C contracts, “not delivered” notes and ticket dates from normative behavior after preserving evidence. A source signature is not a second functional requirement."
+    },
+    {
+      "id": "AUD-28",
+      "priority": "P2",
+      "finding": "Some UI requirements disagree with their own domain rules.",
+      "correction_and_evidence": "FRD-12 retains holder-expiry displays, Not-ready image rows, internal intake labels and an overbroad disabled-control ban. Align it with FRD-01, CONTEXT and the specific accepted interactions."
+    },
+    {
+      "id": "AUD-29",
+      "priority": "P2",
+      "finding": "Valuation adjustments are both specified and deferred.",
+      "correction_and_evidence": "FRD-06 defines the accepted calculation/application behavior, while its later scope text, boundaries and capability narratives still defer adjustments. Preserve the approved calculation order and remove only superseded deferral language."
+    },
+    {
+      "id": "AUD-30",
+      "priority": "P2",
+      "finding": "Genuine unresolved coverage gaps are obscured by false open questions.",
+      "correction_and_evidence": "Non-email Triage completion, MarketResearch job completion/acceptance, API Triage result representation and Audit report activation need precise clauses or bounded decisions. See the FRD coverage appendix."
+    },
+    {
+      "id": "AUD-31",
+      "priority": "P2",
+      "finding": "Kanmer's documentation skill still carries foreign-repository assumptions.",
+      "correction_and_evidence": "Its current text says “this one” uses docs/product/prd etc. and cites FRD-014 R2/R8b history. Correct the upstream target-neutral asset and reconcile the three installed mirrors."
+    },
+    {
+      "id": "AUD-32",
+      "priority": "P2",
+      "finding": "Proof templates do not supply the verifier's required frontmatter.",
+      "correction_and_evidence": "All three now use the configured integration branch, but still omit the canonical YAML kind , merged_sha , environment , verified_at , result , attempts record. Update templates, not the verifier into a second format."
+    },
+    {
+      "id": "AUD-33",
+      "priority": "P3",
+      "finding": "Markdown conventions have more than one owner and do not cleanly admit metadata.",
+      "correction_and_evidence": "Keep formatting rules once in engineering; AGENTS routes to them. Permit YAML frontmatter and the managed preamble before the first H1. Do not make every author duplicate table/wrapping rules."
+    },
+    {
+      "id": "AUD-34",
+      "priority": "P3",
+      "finding": "Stale protocol counts and signatures invite drift.",
+      "correction_and_evidence": "Tool inventories, Worker function counts, source signatures and capability recounts should be derived from their actual owners or tied to a dated exact revision, not manually repeated across guides."
+    }
+  ]
+}

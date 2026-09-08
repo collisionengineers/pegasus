@@ -81,25 +81,25 @@
 <h1>Upload a file</h1>
 
 
-    <form method="post" enctype="multipart/form-data" class="section-gap">
-        <input type="hidden" data-val="true" data-val-required="The Token field is required." id="Token" name="Token" value="{{token}}" />
-        <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
 
-        <div class="dropzone" data-dropzone>
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-            <div>
-                <h2><label for="Upload">Drag a file here or choose one</label></h2>
-                <p>Up to 1 KB.</p>
-                <button type="button" class="btn btn--primary" hidden data-dropzone-browse>Choose file</button>
-                <input type="file" accept="text/plain" class="input-validation-error" id="Upload" name="Upload" />
-            </div>
-        </div>
-        <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
-        <span class="field-error field-validation-error" data-valmsg-for="Upload" data-valmsg-replace="true">Choose a document to upload.</span>
-        <div class="button-row section-gap">
-            <button type="submit" class="btn btn--primary">Submit file</button>
-        </div>
-    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <form method="post" enctype="multipart/form-data" class="section-gap" action="upload-request--default.html">
+                <input type="hidden" data-val="true" data-val-required="The Token field is required." id="Token" name="Token" value="{{token}}" />
+                <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
+                <div class="dropzone" data-dropzone>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <div>
+                        <h2><label for="Upload">Drag a file here or choose one</label></h2>
+                        <p>Up to 1 KB.</p>
+                        <button type="button" class="btn btn--primary" hidden data-dropzone-browse>Choose file</button>
+                        <input type="file" accept="text/plain" class="input-validation-error" id="Upload" name="Upload" />
+                    </div>
+                </div>
+                <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
+                <span class="field-error field-validation-error" data-valmsg-for="Upload" data-valmsg-replace="true">Choose a document to upload.</span>
+                <div class="button-row section-gap">
+                    <button type="submit" class="btn btn--primary">Submit file</button>
+                </div>
+            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
 
             </section>
         </main>

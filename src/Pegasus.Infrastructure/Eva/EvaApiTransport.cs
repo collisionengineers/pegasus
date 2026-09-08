@@ -394,6 +394,7 @@ internal static class EvaInstructionSerializer
             ["ExternalRef"] = payload.ExternalRef,
             ["ClmNo"] = payload.ClaimNumber,
             ["InsName"] = payload.ClaimantName,
+            ["ClmAdd"] = payload.ClaimantAddress,
             ["VehReg"] = payload.VehicleRegistration,
             ["VehDesc"] = payload.VehicleDescription,
             ["DtIncident"] = FormatDate(payload.IncidentDate),

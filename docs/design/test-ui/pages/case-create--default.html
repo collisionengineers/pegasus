@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>New case · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/case-workspace.css" />
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -334,16 +335,8 @@
                         <span>Instruction evidence is complete</span>
                     </label>
                     <label class="choice">
-                        <input type="checkbox" data-val="true" data-val-required="The InstructionConfirmedByStaff field is required." id="InstructionConfirmedByStaff" name="InstructionConfirmedByStaff" value="true" />
-                        <span>I have confirmed the instruction evidence</span>
-                    </label>
-                    <label class="choice">
                         <input type="checkbox" data-val="true" data-val-required="The ImagesComplete field is required." id="ImagesComplete" name="ImagesComplete" value="true" />
                         <span>Image evidence is complete</span>
-                    </label>
-                    <label class="choice">
-                        <input type="checkbox" data-val="true" data-val-required="The ImagesConfirmedByStaff field is required." id="ImagesConfirmedByStaff" name="ImagesConfirmedByStaff" value="true" />
-                        <span>I have confirmed the image evidence</span>
                     </label>
                 </fieldset>
 
@@ -360,7 +353,7 @@
                 </div>
             </div>
         </section>
-    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="InstructionComplete" type="hidden" value="false" /><input name="InstructionConfirmedByStaff" type="hidden" value="false" /><input name="ImagesComplete" type="hidden" value="false" /><input name="ImagesConfirmedByStaff" type="hidden" value="false" /></form>
+    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="InstructionComplete" type="hidden" value="false" /><input name="ImagesComplete" type="hidden" value="false" /></form>
 
                 </div>
             </main>
@@ -434,10 +427,6 @@
             </button>
         </div>
         <div class="dialog-body">
-            <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                <h3>No notifications</h3>
-            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>

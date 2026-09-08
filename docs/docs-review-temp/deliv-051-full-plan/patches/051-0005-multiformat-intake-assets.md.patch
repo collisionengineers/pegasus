@@ -1,0 +1,22 @@
+--- a/docs/adr/0005-multiformat-intake-assets.md
++++ b/docs/adr/0005-multiformat-intake-assets.md
+@@ -3,7 +3,7 @@
+ status: accepted
+ date: 2026-07-23
+ supersedes: []
+-superseded_by: []
++superseded_by: [ADR-0040]
+ related_capabilities: []
+ related_frd: [frd-02, frd-05]
+ tags: [intake, assets]
+@@ -13,6 +13,10 @@
+ Status: **Accepted for the local `0.1.0-alpha.1` slice**
+ 
+ Date: 2026-07-23
++
++## Current applicability
++
++Multi-format source provenance remains applicable. Integrated DOC/MSG support follows ADR-0025; qualified OCR follows ADR-0040. The original deferral of those readers is not a current product exclusion.
+ 
+ ## Context
+ 

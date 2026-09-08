@@ -72,11 +72,11 @@ public sealed class EvaApiTransportTests
 
     /// <summary>
     /// EVA's 500 is text/plain from a JSON endpoint. There is no envelope to
-    /// read, so delivery is unknown — and unknown is the only outcome that may
-    /// be retried.
+    /// read, so delivery is unknown. The caller must not turn that uncertainty
+    /// into a blind resend because EVA has no idempotency.
     /// </summary>
     [Fact]
-    public async Task APlainTextServerErrorIsUnknownAndRetryable()
+    public async Task APlainTextServerErrorLeavesDeliveryUnknown()
     {
         var result = await SubmitAsync(Responder(
             HttpStatusCode.InternalServerError,
@@ -84,7 +84,6 @@ public sealed class EvaApiTransportTests
             "text/plain"));
 
         Assert.Equal(EvaSubmissionOutcome.Unknown, result.Outcome);
-        Assert.True(EvaSubmissionPolicy.IsRetryable(result.Outcome));
         Assert.Contains("Minotaur", result.FailureDetail!, StringComparison.Ordinal);
     }
 
@@ -222,7 +221,6 @@ public sealed class EvaApiTransportTests
         var result = await Transport(client).SubmitInstructionAsync(Payload());
 
         Assert.Equal(EvaSubmissionOutcome.Rejected, result.Outcome);
-        Assert.False(EvaSubmissionPolicy.IsRetryable(result.Outcome));
         Assert.Equal("eva_auth_401", result.FailureCode);
     }
 
@@ -251,7 +249,6 @@ public sealed class EvaApiTransportTests
         var result = await Transport(client).SubmitInstructionAsync(Payload());
 
         Assert.Equal(EvaSubmissionOutcome.Unknown, result.Outcome);
-        Assert.True(EvaSubmissionPolicy.IsRetryable(result.Outcome));
         Assert.Equal("eva_auth_500", result.FailureCode);
     }
 
@@ -314,6 +311,8 @@ public sealed class EvaApiTransportTests
         Assert.Equal("QDOS26031", root.GetProperty("ExternalRef").GetString());
         Assert.Equal("MT15OYK", root.GetProperty("VehReg").GetString());
         Assert.Equal("A Smith", root.GetProperty("InsName").GetString());
+        Assert.Equal("22 Park Avenue", root.GetProperty("ClmAdd").GetString());
+        Assert.NotEqual(root.GetProperty("ClmAdd").GetString(), root.GetProperty("InspLocAdd").GetString());
         Assert.Equal("2026-01-31T00:00:00Z", root.GetProperty("DtIncident").GetString());
     }
 
@@ -375,6 +374,7 @@ public sealed class EvaApiTransportTests
                 "Miles"),
             "QDOS26031",
             "QDOS",
+            "22 Park Avenue",
             Options().Instruction,
             files);
 

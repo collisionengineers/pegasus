@@ -20,7 +20,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Equal(2, mutationStore.AutoLinks.Count);
@@ -44,7 +44,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -64,7 +64,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -85,11 +85,31 @@ public sealed class ImageIntakeCasePairingTests
             FailFor = first.OriginReceiptId
         };
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
+        var result = await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         var link = Assert.Single(mutationStore.AutoLinks);
         Assert.Equal(second.OriginReceiptId, link.ReceiptId);
+        Assert.Equal(new ImageIntakePairingResult(2, 1, 1, nameof(IntakeAssociationConflictException)), result);
+    }
+
+    [Theory]
+    [InlineData(1, true, true)]
+    [InlineData(2, true, false)]
+    [InlineData(1, false, false)]
+    [InlineData(2, false, false)]
+    public void RegisteredSelectionPreservesExactIdentityPrincipalAndPersistedGroupRule(
+        int expectedMembers, bool samePrincipal, bool selected)
+    {
+        var principalId = Guid.NewGuid();
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", principalId),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDEF", principalId)
+        ];
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
+            "AB12CDE", samePrincipal ? principalId : Guid.NewGuid(), expectedMembers);
+        Assert.Equal(selected, result is not null);
     }
 
     [Fact]
@@ -106,7 +126,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -147,7 +167,7 @@ public sealed class ImageIntakeCasePairingTests
         queries.PendingExternalWorkId = workItemId;
         var publisher = new CommittedWorkPublisherDouble();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, publisher)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, publisher, queries)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -172,8 +192,14 @@ public sealed class ImageIntakeCasePairingTests
         null,
         state);
 
-    private sealed class FakeQueries : IImageIntakeStore
+    private sealed class FakeQueries : IImageIntakeStore, IIntakeReceiptQueries
     {
+        public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
+            int maximumItems, Guid? caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageIntakeSummary>>(Unassociated
+                .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
+                .Take(maximumItems).ToArray());
+
         public IReadOnlyList<ImageIntakeSummary> Unassociated { get; init; } = [];
 
         public Dictionary<Guid, ImageIntakeDetail> ByOriginReceipt { get; init; } = [];
@@ -199,17 +225,15 @@ public sealed class ImageIntakeCasePairingTests
             CancellationToken cancellationToken)
         {
             Merges.Add(request);
-            return Task.FromResult(new ImageIntakeRecord(
-                request.ImageIntakeId,
-                new ImageIntakeOrigin(
-                    Guid.NewGuid(),
-                    new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token"),
-                    new string('a', 64),
-                    Guid.NewGuid()),
-                "AB12CDE",
-                "AB12CDE-01",
-                ImageInitiatedCaseState.MergedIntoInstructionCase,
-                PendingExternalWorkId: PendingExternalWorkId));
+            var source = ByOriginReceipt.Values.SingleOrDefault(item => item.Record.Id == request.ImageIntakeId);
+            var originId = source?.Record.Origin.ReceiptId
+                ?? Unassociated.Single(item => item.Id == request.ImageIntakeId).OriginReceiptId;
+            var updated = new ImageIntakeRecord(request.ImageIntakeId,
+                new(originId, new(IntakeSourceChannel.Mailbox, "token"), new string('a', 64), Guid.NewGuid()),
+                "AB12CDE", "AB12CDE-01", ImageInitiatedCaseState.MergedIntoInstructionCase,
+                MergedIntoCaseId: request.CaseId, PendingExternalWorkId: PendingExternalWorkId);
+            ByOriginReceipt[originId] = new(updated, DateTimeOffset.UtcNow, request.CaseId, "QDS26001");
+            return Task.FromResult(updated);
         }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
@@ -230,9 +254,36 @@ public sealed class ImageIntakeCasePairingTests
 
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(
-                ByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail : null);
+            CancellationToken cancellationToken)
+        {
+            if (ByOriginReceipt.TryGetValue(intakeReceiptId, out var detail))
+            {
+                return Task.FromResult<ImageIntakeDetail?>(detail);
+            }
+            var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == intakeReceiptId);
+            return Task.FromResult(summary is null ? null : new ImageIntakeDetail(
+                new(summary.Id, new(intakeReceiptId,
+                    new(IntakeSourceChannel.Mailbox, "token"), new string('a', 64), Guid.NewGuid()),
+                    summary.NormalizedVehicleRegistration, summary.ImageIntakeReference,
+                    summary.State, PrincipalId: summary.PrincipalId),
+                summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference));
+        }
+
+        Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
+        {
+            var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == id);
+            var caseId = ByOriginReceipt.GetValueOrDefault(id)?.AssociatedCaseId ?? summary?.AssociatedCaseId;
+            return Task.FromResult<IntakeReceipt?>(new(
+                id, "retained.png", "image/png", 1, new string('a', 64),
+                new(IntakeSourceChannel.Mailbox, "token"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+                IntakeDecision.ImageIntakeRegistered, "Registered", [], [], null, [], null, null,
+                false, "retained", "1", null, null,
+                ManualLinkedCaseId: caseId, ManualAssociationVersion: caseId is null ? null : 0));
+        }
+
+        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeListPage> ListAsync(IntakeDecision? decision, int page, int pageSize, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IntakeAssetRecord?> GetAssetAsync(Guid receiptId, Guid assetId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
             IReadOnlyCollection<Guid> intakeReceiptIds,

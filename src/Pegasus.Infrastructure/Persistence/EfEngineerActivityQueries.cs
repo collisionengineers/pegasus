@@ -1,15 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The Engineer Report's two counts (MI-01, D12), read from the records that
-/// hold each fact: case-linked Sent evidence for reports, and mailbox receipts
-/// whose classification decision is post-report for queries, each resolved
-/// to the assigned Engineer through the case workflow. Case association for
-/// a receipt is the same rule the Inbox applies
+/// hold each fact: observed staff-mail send operations for reports, credited
+/// only to their recorded staff actor, and mailbox receipts whose classification
+/// decision is post-report. Case association for a receipt is the same rule the Inbox applies
 /// (<see cref="CurrentIntakeAssociations"/>), so a query an operator has
 /// unlinked from a case is not counted against that case's Engineer.
 /// </summary>
@@ -27,19 +27,20 @@ internal sealed class EfEngineerActivityQueries(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var reports = await context.CaseReportSentEvidence
+        var reportActors = await context.Set<StaffMailSendOperationEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId != null
-                && item.SentAtUtc >= fromUtc
-                && item.SentAtUtc < toUtc)
-            .Join(
-                context.CaseWorkflows.AsNoTracking().Where(workflow => workflow.AssignedEngineerId != null),
-                evidence => evidence.CaseId,
-                workflow => workflow.CaseId,
-                (evidence, workflow) => workflow.AssignedEngineerId!.Value)
-            .GroupBy(id => id)
-            .Select(group => new { EngineerId = group.Key, Count = group.Count() })
+            .Where(item => item.Purpose == StaffMailPurpose.CaseReport
+                && item.State == StaffMailState.Sent
+                && item.ObservedSentAtUtc >= fromUtc
+                && item.ObservedSentAtUtc < toUtc)
+            .Select(item => item.ActorSubjectId)
             .ToListAsync(cancellationToken);
+        var reports = reportActors
+            .Select(actor => Guid.TryParse(actor, out var id) ? (Guid?)id : null)
+            .Where(id => id is not null)
+            .GroupBy(id => id!.Value)
+            .Select(group => new { EngineerId = group.Key, Count = group.Count() })
+            .ToList();
 
         var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var postReport = MailTaxonomy.CategoryName(ReceivedMailFamily.PostReportEmails);

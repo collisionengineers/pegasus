@@ -148,12 +148,6 @@ public sealed partial class CreateModel(
     [BindProperty]
     public bool ImagesComplete { get; set; }
 
-    [BindProperty]
-    public bool InstructionConfirmedByStaff { get; set; }
-
-    [BindProperty]
-    public bool ImagesConfirmedByStaff { get; set; }
-
     /// <summary>
     /// The address extraction proposed, when it proposed exactly one.
     /// </summary>
@@ -369,9 +363,7 @@ public sealed partial class CreateModel(
                     principalCode,
                     new(
                         InstructionComplete,
-                        ImagesComplete,
-                        InstructionConfirmedByStaff,
-                        ImagesConfirmedByStaff),
+                        ImagesComplete),
                     null,
                     corrected.InstructionDraft?.InspectionDate),
                 cancellationToken);

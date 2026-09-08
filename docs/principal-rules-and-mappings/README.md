@@ -37,6 +37,7 @@ Each runtime-policy companion covers, for its provider:
 | --- | --- |
 | QDOS (Qdos Assist / Qdos Law) | [qdos.md](qdos.md) |
 
-All other principals remain review-only in corpus version 1. Their absent or
-unproved Received, Sent, route, classification, association, and extraction
-criteria are recorded as gaps rather than inferred rules.
+FRD-09 owns the accepted principal route/profile set. This directory is a
+selective set of descriptive companions, not an activation inventory. An absent
+companion does not make an accepted route review-only, and corpus membership
+alone never activates one. Record actual evidence gaps without inventing rules.

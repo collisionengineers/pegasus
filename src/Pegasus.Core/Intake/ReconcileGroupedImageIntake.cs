@@ -53,10 +53,8 @@ public sealed class ReconcileGroupedImageIntake(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
 
-        var page = await receiptQueries.ListAsync(
-            IntakeDecision.NeedsSorting,
-            page: 1,
-            pageSize: maximumItems,
+        var receiptIds = await groupStore.ListPendingImageGroupReceiptsAsync(
+            maximumItems,
             cancellationToken);
 
         var candidates = 0;
@@ -64,10 +62,10 @@ public sealed class ReconcileGroupedImageIntake(
         var escaped = 0;
         var failures = 0;
         var nowUtc = timeProvider.GetUtcNow();
-        foreach (var summary in page.Items)
+        foreach (var receiptId in receiptIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var receipt = await receiptQueries.GetAsync(summary.Id, cancellationToken);
+            var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
             if (receipt is null
                 || receipt.Decision != IntakeDecision.NeedsSorting
                 || !ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt))
@@ -90,19 +88,6 @@ public sealed class ReconcileGroupedImageIntake(
             candidates++;
             try
             {
-                if (nowUtc - receipt.ProcessedAtUtc >= EscapeAfter)
-                {
-                    await registerUnidentified.ExecuteAsync(
-                        group.Channel == IntakeSourceChannel.Mailbox
-                            && group.ParentReceiptId is not null
-                            && group.Members.Count < group.ExpectedMemberCount
-                            ? SubmitMailboxImageIntake.BuildFailureRegistrationRequest(group)
-                            : ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
-                        cancellationToken);
-                    escaped++;
-                    continue;
-                }
-
                 var stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(
                     receipt.Id,
                     cancellationToken);
@@ -112,8 +97,18 @@ public sealed class ReconcileGroupedImageIntake(
                     continue;
                 }
 
-                await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
+                var outcome = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
                 retried++;
+                var refreshed = await receiptQueries.GetAsync(receipt.Id, cancellationToken);
+                if (outcome == QueuedIntakeProcessingOutcome.RetryScheduled
+                    && refreshed?.Decision == IntakeDecision.NeedsSorting
+                    && nowUtc - group.ReceivedAtUtc >= EscapeAfter)
+                {
+                    await registerUnidentified.ExecuteAsync(
+                        ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, "group_processing_incomplete"),
+                        cancellationToken);
+                    escaped++;
+                }
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {

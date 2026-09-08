@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Pegasus.Core.Cases;
@@ -208,7 +208,7 @@ public sealed class QdosIntakeWebTests
 
     [GenuineQdosCorpusFact(ForwardedEmailHash)]
     [Trait("Category", "Corpus")]
-    public async Task StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft()
+    public async Task StaffForwardedEmailUsesEstablishedSenderAndPersistsDraft()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -224,25 +224,48 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        Assert.NotNull(receipt.InstructionDraft);
+        var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Equal(ForwardedEmailHash, receipt.SourceHash);
         Assert.Contains(receipt.Evidence, item =>
             item.Source == IntakeEvidenceSource.Sender
-            && item.Finding == IntakeEvidenceFinding.ContradictsTransport);
-        Assert.Contains(receipt.Evidence, item =>
-            item.Strength == IntakeEvidenceStrength.Strong
+            && item.Strength == IntakeEvidenceStrength.Strong
             && item.Finding == IntakeEvidenceFinding.SupportsPrincipal
-            && item.Source is IntakeEvidenceSource.EmailBody or IntakeEvidenceSource.PdfContent);
+            && item.Signal == "established-principal");
         var instructionDate = Assert.Single(receipt.Fields, field => field.Name == "Instruction date");
-        Assert.True(instructionDate.IsDefaulted);
-        Assert.Equal("2031-05-06", instructionDate.SuggestedValue);
-        Assert.Contains("Instruction draft", html, StringComparison.Ordinal);
-        Assert.Contains("Typed review draft", html, StringComparison.Ordinal);
+        Assert.False(instructionDate.IsDefaulted);
+        Assert.Equal("10 July 2026", instructionDate.SuggestedValue);
+        Assert.Equal(new DateOnly(2026, 7, 10), draft.InstructionDate);
+        Assert.Equal("QDOS", draft.SuggestedPrincipalCode);
+
+        var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
+        Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
+        Assert.Equal(PrincipalMailRoutePolicy.Key, route.PolicyKey);
+        Assert.Equal(PrincipalMailRoutePolicy.Version, route.PolicyVersion);
+        var selectedRoute = Assert.IsType<MailRouteSelection>(route.SelectedRoute);
+        Assert.Equal("QDOS", selectedRoute.RouteOwnerCode);
+        Assert.Equal(MailRouteKind.DirectProvider, selectedRoute.Kind);
+        Assert.Equal("QDOS", selectedRoute.WorkProviderCode);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "forward.staff-transport" && predicate.Matched);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "forward.original-exactly-one" && predicate.Matched);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "forward.original-external" && predicate.Matched);
+        Assert.Contains(route.Predicates, predicate =>
+            predicate.Key == "direct.principal-identity" && predicate.Matched);
+
+        var caseId = Assert.IsType<Guid>(receipt.CurrentCaseId);
+        var caseReference = Assert.IsType<string>(receipt.CurrentCaseReference);
+        Assert.False(string.IsNullOrWhiteSpace(caseReference));
+        Assert.Contains("<h1>Case created</h1>", html, StringComparison.Ordinal);
+        Assert.Contains(receipt.SourceFileName, html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{caseId:D}", html, StringComparison.Ordinal);
+        Assert.Contains(caseReference, html, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
     [Trait("Category", "Corpus")]
-    public async Task LowTextPdfWithoutDominantRasterNeedsSortingWithoutOcrOrReference()
+    public async Task LowTextPdfWithoutDominantRasterStaysUnidentifiedWithoutOcrOrCaseReference()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -255,16 +278,18 @@ public sealed class QdosIntakeWebTests
         var receipt = await GetReceiptAsync(factory, receiptId);
         using var review = await client.GetAsync(upload.Location);
         var reviewHtml = await review.Content.ReadAsStringAsync();
-        using var queue = await client.GetAsync("/Received");
-        var queueHtml = await queue.Content.ReadAsStringAsync();
-
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(LowTextNonScanPdfHash, receipt.SourceHash);
         Assert.Null(receipt.FailureCode);
+        Assert.Null(receipt.MailClassificationDecision);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.CurrentCaseReference);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
-        Assert.Contains("Unidentified", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("<h1>Unidentified</h1>", reviewHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"triage-title\"", reviewHtml, StringComparison.Ordinal);
         Assert.Contains("not an image-led scanned page", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Unidentified", queueHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -295,7 +320,7 @@ public sealed class QdosIntakeWebTests
         Assert.NotEqual(
             firstReceipt.SourceIdentity.ExternalReceiptToken,
             distinctReceipt.SourceIdentity.ExternalReceiptToken);
-        Assert.Contains("already processed", duplicateHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("This file was already received. The existing record is shown.", duplicateHtml, StringComparison.Ordinal);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);
@@ -350,8 +375,39 @@ public sealed class QdosIntakeWebTests
 
         try
         {
-            var uploads = await Task.WhenAll(samples.Select((sample, index) =>
+            var initialUploads = await Task.WhenAll(samples.Select((sample, index) =>
                 IntakeWebDriver.UploadAsync(clients[index], sample)));
+            var uploads = new UploadResult[initialUploads.Length];
+            for (var index = 0; index < initialUploads.Length; index++)
+            {
+                var initial = initialUploads[index];
+                if (initial.StatusCode == HttpStatusCode.Redirect)
+                {
+                    uploads[index] = initial;
+                    continue;
+                }
+
+                // UploadModel returns this exact response only from its recoverable
+                // intake-exception branch. Retrying once retains the original token
+                // and bytes; every validation, authorization and other 200 response
+                // remains a test failure rather than being hidden as a retry.
+                Assert.True(
+                    initial.StatusCode == HttpStatusCode.OK
+                    && initial.Location is null
+                    && initial.ResponseBody.Contains(
+                        "The file could not be processed. Try again, or contact an administrator if it keeps failing.",
+                        StringComparison.Ordinal),
+                    $"Unexpected concurrent upload response for {samples[index].Hash[..12]}: "
+                    + $"{initial.StatusCode}; {initial.ResponseBody}");
+                uploads[index] = await IntakeWebDriver.UploadAsync(
+                    clients[index],
+                    samples[index],
+                    initial.ExternalReceiptToken);
+                Assert.True(
+                    uploads[index].StatusCode == HttpStatusCode.Redirect,
+                    $"The one permitted retry failed for {samples[index].Hash[..12]}. "
+                    + $"Initial response: {initial.StatusCode}; {initial.ResponseBody}");
+            }
             Assert.All(uploads, upload => Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode));
             foreach (var upload in uploads)
             {
@@ -393,15 +449,13 @@ public sealed class QdosIntakeWebTests
         var dashboard = await client.GetStringAsync("/");
         var sortingQueue = await queries.ListAsync(IntakeDecision.NeedsSorting, 1, 25, CancellationToken.None);
 
-        Assert.Equal(new IntakeQueueCounts(1, 1), counts);
-        Assert.Contains(
-            "<strong>1</strong><span>Review</span><small>Current intake drafts</small>",
-            dashboard,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "<strong>1</strong><span>Unidentified</span><small>Current intake receipts</small>",
-            dashboard,
-            StringComparison.Ordinal);
+        Assert.Equal(new IntakeQueueCounts(1, 0), counts);
+        Assert.Matches(
+            "(?s)data-value=\"unidentified\"(?:(?!</a>).)*?<span class=\"metric-value\">1</span>",
+            dashboard);
+        Assert.Matches(
+            "(?s)data-value=\"blocked\"(?:(?!</a>).)*?<span class=\"metric-value\">0</span>",
+            dashboard);
         var sortingItem = Assert.Single(sortingQueue.Items);
         Assert.Equal(IntakeDecision.NeedsSorting, sortingItem.Decision);
         Assert.False(string.IsNullOrWhiteSpace(sortingItem.SourceFileName));

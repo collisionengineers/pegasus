@@ -319,6 +319,8 @@ public sealed class MailboxImageIntakeSubmissionTests
 
     private sealed class FakeGroupStore : IIntakeSubmissionGroupStore
     {
+        public Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(int maximumItems, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public IntakeSubmissionGroup? ParentGroup { get; init; }
 
         public Task<IntakeSubmissionGroup?> GetAsync(Guid groupId, CancellationToken cancellationToken = default) =>

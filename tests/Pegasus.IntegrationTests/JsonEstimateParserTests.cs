@@ -13,6 +13,15 @@ public sealed class JsonEstimateParserTests
 {
     private readonly JsonEstimateParser parser = new();
 
+    private ParsedEstimate Parse(ReadOnlyMemory<byte> content)
+    {
+        var read = parser.Parse(content);
+        Assert.Empty(read.QualifiedOcrPages);
+        var parsed = Assert.IsType<ParsedEstimate>(read.Estimate);
+        Assert.Equal(RepairSpecificationSourceRoute.Json, parsed.Route);
+        return parsed;
+    }
+
     [Theory]
     [InlineData("estimate.json", "application/octet-stream", true)]
     [InlineData("ESTIMATE.JSON", "", true)]
@@ -22,13 +31,9 @@ public sealed class JsonEstimateParserTests
         Assert.Equal(expected, parser.CanParse(fileName, mediaType));
 
     [Fact]
-    public void TheRouteIsJson() =>
-        Assert.Equal(RepairSpecificationSourceRoute.Json, parser.Route);
-
-    [Fact]
     public void ParsesOperationsAndTypesWithTheirOwnFigures()
     {
-        var result = parser.Parse(Bytes(
+        var result = Parse(Bytes(
             """
             {
               "schema": "pegasus-estimate/1",
@@ -69,6 +74,70 @@ public sealed class JsonEstimateParserTests
         Assert.Equal(5, AssessmentPolicy.NormalizeRepairSpecificationLines(result.Lines).Count);
     }
 
+    [Fact]
+    public void ParsesBlendSpecialistRowMaterialsProvenanceAndTheDocumentsOwnTotals()
+    {
+        var result = Parse(Bytes(
+            """
+            {
+              "schema": "pegasus-estimate/1",
+              "sourceVersion": "repairer-estimate-43",
+              "provider": "Repairer",
+              "totals": { "parts": 299.80, "panelWorkUnits": 4.7, "materials": 75.60, "gross": 1142.74 },
+              "lines": [
+                { "operation": "Blend", "description": "Blend adjacent panel", "paintHours": 0.8, "rowId": "L-7" },
+                { "operation": "Specialist", "description": "ADAS calibration", "price": 180.00, "labourHours": 6 },
+                { "operation": "Repair", "description": "Repair wing", "labourHours": 0.333333, "materials": 45.60 }
+              ]
+            }
+            """));
+
+        Assert.Equal("Repairer", result.ProviderName);
+
+        var blend = result.Lines[0];
+        Assert.Equal("paint_blend", blend.Type);
+        Assert.Equal(0.8m, blend.PaintWorkUnits);
+        Assert.Equal("L-7", blend.SourceRowIdentity);
+
+        var specialist = result.Lines[1];
+        Assert.Equal("specialist_fixed", specialist.Type);
+        Assert.Equal(180.00m, specialist.Price);
+        Assert.Equal(6m, specialist.WorkUnits);
+
+        var repair = result.Lines[2];
+        // The provider's own time survives: it is not rounded to 0.3.
+        Assert.Equal(0.333333m, repair.WorkUnits);
+        Assert.Equal(45.60m, repair.Materials);
+        Assert.Null(repair.SourceRowIdentity);
+
+        // The document's own totals are evidence beside the calculation.
+        var totals = Assert.IsType<EstimateSourceTotals>(result.SourceTotals);
+        Assert.Equal(299.80m, totals.Parts);
+        Assert.Equal(4.7m, totals.PanelWorkUnits);
+        Assert.Equal(75.60m, totals.Materials);
+        Assert.Equal(1_142.74m, totals.Gross);
+        Assert.Null(totals.Net);
+
+        Assert.Equal(3, AssessmentPolicy.NormalizeRepairSpecificationLines(result.Lines).Count);
+    }
+
+    [Fact]
+    public void ADocumentThatNamesNoProviderOrTotalsStillImports()
+    {
+        var result = Parse(Bytes(
+            """
+            {
+              "schema": "pegasus-estimate/1",
+              "sourceVersion": "v9",
+              "lines": [ { "operation": "Repair", "description": "Repair wing", "labourHours": 1.25 } ]
+            }
+            """));
+
+        Assert.Equal(JsonEstimateParser.DefaultProviderName, result.ProviderName);
+        Assert.Null(result.SourceTotals);
+        Assert.Equal(1.25m, Assert.Single(result.Lines).WorkUnits);
+    }
+
     // The reason leads each case: xUnit truncates long arguments in the
     // display name, so the shared JSON prefix alone would collapse these
     // cases to identical names and break the test-shard partitioner.
@@ -82,11 +151,14 @@ public sealed class JsonEstimateParserTests
     [InlineData("missing description", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair" } ] }""")]
     [InlineData("negative price", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "price": -1 } ] }""")]
     [InlineData("sub-cent price", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "price": 1.005 } ] }""")]
-    [InlineData("quarter-hour labour", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x", "labourHours": 1.25 } ] }""")]
+    [InlineData("labour beyond the persisted precision", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x", "labourHours": 1.2345678 } ] }""")]
+    [InlineData("labour beyond the hour bound", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x", "labourHours": 1001 } ] }""")]
+    [InlineData("sub-cent row materials", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x", "materials": 1.005 } ] }""")]
+    [InlineData("unreadable printed total", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "totals": { "gross": -1 }, "lines": [ { "operation": "Repair", "description": "x" } ] }""")]
     [InlineData("zero quantity", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "quantity": 0 } ] }""")]
     public void AnythingAmbiguousRejectsTheWholeImport(string reason, string document)
     {
-        var rejected = Record.Exception(() => parser.Parse(Bytes(document)));
+        var rejected = Record.Exception(() => Parse(Bytes(document)));
         Assert.True(rejected is EstimateParseRejectedException, reason);
     }
 

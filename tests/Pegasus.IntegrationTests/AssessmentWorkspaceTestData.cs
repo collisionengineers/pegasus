@@ -24,7 +24,7 @@ internal static class AssessmentWorkspaceTestData
             assessment.CaseVersion,
             assessment.State,
             new CaseCompletenessProjection(
-                new CaseCompleteness(false, false, false, false),
+                new CaseCompleteness(false, false),
                 new CaseCompletenessEvaluation(false, "test", 1)),
             new CaseProviderData(emptyString),
             new CaseClaimantData(emptyString, emptyString, emptyString),
@@ -105,6 +105,6 @@ internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessm
             // D11: the open states are With Engineer onwards — Review no
             // longer opens the workspace, so the open fake must sit inside
             // the new state set or the policy itself refuses it.
-            ? new(CaseLifecycleState.ReportPreparation, 0, 0)
-            : new(CaseLifecycleState.NotReady, 0, null));
+            ? new(CaseLifecycleState.ReportPreparation)
+            : new(CaseLifecycleState.NotReady));
 }

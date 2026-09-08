@@ -1,0 +1,1999 @@
+{
+  "sha": "26ba4ed408317cccdb354dc1e115b0297f15df94",
+  "capability_count": 244,
+  "unique_ids": 244,
+  "horizons": {
+    "Now": 154,
+    "Next": 26,
+    "Later": 35,
+    "Not planned": 29
+  },
+  "targets": {
+    "0.1.0-alpha.1": 152,
+    "0.2.0": 4,
+    "0.3.0": 19,
+    "v1": 2,
+    "0.4.0": 3,
+    "1.0.0": 10,
+    "0.5.0": 5,
+    "0.6.0": 5,
+    "1.2.0": 4,
+    "1.1.0": 5,
+    "1.3.0": 3,
+    "1.4.0": 3,
+    "unallocated": 29
+  },
+  "invalid_semver_rows": [
+    {
+      "line": 224,
+      "id": "INT-16",
+      "outcome": "Qualified OCR for retained PDF instruction and estimate pages",
+      "horizon": "Now",
+      "release": "v1",
+      "owner": "[Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr)"
+    },
+    {
+      "line": 269,
+      "id": "EXT-12",
+      "outcome": "Glass's and Audatex PDF estimate ingestion with retained source and variant proof",
+      "horizon": "Now",
+      "release": "v1",
+      "owner": "[Retained PDF estimates](frd/frd-07-eva-and-external-engineering-handoff.md#retained-pdf-estimates)"
+    }
+  ],
+  "planned_count": 215,
+  "rows": [
+    {
+      "line": 77,
+      "id": "OPS-10",
+      "outcome": "Production environment deployed directly from an authorised terminal",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[ADR-0014](adr/0014-local-to-production-deployment.md)"
+    },
+    {
+      "line": 78,
+      "id": "OPS-22",
+      "outcome": "Genuine-corpus local evaluation harness",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 79,
+      "id": "EVAL-01",
+      "outcome": "Local development-only EML categorisation evaluator over a read-only local working copy, recording adjudications into the local `emailevallocal` tree ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md))",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 80,
+      "id": "EVAL-02",
+      "outcome": "Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 81,
+      "id": "EVAL-03",
+      "outcome": "`Other` category lets the reviewer enter a new category name and reasoning",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 82,
+      "id": "EVAL-04",
+      "outcome": "Copying the reviewed EML into the local `emailevallocal` tree and appending the JSONL adjudication log records the human result; source files are never moved or modified ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md))",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 83,
+      "id": "EVAL-05",
+      "outcome": "Display the rule-generated category and evidence beside the human review once rules exist",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 84,
+      "id": "MAIL-20",
+      "outcome": "Run live provider-specific instruction-email categorisation against `.eml` files in the local folder-based evaluator",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[QDOS-alpha evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary)"
+    },
+    {
+      "line": 85,
+      "id": "MAIL-21",
+      "outcome": "Minimum shared Core classification foundation: versioned rules, decision evidence, ambiguity outcome, and acceptance cohort",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 86,
+      "id": "MAIL-22",
+      "outcome": "User-confirmed detailed Received/Sent categories and subtypes, mirrored Reply classifications, `Other` name/reason behavior, and category/destination separation",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Settled mailbox taxonomy and correction](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction)"
+    },
+    {
+      "line": 87,
+      "id": "ACC-01",
+      "outcome": "Staff sign-in with Pegasus-managed usernames and passwords",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 88,
+      "id": "ACC-02",
+      "outcome": "Administrator superuser, Engineer, and User roles; Andrew and Alex are initial Administrator assignments held as data/configuration, never hard-coded authorization",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 89,
+      "id": "ACC-03",
+      "outcome": "Staff account creation, disable/delete access, password reset, force logout, targeted lease clearance, and role assignment",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 90,
+      "id": "ACC-04",
+      "outcome": "Role-based protection for every non-public page and action",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 91,
+      "id": "ACC-05",
+      "outcome": "Principal/provider administration",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 92,
+      "id": "ACC-06",
+      "outcome": "Principal-code replacement with linked predecessor and sequence continuity",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 93,
+      "id": "ACC-07",
+      "outcome": "Application and workflow configuration managed by Administrators",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 94,
+      "id": "ACC-08",
+      "outcome": "Approved Outlook mailbox allowlist managed by Administrators",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 95,
+      "id": "ACC-09",
+      "outcome": "Permanent action history for business changes, exports, and material failures",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Permanent action history](frd/frd-04-parties-accounts-and-access.md#permanent-action-history)"
+    },
+    {
+      "line": 96,
+      "id": "ACC-10",
+      "outcome": "Separate authentication/security log",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Permanent action history](frd/frd-04-parties-accounts-and-access.md#permanent-action-history)"
+    },
+    {
+      "line": 97,
+      "id": "ACC-15",
+      "outcome": "Administrator-initiated staff password reset using an administrator-entered temporary password and the existing forced-change state",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix)"
+    },
+    {
+      "line": 98,
+      "id": "ACC-11",
+      "outcome": "Operational telemetry (`content-safe` wording considered unnecessary)",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Permanent action history](frd/frd-04-parties-accounts-and-access.md#permanent-action-history)"
+    },
+    {
+      "line": 99,
+      "id": "INT-01",
+      "outcome": "Manual upload of instruction emails, documents, and vehicle images",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts)"
+    },
+    {
+      "line": 100,
+      "id": "INT-02",
+      "outcome": "Automatic ingestion from `instructions@collisionengineers.co.uk`",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts)"
+    },
+    {
+      "line": 101,
+      "id": "INT-03",
+      "outcome": "Correct handling of staff-forwarded email as real intake",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts)"
+    },
+    {
+      "line": 102,
+      "id": "INT-08",
+      "outcome": "Stable source identity, duplicate-delivery handling, and idempotent retry",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity)"
+    },
+    {
+      "line": 103,
+      "id": "INT-09",
+      "outcome": "Original inbound source and attachment custody",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity)"
+    },
+    {
+      "line": 104,
+      "id": "INT-10",
+      "outcome": "EML and freehand email-body extraction",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 105,
+      "id": "INT-11",
+      "outcome": "PDF embedded-text and embedded-image extraction",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 106,
+      "id": "INT-12",
+      "outcome": "DOCX text and every visible image-placement extraction, without deduplicating repeated appearances",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 107,
+      "id": "INT-13",
+      "outcome": "JPEG and PNG image-led intake",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 108,
+      "id": "INT-17",
+      "outcome": "Automatic vehicle-registration reading from ordinary vehicle images",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)"
+    },
+    {
+      "line": 109,
+      "id": "INT-18",
+      "outcome": "Bounded, fail-closed processing for unreadable, oversized, or incomplete sources",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 110,
+      "id": "INT-19",
+      "outcome": "Typed, editable, operator-reviewable extracted case draft",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 111,
+      "id": "INT-20",
+      "outcome": "Field provenance, validation, missing-value, and contradiction display",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 112,
+      "id": "INT-21",
+      "outcome": "Human-reviewed extraction cohort, holdout, and field-level accuracy reporting",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 113,
+      "id": "INT-22",
+      "outcome": "Automatic identification of the correct principal/provider",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)"
+    },
+    {
+      "line": 114,
+      "id": "INT-23",
+      "outcome": "Unidentified queue with immutable U-references for uncertain or unsupported intake",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)"
+    },
+    {
+      "line": 115,
+      "id": "INT-24",
+      "outcome": "Manual `Blocked intake` filter with reason, warning, resolve, and retry",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Mandatory pre-case gates](frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates)"
+    },
+    {
+      "line": 116,
+      "id": "INT-25",
+      "outcome": "Automatic case creation from definitive authorised intake",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)"
+    },
+    {
+      "line": 117,
+      "id": "INT-26",
+      "outcome": "Manual case creation through the same business rules",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)"
+    },
+    {
+      "line": 118,
+      "id": "INT-27",
+      "outcome": "Registration-based provisional identity for image-led work",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts)"
+    },
+    {
+      "line": 119,
+      "id": "INT-29",
+      "outcome": "Manual linking and reasoned reversal of a mistaken match/merge",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)"
+    },
+    {
+      "line": 120,
+      "id": "INT-30",
+      "outcome": "Preservation of original intake origin after linking or merging",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)"
+    },
+    {
+      "line": 121,
+      "id": "MAIL-14",
+      "outcome": "Detect an exact Outlook Sent item as report-sent evidence",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Outbound correspondence evidence](frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)"
+    },
+    {
+      "line": 122,
+      "id": "MAIL-15",
+      "outcome": "Manually link, unlink, or relink an exact Sent item with a reason",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Outbound correspondence evidence](frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)"
+    },
+    {
+      "line": 123,
+      "id": "MAIL-16",
+      "outcome": "Automatically match the exact report Sent item to its case",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Outbound correspondence evidence](frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)"
+    },
+    {
+      "line": 124,
+      "id": "MAIL-18",
+      "outcome": "Generate copyable chaser messages for staff to send manually",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Due work, chasing, and action history](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)"
+    },
+    {
+      "line": 125,
+      "id": "TRI-01",
+      "outcome": "Distinct inbox Triage label and separate pre-case record/workflow",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 126,
+      "id": "TRI-02",
+      "outcome": "Vehicle-registration gate and Triage-specific missing-registration behavior",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 127,
+      "id": "TRI-03",
+      "outcome": "Open, Awaiting information, Finding recorded, Completed, and Cancelled states",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 128,
+      "id": "TRI-04",
+      "outcome": "Roadworthiness and Assessment are independently optional; at least one is required per recorded finding; later correction is a reasoned superseding finding",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 129,
+      "id": "TRI-05",
+      "outcome": "Exact reply-chain Sent-item evidence required for completion",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 130,
+      "id": "TRI-06",
+      "outcome": "Reopen and superseding-finding behavior with permanent history",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 131,
+      "id": "TRI-07",
+      "outcome": "Optional later case link, unlink, and relink",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 132,
+      "id": "TRI-08",
+      "outcome": "Dedicated Triage list and detail workspace",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 133,
+      "id": "TRI-09",
+      "outcome": "Optional Triage assignee, with no due date and no chasers",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence)"
+    },
+    {
+      "line": 134,
+      "id": "CASE-01",
+      "outcome": "Every active QDOS case type can travel end to end from intake through accepted case workflow to successful EVA export/handoff",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle)"
+    },
+    {
+      "line": 135,
+      "id": "CASE-02",
+      "outcome": "Inspection cases",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types)"
+    },
+    {
+      "line": 136,
+      "id": "CASE-03",
+      "outcome": "Standalone Audit cases",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types)"
+    },
+    {
+      "line": 137,
+      "id": "CASE-04",
+      "outcome": "Inspection + Audit cases and secondary Audit reference",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types)"
+    },
+    {
+      "line": 138,
+      "id": "CASE-07",
+      "outcome": "Shared principal/year case sequence",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 139,
+      "id": "CASE-08",
+      "outcome": "Repairable `a.` and total-loss `ap.` Audit references",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 140,
+      "id": "CASE-09",
+      "outcome": "Case principal and reference immutability after allocation",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 141,
+      "id": "CASE-10",
+      "outcome": "Wrong-principal `Created in error` closure and linked replacement case",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 142,
+      "id": "CASE-11",
+      "outcome": "Typed provider, claimant, claim, vehicle, accident, contact, and inspection data",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Case types and accepted Case projection](frd/frd-01-case-identity-and-lifecycle.md#case-types)"
+    },
+    {
+      "line": 143,
+      "id": "CASE-12",
+      "outcome": "Relationships to staff/Engineer, repairer/bodyshop, insurer, and contacts",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Principal and historical case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)"
+    },
+    {
+      "line": 144,
+      "id": "CASE-13",
+      "outcome": "Separate mandatory staff judgements for instruction completeness and image completeness",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 145,
+      "id": "CASE-14",
+      "outcome": "Mandatory instruction-completeness and image-completeness gate before Engineers-queue eligibility",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 146,
+      "id": "CASE-15",
+      "outcome": "Mandatory staff-review gate before Engineers-queue eligibility",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 147,
+      "id": "CASE-16",
+      "outcome": "`Not ready`, `Review`, and `Held` workflow",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 148,
+      "id": "CASE-17",
+      "outcome": "Due-by date extraction and overdue display",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Due work, chasing, and action history](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)"
+    },
+    {
+      "line": 149,
+      "id": "CASE-18",
+      "outcome": "Configurable whole-calendar-day missing-information chase schedule",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Due work, chasing, and action history](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)"
+    },
+    {
+      "line": 150,
+      "id": "CASE-19",
+      "outcome": "Hold/release behavior that preserves the chase interval",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Due work, chasing, and action history](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)"
+    },
+    {
+      "line": 151,
+      "id": "CASE-20",
+      "outcome": "General case tasks and reminders",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Due work, chasing, and action history](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)"
+    },
+    {
+      "line": 152,
+      "id": "CASE-21",
+      "outcome": "Every successful manual EVA export records replay-safe action history; the first also records the once-per-case `First sent to Engineer` proxy",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff)"
+    },
+    {
+      "line": 153,
+      "id": "CASE-24",
+      "outcome": "Post-report completion, provider cancellation, and Collision Engineers rejection outcomes",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 154,
+      "id": "CASE-25",
+      "outcome": "Reasoned reopening into a valid nonterminal state",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 155,
+      "id": "CASE-26",
+      "outcome": "Archive without permanent case deletion",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)"
+    },
+    {
+      "line": 156,
+      "id": "CASE-27",
+      "outcome": "Exclusive edit lease and stale-write protection",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Case edit authority and recovery](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)"
+    },
+    {
+      "line": 157,
+      "id": "CASE-28",
+      "outcome": "Independent Roadworthiness and Assessment findings with reasoned correction, preserved versions, reopen-before-revision, and no inferred fee/invoice change",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction)"
+    },
+    {
+      "line": 158,
+      "id": "CASE-29",
+      "outcome": "Provider-determined inspection mode: the Principal's persisted setting autofills exact `Image Based Assessment` at Case creation or requires an operator-confirmed physical address, with reasoned per-Case staff override",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)"
+    },
+    {
+      "line": 159,
+      "id": "CASE-30",
+      "outcome": "Track the QDOS-alpha inspection/report stage and EVA export without replacing EVA engineering work",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff)"
+    },
+    {
+      "line": 160,
+      "id": "CASE-32",
+      "outcome": "Sign-off Engineer as a Case field beside Engineer, offered from flagged staff accounts, defaulting to the assigned Engineer when flagged and otherwise A Patterson; the account setting carries the flag, qualifications and signature image; reports render the sign-off tuple",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Sign-off Engineer](frd/frd-01-case-identity-and-lifecycle.md#sign-off-engineer); [Staff accounts](frd/frd-04-parties-accounts-and-access.md#staff-accounts)"
+    },
+    {
+      "line": 161,
+      "id": "CASE-33",
+      "outcome": "Engineer notes: append-only, attributed staff notes to the Engineer as a Case section separate from the Notes history",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Engineer notes](frd/frd-01-case-identity-and-lifecycle.md#engineer-notes)"
+    },
+    {
+      "line": 162,
+      "id": "CASE-34",
+      "outcome": "Inspect at as a fast-update choice (Image Based Assessment, Claimant address, Repairer location, Storage location, previous addresses used for this Principal, Manual entry) and a storage location on the Case",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)"
+    },
+    {
+      "line": 163,
+      "id": "UI-01",
+      "outcome": "Operations dashboard/cockpit",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 164,
+      "id": "UI-02",
+      "outcome": "Case queues for Not ready, Review, and Held",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 165,
+      "id": "UI-03",
+      "outcome": "QDOS-alpha e-mail activity for Unidentified and Blocked",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 166,
+      "id": "UI-04",
+      "outcome": "New cases today, Sent to Engineer, and Reports sent day/week activity",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 167,
+      "id": "UI-05",
+      "outcome": "Click-through filtered work queues",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 168,
+      "id": "UI-06",
+      "outcome": "Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Dashboard freshness and reconciliation](frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation)"
+    },
+    {
+      "line": 169,
+      "id": "UI-07",
+      "outcome": "Search/filter by reference (Case/PO or Image Intake Reference), registration, claimant, claim, principal, state, Engineer, dates, and origin",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 170,
+      "id": "UI-08",
+      "outcome": "Three-column intake review workbench",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 171,
+      "id": "UI-09",
+      "outcome": "Full case workspace",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 172,
+      "id": "UI-11",
+      "outcome": "Accounts, principals, mailbox allowlist, and configuration workspace",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 173,
+      "id": "UI-13",
+      "outcome": "Accessible keyboard, screen-reader, focus, contrast, and error behavior",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 174,
+      "id": "UI-16",
+      "outcome": "Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts, Work Centre needs-attention work, Cases queue groups, workspace tabs, command palette and breakpoints",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes)"
+    },
+    {
+      "line": 175,
+      "id": "UI-17",
+      "outcome": "Single-scroll Case record: sticky identity ribbon, action bar and section jump-nav with scroll-spy, lazily rendered sections, `?section=` jumps, and the eleven sections Overview, Engineer notes, Inspection, Vehicle, Damage, Valuation, Estimate, Settlement, Report, Files, Notes; the Engineer workbench lives in the Damage, Valuation, Estimate, Settlement and Report sections, always viewable and read-only once Complete; `/Cases/{id}/Assessment` is a 301",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Case workspace](frd/frd-12-operator-experience.md#case-workspace)"
+    },
+    {
+      "line": 176,
+      "id": "UI-18",
+      "outcome": "Awaiting instruction (the Image-initiated Cases still awaiting an instruction) as a Pre-Case queue on Cases beside Triage",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Cases: queues and filters](frd/frd-12-operator-experience.md#cases-queues-and-filters)"
+    },
+    {
+      "line": 177,
+      "id": "UI-19",
+      "outcome": "Service health is Administration-only; Operations shows a one-line partial-data notice linking to it and carries no service health table",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Operations](frd/frd-12-operator-experience.md#operations)"
+    },
+    {
+      "line": 178,
+      "id": "ENG-03",
+      "outcome": "Damage record: zones (front, left/right front, left/right side, left/right rear, rear, roof, four wheels, underside, interior, mechanical) each with severity, type and note; tyres and seat belts per corner, spare tyre, centre belt; unrelated damage with deduction; paint or material transfer; derived impact location and severity; the marked diagram printed on the report",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Damage record](frd/frd-06-vehicle-and-engineering-evidence.md#damage-record)"
+    },
+    {
+      "line": 179,
+      "id": "ENG-04",
+      "outcome": "Settlement fields (outcome, category, salvage value, excess, betterment, claimant VAT registered, reserve, equity, repair duration and delays, report delay, storage per day, recovery, hire start and daily cost, diminution, salvage logistics) with equity derived and financial ratio lines permitted, not required",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Settlement](frd/frd-06-vehicle-and-engineering-evidence.md#settlement)"
+    },
+    {
+      "line": 180,
+      "id": "AI-11",
+      "outcome": "`MarketResearch` AI job created from the Valuation section and completed outside Pegasus by the operator's external connector through the Automation Actor with a findings document and retail and trade figures; Pegasus retains the document as Case evidence and records an `AI market research` valuation entry as a proposal",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[AI Job List](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)"
+    },
+    {
+      "line": 181,
+      "id": "RPT-06",
+      "outcome": "Fee note preview on the Report section rendered from the agreed fee and description lines",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Report-draft entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point)"
+    },
+    {
+      "line": 182,
+      "id": "DOC-01",
+      "outcome": "Automatic Box case-folder creation using the Case/PO name",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 183,
+      "id": "DOC-02",
+      "outcome": "Store source emails, instruction documents, images, correspondence, and reports in Box",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 184,
+      "id": "DOC-03",
+      "outcome": "Retained document versions",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 185,
+      "id": "DOC-04",
+      "outcome": "Closed-case read-only files and reopen-before-edit behavior",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody)"
+    },
+    {
+      "line": 186,
+      "id": "DOC-05",
+      "outcome": "Logical file removal without destroying history",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody)"
+    },
+    {
+      "line": 187,
+      "id": "DOC-07",
+      "outcome": "Staff upload, view, download, and export actions",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 188,
+      "id": "DOC-08",
+      "outcome": "Private transient file staging for Worker processing",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 189,
+      "id": "EXT-01",
+      "outcome": "DVLA/DVSA make, model, manufacture year, engine capacity, fuel type, MOT chronology, mileage evidence, and operator-confirmed reconciliation",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)"
+    },
+    {
+      "line": 190,
+      "id": "EXT-02",
+      "outcome": "MOT chronology and mileage evidence with supplied-versus-external-versus-estimated classification",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)"
+    },
+    {
+      "line": 191,
+      "id": "EXT-03",
+      "outcome": "Review-gated deterministic UTF-8 EVA export with the exact ordered 13-key JSON and every eligible retained Case-vehicle image; no EVA network call or Pegasus-owned image ordering",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff)"
+    },
+    {
+      "line": 192,
+      "id": "EXT-14",
+      "outcome": "Manual addition of relevant WhatsApp material",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody)"
+    },
+    {
+      "line": 193,
+      "id": "EXT-18",
+      "outcome": "Operator-confirmed or staff-supplied physical vehicle/repairer address, or exact `Image Based Assessment` autofilled from the Principal's inspection-mode setting; no address is ever inferred from a provider or domain match",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)"
+    },
+    {
+      "line": 194,
+      "id": "MCP-01",
+      "outcome": "Management/development-controlled MCP ingress for one named vendor-neutral Automation Actor through Pegasus Core use cases",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 195,
+      "id": "MCP-02",
+      "outcome": "Automation Actor Case actions through the same Core use cases as the staff app",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 196,
+      "id": "MCP-03",
+      "outcome": "Automation Actor intake-queue actions through the same Core use cases as the QDOS-alpha staff app",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 197,
+      "id": "MCP-04",
+      "outcome": "Automation Actor document actions through the same Core use cases as the staff app",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 198,
+      "id": "MCP-06",
+      "outcome": "Automation Actor assessment actions: direct writes with logging parity (assessment get/update and case-detail update) through the same Core use cases and guards as the staff app",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)"
+    },
+    {
+      "line": 199,
+      "id": "OPS-01",
+      "outcome": "Production staff Web application on Azure",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 200,
+      "id": "OPS-02",
+      "outcome": "Continuously running Worker for mailbox and background processing",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 201,
+      "id": "OPS-03",
+      "outcome": "Azure SQL persistence",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 202,
+      "id": "OPS-04",
+      "outcome": "Safe database migrations and concurrent reference allocation",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 203,
+      "id": "OPS-05",
+      "outcome": "Managed identity and least-privilege RBAC between Azure services",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 204,
+      "id": "OPS-06",
+      "outcome": "Infisical/Key Vault custody for unavoidable third-party secrets",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 205,
+      "id": "OPS-07",
+      "outcome": "Correlated Web/Worker telemetry and dependency readiness checks",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 206,
+      "id": "OPS-08",
+      "outcome": "Alerts for ingestion, processing, Box, matching, chasing, export, security, availability, and cost failures",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 207,
+      "id": "OPS-09",
+      "outcome": "Database backup, restore proof, 15-minute RPO, and four-hour RTO",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Quality and recovery objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence)"
+    },
+    {
+      "line": 208,
+      "id": "OPS-11",
+      "outcome": "Production isolated from local-development resources",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[ADR-0014](adr/0014-local-to-production-deployment.md)"
+    },
+    {
+      "line": 209,
+      "id": "OPS-13",
+      "outcome": "Deployment preview, policy/quota checks, health probes, and smoke tests",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 210,
+      "id": "OPS-14",
+      "outcome": "Production cutover and previous-artifact rollback procedure",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 211,
+      "id": "OPS-20",
+      "outcome": "Capacity for about eight concurrent staff and 2,000 new cases per month",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 212,
+      "id": "OPS-24",
+      "outcome": "Direct production deployment from an authorised terminal using committed Bicep through `azd`",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 213,
+      "id": "DATA-01",
+      "outcome": "Publish immutable cumulative provider-domain reference snapshots from approved spreadsheets",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)"
+    },
+    {
+      "line": 214,
+      "id": "OPS-23",
+      "outcome": "Operator acceptance against the real end-to-end workflow",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 215,
+      "id": "OPS-25",
+      "outcome": "Collision Engineers management approval before production release",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 216,
+      "id": "INT-31",
+      "outcome": "Authenticated staff generate a temporary, revocable, expiring, request-scoped link for isolated unauthenticated image/document upload; it exposes only the upload form and immediate result, never case/reference/request state or another document",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Request-scoped upload links](frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links)"
+    },
+    {
+      "line": 217,
+      "id": "DATA-02",
+      "outcome": "Prepare inspection-address / repairer reference data from separately approved spreadsheets",
+      "horizon": "Next",
+      "release": "0.2.0",
+      "owner": "[Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)"
+    },
+    {
+      "line": 218,
+      "id": "INT-04",
+      "outcome": "Activate additional providers through the shared intake/case workflow using separately accepted provider evidence and rules",
+      "horizon": "Next",
+      "release": "0.2.0",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 219,
+      "id": "INT-05",
+      "outcome": "Automatic ingestion from `desk@collisionengineers.co.uk`",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 220,
+      "id": "INT-06",
+      "outcome": "Automatic ingestion from `engineers@collisionengineers.co.uk`",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 221,
+      "id": "INT-07",
+      "outcome": "Automatic ingestion from `info@collisionengineers.co.uk`",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 222,
+      "id": "INT-14",
+      "outcome": "Automated legacy DOC extraction",
+      "horizon": "Next",
+      "release": "0.2.0",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 223,
+      "id": "INT-15",
+      "outcome": "Automated MSG extraction",
+      "horizon": "Next",
+      "release": "0.2.0",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 224,
+      "id": "INT-16",
+      "outcome": "Qualified OCR for retained PDF instruction and estimate pages",
+      "horizon": "Now",
+      "release": "v1",
+      "owner": "[Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr)"
+    },
+    {
+      "line": 225,
+      "id": "INT-28",
+      "outcome": "Automatic matching of image-led and instruction-led records",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association); [Grouped image-intake routing](frd/frd-02-intake-and-source-identity.md#grouped-image-intake-routing)"
+    },
+    {
+      "line": 226,
+      "id": "MAIL-01",
+      "outcome": "Identify every inbound mailbox item and its mailbox/thread/message identity",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity)"
+    },
+    {
+      "line": 227,
+      "id": "MAIL-02",
+      "outcome": "Map detailed email classifications to Receiving work, Queries, their named detailed views, reasoned Other, Unidentified, or the separate Triage workflow",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue)"
+    },
+    {
+      "line": 228,
+      "id": "MAIL-03",
+      "outcome": "One shared classification policy across all supported mailboxes",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 229,
+      "id": "MAIL-04",
+      "outcome": "Explainable classification evidence, policy version, and correction history",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 230,
+      "id": "MAIL-05",
+      "outcome": "Recommend the designated Outlook folder for a classified message",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 231,
+      "id": "MAIL-06",
+      "outcome": "Staff confirmation of a recommended folder move in Pegasus",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 232,
+      "id": "MAIL-07",
+      "outcome": "Move the confirmed message to the designated Outlook folder",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 233,
+      "id": "MAIL-08",
+      "outcome": "Suggested next actions for classified email",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 234,
+      "id": "MAIL-09",
+      "outcome": "Automatic association of related email and attachments with a case",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 235,
+      "id": "MAIL-10",
+      "outcome": "Manual email/case association, unlink, relink, and correction",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 236,
+      "id": "MAIL-11",
+      "outcome": "Browse, search, and view mailbox messages and conversation threads in the app, including read-only search of accepted Deleted Items",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 237,
+      "id": "MAIL-13",
+      "outcome": "Change read state, Outlook categories, flags, or delete messages in the app",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 238,
+      "id": "CASE-23",
+      "outcome": "Post-report query and dispute work on the existing case with retained report/reply-chain evidence and an explicit lifecycle",
+      "horizon": "Next",
+      "release": "0.4.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 239,
+      "id": "UI-10",
+      "outcome": "Full email-management workspace",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 240,
+      "id": "UI-14",
+      "outcome": "Categorised email views for Receiving work, Queries, Other, Unidentified, Triage, and named detailed classifications",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Classification and destination rules](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue); [operator experience](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 241,
+      "id": "API-01",
+      "outcome": "Principal-scoped provider submission API",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Accepted API-01 submission contract](frd/frd-09-provider-and-intermediary-routes.md#accepted-api-01-submission-contract)"
+    },
+    {
+      "line": 242,
+      "id": "API-02",
+      "outcome": "Provider API receipt and processing-status lookup",
+      "horizon": "Next",
+      "release": "0.4.0",
+      "owner": "[Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)"
+    },
+    {
+      "line": 243,
+      "id": "API-03",
+      "outcome": "Provider API resulting Case/PO lookup",
+      "horizon": "Next",
+      "release": "0.4.0",
+      "owner": "[Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)"
+    },
+    {
+      "line": 244,
+      "id": "API-04",
+      "outcome": "Provider API credential issue, reset, revoke, pause, and resume",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)"
+    },
+    {
+      "line": 245,
+      "id": "MCP-05",
+      "outcome": "Automation Actor actions for the broader classified-email workspace",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 246,
+      "id": "AI-05",
+      "outcome": "Automatic AI-assisted image readiness assessment of the current Case image set",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)"
+    },
+    {
+      "line": 247,
+      "id": "MAIL-23",
+      "outcome": "Map the detailed taxonomy to operational queues and designated Outlook folders",
+      "horizon": "Next",
+      "release": "0.3.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 248,
+      "id": "INT-32",
+      "outcome": "Instruction/image halves retain separate age and chase state; definitive pairing notifies staff that the job is ready",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 249,
+      "id": "INT-33",
+      "outcome": "Near-real-time durable email and manual-upload intake with truthful transient state and loss recovery",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity); [Mailbox wake-up and recovery](frd/frd-08-email-mailbox-and-background-processing.md#mailbox-wake-up-and-recovery)"
+    },
+    {
+      "line": 250,
+      "id": "MAIL-19",
+      "outcome": "Automatically send chasers or other outbound messages",
+      "horizon": "Later",
+      "release": "0.5.0",
+      "owner": "[Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)"
+    },
+    {
+      "line": 251,
+      "id": "CASE-05",
+      "outcome": "Diminution cases",
+      "horizon": "Later",
+      "release": "0.5.0",
+      "owner": "[Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle)"
+    },
+    {
+      "line": 252,
+      "id": "CASE-06",
+      "outcome": "Commercial cases",
+      "horizon": "Later",
+      "release": "0.5.0",
+      "owner": "[Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle)"
+    },
+    {
+      "line": 253,
+      "id": "EXT-15",
+      "outcome": "Automated WhatsApp ingestion and coexistence",
+      "horizon": "Later",
+      "release": "0.5.0",
+      "owner": "[Intake and source identity](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)"
+    },
+    {
+      "line": 254,
+      "id": "AI-01",
+      "outcome": "In-app staff AI assistant",
+      "horizon": "Later",
+      "release": "0.6.0",
+      "owner": "[Requirements](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 255,
+      "id": "AI-02",
+      "outcome": "AI-assisted email identification/classification",
+      "horizon": "Later",
+      "release": "0.6.0",
+      "owner": "[Requirements](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 256,
+      "id": "AI-03",
+      "outcome": "AI-assisted suggested email actions",
+      "horizon": "Later",
+      "release": "0.6.0",
+      "owner": "[Requirements](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 257,
+      "id": "AI-04",
+      "outcome": "AI-assisted document extraction and operator review",
+      "horizon": "Later",
+      "release": "0.6.0",
+      "owner": "[Requirements](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 258,
+      "id": "AI-06",
+      "outcome": "AI-assisted inspection-address suggestions",
+      "horizon": "Later",
+      "release": "0.6.0",
+      "owner": "[Requirements](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)"
+    },
+    {
+      "line": 259,
+      "id": "MAIL-17",
+      "outcome": "Idempotent report/fee-note send on the original Outlook thread or provider API using principal CC/delivery/standing-note preferences, followed by Box filing, completion, and management-event recording",
+      "horizon": "Later",
+      "release": "1.2.0",
+      "owner": "[Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)"
+    },
+    {
+      "line": 260,
+      "id": "CASE-22",
+      "outcome": "Replace EVA inspection and report-preparation work inside Pegasus",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction)"
+    },
+    {
+      "line": 261,
+      "id": "EXT-04",
+      "outcome": "Direct manual EVA API submission of a case and its images, switchable per Principal",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Direct EVA API submission](frd/frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)"
+    },
+    {
+      "line": 262,
+      "id": "EXT-05",
+      "outcome": "Replace EVA Engineer assignment",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary)"
+    },
+    {
+      "line": 263,
+      "id": "EXT-06",
+      "outcome": "Replace EVA estimating without moving repair-specification authority out of Pegasus Core",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction)"
+    },
+    {
+      "line": 264,
+      "id": "EXT-07",
+      "outcome": "Replace EVA valuation while preserving separate dated/versioned source evidence and explicit Engineer selection",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary)"
+    },
+    {
+      "line": 265,
+      "id": "EXT-08",
+      "outcome": "Activate deterministic report generation from accepted Core-owned data through the approved renderer contract",
+      "horizon": "Later",
+      "release": "1.1.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 266,
+      "id": "EXT-09",
+      "outcome": "Versioned repair-estimate lines, source versions, and approvals",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction)"
+    },
+    {
+      "line": 267,
+      "id": "EXT-10",
+      "outcome": "Versioned vehicle-valuation evidence, explicit Engineer acceptance/adjustments/rationale, and revaluation history",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary)"
+    },
+    {
+      "line": 268,
+      "id": "EXT-11",
+      "outcome": "Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and role-restricted visibility",
+      "horizon": "Later",
+      "release": "1.2.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 269,
+      "id": "EXT-12",
+      "outcome": "Glass's and Audatex PDF estimate ingestion with retained source and variant proof",
+      "horizon": "Now",
+      "release": "v1",
+      "owner": "[Retained PDF estimates](frd/frd-07-eva-and-external-engineering-handoff.md#retained-pdf-estimates)"
+    },
+    {
+      "line": 270,
+      "id": "EXT-13",
+      "outcome": "Independently licensed valuation-source adapters that preserve each source observation and version",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary)"
+    },
+    {
+      "line": 271,
+      "id": "AI-07",
+      "outcome": "Staff-selected `AI Assessor` Engineer option in the post-EVA-replacement assignment workflow; it owns no button, queue, model, or transport",
+      "horizon": "Later",
+      "release": "1.3.0",
+      "owner": "[Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)"
+    },
+    {
+      "line": 272,
+      "id": "MAIL-12",
+      "outcome": "Authenticated staff compose, reply, forward, and send email in Pegasus",
+      "horizon": "Later",
+      "release": "0.5.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 273,
+      "id": "EXT-16",
+      "outcome": "Collision Engineers guided mobile image capture",
+      "horizon": "Later",
+      "release": "1.4.0",
+      "owner": "[Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)"
+    },
+    {
+      "line": 274,
+      "id": "EXT-17",
+      "outcome": "Tractable or Ravin guided-capture integration",
+      "horizon": "Later",
+      "release": "1.4.0",
+      "owner": "[Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)"
+    },
+    {
+      "line": 275,
+      "id": "EXT-19",
+      "outcome": "Collision Engineers custom application domain",
+      "horizon": "Later",
+      "release": "1.4.0",
+      "owner": "[External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary)"
+    },
+    {
+      "line": 276,
+      "id": "CASE-31",
+      "outcome": "One accepted structured case/engineering record is the source for every deterministic report, fee note, addendum, query document, invoice input, and statistic",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 277,
+      "id": "ENG-01",
+      "outcome": "One canonical repair specification with route provenance for Glass's, Audatex PDF, or an approved AI proposal",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction)"
+    },
+    {
+      "line": 278,
+      "id": "ENG-02",
+      "outcome": "Engineer-owned final value/deductions, outcome, salvage category/value, and roadworthiness/reason drive derived figures and narratives without retyping",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction)"
+    },
+    {
+      "line": 279,
+      "id": "UI-15",
+      "outcome": "One case-centred progressive Engineer workbench for inspection, vehicle/damage, valuation, estimate/repairer, report, media, salvage, text, and administration",
+      "horizon": "Later",
+      "release": "1.0.0",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 280,
+      "id": "RPT-01",
+      "outcome": "Deterministic renderer validates accepted data, computes each figure once, and applies the fixed Collision Engineers design",
+      "horizon": "Later",
+      "release": "1.1.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 281,
+      "id": "RPT-02",
+      "outcome": "Assessment rendering covers four outcome variants and emits the fee note plus itemised repair-specification breakdown",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Report-draft entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point)"
+    },
+    {
+      "line": 282,
+      "id": "RPT-03",
+      "outcome": "Audit rendering reuses the Inspection report's approved physical output while retaining Audit reference provenance",
+      "horizon": "Later",
+      "release": "1.1.0",
+      "owner": "[Audit report parity](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)"
+    },
+    {
+      "line": 283,
+      "id": "RPT-04",
+      "outcome": "Diminution rendering uses accepted original-case data plus the Engineer-entered percentage",
+      "horizon": "Later",
+      "release": "1.1.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 284,
+      "id": "RPT-05",
+      "outcome": "Addenda render from accepted case data plus a versioned amendment without retyping the case",
+      "horizon": "Later",
+      "release": "1.1.0",
+      "owner": "[Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work)"
+    },
+    {
+      "line": 285,
+      "id": "AI-08",
+      "outcome": "Intended Microsoft Foundry candidate proposes a case-grounded query response in approved house style/letterhead; a named Engineer reviews, amends if needed, and approves it before sending",
+      "horizon": "Later",
+      "release": "1.3.0",
+      "owner": "[Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)"
+    },
+    {
+      "line": 286,
+      "id": "AI-09",
+      "outcome": "Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to an immutable case/version stamp; the hand-off carries a pointer only, and the scoped worker returns its work as attributed unconfirmed Automation Actor writes reviewed by the Engineer taking the work, with delivery status and visible failure on the tracking record",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)"
+    },
+    {
+      "line": 287,
+      "id": "AI-10",
+      "outcome": "Extensible named AI job catalogue beginning with Case assessment, with durable lifecycle and an operator-visible AI Viewer for request state and eventual live work events",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[FRD-11](frd/frd-11-reports-correspondence-and-reviewed-proposals.md) § AI Job List (AUTO-009)"
+    },
+    {
+      "line": 288,
+      "id": "MCP-07",
+      "outcome": "Administration-configurable Send to AI channel connector setup: base URL, token entry/rotation, and timeout configured from Administration, with connector health/status display, replacing the current configuration/user-secrets-only setup",
+      "horizon": "Later",
+      "release": "1.3.0",
+      "owner": "[Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)"
+    },
+    {
+      "line": 289,
+      "id": "MI-01",
+      "outcome": "Per-Engineer throughput, query rate/types, and Audit uplift",
+      "horizon": "Now",
+      "release": "0.1.0-alpha.1",
+      "owner": "[Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence)"
+    },
+    {
+      "line": 290,
+      "id": "MI-02",
+      "outcome": "Per-principal report counts, types, and periods feeding invoice generation",
+      "horizon": "Later",
+      "release": "1.2.0",
+      "owner": "[Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence)"
+    },
+    {
+      "line": 291,
+      "id": "MI-03",
+      "outcome": "Holding-pen age and instruction-to-images, ready-to-sent, and overall turnaround measures consuming accepted workflow events",
+      "horizon": "Later",
+      "release": "1.2.0",
+      "owner": "[Requirements](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-and-engineering-evidence)"
+    },
+    {
+      "line": 292,
+      "id": "ACC-12",
+      "outcome": "External/customer application accounts",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Permanent boundaries](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 293,
+      "id": "ACC-13",
+      "outcome": "Public registration",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Permanent boundaries](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 294,
+      "id": "ACC-14",
+      "outcome": "Multi-factor authentication for staff",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Permanent boundaries](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 295,
+      "id": "UI-12",
+      "outcome": "Responsive/mobile staff interface",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 296,
+      "id": "DOC-09",
+      "outcome": "Automated malware scanning of inbound files",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 297,
+      "id": "DOC-10",
+      "outcome": "Document redaction workflow",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 298,
+      "id": "DOC-11",
+      "outcome": "Digital signatures",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 299,
+      "id": "DOC-12",
+      "outcome": "Automated retention and deletion policy",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 300,
+      "id": "DOC-13",
+      "outcome": "Legal-hold workflow",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 301,
+      "id": "DOC-14",
+      "outcome": "Subject-access, correction, export, and erasure workflow",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 302,
+      "id": "DOC-15",
+      "outcome": "Dedicated DPIA/compliance workflow",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)"
+    },
+    {
+      "line": 303,
+      "id": "OPS-12",
+      "outcome": "GitHub Actions deployment using scoped OIDC identities",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 304,
+      "id": "OPS-15",
+      "outcome": "Separate staging environment",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 305,
+      "id": "OPS-16",
+      "outcome": "Deployment slots / Standard S1 hosting",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 306,
+      "id": "OPS-17",
+      "outcome": "Private networking",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 307,
+      "id": "OPS-18",
+      "outcome": "Zone redundancy",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 308,
+      "id": "OPS-19",
+      "outcome": "Multi-region failover",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 309,
+      "id": "OPS-21",
+      "outcome": "Quarterly restore/recovery exercise",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](frd/frd-12-operator-experience.md#operator-experience)"
+    },
+    {
+      "line": 310,
+      "id": "BND-01",
+      "outcome": "Import predecessor cases or application data",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 311,
+      "id": "BND-02",
+      "outcome": "Keep the predecessor application available after cutover",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 312,
+      "id": "BND-03",
+      "outcome": "Reuse predecessor application code",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 313,
+      "id": "BND-04",
+      "outcome": "SMS integration",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 314,
+      "id": "BND-05",
+      "outcome": "Microsoft Teams integration",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 315,
+      "id": "BND-06",
+      "outcome": "Persistent external case/customer portal; request-scoped upload links under INT-31 are permitted",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 316,
+      "id": "BND-07",
+      "outcome": "Independent Engineer accounts",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 317,
+      "id": "BND-08",
+      "outcome": "Solicitor, insurer, repairer, or vehicle-owner accounts",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 318,
+      "id": "BND-09",
+      "outcome": "Separate QA/test environment",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 319,
+      "id": "BND-10",
+      "outcome": "Separate user-acceptance environment",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    },
+    {
+      "line": 320,
+      "id": "BND-11",
+      "outcome": "Training/demo environment",
+      "horizon": "Not planned",
+      "release": "unallocated",
+      "owner": "[Requirements](prd/pegasus-product.md#permanent-boundaries)"
+    }
+  ]
+}

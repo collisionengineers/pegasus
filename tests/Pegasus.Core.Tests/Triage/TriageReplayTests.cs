@@ -1,13 +1,68 @@
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Triage;
 
 public sealed class TriageReplayTests
 {
+    [Theory]
+    [InlineData(CaseLifecycleState.PostReport, false, false, true)]
+    [InlineData(CaseLifecycleState.Review, true, false, false)]
+    [InlineData(CaseLifecycleState.Review, false, true, false)]
+    [InlineData(CaseLifecycleState.ProviderCancelled, false, false, false)]
+    public void AutomaticTriageLinkKeepsTheExistingTargetBoundary(
+        CaseLifecycleState state, bool archived, bool leased, bool expected)
+    {
+        Assert.Equal(expected, TriageCasePairing.CanLinkTarget(state, archived,
+            leased ? ActorKind.Staff : null, leased ? DateTimeOffset.UnixEpoch.AddMinutes(1) : null,
+            DateTimeOffset.UnixEpoch));
+    }
+
+    [Fact]
+    public async Task CreationReplayAttemptsPairingAndStillReturnsItsHistoricalCreationResult()
+    {
+        var created = CreateRecord(TriageState.Open, 0);
+        var candidate = new TriageCaseLinkCandidate(created.Id, 0, Guid.NewGuid(), 0, "fixture-match", 1);
+        var store = new ReplayStore { CreationResult = created, PairingCandidates = [candidate], FailFirstPairingWrite = true };
+        var command = new CreateTriageFromIntake(store, new TriageCasePairing(store));
+        var evidence = new IntakeEvidence(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch, created.NormalizedVehicleRegistration,
+            "Accepted creation replay fixture.", "fixture-match", 1);
+        var request = new CreateTriageFromIntakeRequest(created.Origin, created.NormalizedVehicleRegistration,
+            evidence, ActionActor.SystemWorker("creation-replay"), "creation-replay");
+        Assert.Equal(created, await command.ExecuteAsync(request, CancellationToken.None));
+        Assert.Single(store.PairingCandidates);
+        Assert.Equal(created, await command.ExecuteAsync(request, CancellationToken.None));
+        Assert.Empty(store.PairingCandidates);
+        Assert.Equal(2, store.PairingActors.Count);
+    }
+
+    [Fact]
+    public async Task AutomaticPairingSurfacesAFailedWriteAndRetriesWithoutSkippingOtherWork()
+    {
+        var first = new TriageCaseLinkCandidate(Guid.NewGuid(), 0, Guid.NewGuid(), 0, "fixture-match", 1);
+        var second = new TriageCaseLinkCandidate(Guid.NewGuid(), 0, Guid.NewGuid(), 0, "fixture-match", 1);
+        var store = new ReplayStore { PairingCandidates = [first, second], FailFirstPairingWrite = true };
+        var pairing = new TriageCasePairing(store);
+        Assert.Equal(new TriageCasePairingResult(2, 1, 1, nameof(InvalidOperationException)),
+            await pairing.ReconcileAsync(2, CancellationToken.None));
+        Assert.Equal(new TriageCasePairingResult(1, 1, 0),
+            await pairing.PairTriageAsync(first.TriageId, CancellationToken.None));
+        Assert.Equal(new TriageCasePairingResult(0, 0, 0),
+            await pairing.PairAcceptedCaseAsync(first.CaseId, CancellationToken.None));
+        Assert.All(store.PairingActors, actor =>
+        {
+            Assert.Equal(ActorKind.SystemWorker, actor.Kind);
+            Assert.Equal(TriageCasePairing.ActorId, actor.SubjectId);
+        });
+    }
+
     private static readonly Guid TriageId = Guid.NewGuid();
     private static readonly Guid SupersededFindingId = Guid.NewGuid();
-    private const string Actor = "staff:triage-replay-test";
+    private static readonly ActionActor Actor =
+        ActionActor.Automation("triage-replay-test");
 
     [Theory]
     [InlineData(ReplayCommand.RecordFinding)]
@@ -185,6 +240,27 @@ public sealed class TriageReplayTests
 
     private sealed class ReplayStore : ITriageStore
     {
+        public TriageRecord? CreationResult { get; init; }
+        public List<TriageCaseLinkCandidate> PairingCandidates { get; init; } = [];
+        public List<ActionActor> PairingActors { get; } = [];
+        public bool FailFirstPairingWrite { get; set; }
+        public Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
+            Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TriageCaseLinkCandidate>>(PairingCandidates
+                .Where(item => (triageId is null || item.TriageId == triageId)
+                    && (caseId is null || item.CaseId == caseId)).Take(maximumItems).ToArray());
+        public Task<bool> LinkAutomaticallyAsync(
+            TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken)
+        {
+            PairingActors.Add(actor);
+            if (FailFirstPairingWrite)
+            {
+                FailFirstPairingWrite = false;
+                throw new InvalidOperationException("Injected link transaction failure.");
+            }
+            return Task.FromResult(PairingCandidates.Remove(candidate));
+        }
+
         public TriageOperationReplay? Replay { get; init; }
 
         public Exception? ProbeFailure { get; init; }
@@ -259,7 +335,8 @@ public sealed class TriageReplayTests
 
         public Task<TriageRecord> CreateAsync(
             CreateTriageFromIntakeRequest request,
-            CancellationToken cancellationToken) => UnexpectedMutation<TriageRecord>();
+            CancellationToken cancellationToken) => CreationResult is null
+                ? UnexpectedMutation<TriageRecord>() : Task.FromResult(CreationResult);
 
         public Task<TriageRecord> AssignAsync(
             AssignTriageRequest request,

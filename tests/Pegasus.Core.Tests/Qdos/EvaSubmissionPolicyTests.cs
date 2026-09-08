@@ -1,163 +1,132 @@
 using System.Net;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Qdos;
 
-/// <summary>
-/// EXT-04. FRD-07 requires that "external success, rejection, partial or
-/// unknown outcomes must remain distinct", so the classification is pinned
-/// here against the answers EVA actually gives — which are not the answers its
-/// documentation describes.
-/// </summary>
 public sealed class EvaSubmissionPolicyTests
 {
+    [Theory]
+    [InlineData("22 Park Avenue")]
+    [InlineData("22 Park Avenue, Watford")]
+    [InlineData("22-24 Park Avenue")]
+    [InlineData("22 Park Avenue, St John's")]
+    public void AcceptedClaimantAddressRetainsOrdinaryAddressText(string value)
+    {
+        // Structural punctuation variants of the supplied vendor address,
+        // not additional instruction evidence or a postal-validity claim.
+        Assert.Equal(value, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(value, CaseDataValueKind.Fact), null, null)));
+    }
+
     [Fact]
-    public void FirstManualSendMovesReviewToWithEngineer() =>
+    public void ConfirmedClaimantAddressWinsAndSuggestionsAreNotAccepted()
+    {
+        var fact = AddressValue("22 Park Avenue", CaseDataValueKind.Fact);
+        var confirmed = AddressValue("15 High Street", CaseDataValueKind.Confirmed);
+        var suggestion = AddressValue("22 Park Avenue", CaseDataValueKind.Suggestion);
+
+        Assert.Equal(confirmed.Value, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(fact, suggestion, confirmed)));
+        Assert.Equal(fact.Value, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(fact, suggestion, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(new(null, suggestion, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(new(null, null, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(fact, null, confirmed with { Value = " " })));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t\r\n\u00a0")]
+    [InlineData("22\0 Park Avenue")]
+    [InlineData("22 Park\nAvenue")]
+    [InlineData("22\u200b Park Avenue")]
+    [InlineData("22\U000e0001 Park Avenue")]
+    public void UnusableClaimantAddressIsNotSent(string value) =>
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(value, CaseDataValueKind.Fact), null, null)));
+
+    [Fact]
+    public void ClaimantAddressLengthIsEnforcedWithoutTruncation()
+    {
+        // Length probes, not fabricated postal-address evidence.
+        var boundary = "22 Park Avenue".PadRight(40, 'x');
+        Assert.Equal(boundary, EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(boundary, CaseDataValueKind.Fact), null, null)));
+        Assert.Null(EvaSubmissionPolicy.AcceptedClaimantAddress(
+            new(AddressValue(boundary + "x", CaseDataValueKind.Fact), null, null)));
+    }
+
+    private static CaseDataValue<string> AddressValue(string value, CaseDataValueKind kind) =>
+        new(value, kind, new(CaseDataSourceKind.IntakeEvidence,
+            "eva-request-model", "supplied EVA address example", "case-031-fixture", 1));
+
+    [Fact]
+    public void FirstManualSendMovesReviewToReportPreparation() =>
         Assert.Equal(
             CaseLifecycleState.ReportPreparation,
-            EvaSubmissionPolicy.StateAfterSend(
-                CaseLifecycleState.Review,
-                EvaSubmissionTrigger.Manual));
+            EvaSubmissionPolicy.StateAfterSend(CaseLifecycleState.Review));
 
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.PostReport)]
-    public void ManualResendDoesNotChangeWithEngineerState(CaseLifecycleState state) =>
-        Assert.Equal(state, EvaSubmissionPolicy.StateAfterSend(state, EvaSubmissionTrigger.Manual));
+    public void ManualResendDoesNotChangeLaterState(CaseLifecycleState state) =>
+        Assert.Equal(state, EvaSubmissionPolicy.StateAfterSend(state));
 
-    /// <summary>
-    /// CASE-040 review, blocker 1: a rejected or unreachable manual send
-    /// never reached EVA, so it is not a handoff — the case stays exactly
-    /// where it was rather than moving to With Engineer.
-    /// </summary>
     [Theory]
     [InlineData(EvaSubmissionOutcome.Rejected)]
     [InlineData(EvaSubmissionOutcome.Unknown)]
     public void UndeliveredManualSendFromReviewDoesNotMoveTheCase(EvaSubmissionOutcome outcome)
     {
         var result = new EvaSubmissionResult(outcome, null, null, "code", "detail", 0);
+
         Assert.False(result.IsDelivered);
         Assert.Equal(
             CaseLifecycleState.Review,
-            EvaSubmissionPolicy.StateAfterSend(
-                CaseLifecycleState.Review,
-                EvaSubmissionTrigger.Manual,
-                result.IsDelivered));
+            EvaSubmissionPolicy.StateAfterSend(CaseLifecycleState.Review, result.IsDelivered));
     }
 
-    /// <summary>
-    /// A Partial outcome still means EVA created a claim, so it is a
-    /// delivered handoff exactly like Succeeded (CASE-040 review, blocker 1).
-    /// </summary>
     [Fact]
     public void PartialManualSendFromReviewStillMovesTheCase()
     {
         var result = new EvaSubmissionResult(EvaSubmissionOutcome.Partial, null, null, null, null, 1);
+
         Assert.True(result.IsDelivered);
         Assert.Equal(
             CaseLifecycleState.ReportPreparation,
-            EvaSubmissionPolicy.StateAfterSend(
-                CaseLifecycleState.Review,
-                EvaSubmissionTrigger.Manual,
-                result.IsDelivered));
+            EvaSubmissionPolicy.StateAfterSend(CaseLifecycleState.Review, result.IsDelivered));
     }
-
-    [Fact]
-    public void AutomaticSubmissionIsReviewOnly()
-    {
-        Assert.Equal(
-            CaseLifecycleState.Review,
-            EvaSubmissionPolicy.StateAfterSend(
-                CaseLifecycleState.Review,
-                EvaSubmissionTrigger.Automatic));
-        Assert.Throws<EvaHandoffStateException>(() =>
-            EvaSubmissionPolicy.StateAfterSend(
-                CaseLifecycleState.ReportPreparation,
-                EvaSubmissionTrigger.Automatic));
-    }
-
-    [Fact]
-    public void DeliveredAutomaticSubmissionIsRefused() =>
-        Assert.Throws<EvaAutomaticSubmissionAlreadyDeliveredException>(() =>
-            EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
-                EvaSubmissionTrigger.Automatic,
-                hasDeliveredSubmission: true));
 
     [Theory]
-    [InlineData(EvaSubmissionTrigger.Automatic, false)]
-    [InlineData(EvaSubmissionTrigger.Manual, false)]
-    [InlineData(EvaSubmissionTrigger.Manual, true)]
-    public void FirstAutomaticAndAllManualSubmissionsRemainAllowed(
-        EvaSubmissionTrigger trigger,
-        bool hasDeliveredSubmission) =>
-        EvaSubmissionPolicy.RequireOnceOnlyAutomaticSubmission(
-            trigger,
-            hasDeliveredSubmission);
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ManualSettingControlsSubmission(bool enabled)
+    {
+        var modes = new EvaSubmissionModes(enabled);
+
+        Assert.Equal(enabled, EvaSubmissionPolicy.Allows(modes));
+        Assert.Equal(enabled, modes.IsEnabled);
+    }
 
     [Fact]
-    public void AnAcceptedEnvelopeWithAnIdentifierSucceeds() =>
-        Assert.Equal(
-            EvaSubmissionOutcome.Succeeded,
-            EvaSubmissionPolicy.Classify(HttpStatusCode.OK, 200, hasIdentifier: true));
+    public void ManualSubmissionRequiresCaseworkRight() =>
+        Assert.Equal(Pegasus.Core.Identity.StaffAccessRight.PerformCasework, EvaSubmissionPolicy.RequiredRight);
 
-    /// <summary>
-    /// The instruction landed and EVA told us nothing we can link to it. That
-    /// is not a failure — resubmitting would create a second claim — but it is
-    /// not a complete success either, and collapsing the two is exactly what
-    /// FRD-07 forbids.
-    /// </summary>
-    [Fact]
-    public void AnAcceptedEnvelopeWithoutAnIdentifierIsPartial() =>
-        Assert.Equal(
-            EvaSubmissionOutcome.Partial,
-            EvaSubmissionPolicy.Classify(HttpStatusCode.OK, 200, hasIdentifier: false));
-
-    /// <summary>
-    /// The behaviour that makes reading the HTTP status alone unsafe: EVA
-    /// answers 200 OK and puts its refusal in the body. Recorded traffic shows
-    /// this for a wrong RequestFrom and an unbound Agent code.
-    /// </summary>
-    [Fact]
-    public void ARejectionInsideAnHttpSuccessIsARejection() =>
-        Assert.Equal(
-            EvaSubmissionOutcome.Rejected,
-            EvaSubmissionPolicy.Classify(HttpStatusCode.OK, 400, hasIdentifier: false));
-
-    /// <summary>
-    /// EVA's 500 arrives as text/plain, so there is no envelope to read and no
-    /// way to know whether the claim was created.
-    /// </summary>
-    [Fact]
-    public void AnUnreadableServerErrorIsUnknown() =>
-        Assert.Equal(
-            EvaSubmissionOutcome.Unknown,
-            EvaSubmissionPolicy.Classify(
-                HttpStatusCode.InternalServerError,
-                envelopeStatusCode: null,
-                hasIdentifier: false));
-
-    /// <summary>
-    /// No response at all — a connect failure or timeout. EVA may have created
-    /// the claim before the connection died.
-    /// </summary>
-    [Fact]
-    public void NoResponseIsUnknown() =>
-        Assert.Equal(
-            EvaSubmissionOutcome.Unknown,
-            EvaSubmissionPolicy.Classify(
-                httpStatus: null,
-                envelopeStatusCode: null,
-                hasIdentifier: false));
-
-    [Fact]
-    public void AnHttpRejectionWithoutAnEnvelopeIsARejection() =>
-        Assert.Equal(
-            EvaSubmissionOutcome.Rejected,
-            EvaSubmissionPolicy.Classify(
-                HttpStatusCode.Unauthorized,
-                envelopeStatusCode: null,
-                hasIdentifier: false));
+    [Theory]
+    [InlineData(HttpStatusCode.OK, 200, true, EvaSubmissionOutcome.Succeeded)]
+    [InlineData(HttpStatusCode.OK, 200, false, EvaSubmissionOutcome.Partial)]
+    [InlineData(HttpStatusCode.OK, 400, false, EvaSubmissionOutcome.Rejected)]
+    [InlineData(HttpStatusCode.Unauthorized, null, false, EvaSubmissionOutcome.Rejected)]
+    [InlineData(HttpStatusCode.InternalServerError, null, false, EvaSubmissionOutcome.Unknown)]
+    [InlineData(null, null, false, EvaSubmissionOutcome.Unknown)]
+    public void ProviderOutcomesRemainDistinct(
+        HttpStatusCode? status,
+        int? envelopeStatus,
+        bool hasIdentifier,
+        EvaSubmissionOutcome expected) =>
+        Assert.Equal(expected, EvaSubmissionPolicy.Classify(status, envelopeStatus, hasIdentifier));
 
     [Fact]
     public void AllFourOutcomesAreReachable()
@@ -175,109 +144,10 @@ public sealed class EvaSubmissionPolicyTests
             reached.Distinct().Order());
     }
 
-    /// <summary>
-    /// The load-bearing rule of the whole integration. EVA has no idempotency,
-    /// so anything we already know the answer to is never sent twice — only an
-    /// outcome that leaves delivery genuinely unknown may be retried.
-    /// </summary>
-    [Theory]
-    [InlineData(EvaSubmissionOutcome.Succeeded, false)]
-    [InlineData(EvaSubmissionOutcome.Rejected, false)]
-    [InlineData(EvaSubmissionOutcome.Partial, false)]
-    [InlineData(EvaSubmissionOutcome.Unknown, true)]
-    public void OnlyAnUnknownOutcomeIsRetryable(EvaSubmissionOutcome outcome, bool retryable) =>
-        Assert.Equal(retryable, EvaSubmissionPolicy.IsRetryable(outcome));
-
-    [Fact]
-    public void RetryDelaysBackOffAndThenStop()
-    {
-        var delays = Enumerable.Range(1, EvaSubmissionRetryPolicy.MaximumAttempts)
-            .Select(attempt => EvaSubmissionRetryPolicy.NextAttemptDelay(
-                attempt,
-                EvaSubmissionOutcome.Unknown))
-            .ToArray();
-
-        Assert.All(delays[..^1], delay => Assert.NotNull(delay));
-        Assert.Null(delays[^1]);
-        Assert.Equal(
-            delays[..^1].Select(delay => delay!.Value).OrderBy(delay => delay),
-            delays[..^1].Select(delay => delay!.Value));
-    }
-
-    [Fact]
-    public void ATerminalOutcomeIsNeverRescheduled() =>
-        Assert.Null(EvaSubmissionRetryPolicy.NextAttemptDelay(
-            attemptCount: 1,
-            EvaSubmissionOutcome.Rejected));
-
-    /// <summary>
-    /// The two settings are independent by operator decision, so each act
-    /// consults only its own. An automatic-only principal has no button, and a
-    /// manual-only one never submits by itself.
-    /// </summary>
-    [Theory]
-    [InlineData(false, false, false, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(false, true, false, true)]
-    [InlineData(true, true, true, true)]
-    public void EachTriggerConsultsOnlyItsOwnSetting(
-        bool manual,
-        bool automatic,
-        bool allowsManual,
-        bool allowsAutomatic)
-    {
-        var modes = new EvaSubmissionModes(manual, automatic);
-
-        Assert.Equal(
-            allowsManual,
-            EvaSubmissionPolicy.Allows(modes, EvaSubmissionTrigger.Manual));
-        Assert.Equal(
-            allowsAutomatic,
-            EvaSubmissionPolicy.Allows(modes, EvaSubmissionTrigger.Automatic));
-    }
-
-    [Fact]
-    public void ADisabledPrincipalAllowsNeitherAct()
-    {
-        Assert.False(EvaSubmissionModes.Disabled.IsEnabled);
-        Assert.False(EvaSubmissionPolicy.Allows(
-            EvaSubmissionModes.Disabled,
-            EvaSubmissionTrigger.Manual));
-        Assert.False(EvaSubmissionPolicy.Allows(
-            EvaSubmissionModes.Disabled,
-            EvaSubmissionTrigger.Automatic));
-    }
-
-    /// <summary>
-    /// Each attempt of a queued submission is its own operation. If they shared
-    /// the work row's key, the second attempt would replay the first attempt's
-    /// unknown outcome from action history and never reach EVA, so the retry
-    /// ladder would spend every attempt sending nothing.
-    /// </summary>
-    [Fact]
-    public void EachAttemptOfOneWorkItemGetsItsOwnOperationKey()
-    {
-        const string row = "0f3d5b8c9a2e4f118d7c6b5a4938271e";
-
-        var keys = Enumerable.Range(1, EvaSubmissionRetryPolicy.MaximumAttempts)
-            .Select(attempt => EvaSubmissionPolicy.AttemptOperationKey(row, attempt))
-            .ToArray();
-
-        Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
-        Assert.DoesNotContain(row, keys, StringComparer.Ordinal);
-        Assert.All(keys, key => Assert.True(Guid.TryParseExact(key, "N", out _)));
-
-        // Derived, not generated: a queue message delivered twice for the same
-        // attempt must replay rather than submit a second time.
-        Assert.Equal(keys[0], EvaSubmissionPolicy.AttemptOperationKey(row, 1));
-    }
-
     [Fact]
     public void OnlyASuccessHasNoFailureCode()
     {
-        Assert.Null(EvaSubmissionPolicy.FailureCode(
-            EvaSubmissionOutcome.Succeeded,
-            HttpStatusCode.OK));
+        Assert.Null(EvaSubmissionPolicy.FailureCode(EvaSubmissionOutcome.Succeeded, HttpStatusCode.OK));
 
         foreach (var outcome in Enum.GetValues<EvaSubmissionOutcome>()
             .Where(item => item != EvaSubmissionOutcome.Succeeded))

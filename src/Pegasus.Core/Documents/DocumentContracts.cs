@@ -2,6 +2,27 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Documents;
 
+/// <summary>
+/// An immutable document version or retained intake asset in its authorized context.
+/// The reader resolves custody/cache addresses internally; callers never supply storage keys.
+/// </summary>
+public sealed record ReadLogicalDocumentVersionRequest(
+    ActionActor Actor, Guid? DocumentId, Guid? VersionId, Guid? IntakeAssetId, Guid? CaseId,
+    Guid? IntakeReceiptId, string ExpectedSha256, long ExpectedContentLength);
+
+public sealed record LogicalDocumentContent(
+    Stream Content, Guid? DocumentId, Guid? VersionId, Guid? IntakeAssetId, string Sha256,
+    long ContentLength, string FileName, string MediaType) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync() => Content.DisposeAsync();
+}
+
+public interface IReadLogicalDocumentVersion
+{
+    Task<LogicalDocumentContent> OpenAsync(
+        ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken);
+}
+
 public enum DocumentSemanticRole
 {
     OriginalSource,
@@ -135,6 +156,22 @@ public sealed record DownloadCaseDocumentQuery(
     ActionActor Actor,
     string OperationKey);
 
+public sealed record GetCaseDocumentMetadataQuery(
+    Guid CaseId,
+    Guid OccurrenceId,
+    Guid VersionId,
+    ActionActor Actor);
+
+public sealed record CaseDocumentMetadata(
+    Guid CaseId,
+    Guid OccurrenceId,
+    Guid DocumentId,
+    Guid VersionId,
+    string FileName,
+    string MediaType,
+    long ContentLength,
+    string Sha256);
+
 public sealed class DocumentDownload(
     Stream content,
     string fileName,
@@ -224,6 +261,13 @@ public interface IDownloadCaseDocument
 {
     Task<DocumentDownload?> ExecuteAsync(
         DownloadCaseDocumentQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IGetCaseDocumentMetadata
+{
+    Task<CaseDocumentMetadata?> ExecuteAsync(
+        GetCaseDocumentMetadataQuery query,
         CancellationToken cancellationToken = default);
 }
 
@@ -380,7 +424,9 @@ public sealed record ManagedDocumentContentAddress(
     int Version,
     DocumentSemanticRole SemanticRole,
     string FileName,
-    string MediaType);
+    string MediaType,
+    string? BoxFileId = null,
+    string? BoxVersionId = null);
 
 public enum DocumentContentWriteDisposition
 {
@@ -390,4 +436,5 @@ public enum DocumentContentWriteDisposition
 
 public sealed record DocumentContentWriteResult(
     DocumentContentWriteDisposition Disposition,
-    string? RemoteId);
+    string? RemoteId,
+    string? BoxVersionId = null);

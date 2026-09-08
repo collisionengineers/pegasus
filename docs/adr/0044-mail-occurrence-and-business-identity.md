@@ -1,0 +1,41 @@
+---
+id: ADR-0044
+status: accepted
+date: 2026-09-08
+supersedes: [ADR-0024]
+superseded_by: []
+related_capabilities: []
+related_frd: [FRD-02, FRD-08]
+tags: [identity, persistence]
+---
+# ADR-0044: Mail occurrence and business identity
+
+## Status
+
+Accepted. Partially supersedes ADR-0024 clause 3 only; stable mailbox policy,
+activation cycles and control layers remain accepted.
+
+## Context
+
+Provider transport identities and physical copies must not compete with the
+business identity and custody contract.
+
+## Decision
+
+Keep mailbox/folder/immutable-item coordinates as retrieval and polling
+provenance for each receipt. Use the shared mailbox-scoped RFC message identity for
+duplicate recognition within the durable mailbox. Do not use Graph coordinates as the
+business duplicate key or discard repeated occurrence history. Equal bytes
+alone neither collapse receipt identity nor allocate another Case.
+
+## Consequences
+
+Preserve attributable occurrences and exact-version authorization. Use existing
+Core ports and persistence; this decision requires no new store or runtime.
+Implementation and deployed conformance require their own evidence.
+
+## Links
+
+- [Intake and identity](../frd/frd-02-intake-and-source-identity.md)
+- [Custody](../frd/frd-05-documents-extraction-and-custody.md)
+- [Email](../frd/frd-08-email-mailbox-and-background-processing.md)

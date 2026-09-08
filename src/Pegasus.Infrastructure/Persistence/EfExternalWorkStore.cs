@@ -1,9 +1,10 @@
-﻿using System.Data;
+using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -566,12 +567,14 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     "Vehicle lookup exhausted the queue retry policy.");
                 break;
 
-            case ExternalWorkKinds.SubmitCaseToEva:
-                FailWork(
+            case ExternalWorkKinds.IntakeOcr:
+                await FailOcrAsync(
+                    context,
                     work,
                     failedAtUtc,
                     "queue_poisoned",
-                    "EVA submission exhausted the queue retry policy.");
+                    "OCR processing exhausted the queue retry policy.",
+                    cancellationToken);
                 break;
 
             default:
@@ -721,6 +724,16 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 }
                 break;
 
+            case ExternalWorkKinds.IntakeOcr:
+                await FailOcrAsync(
+                    context,
+                    work,
+                    failedAtUtc,
+                    failureCode,
+                    failureReason,
+                    cancellationToken);
+                break;
+
             default:
                 FailWork(work, failedAtUtc, failureCode, failureReason);
                 break;
@@ -728,6 +741,48 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task FailOcrAsync(
+        PegasusDbContext context,
+        ExternalWorkItemEntity work,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        string failureReason,
+        CancellationToken cancellationToken)
+    {
+        var operation = await context.Set<IntakeOcrOperationEntity>()
+            .SingleOrDefaultAsync(item => item.Id == work.Id, cancellationToken);
+        if (operation is null)
+        {
+            FailWork(
+                work,
+                failedAtUtc,
+                "ocr_operation_unavailable",
+                "The OCR operation paired with this external work item is unavailable.");
+            return;
+        }
+
+        if (operation.State == nameof(IntakeOcrState.Completed))
+        {
+            CompletePoisonReplay(work, failedAtUtc);
+            return;
+        }
+
+        var uncertain = operation.State is nameof(IntakeOcrState.Processing)
+            or nameof(IntakeOcrState.Unknown)
+            || !string.IsNullOrWhiteSpace(operation.ProviderOperationId);
+        if (operation.State != nameof(IntakeOcrState.Failed))
+        {
+            operation.State = uncertain
+                ? nameof(IntakeOcrState.Unknown)
+                : nameof(IntakeOcrState.Failed);
+            operation.LastError = $"{failureCode}: {failureReason}";
+            operation.RetryAtUtc = null;
+            operation.Version++;
+        }
+
+        FailWork(work, failedAtUtc, failureCode, failureReason);
     }
 
     private static bool TryRearmImageCustody(

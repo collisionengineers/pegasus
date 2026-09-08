@@ -22,20 +22,16 @@ public sealed record AssessmentWorkspaceHeader(
     DateOnly? DueBy,
     string? CaseRootRemoteId);
 
-public sealed record AssessmentAccessState(
-    CaseLifecycleState State,
-    long LatestReviewVersion,
-    long? LatestExportVersion)
+public sealed record AssessmentAccessState(CaseLifecycleState State)
 {
     /// <summary>
-    /// D11 (FRD-11): the workspace opens once the case is With Engineer
-    /// (Report preparation or later) and a current-cycle export exists.
+    /// Native engineering actions are available With Engineer or Complete.
+    /// Retained workspace content is viewable in every state, independently.
     /// </summary>
     public bool CanOpen => AssessmentAccessPolicy.CanOpen(this);
 
     /// <summary>
-    /// D11: the workspace is read-only once the case is Post-report
-    /// complete; Report preparation and Post report stay editable.
+    /// FRD-11: only Report preparation and Post report are editable.
     /// </summary>
     public bool IsReadOnly => AssessmentAccessPolicy.IsReadOnly(this);
 }
@@ -46,17 +42,16 @@ public static class AssessmentAccessPolicy
     {
         ArgumentNullException.ThrowIfNull(access);
         return access.State
-                is CaseLifecycleState.ReportPreparation
-                    or CaseLifecycleState.PostReport
-                    or CaseLifecycleState.PostReportComplete
-            && access.LatestExportVersion is { } exportedVersion
-            && exportedVersion >= access.LatestReviewVersion;
+            is CaseLifecycleState.ReportPreparation
+                or CaseLifecycleState.PostReport
+                or CaseLifecycleState.PostReportComplete;
     }
 
     public static bool IsReadOnly(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);
-        return access.State == CaseLifecycleState.PostReportComplete;
+        return access.State is not (CaseLifecycleState.ReportPreparation
+            or CaseLifecycleState.PostReport);
     }
 }
 

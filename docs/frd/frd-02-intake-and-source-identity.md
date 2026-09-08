@@ -9,7 +9,7 @@ Intake may begin through staff-forwarded email, a staff-created request-scoped u
 
 Direct Case creation is one of those ways, not an exception to them (D26, 2026-09-01). Staff enter the required identity and either attach the instruction or record it. Pegasus persists an attributable intake receipt for that instruction — actor, time, the attached or recorded instruction and its custody identity — and only then reuses the normal principal resolution and Case/PO allocation policy. There is no parallel allocation implementation and no direct-creation route that skips the receipt: the allocator that serves automatic creation is the only allocator.
 
-Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
+Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) owns the accepted threshold). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
 
 A usable registration therefore settles into one of two outcomes the operator
 sees (operator ruling, 2026-08-19): when it matches no existing Case, the
@@ -62,8 +62,10 @@ When a retained source becomes Unidentified because no category can be determine
 **Accepted source boundary:** only authenticated staff may create a link. The token has a stable identity and
 is bound to exactly one upload request, its allowed operation, and a
 server-enforced expiry. It is security-sensitive and is never written to
-permanent business history, message content, or content-bearing telemetry.
-Token generation and at-rest representation remain implementation choices;
+permanent business history, diagnostic logs, or content-bearing telemetry.
+The functional upload link may be delivered to its intended recipient in a
+staff-initiated chaser; that bounded delivery is not permission to expose it
+elsewhere. Use a cryptographically generated 256-bit token retained only as a hash;
 acceptance must prove expiry, revocation, and cross-request isolation through
 the real caller. Revocation invalidates every later request, and an
 unauthenticated caller cannot extend expiry.
@@ -81,8 +83,15 @@ that first success do not start the session. The requester may add or replace
 files until explicit finalisation or session expiry; either event closes the
 link and all later bytes are refused without disclosing the Case or earlier
 submission. Idempotent retries reconcile to the same result. The current
-manual-upload bound remains 10 MiB per file; future bounds require the research
-and operator decision tracked by `INTK-052`.
+manual/public source limits are owned by Source upload limits below.
+
+Public POST admission checks the route-bound token before reading the form.
+Unavailable links refuse the body without buffering it. File and total-body
+transport bounds apply before antiforgery and multipart model binding; normal
+multipart overhead is allowed within a finite bound. Enforcement counts actual
+bytes, including requests with absent or understated Content-Length, and an
+oversized refused body never reaches custody. Form or query values cannot
+substitute a different token for the one in the route.
 
 File type/count/size limits, authentication of the staff creator, token expiry
 and revocation, idempotent retry, abuse handling, durable custody, cross-request
@@ -109,6 +118,19 @@ case, reference, or downstream side effect. Staff can inspect Received,
 Processing, Complete, or Failed by the staged receipt identifier; failure wording
 is bounded and does not disclose exception or infrastructure detail.
 
+An evaluation is recorded before its destination is written, but the work is
+not complete until required association, allocation, Triage, and Unidentified
+writes finish. A transient destination failure retains a retryable work item
+and the same evaluation identity; it must not allocate a second case. A recorded
+unique case match withholds new-case allocation even when its association has
+not yet been persisted. Staging is cleaned only after that durable completion.
+
+A multi-image submission has one group-level destination and, when unresolved,
+one Unidentified reference with the group's canonical reason. Pending groups
+are recovered by the existing bounded sweep, selecting eligible oldest groups
+before applying its page limit. Groups with an Unidentified outcome leave that
+recovery set; unrelated newer receipts cannot starve a pending image group.
+
 For both email and manual upload, the durable commit is followed immediately by
 a best-effort publication of the stable work identifier. Publication never
 precedes the commit and a publication failure never rolls it back. Pending work
@@ -123,7 +145,7 @@ The ordinary path records correlated timings for durable receipt, publication,
 queue claim, source reading, identification, classification, extraction,
 association/allocation, case creation, custody hand-off, and terminal state.
 Those timings contain identifiers and bounded outcome data, never source
-content. From durable receipt, ordinary supported QDOS email and manual-upload
+content. From durable receipt, ordinary supported principal email and manual-upload
 work reaches its case destination, or its truthful terminal non-case outcome,
 within five seconds at p95. Case custody confirmation is measured as the final
 best-effort segment and any Box/provider delay is attributed separately. A
@@ -144,11 +166,12 @@ Before creating a case or allocating a reference, Pegasus must establish:
 Once those identity-critical facts are established, Pegasus creates the Case/PO
 and allocates its permanent reference. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. An Audit's retained original report
-is identity-critical: without one separate report with one literal outcome,
-Pegasus cannot determine whether the reference is `a.` or `ap.` and enters
-`Needs sorting`. The manual case-create screen does not offer Audit; it is
-created only by this retained-email route. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
+not form another pre-Case acceptance gate. For standalone Audit, allocate the
+normal Case/PO once Principal and Audit case type are definitive. Missing or
+ambiguous original-report outcome withholds only the later `a.` or `ap.` Audit
+reference, as defined in FRD-01. Supported email and Provider API Audit routes
+use that same distinction; this does not add Audit to manual case creation.
+If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
 evidence and each retry result. It never allocates a reusable identity as a
@@ -159,6 +182,22 @@ Box case-file custody is a required day-one alpha capability, but it follows Cas
 ### Matching conflicts and reversible association
 
 Matching uses explainable evidence. Message identifiers, provider/domain policy, route identity, accepted reference tokens, VRM, party identity, and operator confirmation may contribute. A weak, ambiguous, or contradictory signal never silently associates material with a case; competing candidate cases and unresolved source-identity conflicts become Unidentified with the corresponding canonical reason.
+
+The fifteen evidenced principal email routes use the existing instruction
+profiles through one route, classification and match policy ownership chain.
+Exact sender identity and selected current document profile must agree;
+document identity alone never allocates a Case. A proved forwarded original
+is current material, not discarded quoted history. Unrelated reports and old
+thread content cannot supply or veto a current instruction's profile.
+The accepted identities, explicit work-type predicates, preserved QDOS
+body/Triage rules and shared fail-closed association procedure are owned by
+[FRD-09](frd-09-provider-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association).
+
+Acceptance joins a profile's typed instruction values to the canonical Case
+field identity, not another principal's printed field labels. The original
+review-field names, candidates and source locators remain unchanged. Missing,
+conflicting or non-unique source attribution still prevents allocation; a
+different label never justifies invented evidence or staff confirmation.
 
 VRM correlation is a suggestion until confirmed by accepted evidence or an authorised operator. Source deduplication is occurrence-aware: exact bytes and transport identifiers support correlation, while each visible placement and chronology entry remains auditable.
 
@@ -173,7 +212,40 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
+Pairing uses the Case's current accepted registration and principal, not its
+original instruction draft. A registered image identity requires an exact
+registration match; a known principal must agree. The existing single-image
+exact-match precedence also applies to one-member groups. Multi-member groups
+retain their stricter complete-candidate uniqueness rule; persisted expected
+membership, not the presence of a group identifier, distinguishes them.
+
+Both arrival orders, registered-receipt replay and acceptance replay resume
+the same pairing operation. The existing reconciliation timer retries oldest
+eligible Awaiting instruction records, including linked-but-unmerged records.
+Current nonmatches do not consume that bounded batch or become permanently
+excluded. Failures remain visible and do not stop unrelated pairings.
+Every current image member must be associated before a group merges once.
+Automatic writes recheck current identity and uniqueness transactionally;
+merge rechecks every current association, destination eligibility and active
+Case edit lease. A deliberate staff unlink or reassignment is never undone by
+recovery. A still-current reasoned staff association retains its authority,
+including an intentional identity override, regardless of the retry actor.
+A reasoned staff decision on a registered group's origin also authorises
+completion of untouched image members. That completion checks the current
+origin decision and its observed version, records the originating staff
+identity/reason/version with SystemWorker completion attribution, and never
+overwrites or revives a sibling with association history. Final merge also
+refuses a changed origin decision even when the target Case ID is unchanged.
+
 **Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same configured chase interval a Not-ready formal Case's first chase falls due at (one global whole-calendar-day value, 1 to 365, default 7 — D23), and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
+
+Triage association follows [FRD-03](frd-03-triage.md#automatic-association-with-a-formal-case):
+creation, formal acceptance and replay attempt the same principal-scoped
+typed-identity match; existing scheduled reconciliation retries unfinished
+links. The final transaction rechecks current evidence, complete candidate
+uniqueness, versions and staff edit authority. A deliberate manual unlink or
+reassignment remains authoritative. This association preserves the distinct
+Triage identity and workflow and creates no further Case/PO.
 
 ### Grouped image-intake routing
 
@@ -187,7 +259,7 @@ group, not a set of independent images: a damage close-up carrying no
 registration must not detach itself from an overview image submitted with it,
 and the group — never an individual image — is the unit
 that reaches an association, a pre-Case Image intake registration, or a
-`Needs sorting` outcome.
+`Unidentified` outcome.
 
 - **Mailbox attachment entry.** When a newly processed mailbox message would
   otherwise enter Unidentified, has not been routed as an instruction, Case or
@@ -245,7 +317,7 @@ that reaches an association, a pre-Case Image intake registration, or a
      pre-Case identity.
   4. Zero distinct accepted VRMs, or more than one (conflicting readable
      VRMs): no single usable identity exists. The intact group — every member
-     together, kept as one unit — remains `Needs sorting`; no VRM-based
+     together, kept as one unit — remains `Unidentified`; no VRM-based
      reference is fabricated for it, and no member is split off into an
      unrelated generic outcome.
 - **Fail-closed is a group property, not a per-member one.** Case 3 and case 4
@@ -287,7 +359,7 @@ The decision table, evaluated once per file:
 
 1. **A case is already associated** (`CurrentCaseId` set). This is always a
    report of something automation already did — the "linked automatically
-   only on a definitive match" rule (operator notes) means a unique
+   only on a definitive match" rule (the accepted requirement) means a unique
    `CaseMatchOutcome` match or the grouped-image-routing unique match above
    is written before Complete is ever reached, so the confirmation step never
    re-offers this as a choice. The operator sees the case reference, a link
@@ -383,4 +455,61 @@ Definitive authorised intake creates exactly one instructed Case idempotently. A
 
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
-Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does, and so does the Image-initiated Case merge transition.
+Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does. Automatic Image-initiated Case association checks the current Case version and yields to an active staff lease; the subsequent image merge also yields to a live lease and rechecks the current associations inside its transaction.
+
+## Source upload limits
+
+The anonymous link remains a hashed 256-bit token and discloses no Case.
+The accepted source limits are 100 MiB per file, 20 files and 200 MiB
+aggregate bytes per multipart request, plus 64 KiB of fixed multipart
+overhead. The Provider API keeps its separate 30 MiB decoded envelope and
+42 MiB encoded request limits.
+
+| Setting | Accepted source value |
+| --- | --- |
+| Aggregate file bytes | 209 715 200 (200 MiB) |
+| Multipart request | 200 MiB plus 64 KiB fixed overhead |
+| Per-file bytes | 104 857 600 (100 MiB) |
+| File count | 20 |
+| Link lifetime | 168 h (7 days) |
+| Submission session | Fixed, non-sliding 15 minutes |
+| Rate, per token | 20 per 10 minutes |
+| Rate, per address | 30 per minute |
+| Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook` |
+
+`IntakeEnvelopeLimits` is the single Core owner of the manual/public
+per-file, file-count and aggregate ceilings. `RequestUploadLimits` may
+tighten those ceilings for a configured estate and may never raise them.
+The public-upload session reserves capacity before custody, admits at most
+one current successor for a replacement occurrence, and expires after its
+fixed 15-minute window. Expiry, revocation, limit-version mismatch and
+capacity refusal are typed outcomes; none authorises a fresh upload.
+
+The per-address limiter remains necessary because an unknown token is
+refused before the token-partitioned limiter runs, while Razor's antiforgery
+handling may otherwise buffer the multipart request first. It runs after
+routing and before endpoint execution.
+
+The repository's deployment configuration and dated live evidence are
+separate from this accepted source policy and remain owned by
+[operations](../operations.md). Existing links are bound to the limits version
+and lifetime recorded when issued; a mismatch fails closed, after which
+staff may issue a new link through the existing Case action.
+
+## Instruction field meanings
+
+A Work Instruction contains details of a claimant involved in a road traffic accident. Capture:
+
+| Field | Rule |
+| --- | --- |
+| Work Provider | Also referred to as the principal. |
+| Claimant Name | Extract from the instruction. |
+| Claim Number | External reference number. |
+| Vehicle Registration | VRM. |
+| Vehicle Make | Extract from the instruction or obtain through an authorized lookup capability when absent. |
+| Vehicle Model | Extract from the instruction or obtain through an authorized lookup capability when absent. |
+| Vehicle Mileage | Extract when supplied; estimation from MOT data is a required capability when available. |
+| Accident Circumstances | Extract from the instruction. |
+| Date of Incident | Extract from the instruction. |
+| Instruction Date | Use the document value; if absent, default to the current date. |
+| Inspection Address | Use FRD-06 inspection-location rules. |

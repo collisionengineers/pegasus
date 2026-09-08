@@ -4,6 +4,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -13,6 +14,130 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseDataCompletenessPersistenceTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IntakeFieldCandidatesRetainProvenanceAcrossReceiptPersistence(bool located)
+    {
+        // Structural tokens exercise the receipt's existing JSON mapping,
+        // independently of any provider's extraction grammar.
+        var candidate = new InstructionFieldCandidate(
+            "selected value", IntakeEvidenceSource.DocumentContent, "selected-source",
+            located ? IntakeSourceLocator.ForCell(1, 4, 2, page: 1, occurrence: 2) : null,
+            located ? "  selected  value  " : null);
+        var original = new InstructionReviewField(
+            "Vehicle registration", candidate.Value, [candidate], false, false);
+
+        var restored = Assert.Single(EfIntakeReceiptStore.DeserializeFields(
+            EfIntakeReceiptStore.SerializeFields([original])));
+
+        Assert.Equal(original.Name, restored.Name);
+        Assert.Equal(original.SuggestedValue, restored.SuggestedValue);
+        Assert.Equal(original.IsDefaulted, restored.IsDefaulted);
+        Assert.Equal(original.HasConflict, restored.HasConflict);
+        var restoredCandidate = Assert.Single(restored.Candidates);
+        Assert.Equal(candidate, restoredCandidate);
+        Assert.Equal(candidate.SourceValue, restoredCandidate.SourceValue);
+    }
+
+    [Theory]
+    [InlineData("Claimant mobile telephone", "Claimant home telephone")]
+    [InlineData("Claimant home telephone", "Claimant mobile telephone")]
+    public void TypedPhoneSourceIgnoresConflictOnTheUnusedAlternative(string selectedName, string unusedName)
+    {
+        // Structural provenance tokens: the typed extractor's selected value
+        // is supplied, not a second implementation of PCH's phone priority.
+        var snapshot = PhoneSnapshot([
+            new(selectedName, "selected", [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+            new(unusedName, null,
+                [new("alternative-a", IntakeEvidenceSource.PdfContent, "unused-a"),
+                 new("alternative-b", IntakeEvidenceSource.PdfContent, "unused-b")], false, true)
+        ]);
+        var field = Assert.Single(snapshot.Fields);
+        Assert.Equal(CaseDataFieldNames.ClaimantContactNumber, field.FieldName);
+        Assert.Equal("selected", field.Value);
+        Assert.Equal("PdfContent:selected-source", field.SourceLabel);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, field.SourceKind);
+    }
+
+    [Fact]
+    public void TypedPhoneSourceStillRejectsSelectedConflict()
+    {
+        Assert.Throws<InvalidDataException>(() => PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "conflict")], false, true)
+        ]));
+    }
+
+    [Fact]
+    public void TypedPhoneSourceStillRejectsTwoEqualSourceBindings()
+    {
+        Assert.Throws<InvalidOperationException>(() => PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "mobile")], false, false),
+            new("Claimant home telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "home")], false, false)
+        ]));
+    }
+
+    private static CaseDataSnapshotEntity PhoneSnapshot(IReadOnlyList<InstructionReviewField> fields)
+    {
+        var receiptId = Guid.NewGuid();
+        var receipt = new IntakeReceiptEntity
+        {
+            Id = receiptId, SourceFileName = "provenance-probe", MediaType = "application/pdf",
+            SourceHash = "source-hash", SourceChannel = "manual_upload", ExternalReceiptToken = "provenance-probe",
+            SourceReaderKey = "structural-probe", SourceReaderVersion = "1",
+            ExtractionPolicyKey = PchInstructionExtractionPolicy.Key,
+            ExtractionPolicyVersion = PchInstructionExtractionPolicy.Version,
+            Decision = "case_created", DecisionReason = "provenance-probe",
+            EvidenceJson = "{\"version\":1,\"data\":[]}", OcrCandidatesJson = "{\"version\":1,\"data\":[]}",
+            FieldsJson = EfIntakeReceiptStore.SerializeFields(fields),
+            InstructionDraft = new() { SuggestedPrincipalCode = "PCH", ClaimantContactNumber = "selected" }
+        };
+        var accepted = new CaseEntity
+        {
+            Id = Guid.NewGuid(), OriginIntakeReceiptId = receiptId, Reference = "provenance-probe",
+            Type = "inspection", InitialState = "not_ready", CustodyState = "pending"
+        };
+        return CaseDataSnapshotFactory.Create(accepted, receipt,
+            new(receiptId, 1, ActionActor.SystemWorker("system-worker:intake-processing"),
+                "provenance-probe", "provenance-probe", CaseType.Inspection, "PCH",
+                new(true, false), new(false, "completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
+            DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task RemovingStaffConfirmationColumnsRetainsCaseFactsAndHistory()
+    {
+        await using var harness = await CaseDataHarness.CreateAsync();
+        var before = await harness.GetRequiredDataAsync();
+        var historyCount = await harness.HistoryCountAsync();
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.False(context.Database.HasPendingModelChanges());
+
+        await context.Database.MigrateAsync("20260907210000_ReportInputInvalidationPermissions");
+        Assert.Equal(4, await CountRetiredColumnsAsync());
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Cases SET InstructionConfirmedByStaff = 1, ImagesConfirmedByStaff = 1 WHERE Id = {harness.CaseId}");
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await CountRetiredColumnsAsync());
+        var after = await harness.GetRequiredDataAsync();
+        Assert.Equal(before.Identity, after.Identity);
+        Assert.Equal(before.State, after.State);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.Completeness, after.Completeness);
+        Assert.Equal(before.Origin, after.Origin);
+        Assert.Equal(historyCount, await harness.HistoryCountAsync());
+        Assert.Equal(41, await harness.HiddenCaseVersionAsync());
+
+        Task<int> CountRetiredColumnsAsync() => context.Database.SqlQuery<int>(
+                $"SELECT COUNT(*) AS [Value] FROM sys.columns WHERE object_id IN (OBJECT_ID('dbo.Cases'), OBJECT_ID('dbo.IntakeAllocationAttempts')) AND name IN ('InstructionConfirmedByStaff', 'ImagesConfirmedByStaff')")
+            .SingleAsync();
+    }
+
     [Fact]
     public async Task AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues()
     {
@@ -45,15 +170,24 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal("qdos_instruction", projection.Claimant.Name.Fact?.Source.PolicyKey);
         Assert.Contains("instructions.pdf", projection.Claimant.Name.Fact?.Source.Label);
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
-        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Confirmed?.Value);
+        Assert.Equal(
+            CaseDataSourceKind.IntakeEvidence,
+            projection.Inspection.Address.Fact?.Source.Kind);
+        Assert.Equal("qdos_instruction", projection.Inspection.Address.Fact?.Source.PolicyKey);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
             harness.StaffActor.SubjectId,
             projection.Inspection.Address.Confirmed?.ConfirmedByActor);
         Assert.Equal(
-            CaseDataSourceKind.IntakeEvidence,
+            CaseDataSourceKind.ProviderSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            CaseInspectionMode.PhysicalAddress,
+            ProviderInspectionModePolicy.PolicyKey,
+            projection.Inspection.Address.Confirmed?.Source.PolicyKey);
+        Assert.Equal(
+            CaseInspectionMode.ImageBasedAssessment,
             projection.Inspection.Mode.Confirmed?.Value);
         Assert.Null(projection.Contact.Name.Current);
         Assert.Null(projection.Instruction.VatStatus.Current);
@@ -85,24 +219,42 @@ public sealed class CaseDataCompletenessPersistenceTests
         var projection = await harness.GetRequiredDataAsync();
 
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
-        Assert.Equal("2 Corrected Street, London", projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
-            CaseDataSourceKind.StaffCorrection,
+            CaseDataSourceKind.IntakeEvidence,
+            projection.Inspection.Address.Fact?.Source.Kind);
+        Assert.Equal(
+            "qdos_instruction",
+            projection.Inspection.Address.Fact?.Source.PolicyKey);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.ImageBasedAssessment,
+            projection.Inspection.Address.Confirmed?.Value);
+        Assert.Equal(
+            CaseDataSourceKind.ProviderSetting,
             projection.Inspection.Address.Confirmed?.Source.Kind);
         Assert.Equal(
-            Ext18InspectionAddressPolicy.PolicyKey,
+            ProviderInspectionModePolicy.PolicyKey,
             projection.Inspection.Address.Confirmed?.Source.PolicyKey);
         Assert.Equal(
-            harness.StaffActor.SubjectId,
-            projection.Inspection.Address.Confirmed?.ConfirmedByActor);
+            CaseInspectionMode.ImageBasedAssessment,
+            projection.Inspection.Mode.Confirmed?.Value);
+
+        var retainedAddress = await harness.AddressStore.GetAsync(
+            harness.ReceiptId,
+            CancellationToken.None);
+        Assert.NotNull(retainedAddress);
+        Assert.Equal(InspectionAddressResolutionState.Corrected, retainedAddress.State);
+        Assert.Equal("2 Corrected Street, London", retainedAddress.ResolvedValue);
+        Assert.Equal(Guid.Parse(harness.StaffActor.SubjectId), retainedAddress.ResolvedByStaffId);
+        Assert.NotNull(retainedAddress.ResolvedAtUtc);
+        var extractedAddress = Assert.Single(retainedAddress.Evaluation.Suggestion!.Provenance);
+        Assert.Equal("qdos_instruction", extractedAddress.PolicyKey);
+        Assert.Equal(1, extractedAddress.PolicyVersion);
     }
 
     [Fact]
     public async Task ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory()
     {
-        await using var harness = await CaseDataHarness.CreateAsync(
-            instructionConfirmedByStaff: true,
-            imagesConfirmedByStaff: true);
+        await using var harness = await CaseDataHarness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         Assert.Equal(0, initial.Version);
         Assert.Equal(41, await harness.HiddenCaseVersionAsync());
@@ -116,9 +268,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             lease.Token,
             new(
                 true,
-                true,
-                initial.Completeness.Values.InstructionConfirmedByStaff,
-                initial.Completeness.Values.ImagesConfirmedByStaff));
+                true));
 
         var confirmed = await harness.ConfirmCompleteness.ExecuteAsync(
             confirmation,
@@ -129,12 +279,8 @@ public sealed class CaseDataCompletenessPersistenceTests
 
         Assert.Equal(CaseLifecycleState.Review, confirmed.State);
         Assert.Equal(1, confirmed.Version);
-        Assert.Equal(
-            initial.Completeness.Values.InstructionConfirmedByStaff,
-            confirmed.Completeness.Values.InstructionConfirmedByStaff);
-        Assert.Equal(
-            initial.Completeness.Values.ImagesConfirmedByStaff,
-            confirmed.Completeness.Values.ImagesConfirmedByStaff);
+        Assert.True(confirmed.Completeness.Values.InstructionComplete);
+        Assert.True(confirmed.Completeness.Values.ImagesComplete);
         Assert.Equal(confirmed, replayedConfirmation);
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             harness.ConfirmCompleteness.ExecuteAsync(
@@ -164,9 +310,14 @@ public sealed class CaseDataCompletenessPersistenceTests
         var replayedSave = await harness.SaveCase.ExecuteAsync(save, CancellationToken.None);
 
         Assert.Equal(2, saved.Version);
+        // The legacy SaveCase demotes the case as a side effect of editing any
+        // fact. The Case workspace save does not: it re-evaluates readiness
+        // from the row it just wrote
+        // (CaseWorkspacePersistenceTests.ASaveDoesNotDemoteCompletenessAsASideEffect).
+        // This assertion is retained deliberately, because SaveCase's own
+        // behaviour is unchanged by CASE-047.
         Assert.Equal(CaseLifecycleState.NotReady, saved.State);
         Assert.False(saved.Completeness.Values.InstructionComplete);
-        Assert.False(saved.Completeness.Values.InstructionConfirmedByStaff);
         Assert.Equal(saved, replayedSave);
         Assert.Equal("Jane Example", saved.Claimant.Name.Fact?.Value);
         Assert.Equal("Jane Example", saved.Claimant.Name.Confirmed?.Value);
@@ -188,7 +339,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                 "confirm-completeness-2",
                 "Reconfirmed after the case-data change",
                 reconfirmLease.Token,
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None);
         Assert.Equal(3, reconfirmed.Version);
         Assert.Equal(CaseLifecycleState.Review, reconfirmed.State);
@@ -245,7 +396,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                     "confirm-wrong-token",
                     "Wrong completeness lease token denial",
                     "not-the-issued-token",
-                    new(true, true, true, true)),
+                    new(true, true)),
                 CancellationToken.None));
 
         var otherStaff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -279,7 +430,12 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(0, await harness.HistoryCountAsync());
     }
 
-    private sealed class CaseDataHarness : IAsyncDisposable
+    /// <summary>
+    /// Internal, not private, so the Case workspace persistence tests build
+    /// their fixture from this one accepted-case recipe instead of a second
+    /// copy of it.
+    /// </summary>
+    internal sealed class CaseDataHarness : IAsyncDisposable
     {
         private static readonly DateTimeOffset StartUtc =
             new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -299,8 +455,13 @@ public sealed class CaseDataCompletenessPersistenceTests
             EfCaseDataStore dataStore,
             ConfirmCompleteness confirmCompleteness,
             SaveCase saveCase,
-            AcquireCaseEditLease acquireLease)
+            AcquireCaseEditLease acquireLease,
+            EfCaseWorkflowStore workflowStore,
+            EfCaseWorkspaceStore workspaceStore)
         {
+            Factory = factory;
+            WorkflowStore = workflowStore;
+            WorkspaceStore = workspaceStore;
             this.database = database;
             this.factory = factory;
             TimeProvider = timeProvider;
@@ -315,6 +476,9 @@ public sealed class CaseDataCompletenessPersistenceTests
             this.acquireLease = acquireLease;
         }
 
+        public IDbContextFactory<PegasusDbContext> Factory { get; }
+        public EfCaseWorkflowStore WorkflowStore { get; }
+        public EfCaseWorkspaceStore WorkspaceStore { get; }
         public MutableTimeProvider TimeProvider { get; }
         public Guid ReceiptId { get; }
         public Guid CaseId { get; }
@@ -328,9 +492,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         public static async Task<CaseDataHarness> CreateAsync(
             InspectionAddressStaffDecision addressDecision =
                 InspectionAddressStaffDecision.AcceptSuggestion,
-            string? correctedAddress = null,
-            bool instructionConfirmedByStaff = false,
-            bool imagesConfirmedByStaff = false)
+            string? correctedAddress = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             try
@@ -368,7 +530,9 @@ public sealed class CaseDataCompletenessPersistenceTests
                     acceptanceStore,
                     configuration,
                     new EfProviderInspectionModeStore(factory),
-                    new CommittedWorkPublisherDouble());
+                    new CommittedWorkPublisherDouble(),
+                    new TriageCasePairing(new EfTriageStore(factory,
+                        [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
                 var outcome = await accept.ExecuteAsync(
                     new(
                         receiptId,
@@ -380,9 +544,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                         "QDOS",
                         new(
                             true,
-                            true,
-                            instructionConfirmedByStaff,
-                            imagesConfirmedByStaff),
+                            true),
                         AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
                     CancellationToken.None);
                 await using (var divergenceContext = await factory.CreateDbContextAsync())
@@ -406,7 +568,9 @@ public sealed class CaseDataCompletenessPersistenceTests
                     dataStore,
                     new ConfirmCompleteness(dataStore, configuration),
                     new SaveCase(dataStore),
-                    new AcquireCaseEditLease(workflowStore));
+                    new AcquireCaseEditLease(workflowStore),
+                    workflowStore,
+                    new EfCaseWorkspaceStore(factory, timeProvider, configuration));
             }
             catch
             {
@@ -450,19 +614,14 @@ public sealed class CaseDataCompletenessPersistenceTests
             string sourceHash)
         {
             await using var context = await factory.CreateDbContextAsync();
-            var organizationId = Guid.NewGuid();
-            var lineageId = Guid.NewGuid();
-            var principalId = Guid.NewGuid();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var organizationId = principal.OrganizationId;
+            var lineageId = principal.SequenceLineageId;
+            var principalId = principal.Id;
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"QDOS provider"}, {0L})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {StartUtc})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QDOS"}, {lineageId}, {true}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"mailbox-item-immutable-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -472,7 +631,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         }
     }
 
-    private sealed class FixedConfiguration : ICaseWorkflowConfiguration
+    internal sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {
         private static readonly CaseWorkflowConfiguration Configuration = new(
             "case-workflow",

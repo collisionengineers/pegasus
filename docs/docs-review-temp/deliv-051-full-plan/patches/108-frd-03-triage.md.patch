@@ -1,0 +1,55 @@
+--- a/docs/frd/frd-03-triage.md
++++ b/docs/frd/frd-03-triage.md
+@@ -2,7 +2,7 @@
+ 
+ ## Boundary with Unidentified
+ 
+-Triage is a Case with a distinct referencing system and workflow. An **open**
++Triage is a separate pre-Case work record with a distinct referencing system and workflow. An **open**
+ Triage follows the Triage states and does not receive a U reference merely
+ because it is awaiting
+ information. A classified Triage request with no registration yet has no Triage to
+@@ -33,11 +33,11 @@
+ the source, available route evidence, actor, time, reason, and policy version;
+ it neither invents Principal identity nor creates a formal Case/PO. Material
+ whose route or category remains unaccepted stays `Unidentified` and never
+-becomes Triage or a Case by fallback. A Triage request is a Case with its own
++becomes Triage or a Case by fallback. A Triage request is a separate pre-Case record with its own
+ reference and workflow: without a VRM it remains `Unidentified`; with a VRM it
+ opens as `Open`, may move to `Awaiting information`, records an accepted
+-finding as `Finding recorded`, and reaches `Completed` only after the required
+-response evidence is confirmed. An acknowledgement, request for information,
++finding as `Finding recorded`, and reaches `Completed` when the authorized actor
++decides and records the Triage outcome. Sending a message is not required. An acknowledgement, request for information,
+ Draft, queue action, or other correspondence may be retained but is not itself
+ a finding or completion evidence.
+ 
+@@ -68,9 +68,16 @@
+ - Roadworthiness: `Roadworthy` or `Unroadworthy`;
+ - Assessment: `Repairable` or `Total loss`.
+ 
+-At least one dimension is required. A later correction creates a reasoned superseding finding; it never overwrites history. A pre-send correction replaces the current finding with a reason. A post-send correction creates a superseding finding, returns the Triage to `Finding recorded`, and requires a new response.
++At least one dimension is required. A correction records a reasoned superseding
++finding and preserves the prior decision and correspondence. Deciding the
++corrected outcome can complete the Triage without sending another message.
+ 
+-Every `Completed` Triage has one exact reply-chain Sent item from an approved mailbox. Subject, VRM, a manual “sent” assertion, a Draft, a queue result, an acknowledgement, or an unrelated Sent item is not completion evidence. `Cancelled` is the only terminal Triage outcome without a finding and reply; `Completed` and `Cancelled` close only that Triage workflow and never make its finding definitive for a later Case.
++Completion records the outcome, actor and time. **Reply with outcome** is optional:
++it opens the email feature with a preset outcome template that the user can edit.
++A sent reply is linked to the Triage and its correspondence through the normal
++email evidence contract, but neither composing nor sending is a completion gate.
++`Cancelled` closes a Triage without a finding; neither outcome turns a Triage
++finding into a definitive instruction for a later Case.
+ 
+ Triage may have an optional assignee but no due date or chase schedule. It may link to at most one current case; a case may have many Triages. The [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix) permits every staff role to reasonedly unlink or relink; the exact prior/current Case identities, actor, time, reason, and evidence remain in permanent history.
+ 
+@@ -81,8 +88,7 @@
+ Known Principal and accepted Triage registration, corroborated by the retained
+ typed source identity, may identify exactly one formal Case through the same
+ principal-scoped matcher used by intake. A contradictory registration,
+-unknown Principal, competing identity, cancelled Triage, archived or terminal
+-target, or live staff Case edit lease withholds automatic linkage. A
++unknown Principal, competing identity, cancelled Triage, incompatible target identity, or live staff Case edit lease withholds automatic linkage. A
+ Created-in-error replacement must independently match and retain the Triage's
+ known Principal. Completed Triages may link without reopening.
+ 

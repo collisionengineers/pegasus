@@ -320,7 +320,7 @@ public sealed class LayoutIntegrityTests
                 "The layout scenario's intake evidence is complete.",
                 CaseType.Inspection,
                 QdosPrincipal.Code,
-                new(true, true, true, true)),
+                new(true, true)),
             CancellationToken.None);
         return accepted.Identity.CaseId;
     }

@@ -75,11 +75,38 @@ internal static class GraphMailWebhook
             await enqueuer.EnqueueAsync(
                 subscription.ApprovedMailboxId,
                 subscriptionId,
+                subscription.Generation,
                 wakeKind,
+                wakeKind == MailboxWakeKind.Created
+                    ? ParseImmutableMessageId(notification.Resource)
+                    : null,
                 cancellationToken);
         }
 
         return Results.Accepted();
+    }
+
+    private static string? ParseImmutableMessageId(string? resource)
+    {
+        if (string.IsNullOrWhiteSpace(resource))
+        {
+            return null;
+        }
+        var marker = resource.LastIndexOf("/messages/", StringComparison.OrdinalIgnoreCase);
+        if (marker < 0)
+        {
+            return null;
+        }
+        var encoded = resource[(marker + "/messages/".Length)..];
+        if (encoded.Length == 0 || encoded.Contains('/'))
+        {
+            return null;
+        }
+        var value = Uri.UnescapeDataString(encoded);
+        return value.Length <= 500
+            && !value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character))
+                ? value
+                : null;
     }
 
     private static bool TryParseWakeKind(

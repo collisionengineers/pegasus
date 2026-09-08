@@ -5,8 +5,10 @@ internal sealed class ApprovedInboxPollStateEntity
     public Guid ApprovedMailboxId { get; set; }
     public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
     public required string MailboxAddress { get; set; }
-    public required string ScopeFingerprint { get; set; }
+    public string ScopeFingerprint { get; set; } = string.Empty;
+    public long Generation { get; set; }
     public DateTimeOffset ActivatedAtUtc { get; set; }
+    public DateTimeOffset StartBoundaryUtc { get; set; }
     public string? Cursor { get; set; }
     public DateTimeOffset DueAtUtc { get; set; }
     public string? LeaseToken { get; set; }
@@ -64,6 +66,7 @@ internal sealed class RetainedMailboxMessageEntity
     public string? SenderDisplayName { get; set; }
     public required string ToAddressesJson { get; set; }
     public required string CcAddressesJson { get; set; }
+    public string? ReplyToAddressesJson { get; set; }
     public string? Subject { get; set; }
     public string? BodyExcerpt { get; set; }
     public string? BodyPlainText { get; set; }
@@ -116,6 +119,9 @@ internal sealed class ApprovedSentPollStateEntity
     public required string MailboxId { get; set; }
     public required string MailboxAddress { get; set; }
     public required string SentFolderIdentity { get; set; }
+    public string ScopeFingerprint { get; set; } = string.Empty;
+    public long Generation { get; set; }
+    public DateTimeOffset StartBoundaryUtc { get; set; }
     public string? Cursor { get; set; }
     public DateTimeOffset DueAtUtc { get; set; }
     public string? LeaseToken { get; set; }

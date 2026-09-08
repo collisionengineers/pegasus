@@ -15,13 +15,23 @@ public sealed record ApprovedMailboxSubscription(
     DateTimeOffset ExpiresAtUtc,
     ApprovedMailboxSubscriptionLifecycleState LifecycleState,
     DateTimeOffset? LastMaintainedAtUtc,
-    string? LastMaintenanceFailureCode);
+    string? LastMaintenanceFailureCode,
+    long Generation = 0);
 
 public sealed record ApprovedMailboxSubscriptionMaintenanceCandidate(
     Guid ApprovedMailboxId,
     string GraphMailboxId,
     string InboxFolderIdentity,
-    ApprovedMailboxSubscription? Subscription);
+    ApprovedMailboxSubscription? Subscription,
+    long Generation = 0);
+
+public sealed class ApprovedMailboxSubscriptionMaintenanceLostException : Exception
+{
+    public ApprovedMailboxSubscriptionMaintenanceLostException()
+        : base("The approved mailbox subscription maintenance attempt is no longer current.")
+    {
+    }
+}
 
 public interface IApprovedMailboxSubscriptionStore
 {
@@ -44,10 +54,13 @@ public interface IApprovedMailboxSubscriptionStore
 
     Task SaveAsync(
         ApprovedMailboxSubscription subscription,
+        string? expectedPriorSubscriptionId,
         CancellationToken cancellationToken);
 
     Task RecordMaintenanceFailureAsync(
         Guid approvedMailboxId,
+        long expectedGeneration,
+        string? expectedSubscriptionId,
         string failureCode,
         DateTimeOffset attemptedAtUtc,
         CancellationToken cancellationToken);

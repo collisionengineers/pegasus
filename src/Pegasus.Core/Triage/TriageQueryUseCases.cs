@@ -23,10 +23,36 @@ public sealed record TriageListPage(
 
 public sealed record GetTriageQuery(Guid TriageId, ActionActor Actor);
 
+/// <summary>
+/// One keyset page of the Triage list. <paramref name="Cursor"/> is null for
+/// the first page and is otherwise the opaque value the previous page
+/// returned; it is bound to this actor, this filter and this order, so a
+/// cursor from another query or another actor is refused rather than
+/// silently answered from the wrong list.
+/// </summary>
+public sealed record ListTriagePageQuery(
+    ActionActor Actor,
+    TriageState? State,
+    string? Cursor = null,
+    int? Limit = null);
+
 public interface IListTriage
 {
     Task<TriageListPage> ExecuteAsync(
         ListTriageQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The keyset seam for the Triage list. It is separate from
+/// <see cref="IListTriage"/> because the offset list is still what the queue
+/// tab reads; when that surface moves to continuation this port replaces it
+/// rather than joining it.
+/// </summary>
+public interface IListTriagePage
+{
+    Task<CursorPage<TriageSummary>> ExecuteAsync(
+        ListTriagePageQuery query,
         CancellationToken cancellationToken = default);
 }
 
@@ -76,6 +102,62 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
     }
 }
 
+/// <summary>
+/// The Triage list as a keyset continuation. The opaque cursor is minted here,
+/// over the shared <see cref="CursorPaging"/> contract: the store below deals
+/// only in a decoded <see cref="TriageListPosition"/> and never sees a token.
+/// </summary>
+public sealed class ListTriagePage(ITriageQueries queries, ICursorProtector protector)
+    : IListTriagePage
+{
+    private const string QueryName = "triage";
+    private const string Order = "created_desc,sequence_desc";
+
+    private readonly ITriageQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    private readonly ICursorProtector protector =
+        protector ?? throw new ArgumentNullException(nameof(protector));
+
+    public async Task<CursorPage<TriageSummary>> ExecuteAsync(
+        ListTriagePageQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.State is { } requested && !Enum.IsDefined(requested))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(query),
+                "The Triage state is not recognized.");
+        }
+
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        // The scope binds the cursor to this actor, this filter and this order.
+        // A cursor minted for another one fails to unprotect and is refused.
+        var scope = CursorPaging.CreateScope(
+            QueryName,
+            query.Actor,
+            query.State?.ToString(),
+            Order);
+        TriageListPosition? after = null;
+        if (!string.IsNullOrWhiteSpace(query.Cursor))
+        {
+            var (sortKey, id) = protector.Unprotect(query.Cursor, scope);
+            after = new(CursorPaging.DecodeUtcTimestamp(sortKey), id);
+        }
+
+        var slice = await queries.ListPageAsync(query.State, after, limit, cancellationToken);
+        var next = slice.NextPosition is { } position
+            ? protector.Protect(
+                scope,
+                CursorPaging.EncodeUtcTimestamp(position.CreatedAtUtc),
+                position.Id)
+            : null;
+        return new(slice.Items, next);
+    }
+}
+
 public sealed class GetTriage(
     ITriageQueries queries,
     ITriageResponseEvidenceCandidateQueries candidateQueries,
@@ -114,7 +196,8 @@ public sealed class GetTriage(
         }
 
         var staffIds = detail.History
-            .Where(entry => Guid.TryParse(entry.Actor, out _))
+            .Where(entry => entry.ActorKind == nameof(ActorKind.Staff)
+                && Guid.TryParse(entry.Actor, out _))
             .Select(entry => Guid.Parse(entry.Actor));
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccountQueries,
@@ -125,7 +208,9 @@ public sealed class GetTriage(
             History = detail.History
                 .Select(entry => entry with
                 {
-                    ActorDisplayName = ActorDisplayNames.Resolve(ActorKind.Staff, entry.Actor, staffNames)
+                    ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var actorKind)
+                        ? ActorDisplayNames.Resolve(actorKind, entry.Actor, staffNames)
+                        : ActorDisplayNames.UnknownStaff
                 })
                 .ToArray()
         };

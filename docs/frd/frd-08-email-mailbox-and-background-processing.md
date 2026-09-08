@@ -11,7 +11,7 @@ link to the same Unidentified item rather than synthesising a second queue row.
 
 ## Email, mailbox, and background processing
 
-The target product covers the approved mailbox estate and full source messages; the focused alpha mailbox is only the first caller. Mailbox inventory and current-system roles remain in [operator notes](../operator-notes.md).
+The target product covers the approved mailbox estate and full source messages; the focused alpha mailbox is only the first caller. The PRD owns the mailbox target; operations owns dated deployed mailbox observations.
 
 ### Inbound mailbox identity
 
@@ -51,7 +51,7 @@ classification/correlation evidence and do not weaken this boundary.
 
 The user directly confirmed this taxonomy from the retained current-tree
 evidence. This subsection is the sole
-product-behavior owner. The [operator confirmation](../operator-notes.md#confirmed-mailbox-categorisation)
+product-behavior owner. The [operator confirmation](frd-08-email-mailbox-and-background-processing.md)
 and retained decision dossier (git history: `docs/history/plans/mailbox-categorisation-and-email-matching/`)
 preserve provenance and research context without becoming competing policy
 owners.
@@ -163,11 +163,9 @@ A `general-chase` message may refer to several Cases but remains a single unlink
 Classification, application queue, Triage routing, and Outlook folder
 destination are separate facts. `new-instruction-received` is a Received family
 and no equivalent Sent family is confirmed. That direction boundary does not
-choose between multiple simultaneously matching rules: exact multi-rule
-precedence and any confidence display remain unresolved in [open
-decisions](../open-decisions.md#mailbox-rule-activation-automatic-matching-and-confidence-display);
-the delivered QDOS classification policy records simultaneous category matches
-as the explicit ambiguity outcome with no invented winner.
+permit conflicting rules. Accepted predicates must not collide. An unexpected
+overlap is a defect that fails closed with visible evidence; no confidence
+score or invented winner resolves it. FRD-09 owns the route predicates.
 
 Every automated or human categorisation decision retains the source identity,
 policy key and version, outcome, material evidence references, applicable
@@ -305,6 +303,18 @@ never grants Exchange access; the Microsoft 365 tenant must separately admit the
 application to that mailbox, and until it does, polling that mailbox alone fails
 and says so.
 
+An explicitly authorised intake-data wipe records one UTC receive-time cutoff
+in the existing Inbox poll state, atomically with clearing the SQL data. It
+does not change mailbox identity, approval, onboarding time or subscriptions.
+The effective start is the later of activation and that cutoff, including for
+a mailbox that has not yet been polled. Clearing occurrence identities,
+rebinding cursor scope, resetting an expired Graph delta token or receiving an
+old queued notification must never lower the cutoff or repopulate cleared
+mail. Mail received at or after the cutoff remains eligible; forwarding an old
+email creates a newly received message and is evaluated normally. Ordinary
+deployment or Worker restart never advances this boundary. Wipes run only
+with the Worker stopped and application writes excluded for maintenance.
+
 ### Mailbox wake-up and recovery
 
 Each enabled approved Inbox has one Microsoft Graph basic change-notification
@@ -324,9 +334,11 @@ expired, malformed, or wrongly scoped notifications fail closed without queuing
 work or disclosing the secret.
 
 The Worker remains the sole owner of the mailbox lease, cursor/delta read,
-retention, shared intake call, and retry outcome. A wake message causes the same
-idempotent delta/cursor pass as polling; duplicate or coalesced notifications are
-safe. Lifecycle `missed`, `subscriptionRemoved`, and reauthorization events
+retention, shared intake call, and retry outcome. A creation notification with
+an immutable message ID fetches and processes only that exact message, subject
+to the same receive-time cutoff. It does not also scan the Inbox or advance its
+recovery cursor. Duplicate notifications are safe. Lifecycle `missed`,
+`subscriptionRemoved`, and reauthorization events
 schedule the same delta resynchronisation rather than introducing another mail
 processing route.
 
@@ -376,11 +388,31 @@ When automatic matching is absent, ambiguous, late, duplicated, or conflicting, 
 
 Confirmation proves only that the exact item existed in the approved Sent scope at confirmation. It does not prove recipient delivery, reading, content correctness, post-report completion, or another terminal outcome. Preparing, viewing, copying, or acknowledging a chaser or other message is also not evidence of sending or closure; a staff-recorded outbound action remains an attributable assertion unless the applicable exact external evidence is retained.
 
-Triage completion uses its separate exact reply-chain evidence contract and has no subject, VRM, manual-item-selection, or manual “sent” fallback.
+Triage completion is outcome-based under [FRD-03](frd-03-triage.md). Its optional
+Reply with outcome opens an editable preset email; retained sent correspondence
+links to that Triage without becoming a completion requirement.
 
 The local alpha must not mutate a mailbox. A Worker project, queue registration, or timer configuration is not caller proof.
 
 ### Outbound correspondence
+
+The v1 transport has one durable operation keyed by staff actor, mailbox and
+operation key, with a server-computed payload hash. Reusing the key for a
+different payload fails. Reply, Reply all, Forward and Compose use an approved
+mailbox with verified send capability and an encoded-message ceiling. Draft
+creation and upload progress survive restart without a second send attempt.
+Ambiguous provider writes remain Unknown until exact evidence resolves them.
+
+Graph `202 Accepted` means Submitted, never Sent. Sent requires the existing
+retained-MIME pipeline to correlate the immutable item, operation marker,
+mailbox generation and attachment hashes. Provider sent time and observation
+time remain distinct. Each enabled Sent mailbox owns its cursor and activation
+boundary; old items advance the cursor without historic backfill. One failing
+mailbox does not starve the others.
+
+Report sends revalidate B's persisted report readiness and exact generation,
+versions and artifacts immediately before the provider effect. Staff authority
+and mailbox generation are also rechecked. No connector may invoke this send.
 
 Staff-initiated Reply, Forward and Compose exist on the Inbox message and the
 Case correspondence surfaces, and are the technical decision of
@@ -398,9 +430,16 @@ surfaces carry no send, Flag or Delete control and no composer.
   (read-only). Reply and Forward preserve the retained message's reply-chain
   and conversation identity; Case defaults to the message's current
   association and may be changed before sending.
+- **Reply targets.** Retain the structured MIME Reply-To addresses in source
+  order; use the original From addresses only when that header is absent.
+  A present but unusable header remains empty. The reply surface shows the
+  retained targets and selected recipients for staff confirmation. Missing
+  retained metadata or an empty target list refuses Reply and Reply All;
+  neither transport Sender nor To/Cc substitutes for those targets. Starting
+  a new message is an explicit staff action.
 - **What is retained.** The immutable Sent item Graph writes for the send is
   the evidence, retained by the existing Sent-evidence poll under
-  [Outbound correspondence evidence](#outbound-correspondence-evidence) and
+  [Outbound correspondence evidence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence) and
   auto-linked to the Case named at send time. The draft text is not evidence
   until that Sent item exists; a send that Graph refuses leaves no evidence
   and is visible as a failure on the composer, not recorded as sent.
@@ -427,7 +466,7 @@ approved mailbox when the exact Sent item matches a Case reference and
 carries a PDF attachment classified as a report. On that match Pegasus
 attaches the PDF to the Case as the report document, links the Sent item as
 `Report sent` evidence under
-[Outbound correspondence evidence](#outbound-correspondence-evidence), and
+[Outbound correspondence evidence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence), and
 records the report-sent event that moves the Case into post-report work; the
 Case's own closure outcome remains a separate reasoned step.
 
@@ -437,3 +476,19 @@ as a report is retained unlinked and surfaces on the Case for staff
 confirmation through the existing reasoned link; it never completes
 automatically. There is no manual "report sent" assertion without the Sent
 item.
+
+
+## Mail identity and repeated receipts
+
+Provider coordinates identify a mailbox occurrence for retrieval and polling;
+they are not the business duplicate identity. The shared intake identity policy
+recognizes the same message within its durable mailbox while preserving each
+receipt, mailbox/folder/item identity and received/discovery chronology.
+Content equality alone never erases an occurrence or creates a new Case.
+See ADR-0044 for the technical separation.
+
+## Query correspondence
+
+A query received for or attached to a Completed Case moves it to Query.
+Replying returns it to Completed under FRD-01. Retain the received query and
+actual reply as Case correspondence; composing a draft is not replying.

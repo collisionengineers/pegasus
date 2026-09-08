@@ -2,12 +2,42 @@ using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfIntakeSubmissionGroupStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeSubmissionGroupStore
 {
+    public async Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(
+        int maximumItems,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var emptyFields = EfIntakeReceiptStore.SerializeFields([]);
+        var groupOrigin = nameof(UnidentifiedOriginKind.SubmissionGroup);
+        var eligible = from submissionGroup in context.IntakeSubmissionGroups
+                       join member in context.IntakeSubmissionGroupMembers on submissionGroup.Id equals member.GroupId
+                       join work in context.IntakeWorkItems on member.StagedReceiptId equals work.StagedReceiptId
+                       join receipt in context.IntakeReceipts on work.ProcessedReceiptId equals (Guid?)receipt.Id
+                       where submissionGroup.ExpectedMemberCount > 1 && work.State == "completed"
+                           && receipt.Decision == "needs_sorting"
+                           && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
+                           && receipt.Assets.Any()
+                           && !receipt.Assets.Any(asset => !EF.Functions.Like(
+                               asset.MediaType, ImageIntakeLifecycleRules.ImageMediaTypePrefix + "%"))
+                           && !context.UnidentifiedItems.Any(item => item.OriginKind == groupOrigin && item.OriginId == submissionGroup.Id)
+                       select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
+        return await eligible.GroupBy(item => new { item.Id, item.ReceivedAtUtc })
+            .OrderBy(group => group.Key.ReceivedAtUtc)
+            .ThenBy(group => group.Key.Id)
+            .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).First())
+            .Take(maximumItems)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IntakeSubmissionGroup?> GetAsync(
         Guid groupId,
         CancellationToken cancellationToken = default)

@@ -13,8 +13,6 @@ internal sealed class IntakeAllocationAttemptEntity
     public required string PrincipalCode { get; set; }
     public bool InstructionComplete { get; set; }
     public bool ImagesComplete { get; set; }
-    public bool InstructionConfirmedByStaff { get; set; }
-    public bool ImagesConfirmedByStaff { get; set; }
     public Guid? StandaloneAuditEvidenceId { get; set; }
     public DateOnly? AcceptedInspectionDeadline { get; set; }
     public required string ActorKind { get; set; }

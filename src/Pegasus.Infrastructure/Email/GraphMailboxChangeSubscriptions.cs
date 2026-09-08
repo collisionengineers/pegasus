@@ -27,6 +27,7 @@ public sealed class GraphMailboxChangeSubscriptions(
         var canRenew = current is not null
             && current.LifecycleState != ApprovedMailboxSubscriptionLifecycleState.Removed
             && current.ExpiresAtUtc > nowUtc
+            && current.Generation == candidate.Generation
             && string.Equals(current.Resource, resource, StringComparison.Ordinal);
         using var request = canRenew
             ? new HttpRequestMessage(
@@ -71,7 +72,8 @@ public sealed class GraphMailboxChangeSubscriptions(
             actualExpiry,
             ApprovedMailboxSubscriptionLifecycleState.Active,
             nowUtc,
-            null);
+            null,
+            candidate.Generation);
     }
 
     public static string Resource(string mailboxId, string inboxFolderId) =>
@@ -87,6 +89,7 @@ public sealed class GraphMailboxChangeSubscriptions(
             || current.LifecycleState != ApprovedMailboxSubscriptionLifecycleState.Active
             || current.ExpiresAtUtc <= nowUtc
             || current.ExpiresAtUtc <= renewBeforeUtc
+            || current.Generation != candidate.Generation
             || !string.Equals(
                 current.Resource,
                 Resource(candidate.GraphMailboxId, candidate.InboxFolderIdentity),

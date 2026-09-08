@@ -1,0 +1,13 @@
+--- a/docs/adr/0018-provider-inspection-mode-database-setting.md
++++ b/docs/adr/0018-provider-inspection-mode-database-setting.md
+@@ -16,6 +16,10 @@
+ - Relation: scoped exception to ADR-0008's code-owned-configuration consequence
+   for one provider attribute; ADR-0008's route-selection predicates remain
+   code-owned and unaffected
++
++## Current applicability
++
++The persisted Principal inspection-mode setting remains the technical choice. Current Administrator behavior is owned by FRD-04; the former manual-SQL-until-UI procedure is no longer the operational owner.
+ 
+ ## Context
+ 

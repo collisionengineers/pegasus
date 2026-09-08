@@ -10,9 +10,13 @@ tags: [intake, email, queues, reliability]
 ---
 # ADR-0032: Near-real-time durable intake triggering
 
-- Status: Accepted; partially supersedes ADR-0002's polling and timer-first outbox triggering only
+- Status: Superseded by [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md). This historical decision partially superseded ADR-0002's polling and timer-first outbox triggering only.
 - Date: 2026-08-25
 - Owners: Alex and the Pegasus development team
+
+## Current applicability
+
+ADR-0033 owns the current scheduling choice. The durable commit-before-publication, source identity and recovery requirements remain in FRD-02; supersession does not delete those invariants.
 
 ## Context
 

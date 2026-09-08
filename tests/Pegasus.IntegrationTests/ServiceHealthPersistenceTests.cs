@@ -94,7 +94,7 @@ public sealed class ServiceHealthPersistenceTests
     }
 
     [Fact]
-    public async Task EvaFailuresAndActivityReadTheAttemptsAndTheQueue()
+    public async Task EvaFailuresAndActivityReadTheRecordedAttempts()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
@@ -104,10 +104,6 @@ public sealed class ServiceHealthPersistenceTests
                 Submission(caseId, EvaSubmissionOutcome.Rejected, FixedUtcNow.AddHours(-2), "validation"),
                 Submission(caseId, EvaSubmissionOutcome.Unknown, FixedUtcNow.AddDays(-3), "timeout"),
                 Submission(caseId, EvaSubmissionOutcome.Succeeded, FixedUtcNow.AddHours(-1), null));
-            context.ExternalWorkItems.AddRange(
-                Work(caseId, ExternalWorkKinds.SubmitCaseToEva, "pending"),
-                Work(caseId, ExternalWorkKinds.SubmitCaseToEva, "completed"),
-                Work(caseId, ExternalWorkKinds.VehicleLookup, "pending"));
             await context.SaveChangesAsync();
         }
 
@@ -119,7 +115,7 @@ public sealed class ServiceHealthPersistenceTests
 
         var failure = Assert.Single(failures);
         Assert.Equal(new EvaSubmissionFailure(caseId, EvaSubmissionOutcome.Rejected, "validation", FixedUtcNow.AddHours(-2)), failure);
-        Assert.Equal(new EvaSubmissionActivity(1, FixedUtcNow.AddHours(-1)), activity);
+        Assert.Equal(new EvaSubmissionActivity(FixedUtcNow.AddHours(-1)), activity);
     }
 
     [Fact]
@@ -129,7 +125,7 @@ public sealed class ServiceHealthPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEvaSubmissionQueries>();
 
-        Assert.Equal(new EvaSubmissionActivity(0, null), await queries.GetActivityAsync(CancellationToken.None));
+        Assert.Equal(new EvaSubmissionActivity(null), await queries.GetActivityAsync(CancellationToken.None));
         Assert.Empty(await queries.GetRecentFailuresAsync(FixedUtcNow.AddDays(-1), 20, CancellationToken.None));
     }
 

@@ -19,6 +19,10 @@ The DevelopmentOffline-only composition gate for
 [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md);
 every other clause of this record stands.
 
+## Current applicability
+
+ADR-0031 owns the current Automation rights contract. ADR-0035 defines the distinct pull job ledger; old tool counts and initial activation state are not current inventories.
+
 ## Context
 
 ADR-0011 and ADR-0013 clause 10 fixed MCP as a management/development-controlled

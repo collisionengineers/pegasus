@@ -34,6 +34,7 @@ internal static class AutomationMcpTestSupport
         factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Features:AutomationMcp", "true");
+            builder.UseSetting("AutomationMcp:UseDevelopmentKeys", "true");
             builder.UseSetting("AutomationMcp:ClientId", ClientId);
             builder.UseSetting("AutomationMcp:ClientSecret", ClientSecret);
             builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");
@@ -128,21 +129,12 @@ internal static class AutomationMcpTestSupport
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var email = IntakeTestEvidence.CreateEmail(
-            $"mcp-ingress-{Guid.NewGuid():N}.eml",
-            "QDOS instruction\r\nClaimant Name: MCP Ingress\r\nClaim Number: MCP-001\r\nVehicle Registration: AB12 CDE");
-        var receipt = await services.GetRequiredService<ProcessIntake>()
-            .ExecuteAsync(
-                new(
-                    email.FileName,
-                    email.MediaType,
-                    email.Content,
-                    SeedUtcNow,
-                    "mcp-ingress-test",
-                    new(
-                        IntakeSourceChannel.ManualUpload,
-                        $"mcp-ingress-source:{Guid.NewGuid():N}")),
-                CancellationToken.None);
+        // MCP tests start from a processed receipt; source classification is
+        // proved by the intake corpus tests, not this allocation setup.
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            services,
+            CaseType.Inspection,
+            QdosPrincipal.Code);
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         await SeedPrincipalAsync(services);
         var outcome = await services.GetRequiredService<IAcceptIntake>()
@@ -155,7 +147,7 @@ internal static class AutomationMcpTestSupport
                     "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
-                    completeness ?? new(true, true, true, true)),
+                    completeness ?? new(true, true)),
                 CancellationToken.None);
         return outcome.Identity.CaseId;
     }

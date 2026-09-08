@@ -40,7 +40,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
     public async Task LabelledWorkTypeEmailsNeverMisclassifyAcrossFamilies()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
-        var policy = new QdosMailClassificationPolicy();
+        var policy = new PrincipalMailClassificationPolicy("QDOS");
         var rows = new StringBuilder("label,file,outcome,family,subtype\n");
         var processed = 0;
         var classified = 0;
@@ -103,9 +103,9 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
     public async Task VolumeCohortRecordsExactOutcomeCounts()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
-        var routePolicy = new QdosMailRoutePolicy();
-        var classificationPolicy = new QdosMailClassificationPolicy();
-        var matchPolicy = new QdosCaseMatchPolicy();
+        var routePolicy = new PrincipalMailRoutePolicy();
+        var classificationPolicy = new PrincipalMailClassificationPolicy("QDOS");
+        var matchPolicy = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy());
         var routeCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var familyCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var matchedPredicateCounts = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -178,7 +178,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
     public async Task LabelledClaimTokensNeverCollideAcrossCaseFolders()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
-        var matchPolicy = new QdosCaseMatchPolicy();
+        var matchPolicy = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy());
         var tokensByCaseFolder = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var processed = 0;
         var withToken = 0;

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
@@ -29,11 +30,13 @@ namespace Pegasus.Web.Presentation;
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
 /// shared per-request <c>ViewData</c>.
 /// </remarks>
-public sealed class RailCountsPageFilter(
+public sealed partial class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
     IListTriage listTriage,
     IUnidentifiedStore unidentifiedStore,
-    TimeProvider timeProvider) : IAsyncPageFilter
+    IGetAttentionRows getAttentionRows,
+    TimeProvider timeProvider,
+    ILogger<RailCountsPageFilter> logger) : IAsyncPageFilter
 {
     private readonly IDashboardQueries dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
@@ -41,6 +44,8 @@ public sealed class RailCountsPageFilter(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly IUnidentifiedStore unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
+    private readonly IGetAttentionRows getAttentionRows =
+        getAttentionRows ?? throw new ArgumentNullException(nameof(getAttentionRows));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -62,6 +67,10 @@ public sealed class RailCountsPageFilter(
             var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
             var triageTask = listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
             var unidentifiedTask = unidentifiedStore.ListQueueAsync(null, cancellationToken);
+            // Work Centre already holds its own full snapshot and slices its
+            // own top ten (Pages/Index.cshtml.cs) — calling the narrow query
+            // again here would be a second read of the same rows.
+            var isWorkCentre = pageModel is Pegasus.Web.Pages.IndexModel;
             await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
 
             var stages = stagesTask.Result;
@@ -76,8 +85,27 @@ public sealed class RailCountsPageFilter(
                     + unidentifiedTask.Result.Count
             };
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
+
+            if (!isWorkCentre)
+            {
+                try
+                {
+                    pageModel.ViewData["AttentionRows"] =
+                        await getAttentionRows.ExecuteAsync(actor, cancellationToken);
+                }
+                catch (Exception exception) when (exception is not
+                    (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+                {
+                    LogAttentionRowsUnavailable(logger, exception);
+                    pageModel.ViewData["AttentionRowsUnavailable"] = true;
+                }
+            }
         }
 
         await next();
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
+    private static partial void LogAttentionRowsUnavailable(
+        ILogger logger, Exception exception);
 }

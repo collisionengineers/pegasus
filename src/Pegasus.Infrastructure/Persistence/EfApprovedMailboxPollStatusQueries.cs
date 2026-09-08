@@ -16,15 +16,47 @@ internal sealed class EfApprovedMailboxPollStatusQueries(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.ApprovedInboxPollStates
+        var rows = await context.ApprovedInboxPollStates
             .AsNoTracking()
+            .Include(item => item.ApprovedMailbox)
             .OrderBy(item => item.MailboxAddress)
-            .Select(item => new ApprovedMailboxPollStatus(
+            .ToListAsync(cancellationToken);
+        var subscriptions = await context.ApprovedMailboxSubscriptions
+            .AsNoTracking()
+            .ToDictionaryAsync(item => item.ApprovedMailboxId, cancellationToken);
+        return rows.Select(item =>
+        {
+            subscriptions.TryGetValue(item.ApprovedMailboxId, out var subscription);
+            if (subscription?.Generation != item.Generation)
+            {
+                subscription = null;
+            }
+            var capabilities = new List<ApprovedMailboxRouteScope>(3);
+            if (item.ApprovedMailbox.AllowInboundIntake)
+            {
+                capabilities.Add(ApprovedMailboxRouteScope.InboundIntake);
+            }
+            if (item.ApprovedMailbox.AllowSentEvidence)
+            {
+                capabilities.Add(ApprovedMailboxRouteScope.SentEvidence);
+            }
+            if (item.ApprovedMailbox.AllowStaffSend)
+            {
+                capabilities.Add(ApprovedMailboxRouteScope.StaffSend);
+            }
+            return new ApprovedMailboxPollStatus(
                 item.ApprovedMailboxId,
                 item.MailboxAddress,
                 item.DueAtUtc,
                 item.LastCompletedAtUtc,
-                item.LastFailureCode))
-            .ToListAsync(cancellationToken);
+                item.LastFailureCode,
+                item.StartBoundaryUtc,
+                item.Generation,
+                subscription?.ExpiresAtUtc,
+                subscription is null
+                    ? null
+                    : Enum.Parse<ApprovedMailboxSubscriptionLifecycleState>(subscription.LifecycleState),
+                capabilities);
+        }).ToArray();
     }
 }

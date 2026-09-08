@@ -5,8 +5,7 @@ inputs and outputs, states, rules, edge cases, fail-closed behaviour, and the
 evidence that proves it works. An FRD implements outcomes owned by the
 [PRD](../prd/README.md), cites [`design.md`](../design/README.md) for UI behaviour, and
 never invents product scope or records a technical decision (those belong to the
-PRD and the [ADRs](../adr/README.md)). Business truth is owned upstream by
-[`operator-notes.md`](../operator-notes.md).
+PRD and the [ADRs](../adr/README.md)). Current operator instructions and the owning PRD establish product intent.
 
 Each FRD is owned by one or more capability IDs; the join is the *Canonical
 owner* column in [`capabilities.md`](../capabilities.md).

@@ -5,7 +5,7 @@ current directory, or authorization. Accepted behavior lives in
 [requirements](../docs/prd/README.md), current callers in
 [architecture](../docs/current-architecture.md), unresolved questions in
 [open decisions](../docs/open-decisions.md), operator truth in
-[operator notes](../docs/operator-notes.md), and UI rules in
+[product requirements](../docs/prd/pegasus-product.md), and UI rules in
 [design](../docs/design/README.md).
 
 Never infer currentness from a filename. Do not copy personal names, addresses,

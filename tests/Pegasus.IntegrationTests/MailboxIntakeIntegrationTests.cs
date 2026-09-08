@@ -383,7 +383,7 @@ public sealed class MailboxIntakeIntegrationTests
                 new("direct.sender-exactly-one", true, "One transport sender was proved."),
                 new("forward.staff-transport", true, "The outer sender is retained staff transport."),
                 new("forward.original-exactly-one", true, "One attached original sender was proved."),
-                new("direct.qdos-domain", true, "The proved original uses the accepted route domain.")
+                new("direct.principal-identity", true, "The proved original uses the accepted route domain.")
             ],
             "The proved attached original selected the direct route.",
             "qdos_mail_route",

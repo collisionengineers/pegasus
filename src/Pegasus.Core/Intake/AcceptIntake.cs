@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -15,6 +17,7 @@ public sealed class AcceptIntake(
     ICaseWorkflowConfiguration configuration,
     IProviderInspectionModeStore inspectionModeStore,
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
+    ITriageCasePairing triageCasePairing,
     IImageIntakeCasePairing? imageIntakeCasePairing = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
@@ -86,15 +89,9 @@ public sealed class AcceptIntake(
                 nameof(request));
         }
 
-        // CASE-013: the pipeline's own allocation runs under a system-worker
-        // actor and only for a receipt already decided definitive, which is
-        // what "automatically definitive" means. Staff acceptance is the other
-        // caller and is never exempt.
-        var automaticallyDefinitive = request.Actor.Kind == ActorKind.SystemWorker;
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
-            await configuration.GetCurrentAsync(cancellationToken),
-            automaticallyDefinitive);
+            await configuration.GetCurrentAsync(cancellationToken));
         var providerInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
                 principalCode,
                 cancellationToken)
@@ -124,21 +121,29 @@ public sealed class AcceptIntake(
                 outcome.CustodyWorkId,
                 cancellationToken);
         }
-        if (!outcome.IsDuplicate && imageIntakeCasePairing is not null)
+        if (imageIntakeCasePairing is not null)
         {
             try
             {
-                await imageIntakeCasePairing.PairAcceptedCaseAsync(
+                var pairing = await imageIntakeCasePairing.PairAcceptedCaseAsync(
                     outcome.Identity.CaseId,
                     cancellationToken);
+                Activity.Current?.SetTag("image_intake.pairing_failures", pairing.Failures);
+                Activity.Current?.SetTag("image_intake.failure_type", pairing.FirstFailure);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
-                // Reverse image-intake pairing is advisory: the accepted case
-                // stands and staff pairing remains available.
+                // Acceptance already committed. Pending image state remains
+                // available to the existing timer; do not conceal its cause.
+                Activity.Current?.SetTag("image_intake.failure_type", exception.GetType().Name);
+                Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
             }
         }
 
+        var triagePairing = await triageCasePairing.PairAcceptedCaseAsync(
+            outcome.Identity.CaseId, cancellationToken);
+        Activity.Current?.SetTag("triage.pairing_failures", triagePairing.Failures);
+        Activity.Current?.SetTag("triage.failure_type", triagePairing.FirstFailure);
         return outcome;
     }
 }

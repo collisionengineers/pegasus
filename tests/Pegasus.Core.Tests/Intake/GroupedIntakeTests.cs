@@ -142,6 +142,8 @@ public sealed class GroupedIntakeTests
 
     private sealed class FakeGroupStore : IIntakeSubmissionGroupStore
     {
+        public Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(int maximumItems, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Guid GroupId { get; } = Guid.NewGuid();
         public List<IntakeSubmissionGroupMember> Members { get; } = [];
         private string? Token { get; set; }

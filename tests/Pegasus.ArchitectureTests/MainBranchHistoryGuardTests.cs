@@ -112,6 +112,7 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
     {
         if (Directory.Exists(_testRoot))
         {
+            AssertTemporaryDirectory(_testRoot);
             foreach (var file in Directory.EnumerateFiles(_testRoot, "*", SearchOption.AllDirectories))
             {
                 File.SetAttributes(file, FileAttributes.Normal);
@@ -140,6 +141,7 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
         var repository = Path.Combine(_testRoot, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(repository);
         Git(repository, "init", "--initial-branch=main");
+        AssertTemporaryRepositoryRoot(repository);
         Git(repository, "config", "user.name", "Pegasus Test");
         Git(repository, "config", "user.email", "pegasus-test@example.invalid");
         Commit(repository, "initial.txt", "initial", "initial commit");
@@ -148,6 +150,7 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
 
     private static void Commit(string repository, string relativePath, string content, string message)
     {
+        AssertTemporaryRepositoryRoot(repository);
         File.WriteAllText(Path.Combine(repository, relativePath), content);
         Git(repository, "add", relativePath);
         Git(repository, "commit", "-m", message);
@@ -171,6 +174,12 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
         {
             startInfo.ArgumentList.Add(argument);
         }
+        foreach (var name in startInfo.Environment.Keys
+                     .Where(name => name.StartsWith("GIT_", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            startInfo.Environment.Remove(name);
+        }
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Could not start {executable}.");
         var standardOutput = process.StandardOutput.ReadToEndAsync();
@@ -184,6 +193,31 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
         }
 
         return result;
+    }
+
+    private static void AssertTemporaryRepositoryRoot(string repository)
+    {
+        var expected = Path.GetFullPath(repository).TrimEnd(Path.DirectorySeparatorChar);
+        var temporaryParent = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        Assert.StartsWith(temporaryParent, expected + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
+        var actual = Git(repository, "rev-parse", "--show-toplevel").Output.Trim();
+        Assert.True(string.Equals(
+            expected,
+            Path.GetFullPath(actual).TrimEnd(Path.DirectorySeparatorChar),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal));
+    }
+
+    private static void AssertTemporaryDirectory(string directory)
+    {
+        var expected = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar);
+        var temporaryParent = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        Assert.StartsWith(temporaryParent, expected + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static string FindRepositoryRoot()

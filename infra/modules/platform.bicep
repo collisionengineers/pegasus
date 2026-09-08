@@ -11,13 +11,21 @@ param webActivation string
 param workerActivation string
 param webImageDigest string
 param webRevisionSuffix string
-param graphMailboxId string
-param graphInboxFolderId string
-param graphSentFolderId string
 param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
+param boxHoldingFolderId string
 param automationMcpClientSecretUri string
+param automationMcpSigningCertificateSecretUris string
+param automationMcpEncryptionCertificateSecretUris string
+var automationMcpSigningCertificateEnvironment = [for (uri, index) in split(automationMcpSigningCertificateSecretUris, ','): {
+  name: 'AutomationMcp__SigningCertificateSecretUris__${index}'
+  value: trim(uri)
+}]
+var automationMcpEncryptionCertificateEnvironment = [for (uri, index) in split(automationMcpEncryptionCertificateSecretUris, ','): {
+  name: 'AutomationMcp__EncryptionCertificateSecretUris__${index}'
+  value: trim(uri)
+}]
 param automationMcpRedirectUris string
 param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
@@ -41,6 +49,7 @@ var transportStorageName = 'pegtrans${suffix}'
 var custodyStorageName = 'pegcustody${suffix}'
 var keyVaultName = 'pegasusprodkv${take(suffix, 8)}'
 var containerRegistryName = 'pegasusprodacr${suffix}'
+var documentIntelligenceName = '${prefix}-ocr-${suffix}'
 var webImageReference = '${containerRegistryName}.azurecr.io/pegasus/web@${webImageDigest}'
 var webActivationApproved = webActivation == 'approved' && startsWith(webImageDigest, 'sha256:') && length(webImageDigest) == 71 && length(webRevisionSuffix) == 12
 var workerActivationApproved = workerActivation == 'approved-live-worker'
@@ -51,6 +60,7 @@ var queueDataMessageSenderRole = subscriptionResourceId('Microsoft.Authorization
 var tableDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
 var acrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var monitoringMetricsPublisherRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
+var cognitiveServicesUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
 var webSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${webIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var workerSqlConnectionString = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User Id=${workerIdentity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
@@ -287,6 +297,30 @@ resource workerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
   tags: tags
 }
 
+// ADR-0040: Worker posts retained bytes; no account-side storage identity or keys.
+resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2026-05-01' = {
+  name: documentIntelligenceName
+  location: location
+  tags: tags
+  kind: 'FormRecognizer'
+  sku: { name: 'S0', tier: 'Standard' }
+  properties: {
+    customSubDomainName: documentIntelligenceName
+    disableLocalAuth: true
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource workerDocumentIntelligenceUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(documentIntelligence.id, workerIdentity.id, cognitiveServicesUserRole)
+  scope: documentIntelligence
+  properties: {
+    roleDefinitionId: cognitiveServicesUserRole
+    principalId: workerIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource webRegistryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(containerRegistry.id, webIdentity.id, acrPullRole)
   scope: containerRegistry
@@ -438,7 +472,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
         {
           name: 'web'
           image: webImageReference
-          env: [
+          env: concat([
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
             { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${webIdentity.properties.clientId}' }
             { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
@@ -454,7 +488,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
             { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
             // Mailbox administration's "add an address" resolve port alone (MAIL-002):
-            // Web never polls a mailbox, so no Graph__MailboxId/InboxFolderId/SentFolderId
+            // Mailbox identities and folders come only from approved mailbox leases
             // here — only the base URI, matching the Worker's Graph__BaseUri exactly.
             { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
             { name: 'Graph__TenantId', value: tenant().tenantId }
@@ -462,11 +496,13 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
             { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
             { name: 'Box__RootFolderId', value: '405543781910' }
+            { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
             { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
             { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
             { name: 'Features__AutomationMcp', value: 'true' }
             { name: 'Features__ProviderApi', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
+            { name: 'AutomationMcp__KeyVaultUri', value: keyVault.properties.vaultUri }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
             { name: 'Eva__ClientId', secretRef: 'eva-client-id' }
             { name: 'Eva__ClientSecret', secretRef: 'eva-client-secret' }
@@ -524,7 +560,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'DocumentRequests__AllowedMediaTypes__4', value: 'application/msword' }
             { name: 'DocumentRequests__AllowedMediaTypes__5', value: 'message/rfc822' }
             { name: 'DocumentRequests__AllowedMediaTypes__6', value: 'application/vnd.ms-outlook' }
-          ]
+          ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
           // ADR-0028: the report renderer runs in process in this container,
           // so headless Chromium shares the app's CPU and memory. Container
           // Apps hard-OOM-kills rather than throttling, and this app runs a
@@ -619,6 +655,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'AzureWebJobsStorage__credential', value: 'managedidentity' }
         { name: 'AzureWebJobsStorage__clientId', value: workerIdentity.properties.clientId }
         { name: 'AzureIdentity__WorkerClientId', value: workerIdentity.properties.clientId }
+        { name: 'DocumentIntelligence__Endpoint', value: documentIntelligence.properties.endpoint }
         { name: 'IntakeStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         // Recovery only: every committing caller attempts exact-ID publication.
@@ -642,16 +679,13 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'TransportStorage__AccountName', value: transportStorage.name }
         { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
         { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
-        { name: 'Graph__MailboxId', value: graphMailboxId }
-        { name: 'Graph__MailboxAddress', value: 'instructions@collisionengineers.co.uk' }
-        { name: 'Graph__InboxFolderId', value: graphInboxFolderId }
-        { name: 'Graph__SentFolderId', value: graphSentFolderId }
         { name: 'Graph__TenantId', value: tenant().tenantId }
         { name: 'Graph__ChangeNotificationUrl', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/hooks/microsoft-graph/mail' }
         { name: 'Graph__ChangeNotificationClientState', value: '@Microsoft.KeyVault(SecretUri=${graphChangeNotificationClientStateSecretUri})' }
         { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
         { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
         { name: 'Box__RootFolderId', value: '405543781910' }
+        { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
         { name: 'Box__ConfigJson', value: '@Microsoft.KeyVault(SecretUri=${boxConfigJsonSecretUri})' }
         { name: 'Box__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${boxClientSecretSecretUri})' }
         { name: 'Dvla__BaseUri', value: 'https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/' }
@@ -676,6 +710,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
     workerTransportQueueContributor
     workerTransportTableContributor
     workerTelemetryPublisher
+    workerDocumentIntelligenceUser
   ]
 }
 
@@ -805,6 +840,8 @@ output webIdentityClientId string = webIdentity.properties.clientId
 output workerAppName string = workerApp.name
 output workerIdentityName string = workerIdentity.name
 output workerIdentityClientId string = workerIdentity.properties.clientId
+output documentIntelligenceAccountId string = documentIntelligence.id
+output documentIntelligenceEndpoint string = documentIntelligence.properties.endpoint
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlDatabaseName string = sqlDatabase.name
 output transportStorageAccountName string = transportStorage.name

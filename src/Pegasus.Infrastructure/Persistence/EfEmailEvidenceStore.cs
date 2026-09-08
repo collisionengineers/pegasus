@@ -286,7 +286,7 @@ public sealed class EfEmailEvidenceStore(
         AppendResponseHistory(
             context,
             sentEvidence.Triage,
-            actor,
+            request.Actor,
             operationKey,
             request.Reason.Trim(),
             requestHash,
@@ -535,7 +535,7 @@ public sealed class EfEmailEvidenceStore(
     private static void AppendResponseHistory(
         PegasusDbContext context,
         TriageEntity triage,
-        string actor,
+        ActionActor actor,
         string operationKey,
         string reason,
         string requestHash,
@@ -549,7 +549,8 @@ public sealed class EfEmailEvidenceStore(
             TriageId = triage.Id,
             Triage = triage,
             EventType = "triage_response_linked",
-            Actor = actor,
+            Actor = actor.SubjectId,
+            ActorKind = actor.Kind.ToString(),
             Reason = reason,
             OperationKey = operationKey,
             RequestHash = requestHash,

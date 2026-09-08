@@ -4,8 +4,14 @@ namespace Pegasus.Core.Vehicle;
 
 public enum VehicleSuggestionDecision
 {
-    Accept,
-    Correct
+    Accept
+}
+
+public enum VehicleSuggestionField
+{
+    Make,
+    Model,
+    Mileage
 }
 
 public sealed record VehicleConfirmationValues(
@@ -103,7 +109,10 @@ public sealed record AcceptVehicleSuggestionCommand(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    string EditLeaseToken);
+    string EditLeaseToken)
+{
+    public VehicleSuggestionField Field { get; init; } = VehicleSuggestionField.Make;
+}
 
 public sealed record AcceptedVehicleSuggestion(
     Guid ConfirmationId,
@@ -273,38 +282,28 @@ public sealed class AcceptVehicleSuggestion(
         {
             throw new ArgumentOutOfRangeException(nameof(command), "The vehicle decision is invalid.");
         }
+        if (!Enum.IsDefined(command.Field))
+        {
+            throw new ArgumentOutOfRangeException(nameof(command), "The vehicle field is invalid.");
+        }
+        if (command.Decision != VehicleSuggestionDecision.Accept || command.Correction is not null)
+        {
+            throw new ArgumentException(
+                "Vehicle lookup suggestions are accepted one field at a time.",
+                nameof(command));
+        }
 
         RequestVehicleLookup.RequireText(
             command.Reason,
             500,
             "A reason for accepting or correcting the vehicle suggestion is required.",
             nameof(command));
-        if (command.Decision == VehicleSuggestionDecision.Accept && command.Correction is not null)
-        {
-            throw new ArgumentException(
-                "An accepted vehicle suggestion cannot also contain a correction.",
-                nameof(command));
-        }
-        if (command.Decision == VehicleSuggestionDecision.Correct && command.Correction is null)
-        {
-            throw new ArgumentException(
-                "Correcting a vehicle suggestion requires explicit corrected values.",
-                nameof(command));
-        }
-        if (command.Correction is { } correction)
-        {
-            VehicleSuggestionAcceptancePolicy.ValidateValues(correction);
-        }
-
         return store.AcceptAsync(
             command with
             {
                 OperationKey = command.OperationKey.Trim(),
                 Reason = command.Reason.Trim(),
-                EditLeaseToken = command.EditLeaseToken.Trim(),
-                Correction = command.Correction is null
-                    ? null
-                    : VehicleSuggestionAcceptancePolicy.Normalize(command.Correction)
+                EditLeaseToken = command.EditLeaseToken.Trim()
             },
             cancellationToken);
     }
@@ -337,7 +336,6 @@ public static class VehicleSuggestionAcceptancePolicy
                 observation.Vehicle?.Model,
                 observation.Mileage?.Value,
                 observation.Mileage?.Unit),
-            VehicleSuggestionDecision.Correct when correction is not null => correction,
             _ => throw new ArgumentOutOfRangeException(nameof(decision))
         };
         ValidateValues(values);
@@ -429,16 +427,6 @@ public sealed class ConfirmedVehicleRegistrationConflictException(
     public Guid CaseId { get; } = caseId;
     public string ConfirmedRegistration { get; } = confirmedRegistration;
     public string ProposedRegistration { get; } = proposedRegistration;
-}
-
-public sealed class ConfirmedVehicleFieldConflictException(
-    Guid caseId,
-    string fieldName)
-    : InvalidOperationException(
-        $"Case '{caseId}' already has a different confirmed '{fieldName}' value. Use an explicit correction operation.")
-{
-    public Guid CaseId { get; } = caseId;
-    public string FieldName { get; } = fieldName;
 }
 
 /// <summary>
