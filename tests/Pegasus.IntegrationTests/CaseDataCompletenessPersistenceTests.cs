@@ -14,6 +14,32 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseDataCompletenessPersistenceTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IntakeFieldCandidatesRetainProvenanceAcrossReceiptPersistence(bool located)
+    {
+        // Structural tokens exercise the receipt's existing JSON mapping,
+        // independently of any provider's extraction grammar.
+        var candidate = new InstructionFieldCandidate(
+            "selected value", IntakeEvidenceSource.DocumentContent, "selected-source",
+            located ? IntakeSourceLocator.ForCell(1, 4, 2, page: 1, occurrence: 2) : null,
+            located ? "  selected  value  " : null);
+        var original = new InstructionReviewField(
+            "Vehicle registration", candidate.Value, [candidate], false, false);
+
+        var restored = Assert.Single(EfIntakeReceiptStore.DeserializeFields(
+            EfIntakeReceiptStore.SerializeFields([original])));
+
+        Assert.Equal(original.Name, restored.Name);
+        Assert.Equal(original.SuggestedValue, restored.SuggestedValue);
+        Assert.Equal(original.IsDefaulted, restored.IsDefaulted);
+        Assert.Equal(original.HasConflict, restored.HasConflict);
+        var restoredCandidate = Assert.Single(restored.Candidates);
+        Assert.Equal(candidate, restoredCandidate);
+        Assert.Equal(candidate.SourceValue, restoredCandidate.SourceValue);
+    }
+
+    [Theory]
     [InlineData("Claimant mobile telephone", "Claimant home telephone")]
     [InlineData("Claimant home telephone", "Claimant mobile telephone")]
     public void TypedPhoneSourceIgnoresConflictOnTheUnusedAlternative(string selectedName, string unusedName)

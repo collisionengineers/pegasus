@@ -657,6 +657,20 @@ public sealed class Top15InstructionCorpusTests
             Assert.True(keys.HasAnyKey, $"{sample.Profile}: the original supplied no match key.");
             Assert.Equal(written.DurableClaimToken, keys.DurableClaimToken);
             Assert.Equal(written.NormalizedVrm, keys.NormalizedVrm);
+            if (sample.Profile == "YML")
+            {
+                Assert.Equal(sample.Identity, new ExpectedIdentity(draft.ClaimantName,
+                    draft.ClaimNumber, draft.VehicleRegistration, draft.DateOfIncident, draft.InstructionDate));
+                // A structural boundary probe over the same original output:
+                // the issuer letterhead alone cannot stand in for its closing.
+                var fragment = Assert.Single(instruction.Content);
+                var closing = fragment.Text.LastIndexOf("HD UK Network", StringComparison.Ordinal);
+                Assert.True(closing > fragment.Text.IndexOf("Dear Sirs", StringComparison.Ordinal));
+                Assert.False(matcher.ExtractMatchKeys(instruction with
+                {
+                    Content = [fragment with { Text = fragment.Text[..closing] }]
+                }).HasAnyKey);
+            }
         }
     }
 

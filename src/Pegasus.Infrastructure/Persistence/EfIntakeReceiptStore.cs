@@ -1239,7 +1239,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             field.Candidates.Select(candidate => new PersistedFieldCandidate(
                 candidate.Value,
                 IntakeEvidenceSourceCodes.ToCode(candidate.Source),
-                candidate.SourceLabel)).ToArray(),
+                candidate.SourceLabel,
+                candidate.Locator,
+                candidate.RawValue)).ToArray(),
             field.IsDefaulted,
             field.HasConflict)).ToArray());
 
@@ -1251,7 +1253,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             field.Candidates.Select(candidate => new InstructionFieldCandidate(
                 candidate.Value,
                 IntakeEvidenceSourceCodes.Parse(candidate.Source),
-                candidate.SourceLabel)).ToArray(),
+                candidate.SourceLabel,
+                candidate.Locator,
+                candidate.RawValue)).ToArray(),
             field.IsDefaulted,
             field.HasConflict))
         .ToArray();
@@ -1622,7 +1626,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IReadOnlyList<PersistedFieldCandidate> Candidates,
         bool IsDefaulted,
         bool HasConflict);
-    private sealed record PersistedFieldCandidate(string Value, string Source, string SourceLabel);
+    private sealed record PersistedFieldCandidate(
+        string Value,
+        string Source,
+        string SourceLabel,
+        IntakeSourceLocator? Locator,
+        string? RawValue);
     private sealed record IntakeReceiptEventDetails(
         string Decision,
         string SourceChannel,
