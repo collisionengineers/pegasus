@@ -125,3 +125,24 @@ no deployed-state claim changed.
 After whole-proof readback and fresh gates, move Verifying to Done.
 kanmer-closeout then owns proof retention, exact owned Git cleanup and claim
 release last. Preserve every unrelated/foreign workspace and branch.
+
+## Closeout retention and safety audit — 2026-09-08
+
+Root approved PASS/Done before closeout. PR694 was re-read as MERGED at the
+same exact SHA. The merge is reachable from origin/dev (ancestor exit0).
+All five TRXs were copied before cleanup, byte lengths/SHA256 rechecked
+against the records above, and their XML counters independently read. The
+original integration record remains 12 PASS/1 FAIL, not a later PASS.
+Retained files and manifest: pegasus_pack/current/proofs/CASE-031/manifest.json.
+
+Both resolved cleanup roots are exact direct children of this repository's
+.worktrees directory, not the source, board or another ticket root. Author
+HEAD9863dd4264440ef228a0766d3e2949faf6a4e12b is on the recorded branch;
+verification HEAD3c1d04781719f92c86a190f510c1924fc9df6328 is detached.
+Both share this source repository's .git and have empty porcelain status.
+The full live/archived claim census has no other claim using either target
+or the author branch. Remote author branch still points to that exact author
+HEAD. Only those validated Git targets are authorized for cleanup.
+
+Ticket traceability now records the reachable merge, PR694, integrated/dev
+and not-deployed; Outcome is populated. Git removal and release follow.
