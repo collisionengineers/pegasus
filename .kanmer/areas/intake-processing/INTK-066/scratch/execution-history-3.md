@@ -1,3 +1,5 @@
+<!-- Preserved execution-log segment begins after this line. -->
+
 ## Focused integration failure dispositions and joint static correction — 8 September 2026
 
 All 15 failures from the retained `cc826889407b97dc2d951219c70b59e619de70f2` focused Integration run remain recorded above; none is erased by this local correction. The source dispositions are:
@@ -133,3 +135,5 @@ Require fresh exact-head, clean-tree and other-context/host-process preflight. R
 No source/snapshot edits, capture, packaging, cloud/live/Outlook/Box action, push/PR. Four-scope generated snapshots and documentation checks follow under a separate grant. Record every command/exit/count (skips distinct), postcheck exact frozen clean input and empty owned-host activity, then explicit canonical IDLE. Root retains earlier failures; new passes do not erase them.
 
 - 2026-09-08T20:48:22.306Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 35; expires 2026-09-08T21:18:22.287Z)
+
+<!-- Preserved execution-log segment ends before this line. -->

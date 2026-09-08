@@ -1,3 +1,4 @@
+<!-- Preserved execution-log segment begins after this line. -->
 Root assigns independent Core test slice to /root/migration_fixture_implementation in the SAME recorded .worktrees/INTK-066 / INTK-066-manual-upload-confirmation at base9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c. Exclusive writes: tests/Pegasus.Core.Tests/Intake/IntakeAssociationDestinationTests.cs, tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeCasePairingTests.cs, tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs. Main author /root/agent_config_implementation retains every other mapped source/test/FRD/form file and is notified not to touch the three released tests. This is a bounded same-ticket source assignment, not a new claim/worktree. No child tests/build/scripts/browser/capture/package/cloud operations; static reads/diff only. Freeze/report tests to root and author; root alone coordinates canonical host-slot grant after consolidated source freeze. Current host is IDLE/unassigned per DELIV053 execution7a5b2e3370bc4c9c; this record grants no runtime work.
 
 ## In-progress static source review — 2026-09-08
@@ -108,3 +109,5 @@ Recheck exact PID start-time/executable/commandline identities before acting; st
 ## Owned-node identity harness disposition
 
 Verifier reported the initial cleanup precondition refused before any Stop-Process because DateTime UTC literals were normalized/compared incorrectly. Read-only diagnosis again confirmed the exact six owned MSBuild nodes and19:06:23.558574–.562469Z starts. Root explicitly approved correcting only this comparison to DateTimeOffset UTC instants and performing the already-granted exact six-node cleanup once, then original build retry. Preserve precondition failure; no broader process targets or source changes. Existing canonical active grant remains sole verifier authority.
+
+<!-- Preserved execution-log segment ends before this line. -->

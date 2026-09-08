@@ -1,3 +1,5 @@
+<!-- Preserved execution-log segment begins after this line. -->
+
 ## Interrupted verifier recovery — 8 September 2026
 
 Operator requested continuation and available subagents. Prior live subagents no longer exist after the interruption. Root read canonical full Release ACTIVE record b173dacb0546b5e2. Read-only host process census now returned no dotnet/testhost/vstest processes; former test session27819 is unavailable. Source worktree remains clean at frozen500b86a9b21adbd7a8fe56a65ddd52782630ce21. No process was terminated or foreign work modified.
@@ -60,3 +62,5 @@ Final postcheck at `2026-09-08T21:20:30.1489739Z` passed: exact clean HEAD `e843
 Disposition: **PASS for the granted corrected-fixture and full Browser scope**. The interrupted earlier full non-browser aggregate remains **INCONCLUSIVE with five observed failures** because it was not rerun as a whole. Four obsolete-fixture failures now have a passing exact three-class cohort. The retained Qdos 94/160 result is an unsupported coverage-test cohort-validity gate under investigation / operator-directed retirement, not proof of an extractor regression and not a PASS or waiver in this run. No source, snapshot, assertion, filter, packaging, PR, push, capture, live/cloud/Outlook/Box or external-SQL change occurred. Snapshot/documentation and any new full non-browser run require a separate frozen-input grant.
 
 All invoked processes exited. INTK-066 lease phase returned to `implementing` at revision 44. Canonical CEALEX-May25 host slot is explicitly **IDLE / unassigned**.
+
+<!-- Preserved execution-log segment ends before this line. -->
