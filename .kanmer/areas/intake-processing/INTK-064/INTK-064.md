@@ -2,24 +2,25 @@
 id: INTK-064
 type: ticket
 title: Automatically associate Triage with its uniquely matched formal Case
-status: implementing
+status: review
 area: intake-processing
 assignee: intake_audit
 profile: fix
 stageEntered:
   preparing: '2026-09-07T23:51:19.646Z'
+  review: '2026-09-08T06:07:49.364Z'
 taken_at: '2026-09-08T05:16:20.212Z'
 branch: INTK-064-triage-link-recovery
 worktree: .worktrees/intk-064
-claim_expires_at: '2026-09-08T06:35:15.095Z'
+claim_expires_at: '2026-09-08T06:37:49.436Z'
 claim_controller: intake_audit
 lease_id: 002a6af1-7ec8-435c-920c-66323b0ace95
-lease_revision: 8
+lease_revision: 9
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-064'
 lease_provider: codex
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T06:05:15.095Z'
+lease_phase: review
+lease_heartbeat_at: '2026-09-08T06:07:49.436Z'
 labels:
   - triage
   - association
@@ -45,7 +46,7 @@ delivery_state: not-integrated
 delivery_recorded_at: '2026-09-08T06:06:01.134Z'
 archived: false
 created: '2026-09-07T23:50:36.541Z'
-updated: '2026-09-08T06:06:38.142Z'
+updated: '2026-09-08T06:07:49.436Z'
 ---
 
 ## What
@@ -83,8 +84,15 @@ implementation must follow its merged/released ownership. Root owns a separate
 one-ticket supplemental run; original218 roster unchanged. Root approved
 execution after INTK-063 closeout and TICK-085's narrow integrated-source
 handoff. Taken at .worktrees/intk-064 on INTK-064-triage-link-recovery from
-aefe4c32d078ad79c0368666b5666032e6865248; current stop is source-frozen for
-root's focused runtime verification, before commit/push/PR. No queue/schema/framework
-or broad Worker grant absent concrete evidence and root approval.
+aefe4c32d078ad79c0368666b5666032e6865248. Root's focused verification passed;
+PR #699 at 1e4f20e5718ec97abf269563fbba1fd944b944a4 now awaits independent
+exact-head review. No queue/schema/framework or Worker grant was added.
+Historical claims and the separate original roster remain unchanged.
 
 ## Outcome
+
+Implemented creation/replay, formal acceptance/replay and existing timer
+association. Root verified Release build, 32 Core and 14 integration tests
+(including genuine arrival orders and restricted Worker), plus 127 document
+link checks. The report retains the earlier compile failure. Not integrated
+or deployed; independent review and exact-merge proof remain outstanding.
