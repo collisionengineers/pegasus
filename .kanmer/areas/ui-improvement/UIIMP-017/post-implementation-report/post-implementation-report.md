@@ -61,7 +61,33 @@ the field declaration from `IReadOnlyDictionary` to `Dictionary`. Dictionary
 content, selectors, initializer and assertions stay unchanged. No suppression,
 interface, factory or scope expansion. Author `git diff --check` passed again
 with only the existing LF/CRLF warnings. No author build/test/capture.
-Root's incremental rebuild and the exact tests below remain pending.
+### Second root attempt and exact whitespace correction
+
+Root session 60924: corrected incremental Integration build PASS, 44.19s,
+zero warnings/errors. The exact two-test cohort then executed 2, passed 1
+(selector), failed 1 (populated route), with no skips. The metrics timestamp
+assertion passed. The route's service assertion at line 409 expected no space
+after `</span>`, but actual Razor and captured response line 216 contain:
+
+```html
+<td> <span>Last successful poll: </span> 06 May 2031 11:20</td>
+```
+
+Author inspected that exact retained response and changed only the assertion
+by adding the one expected space. Production markup and displayed timestamp
+remain untouched. Root authorized this exact test correction; no normalization
+or weaker time assertion. `git diff --check` passed after correction.
+
+Retained failure: `artifacts/verification/uiimp-017-health.trx`, SHA256
+`EAB313FE2161D23459980A458EA55ABC2980841C6A2BEBE4020DA3EC4BB597CF`.
+Author read/hash-checked actual counters 2 executed / 1 passed / 1 failed;
+start 2026-09-08T03:18:56.5001682+01:00, finish
+2026-09-08T03:19:33.9165457+01:00. Captured HTML remains under
+`artifacts/test-ui-capture/5c7c63feae9391d9ef3ba092f7ea349ee659beeda9fbc7fd495c4892a144482e/response.html`.
+Neither file was overwritten. Snapshot update/verify/catalogue had not run.
+Source is frozen again; root uses a new TRX name for the correction run.
+
+### Pending corrected route and generated evidence
 
 Root cwd: `.worktrees/uiimp-017`. Locked restore already passed; root schedules
 the incremental Integration Release rebuild,
