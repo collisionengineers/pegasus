@@ -30,10 +30,12 @@ refs:
   - docs/index.md
   - docs/engineering.md
   - docs/adr/0007-direct-terminal-azure-deployment.md
+commits:
+  - 67b357475433df5fdb09cf7296284b90de516d47
 deployment: n/a
 archived: false
 created: '2026-09-08T16:07:49.662Z'
-updated: '2026-09-08T16:18:57.206Z'
+updated: '2026-09-08T16:21:05.451Z'
 ---
 
 ## What
