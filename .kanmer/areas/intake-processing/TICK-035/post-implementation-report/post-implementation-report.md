@@ -2,15 +2,18 @@
 
 ## Status and source
 
-Implementation is frozen for root-owned compiler and focused runtime checks.
-Current combined local head: b47d8cc27aeba391e6cd650db3dc30d382f7e06e.
-Root authorized an unverified checkpoint and normal dev merge before the next
-build; the worktree is clean. No pushed PR or review PASS is claimed.
-Final verification is pending, not PASS. Root's builds and corrected Core
-checks passed; the first Integration run failed on two genuine-source paths,
-recorded below. The actual acceptance defect and MP OCR fixture are corrected
-and frozen for root's targeted rerun. No commit, PR, Review move, merge or live
-deployment is claimed. Stop remains independent review after passing evidence.
+Root-owned final focused verification PASS on the frozen TICK-035 source:
+Release build, affected10 Core structural checks, genuine ALS caller and two
+receipt-provenance roundtrips all passed. Earlier focused passes and failures
+are preserved as attempt history below; no whole-repository test-suite pass
+or deployment is claimed.
+
+Current pre-checkpoint head: b47d8cc27aeba391e6cd650db3dc30d382f7e06e plus the
+seven mapped author files. Root authorized a checkpoint commit after these
+results, but PR/base integration is explicitly on hold until CASE-049 merges
+its FRD-01 ownership. No edit to that document is authorized yet. No PR,
+independent review PASS, merge, exact-merge proof or live deployment is claimed.
+Stop remains independent review after the forthcoming approved doc alignment.
 
 Worktree: `.worktrees/tick-035`. Branch: `TICK-035-principal-routes`.
 Fresh execution base: `522e67f270ab4d6086d9fba04095988db3598888`.
@@ -493,3 +496,44 @@ select that cohort to cover the shared dictionary change. Do not repeat already
 passed FW/SBL/YML cases,53 classifier cases, fifteen PDFs or Settings capture
 merely to repeat evidence. Actual outcomes remain pending; stop is source
 review and root checks, then independent exact-head PR review.
+
+
+## Final focused verification PASS — 8 September 2026
+
+Root executed the final frozen correction checks:
+- Release build PASS, exit0, zero warnings/errors,49.53 seconds.
+- InstructionFieldExtractionTests10 PASS, exit0,216ms.
+- The genuine ALS original plus two existing-receipt JSON roundtrips3 PASS,
+  exit0,37 seconds, zero skips. FW/SBL/YML and already-passed source/Settings
+  cohorts were not repeated.
+
+Exact focused test commands (root's recorded filters):
+
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~InstructionFieldExtractionTests"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "(FullyQualifiedName~QdosAllocationRecoveryTests.GenuinePrincipalEmailsAllocateOnceAndAssociateRepeatedInstructions&DisplayName~ALS)|FullyQualifiedName~IntakeFieldCandidatesRetainProvenanceAcrossReceiptPersistence"
+```
+
+Root's distinct TRX files were read back by the author without rerunning tests:
+- artifacts/verification/tick-035-table-identity.trx:
+ 10 executed/10 passed/0 failed/0 skipped;
+ SHA256 B7F1EDEBC41DA2DBA0D48DE10A0561A18BEFA8959C3B0BC390CF53517AF117FA.
+- artifacts/verification/tick-035-persisted-provenance.trx:
+ 3 executed/3 passed/0 failed/0 skipped;
+ SHA256 20DF014FB223C516DFA34CB2F80F14DEC08F41BB967E717981B836CBF926508A.
+ Its actual named cases are the ALS original (37.4418878s), located True
+ roundtrip (0.0123895s), and located False roundtrip (0.1093158s).
+ These local outputs are test evidence, not a fresh Azure/OCR/provider call.
+
+The locator assertion, role separation, missing/duplicate client-cell refusals,
+two-physical-document contradiction and actual allocation/unique association/
+duplicate replay/readiness checks all remain intact. YML's separate genuine
+report-correspondence negative and genuine PDF acceptance are deliberately
+distinct claims; no genuine initial YML mail allocation is invented.
+
+Root permits a [skip ci] checkpoint commit, but holds PR and accepted-dev
+integration pending CASE-049 PR690. A remaining FRD-01 cancellation-association
+sentence must align with the generalized matching owner after that file's
+ownership handoff; preserve its QDOS-specific cancellation event guard. No new
+source or test work is required merely for that doc sentence. Checklist's
+runtime verification item can now be checked; PR/review handoff remains open.
