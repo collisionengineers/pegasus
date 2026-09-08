@@ -196,13 +196,24 @@ already-net hours. Do not deduplicate LT72PYX's separately charged B74/B82 camer
 reset rows, invent the clipped end of LG73ZCJ A40, or equate a guide code with
 a manufacturer part number. Retain the original source for Engineer review.
 
-VX21TZD A02 has different printed guide IDs in the main and position appendices.
-Do not silently substitute one for the other or fabricate an authoritative join.
-The main-table observation and original appendix both remain source evidence;
-if the existing line representation requires choosing a conflicting identity,
-surface that bounded source issue before code-ready instead of hiding it in a
-passing oracle. Parts appendices supplement rows only through unambiguous
-ordered/contextual joins and never add a second charge.
+VX21TZD A02 is representable without guessing: its main-table GuideCode is
+88995001, while PartNumber is null because no manufacturer part entry exists
+for that included operation. Keep blank numeric fields null and identify the
+observation with existing SourceRowIdentity (page/section/row/printed guide).
+Existing Justification records the included-parent context and conflicting
+appendix guide60301801; retain the original PDF/hash as appendix evidence.
+Do not add GuideCode to Origin JSON or substitute the appendix value. The
+existing neutral Other/check_labour line can retain an untyped included row
+with no invented operation, quantity or charge. Unpriced means To be confirmed
+in current policy: do not set it merely because a row is included. Parts
+appendices supplement rows only through unambiguous ordered/contextual joins
+and never add a second charge.
+
+EC is not a blanket Specialist mapping. Existing EstimateTotals deliberately
+does not price Specialist WorkUnits; genuine shutdown/jig EC rows carry chargeable
+labour. Reuse Other/check_labour where that represents the printed labour and
+preserve the actual amount/category without a second charge. Prove the result
+against source rows and current Core calculation, not a new parallel calculator.
 
 YL69YFO's real retained OCR and reviewed fifth oracle remain acceptance work.
 The four readable parsers and canonical pending/completion callers may be
