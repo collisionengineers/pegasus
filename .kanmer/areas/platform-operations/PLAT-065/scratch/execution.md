@@ -1,1 +1,5 @@
 Published PR https://github.com/collisionengineers/pegasus/pull/689 to dev at head fb00e457610535325de28d478c22eddef7c67705. Remote branch and PR read back that exact head; clean retained worktree .worktrees/plat-065 on PLAT-065-document-intelligence. Seven files only, 202 insertions/16 deletions; no source changes after root checks. Report f8174b00fc9b7175 and checklist a63789bf87428514 preserve both Local failures, authorized base FF to 32ce9544 and 35/35 focused PASS. Initial literal report readback comparison differed on board-normalized LF/CRLF; normalized whole content matched, with no substantive rewrite to obtain a pass. Root-approved skip-ci commit; no author review, merge, build/test, provisioning or live OCR call. Stop for independent review; root retains exact release/live activation acceptance, which remain unchecked and not deployed.
+
+## Transitions
+
+- 2026-09-08T00:22:25.952Z lease-phase implementing → verifying (lease d9fbecef-2648-4b4b-9e34-5b8ae84342e4 rev 7; expires 2026-09-08T00:52:25.941Z)
