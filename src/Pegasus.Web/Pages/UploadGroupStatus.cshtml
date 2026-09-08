@@ -4,10 +4,10 @@
     ViewData["Title"] = "Upload received";
     var groupConfirmation = Model.UploadCaseConfirmation;
     var groupReceiptVersions = Model.GroupConfirmationReceiptVersions ?? Model.OpenMemberReceiptVersions;
-    if (Model.OpenGroupDecision)
+    if (Model.OpenGroupDecision || Model.RefreshAutomatically)
     {
-        // The submission-level card owns the decision; per-file outcomes
-        // render as reports only.
+        // The submission owns the decision, including while a sibling is
+        // still processing; per-file outcomes render as reports only.
         ViewData["UploadOutcomeCompact"] = true;
     }
 }
@@ -188,7 +188,7 @@
                                    share one destination choice, but it cannot
                                    fabricate a group allocator or silently
                                    create Cases for every file. *@
-                                @if (memberOutcome is
+                                @if (Model.OpenGroupDecision && memberOutcome is
                                     { Kind: UploadOutcomeKind.ReadyToCreate,
                                       PrimaryAction: { } createAction })
                                 {

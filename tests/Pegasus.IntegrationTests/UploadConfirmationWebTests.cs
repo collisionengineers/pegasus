@@ -520,8 +520,10 @@ public sealed class UploadConfirmationWebTests
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task WorkingMemberWithAnOpenSiblingWithholdsTheGroupDecision()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WorkingMemberWithAnOpenSiblingWithholdsTheGroupDecision(bool offerCreation)
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -553,7 +555,7 @@ public sealed class UploadConfirmationWebTests
             {
                 services.RemoveAll<IUploadOutcomeQueries>();
                 services.AddSingleton<IUploadOutcomeQueries>(
-                    new WorkingAndOpenGroupOutcomes(group.Members[0].StagedReceiptId));
+                    new WorkingAndOpenGroupOutcomes(group.Members[0].StagedReceiptId, offerCreation));
             }));
         using var pageClient = pageFactory.CreateClient();
 
@@ -563,6 +565,9 @@ public sealed class UploadConfirmationWebTests
         Assert.DoesNotContain("id=\"group-decision-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add the submission to this case", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create a vehicle-image case", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-search", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add to an existing case", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Create a new case", html, StringComparison.Ordinal);
     }
 
     private static IEnumerable<int> SplitOccurrences(string haystack, string needle)
@@ -734,7 +739,7 @@ public sealed class UploadConfirmationWebTests
         Assert.NotNull(receipt.ManualAssociationVersion);
     }
 
-    private sealed class WorkingAndOpenGroupOutcomes(Guid workingStagedReceiptId) : IUploadOutcomeQueries
+    private sealed class WorkingAndOpenGroupOutcomes(Guid workingStagedReceiptId, bool offerCreation) : IUploadOutcomeQueries
     {
         public Task<UploadOutcomeView> BuildAsync(
             QueuedIntakeStatus status,
@@ -749,10 +754,12 @@ public sealed class UploadConfirmationWebTests
                     null,
                     null)
                 : new UploadOutcomeView(
-                    UploadOutcomeKind.NeedsReview,
-                    "Needs review",
+                    offerCreation ? UploadOutcomeKind.ReadyToCreate : UploadOutcomeKind.NeedsReview,
+                    offerCreation ? "Choose a case destination" : "Needs review",
                     "This needs a staff decision.",
-                    new("Review", $"/Unidentified/{Guid.NewGuid():D}"),
+                    offerCreation
+                        ? new("Create a new case", $"/Cases/Create?receiptId={status.ProcessedReceiptId:D}")
+                        : new("Review", $"/Unidentified/{Guid.NewGuid():D}"),
                     null,
                     new(status.ProcessedReceiptId ?? status.StagedReceiptId, 0)));
     }

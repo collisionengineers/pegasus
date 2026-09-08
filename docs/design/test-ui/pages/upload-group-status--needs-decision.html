@@ -95,7 +95,7 @@
                 <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="2 outstanding">2</span>
+                        <span class="nav-count" aria-label="1 outstanding">1</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -200,18 +200,22 @@
                 <details class="upload-attach" data-refresh-hold>
                     <summary class="btn">Add to an existing case</summary>
                     <form method="post" class="upload-attach__form" data-case-search action="#">
-                        <input type="hidden" name="caseId" value="" data-case-search-value />
+                        <input type="hidden" name="operationId" value="{{operationid}}" />
+                            <input type="hidden" name="receiptVersions[test-ui-guid-2]" value="0" />
+                            <input type="hidden" name="receiptVersions[test-ui-guid-3]" value="0" />
+                        <input type="hidden" name="caseId" data-case-search-value />
+                        <input type="hidden" name="caseVersion" data-case-search-version />
                         <div class="field">
                             <label for="group-attach-input">Case</label>
-                            <input id="group-attach-input"
-                                   name="reference"
-                                   type="text"
-                                   maxlength="60"
-                                   required
-                                   autocomplete="off"
-                                   spellcheck="false"
-                                   data-case-search-input />
-                            <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                                <input id="group-attach-input"
+                                       name="reference"
+                                       type="text"
+                                       maxlength="60"
+                                       required
+                                       autocomplete="off"
+                                       spellcheck="false"
+                                       data-case-search-input />
+                                <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
                         </div>
                         <div class="field">
                             <label for="group-attach-reason">Reason</label>
@@ -356,15 +360,7 @@
                             <span class="work-item-head">
                                 <span>
                                     <span class="row-meta">Mail · U1</span>
-                                    <h3>close-up.png</h3>
-                                </span>
-                            </span>
-                        </a>
-                        <a class="work-item" href="#">
-                            <span class="work-item-head">
-                                <span>
-                                    <span class="row-meta">Mail · U2</span>
-                                    <h3>overview.png</h3>
+                                    <h3>U1</h3>
                                 </span>
                             </span>
                         </a>

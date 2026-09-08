@@ -177,7 +177,22 @@
         <input type="hidden" id="OperationId" name="OperationId" value="{{operationid}}" />
         <input type="hidden" data-val="true" data-val-required="The ExpectedReceiptVersion field is required." id="ExpectedReceiptVersion" name="ExpectedReceiptVersion" value="0" />
         <input type="hidden" id="AddressSuggestionFingerprint" name="AddressSuggestionFingerprint" value="" />
+        <input type="hidden" data-val="true" data-val-required="The RequiresAddressResolution field is required." id="RequiresAddressResolution" name="RequiresAddressResolution" value="False" />
+            <div class="validation-summary" role="alert" aria-live="assertive" tabindex="-1">
+        <h2 class="validation-summary__heading">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle"/></svg>
+            <span>Please correct the following errors:</span>
+        </h2>
+        <ul class="validation-summary__list">
+                <li>The inspection address still needs a staff decision. Reload the page and try again.</li>
+        </ul>
+    </div>
 
+
+        <div class="notice notice--warning">
+            <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+            <span>This is a proposal from the uploaded material. No case or purchase order is created unless you accept it below.</span>
+        </div>
 
         <section class="panel" aria-labelledby="details-title">
             <div class="panel-head">
@@ -187,8 +202,8 @@
                 <div class="definition-list">
         <dl class="definition">
             <dt>Claimant</dt>
-            <dd class="quiet">
-                Not recorded
+            <dd>
+                Hand Keyed Claimant
                 <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
                     <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                 </span>
@@ -196,8 +211,8 @@
         </dl>
         <dl class="definition">
             <dt>Claim number</dt>
-            <dd class="quiet">
-                Not recorded
+            <dd>
+                HK-2031-001
                 <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
                     <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                 </span>
@@ -205,8 +220,8 @@
         </dl>
         <dl class="definition">
             <dt>Registration</dt>
-            <dd class="quiet">
-                Not recorded
+            <dd>
+                AB12CDE
                 <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
                     <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                 </span>
@@ -214,8 +229,8 @@
         </dl>
         <dl class="definition">
             <dt>Vehicle</dt>
-            <dd class="quiet">
-                Not recorded
+            <dd>
+                Example Make Example Model
                 <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
                     <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                 </span>
@@ -223,8 +238,8 @@
         </dl>
         <dl class="definition">
             <dt>Incident date</dt>
-            <dd class="quiet">
-                Not recorded
+            <dd>
+                4 Mar 2031
                 <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
                     <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                 </span>
@@ -232,8 +247,8 @@
         </dl>
         <dl class="definition">
             <dt>Instruction date</dt>
-            <dd class="quiet">
-                Not recorded
+            <dd>
+                5 Mar 2031
                 <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
                     <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
                 </span>
@@ -245,44 +260,44 @@
 
 
 <label for="draft-claimant-name">Claimant name</label>
-<input id="draft-claimant-name" name="ClaimantName" maxlength="200" autocomplete="off" />
+<input id="draft-claimant-name" name="ClaimantName" value="Hand Keyed Claimant" maxlength="200" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-claim-number">Claim number</label>
-<input id="draft-claim-number" name="ClaimNumber" maxlength="100" autocomplete="off" />
+<input id="draft-claim-number" name="ClaimNumber" value="HK-2031-001" maxlength="100" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-registration">Vehicle registration</label>
-<input id="draft-vehicle-registration" name="VehicleRegistration" maxlength="20" autocomplete="off" />
+<input id="draft-vehicle-registration" name="VehicleRegistration" value="AB12CDE" maxlength="20" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-make">Vehicle make</label>
-<input id="draft-vehicle-make" name="VehicleMake" maxlength="100" autocomplete="off" />
+<input id="draft-vehicle-make" name="VehicleMake" value="Example Make" maxlength="100" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-model">Vehicle model</label>
-<input id="draft-vehicle-model" name="VehicleModel" maxlength="100" autocomplete="off" />
+<input id="draft-vehicle-model" name="VehicleModel" value="Example Model" maxlength="100" autocomplete="off" />
 <small>Staff</small>
 
 <label for="draft-vehicle-mileage">Vehicle mileage</label>
-<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" />
+<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" value="12345" />
 <small>Staff</small>
 
 <label for="draft-accident-circumstances">Accident circumstances</label>
-<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3"></textarea>
+<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3">Keyed circumstances from the retained document.</textarea>
 <small>Staff</small>
 
 <label for="draft-date-of-incident">Date of incident</label>
-<input id="draft-date-of-incident" name="DateOfIncident" type="date" />
+<input id="draft-date-of-incident" name="DateOfIncident" type="date" value="2031-03-04" />
 <small>Staff</small>
 
 <label for="draft-instruction-date">Instruction date</label>
-<input id="draft-instruction-date" name="InstructionDate" type="date" />
+<input id="draft-instruction-date" name="InstructionDate" type="date" value="2031-03-05" />
 <small>Staff</small>
 
 
 <label for="draft-inspection-date">Inspection date</label>
-<input id="draft-inspection-date" name="InspectionDate" type="date" />
+<input id="draft-inspection-date" name="InspectionDate" type="date" value="2031-03-20" />
 <small>Staff</small>
 
                 </details>
@@ -301,7 +316,7 @@
                     <div class="field">
                         <label class="req" for="InspectionAddress">Inspection address</label>
                         <textarea maxlength="1000" rows="3" required id="InspectionAddress" name="InspectionAddress">
-</textarea>
+1 Example Street, Exampleton EX1 1EX</textarea>
                         <span class="field-error field-validation-valid" data-valmsg-for="InspectionAddress" data-valmsg-replace="true"></span>
                     </div>
             </div>
@@ -315,7 +330,7 @@
                 <div class="grid grid-2">
                     <div class="field">
                         <label for="PrincipalCode">Confirmed principal code</label>
-                        <input maxlength="20" autocomplete="off" type="text" id="PrincipalCode" name="PrincipalCode" value="" />
+                        <input maxlength="20" autocomplete="off" type="text" id="PrincipalCode" name="PrincipalCode" value="HANDKEY" />
                         <span class="field-error field-validation-valid" data-valmsg-for="PrincipalCode" data-valmsg-replace="true"></span>
                     </div>
                     <div class="field">
@@ -331,11 +346,11 @@
                 <fieldset class="field">
                     <legend>Evidence completeness</legend>
                     <label class="choice">
-                        <input type="checkbox" data-val="true" data-val-required="The InstructionComplete field is required." id="InstructionComplete" name="InstructionComplete" value="true" />
+                        <input type="checkbox" checked="checked" data-val="true" data-val-required="The InstructionComplete field is required." id="InstructionComplete" name="InstructionComplete" value="true" />
                         <span>Instruction evidence is complete</span>
                     </label>
                     <label class="choice">
-                        <input type="checkbox" data-val="true" data-val-required="The ImagesComplete field is required." id="ImagesComplete" name="ImagesComplete" value="true" />
+                        <input type="checkbox" checked="checked" data-val="true" data-val-required="The ImagesComplete field is required." id="ImagesComplete" name="ImagesComplete" value="true" />
                         <span>Image evidence is complete</span>
                     </label>
                 </fieldset>
@@ -343,13 +358,13 @@
                 <div class="field">
                     <label class="req" for="Reason">Why this case is being created</label>
                     <textarea maxlength="500" rows="3" required id="Reason" name="Reason">
-</textarea>
+Keyed the instruction detail from the retained document.</textarea>
                     <span class="field-error field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
                 </div>
 
                 <div class="cluster">
-                    <button type="submit" class="btn btn--primary">Create case</button>
-                    <a class="btn" href="upload--default.html">Cancel</a>
+                    <button type="submit" class="btn btn--primary">Accept and create case</button>
+                    <a class="btn" href="#">Reject proposal</a>
                 </div>
             </div>
         </section>

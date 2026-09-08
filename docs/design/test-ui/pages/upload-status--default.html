@@ -95,7 +95,7 @@
                 <a class="nav-link" href="queues--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                     <span>Cases</span>
-                        <span class="nav-count" aria-label="0 outstanding">0</span>
+                        <span class="nav-count" aria-label="1 outstanding">1</span>
                 </a>
                 <a class="nav-link" href="cases--default.html">
                     <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
@@ -175,7 +175,7 @@
     </div>
 </header>
 
-    <div class="validation-summary" role="alert">No single case matched that reference. Search and choose a case from the suggestions.</div>
+    <div class="validation-summary" role="alert">No single viable case matched that reference. Search and choose a case from the suggestions.</div>
 <section class="panel"
          aria-labelledby="upload-file-heading">
     <div class="panel-head">
@@ -189,31 +189,35 @@
             <div class="upload-outcome">
         <span class="status status--amber">Pending</span>
 
-    <p>No existing case matched this. Create one from what was uploaded.</p>
+    <p>Choose a case destination. No viable existing case was found, so you can create a new case from the extracted details.</p>
         <div class="button-row">
-                <a class="btn btn--primary btn--small" href="case-create--default.html">Create a case</a>
+                <a class="btn btn--primary btn--small" href="case-create--default.html">Create a new case</a>
                 <a class="btn btn--small" href="upload--default.html">Cancel</a>
         </div>
         <details class="upload-attach" data-refresh-hold>
             <summary class="btn btn--small">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search action="#">
+            <form method="post" class="upload-attach__form" data-case-search data-case-search-receipt-id="test-ui-guid-2" action="#">
                 <input type="hidden" name="receiptId" value="test-ui-guid-2" />
-                <input type="hidden" name="caseId" value="" data-case-search-value />
+                <input type="hidden" name="receiptVersion" value="0" />
+                <input type="hidden" name="operationId" value="{{operationid}}" />
+                <input type="hidden" name="caseId" data-case-search-value />
+                <input type="hidden" name="caseVersion" data-case-search-version />
                 <div class="field">
-                    <label for="case-attach-test-ui-guid-3-input">Case</label>
-                    <input id="case-attach-test-ui-guid-3-input"
-                           name="reference"
-                           type="text"
-                           maxlength="60"
-                           required
-                           autocomplete="off"
-                           spellcheck="false"
-                           data-case-search-input />
-                    <ul id="case-attach-test-ui-guid-3-list" class="case-search-list" hidden data-case-search-list></ul>
+                    <label for="case-attach-test-ui-guid-4-input">Case</label>
+                        <input id="case-attach-test-ui-guid-4-input"
+                               name="reference"
+                               type="text"
+                               value="NO-SUCH-CASE"
+                               maxlength="60"
+                               required
+                               autocomplete="off"
+                               spellcheck="false"
+                               data-case-search-input />
+                        <ul id="case-attach-test-ui-guid-4-list" class="case-search-list" hidden data-case-search-list></ul>
                 </div>
                 <div class="field">
-                    <label for="case-attach-test-ui-guid-3-reason">Reason for adding to this case</label>
-                    <textarea id="case-attach-test-ui-guid-3-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    <label for="case-attach-test-ui-guid-4-reason">Reason for adding to this case</label>
+                    <textarea id="case-attach-test-ui-guid-4-reason" name="reason" maxlength="500" rows="2" required>Staff tried a reference that matches nothing.</textarea>
                 </div>
                 <div class="button-row">
                     <button type="submit" class="btn btn--primary btn--small">Add to this case</button>
@@ -297,6 +301,16 @@
             </button>
         </div>
         <div class="dialog-body">
+                <div class="pane-body pane-scroll" data-row-list>
+                        <a class="work-item" href="#">
+                            <span class="work-item-head">
+                                <span>
+                                    <span class="row-meta">Mail · U1</span>
+                                    <h3>unmatched-failclosed.eml</h3>
+                                </span>
+                            </span>
+                        </a>
+                </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
