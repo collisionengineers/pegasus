@@ -39,12 +39,17 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-12-operator-experience.md
 commits:
-  - 278f605333f7569fb1927c3d4ed360d080903453
+  - d442366787d452da22d36719272d4eb79dc1afde
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/688'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: d442366787d452da22d36719272d4eb79dc1afde
+delivery_recorded_at: '2026-09-08T00:13:01.265Z'
 archived: false
 created: '2026-09-03T16:29:07.376Z'
-updated: '2026-09-08T00:10:39.568Z'
+updated: '2026-09-08T00:13:01.265Z'
 ---
 
 ## What
@@ -103,3 +108,7 @@ which still describes a staff-confirmation waiver that no longer exists.
 - [ ] `/Cases/Create` renders no confirmation checkbox.
 - [ ] Migration ships with grants; `./scripts/Test-MigrationGrants.ps1` passes.
 - [ ] Full filtered `dotnet test` green.
+
+## Outcome
+
+Completed and accepted on dev through [PR688](https://github.com/collisionengineers/pegasus/pull/688), merge d442366787d452da22d36719272d4eb79dc1afde (2026-09-07T23:59:10Z). Independent review318c3bd04afeb794 and root's exact-merge PASS3549238d2498d1db prove removal of the obsolete staff-review flags/controls/columns while factual completeness and real authorization/replay/history remain. The historical Verification list above is refined by approved plan9c7d2ec687171469: standalone Audit attribution and explicit historical/absence fixtures remain; focused existing tests replace repeated full suites before the final converged release gate. Root merged verification passed restore/build, Core24, Integration36, fresh snapshots2, catalogue60/67/0 and grants102. Original missing-capture failure remains recorded. Five hash-checked TRXs are retained in ignored pegasus_pack/current/proofs/PLAT-072/. No production migration/deployment or manual visual claim. [[CASE-049]] separately owns native handoff/access; no other implementation scope was absorbed.

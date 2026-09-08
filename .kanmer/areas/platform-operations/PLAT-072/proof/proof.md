@@ -117,3 +117,25 @@ Root has read this whole proof and accepts ordinary Done on dev. Preserve
 both merged TRXs plus all three author TRXs with hash checks under ignored
 pegasus_pack/current/proofs/PLAT-072 before cleaning only this ticket's verified
 worktrees/branch, then release its claim last.
+
+## Retained closeout evidence
+
+[PR688](https://github.com/collisionengineers/pegasus/pull/688) merged to dev
+at 2026-09-07T23:59:10Z as d442366787d452da22d36719272d4eb79dc1afde.
+All 65 author-changed paths compare identically at the merge (git diff exit 0);
+this is not a claim of whole-tree equality. The merge is reachable from
+origin/dev. Independent review318c3bd04afeb794 and root's complete PASS proof
+3549238d2498d1db remain preserved above and in version history.
+
+Before cleanup, all five TRXs were copied with source and destination SHA256
+checks to ignored pegasus_pack/current/proofs/PLAT-072/:
+
+- plat-072-core.trx — 0953D97040D7340F01A3139A5F742CAD52DC2CC381B18C0C54E744D03D67BBB0
+- plat-072-integration.trx — 15EF71924555698EF79B51BCE1E16EC0FA135E8C897696036B3E71B0F68A1E65
+- plat-072-review-capture.trx — 007BF5269FB3E1A880B4EB9A96CA056BAFAA3FECFDCA82849FD9827637167FA0
+- plat-072-merged-core.trx — 49D661C1A3FDE365CA2FC35A837460BDF0BF179F32C181D66D6BC913B2C2E7ED
+- plat-072-merged-integration.trx — 1D50C815EBA1CBBFCE40D6A225FF9D27907D4B5256E5AB0A7BC1702C71753725
+
+The two original worktree paths describe where evidence executed; retained
+copies above remain available after their validated cleanup. Integrated/dev,
+not deployed. No verification result or prior failed attempt is changed.
