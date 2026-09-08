@@ -1,11 +1,13 @@
 ---
 id: INTK-066
 type: ticket
-title: Resolve conflicting ambiguous-upload decision contract
-status: backlog
+title: Confirm viable Case destinations directly from manual upload
+status: preparing
 area: intake-processing
 assignee: ''
-profile: capture
+profile: feature
+stageEntered:
+  preparing: '2026-09-08T17:32:00.155Z'
 labels: []
 links:
   - DELIV-056
@@ -19,9 +21,12 @@ capture_evidence:
   - tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs
   - tests/Pegasus.IntegrationTests/Browser/UploadCaseSearchBrowserTests.cs
 capture_actor: codex-mcp-client
+capture_disposition: promoted
+capture_decided_at: '2026-09-08T17:31:49.444Z'
+capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T15:28:34.215Z'
+updated: '2026-09-08T17:32:00.155Z'
 ---
 
 ## Observation
@@ -32,10 +37,10 @@ The two existing manual-instruction tests use generic body-only QDOS email. Curr
 
 Failures: UploadConfirmationWebTests.AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely and Browser.UploadCaseSearchBrowserTests.CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision. Same browser failure existed on prior dev run34235294697 at6509746913eda16d2c4440add20e7f6793500f0b. D56 scratch/investigation contains the retained evidence and source routing details. No D56 production-path fix or browser edit is authorized.
 
-## Decision required
+## Operator decision — 8 September 2026
 
-Operator must select the intended workflow: resolve competing matches through Unidentified and align obsolete upload clauses/tests, or offer direct Case selection in upload confirmation and implement the currently missing route with its authority/replay guards. Root asked this as a nonblocking question on8September2026. No answer yet. This capture does not choose the outcome or authorize implementation.
+Implement the upload-screen workflow: staff choose the destination directly after uploading, where a viable Case exists, and may search for a Case. Surface only viable choices; if only one is available, show only that option. Explicit confirmation is still mandatory even for a single match because this is manual upload, not direct attachment from a Case. Include permissions, locking, reasons, error handling and safe retries. Update the conflicting FRD clauses and affected production callers/tests coherently. This authorizes bounded repository implementation, not deployment or live data mutations.
 
 ## Scope boundary
 
-[[INTK-010]] and [[INTK-016]] are completed historical upload owners, not active correction tickets. Current board search found no active exact owner. Preserve their history. The whole root-cause class belongs together; it is not part of [[DELIV-056]]'s formal-evidence fixture-only correction. After decision, promote/plan this record using the consequence-appropriate profile, preserving keyboard accessibility, search, destination, lease/version/reason and replay assertions. No source change, live write, branch or worktree has been created.
+[[INTK-010]] and [[INTK-016]] are completed historical upload owners, not active correction tickets. Current board search found no active exact owner. Preserve their history. The whole root-cause class belongs together; it is not part of [[DELIV-056]]'s formal-evidence fixture-only correction. Use the feature profile for the missing confirmation route and permission/concurrency consequences. Preserve keyboard accessibility, search, destination, lease/version/reason and replay assertions. Do not expand into unrelated email allocation, upload caps or public sessions.
