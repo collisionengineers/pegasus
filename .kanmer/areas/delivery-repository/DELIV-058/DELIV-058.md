@@ -34,13 +34,17 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 commits:
-  - 71c1bc1266583459d40b82c3d19d59af632afa7d
+  - 0a6ccca799eb670825e60b614cf24b846cdf4572
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/708'
 deployment: n/a
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 0a6ccca799eb670825e60b614cf24b846cdf4572
+delivery_recorded_at: '2026-09-08T16:01:36.460Z'
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T15:59:59.620Z'
+updated: '2026-09-08T16:01:36.460Z'
 ---
 
 ## What
@@ -57,6 +61,21 @@ Two existing architecture-test files only after research and plan: preserve a me
 
 ## Verification
 
-Sole host verifier: affected locked restore/build then the two focused architecture tests and existing full architecture project (116 tests), with no parallel host test/build activity. Preserve the observed CI failures and truthful changed-SHA evidence. Independent review and exact-merge proof required. This is corrective-plan D2 CI reconciliation, not permission to expand the released feature scope.
+Sole host verifier completed locked restore/build, both focused architecture tests, and full architecture project verification (116 tests), with no parallel host test/build activity. Original CI failures and changed-SHA evidence remain retained. Independent review and exact-merge proof passed. This is corrective-plan D2 CI reconciliation, not permission to expand the released feature scope.
 
 ## Outcome
+
+PR #708 squash-merged into `dev` as
+`0a6ccca799eb670825e60b614cf24b846cdf4572`. The author commit
+`71c1bc1266583459d40b82c3d19d59af632afa7d` remains provenance; the merged
+SHA is the reachable integration record. Schema-2 proof records four
+exact-merge PASS attempts: locked restore, zero-warning/error Release build,
+both focused architecture tests, and the full 116-test architecture project.
+
+The original two architecture failures and optional pre-merge CI failures
+remain in research/review/scratch history and were not relabelled or erased.
+Both pre-merge TRXs were retained outside the disposable worktree with matching
+SHA-256 values; the exact-merge TRXs are likewise retained in
+`artifacts/verification/deliv-058-0a6ccca799eb670825e60b614cf24b846cdf4572/`.
+This is non-deployable architecture-test correction (`n/a`): no deployment,
+release-candidate promotion, or main update occurred.

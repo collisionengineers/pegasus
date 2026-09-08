@@ -68,3 +68,31 @@ The other five named methods passed, including the newly added `SendToAiIntegrat
 Postcheck at `2026-09-08T15:52:41.5384930Z` retained the exact ten-file status, clean diff check, and exact binary-diff hash. Only three idle reusable MSBuild node processes remained; no testhost/vstest or active verification command remained.
 
 Disposition: **FAIL**. Per the stop rule there was no retry, source fix, broad rerun, browser command, commit, push, PR, merge, proof, stage move, release, deployment, or cleanup.
+
+## Audit acceptance-version delta — PASS — 2026-09-08
+
+Verifier: `/root/agent_config_verifier`
+Worktree/branch: `.worktrees/deliv-056` / `DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence`
+HEAD: `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`
+Plan/checklist: `0b0fcbe6c75216b6` / `ee299342275d936e`
+
+The broad 269/7-fail, exact-six 4-pass/2-fail, and exact-seven 5-pass/2-fail attempts remain retained. This delta reran only the two methods changed after the exact-seven attempt; the other five stable passes remain bound to prior full-diff hash `bfa477f890e1da5fb570c0bdecfd0825459a3f7c`.
+
+At `2026-09-08T15:59:15.4963593Z`, `dotnet build-server shutdown` exited 0 and left no scoped process. Preflight at `2026-09-08T15:59:32.2936366Z` confirmed the same branch/HEAD and ten test files, `git diff --check` exit 0 with LF→CRLF advisories only, no dependency/build-input delta, no competing process, and exact full binary-diff Git object hash `bdbe80e82a6569a4a79ee57f44998f98f679eef2` (294 insertions, 108 deletions). Static inspection found exactly two `expectedVersion: evidence.ReceiptVersion` arguments, at the two authorized Audit call sites.
+
+### Commands
+
+1. `dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore`
+   - attempted_at: `2026-09-08T15:59:40.4613296Z`
+   - exit_code: **0**
+   - result: build succeeded; 0 warnings, 0 errors.
+2. `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "(FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments)" --logger "trx;LogFileName=deliv-056-audit-version-host-20260908-1600.trx" --results-directory artifacts/verification`
+   - attempted_at: `2026-09-08T16:00:36.0218425Z`
+   - exit_code: **0**
+   - result: 2 passed, 0 failed, 0 skipped.
+   - TRX: `artifacts/verification/deliv-056-audit-version-host-20260908-1600.trx`
+   - TRX SHA-256: `A44267FEB86853AEBD7039F53D2231B10CD51C86211476075DAA7957830B69D7`.
+
+Postcheck at `2026-09-08T16:01:33.0263207Z` retained the exact ten-file status, clean diff check, and full binary-diff hash. Only three idle reusable MSBuild nodes remained; no testhost/vstest or active verification command remained.
+
+Disposition: **PASS** for the two-method expected-version delta. Together with the five unchanged-source passes from the immediately prior exact-seven run, every named D56 correction method now has focused passing evidence at its applicable frozen diff. This is not a broad-suite PASS and does not erase any earlier failure. No additional test, source mutation, retry, proof, stage move, commit, push, PR, merge, cleanup, release, deployment, or ENG check occurred.
