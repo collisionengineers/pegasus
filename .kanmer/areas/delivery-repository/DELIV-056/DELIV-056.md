@@ -13,13 +13,13 @@ taken_at: '2026-09-08T13:35:14.533Z'
 branch: >-
   DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence
 worktree: .worktrees/deliv-056
-claim_expires_at: '2026-09-08T14:16:35.697Z'
+claim_expires_at: '2026-09-08T15:52:42.608Z'
 claim_controller: codex-mcp-client
 lease_id: 4d01dfe4-c699-4761-b0e9-aef9f082f519
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-056'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T13:46:35.697Z'
+lease_heartbeat_at: '2026-09-08T15:22:42.608Z'
 labels:
   - regression
   - test-fixtures
@@ -30,7 +30,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-09-08T13:28:13.915Z'
-updated: '2026-09-08T13:46:35.697Z'
+updated: '2026-09-08T15:22:42.608Z'
 ---
 
 ## What
