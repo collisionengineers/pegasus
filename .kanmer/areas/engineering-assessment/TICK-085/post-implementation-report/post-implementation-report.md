@@ -6,8 +6,9 @@ Local integration milestone passed on 2026-09-08; source frozen for publication
 and independent review. Four readable originals and canonical callers passed;
 genuine fifth OCR/full-row and exact-merge acceptance remain outstanding.
 Branch TICK-085-glass-pdf-import; worktree .worktrees/tick-085.
-HEAD/base cdaa02584c38ecc27d3bd24784f59da189138bc1.
-No author build, test, capture, commit, PR, provider or cloud call.
+Base cdaa02584c38ecc27d3bd24784f59da189138bc1.
+Exact published author head 1fb0a7a1d907e6a82a586ea8ba14d4a9c58d75b4.
+No author build, test, capture, provider or cloud call. Publication is recorded below.
 Plan 94560a72b43c9aad; files 53c037ca57c47e28, both read back.
 29 source/doc/test paths: 26 modified, 3 added. Three scoped UI snapshots and
 index were regenerated; all four generated blobs are unchanged against HEAD.
@@ -382,3 +383,11 @@ synthetic fifth result, all-five/provider PASS, Done or final v1 claim.
 Publication does not change the technical contract, source evidence threshold,
 Draft/Engineer acceptance rule or final five-document acceptance. All prior
 failed attempts above are retained. No author build/test/capture/cloud call.
+
+## Published source identity
+
+Author commit 1fb0a7a1d907e6a82a586ea8ba14d4a9c58d75b4 was committed and
+pushed normally on TICK-085-glass-pdf-import, with [skip ci] explicitly
+approved by root. Diff: 29 files, +1692/-464. The scoped staged diff check
+passed exit 0, and the worktree is clean. This is an author head, not an
+integrated/delivered SHA; independent review and merge are still required.
