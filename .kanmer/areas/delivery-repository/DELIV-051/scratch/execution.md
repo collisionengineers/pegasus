@@ -13,3 +13,5 @@ Handoff: PR https://github.com/collisionengineers/pegasus/pull/702, head d1854b4
 - 2026-09-08T08:53:07.570Z stage review → implementing by codex-mcp-client; reason: operator: Explicitly reopen DELIV-051 and expand it to a full repository documentation/context revamp, preserve and push operator worktree changes, ensure tests pass and avoid duplication/competition with Kanmer.; review_round 1
 
 - 2026-09-08T12:15:14.739Z lease-phase implementing → review (lease 4f76801a-7137-4e01-aa89-a8454709c1fc rev 7; expires 2026-09-08T12:45:14.731Z)
+
+- 2026-09-08T12:17:03.099Z stage review → implementing by codex-mcp-client; reason: operator: The current explicit instruction is to fully implement the documentation plan, then review and update PR 702. Correct the independent review's in-scope F-001–F-003 in one batch; this is the first review remediation of the newly expanded scope.; review_round 2; remediation_budget 2
