@@ -6,9 +6,9 @@ scope: list
 scope_selector: UIIMP-017
 group: EPIC-014
 controller: codex-v1-remediation-root
-status: running
+status: complete
 created_at: 2026-09-08T00:39:38Z
-updated_at: 2026-09-08T02:32:00Z
+updated_at: 2026-09-08T02:58:37Z
 ---
 
 # Supplemental Health correction run
@@ -19,7 +19,7 @@ Target: dev PR, exact integrated acceptance, closeout; release separately.
 
 | Ticket | Stage | Next | Disposition |
 | --- | --- | --- | --- |
-| UIIMP-017 | Implementing | Source verified; author publishing bounded dev PR for independent review | active |
+| UIIMP-017 | Done | Complete; deployment remains in root release | complete |
 
 Source19e6f523; existing OfficeTime and Test UI state selector, no new framework.
 Historical UIIMP005 claim/evidence are preserved. Root is sole heavy verifier.
@@ -36,4 +36,18 @@ two actual/selector testsPASS36s, scoped update3PASS, verify3PASS and catalogue
 and final80431E38A5D8BE48469ABA2009547ACAE659CC9200F7E20F9669010C886B9AF5
 remain separate. Root independently inspected exact generated timestamp and
 single index-entry substitutions; no layout, global formatter or manual visual
-claim. Independent review, integrated proof and closeout remain outstanding.
+claim. This author-stage record is historical; completion follows.
+
+## Exact integrated acceptance and closeout
+
+PR693 merged to dev cdaa02584c38ecc27d3bd24784f59da189138bc1 after root
+independent review906090e307646004. Exact merged root59242 locked restore,
+Integration project/dependency build115.55s0warnings, two testsPASS38s, fresh
+scoped snapshot verification3PASS and catalogue60/67/0 all exited0. No expected
+snapshot was updated during merged verification. Final proof6f1025eec26a391e
+retains initial failures and exact merged TRX CB1541AA91501F865AB59A74AD2FAEC0793765E6D7940D8D8D2A148F16D77CC0.
+All three TRXs and twelve captures remain hash-checked in
+pegasus_pack/current/proofs/UIIMP-017; manifest338698CD29A19C7CE645848B785B2CA02D06365AEE50497F0CCB90B263FE9554.
+Only its two named worktrees and exact local/remote branch were removed normally.
+Root read the whole accepted proof and closeout additions. Claim released LAST
+2026-09-08T02:50:48.373Z; index ownership is free. Integrated, not deployed.
