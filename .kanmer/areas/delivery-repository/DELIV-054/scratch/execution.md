@@ -53,3 +53,7 @@ pwsh -NoProfile -Command '$files = @("scripts/Build-ReleaseArtifacts.ps1", "scri
 This is a record-only correction of the earlier placeholder; the command was not rerun. Its recorded exit remained 0 with a `PARSE PASS` line for each of the three scripts.
 
 2026-09-08: Implementation commit `ca6ecb0253b0b5ed9884320e4883ceb9621829fe` pushed. Draft PR https://github.com/collisionengineers/pegasus/pull/703 targets `dev` at that exact head; ticket is handed to independent review.
+
+## Transitions
+
+- 2026-09-08T14:17:21.212Z lease-phase implementing → verifying (lease 2c3e2ccd-235a-47fa-b707-4b718c061e6a rev 3; expires 2026-09-08T14:47:21.139Z)

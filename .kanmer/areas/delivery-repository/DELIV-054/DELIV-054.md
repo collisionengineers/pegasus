@@ -13,13 +13,13 @@ stageEntered:
 taken_at: '2026-09-08T13:31:44.019Z'
 branch: DELIV-054-hidden-runtime-zips
 worktree: .worktrees/deliv-054
-claim_expires_at: '2026-09-08T14:14:37.179Z'
+claim_expires_at: '2026-09-08T14:47:21.139Z'
 claim_controller: codex-mcp-client
 lease_id: 2c3e2ccd-235a-47fa-b707-4b718c061e6a
-lease_revision: 2
+lease_revision: 3
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-054'
-lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T13:44:37.179Z'
+lease_phase: verifying
+lease_heartbeat_at: '2026-09-08T14:17:21.139Z'
 labels:
   - release
   - corrective
@@ -33,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/703'
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:58:49.526Z'
+updated: '2026-09-08T14:17:21.139Z'
 ---
 
 ## What
