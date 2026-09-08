@@ -19,11 +19,19 @@
 
 ## Closeout — DELIV-053
 
-- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
-- [ ] proof.md finalised (PR URL + merge date confirmed)
-- [ ] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-053`
-- [ ] `git branch -d DELIV-053-codex-agents` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date confirmed)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] cd out of worktree; `git worktree remove .worktrees/deliv-053`
+- [x] `git branch -D DELIV-053-codex-agents` (squash-merged)
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `git push origin --delete DELIV-053-codex-agents`
 - [ ] `take_ticket action: "release"`
+
+PR #704 merge and the complete schema-2 PASS proof were read before cleanup.
+The recorded implementation worktree was clean at
+`f9f9cc0a9a66da15306b49ffa34f1d5b253c524d` and then removed; local and
+remote feature branches were deleted. The canonical verifier host ledger at
+`scratch/verify` was preserved for D56. Existing unrelated dirty
+source-worktree changes were left untouched.
