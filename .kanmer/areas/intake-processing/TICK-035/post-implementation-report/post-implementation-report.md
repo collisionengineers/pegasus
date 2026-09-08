@@ -2,6 +2,14 @@
 
 ## Status and source
 
+Current state: remediation round1 for sole open review finding F-003.
+The earlier frozen source passed the recorded focused runtime checks, but
+independent exact-head review29da3f33c888cb13 correctly found a missing
+non-QDOS selected-profile guard before matching. That PASS does not close the
+finding. The authorized two-file correction is now source-frozen; root's
+focused rerun and same-PR delta review remain pending. All previous failures,
+passes and fixed F-001/F-002 findings are preserved below.
+
 Root-owned final focused verification PASS on the frozen TICK-035 source:
 Release build, affected10 Core structural checks, genuine ALS caller and two
 receipt-provenance roundtrips all passed. Earlier focused passes and failures
@@ -594,3 +602,57 @@ GitHub exact head/base and clean local status were read back. Ticket prs/commits
 are recorded. Checklist is complete and fresh gates precede Review. Root assigns
 pack_reconcile as sole independent exact-head reviewer. The author stops here:
 no self-review, merge, proof, deployment, cleanup or next ticket execution.
+
+
+## Remediation round 1 — F-003 source-frozen
+
+Review29da3f33c888cb13/public5136452778 returned the same PR692 to
+Implementing. Root settled the sole Major F-003: accepted sender plus typed
+keys is insufficient for non-QDOS automatic email matching without an agreeing
+selected current instruction profile. F-001/F-002 remain fixed and were not
+reopened. Plan7a28b8ab58ed1ca2 and filesa37303dd2d9f8f1f preceded source edits.
+
+ProcessIntake reuses its existing extractionPolicy result as the match gate
+instead of only conflictingProfile. That result already requires selected
+agreement for non-QDOS and preserves QDOS's no-competing-profile fallback.
+The separate declared Provider API branch remains untouched. One production
+line changed; no new grammar, policy, matcher or configuration.
+
+The existing genuine ALS theory still creates one real Case and uniquely
+associates its second occurrence with original source/typed facts/readiness/
+provenance/replay checks. It now adds a labelled structural reader-result
+negative over the same immutable original: remove only Vehicle Model: profile
+signal, assert selector NotApplicable, and independently show that the existing
+typed matcher would still return UniqueMatch to that actual Case with exact
+claim160754 and VRMK40NLY. A four-line test source-reader port returns that
+already-decoded probe; its ReaderKey identifies it as structural, not a fresh
+genuine envelope/read. The existing queue fixture takes its ProcessIntake
+dependency explicitly (three original callers unchanged, one probe caller).
+No separate fixture/host, source file or fabricated email was added.
+
+The probe uses ReceiveIntake, real durable work/evaluation, ProcessIntake and
+existing SQL association/allocation callers, then duplicate replay. It requires
+Accepted ALS route, NeedsSorting, no instruction draft, no recorded match,
+no current Case, no allocation, no source-to-Case/manual association rows, and
+exactly the one original Case. This proves refusal despite a real unique target,
+not merely empty fake candidates. The original selected-positive remains in
+the same ALS case and was not relaxed.
+
+Root alone runs:
+- Core ProcessIntakeTests.AConflictingSelectedPrincipalCannotExtractClassifyOrAssociate
+  and AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage;
+  the latter keeps QDOS body-only matching with no selected document profile.
+- Integration ALS theory case and
+  ProviderApiSubmissionTests.ASubmissionMatchingAnExistingCaseIsRejectedWithoutMutationOrDuplicateAllocation
+  (its first declared submission creates the Case, the matching next is refused).
+No repeat of unrelated cohorts/Settings capture; no author builds/tests.
+git diff --check exit0 and static constructor/property checks only.
+Source remains006b556ff plus exactly ProcessIntake.cs and
+QdosAllocationRecoveryTests.cs. No commit/push until root results; same PR692
+and pack_reconcile delta review afterward.
+
+Only docs/design/test-ui/index.html is explicitly relinquished to root's
+UIIMP-017 conditional generation in the amended plan/files. TICK-035 will not
+edit/regenerate the index, Settings snapshots or other UI in this remediation.
+Prior byte-identical Settings capture/verify/catalogue evidence is retained.
+Ticket branch/worktree/lease ownership is unchanged.
