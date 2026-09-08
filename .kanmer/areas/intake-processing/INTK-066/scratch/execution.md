@@ -94,3 +94,13 @@ Build summary: **FAILED**, 10 warnings, 2 errors, elapsed 00:00:20.41. This is a
 Per the explicit stop-first-failure/no-retry/foreign-process boundary, PID 28988 and the other retained nodes were not terminated or touched, and the build was not retried. Core tests, focused non-browser SQL tests, and conditional UploadCaseSearch browser tests are **NOT RUN** at this head. No source fix, generated snapshot update, SQL fixture, browser, cloud, Outlook, Box, commit, push or PR action occurred.
 
 Postcheck at `2026-09-08T19:14:19.3647373Z` exited 0: exact HEAD/branch remained clean and the same six reusable MSBuild nodes remained; no testhost or vstest process existed. A fresh bounded disposition is required before any build-node shutdown or retry.
+
+- 2026-09-08T19:15:35.973Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 11; expires 2026-09-08T19:45:35.963Z)
+
+- 2026-09-08T19:16:13.753Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 12; expires 2026-09-08T20:16:13.739Z)
+
+## Bounded owned-build-node cleanup and same-head retry — INTK-066
+
+Root reread canonical IDLE9e279838e3fd70d9. Root CIM read confirms six retained PIDs3348,4780,6368,13584,24076,28988 are MSBuild.dll /nodemode:1 /nodeReuse:true under ProgramFiles/dotnet, parent30332, created2026-09-08T19:06:23.558–.562Z during first granted build. These are our completed build's reusable nodes, not foreign work. Sole owner /root/agent_config_verifier now ACTIVE at unchanged clean HEADc57d8487cd343321a07abb68c161bd7d9a00aa27.
+
+Recheck exact PID start-time/executable/commandline identities before acting; stop only those six still matching owned nodes using native PowerShell Stop-Process -Id, never broad process-name termination. Record targets and successful absence; a mismatch or foreign active verifier stops. Then retry SAME original dotnet build Pegasus.slnx once and continue existing initial Core/nonbrowserSQL/browser queue only after PASS. Keep c57 lockfailure and26bfcompilefailure. No source changes or changes to test assertions/filters. The build command stays original; no speculative flags required. All other existing grant boundaries hold, including no automatic second retry/source/snapshot/live/PR/push, firstgenuinefailurestop and explicit canonicalIDLE. Lease renewedrev12running-command60min. Bounded process cleanup is necessary recovery of the granted build's own resources, not permission to terminate other work.
