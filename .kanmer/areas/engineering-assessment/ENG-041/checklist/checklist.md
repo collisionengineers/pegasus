@@ -61,4 +61,4 @@ checklist completion claims. Stop for the independent reviewer.
 - [x] Remove only the three explicitly approved clean ENG-041 author/verification worktrees.
 - [x] Delete ENG-041-glass-recovery local/remote branch normally, without force.
 - [x] Fetch/prune and confirm no other worktree or claim was changed.
-- [ ] Release the ENG-041 claim last.
+- [x] Release the ENG-041 claim last (2026-09-08; after record, artifact and Git cleanup checks).
