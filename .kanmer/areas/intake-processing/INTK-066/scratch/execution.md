@@ -261,3 +261,13 @@ Joint local source slices reviewed by root:
 - Exclusive child fixture slice (not edited by the main author): `ImageIntakeWebTests.cs` and `ImageIntakePersistenceTests.cs`; root accepted its real Mailbox durable single/group setup and preserved automatic/replay/reversal/eligibility assertions.
 
 Root reviewed the complete seven-file joint diff. `git diff --check` passed (only line-ending warnings). Static-only authorization: no host check, build, test, push, or PR was run. Local commit authorized; freeze resulting exact head for independent verification.
+
+- 2026-09-08T19:53:04.243Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 22; expires 2026-09-08T20:53:04.232Z)
+
+## Sole host re-grant — INTK-066 focused integration correction
+
+Root read canonical IDLE c8b61ca457a80335, ready resumed packet, reviewed both exclusive seven-file correction slices, and confirmed actual clean HEAD cca2c76cb9d4acc19e68a1a776719d5dc701f8d3 in unchanged .worktrees/INTK-066 / INTK-066-manual-upload-confirmation. Prior cc826 build/Core passes and15 focused failures remain retained with concrete dispositions. Both authors idle. Sole verifier /root/agent_config_verifier ACTIVE; lease renewed running-command60min.
+
+Run original build, then Core --no-build, then exact focused nonbrowser Integration queue with one necessary affected-caller addition: (FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~ImageIntake|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~MailWorkspaceWebTests|FullyQualifiedName~TriageQueuesWebTests.AwaitingAttach)&Category!=Browser. This explicitly includes the changed blank-reason caller test rather than relying on method-name ImageIntake substring. Only after all pass, run Category=Browser&FullyQualifiedName~UploadCaseSearchBrowserTests with xUnit.MaxParallelThreads=1 and documented browser setup. Preserve all failures; no weakening or source/snapshot changes; first genuine failure stops remainder/no autonomous retry.
+
+Fresh process census required; prior final census was empty. Exact invocation-owned reusable MSBuild nodes may be recorded and stopped after their parent build exits using PID/start/parent/expected command validation, as preceding grant; no foreign/name-based termination. Local disposable SQL only, no live/cloud/Outlook/Box/push/PR. Record commands/exits and explicit canonical IDLE on completion/stop. Later remaining full cohorts, responsive and four-scope snapshot obligations are not waived.
