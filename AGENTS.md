@@ -152,6 +152,8 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
 
 [The index](docs/index.md) owns documentation placement, formatting and routing.
 Use task-relevant owners rather than reading every document or copying rules.
+Current Markdown additions and renames use the index-routed canonical location
+and must pass the base..head `scripts/Test-MarkdownPlacement.ps1` placement gate.
 Kanmer owns stages, claims, gates, review, proof and current work allocation.
 Active task grants and the host verifier belong to the owning execution context;
 their expiry and exact targets are not permanent repository permissions.

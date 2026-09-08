@@ -7,6 +7,11 @@ principal, historical-row dispositions, typed supporting identities, source
 hashes, evidence groups, review states, and explicit gaps. It is review data,
 not a runtime rule engine.
 
+The v1 corpus retains the historical QDOS review baseline, including its v5
+evaluation, while its source snapshots identify the current Core policy bytes
+and references. Refreshing those current-source links neither reclassifies the
+historical evaluation nor activates a runtime policy.
+
 These documents are **descriptive companions**, not behaviour owners. The
 binding behaviour stays with the owning FRDs, ADRs, and Core policy code they
 cite; if a document here disagrees with the cited owner, the owner wins and

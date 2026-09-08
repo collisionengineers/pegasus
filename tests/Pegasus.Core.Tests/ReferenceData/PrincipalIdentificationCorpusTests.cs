@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.ReferenceData;
 
@@ -32,6 +33,15 @@ public sealed class PrincipalIdentificationCorpusTests
 
     private static readonly string[] DocumentProfileCandidateCodes =
         ["ACSP", "ALISON", "ALS", "AMS", "BC", "KERR", "KMR", "SBL", "SWAN", "TEN", "YML"];
+
+    private static readonly (string Id, string RelativePath)[] ExpectedCurrentPolicySnapshots =
+    [
+        (SnapshotId(PrincipalMailRoutePolicy.Key, PrincipalMailRoutePolicy.Version), "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
+        (SnapshotId(PrincipalMailClassificationPolicy.Key, PrincipalMailClassificationPolicy.Version), "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs"),
+        (SnapshotId(PrincipalCaseMatchPolicy.Key, PrincipalCaseMatchPolicy.Version), "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
+        (SnapshotId("qdos-extraction-policy", QdosInstructionExtractionPolicy.Version), "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs"),
+        ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
+    ];
 
     [Fact]
     public void CorpusHasCompleteFailClosedPrincipalCoverage()
@@ -237,12 +247,12 @@ public sealed class PrincipalIdentificationCorpusTests
         Assert.Equal(ExpectedQdosDomains, domains);
         Assert.All(qdos.GetProperty("directSenderIdentities").EnumerateArray(), identity =>
             Assert.Contains(
-                "qdos-route-policy-v4",
+                "principal-mail-route-v1",
                 identity.GetProperty("evidenceRefs").EnumerateArray()
                     .Select(reference => reference.GetString())));
         Assert.All(qdos.GetProperty("extractionLabels").EnumerateArray(), label =>
             Assert.Contains(
-                "qdos-extraction-policy-v7",
+                "qdos-extraction-policy-v8",
                 label.GetProperty("evidenceRefs").EnumerateArray()
                     .Select(reference => reference.GetString())));
 
@@ -299,6 +309,23 @@ public sealed class PrincipalIdentificationCorpusTests
             .ToArray();
 
         Assert.NotEmpty(snapshots);
+        var policySnapshots = snapshots
+            .Where(item => item.GetProperty("relativePath").GetString()!.StartsWith(
+                "src/Pegasus.Core/Intake/",
+                StringComparison.Ordinal))
+            .OrderBy(item => item.GetProperty("id").GetString(), StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(
+            ExpectedCurrentPolicySnapshots
+                .OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => item.Id),
+            policySnapshots.Select(item => item.GetProperty("id").GetString()));
+        Assert.Equal(
+            ExpectedCurrentPolicySnapshots
+                .OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => item.RelativePath),
+            policySnapshots.Select(item => item.GetProperty("relativePath").GetString()));
+
         foreach (var source in snapshots)
         {
             var relativePath = source.GetProperty("relativePath").GetString()!;
@@ -315,6 +342,7 @@ public sealed class PrincipalIdentificationCorpusTests
             {
                 Assert.Equal("raw-bytes", hashMode);
             }
+            Assert.Equal(bytes.Length, source.GetProperty("bytes").GetInt32());
             Assert.Equal(
                 source.GetProperty("sha256").GetString(),
                 Convert.ToHexStringLower(SHA256.HashData(bytes)));
@@ -331,6 +359,9 @@ public sealed class PrincipalIdentificationCorpusTests
             Assert.Equal(JsonValueKind.Array, row.GetProperty("principalCodes").ValueKind);
         }
     }
+
+    private static string SnapshotId(string policyKey, int version) =>
+        $"{policyKey.Replace('_', '-')}-v{version}";
 
     private static void Visit(JsonElement element, Action<string, JsonElement> visitor)
     {

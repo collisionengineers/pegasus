@@ -28,7 +28,7 @@ function Test-AllowedMarkdownPath {
     param([Parameter(Mandatory)][string] $Path)
 
     $normalized = $Path.Replace('\', '/') -replace '^\./', ''
-    return $normalized -match '^((docs/(prd|frd|adr|design|engineering|external-component-documents|docs-review-temp))|workspaces/document-extraction|\.agents/skills|\.design-sync|\.stitch|design/planning-and-old-designs)/.+\.md$'
+    return $normalized -match '^((docs/(prd|frd|adr|design|engineering|external-component-documents|docs-review-temp|principal-profiles))|workspaces/document-extraction|\.agents/skills|\.design-sync|\.stitch|design/planning-and-old-designs)/.+\.md$'
 }
 
 $resolvedRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
