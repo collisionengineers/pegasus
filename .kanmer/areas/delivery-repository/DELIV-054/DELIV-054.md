@@ -2,12 +2,22 @@
 id: DELIV-054
 type: ticket
 title: Include hidden runtime directories in release ZIPs
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:27:02.890Z'
+taken_at: '2026-09-08T13:31:44.019Z'
+branch: DELIV-054-hidden-runtime-zips
+worktree: .worktrees/deliv-054
+claim_expires_at: '2026-09-08T14:01:44.019Z'
+claim_controller: codex-mcp-client
+lease_id: 2c3e2ccd-235a-47fa-b707-4b718c061e6a
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-054'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T13:31:44.019Z'
 labels:
   - release
   - corrective
@@ -17,7 +27,7 @@ refs:
   - docs/adr/0039-windows-and-linux-release-workstations.md
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:27:02.890Z'
+updated: '2026-09-08T13:31:44.019Z'
 ---
 
 ## What
