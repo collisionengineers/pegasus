@@ -108,6 +108,7 @@ try {
         'docs/engineering/configuration.md',
         'docs/external-component-documents/vendor/contract.md',
         'docs/docs-review-temp/review.md',
+        'docs/principal-profiles/README.md',
         '.stitch/DESIGN.md',
         'design/planning-and-old-designs/new.md',
         'workspaces/document-extraction/docs/new.md'
