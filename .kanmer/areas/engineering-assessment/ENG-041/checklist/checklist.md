@@ -51,3 +51,14 @@ snapshot verification2 PASS, catalogue60/67/0. Attempt1's failure is retained.
 PR691 is open against dev; author tree is clean and claim remains retained.
 Independent exact-head review and later exact-merge proof are not author
 checklist completion claims. Stop for the independent reviewer.
+
+## Closeout — ENG-041
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`).
+- [ ] Final PASS proof retains PR URLs, merge dates and every relevant TRX with verified retained hashes.
+- [x] Verified-success terminal stage is Done, not archived.
+- [ ] Outcome and integrated-dev traceability recorded; no deployment claimed.
+- [ ] Remove only the three explicitly approved clean ENG-041 author/verification worktrees.
+- [ ] Delete ENG-041-glass-recovery local/remote branch normally, without force.
+- [ ] Fetch/prune and confirm no other worktree or claim was changed.
+- [ ] Release the ENG-041 claim last.
