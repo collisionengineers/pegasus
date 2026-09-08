@@ -805,7 +805,7 @@ public sealed class ProcessIntake(
             instructionSelection.InstructionContent);
         var caseMatchDecision = await caseMatchEvaluator.ExecuteAsync(
             instructionRead,
-            conflictingProfile ? null : mailRouteDecision,
+            extractionPolicy is null ? null : mailRouteDecision,
             cancellationToken);
         if (principalContext is null)
         {

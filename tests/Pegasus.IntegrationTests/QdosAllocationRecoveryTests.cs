@@ -58,6 +58,7 @@ public sealed class QdosAllocationRecoveryTests
         var artifacts = services.GetRequiredService<IIntakeArtifactStore>();
         var receiver = new ReceiveIntake(artifacts, workStore, clock, new CommittedWorkPublisherDouble());
         var processor = CreateMailAssociationProcessor(services, workStore, artifacts,
+            services.GetRequiredService<ProcessIntake>(),
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
             services.GetRequiredService<IAllocateIntake>(), clock,
             services.GetRequiredService<AssociateRetainedMailWithCase>());
@@ -258,7 +259,71 @@ public sealed class QdosAllocationRecoveryTests
                 Assert.Equal(4, candidate.Locator.Row);
                 Assert.Equal(2, candidate.Locator.Column);
             });
+
+            // A structural reader-result probe over the same immutable ALS
+            // original, not a second genuine envelope. Its unique typed keys
+            // survive, but removing a required signal makes it no profile.
+            var noProfile = read with
+            {
+                ReaderKey = "structural-profile-signal-probe",
+                Content = read.Content.Select(fragment => fragment with
+                {
+                    Text = fragment.Text.Replace("Vehicle Model:", "", StringComparison.OrdinalIgnoreCase)
+                }).ToArray()
+            };
+            Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable,
+                services.GetRequiredService<InstructionExtractionPolicySelector>()
+                    .Select(noProfile, InstructionDocumentSignature.InstructionRole).Outcome);
+            var route = services.GetRequiredService<IMailRoutePolicy>().Evaluate(noProfile);
+            var otherwiseUnique = Assert.IsType<CaseMatchEvaluationResult>(await services
+                .GetRequiredService<EvaluateIntakeCaseMatch>().ExecuteAsync(noProfile, route, CancellationToken.None));
+            Assert.Equal(CaseMatchOutcome.UniqueMatch, otherwiseUnique.Outcome);
+            Assert.Equal(firstCase, otherwiseUnique.MatchedCaseId);
+            Assert.Equal("160754", otherwiseUnique.Keys.DurableClaimToken);
+            Assert.Equal("K40NLY", otherwiseUnique.Keys.NormalizedVrm);
+
+            var guardedProcess = ActivatorUtilities.CreateInstance<ProcessIntake>(
+                services, new FixedSourceReader(noProfile));
+            var guardedQueue = CreateMailAssociationProcessor(services, workStore, artifacts,
+                guardedProcess, services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+                services.GetRequiredService<IAllocateIntake>(), clock,
+                services.GetRequiredService<AssociateRetainedMailWithCase>());
+            var staged = await receiver.ExecuteAsync(source with
+            {
+                SourceIdentity = new(IntakeSourceChannel.Mailbox, $"structural-profile-probe:{Guid.NewGuid():N}")
+            }, $"structural-profile-probe:{Guid.NewGuid():N}");
+            var pending = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+                staged.StagedReceiptId, clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None));
+            await workStore.MarkDispatchedAsync(pending.Id, pending.LeaseToken!, clock.GetUtcNow(), CancellationToken.None);
+            await guardedQueue.ExecuteAsync(staged.StagedReceiptId);
+            await guardedQueue.ExecuteAsync(staged.StagedReceiptId);
+            var guardedEvaluation = Assert.IsType<IntakeEvaluationRevision>(await workStore.GetCompletedEvaluationAsync(
+                staged.StagedReceiptId, CancellationToken.None));
+            var guardedReceipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(guardedEvaluation.ProcessedReceiptId, CancellationToken.None));
+            Assert.Equal("structural-profile-signal-probe", guardedReceipt.SourceReaderKey);
+            Assert.Equal(MailRouteDisposition.Accepted, guardedReceipt.MailRouteDecision?.Disposition);
+            Assert.Equal("ALS", guardedReceipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode);
+            Assert.Equal(IntakeDecision.NeedsSorting, guardedReceipt.Decision);
+            Assert.Null(guardedReceipt.CaseMatchDecision);
+            Assert.Null(guardedReceipt.InstructionDraft);
+            Assert.Null(guardedReceipt.CurrentCaseId);
+            Assert.Null(await services.GetRequiredService<IIntakeAllocationStore>()
+                .GetCurrentAsync(guardedReceipt.Id, CancellationToken.None));
+            Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+            await using var guardedContext = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            Assert.False(await guardedContext.IntakeManualAssociations
+                .AnyAsync(item => item.IntakeReceiptId == guardedReceipt.Id));
+            Assert.False(await guardedContext.CaseIntakeLinks
+                .AnyAsync(item => item.IntakeReceiptId == guardedReceipt.Id));
         }
+    }
+
+    private sealed class FixedSourceReader(IntakeSourceReadResult result) : IIntakeSourceReader
+    {
+        public Task<IntakeSourceReadResult> ReadAsync(IntakeSource source, CancellationToken cancellationToken) =>
+            Task.FromResult(result);
     }
 
     [Fact]
@@ -975,6 +1040,7 @@ public sealed class QdosAllocationRecoveryTests
                 services,
                 workStore,
                 artifactStore,
+                services.GetRequiredService<ProcessIntake>(),
                 new RecordingProviderAssociationStore(events),
                 new NoOpAllocateIntake(),
                 clock,
@@ -998,6 +1064,7 @@ public sealed class QdosAllocationRecoveryTests
             services,
             workStore,
             artifactStore,
+            services.GetRequiredService<ProcessIntake>(),
             new RecordingProviderAssociationStore(events),
             allocation,
             clock,
@@ -1031,6 +1098,7 @@ public sealed class QdosAllocationRecoveryTests
         IServiceProvider services,
         IIntakeWorkStore workStore,
         IIntakeArtifactStore artifactStore,
+        ProcessIntake processIntake,
         IAutomaticCaseAssociationStore providerAssociationStore,
         IAllocateIntake allocateIntake,
         TimeProvider clock,
@@ -1038,7 +1106,7 @@ public sealed class QdosAllocationRecoveryTests
         IImageIntakeAutomation? imageIntakeAutomation = null) => new(
             workStore,
             artifactStore,
-            services.GetRequiredService<ProcessIntake>(),
+            processIntake,
             services.GetRequiredService<IIntakeReceiptQueries>(),
             services.GetRequiredService<ICreateTriageFromIntake>(),
             providerAssociationStore,
