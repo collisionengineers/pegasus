@@ -96,3 +96,32 @@ At `2026-09-08T15:59:15.4963593Z`, `dotnet build-server shutdown` exited 0 and l
 Postcheck at `2026-09-08T16:01:33.0263207Z` retained the exact ten-file status, clean diff check, and full binary-diff hash. Only three idle reusable MSBuild nodes remained; no testhost/vstest or active verification command remained.
 
 Disposition: **PASS** for the two-method expected-version delta. Together with the five unchanged-source passes from the immediately prior exact-seven run, every named D56 correction method now has focused passing evidence at its applicable frozen diff. This is not a broad-suite PASS and does not erase any earlier failure. No additional test, source mutation, retry, proof, stage move, commit, push, PR, merge, cleanup, release, deployment, or ENG check occurred.
+
+## Exact-merge verification runtime — PASS — 2026-09-08
+
+Target: GitHub merge commit `71a2d27c8836a44b639762469ec950f1c8c82802`.
+Environment: `C:\Users\Alex\Documents\GitHub\pegasus\.worktrees\verify-deliv-056-71a2d27c8836a44b639762469ec950f1c8c82802`, Windows PowerShell 7 / .NET SDK 10.0.302.
+Receipt classification preceded Git: the declared `pr.yml` / `verify` / `push` exact-SHA lookup returned HTTP 404. Therefore every obligation was missing, no receipt was rejected, and this local fallback has `receipts: []`.
+
+Ordered setup/runtime:
+
+1. At 2026-09-08T16:42:45.6723370Z the canonical path was absent and the worktree census showed no ownership collision.
+2. 2026-09-08T16:42:54.7700768Z–2026-09-08T16:42:55.7814978Z — `git fetch origin`, exit 0; `origin/dev` advanced from `05995d325` to `71a2d27c8`.
+3. 2026-09-08T16:43:08.0913944Z–2026-09-08T16:43:09.9225609Z — `git worktree add --detach .worktrees/verify-deliv-056-71a2d27c8836a44b639762469ec950f1c8c82802 71a2d27c8836a44b639762469ec950f1c8c82802`, exit 0.
+4. 2026-09-08T16:43:25.7701119Z–2026-09-08T16:43:26.5499344Z — exact preflight PASS: `git rev-parse HEAD` returned target, `git symbolic-ref --short -q HEAD` exit 1/empty, `git status --short --branch` returned only `## HEAD (no branch)`, and scoped active process count was zero.
+5. 2026-09-08T16:43:38.7829907Z–2026-09-08T16:43:42.5012614Z — `dotnet restore ./Pegasus.slnx --locked-mode`, exit 0; all seven projects restored.
+6. 2026-09-08T16:43:53.7490572Z–2026-09-08T16:45:33.0254159Z — `dotnet build ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore`, exit 0: build succeeded, 0 warnings, 0 errors, elapsed 1m38.81s. Native session `92317` was retained through three polls and its final exit.
+7. 2026-09-08T16:45:58.4763047Z–2026-09-08T16:46:57.6223541Z — `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "(FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.ReevaluationRejectsRetainedSourceIdentityDriftBeforeReplacingTheReceipt|FullyQualifiedName=Pegasus.IntegrationTests.CustodyOutboxIntegrationTests.CancellationSqlFaultAndLeaseLossUseExactTaxonomyAndRequireStaffRecovery|FullyQualifiedName=Pegasus.IntegrationTests.InstructionDraftWebTests.IdenticalBytesWithDifferentTokensPersistDistinctSourceIdentitiesWithMatchingHashes|FullyQualifiedName=Pegasus.IntegrationTests.SendToAiIntegrationTests.InaccessibleCaseCannotPostSendToClaude)" --logger "trx;LogFileName=deliv-056-seven-71a2d27c8836a44b639762469ec950f1c8c82802.trx" --results-directory ./artifacts/verification`, exit 0: 7 passed, 0 failed, 0 skipped, duration 56s. Native session `19793` retained through final exit. TRX SHA-256: `C40AA13FD73EE29AD6F9B7FA43BA85F41796D7C4FD2FB9FA7473DF0BBB8A8811`.
+8. 2026-09-08T16:47:13.9778933Z–2026-09-08T16:47:50.8653936Z — `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName=Pegasus.IntegrationTests.TestUiFocusedRenderTests.HeldLeaseConfirmationClearsOnlyTheCurrentLeaseThroughRazor" --logger "trx;LogFileName=deliv-056-held-lease-71a2d27c8836a44b639762469ec950f1c8c82802.trx" --results-directory ./artifacts/verification`, exit 0: 1 passed, 0 failed, 0 skipped, duration 33s. Native session `51132` retained through final exit. TRX SHA-256: `B25E44CD0E5A186F49B1EA3ADC1980F0F2FB653DE6E8CC16D9E5C76C0CF7BB5B`.
+9. Postcheck 2026-09-08T16:48:07.6038821Z–2026-09-08T16:48:07.9920907Z: status remained only `## HEAD (no branch)`; scoped active process count zero.
+
+The complete earlier non-PASS/convergence inventory remains authoritative history and is not erased or called broad PASS:
+
+- original 13-class run: exit 1, 269 total / 261 pass / 7 fail / 1 skip; SHA-256 `01E4E965C1203ECEBE13AB50DCF0DDCF16EBAD2A416F581D60119E76BF411C7F`;
+- exact-six: exit 1, 4 pass / 2 Audit fail; SHA-256 `FC765D98532AABD76BCA6AE245E6BEFCBA53696BAC56217ADF5B2392C9A5D377`;
+- exact-seven: exit 1, 5 pass / 2 Audit version-conflict fail; SHA-256 `55A836D0EB42E98826A5991B83A98E0675879D4319BCEA22989B01AAD61BD799`;
+- final two-method Audit delta: exit 0, 2/2 pass; SHA-256 `A44267FEB86853AEBD7039F53D2231B10CD51C86211476075DAA7957830B69D7`.
+
+The unchanged/deferred `UploadConfirmationWebTests.AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely` and `UploadCaseSearchBrowserTests.CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision` failures remain owned by INTK-066/F-001. They were not run, folded into D56, or represented as D56 failures. This exact-merge result is PASS only for D56's seven corrected methods and the post-integration HeldLease obligation. The final D5 converged coverage obligation remains separately required.
+
+No source edit, broad rerun, snapshot, proof, stage move, cleanup, release, deployment or production action occurred.
