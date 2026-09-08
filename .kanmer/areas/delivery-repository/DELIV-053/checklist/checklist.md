@@ -14,3 +14,16 @@
 2026-09-08: verifier attempts 1–3 were retained as INCONCLUSIVE for unsupported diagnostics or harness/shim failures. A later persisted fresh acceptance session passed all five role behavior checks and exposed child role/model/effort metadata; a separate strict-config Kanmer-only acceptance passed.
 
 2026-09-08: implementation commit f9f9cc0a9a66da15306b49ffa34f1d5b253c524d was pushed and draft PR #704 was opened against dev.
+
+---
+
+## Closeout — DELIV-053
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date confirmed)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-053`
+- [ ] `git branch -d DELIV-053-codex-agents` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
