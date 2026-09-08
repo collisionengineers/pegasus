@@ -52,4 +52,6 @@ The corrective-release plan D1 requires .azurefunctions at the Worker ZIP root. 
 ## Verification
 
 - [ ] One host verifier checks ZIP entries and existing platform/script contracts; no parallel build/test commands.
-- [ ] Independent review, draft PR to dev, exact provenance to #
+- [ ] Independent review, draft PR to dev, exact provenance to #676 and DELIV-048.
+
+## Outcome
