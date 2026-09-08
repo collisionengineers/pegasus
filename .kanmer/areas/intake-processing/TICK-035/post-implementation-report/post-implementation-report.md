@@ -2,7 +2,9 @@
 
 ## Status and source
 
-Current state: remediation round1 for sole open review finding F-003.
+Current state: remediation round1 source complete and root-verified PASS;
+PR692 head cca5521a6315420129320061759209273bb64c67 awaits independent
+F-003 delta review.
 The earlier frozen source passed the recorded focused runtime checks, but
 independent exact-head review29da3f33c888cb13 correctly found a missing
 non-QDOS selected-profile guard before matching. That PASS does not close the
@@ -16,7 +18,7 @@ receipt-provenance roundtrips all passed. Earlier focused passes and failures
 are preserved as attempt history below; no whole-repository test-suite pass
 or deployment is claimed.
 
-Final author head: 006b556ff3e995c5a2aac0cdb2a4d508ada5be23.
+Original reviewed head: 006b556ff3e995c5a2aac0cdb2a4d508ada5be23.
 Root-authorized normal merge636555159b3fee61179dcce579d5173ca7e1ed0a
 joins verified checkpoint7fcd4c662c5457024d1d20c5fe0c02c842e98a63 and
 accepted dev3a5ce645cfc0872d7a4324c6818497360c39cca4 (CASE-049).
@@ -698,3 +700,15 @@ then fresh gates and Review. No further source/test/build, UI generation,
 self-review, merge, deployment or cleanup. All earlier failed attempts remain
 in this whole report, and needs-changes29da3f33c888cb13 remains the historical
 review until pack_reconcile binds its delta attestation to the new pushed head.
+
+
+F-003 correction commit cca5521a6315420129320061759209273bb64c67 [skip ci]
+contains exactly ProcessIntake.cs and QdosAllocationRecoveryTests.cs and is
+pushed normally to the existing PR692 branch. Push exit0; GitHub OPEN/dev/head
+and local clean status were read back. No force, new PR, base merge, source/UI
+change or test execution occurred after root's passing frozen result. Ticket
+commits now names this pushed head. The first PR-body update returned exit1
+because PowerShell supplied output lines as separate arguments; no update was
+made. Retrying with one joined string succeeded, without source changes.
+Checklist is complete for the remediation handoff; fresh gates precede Review.
+pack_reconcile owns the exact-head F-003 delta attestation and merge decision.
