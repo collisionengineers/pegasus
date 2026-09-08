@@ -349,3 +349,22 @@ Verifier `/root/agent_config_verifier` ran the freshly granted queue in `.worktr
 Final postcheck remained at exact clean HEAD `500b86a9b21adbd7a8fe56a65ddd52782630ce21`; no `dotnet`, MSBuild, testhost or vstest process remained. No retry, source/snapshot edit, live action, push or PR occurred. Remaining full Release rails and four-scope snapshot work remain separate obligations.
 
 - 2026-09-08T20:24:14.922Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 30; expires 2026-09-08T20:54:14.915Z)
+
+- 2026-09-08T20:25:32.365Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 31; expires 2026-09-08T22:25:32.356Z)
+
+## Sole host re-grant — INTK-066 full Release regression complement
+
+Root reread canonical IDLE 02f95cb2f70d217a and exact-head initial PASS51facfb252070af6; ready packet unchanged, source remains frozen at500b86a9b21adbd7a8fe56a65ddd52782630ce21 in .worktrees/INTK-066 / INTK-066-manual-upload-confirmation. Author idle. CEALEX-May25 sole owner /root/agent_config_verifier ACTIVE; fresh running-command lease120min. The plan requires fullsolution evidence because this change touches shared cross-channel allocation/association; this is not a prose-only full build.
+
+Using PowerShell7/Windows and local disposable LocalDB (no external SQL override), run sequential existing docs/runbook.md complement rails:
+1. dotnet restore ./Pegasus.slnx --locked-mode
+2. dotnet build ./Pegasus.slnx --configuration Release --no-restore
+3. dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+4. dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+5. dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
+6. pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
+7. dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
+
+Require fresh exact-head, clean-tree and other-context/host-process preflight. Record/revalidate only this exact restore/build invocation's reusable MSBuild PID/start/parent/expected nodemode command, then stop those exact owned nodes AFTER their parent exits; no foreign or broad name-based termination. Stop remaining commands at first genuine failure, retain it, report/no autonomous retry or fix. Browser installation is pinned local test runtime only, not an application dependency change.
+
+No source/snapshot edits, capture, packaging, cloud/live/Outlook/Box action, push/PR. Four-scope generated snapshots and documentation checks follow under a separate grant. Record every command/exit/count (skips distinct), postcheck exact frozen clean input and empty owned-host activity, then explicit canonical IDLE. Root retains earlier failures; new passes do not erase them.
