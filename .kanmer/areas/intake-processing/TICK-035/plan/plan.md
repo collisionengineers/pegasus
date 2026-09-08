@@ -323,3 +323,38 @@ increment contains only this paragraph. No new builds/tests for that doc-only
 increment. Record merge parents/equality scope honestly, not a full-tree test
 reuse claim. Then commit [skip ci], push one PR to dev, update ticket/report,
 check fresh gates and move Implementing to Review for an independent reviewer.
+
+
+## Remediation round 1 — F-003 and generated-index handoff
+
+Independent exact-head attestation29da3f33c888cb13 returned PR692 to
+Implementing with one open Major F-003; earlier F-001/F-002 remain fixed.
+Root authorizes only the existing ProcessIntake profile-context guard: no
+non-QDOS automatic email match or extraction unless the selected current
+instruction profile agrees with the accepted route. QDOS's non-conflicting
+current correspondence/body fallback and the declared Provider API branch
+remain unchanged. No second matcher, parser, profile grammar or service.
+
+Extend the existing QdosAllocationRecoveryTests genuine ALS caller fixture:
+keep the selected-profile positive that creates one actual Case, then use the
+same genuine source reader's decoded content with only the Vehicle Model:
+profile signal removed as an explicitly structural no-profile probe. It must
+retain typed unique existing-Case keys yet never automatically associate or
+allocate through ReceiveIntake/ProcessQueuedIntake, including replay. Original
+source bytes/hashes stay immutable; no fabricated genuine-envelope claim.
+Reuse existing source-reader fixture/mechanisms and real persisted Case/index.
+Keep existing focused QDOS correspondence and declared Provider API acceptance
+checks. Root alone runs the new/selected-positive and smallest affected
+regression cohort; no author builds/tests or push until root results.
+
+TICK-035 expressly relinquishes docs/design/test-ui/index.html to root's
+UIIMP-017 conditional-generation scope now the prior Settings outputs are
+verified and byte-identical. Preserve all recorded Settings capture/verify/
+catalogue evidence. TICK-035 will not edit/regenerate that index, any snapshots
+or UI files during this remediation. This releases only the generated-index
+file, not this ticket's branch/worktree/lease.
+
+Normal accepted-dev merge is permitted if needed (root cited cc441645b), but
+is not required for this two-file guard correction. Stop on any shared behavior
+conflict. Final stop: source frozen for root's focused checks; then same PR692
+updates and delta review by pack_reconcile, never a second PR or self-merge.

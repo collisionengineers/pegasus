@@ -174,3 +174,20 @@ supported-profile/typed-key behavior, retaining QDOS correspondence/cancellation
 predicates and manual Case-state rules. Root expressly authorized this after
 CASE-049 Done/claim release. Its native handoff paragraphs and implementation
 remain unchanged through normal accepted-dev merge; no other author edit.
+
+
+## Remediation round 1 — sole F-003 correction
+
+- src/Pegasus.Core/Intake/ProcessIntake.cs: existing selected-profile/context
+  guard must gate non-QDOS automatic email matching before typed extraction;
+  preserve QDOS no-conflict fallback and separate declared Provider API flow.
+- tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs: existing real
+  ALS Case/selected-profile positive and a genuine-derived decoded-content
+  no-profile probe with otherwise unique typed keys; durable destination/replay
+  must have no automatic association or allocation. Reuse existing fixture.
+
+No other production/UI/parser files are authorized in this correction.
+Existing QDOS/Provider API tests are read/run only by root as focused guards.
+The previously mapped docs/design/test-ui/index.html is now explicitly handed
+to root's UIIMP-017 conditional generation. TICK-035 will not edit or generate
+that index or Settings snapshots again; prior verified evidence is preserved.
