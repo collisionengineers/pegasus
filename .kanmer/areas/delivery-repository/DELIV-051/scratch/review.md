@@ -1,105 +1,98 @@
 ---
 kind: review-attestation
 pr: "702"
-head_sha: "d90820295be68b7632012568879555f21fed5dcc"
-verdict: needs-changes
+head_sha: "351f345df21aa7bc86e6ac2de494f93d210162b1"
+verdict: pass
 reviewer: "/root/documentation_pr_review"
 independent: true
 plan_hash: "096cc5b9ea73d349"
-ticket_updated: "2026-09-08T12:15:14.731Z"
-board_sha: "411ef7d5f41196cf613b2386d1f20d8025027590"
+ticket_updated: "2026-09-08T12:23:25.495Z"
+board_sha: "c30fe95c6074f12f96031c6e0e079a6366d609b7"
 expected_reviewers: ["/root/documentation_pr_review"]
 threads_snapshot: []
 findings:
   - id: F-001
     severity: major
     summary: "Accepted requirements and canonical ownership were not propagated across all surviving documents and migration evidence."
-    disposition: open
+    disposition: fixed
   - id: F-002
     severity: major
-    summary: "Recovery centralization drops safe release steps and retains incompatible blanket preservation rules."
-    disposition: open
+    summary: "Recovery centralization dropped safe release steps and retained incompatible blanket preservation rules."
+    disposition: fixed
   - id: F-003
     severity: minor
-    summary: "Accepted ADRs and release closeout retain stale proposal and deployed-architecture wording."
-    disposition: open
+    summary: "Accepted ADRs and release closeout retained stale proposal and deployed-architecture wording."
+    disposition: fixed
 ---
 
-# Independent consolidated review
+# Independent review — PASS
 
-Reviewed exact pushed head above against DELIV-051 plan/report, all fourteen
-operator answers, full-scope documentation diff and selected CI evidence.
-This is the first consolidated review of the expanded scope: review_round 1
-came from explicit operator expansion, not a previous needs-changes return.
-The single expected reviewer has settled. GitHub review threads were empty;
-no required checks were reported by gh pr checks --required.
+Consolidated review covered the expanded documentation scope at
+d90820295be68b7632012568879555f21fed5dcc. One remediation batch landed at
+351f345df21aa7bc86e6ac2de494f93d210162b1. This delta review inspected the changed
+lines, their direct documentation and executable command contracts, and the
+refreshed temporary package. No new or open findings remain. The single
+expected independent reviewer has settled on this exact head.
 
-## Findings and one remediation batch
+## Finding dispositions
 
-F-001: Correct the complete cross-owner propagation class:
-- docs/capabilities.md:30 ACC-15 still requires an Administrator-entered
-  temporary password, contradicting generated-password Q01 / FRD04 D15.
-- docs/capabilities.md:113 AI-11 still requires retail/trade figures and a
-  valuation entry; FRD11's accepted MarketResearch result makes source-labelled
-  valuation entries optional.
-- docs/engineering.md:77 prescribes ordered classifier precedence without
-  distinguishing evidence ordering from Q10 mutually exclusive route rules.
-- docs/engineering/configuration.md:50 blanket third-party-vault storage omits
-  accepted ADR0043's per-Engineer SQL/Data Protection exception.
-- FRD02:12 and ADR0019:101 route the accepted VRM bar/cohort to a deleted
-  operations section. The 0.80 threshold survives in ADR0019; establish its
-  functional owner and link historical cohort evidence to the retained baseline.
-- OP-007 in operator-statement-ledger.json marks a mixed 42-line block as
-  expired execution. Its current HDUK-branded YML instruction rule is absent
-  from canonical docs: preserve confirmed YML route and separate document
-  issuer from Principal in FRD09. Split the ledger's mixed dispositions and
-  identify actual owners for continuing requirements. OP-128 likewise needs
-  multiple destinations (Box FRD05, support operations, commercial PRD).
-- Remove stale ownership/current-state remnants: engineering roadmap label;
-  configuration intro saying skills own all mutation procedures; external
-  vendor README saying relocations are separate amendments; operations
-  "release 38 below" and mixed historical v1/diagnostic/WSL paragraphs that do
-  not belong to the exact September 6 observation.
+F-001 fixed in 351f345df21aa7bc86e6ac2de494f93d210162b1:
+ACC-15 now specifies a generated temporary password visible to Administrator;
+AI-11 permits optional source-labelled valuation entries. Engineering separates
+mutually exclusive route predicates from extraction evidence ordering.
+Configuration routes the scoped SQL/Data Protection exception to ADR-0043.
+FRD-06 owns the retained 0.80 recognition threshold; FRD-02/ADR-0019 route to
+it and historical cohort evidence remains linked at an immutable baseline.
+FRD-09 restores HDUK issuer versus confirmed YML Principal identity. Mixed
+OP-007/128 source blocks now identify continuing clause owners separately from
+expired execution grants. Stale roadmap/procedure labels and misleading
+operations/relocation narration are corrected. Exact package diffs refreshed.
 
-Remedy: reconcile surviving summaries, references and ledger against the
-accepted canonical requirements as one class, then regenerate exact patches.
+F-002 fixed in 351f345df21aa7bc86e6ac2de494f93d210162b1:
+The canonical recovery procedure retains verified manifest/artifacts, requires
+an unused valid twelve-character suffix, invokes PreProvision with explicit
+environment/manifest/desired and observed Worker activation, requires approved
+preview and exact runtime readback, and stops after one failed recovery.
+Reviewed the actual Test-AzureDeploymentPlan parameter contract. Runbook and
+engineering distinguish real preservation from authorized disposable-data
+resets without inventing permission to clear data.
 
-F-002: docs/runbook.md:733 uses the prior sha12 as the revision suffix and omits
-PreProvision after the old safe recovery sequence was removed from the release
-troubleshooting skill. That sequence required a fresh unused 12-character
-suffix and PreProvision before preview/provision. Restore those checks and
-manifest-bound retained inputs in the single canonical recovery procedure.
-The production recovery introduction at line 721 still imposes blanket
-from-cutover compatibility, contradicting its amended step 3/Q12. Engineering
-line 174 requires a complete recovery source even for an authorized disposable
-reset. Distinguish a real preservation/recovery contract from current disposable
-test data without granting an unrequested wipe.
+F-003 fixed in 351f345df21aa7bc86e6ac2de494f93d210162b1:
+ADR-0041/0042 describe accepted decisions, and release closeout distinguishes
+source architecture from observed operational deployment.
 
-F-003: ADR0041/0042:19 still call their accepted decision a "proposed patch";
-release SKILL.md:253 still requires both source architecture and operations to
-match deployed state. Use accepted-decision wording and their distinct owners.
+## Acceptance and checks
 
-## Acceptance and evidence
+The approved fourteen answers are represented in the governing documents.
+AGENTS is 157 lines / 12,982 UTF-8 bytes and makes prose verification
+effect-scoped. Kanmer retains lifecycle ownership; no new skill entrypoints
+were added. Existing canonical release supports Windows/Linux PowerShell 7.
+Unique current rules and stable references remain represented, and operator
+vendor relocations/additions and temporary review package are committed.
+Documentation checker changes do not weaken application assertions.
 
-AGENTS is substantially reduced and verification is effect-scoped. No new skill
-entrypoints were introduced. Removed Kanmer mirrors stay removed; the managed
-block delegates workflow to Kanmer. Existing release entrypoint retains Windows
-and Linux PowerShell 7 support. Canonical Triage outcome completion, T-reference
-API result, active Audit scope, Completed/Query cycle, optional outcome email,
-external MarketResearch actor, custody and credential decisions are present,
-subject to the contradictory remnants above.
+Exact-head CI run 34225588214 passed changes, documentation,
+local-development-scripts and reference-data. Application/infrastructure lanes
+were intentionally skipped by affected-path selection: no compiled source,
+test implementation, infrastructure or renderer asset changed. Author's
+documented local placement/link/catalogue/classifier checks passed.
+The earlier cancelled .NET build remains historical non-PASS; this review does
+not claim a current application suite or deployment run.
 
-CI run 34224704480 at this head passed changes, documentation,
-local-development-scripts and reference-data. Application/infra lanes skipped by
-affected-path classifier; no compiled source or renderer asset changed. The
-PowerShell checker changes expand relevant placement/link coverage and do not
-weaken application assertions. Historical cancelled .NET build remains non-PASS,
-not evidence about this head. Vendor moves are represented as unchanged source
-relocations in Git; supplied additions are included. No application feature
-implementation is demanded by this documentation review.
+Final gather confirmed PR head above, GitHub CLEAN, selected CI green, and
+zero review threads. gh pr checks --required reported no required checks;
+selected successful lanes are stated accurately rather than invented required
+gates. The automated security summary concerns the previous head and carries
+no finding; it is not an expected reviewer or evidence for this delta.
+The independent exact-head opinion is publicly recorded at:
+https://github.com/collisionengineers/pegasus/pull/702#issuecomment-5585068022
 
-Not mergeable against the ticket's consistency and no-regression criteria until
-F-001/F-002 are fixed and every finding is dispositioned on a fresh exact-head
-delta review. No merge, transition, deployment, data change or GitHub comment
-was performed by this reviewer. Parent owns the authorized remediation and
-requested final public mergeability comment.
+## Mergeability and limits
+
+PASS and mergeable against DELIV-051's documentation criteria. All three
+consolidated findings are fixed; no unresolved risk or acceptance blocker was
+identified within this bounded review. This does not claim newly clarified
+application behavior is implemented, deployed or externally accepted.
+Ticket remains Review. No merge, deployment, data wipe or postmerge proof is
+authorized or performed here. Integration requires its own authorized action
+and fresh head/check/thread verification.
