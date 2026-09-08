@@ -11,13 +11,13 @@ stageEntered:
 taken_at: '2026-09-08T17:48:42.856Z'
 branch: INTK-066-manual-upload-confirmation
 worktree: .worktrees/INTK-066
-claim_expires_at: '2026-09-08T19:50:39.580Z'
+claim_expires_at: '2026-09-08T19:51:20.718Z'
 claim_controller: codex-mcp-client
 lease_id: eef8e3c2-cb07-4588-a7f9-5cb09a3433fc
-lease_revision: 13
+lease_revision: 14
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-066'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T19:20:39.580Z'
+lease_heartbeat_at: '2026-09-08T19:21:20.718Z'
 labels: []
 links:
   - DELIV-056
@@ -30,6 +30,7 @@ commits:
   - 4a17becc09584696531611b4dc39d19521f489b3
   - 26bf5d00206014f58adf8149abe39084fd52b3f4
   - c57d8487cd343321a07abb68c161bd7d9a00aa27
+  - 4b3329675f48faede428a9c97212d1a610584136
 capture_evidence:
   - 'https://github.com/collisionengineers/pegasus/actions/runs/34240260482'
   - docs/frd/frd-02-intake-and-source-identity.md
@@ -41,7 +42,7 @@ capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-08T19:20:39.580Z'
+updated: '2026-09-08T19:21:51.683Z'
 ---
 
 ## Observation
