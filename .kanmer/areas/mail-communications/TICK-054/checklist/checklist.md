@@ -1,16 +1,38 @@
-# Checklist — MAIL-13
+# Checklist — TICK-054 recoverable exact-message actions
 
-- [ ] Revalidate prerequisites and the exact existing Core/Infrastructure/Web helpers to reuse.
-- [ ] Implement the minimal Core contract/policy with fail-closed validation.
-- [ ] Implement the mailbox-scoped persistence/projection/adapter boundary with idempotency and durable evidence.
-- [ ] Wire the real caller without duplicating business rules.
-- [ ] Add focused acceptance tests for rights, confirmation, idempotency, stale state, adapter failure and recovery semantics.
-- [ ] Run `dotnet restore` and `dotnet build --configuration Release`.
-- [ ] Run focused tests and the relevant full suite.
-- [ ] Run and record the four-lens simplification pass.
-- [ ] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+Supersedes checklist `e7295613ed6fb8d2`: its permanent-delete checkpoint and
+repeated whole-suite/live journey are not execution authority. Current plan
+and settled recoverable-only questions govern. This planning step performs
+none of the implementation or verification boxes below.
 
-- [ ] Immediately before live verification, record exact approval for the disposable mailbox message, folder/category targets, and reversible operations; capture immutable identity and initial state.
-- [ ] Run and evidence read/unread, category add/remove, flag/unflag, folder move, Deleted Items deletion, and restoration with state/history after each step.
-- [ ] After proving restoration, obtain fresh exact confirmation and permanently delete only that disposable message where supported; abort on identity/version mismatch.
+- [ ] Step 1 — Extend the existing Core boundary with eight closed staff-only
+  actions, current-state expectations and canonical active category selection;
+  direct unauthorized/forged/stale/restore-origin cases are represented in
+  focused tests and no permanent-delete action exists.
+- [ ] Step 2 — Extend the existing journal/EF/Graph owner with separate mutable
+  Outlook-state observation, shared write/recovery exclusion and exact recorded
+  Delete/Restore target. Include migration/grants/census and effective unread/
+  folder/count restoration; retain all source/Case/Sent evidence.
+- [ ] Step 3 — Wire only the exact Message route through Core with antiforgery,
+  current-state binding, existing reason confirmation, original-key Check
+  status and unavailable controls absent; update current governing/as-built
+  descriptions without claiming activation.
+- [ ] Step 4 — Root supplies passing focused Core/SQL/fake-Graph/Web/migration
+  evidence and the actual message-route capture; update/verify only matching
+  Test UI snapshots and catalogue/grants. Record every failed and successful
+  attempt, then report for independent review without self-merging.
+
+## Deferred activation evidence, not local implementation claims
+
+MAIL-028 owns production composition/permission evidence and the exact-target
+reversible action journey. It must prove conditional PATCH rejects changed
+provider state before category mutation activation; no fake test establishes
+that live fact. Permanent deletion is never a verification step. This ticket
+is not Done merely because code is registered behind unavailable composition.
+
+## Planning handoff
+
+2026-09-08: source and authority reconciled at dev19e6f523. No branch/take,
+source edits, tests/builds, mailbox/cloud writes or board-stage changes. Root
+must review the refreshed plan before assigning implementation. Preserve
+PLAT-075's foreign historical claim/worktree and all earlier evidence.
