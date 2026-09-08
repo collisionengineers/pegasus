@@ -4,12 +4,22 @@ type: ticket
 title: >-
   Align architecture assertions with current extraction selection and pairing
   composition
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T14:58:28.071Z'
+taken_at: '2026-09-08T15:09:15.962Z'
+branch: DELIV-058-architecture-assertions
+worktree: .worktrees/deliv-058
+claim_expires_at: '2026-09-08T15:39:15.962Z'
+claim_controller: codex-mcp-client
+lease_id: 238978fe-9448-4810-8709-bb4a4db3b019
+lease_revision: 1
+lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\deliv-058'
+lease_phase: implementing
+lease_heartbeat_at: '2026-09-08T15:09:15.962Z'
 labels:
   - corrective
   - ci
@@ -23,7 +33,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T14:58:28.071Z'
+updated: '2026-09-08T15:09:15.962Z'
 ---
 
 ## What
