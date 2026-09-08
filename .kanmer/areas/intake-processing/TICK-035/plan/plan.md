@@ -219,3 +219,16 @@ two-fact shape. Stop and report ambiguous conflicts or unplanned scope. No
 rebase/reset/force, no foreign workspace edit, no heavy command. Record author
 checkpoint and resulting merge parents after Git completes; root tests once
 on the combined frozen source, retaining all earlier failure evidence.
+
+
+## Combined-source minimal correction
+
+Root's combined verification found a real YML signature-boundary defect and a
+hash-casing-only fixture defect. In the existing YML Fields iterator, prove Dear
+then search the issuer closing signature after that boundary; preserve missing
+closure refusal. Same HDUK01 original must yield its exact labelled identity;
+a structural probe without its closing signature must produce no match keys.
+Compare original/snapshot SHA bytes and exact receipt/snapshot persisted hash,
+without changing the production representation. Root reruns only the two failed
+original-source tests, then focused Settings capture. No broader build/test
+cohort or new source sample. Retain all earlier failed attempts.

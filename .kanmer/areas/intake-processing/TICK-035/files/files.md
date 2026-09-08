@@ -110,3 +110,13 @@ Focused tests:
   QdosAllocationRecoveryTests pins inspected4/18/0/0 asset counts and readiness.
 Read-only coordination: current dev PdfOcrQualification/Tests (TICK041) are
 Type3-only, no scan geometry and no reader-file overlap; no edit to that owner.
+
+
+## Combined-source minimal correction
+
+Additional existing owner: src/Pegasus.Core/Intake/DirectProviders/Yml/
+YmlInstructionExtractionPolicy.cs — closing issuer search begins after the
+proved salutation, not at the identical letterhead. No new parser or grammar.
+Existing Top15InstructionCorpusTests adds exact YML original identity and an
+unclosed-letter negative; QdosAllocationRecoveryTests compares SHA bytes plus
+exact persisted receipt/snapshot hash. All other files remain frozen.

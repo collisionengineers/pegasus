@@ -259,3 +259,27 @@ reuse CurrentInstructionContent across classification and Audit evidence,
 retaining body-only/Triage and chaser/reply predicates. The intermediary OCR
 question was resolved without change: durable processing always begins OCR
 from retained ScannedPdfPages, regardless of initial route disposition.
+
+
+## Combined-source failure diagnosis — 8 September 2026
+
+At combined head b47d8cc27aeba391e6cd650db3dc30d382f7e06e, root build
+passed (117.28s, zero warnings/errors), classifier Core53 passed, Integration14
+had12 PASS/2 FAIL. These are not repeats of earlier source failures.
+
+The genuine YML HDUK01 PDF's reader output has an isolated uppercase issuer
+header and a closing mixed-case issuer signature. Existing YML SignatureRegex
+is case-insensitive and Match(text) takes the HEADER, which precedes Dear, so
+Fields yields nothing. Actual read-only invocation of the already-built reader
+and extractor showed all typed fields absent both at current time and UnixEpoch;
+there is no matcher clock issue. The older Astra-derived text puts the header
+on an email-address line, hiding this difference from its five Core fixtures.
+Fix only the existing YML closing-signature search to start after Dear. Keep
+that same genuine PDF and assert exact labelled identity plus no match when
+the closing signature is removed by a structural negative probe.
+
+The other failure is SHA text representation: ProcessIntake.cs:90 persists
+Convert.ToHexString (uppercase), while the fixture pins original bytes with
+ToHexStringLower. Decode both hexadecimal values for byte equality and also
+assert exact persisted receipt-to-snapshot hash equality. No production hash
+normalization or storage change is warranted.
