@@ -86,7 +86,7 @@ public sealed partial class OrganizationAdministrationWebTests
 
         var evaSubmissionPath =
             $"/Administration/Principals/Settings/{principalId:D}";
-        // GetHtmlAsync so a Test UI capture records this page (it asserts 200).
+        // GET the actual page and assert a successful response.
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
         Assert.Contains("pegasustest</h1>", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
@@ -202,7 +202,6 @@ public sealed partial class OrganizationAdministrationWebTests
     private static async Task AssertCredentialControlsAsync(
         IntakeWebApplicationFactory factory, HttpClient client, Guid principalId, string settingsPath)
     {
-        // Never send the secret-bearing POST response to the Test UI capture helper.
         var settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
         var issueForm = CredentialForm(settings);
         using var issued = await client.PostAsync(

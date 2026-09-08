@@ -14,7 +14,7 @@ namespace Pegasus.IntegrationTests;
 /// hand-built fakes for its three read ports — fast and precise, since every
 /// branch is a pure function of what those ports return. The Web-hosted
 /// end-to-end path (a real upload reaching a real Complete/Failed status) is
-/// covered separately in <c>QdosIntakeWebTests</c> and the Browser suite.
+/// covered separately in <c>QdosIntakeWebTests</c>.
 /// </summary>
 public sealed class UploadOutcomeQueriesTests
 {

@@ -312,9 +312,7 @@ public sealed class TriageQueuesWebTests
         var services = scope.ServiceProvider;
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
         var register = services.GetRequiredService<IRegisterUnidentified>();
-        // The host clock, not the wall clock: these rows are captured into
-        // the Test UI corpus, and DateTimeOffset.UtcNow made their snapshots
-        // drift on every fresh capture.
+        // Use the host clock to keep the test data deterministic.
         var receivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow();
 
         var receipt = await receiptStore.StoreAsync(
@@ -386,9 +384,7 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
-        // The host clock, not the wall clock: this row is captured into the
-        // Test UI corpus, and DateTimeOffset.UtcNow made its snapshot drift on
-        // every fresh capture.
+        // Use the host clock to keep the test data deterministic.
         var receivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow();
 
         var blocked = await receiptStore.StoreAsync(

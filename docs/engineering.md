@@ -154,8 +154,8 @@ into a second test file is the third-copy rule applied to tests.
 
 ### Case Workspace v2 fixture values (D43)
 
-Test fixtures and snapshot states may use the Case Workspace v2 mockup's
-corpus-derived fixture values (`Pegasus_UI_v2_src/src/04-fixtures.js`).
+Test fixtures may use the Case Workspace v2 mockup's corpus-derived fixture
+values (`Pegasus_UI_v2_src/src/04-fixtures.js`).
 These values include real claimant names and telephone numbers. D43
 (2026-09-02) supersedes the EPIC-011 rule that the prototype's fixture data
 is not domain data for this fixture set only. `corpus/` stays local, ignored
@@ -201,7 +201,7 @@ machinery. Stop if observed targets or consequences differ from the plan.
 
 Select checks by affected behavior and executable inputs, using the existing
 CI change classifier as a routing aid. Ordinary prose and links do not require
-.NET restore/build/test. Embedded renderer assets, snapshots and other actual
+.NET restore/build/test. Embedded renderer assets and other actual
 application/test inputs require the checks appropriate to their effects.
 
 Run focused checks first for affected code. Full solution checks apply when

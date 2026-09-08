@@ -16,8 +16,6 @@ pwsh -NoProfile -File ./scripts/Initialize-LocalDevelopment.ps1
 pwsh -NoProfile -File ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
 ```
 
-The procedure distinguishes the running application from the disposable Test UI
-catalogue. Generated snapshots are captured from Razor; do not edit their HTML.
 Use [verification](docs/runbook.md) for the checks selected
 by the actual change. A documentation edit alone does not require a .NET build.
 

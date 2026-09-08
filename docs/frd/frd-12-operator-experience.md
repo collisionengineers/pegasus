@@ -48,12 +48,9 @@ The selected alpha direction is Operations-first. The UI must provide:
   reduced-motion support;
 - responsive use without hiding required evidence or actions.
 
-Package-pinned Playwright Chromium automation is the release evidence for the
-named semantic, keyboard, focus, reflow, forced-colour, reduced-motion and axe
-checks that the Browser lane executes. Screen-reader-compatible semantics
-remain required behavior, but the current evidence does not claim
-interoperability with Narrator or any other screen reader, complete WCAG
-conformance, subjective usability, or operator acceptance.
+Screen-reader-compatible semantics remain required behavior. This requirement
+does not itself claim interoperability with Narrator or any other screen reader,
+complete WCAG conformance, subjective usability, or operator acceptance.
 
 Every actionable search result or queue row is a full-row keyboard-focusable
 link or button with visible action affordance. At constrained desktop width,
@@ -556,18 +553,17 @@ current state and account.
 
 ## Acceptance evidence
 
-Authenticated Web and real-browser tests prove: every rail route and its
-count, both redirects, the removed `/VehicleImages` list, the Cases rail
+Acceptance covers every rail route and its count, both redirects,
+the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
 `/Cases/{id}/Assessment` redirect and the read-only rule in Completed
 (D30), the eleven Case record sections and the `?section=` jump (D29), the
-tab limit and eviction, axe accessibility, focus behaviour and no document
-overflow at 1580, 1100 and 760px. The Case record whole-page drop remains
-the one accepted pointer-only exception (D16); ordinary keyboard
-accessibility remains required for every other action on that page.
-Snapshot and catalogue checks are owned by
-[design § Test UI](../design/README.md#test-ui). Deployment and live
-acceptance remain separate evidence tiers
+tab limit and eviction. Authenticated Web tests cover server-owned behavior;
+they do not establish client-side interaction or visual correctness.
+The Case record whole-page drop remains the one
+accepted pointer-only exception (D16); ordinary keyboard accessibility remains
+required for every other action on that page. Deployment and live acceptance
+remain separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

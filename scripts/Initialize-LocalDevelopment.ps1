@@ -9,7 +9,7 @@ $initializationPath = Join-Path $localDevelopmentRoot '.initialized.json'
 $solutionPath = Join-Path $repositoryRoot 'Pegasus.slnx'
 $webAssemblyRelativePath = 'src/Pegasus.Web/bin/Debug/net10.0/Pegasus.Web.dll'
 $workerAssemblyRelativePath = 'src/Pegasus.Worker/bin/Debug/net10.0/Pegasus.Worker.dll'
-$playwrightPath = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/bin/Debug/net10.0/playwright.ps1'
+$playwrightPath = Join-Path $repositoryRoot 'src/Pegasus.Infrastructure/bin/Debug/net10.0/playwright.ps1'
 
 . (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 

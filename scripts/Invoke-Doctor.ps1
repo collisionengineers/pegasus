@@ -394,7 +394,7 @@ if ($platform.IsWindows) {
 
 # Kestrel requires the certificate to exist; the loopback probes in the local
 # development lifecycle do not validate it. Trust is therefore a separate
-# question from existence, and only the browser evidence lane needs it.
+# question from existence, and interactive browser clients need it.
 $certificateCheck = if ($null -ne $dotnetPath) {
     Invoke-NativeCommand -Command $dotnetPath -Arguments @('dev-certs', 'https', '--check')
 }
@@ -434,7 +434,7 @@ if ($platform.IsWindows) {
 else {
     # On Linux 'dotnet dev-certs https --trust' populates per-user NSS databases
     # and needs libnss3-tools. It does not affect HttpClient or curl, so the
-    # local lifecycle lanes do not need it; the Playwright browser lane does.
+    # local lifecycle lanes do not need it; interactive browser clients do.
     Add-Check `
         -Name 'Development HTTPS certificate trust' `
         -Passed $trustReady `
@@ -442,15 +442,15 @@ else {
             'The Development HTTPS certificate is trusted for browser clients.'
         }
         else {
-            'The Development HTTPS certificate is not trusted for browser clients. Start, Status, Smoke and Stop do not require this; the Playwright browser evidence lane does.'
+            'The Development HTTPS certificate is not trusted for browser clients. Start, Status, Smoke and Stop do not require this; interactive browser clients do.'
         }) `
         -Repair (Get-PegasusRepairHint -Id 'dev-certs-trust') `
         -Advisory
 }
 
 $playwrightCandidates = @(
-    (Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/bin/Debug/net10.0/playwright.ps1'),
-    (Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1')
+    (Join-Path $repositoryRoot 'src/Pegasus.Infrastructure/bin/Debug/net10.0/playwright.ps1'),
+    (Join-Path $repositoryRoot 'src/Pegasus.Infrastructure/bin/Release/net10.0/playwright.ps1')
 )
 $playwrightPath = $playwrightCandidates |
     Where-Object { [System.IO.File]::Exists($_) } |
@@ -507,8 +507,8 @@ if ($null -ne $playwrightPath) {
 }
 $playwrightRepair = @(
     "dotnet restore `"$repositoryRoot/Pegasus.slnx`" --locked-mode",
-    "dotnet build `"$repositoryRoot/tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj`" --no-restore",
-    "pwsh `"$repositoryRoot/tests/Pegasus.IntegrationTests/bin/Debug/net10.0/playwright.ps1`" install chromium"
+    "dotnet build `"$repositoryRoot/src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj`" --no-restore",
+    "pwsh `"$repositoryRoot/src/Pegasus.Infrastructure/bin/Debug/net10.0/playwright.ps1`" install chromium"
 ) -join '; '
 Add-Check `
     -Name 'Microsoft.Playwright Chromium' `
