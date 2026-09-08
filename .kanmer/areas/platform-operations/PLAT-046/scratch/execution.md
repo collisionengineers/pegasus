@@ -142,3 +142,7 @@ The ignored harness was removed. Postcheck at 2026-09-08T18:36:51.1866471Z confi
 Overall frozen corrected-head verification result: **PASS** when combined with the immediately preceding exact-head platform regression, Local deployment-plan, documentation-links, and Markdown-placement PASS results. Both earlier failures remain retained: the bbae334 Local contract failure and the first corrected-head parser invocation failure. No source edit, recipe execution, dotnet, browser, cloud/SQL/live action, commit, push, or PR occurred.
 
 - 2026-09-08T18:37:42.671Z lease-phase running-command → implementing (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 10; expires 2026-09-08T19:07:42.662Z)
+
+## Review hand-off — 2026-09-08
+
+Pushed exact reviewed head `7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08` and opened draft PR https://github.com/collisionengineers/pegasus/pull/711 to configured integration branch `dev`. PR verification confirmed open/draft, base `dev`, head branch `PLAT-046-destructive-migration-shutdown`, exact head SHA, and standalone `Kanmer: PLAT-046` footer. The ticket records both reachable implementation commits and is now in Review. No merge, deployment, cloud, SQL, source change, or additional test command occurred in this hand-off.

@@ -2,13 +2,14 @@
 id: PLAT-046
 type: ticket
 title: Stop old Web and Worker before planned destructive migrations
-status: implementing
+status: review
 area: platform-operations
-order: 90
+order: 40
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-28T07:54:27.369Z'
+  review: '2026-09-08T18:40:24.775Z'
 taken_at: '2026-09-08T17:52:41.849Z'
 branch: PLAT-046-destructive-migration-shutdown
 worktree: .worktrees/plat-046
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/711'
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-09-08T18:40:12.942Z'
+updated: '2026-09-08T18:40:24.775Z'
 ---
 
 ## What
