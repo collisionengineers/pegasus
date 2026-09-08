@@ -166,3 +166,52 @@ current-state projection, and thin authenticated Message handlers. No new
 runtime, queue, dispatcher, package, general mail framework, permanent delete,
 mailbox-wide synchronisation or TICK-088 work. Root owns verification; activation
 and disposable-message evidence remain distinct from local implementation.
+
+
+## Preparation refresh — accepted dev493f7460d, 2026-09-08
+
+Read-only source census is pinned to
+`493f7460d7728a6576d240d4feb7d0bf2a377ec5`; it does not activate a writer.
+Compared with the prior `19e6f523bf6760cab39104b4dca3674b0ac8a512` baseline,
+only six mapped paths changed: DependencyInjection's principal policy
+composition, EfRetainedMailboxMessageStore's provisional sender helper,
+RetainedMailPersistenceTests' QDOS policy selection, the INTK-063 restricted
+Worker test, current-architecture's principal/image-recovery descriptions,
+and the generated Test UI index. The folder-move command/store, categories,
+Graph transport, entities/configuration, page, FRD-08 and migration inventory
+are unchanged. Preserve those accepted principal-routing and image-recovery
+deltas; none implements MAIL-13.
+
+`MoveRetainedMailFolder`, its store, `ListApprovedOutlookCategories` and
+the active category resolver are already registered in DependencyInjection
+(lines 101–105 and the catalogue registration block). MessageModel already
+injects the move command. Concrete action/refresh/check-status methods belong
+on that same Core owner; a staff-only active-choice method belongs on the
+already-registered category query, leaving its administrator method unchanged.
+Razor can inject that existing query normally. No new command class, wrapper,
+manual production construction, service locator or DI edit is required.
+
+A complete port-consumer census found an omitted existing fixture:
+`tests/Pegasus.Core.Tests/Intake/RetainedMailTests.cs:875`
+`FolderMoveState` implements both retained move ports. Adapt it in place
+when those contracts extend; retain its assertions that viewing a suggestion
+does not move or probe. Other implementers are already mapped: Core
+RecordingStore/empty/unavailable adapters, the Graph and EF adapters, and
+RetainedMailPersistenceTests/MailWorkspaceWebTests fakes. The two explicit
+EfRetainedMailFolderMoveStore constructions are both in the already-mapped
+RetainedMailPersistenceTests (1198 and 1925); any constructor adaptation is
+fixture-local, not a reason to change production composition.
+
+Keep the actual runtime-role check in AzureSqlRuntimeRoleMigrationTests:
+its existing RetainedMailFolderMovesUseExactWebOnlyAppendPermissions and
+ConnectedContextFactory/EXECUTE AS pattern are the direct fit. Do not move the
+test or introduce a new harness just to evade INTK-064's whole-file ownership.
+Likewise the current as-built description remains a necessary coordinated
+edit in current-architecture.md. Root must order these whole-file edits
+before execution; this preparation claims neither file.
+
+The eight actions, one journal, immutable-arrival/current-observation split,
+recorded restore target and probe-only uncertain recovery remain unchanged.
+A response/request header and fake 412 cannot establish provider enforcement.
+MAIL-028 still owes the separately authorised live conditional-update canary;
+no Graph request or new guarantee was made here. MAIL-031 remains downstream.
