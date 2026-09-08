@@ -178,8 +178,9 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
 - Local alpha work does not mutate Outlook or Box except an explicitly approved
   test mailbox or disposable Box subtree.
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
-  commands are repository-relative. Follow the existing release skill for the
-  authorized workstation and platform-matching artifacts.
+  commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
+  and [migration recipe](.agents/skills/pegasus-release/references/database-migration.md)
+  for the authorized workstation and platform-matching artifacts.
 - A closed feature or composition gate is not delivery. An inert UI preview may
   exist only where its accepted interface contract permits it.
 
