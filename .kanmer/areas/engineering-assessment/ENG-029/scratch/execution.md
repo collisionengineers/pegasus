@@ -67,3 +67,18 @@ Root corrected its shorthand: the intended shared index is docs/design/test-ui/i
 Whole reviewe636932136f144cc read; reviewer returned samePR700 to Implementing round1. Amended plan07f29f3b2342f40f/mapa281f33f3168d3bb read back before ready exact resumed packet. Packet base26ba4ed408317cccdb354dc1e115b0297f15df94; actual retained author HEADf86054c0e7cc73cb6245355dd21c03e58196d582, clean before edits, correct commonGit/source root/branch and sole recorded workspace owner. No branch creation/take/base merge. Existing reference directory absent (read-only rg reported missing; no supplied artifact omitted). Lease12 Implementing expires07:54:46.834Z. Exactly two mapped fixtures+32/-10 now frozen; diffcheck0, no build/test/capture/push. No source-manifest/intake/production/snapshot/document change. All original review/CI/local failures preserved; root owns focused verification. PLAT050 narrow Principal paragraph/generated-index handoff remains in effect.
 
 - 2026-09-08T13:34:39.713Z claim-transfer root → root (expired; lease 000b26b8-fb8d-4e16-809f-8127f200cd4e → a76da773-df66-4631-9861-9b29734e5c4c rev 13; branch ENG-029-case-workspace-editors; worktree .worktrees/eng-029; expires 2026-09-08T14:04:39.689Z; evidence: workspace dirty (matches-claim), pr open, commits 2, proof absent)
+
+## Frozen remediation input — 2026-09-08
+
+- Pre-handoff branch HEAD: `f86054c0e7cc73cb6245355dd21c03e58196d582`.
+- The only pre-existing dirty files were the two approved assessment-import fixtures:
+  - `tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs`
+  - `tests/Pegasus.IntegrationTests/Browser/AssessmentReadinessSummaryBrowserTests.cs`
+  Their bounded binary diff hash was `bc859ac1a9125523c1f49e7bab02837053e89dd2`; `git diff --check` passed before commit (with only LF/CRLF advisory output).
+- Commit `fef8909e2c256388c4d738ddf78f176e0e1b5cef` (`Fix ENG-029 assessment fixture coverage`) contains only those two fixtures.
+- Fetched `origin/dev` at `a1f0bfe260ea05df531df6e0ca3109141e7697da`, then merged it without a rebase or new worktree. Merge commit: `2cde68831485bfc426e062a83030edea661f976d`; parents: `fef8909e2c256388c4d738ddf78f176e0e1b5cef` and `a1f0bfe260ea05df531df6e0ca3109141e7697da`.
+- The merge had exactly two documentation conflicts and no source-code conflict:
+  1. `docs/design/README.md`: retained the current `origin/dev` normative overhaul for the conflicting legacy workspace-contract hunk; its current governing design supersedes the older ENG-specific copy.
+  2. `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md`: retained current `origin/dev` report-generation wording and added only the narrow ENG scope paragraph: one workspace Save for Settlement/Report with reason/version/lease; Report comments/fee/description/sign-off/switches/date override; Vehicle History only in Vehicle; preserve unsubmitted accepted values, explicit clears/false, date-override semantics, and bounded current-versus-proposed refusal. The older detailed readiness/image/rate-card claims were not retained because the current FRD supersedes them.
+- The merge-wide staged `git diff --check` reports inherited trailing whitespace in incoming `docs-review-temp` patch files and vendor YAML, outside ENG-029's resolved files. Scoped `git diff --cached --check -- docs/design/README.md docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` passed.
+- Worktree was clean after the merge. No push, PR merge, deployment, build, or test was performed here. The frozen merged input is ready for the named documentation pass and focused revalidation; the recorded visual F-005 remains INCONCLUSIVE and must not be represented as complete.

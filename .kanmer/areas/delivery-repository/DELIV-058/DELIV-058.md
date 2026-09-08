@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Align architecture assertions with current extraction selection and pairing
   composition
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-09-08T14:58:28.071Z'
 labels:
   - corrective
   - ci
@@ -21,7 +23,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-09-08T14:56:55.766Z'
-updated: '2026-09-08T14:56:55.766Z'
+updated: '2026-09-08T14:58:28.071Z'
 ---
 
 ## What
