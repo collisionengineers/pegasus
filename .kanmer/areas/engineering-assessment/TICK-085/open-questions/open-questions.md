@@ -25,7 +25,9 @@
 
 - [x] TICK-041 merged d367219669ad26d5f2b727bd10b582330febc906 with ADR-0040. Exact API: IntakeOcrOperations.BeginDocumentAsync(IIntakeOcrOperationStore, CaseDocumentMetadata, IReadOnlyList<int>, CancellationToken); normalized pages and source Case/occurrence/version/hash bind its ID and persisted length. Completed IntakeOcrOperation.Result/PageResults are retained neutral evidence. PdfOcrQualification.HasUnusableTextMap(PdfDocument, Page) owns only the positive Type3 text-map fault, not scan policy. No parallel OCR request/worker.
 - [x] ENG-041 merged baafa29e0f7002b8235aa43bf333f5d9bb172828; current integration includes its accepted interruption/replay/authority corrections.
-- [ ] CASE-049 must merge and release its overlapping Case Details/assessment fixture ownership before TICK-085 execution. PLAT-072 merged d442366787d452da22d36719272d4eb79dc1afde and is undergoing exact-merge verification; CASE-049 is next. Root owns this order.
+- [x] CASE-049 merged 3a5ce645cfc0872d7a4324c6818497360c39cca4, passed exact merged acceptance and closed out with claim released; PLAT-072 is likewise verified Done/closed. Native handoff and current workspace access are accepted.
+- [x] Root inspected EstimateImport, IRepairSpecificationStore, EfRepairSpecificationStore.Guard, CaseMutationGuard and explicit IAddCaseDocument. The plan now requires non-mutating persisted authority before OCR/replay and distinguishes one fresh staff custody mutation from version-neutral automatic confirmation and custody replay.
+- [ ] ENG-041 PR691 correction must integrate and release its FRD-06 ownership; its independent PASS is awaiting final merge. TICK-035 must integrate and release Infrastructure DI/ProductionComposition ownership. Root coordinates execution after these actual overlapping claims release.
 
 ## Evidence work in the bounded checklist
 

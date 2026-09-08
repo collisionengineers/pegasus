@@ -43,6 +43,13 @@ formats and malformed business evidence reject, not OCR.
 
 ImportRawEstimate remains sole orchestrator. Prove actor/mutation and exact
 Case/occurrence/version/length/hash before source-hash replay or OCR lookup.
+Expose a narrow non-mutating authority check on existing
+IRepairSpecificationStore: load the persisted CaseWorkflow and reuse
+CaseMutationGuard.Require for current version, holder/token, expiry and mutable
+state. Do not call EfRepairSpecificationStore.Guard: it increments version and
+clears the lease. Require current authority before any OCR enqueue or replay;
+check again in the existing final save transaction. Core still owns the
+Engineer/authorized Automation import rules; no new guard/service/permission.
 Queue/find deterministic document OCR via TICK-041 BeginDocumentAsync, return
 operation ID/state for pending/unknown, and parse retained output only after
 Completed and its existing provenance validation. Same source never queues
@@ -57,10 +64,17 @@ Automation rows remain unconfirmed Draft evidence; only an Engineer can make
 Current. No caller-supplied trusted bool or source enum confers permission.
 
 Web retains through existing custody with the submitted Case version, then
-calls canonical import, never a second parser/save path. Do not assume custody
-advances exactly one version. Use the actual post-custody state for subsequent
-lease acquisition, fail on concurrent conflicts, and never overwrite existing
-estimate fields from a mutable read. Pending sources remain discoverable from
+calls canonical import, never a second parser/save path. Distinguish explicit
+staff IAddCaseDocument from automatic artifact confirmation: the former's
+successful non-replay transaction calls Complete exactly once; the latter
+preserves version and lease after ENG-041's correction. For a fresh staff
+addition, acquire the import lease only at the exact committed version
+(submitted version plus that documented one mutation), refusing any concurrent
+change; never adopt a later mutable-read version. On custody replay, do not
+reuse the old form's version/lease or assume another increment: use retained-
+source completion with freshly submitted authority. Glass callbacks retain
+the original live authority through automatic confirmation. Do not alter
+custody persistence or introduce a second result/store solely for this flow. Pending sources remain discoverable from
 CaseFiles.Live and their estimate-import occurrence identity. The Estimate
 section's short Complete import form reuses exact occurrence/version/hash plus
 a newly submitted version/lease; it does not upload again or restart unknown
@@ -81,7 +95,7 @@ chosen card or repairer VAT status.
 | Action | Repo-root-relative path | Responsibility |
 | --- | --- | --- |
 | Modify | `src/Pegasus.Core/Assessment/EstimateImport.cs` | Existing canonical command owns retained-source/hash replay, typed pending OCR outcome and completed-format result |
-| Modify | `src/Pegasus.Core/Assessment/RepairSpecifications.cs` | Narrow imported-document persistence method on existing store; no new store |
+| Modify | `src/Pegasus.Core/Assessment/RepairSpecifications.cs` | Narrow non-mutating authority check and imported-document persistence on existing store; no new store |
 | Modify | `src/Pegasus.Core/Assessment/Estimates.cs` | Existing Core import authorization/normalization only; preserve ordinary Automation AiDraft/job rules |
 | Add | `src/Pegasus.Infrastructure/Assessment/PdfEstimateDocumentParser.cs` | One PDF container registration, shared coordinate extraction, retained OCR words, explicit format dispatch |
 | Add | `src/Pegasus.Infrastructure/Assessment/GlassEstimatePdfParser.cs` | Glass Body/Auxiliary/Paint reader, source identity/notes, reconciliation, whole-file refusal |
@@ -89,7 +103,7 @@ chosen card or repairer VAT status.
 | Modify | `src/Pegasus.Infrastructure/Assessment/JsonEstimateParser.cs` | Adapt existing parser result contract |
 | Modify | `src/Pegasus.Infrastructure/Glass/GlassEstimateXmlParser.cs` | Adapt existing parser result contract; do not alter XML time semantics |
 | Modify | `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs` | Consume explicit canonical imported/pending result; no launch/recovery redesign |
-| Modify | `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs` | Share current save transaction for narrow validated raw-import entry; provenance and unconfirmed Automation rows |
+| Modify | `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs` | Reuse persisted edit authority non-mutating before OCR/replay, and share save transaction for validated raw import |
 | Modify | `src/Pegasus.Infrastructure/DependencyInjection.cs` | One JSON/XML/PDF parser set |
 | Modify | `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Existing upload and retained-source completion callers call canonical import with submitted version/lease; no direct parse/save policy |
 | Modify | `src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml` | Only source auto-detection/pending completion UI and expected-version fields |
