@@ -37,10 +37,12 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
+commits:
+  - 9863dd4264440ef228a0766d3e2949faf6a4e12b
 deployment: not-deployed
 archived: false
 created: '2026-08-28T16:26:37.834Z'
-updated: '2026-09-08T03:12:09.405Z'
+updated: '2026-09-08T03:12:33.551Z'
 ---
 
 # Send the canonical claimant address in EVA API submissions
