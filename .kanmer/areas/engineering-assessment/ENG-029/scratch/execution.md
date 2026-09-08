@@ -94,3 +94,7 @@ Existing remote PR700 branch was fast-forwarded normally from `f86054c0e7cc73cb6
 - 2026-09-08T15:47:15.863Z lease-phase implementing → review (lease a76da773-df66-4631-9861-9b29734e5c4c rev 17; expires 2026-09-08T16:17:15.850Z)
 
 - 2026-09-08T16:14:42.094Z lease-phase review → verifying (lease a76da773-df66-4631-9861-9b29734e5c4c rev 18; expires 2026-09-08T16:44:42.084Z)
+
+## Pause checkpoint — 8 September 2026, 17:04 UTC
+
+Root read final schema2 proof 08640ed02f0c0be1 in full. Exact merge 05995d325cc4c1ccd44096bf69d05fd42eeda3d2 has passing scoped runtime/capture/snapshot/catalogue evidence, with every failed/inconclusive attempt retained. Final result stays INCONCLUSIVE solely pending F-005 manual visual acceptance on an accessible approved local/deployed surface at 1580/1100/760. No waiver, baseline update or visual PASS is inferred. Canonical source artifacts/verification/eng-029-05995d325cc4c1ccd44096bf69d05fd42eeda3d2 retains hash-checked TRXs and 26 capture files. Author and exact detached verification workspaces remain resume targets; do not release or remove them. Sole host verifier has completed its granted commands and is idle; no new execution grant is outstanding. Pause here until the authorized acceptance surface is available. Broader corrective release is separately awaiting INTK-066 workflow and PLAT-046 cutover choices, then fresh candidate and live approvals. No production, main, promotion or intake reset operation occurred.
