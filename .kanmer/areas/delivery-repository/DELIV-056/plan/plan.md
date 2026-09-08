@@ -157,3 +157,21 @@ Stop and report instead of improvising if the live worktree differs unexpectedly
 ## Stop condition
 
 Stop after root reads and approves this entire revised plan/checklist. Until that approval, do not edit source or run tests/builds. After approval, execute only these bounded steps in the already recorded D56 worktree, then hand off static evidence and the exact six-method verifier command. Do not merge, release, deploy, or absorb the deferred UploadConfirmation/browser work.
+
+## Corrective verification addendum — existing automatic Audit evidence
+
+### Addendum step 1 — Replace obsolete test seeding in the two Audit custody methods
+
+**Retained failure evidence.** `scratch/verify.md@401565b62deb4e8a` records the designated-host exact-six result: 4 PASS / 2 FAIL. Both failures reach `AllocationTestData.SeedAutomaticAuditEvidenceAsync` in `CustodyOutboxIntegrationTests.AnAuditCaseCompletesCustody` and `CustodyOutboxIntegrationTests.AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments`, where its synthetic insert violates the one-row-per-receipt `StandaloneAuditEvidence` constraint. The two real Audit fixture corrections are otherwise retained and are not reopened.
+
+**One bounded change after root approval.** In those two methods only, replace the obsolete `AllocationTestData.SeedAutomaticAuditEvidenceAsync(services, receipt.Id)` call with the production-recorded evidence query: resolve `IStandaloneAuditEvidenceQueries` from `services`, call `GetForReceiptAsync(receipt.Id, CancellationToken.None)`, assert a non-null typed evidence result, and pass its existing `Id` to the current `AcceptAsync` call. No upsert/seed helper change is permitted.
+
+**File.** `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` only.
+
+**Preserve.** Both methods retain their existing `ProcessIntake`, `AcceptAsync`, custody, review, identity, and document assertions. The already-passing reevaluation, attachment-custody and duplicate-source corrections stay unchanged.
+
+**Do not modify.** `AllocationTestData.SeedAutomaticAuditEvidenceAsync`; any production Core/Web/Infrastructure policy, guard, allocation route or schema; `InstructionDraftWebTests.cs`; `IntakeWebTestSupport.cs`; all other D56 files. Do not suppress the unique constraint or manually create a second evidence row.
+
+**Acceptance.** Each Audit test consumes the actual evidence created by `ProcessIntake`, so it reaches its unchanged acceptance/custody assertions without a duplicate `StandaloneAuditEvidence` insert. The designated host reruns only the same exact six-method command after this source change; no implementation-worker test/build, commit, push, PR, merge, release or deployment occurs.
+
+**Stop condition.** Stop after this plan addendum is recorded and root has reviewed its version. Do not edit source until root explicitly authorizes exactly the two call replacements.

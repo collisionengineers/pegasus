@@ -18,12 +18,12 @@ No runtime policy, original corpus input, historical evaluation, deployment conf
 
 ## Verification
 
-Focused host-serialized verification passed against frozen head `7b6aa189b9d00d772819e3d3f21022be549ee229`:
+Focused host-serialized verification passed against the frozen working-tree changes based on HEAD `7b6aa189c2112ab3cf8df2c2e337fc9f2b0dabae`, later committed as `5e0aeb47b9cb87258e12f66967e1efee4743b3f3`:
 
 - Generated package SHA-256: `494e0a0f42ced164aab97cd50ebb497c1479c09eaf9f0a4db177949bbdc7c251`; canonical bytes, five current snapshots, 26 approved evidence-reference replacements, seven unchanged historical sections, and the allowed JSON delta all passed.
-- `python -m unittest tests/test_generate_principal_identification_evidence.py` — exit 0; 2 passed.
-- `python scripts/verify_docs_links.py` — exit 0; 140 files checked.
-- `pwsh -NoProfile -File scripts/Test-MarkdownPlacement.ps1` — exit 0.
+- `python -m unittest discover -s scripts/reference_data/tests -p test_build_principal_identification_corpus.py` — exit 0; 2 passed.
+- `pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1` — exit 0; 140 files checked.
+- `pwsh -NoProfile -File ./scripts/Test-TestMarkdownPlacement.ps1` — exit 0.
 - `dotnet restore tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --locked-mode` — exit 0.
 - `dotnet build tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj -c Release --no-restore` — exit 0; 0 warnings, 0 errors.
 - Focused `PrincipalIdentificationCorpusTests` — exit 0; 7 passed.
@@ -33,6 +33,12 @@ The verifier's first ignored structural harness exited 1 because it hashed compa
 
 Full original-input regeneration is unavailable on this host and was not claimed as PASS; the approved existing-helper evidence boundary was used.
 
-## Handoff
+## Original pre-merge handoff
 
 Commit `5e0aeb47b9cb87258e12f66967e1efee4743b3f3` is pushed and draft [PR #706](https://github.com/collisionengineers/pegasus/pull/706) targets `dev`. It is ready for independent review. No self-review, merge, proof, closeout, or deployment action has been performed.
+
+## Evidence-record correction after integration — 8 September 2026
+
+The earlier report copied an incorrect frozen SHA and three incorrect command names from the verifier summary. Root and verifier checked the actual execution receipts and retained TRX, and the current report above now uses those observed values. The old summary and explicit correction are both retained in scratch/execution; no command was rerun to repair this transcription error. The placement command was the existing regression harness, not a parameterless invocation of the placement gate. Actual focused TRX: artifacts/verification/intk-065-source-inventory.trx; SHA-256 E32A60A18AED5DA1687AFD6B6D373405A04FFCF68ECB28ED9EA620AD62D2F886; seven executed/passed, zero failed/skipped. Original harness failure remains recorded.
+
+PR #706 has since merged into dev at d76de2534ec6651c1a434a55f76593b7b140bf1c. That does not turn this pre-merge evidence into post-merge proof. Exact-merge verification is separately prepared and remains pending in scratch/verify.
