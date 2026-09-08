@@ -386,3 +386,17 @@ Root revalidated ready whole-ticket packet, exact recorded clean worktree/branch
 ## Final FRD coherence correction
 
 Root owns only docs/frd/frd-02-intake-and-source-identity.md during the separate three-file fixture assignment. Kanmer docs skill used to reconcile still-conflicting general pre-Case allocation, competing-match, image pairing/recovery and grouped automatic-routing clauses with the already-authorized 8 September ManualUpload exception. Explicit manual per-member confirmation and only post-association merge recovery preserved. Registration may remain automatic even with unique suggestions; source safety is not bypassed. Clarified that processing p95 excludes staff decision wait and corrected affected list indentation. No new policy, service, future safeguard or tests changed. Relevant documentation semantic/placement checks remain owed under sole-verifier grant.
+
+- 2026-09-08T20:55:52.767Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 37; expires 2026-09-08T22:55:52.758Z)
+
+## Sole host grant — corrected fixtures and remaining Browser rail
+
+Canonical CEALEX-May25 host slot transferred from explicit IDLE26296bb4b77cae81 to /root/final_verifier ACTIVE for INTK-066 only. Fresh ready packet, source frozen clean at e843b5ee523aaf286541b20934dcf3e6d46fead1 in .worktrees/INTK-066 branch INTK-066-manual-upload-confirmation. Author and fixture worker idle. Primary reviewed all4 changed files. Preserve interrupted previous nonbrowser aggregate INCONCLUSIVE with5 observed FAIL including unrelated unchanged Qdos claimant94/160<60%; not waived/excluded/weakened. This fresh phase verifies only the four corrected fixture failures and remaining Browser rail; it is not a claim that the full nonbrowser aggregate passed.
+
+PowerShell7/Windows, local disposable LocalDB only. Preflight exact clean root/branch/head/common repo, active contexts and host-process census; refuse other active work. Sequential:
+1. dotnet build ./Pegasus.slnx --configuration Release --no-restore
+2. dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~ImageViewingWebTests|FullyQualifiedName~CustodyOutboxIntegrationTests|FullyQualifiedName~AzureSqlRuntimeRoleMigrationTests"
+3. pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
+4. dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
+
+Stop remainder on first genuine failure and report, no autonomous retry/fix/filter changes. Renew INTK-066 current lease every5min during long commands; root will not race your heartbeat. Record/revalidate only this invocation's reusable MSBuild PID/start/parent/expected nodemode command and stop exact owned nodes only AFTER parent exits; no foreign/broad process cleanup. No source/snapshot edits, packaging, live/cloud/Outlook/Box/SQL outside disposable local test state, PR/push. Retain exact commands/exits/counts/skips, final exact clean head/process census and explicit canonical IDLE in BOTH DELIV-053 and INTK-066 scratch/execution. Snapshot/documentation phase requires separate grant.
