@@ -74,8 +74,6 @@ Add one compact dated historical release-39 section to
 - `src/**`
 - `tests/**`
 - `.kanmer/**`
-- PR #676, any linked-ticket record, source branch, worktree, artifact or cloud
-  resource.
 
 ## Constraints
 
@@ -93,6 +91,9 @@ Add one compact dated historical release-39 section to
 - Documentation-only scope: no .NET restore/build/test, artifact package,
   Azure/database inventory, migration, reset, deployment, promotion or smoke
   is authorised or required.
+- PR #676, linked-ticket records, source branches/worktrees, artifacts and cloud
+  resources are foreign scope. This ticket neither changes them nor supplies
+  authority to merge, close, promote or deploy.
 - The final historical document merge SHA, together with PR #703 merge
   `6509746913eda16d2c4440add20e7f6793500f0b`, is evidence for root's later
   PR #676 disposition; this ticket does not itself close or merge that PR.
@@ -105,7 +106,6 @@ Add one compact dated historical release-39 section to
   `docs/index.md`, `docs/engineering.md`, D59 research/files, PR #676's
   operations record at `93255e5…`, and CI run `34132950893`.
 - Files: `docs/operations.md`
-- Symbols: None; this is a dated Markdown operational-record insertion.
 - Change: add the single historical release-39 entry with its precise
   provenance/limits, all D1-required failed-package, replacement-provenance,
   partial-migration and authorised-reset facts, and the CI discrepancy; amend
@@ -120,12 +120,15 @@ Add one compact dated historical release-39 section to
 - Negative cases: facts that lack an independently readable receipt retain
   `PR #676 recorded`/historical wording; no absent local artifact is described
   as revalidated.
-- Tests: documentation link/placement checks and a literal semantic comparison
-  against research provenance.
-- Commands: run the documentation commands listed below after the edit.
-- Expected output: the only tracked diff path is `docs/operations.md`; all
-  documentation commands exit 0, or any obsolete-parser failure is reported
-  rather than papered over.
+- Tests: the author performs only static Git/content inspection against research
+  provenance. The sole host verifier runs documentation links and placement
+  after a committed exact head is available.
+- Commands: perform only the author static inspections below after the edit;
+  do not run PowerShell verification scripts.
+- Expected output: before commit, the only worktree diff path is
+  `docs/operations.md`; after commit, the host verifier observes that same
+  single path from the frozen base to the actual committed head. Its scripts
+  exit 0, or any obsolete-parser failure is reported rather than papered over.
 - Done when: one compact historical entry preserves the required failures and
   explicitly distinguishes PR-recorded claims from independently checked facts.
 - Deviation stop: stop if the historical entry needs another file, a fresh
@@ -137,7 +140,6 @@ Add one compact dated historical release-39 section to
 - Preconditions: Step 1 is complete and the working tree contains only the
   planned Markdown edit.
 - Files: `docs/operations.md`
-- Symbols: None.
 - Change: make no new content change unless required to correct a discovered
   factual/provenance error within the same entry.
 - Preserved behaviour: all current source architecture, procedure and release
@@ -146,11 +148,13 @@ Add one compact dated historical release-39 section to
   edit, PR action or live operation.
 - Negative cases: a failed link/placement check, a second changed file, or a
   mismatch with the PR/CI evidence blocks handoff.
-- Tests: exact commands below plus independent semantic review of provenance,
-  the CI contradiction and scope boundary.
-- Commands: run the documentation commands listed below.
-- Expected output: clean `git diff --check`, valid links/placement, and a
-  one-file diff whose claims are traceable and qualified.
+- Tests: independent semantic review of provenance, the CI contradiction and
+  scope boundary; documentation scripts are reserved to the sole host verifier.
+- Commands: author runs only static Git inspections; the host verifier runs the
+  exact frozen-base/committed-head commands below.
+- Expected output: clean static diff checks, then host-verifier-valid
+  links/placement and a one-file frozen-base diff whose claims are traceable
+  and qualified.
 - Done when: the author has recorded command exits and handed the one-file
   diff to an independent reviewer; no merge is attempted.
 - Deviation stop: stop if validation demands unrelated parser contracts,
@@ -174,18 +178,40 @@ Add one compact dated historical release-39 section to
 
 ## Commands
 
-Run from the ticket worktree after implementation, sequentially:
+The author may perform static inspection only, before committing:
 
 ```powershell
-git diff --check
-pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1
-pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD
-git diff --name-only origin/dev...HEAD
+git diff --check -- docs/operations.md
+git diff --name-only
+git diff -- docs/operations.md
 ```
 
-Do not run `dotnet restore`, `dotnet build`, `dotnet test`, release
-packaging, Azure CLI, azd, migrations, cloud inventory or smoke commands for
-this prose-only change.
+Before the edit, record the exact current integration-base commit in the
+execution record. Do not later substitute a moving `origin/dev`. After the
+one-file commit exists, the **sole host verifier** runs these commands from its
+exact committed-head verification worktree, sequentially:
+
+```powershell
+$baseSha = '<recorded frozen integration-base SHA>'
+$headSha = (git rev-parse HEAD).Trim()
+git rev-parse --verify "$baseSha^{commit}"
+git rev-parse --verify "$headSha^{commit}"
+git merge-base --is-ancestor $baseSha $headSha
+git diff --check "$baseSha..$headSha"
+$changed = @(git diff --name-only "$baseSha..$headSha")
+if (@($changed | Where-Object { $_ -ne 'docs/operations.md' }).Count -ne 0 -or
+    $changed.Count -ne 1) {
+    throw 'DELIV-059 changed a path outside docs/operations.md.'
+}
+pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1
+pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base $baseSha -Head $headSha
+```
+
+This binds scope, name and placement to the same frozen base and actual
+committed head, so neither uncommitted content nor later integration-branch
+drift can make the evidence pass. Do not run `dotnet restore`, `dotnet build`,
+`dotnet test`, release packaging, Azure CLI, azd, migrations, cloud inventory
+or smoke commands for this prose-only change.
 
 ## Failure and deviation rules
 

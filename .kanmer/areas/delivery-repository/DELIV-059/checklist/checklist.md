@@ -3,9 +3,11 @@
 - [ ] Step 1 — Add the one qualified dated release-39 historical record to
   `docs/operations.md`, preserving failed ZIP/replacement provenance, partial
   migration/reset and claim-evidence limits without asserting a fresh deployment.
-- [ ] Step 2 — Run the documentation-only checks, confirm the delta changes
-  only `docs/operations.md`, record the CI browser-success contradiction and
-  hand the diff to independent review without merging or closing PR #676.
+- [ ] Step 2 — Static-inspect the author delta, then have the sole host verifier
+  run link/placement checks against the recorded frozen base and actual
+  committed head; confirm only `docs/operations.md` changed, record the CI
+  browser-success contradiction and hand the diff to independent review without
+  merging or closing PR #676.
 
 ## Progress notes
 
