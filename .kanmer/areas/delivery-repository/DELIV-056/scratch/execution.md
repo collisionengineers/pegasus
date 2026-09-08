@@ -8,3 +8,5 @@
 - Pushed `DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence`; remote read-back matched that SHA.
 - PR [#709](https://github.com/collisionengineers/pegasus/pull/709) targets `dev`, has the required `Kanmer: DELIV-056` footer, and is open/ready for independent review at the same SHA.
 - The ticket moved `implementing` → `review` after its report gate passed. No merge, release, deployment, cleanup, source edit, build, or test occurred in this publication handoff.
+
+- 2026-09-08T16:36:15.747Z lease-phase running-command → verifying (lease 4d01dfe4-c699-4761-b0e9-aef9f082f519 rev 9; expires 2026-09-08T17:06:15.734Z)
