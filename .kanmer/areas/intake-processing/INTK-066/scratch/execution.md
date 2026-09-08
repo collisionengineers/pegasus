@@ -66,3 +66,5 @@ Preflight at 2026-09-08T19:06:05.7667647Z exited 0: exact clean worktree/common 
 Disposition: **FAIL / stopped at command 1**. Core tests, focused non-browser SQL tests, and conditional UploadCaseSearch browser tests are NOT RUN. No source fix, retry, snapshot update, SQL fixture, browser, cloud, Outlook, Box, commit, push, or PR action occurred.
 
 At 2026-09-08T19:08:35.0504412Z the exact HEAD remained clean. The postcheck wrapper exited 1 only because six `dotnet` processes started at 20:06:23 local by this build remained; observed PIDs 3348, 4780, 6368, 13584, 24076, and 28988. Per instruction, they were not killed or otherwise touched. This process observation does not change the build failure classification.
+
+- 2026-09-08T19:10:45.809Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 8; expires 2026-09-08T19:40:45.800Z)
