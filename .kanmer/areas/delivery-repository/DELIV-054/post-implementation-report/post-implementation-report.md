@@ -54,8 +54,13 @@ does not claim a post-merge PASS.
 - Successor relationship: [[DELIV-048]] remains Verifying and unchanged.
 - Provenance: unique ZIP correction from PR #676,
   `80acaf56e65d45c53f46bda75924f1a5f0dd3ed2`; no PR #676 state was changed.
-- Implementation commit and draft PR: recorded after their creation in the
-  ticket traceability and this report's handoff update.
+- Implementation commit: `ca6ecb0253b0b5ed9884320e4883ceb9621829fe`.
+- Draft PR: https://github.com/collisionengineers/pegasus/pull/703 (target: `dev`).
+
+## Draft PR status at handoff
+
+PR #703 is OPEN and DRAFT against `dev`, at head
+`ca6ecb0253b0b5ed9884320e4883ceb9621829fe`. Observed checks: `local-development-scripts` and `reference-data` succeeded; `changes` and `documentation` were still in progress. This is an observation only, not a review or merge claim.
 
 ## Handoff
 

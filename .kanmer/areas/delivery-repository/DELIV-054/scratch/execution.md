@@ -43,3 +43,13 @@ Azure deployment plan validation passed (Local; Worker Disabled settings render 
 ```
 
 Disposition: **PASS**. The update warning is informational and no upgrade was run. No application build/test/restore, full package build, artifact packaging, browser/capture host, cloud write, deployment, code edit, or child session occurred.
+
+## Parser-command reproducibility addendum — 2026-09-08
+
+The exact already-completed parser invocation referenced by the prior PASS record was:
+```powershell
+pwsh -NoProfile -Command '$files = @("scripts/Build-ReleaseArtifacts.ps1", "scripts/Test-AzureDeploymentPlan.ps1", "scripts/Test-PegasusPlatform.ps1"); foreach ($file in $files) { $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $file), [ref]$tokens, [ref]$errors); if ($errors.Count -ne 0) { $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $file, $_.Message) }; exit 1 }; Write-Output ("PARSE PASS: {0}" -f $file) }'
+```
+This is a record-only correction of the earlier placeholder; the command was not rerun. Its recorded exit remained 0 with a `PARSE PASS` line for each of the three scripts.
+
+2026-09-08: Implementation commit `ca6ecb0253b0b5ed9884320e4883ceb9621829fe` pushed. Draft PR https://github.com/collisionengineers/pegasus/pull/703 targets `dev` at that exact head; ticket is handed to independent review.

@@ -2,12 +2,13 @@
 id: DELIV-054
 type: ticket
 title: Include hidden runtime directories in release ZIPs
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-09-08T13:27:02.890Z'
+  review: '2026-09-08T13:47:12.527Z'
 taken_at: '2026-09-08T13:31:44.019Z'
 branch: DELIV-054-hidden-runtime-zips
 worktree: .worktrees/deliv-054
@@ -27,9 +28,11 @@ refs:
   - docs/adr/0039-windows-and-linux-release-workstations.md
 commits:
   - ca6ecb0253b0b5ed9884320e4883ceb9621829fe
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/703'
 archived: false
 created: '2026-09-08T13:25:29.904Z'
-updated: '2026-09-08T13:45:40.806Z'
+updated: '2026-09-08T13:47:12.527Z'
 ---
 
 ## What
@@ -49,6 +52,4 @@ The corrective-release plan D1 requires .azurefunctions at the Worker ZIP root. 
 ## Verification
 
 - [ ] One host verifier checks ZIP entries and existing platform/script contracts; no parallel build/test commands.
-- [ ] Independent review, draft PR to dev, exact provenance to #676 and DELIV-048.
-
-## Outcome
+- [ ] Independent review, draft PR to dev, exact provenance to #
