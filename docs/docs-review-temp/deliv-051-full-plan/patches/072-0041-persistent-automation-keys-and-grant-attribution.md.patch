@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/docs/adr/0041-persistent-automation-keys-and-grant-attribution.md
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,50 @@
 +---
 +id: ADR-0041
 +status: accepted
@@ -17,7 +17,8 @@
 +
 +Accepted contract recorded from current FRD-10; this document replaces
 +only the conflicting mechanism below, not the unrelated clauses of ADR-0027.
-+This proposed patch does not itself constitute a deployment or new authorization.
++Acceptance records the technical decision; it is not deployment evidence or
++authorization for an external operation.
 +
 +## Context
 +

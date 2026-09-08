@@ -1,6 +1,19 @@
 --- a/docs/frd/frd-06-vehicle-and-engineering-evidence.md
 +++ b/docs/frd/frd-06-vehicle-and-engineering-evidence.md
-@@ -180,10 +180,8 @@
+@@ -64,6 +64,12 @@
+ spreadsheet import, route, or caller before its separate acceptance evidence.
+ 
+ ### Ordinary-image VRM and image analysis
++
++The accepted recognition threshold is **0.80**. It applies only with the
++unambiguous image-origin/reference and matching conditions below; it is not a
++mailbox-routing confidence score. ADR-0019 owns the engine choice. The
++[recorded cohort and holdout evidence](https://github.com/collisionengineers/pegasus/blob/af1625fae8ac8018054c95e988907f6c44fa4639/docs/operations.md)
++retains its dated results and qualifications; no fresh evaluation is implied.
+ 
+ **Accepted source boundary:** automatic registration reading from an ordinary vehicle image is
+ suggestion-first. Every result remains attached to one retained source-image
+@@ -180,10 +186,8 @@
  A correction never edits an earlier accepted or issued finding in place. It
  creates a reasoned superseding report/finding or addendum with actor, time,
  source, structured before/after values, and the prior artifact/version retained.
@@ -13,7 +26,7 @@
  
  Betterment figures and estimate `guide` codes recorded on a source or an
  estimate version are retained evidence only (D17, 2026-09-01). No finding,
-@@ -238,8 +236,9 @@
+@@ -238,8 +242,9 @@
  only by an explicit Apply using this order: commercial VAT 20%, prior total
  loss 10% or 20%, fixed additions, then condition deduction, with whole-pound
  rounding away from zero. A generic assessment save never writes the adopted
@@ -25,7 +38,7 @@
  
  ### Settlement
  
-@@ -266,9 +265,9 @@
+@@ -266,9 +271,9 @@
  named Engineer and acceptance time. Glass's, Audatex PDF, an approved AI
  proposal, and manual entry are provenance routes, never authorities: imported
  or automated material remains a draft until an authorised Engineer accepts the
@@ -38,7 +51,7 @@
  
  A raw artifact imported through either caller of the shared import command is
  keyed by Case plus source hash (D16, 2026-09-01): the same Case with the same
-@@ -367,3 +366,56 @@
+@@ -367,3 +372,56 @@
  a fabricated image reference; they enter the grouped Unidentified contract with
  the applicable reason, including conflicting_vrms.
  - **Irreversible choice:** the estimate may be derived only by this conservative algorithm; unsafe evidence yields abstention or a qualified range rather than an invented mileage value.

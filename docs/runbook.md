@@ -719,23 +719,34 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 ### Production recovery
 
-Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and, **from cutover**, must remain compatible with the supported prior application artifact or have an accepted recovery strategy. Before cutover that compatibility requirement is relaxed by [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md), on the terms in [rollback step 3](runbook.md#previous-artifact-rollback-web-and-worker).
+Retain the previous immutable application artifact for an authorized rollback.
+Check it against the actual schema and current preservation requirements.
+Current disposable test data creates no cutover-based compatibility obligation;
+[rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
+compatible artifact rollback from an authorized reset or roll-forward.
 
 #### Previous-artifact rollback (Web and Worker)
 
 Rolling production back to the previous release's artifacts is a production
 mutation under the live-operation approval matrix: obtain exact-target
-approval first. The inputs are the previous release's row in
-[operations § Production environment](operations.md)
-and its retained folder `artifacts/releases/release-<n>-<sha>` (kept on the
-release workstation; the image also remains in the production ACR by digest).
+approval first. Select the retained previous release manifest and its verified
+artifacts from the release workstation; match its hashes, image digest, source
+revision and version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+Read the current target and Worker activation before choosing any mutation.
 
-1. Web: from an authorised terminal, `azd env set PEGASUS_WEB_IMAGE_DIGEST
-   <previous digest> -e pegasus-prod`, `azd env set
-   PEGASUS_WEB_REVISION_SUFFIX <previous sha12> -e pegasus-prod`, then
-   `azd provision -e pegasus-prod --preview --no-prompt` — stop unless the
-   only change is the web revision — then `azd provision -e pegasus-prod
-   --no-prompt`.
+1. Web: set `PEGASUS_WEB_IMAGE_DIGEST` to the retained manifest's digest and
+   `PEGASUS_WEB_REVISION_SUFFIX` to a valid **unused 12-character suffix** in
+   the selected azd environment. Inventory existing revisions to confirm it
+   is unused; do not reuse the previous release's suffix. Run
+   `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision
+   -Environment <environment> -ManifestPath <retained-manifest>
+   -WorkerActivation <desired-activation>
+   -ExpectedLiveWorkerActivation <observed-activation>` and require exit 0.
+   Activation values come from the approved recovery plan and live readback,
+   not a copied example. Preview with `azd provision -e <environment>
+   --preview --no-prompt`; stop if changes exceed the approved recovery scope.
+   Then provision once with `azd provision -e <environment> --no-prompt` and
+   verify the active digest, revision and traffic against the retained artifact.
 2. Worker: `az functionapp deployment source config-zip --resource-group
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
    ./artifacts/releases/release-<n>-<sha>/worker.zip`.
@@ -750,7 +761,7 @@ release workstation; the image also remains in the production ACR by digest).
    source revision and version, and the current Worker activation value.
 5. Record the rollback and its reason in operations in the same task.
 
-A production recovery exercise must:
+When data must be preserved, a production recovery exercise must:
 
 1. obtain exact-target approval and a fresh inventory;
 2. identify the immutable application package, migration identity, database recovery source, and corresponding source/custody evidence before changing anything;
@@ -761,7 +772,10 @@ A production recovery exercise must:
 7. record achieved recovery point, restoration duration, missing data, limitations, and rollback result; and
 8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
 
-Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+Stop after one failed recovery attempt and report the exact read-back. Do not
+improvise a second deployment with unreviewed inputs, schema down-migration,
+or deletion of source evidence/shared resources. An authorized disposable-data
+reset uses its own exact scope, not this data-preserving recovery procedure.
 
 ### Explicit intake-data wipe
 

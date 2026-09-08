@@ -1,6 +1,6 @@
 # Configuration reference
 
-This file describes setting meanings. Operations owns observed deployed values; skills own mutation procedures.
+This file describes setting meanings. Operations owns observed deployed values; the runbook and existing release/wipe skills own operational procedures.
 
 ## Configuration and secrets
 
@@ -47,4 +47,7 @@ approved configuration route while preserving the account and retained
 operation evidence. Keep local authentication disabled; never use keys as a
 fallback. Infrastructure readback alone does not prove accepted extraction.
 
-Use managed identity and scoped RBAC. Store unavoidable third-party secrets in Infisical or Key Vault. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
+Use managed identity and scoped RBAC. General application secrets retain their approved vault owner. The scoped
+[ADR-0043](../adr/0043-per-engineer-vendor-credential-protection.md) exception
+protects per-Engineer vendor credentials and session material with Data
+Protection in existing SQL, with the matching key-ring recovery contract. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.

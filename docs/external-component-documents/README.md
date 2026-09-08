@@ -15,4 +15,3 @@ intentional differences; operations records observed activation.
 Preserve supplied bytes and provenance. Do not reformat a vendor schema or
 rewrite its claims as Pegasus policy. New material needs its source/version
 and an owning component directory, not a speculative integration dossier.
-The operator’s existing relocation is separate from documentation amendments.

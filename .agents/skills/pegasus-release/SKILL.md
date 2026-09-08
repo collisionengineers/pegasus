@@ -248,8 +248,8 @@ when source structure or composition changed; do not repeat operational artifact
 identities there. Link retained attempts and failures from the release record.
 
 Copy `artifacts/releases/$version` outside the disposable worktree before
-removing it. The release is unfinished until both current-state documents match
-what was actually deployed.
+removing it. The release is unfinished until operations records the deployed observation
+and any source-structure change is reflected in current-architecture.
 
 ## Recovery and diagnostics
 

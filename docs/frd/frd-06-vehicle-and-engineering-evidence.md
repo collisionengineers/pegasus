@@ -65,6 +65,12 @@ spreadsheet import, route, or caller before its separate acceptance evidence.
 
 ### Ordinary-image VRM and image analysis
 
+The accepted recognition threshold is **0.80**. It applies only with the
+unambiguous image-origin/reference and matching conditions below; it is not a
+mailbox-routing confidence score. ADR-0019 owns the engine choice. The
+[recorded cohort and holdout evidence](https://github.com/collisionengineers/pegasus/blob/af1625fae8ac8018054c95e988907f6c44fa4639/docs/operations.md)
+retains its dated results and qualifications; no fresh evaluation is implied.
+
 **Accepted source boundary:** automatic registration reading from an ordinary vehicle image is
 suggestion-first. Every result remains attached to one retained source-image
 occurrence; staff confirmation creates the provisional vehicle identity. Before

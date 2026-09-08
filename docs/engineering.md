@@ -1,7 +1,7 @@
 # Engineering guidance
 
 How repository work is done. Product behavior lives in
-[requirements](prd/README.md), the roadmap in [capabilities](capabilities.md),
+[requirements](prd/README.md), stable identities in [capabilities](capabilities.md),
 procedures in the [runbook](runbook.md), operational evidence in
 [operations](operations.md), and current work on the Kanmer board (`.kanmer/`).
 Authority order is defined once in the
@@ -74,9 +74,10 @@ remove superseded code within the affected scope.
 
 ### Classifiers and failure semantics
 
-- Classifier and extraction precedence is explicit, ordered, and covered by
-  contradiction tests; re-derive the complete precedence model whenever a rule
-  is added.
+- Evidence ordering in extraction is explicit and tested against contradictions.
+  Accepted mailbox route predicates must be mutually exclusive (FRD-09); an
+  overlap is a defect to correct, not a winner chosen by precedence or score.
+  Recheck the complete affected rule set whenever a predicate is added.
 - Every external client and catch path distinguishes `terminal`, `transient`,
   and `unknown`; terminal outcomes park the work and stop retries; exceptions
   are never converted into business truth.
@@ -170,11 +171,13 @@ is run, not defended.
 
 ## Destructive operations
 
-Before any wipe, drop, purge, rebuild, migrate, replay, or bulk update:
-enumerate exact targets, rehearse read-only, verify the baseline under the
-correct identity and role (row-level security once made a live database look
-wiped), prove the recovery source is complete, obtain the required approval,
-and stop if observations differ from the plan.
+Before a destructive or bulk operation, enumerate exact targets, inspect the
+baseline read-only under the intended identity and role, and confirm that the
+current authorization covers the operation. Limited permissions are not proof
+that a database is empty. Where real data or consumers must be preserved,
+verify the recovery source and compatible artifact before acting. An explicitly
+authorized reset of disposable test data requires no invented preservation
+machinery. Stop if observed targets or consequences differ from the plan.
 
 ## Verification and failure handling
 

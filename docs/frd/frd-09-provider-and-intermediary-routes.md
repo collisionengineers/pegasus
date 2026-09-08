@@ -161,7 +161,10 @@ credentials and mailbox onboarding remain separate capabilities.
 of evidenced exact domains and mailboxes, also displayed by Principal
 Settings. It covers ALS, AX, BC, BLACK, DFD, FW, KBS, MP, OAK, PCH, QCL,
 QDOS, RJS, SBL and YML. YML accepts only its evidenced mailbox, never the
-shared Gmail domain. No suffix or subdomain widening is permitted.
+shared Gmail domain. HDUK-branded instructions in the supplied YML samples
+belong to the confirmed YML route. Retain HDUK as document issuer separately
+from the instructing Principal; branding does not establish a new Principal
+or widen an accepted sender. No suffix or subdomain widening is permitted.
 The supplied export and original-header evidence is attributed in TICK-035.
 
 Exactly one consistent transport sender is required. A Collision Engineers

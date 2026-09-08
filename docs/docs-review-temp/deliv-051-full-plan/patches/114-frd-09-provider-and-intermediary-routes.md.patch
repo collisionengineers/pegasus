@@ -21,7 +21,19 @@
  
  No provider route is active until its exact capability allocation, accepted
  contract, credentials/scopes, failure and recovery proof, real caller, and
-@@ -237,3 +229,21 @@
+@@ -169,7 +161,10 @@
+ of evidenced exact domains and mailboxes, also displayed by Principal
+ Settings. It covers ALS, AX, BC, BLACK, DFD, FW, KBS, MP, OAK, PCH, QCL,
+ QDOS, RJS, SBL and YML. YML accepts only its evidenced mailbox, never the
+-shared Gmail domain. No suffix or subdomain widening is permitted.
++shared Gmail domain. HDUK-branded instructions in the supplied YML samples
++belong to the confirmed YML route. Retain HDUK as document issuer separately
++from the instructing Principal; branding does not establish a new Principal
++or widen an accepted sender. No suffix or subdomain widening is permitted.
+ The supplied export and original-header evidence is attributed in TICK-035.
+ 
+ Exactly one consistent transport sender is required. A Collision Engineers
+@@ -237,3 +232,21 @@
  extraction: from the letter's `Registration:` line in the body template, and from the
  subject's `Vehicle Registration` label in the subject template, which states it nowhere
  else.

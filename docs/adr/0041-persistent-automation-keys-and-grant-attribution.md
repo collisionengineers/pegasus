@@ -14,7 +14,8 @@ tags: [security, persistence]
 
 Accepted contract recorded from current FRD-10; this document replaces
 only the conflicting mechanism below, not the unrelated clauses of ADR-0027.
-This proposed patch does not itself constitute a deployment or new authorization.
+Acceptance records the technical decision; it is not deployment evidence or
+authorization for an external operation.
 
 ## Context
 

@@ -13,7 +13,7 @@
       "path": ".agents/skills/pegasus-release/SKILL.md",
       "action": "modify",
       "before_sha256": "3f26f1cbbc9874a5cf697adadc6e1418f6af2de304bcdf2dc321f42a8a055ffa",
-      "after_sha256": "6c85926dcb7e8cd6f0008b4bb89652111ce078094280c95c8bbe4e114fd597b8",
+      "after_sha256": "ee9bfb0d93a97f43545f8d996bd39c1b6b479ee013ab505baaaa3efb91741e78",
       "patch": "patches/002-SKILL.md.patch"
     },
     {
@@ -372,7 +372,7 @@
       "path": "docs/adr/0019-in-process-onnx-vrm-recognition.md",
       "action": "modify",
       "before_sha256": "c2eab85e23c6c9f14fc1a378d3b24569c39dcec6f9d076f1d26a8e1cc3fed8ff",
-      "after_sha256": "750f132990cc1aa6df327a4b372852587ad7864aeee2d02a9f7d3ebc7f4654cd",
+      "after_sha256": "08295289b578b0bc16fa7174120f132c04e72ce9e1903fbe46bf92f3f910ca41",
       "patch": "patches/059-0019-in-process-onnx-vrm-recognition.md.patch"
     },
     {
@@ -463,14 +463,14 @@
       "path": "docs/adr/0041-persistent-automation-keys-and-grant-attribution.md",
       "action": "add",
       "before_sha256": null,
-      "after_sha256": "0106e47bedc9ed4b668c7697ed402fc54b6c0ef69af49774586b57448517c968",
+      "after_sha256": "d43d5c783e470499ec1b5f0b28324958b4cf750107fe910b83164966e60fcf50",
       "patch": "patches/072-0041-persistent-automation-keys-and-grant-attribution.md.patch"
     },
     {
       "path": "docs/adr/0042-staff-send-operation-journal.md",
       "action": "add",
       "before_sha256": null,
-      "after_sha256": "2167662ab9f044c71c902689e283114a33a7a0c4f67d2f904a76955585d57cd8",
+      "after_sha256": "01c86acb2b075499a77be7fc7859df4fc57391ed7bb910d2e55df7224084794b",
       "patch": "patches/073-0042-staff-send-operation-journal.md.patch"
     },
     {
@@ -512,7 +512,7 @@
       "path": "docs/capabilities.md",
       "action": "modify",
       "before_sha256": "00cf50ad4e90940ea46d1a1ccd6422861fe682b86f13b20ecb4db9972605c2c0",
-      "after_sha256": "9f0fc4557e1b6e8409e415d63bef4f5266fd879f552739df645da1c29e81a181",
+      "after_sha256": "4d7b031b89c1ba052e2a07044c27b44f5a2836ddac6683ca28a4a5b3dd5e8159",
       "patch": "patches/079-capabilities.md.patch"
     },
     {
@@ -533,21 +533,21 @@
       "path": "docs/engineering.md",
       "action": "modify",
       "before_sha256": "0c05a7d938ea7471610ce010e5a3340b76cd076559205768b14d4572c7a4c0d1",
-      "after_sha256": "de14b71a07a35c3694c65b93f00337d2e35a73faf1b57896e9c56558dc9140b5",
+      "after_sha256": "3a854460d3cc7cc77c1a8ed6919026ae4476e2ac22fbf17238a9c5b3c7e29657",
       "patch": "patches/082-engineering.md.patch"
     },
     {
       "path": "docs/engineering/configuration.md",
       "action": "add",
       "before_sha256": null,
-      "after_sha256": "8e6394d07154234e41a1dd72ae2344f2cc7fd5eaeca0132d87c9c2b91f8a4dc3",
+      "after_sha256": "f2cdb39597785b2f0c3848f26154f0d43d6a54060e2e90a7b4715f901c58aa66",
       "patch": "patches/083-configuration.md.patch"
     },
     {
       "path": "docs/external-component-documents/README.md",
       "action": "add",
       "before_sha256": null,
-      "after_sha256": "a80dd13ee23baea3249f53d6fe7b69991dc684044b9a075b29e9ef3d478efddc"
+      "after_sha256": "8e311dcf62a65cb59eaf25c6c8e5b62af4c645703ebe3735f4a30df68804bc80"
     },
     {
       "path": "docs/external-component-documents/brego/New Text Document.txt",
@@ -687,7 +687,7 @@
       "path": "docs/frd/frd-02-intake-and-source-identity.md",
       "action": "modify",
       "before_sha256": "df38a5e3b2f7fd5b0b6a8d1d75f7a920b3c33f2e5e1f702e86e9a6a5ff3220ed",
-      "after_sha256": "f3bd6a22ffcebf97d03cc479a23fca35fc59b2ca451dc70f2f374594d17a163f",
+      "after_sha256": "e7af888d329fc2e2628bf9872c6498f6421d9f11834eb2d492c8e47f994bf868",
       "patch": "patches/107-frd-02-intake-and-source-identity.md.patch"
     },
     {
@@ -715,7 +715,7 @@
       "path": "docs/frd/frd-06-vehicle-and-engineering-evidence.md",
       "action": "modify",
       "before_sha256": "063e0e6a05e11958a2a6a057c38b29e80959860336d2cdba53b0602f18c2a938",
-      "after_sha256": "a999419c1c60cc8b3fecf25724ba941dab0db973ccf4a2d1dfb99af60b792742",
+      "after_sha256": "b1efb6744345a02db027b09b658fe8af63ce6e7944daef58295caf104321dbe9",
       "patch": "patches/111-frd-06-vehicle-and-engineering-evidence.md.patch"
     },
     {
@@ -736,7 +736,7 @@
       "path": "docs/frd/frd-09-provider-and-intermediary-routes.md",
       "action": "modify",
       "before_sha256": "a30cafa55e386d243c566750dfd028059b878c9c75c23f800e117bd639ff8766",
-      "after_sha256": "19fa33d7b963f83d759b9c2dab462e53c3fb77da4cd5625aca4139269f54e637",
+      "after_sha256": "d47d75e5b6c675dc9e6372ae3ccb7cbf1b5423a270a11d1076c0421566b3ab7e",
       "patch": "patches/114-frd-09-provider-and-intermediary-routes.md.patch"
     },
     {
@@ -898,7 +898,7 @@
       "path": "docs/operations.md",
       "action": "modify",
       "before_sha256": "b4d37247ade3044e2abfb5ca4779cf5d4e2e51bed52d925fa3be88708ea0e76a",
-      "after_sha256": "3730afeff4f98692e9a2dd2f54f8debef071095b4b974928395069e0b96d810e",
+      "after_sha256": "79c46d6013ff6b3566f0583c6e70f9dbeaf386330a3c92ea7f7fc64ae3f173c1",
       "patch": "patches/139-operations.md.patch"
     },
     {
@@ -933,7 +933,7 @@
       "path": "docs/runbook.md",
       "action": "modify",
       "before_sha256": "4fda519bfaa54d1c2f6e617832da5d8547b16698ff280d65fe9097111bfc49dd",
-      "after_sha256": "942a842e8b8f00bf657d79e673bd077eaccfda0e2e7dd1ba7791075def3c0e78",
+      "after_sha256": "05a62b0cbb44e4310fef0be9a6f1a1b4955f3d8a095ef54d4562fb7361244a80",
       "patch": "patches/144-runbook.md.patch"
     },
     {

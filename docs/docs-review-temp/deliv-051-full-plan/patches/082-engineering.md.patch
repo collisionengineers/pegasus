@@ -1,6 +1,13 @@
 --- a/docs/engineering.md
 +++ b/docs/engineering.md
-@@ -7,56 +7,16 @@
+@@ -1,62 +1,22 @@
+ # Engineering guidance
+ 
+ How repository work is done. Product behavior lives in
+-[requirements](prd/README.md), the roadmap in [capabilities](capabilities.md),
++[requirements](prd/README.md), stable identities in [capabilities](capabilities.md),
+ procedures in the [runbook](runbook.md), operational evidence in
+ [operations](operations.md), and current work on the Kanmer board (`.kanmer/`).
  Authority order is defined once in the
  [documentation index](index.md).
  
@@ -120,7 +127,7 @@
  
  ### Capability organization
  
-@@ -118,10 +67,10 @@
+@@ -118,16 +67,17 @@
  
  Add an interface only for a real external boundary, a second concrete caller,
  or an accepted ADR. A deferred capability belongs in
@@ -135,7 +142,17 @@
  
  ### Classifiers and failure semantics
  
-@@ -136,7 +85,7 @@
+-- Classifier and extraction precedence is explicit, ordered, and covered by
+-  contradiction tests; re-derive the complete precedence model whenever a rule
+-  is added.
++- Evidence ordering in extraction is explicit and tested against contradictions.
++  Accepted mailbox route predicates must be mutually exclusive (FRD-09); an
++  overlap is a defect to correct, not a winner chosen by precedence or score.
++  Recheck the complete affected rule set whenever a predicate is added.
+ - Every external client and catch path distinguishes `terminal`, `transient`,
+   and `unknown`; terminal outcomes park the work and stop retries; exceptions
+   are never converted into business truth.
+@@ -136,7 +86,7 @@
  
  ## Simplicity
  
@@ -144,10 +161,16 @@
  rules; these are the mechanics.
  
  ### The four lenses
-@@ -227,55 +176,39 @@
- wiped), prove the recovery source is complete, obtain the required approval,
- and stop if observations differ from the plan.
+@@ -221,61 +171,47 @@
  
+ ## Destructive operations
+ 
+-Before any wipe, drop, purge, rebuild, migrate, replay, or bulk update:
+-enumerate exact targets, rehearse read-only, verify the baseline under the
+-correct identity and role (row-level security once made a live database look
+-wiped), prove the recovery source is complete, obtain the required approval,
+-and stop if observations differ from the plan.
+-
 -## Lessons from the predecessor
 -
 -CollisionSpike (2,039 process/doc files vs 1,173 product files, a 128,427-line
@@ -200,6 +223,14 @@
 -implementations and their A-authored composition patches arrive together on
 -the owning branches. The combined checkout must prove those callers;
 -contracts and registrations alone do not establish a working user journey.
++Before a destructive or bulk operation, enumerate exact targets, inspect the
++baseline read-only under the intended identity and role, and confirm that the
++current authorization covers the operation. Limited permissions are not proof
++that a database is empty. Where real data or consumers must be preserved,
++verify the recovery source and compatible artifact before acting. An explicitly
++authorized reset of disposable test data requires no invented preservation
++machinery. Stop if observed targets or consequences differ from the plan.
++
 +## Verification and failure handling
 +
 +- Exercise representative retained input through the actual caller before
