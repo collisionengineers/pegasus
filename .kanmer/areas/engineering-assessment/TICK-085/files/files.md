@@ -28,6 +28,7 @@
 | tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs | Existing canonical importer fake/result adaptation |
 | tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs | Prove actual Web caller, pending completion, immutable source, no duplicate source/draft |
 | tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs | Actual runtime-role canonical import; replay and forged source refusal |
+| tests/Pegasus.IntegrationTests/AutomationMcpTestSupport.cs | Reuse existing persisted processed-receipt helper for MCP setup; retain real acceptance and completeness override |
 | tests/Pegasus.IntegrationTests/AutomationAssessmentIngressTests.cs | Real Automation import caller, scope/lease/source negatives, not fake-only proof |
 | tests/Pegasus.IntegrationTests/ProductionCompositionTests.cs | Exactly one PDF container and real parser reachability |
 | docs/frd/frd-06-vehicle-and-engineering-evidence.md | Raw PDF behavior, preserved source facts, whole-file refusal and pending completion |
@@ -63,3 +64,40 @@ ENG-041 Glass session recovery and estimate edit replay; ENG-033 whole-page drop
 interaction/removal; rate/VAT policy redesign; source-evidence schema with no
 current query consumer; report implementation; new queue, dispatcher, runtime,
 provider, package or generic parser framework.
+
+## Approved runtime-fixture correction census — 2026-09-08
+
+Root approved only the shared MCP setup file as additional edit scope after
+session 24236. AllocationTestData.StoreDefinitiveReceiptAsync in
+QdosAllocationRecoveryTests.cs is reused unchanged, through the same host and
+real IIntakeReceiptStore. This is processed-receipt/allocation/MCP setup, not
+source-byte, classification or custody evidence. Keep real IAcceptIntake,
+version 0, SeedPrincipalAsync, AB12CDE and the completeness override. No new
+fixture email, private-corpus dependency, host or production intake change.
+
+The exact 17 downstream callers (five classes) are read-only context:
+
+- AutomationMcpIngressTests.CaseGetUsesTheBoundedHeaderAndCursorSubLists
+- AutomationAdministrationWebTests.ActivityRendersCaseReferencesAndNoFilterNarration
+- AutomationDocumentIngressTests.AddAndDownloadOverHttpReplayAndAttributeHistory
+- AutomationDocumentIngressTests.ExportRefusesWhenTheCaseIsNotInReview
+- AutomationDocumentIngressTests.ExportSucceedsAfterReturnToReview
+- AutomationAiJobIngressTests.MarketResearchCompletesOverHttpWithCaseLeaseDocumentValuationAndActorHistory
+- AutomationAiJobIngressTests.MarketResearchCompletionSucceedsWhileAutomationIsSwitchedOff
+- AutomationAiJobIngressTests.MarketResearchCompletionReplaySurvivesStaffConfirmation
+- AutomationAiJobIngressTests.MarketResearchCompletionRefusesAMissingCaseLeaseWithoutChangingTheJob
+- AutomationAssessmentIngressTests.CanonicalEstimateImportThroughMcpPersistsUnconfirmedSourceBackedRowsAndRejectsForeignOrStaleAuthority
+- AutomationAssessmentIngressTests.AssessmentUpdateRejectsDirectWritesToDerivedImpactFields
+- AutomationAssessmentIngressTests.AssessmentUpdateOverHttpMutatesUnderLeaseWithCorrelatedAttribution
+- AutomationAssessmentIngressTests.CaseUpdateDetailsOverHttpMutatesUnderLeaseWithLoggingParityAndReopensCompleteness
+- AutomationAssessmentIngressTests.AStaffHeldLeaseRefusesAutomationBeginWriteAndEndOverHttp
+- AutomationAssessmentIngressTests.AnAutomationHeldLeaseRefusesTheStaffClaimAndLeavesTheWorkspaceReadOnly
+- AutomationAssessmentIngressTests.CaseUpdateDetailsRefusesAMissingEditLeaseWithFailedHistoryAndNoTokenDisclosed
+- AutomationAssessmentIngressTests.EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnUnconfirmedAiDraft
+
+The two assertion-only edits stay in already-mapped files:
+AutomationAssessmentIngressTests requires omitted null estimateId under the
+existing MCP serializer, while AssessmentEstimateImportWebTests uses the
+existing Engineer-only change-an-estimate wording and keeps redirect/no-write
+assertions. Root verifies these two methods plus the 17 consumers; unchanged
+113 passing cases and Core 61 results are retained rather than repeated.

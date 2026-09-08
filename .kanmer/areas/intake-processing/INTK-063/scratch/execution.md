@@ -131,3 +131,5 @@ independent exact-head review and later merged-dev verification; author stops.
 No self-review/merge/Done, CI PASS, initial registration/live/provider or cloud
 claim. Current packet base advancing to 498144b0 is distinguished from actual
 author starting cdaa02584c in the report.
+
+- 2026-09-08T04:38:53.031Z lease-phase review → running-command (lease 96040972-2231-4565-8a48-d176ea4c6aec rev 17; expires 2026-09-08T05:38:53.019Z)

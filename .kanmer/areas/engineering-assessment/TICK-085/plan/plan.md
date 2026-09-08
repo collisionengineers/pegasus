@@ -9,7 +9,7 @@ provider resubmission.
 
 ## Starting state
 
-Evidence: research/research.md@d3759f8ba28174b4; files/files.md@c35dbd86dfa59d16.
+Evidence: research/research.md@d3759f8ba28174b4; files/files.md@53c037ca57c47e28.
 Current accepted baseline: dev cdaa02584c38ecc27d3bd24784f59da189138bc1.
 TICK-041's d367219669ad26d5f2b727bd10b582330febc906 contract is integrated.
 CASE-049 native handoff is Done/closed at 3a5ce645cfc0872d7a4324c6818497360c39cca4.
@@ -140,6 +140,7 @@ correctly paired historical and current tuples. No fake metadata port proves it.
 | Modify | `tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs` | Existing canonical importer fake/result adaptation |
 | Modify | `tests/Pegasus.IntegrationTests/AssessmentEstimateImportWebTests.cs` | Prove actual Web caller, pending completion, immutable source, no duplicate source/draft |
 | Modify | `tests/Pegasus.IntegrationTests/AssessmentPersistenceIntegrationTests.cs` | Actual runtime-role canonical import; replay and forged source refusal |
+| Modify | `tests/Pegasus.IntegrationTests/AutomationMcpTestSupport.cs` | Reuse existing processed-receipt helper; preserve real acceptance/version/completeness setup |
 | Modify | `tests/Pegasus.IntegrationTests/AutomationAssessmentIngressTests.cs` | Real Automation import caller, scope/lease/source negatives, not fake-only proof |
 | Modify | `tests/Pegasus.IntegrationTests/ProductionCompositionTests.cs` | Exactly one PDF container and real parser reachability |
 | Modify | `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Raw PDF behavior, preserved source facts, whole-file refusal and pending completion |
@@ -309,3 +310,29 @@ uses the design authority's provider-plus-sequence default, without an initial
 Name field or handler parameter. Pass an empty name into the existing canonical
 command. Keep Core/MCP explicit names and the ordinary estimate-name editor.
 Update the initial Web expectation to Audatex 1, not an arbitrary supplied name.
+
+## Root-approved runtime-fixture correction — 2026-09-08
+
+Session 24236 built successfully and ran Core 61 PASS plus Integration
+113 PASS / 4 FAIL, no skips. Correct only the three fixture files below; retain
+all evidence and perform no author build/test. The files map records the exact
+17 existing shared consumers across five classes.
+
+1. AutomationMcpTestSupport.SeedAcceptedCaseAsync reuses the unchanged
+   AllocationTestData.StoreDefinitiveReceiptAsync in this same host. Remove
+   the obsolete minimal fabricated email and ProcessIntake setup; preserve
+   real IAcceptIntake, version 0, SeedPrincipalAsync, completeness override and
+   AB12CDE. This establishes processed-receipt/allocation state for MCP tests,
+   not source/classification evidence. No private-corpus requirement or new
+   helper/host, intake policy, receipt writer or domain instruction.
+2. AutomationAssessmentIngressTests pending result asserts estimateId is
+   omitted, matching MCP 1.4.0 WhenWritingNull. Preserve operation ID, Unknown
+   state and call count assertions; do not change production serialization.
+3. AssessmentEstimateImportWebTests.OnlyAnEngineerCanImport asserts the reused
+   guard's existing change-an-estimate wording. Keep redirect and no document
+   or estimate writes. Do not alter authorization or weaken refusal checks.
+
+Root's focused follow-up is the 17 shared consumers plus these two assertion
+methods (19 exact method selectors in the report), using an incremental
+Integration build and a unique TRX. Do not rerun unchanged Core 61 or the
+113 passing Integration cases. Stop frozen for root evidence; no PR yet.
