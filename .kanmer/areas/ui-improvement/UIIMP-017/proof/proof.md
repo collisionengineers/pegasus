@@ -161,3 +161,25 @@ Read this entire proof and fresh gates before Done. Normal closeout must
 retain/hash all three named author/merged TRXs and associated captures before
 removing only the two owned roots and branch, then release the claim last.
 No cleanup or release occurred while writing this proof.
+
+## Closeout evidence retention
+
+Root read whole proof b8a7ced80c521c62, accepted PASS and moved Done before
+this authorized closeout. Verification results/failures above are unchanged.
+All three named TRXs plus twelve associated capture files are now retained
+under ignored `pegasus_pack/current/proofs/UIIMP-017/`, in separate `author/`
+and `merged/` trees preserving their original relative paths. Source and copy
+SHA256/length were checked for all 15 files; manifest.json records every path,
+length and hash. Manifest SHA256:
+`338698CD29A19C7CE645848B785B2CA02D06365AEE50497F0CCB90B263FE9554`.
+This includes the original failing Health response and the independent exact
+merged capture. No build/test/capture was rerun for closeout.
+
+Fresh GitHub read-back confirms PR693 MERGED to dev at
+2026-09-08T02:37:21Z, author head3e585f6e0f43ed0d90773be967ead867bc5e76f1,
+merge cdaa02584c38ecc27d3bd24784f59da189138bc1 reachable from origin/dev.
+All six delivered file blobs equal reviewed author inputs; no full-tree
+identity claim is made. Both exact owned worktrees were clean, had the correct
+heads/branch or detached state and common source Git directory; no other
+ticket claims either path or branch. Only the authorized two roots/local and
+remote branch will be removed normally; claim release remains last.
