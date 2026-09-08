@@ -325,3 +325,13 @@ No verification was run at this new head. Retained prior evidence: build and Cor
 Worktree is frozen for an independent fresh verifier; no runtime, browser, script, HTML, push, or PR activity was performed.
 
 Correction: the full implementation commit is `500b86a9b21adbd7a8fe56a65ddd52782630ce21`; the earlier full SHA in this scratch entry was transcribed incorrectly. This correction supersedes that identifier.
+
+- 2026-09-08T20:11:34.248Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 27; expires 2026-09-08T21:11:34.237Z)
+
+## Sole host re-grant — INTK-066 lease-key and open-image decision correction
+
+Root reread canonical IDLE e053f70fdefb75d6, fresh ready packet, and actual clean HEAD 500b86a9b21adbd7a8fe56a65ddd52782630ce21 in .worktrees/INTK-066 / INTK-066-manual-upload-confirmation. Root read all six changed files, including shared CanOffer guard and actual editable-field browser assertions. Previous cca2 build/Core passes and eight SQL failures are retained with dispositions. Author idle. Sole CEALEX-May25 owner /root/agent_config_verifier ACTIVE; lease running-command rev27 for60min.
+
+Run original dotnet build Pegasus.slnx, Core --no-build, and SAME amended focused nonbrowser Integration filter (UploadConfirmationWebTests|UploadOutcomeQueriesTests|CaseCreateWebTests|GroupedIntakeWebTests|ImageIntake|CasesIndexWebTests|MailWorkspaceWebTests|TriageQueuesWebTests.AwaitingAttach, all FullyQualifiedName~ predicates grouped then &Category!=Browser). After all PASS, browser --no-build filter Category=Browser&(FullyQualifiedName~UploadCaseSearchBrowserTests|FullyQualifiedName~QdosAllocationRecoveryBrowserTests), xUnit.MaxParallelThreads=1, using documented installed Chromium/setup. New theories prove actual confirmation and editable Create at1580/1100/760; keep all unrelated existing tests in these classes. First genuine failure stops remainder and returns IDLE; no autonomous retry or source/assertion/filter fixes.
+
+Fresh exact-head/process census required. After original build parent exits, record/revalidate PID/start/parent/expected command of only this invocation's reusable MSBuild nodes then native exact-ID cleanup permitted, as prior grants. No foreign/name-based termination. Local disposable SQL only. No snapshot generation, source edits, push/PR, live/cloud/Outlook/Box. Remaining full Release rails and four-scope capture/verification are separate later obligations, not waived. Record exact commands/exits and explicit canonical IDLE on finish.
