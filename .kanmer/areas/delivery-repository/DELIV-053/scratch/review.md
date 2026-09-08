@@ -7,7 +7,7 @@ reviewer: "/root/agent_config_review"
 independent: true
 plan_hash: "b874490d12167254"
 ticket_updated: "2026-09-08T14:17:44.269Z"
-board_sha: "17913ab644783c4518964237715d50c4fae2e072"
+board_sha: "9c2e5a1000dc4d151d553f9a7f4740307624271b"
 expected_reviewers:
   - "/root/agent_config_review"
 threads_snapshot: []
@@ -44,9 +44,10 @@ The project configuration preserves the existing environment-relative Kanmer lau
 - A separate fresh strict-config acceptance completed successfully and resolved the expected Kanmer project id, board worktree, and `kanmer-board` branch.
 - The earlier unsupported-flag, inline-parser, and command-shim attempts remain recorded as INCONCLUSIVE; the later passing evidence does not erase them. The initial full-context scout refusal is also retained, with the successful no-inherited-context route stated narrowly.
 - No .NET build/test, browser/capture host, packaging, cloud write, deployment, user-config mutation, or auto-trust occurred.
-- The live PR is open against `dev` at the reviewed head and GitHub reports `CLEAN`. GitHub reports no configured required checks for `dev`; every emitted applicable lane completed successfully (changes, documentation, local-development-scripts, reference-data), while application and infrastructure lanes were path-skipped.
-- GitHub exposes no reviews, comments, or review threads on this head, so `threads_snapshot` is truthfully empty.
-- The Kanmer board tip used for this review was pushed with local and remote SHA equal and ahead/behind both zero.
+- The live PR is ready and open against `dev` at the reviewed head and GitHub reports `CLEAN`. GitHub reports no configured required checks for `dev`; every emitted applicable lane completed successfully (changes, documentation, local-development-scripts, reference-data), while application and infrastructure lanes were path-skipped.
+- The automated security review triggered by marking the draft ready completed on the exact reviewed head with no finding.
+- GitHub exposes no reviews or review threads on this head, so `threads_snapshot` is truthfully empty.
+- The Kanmer board tip used for this renewed review was pushed with local and remote SHA equal and ahead/behind both zero.
 
 ## Findings and dispositions
 
@@ -56,4 +57,4 @@ No findings.
 
 Profiles constrain task instructions but cannot override a parent runtime permission policy; the committed AGENTS contract states that limit. Host-slot serialization is an explicit coordination protocol recorded through Kanmer, not a process-level mutex, as deliberately required by the plan.
 
-PR #704 remains a draft. This content review passes, but the PR must be marked ready and its head, checks, comments, reviews, threads, packet versions, and pushed board re-gathered before any merge decision. A later thread on this same head invalidates this attestation until it is replaced. No merge is authorized by this record.
+PR #704 is ready, and this renewed attestation binds the unchanged exact head, current packet, completed checks, completed automated security review, empty review-thread snapshot, and pushed board state gathered immediately before the authorized integration decision. A later thread on this same head invalidates this attestation until it is replaced.
