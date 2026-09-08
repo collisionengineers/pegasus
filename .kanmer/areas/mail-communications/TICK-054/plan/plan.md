@@ -134,21 +134,14 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 ## Do not modify
 
 - `docs/operator-notes.md`
-- `src/Pegasus.Core/Intake/Classification/**`
-- `src/Pegasus.Core/Operations/StaffMailSend.cs`
-- `src/Pegasus.Web/Pages/Mail/Compose.cshtml*`
-- `src/Pegasus.Worker/**`
-- `src/Pegasus.Web/wwwroot/**`
-- `src/Pegasus.Web/Pages/Shared/_ReasonDialog.cshtml`
-- `infra/**`
-- `corpus/**`
-- `reference/**`
-
-No edits to old migrations, foreign worktrees/claims, MAIL-031 Administration,
-TICK-088 compose/send or MAIL-028 cloud/configuration activation. No new SMTP,
-Graph SDK, background retry, mailbox sync or generic command dispatcher.
 
 ## Constraints
+
+Every path outside Expected files is undeclared. Preserve the classification
+folder taxonomy, staff sending/compose, Worker, shared CSS/JS/reason dialog,
+infra, corpus/reference data, old migrations, foreign claims/worktrees and
+MAIL-031 Administration. MAIL-028 retains activation. No new SMTP, Graph SDK,
+background retry, mailbox sync or generic command dispatcher.
 
 Root is the sole heavy verifier. The author runs no tests/builds without root's
 scheduled instruction, and performs no cloud/mail writes or deployment. Existing

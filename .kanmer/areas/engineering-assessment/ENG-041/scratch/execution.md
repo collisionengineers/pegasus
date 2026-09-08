@@ -9,3 +9,5 @@
 2026-09-08T00:26:34Z root exact-merge verification FAIL: build61.48s and Core56PASS; Integration159 total157PASS2FAIL provider-return expectedCompleted actualAwaitingImport. Whole proof written/read back. Independent diagnosis assigned principal_delivery_audit. Preserve claims/worktrees/TRXs, no Done/cleanup/deployment. Root command used incorrect capture env names; no fresh snapshot proof is claimed and guarded snapshot commands did not run.
 
 - 2026-09-08T00:30:57.259Z stage verifying → implementing by codex-mcp-client; reason: proof FAIL implementation: exact baafa29e integrated Glass return/replay expected Completed but remained AwaitingImport in two real Web/SQL tests; proof73d3327f6364834c read in full, 157 other integration and56Core passes retained. Diagnose and correct existing owner; preserve branch/worktree, open follow-up PR because683 is already merged.
+
+- 2026-09-08T00:35:27.503Z lease-phase running-command → implementing (lease 111299a8-7b0e-4d0c-873e-498a48680204 rev 14; expires 2026-09-08T01:05:27.493Z)
