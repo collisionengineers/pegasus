@@ -9,9 +9,9 @@ Retained source evidence never changes. No permanent-delete operation exists.
 
 ## Starting state
 
-Source: accepted dev `19e6f523bf6760cab39104b4dca3674b0ac8a512`.
-Evidence: `research/research.md`@`22e4a219a7da018e`,
-`files/files.md`@`b8ec0443c3eb4d64`.
+Source: accepted dev `493f7460d7728a6576d240d4feb7d0bf2a377ec5`.
+Evidence: `research/research.md`@`05570adfb75900ee`,
+`files/files.md`@`4dcc2c80201bbe51`.
 Resolved questions version: e58a7bab450fa458.
 
 This replaces plan `f3f565c096f44a0c` and its obsolete permanent-delete journey.
@@ -24,6 +24,12 @@ Administration, not a prerequisite. No historical PLAT-075 claim is acquired.
 Astra DEFERRED-WORK.md explicitly left this scope in TICK-054/MAIL-028 and
 excluded MAIL-026/027 flag/delete clauses. The latest user task reactivates this
 Preparing residual. Existing send code is not evidence that these actions exist.
+
+The refresh from dev19e6f523 changes no action semantics. Accepted differences
+are principal-routing composition/query/test names, INTK-063's restricted
+Worker test and as-built paragraphs, and the generated capture index.
+Preserve these current-base changes. Existing mover/category/Graph/page
+contracts are unchanged; research records the complete mapped-path census.
 
 ## Governing docs
 
@@ -43,6 +49,14 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 
 ## Required changes
 
+- Reuse the already-registered `MoveRetainedMailFolder` Core instance:
+  add a concrete state-action entry point plus explicit refresh/check-status
+  methods on that owner, extending its existing store/transport ports. No
+  per-action command classes, dispatcher, wrapper, manual production
+  construction, service locator or DI change. The existing category query
+  gains a staff-only active-choice method; keep its administrator method and
+  active resolver. MessageModel already injects the move owner and may inject
+  the existing category query through normal Razor construction.
 - Extend the existing retained-mail boundary with a **closed** action set:
   MarkRead, MarkUnread, AddCategory, RemoveCategory, Flag, Unflag, DeleteToDeletedItems,
   Restore. Keep ordinary MoveRetainedMailFolder's existing classification-based
@@ -103,15 +117,14 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 
 | Action | Repo-root-relative path | Responsibility |
 | --- | --- | --- |
-| Modify | `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs` | Extend the existing exact-message use-case/store/transport boundary with closed read/category/flag/delete/restore actions and current-state results. Ordinary designated moves retain their classification rule; new actions cannot forge it. |
+| Modify | `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs` | Extend the already-registered MoveRetainedMailFolder owner with concrete state-action, refresh and check-status methods plus existing store/transport contracts; no additional command class. Ordinary designated moves retain their classification rule; new actions cannot forge it. |
 | Modify | `src/Pegasus.Core/Intake/RetainedMail.cs` | Expose separately labelled arrival and observed Outlook state, freshness, current effective scope and allowed exact-message actions. |
-| Modify | `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs` | Add the staff-authorized active-choice read needed by the message page, using the existing store/resolver and single catalogue. No new administration or master-category sync. |
+| Modify | `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs` | Add a staff-authorized active-choice method on the existing registered ListApprovedOutlookCategories query, using the existing store/resolver and single catalogue; keep its admin method unchanged. No new administration or master-category sync. |
 | Modify | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs` | Existing journal owner carries all these concrete actions, shared per-message exclusion, replay/recovery, current observation and recorded restore target. No second move store or workflow. |
 | Modify | `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs` | Extend existing operation row with closed action kind/expected-state/before-after evidence; add one per-retained-message mutable Outlook-state projection without changing arrival fields. |
 | Modify | `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs` | Journal constraints and unique pending/uncertain exclusion; current-state row FK/version and no cascading evidence deletion. |
 | Modify | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` | Single effective unread/current-folder projection for detail, list/counts and retained search; restored Inbox items reappear without re-intake. |
 | Modify | `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` | Reuse GraphMailClient and GraphRetainedMailFolderMover; exact metadata read/conditional property PATCH and existing move/Deleted Items resolver. No DELETE/permanentDelete endpoint. |
-| Modify | `src/Pegasus.Infrastructure/DependencyInjection.cs` | Register added Core commands in the existing composition; keep unavailable production transport default. MAIL-028 owns activation. |
 | Modify | `src/Pegasus.Infrastructure/Persistence/Migrations/*RetainedMailMessageState*.cs` | One normal migration and generated designer only, current-state projection plus narrow journal changes; exact Web grants/DELETE denial in same diff. No historic migration edits. |
 | Modify | `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs` | Generated current EF model only. |
 | Modify | `scripts/Invoke-AzureDatabaseBootstrap.ps1` | Same-migration grant census and least-privilege matrix, no broad grants or execution. |
@@ -119,6 +132,7 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 | Modify | `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` | Thin authenticated/antiforgery action and read-only reconciliation handlers with server-resolved identity/state; preserve originating list context. |
 | Modify | `src/Pegasus.Web/Presentation/OperatorLabels.cs` | One label vocabulary for named actions/states. |
 | Modify | `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs` | Closed action/actor/destination/category and expected-state policy cases. |
+| Modify | `tests/Pegasus.Core.Tests/Intake/RetainedMailTests.cs` | Adapt the existing FolderMoveState double to the extended ports; preserve suggestion-view no-probe/no-mutation assertions. |
 | Modify | `tests/Pegasus.Core.Tests/Intake/ApprovedOutlookCategoryTests.cs` | Staff active choices and disabled/forged category refusal. |
 | Modify | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` | Existing SQL harness: shared exclusion/replay/restart, evidence preservation, restore target and effective list/counts. |
 | Modify | `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` | Existing fake HTTP: exact identities/headers/property confinement, 412 and uncertain responses, read-only recovery. |
@@ -137,7 +151,21 @@ solely to meet the explicit immutable-arrival versus current-Outlook distinction
 
 ## Constraints
 
-Every path outside Expected files is undeclared. Preserve the classification
+Every path outside Expected files is undeclared. DependencyInjection.cs is
+read-only context: its existing registrations already suffice. The two
+explicit EF move-store constructions are both in RetainedMailPersistenceTests;
+adapt those fixtures if the constructor changes, not production composition.
+RetainedMailTests' existing dual-port double is also mapped and must preserve
+read-only viewing assertions. No default-interface compatibility shim is
+introduced to avoid updating a known consumer.
+
+AzureSqlRuntimeRoleMigrationTests and current-architecture.md remain genuine
+whole-file coordination points with INTK-064. Use the former's existing
+mail-grant assertion and restricted-connection actual-caller pattern, not a
+relocated test or new harness created to avoid ownership. Root must order
+these edits before execution; this preparation claims neither file.
+
+Every other boundary remains unchanged. Preserve the classification
 folder taxonomy, staff sending/compose, Worker, shared CSS/JS/reason dialog,
 infra, corpus/reference data, old migrations, foreign claims/worktrees and
 MAIL-031 Administration. MAIL-028 retains activation. No new SMTP, Graph SDK,
@@ -161,14 +189,14 @@ rewrite or preservation framework.
 ### Step 1 — Extend the existing Core action boundary
 
 - Preconditions: root approves this current plan and assigns a fresh execution packet; integrated TICK-049/MAIL-004 owners are present.
-- Tests: RetainedMailFolderMoveTests; ApprovedOutlookCategoryTests.
+- Tests: RetainedMailFolderMoveTests; affected RetainedMailTests; ApprovedOutlookCategoryTests.
 - Commands: no author build/test; submit the named Core filter to root.
 - Preserved behaviour: ordinary MAIL-07 designated movement and catalogue administration remain unchanged.
 - Negative cases: non-staff, missing authority, forged category/destination, stale expected state and absent restore origin refuse.
 - Expected output: focused Core assertions pass under root verification; no new package or permanent-delete enum.
 - Deviation stop: a new policy owner, unapproved behaviour or undeclared file is needed.
 
-- Files: `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs`, `src/Pegasus.Core/Intake/RetainedMail.cs`, `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs`, `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs`, `tests/Pegasus.Core.Tests/Intake/ApprovedOutlookCategoryTests.cs`.
+- Files: `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs`, `src/Pegasus.Core/Intake/RetainedMail.cs`, `src/Pegasus.Core/Intake/ApprovedOutlookCategories.cs`, `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs`, `tests/Pegasus.Core.Tests/Intake/RetainedMailTests.cs`, `tests/Pegasus.Core.Tests/Intake/ApprovedOutlookCategoryTests.cs`.
 - Change: the closed action requests/results, active category choices and current-state view; Core owns authorization, target eligibility and action semantics. Preserve the ordinary designated-folder move contract.
 - Done when: direct Core actor/forged target/category/stale-state refusals and successful action policy cases are represented by focused tests; no permanent-delete branch exists.
 
@@ -182,7 +210,7 @@ rewrite or preservation framework.
 - Expected output: one effect maximum per reserved action, uncertain work remains recoverable and occupied, exact grants pass.
 - Deviation stop: conditional provider semantics cannot be met without an unsafe fallback or a second store/service.
 
-- Files: `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs`, `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs`, `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs`, `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`, `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs`, `src/Pegasus.Infrastructure/DependencyInjection.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/*RetainedMailMessageState*.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs`, `scripts/Invoke-AzureDatabaseBootstrap.ps1`, `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs`, `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs`, `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs`.
+- Files: `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs`, `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs`, `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs`, `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`, `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/*RetainedMailMessageState*.cs`, `src/Pegasus.Infrastructure/Persistence/Migrations/PegasusDbContextModelSnapshot.cs`, `scripts/Invoke-AzureDatabaseBootstrap.ps1`, `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs`, `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs`, `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs`.
 - Change: one journal/exclusion owner and separate mutable observation row; exact PATCH/move/probe, restore target, effective list projection and same-key restart recovery. Schema/grants/census together.
 - Done when: no provider write precedes durable reservation/current checks; reconstructed unknown work only probes; unrelated categories and retained source survive; restored Inbox row/count return; fake/local compositions do not enable a live writer.
 
@@ -250,7 +278,7 @@ The author returns exact changed/new test names before root chooses the run.
 - Locked restore/build: existing solution runbook commands, or root's focused
   IntegrationTests project form; one build shared with these tests, no duplicate
   solution/CI loop.
-- Core filter: `FullyQualifiedName~RetainedMailFolderMoveTests|FullyQualifiedName~ApprovedOutlookCategoryTests`.
+- Core filter: `FullyQualifiedName~RetainedMailFolderMoveTests|FullyQualifiedName~ApprovedOutlookCategoryTests`, plus the exact affected RetainedMailTests suggestion/current-state cases selected after the fixture change.
 - Integration filter for new tests named with `MessageState`, plus the existing
   `ConfirmedFolderMoveIsDurableReplayableAndPreservesArrivalEvidence`,
   `ConcurrentDifferentKeysHaveOneActiveClaimAndOneProviderMove`,
