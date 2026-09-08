@@ -15,3 +15,16 @@
 - The completed change is documentation-only and limited to the two expected
   files; `git diff --check` completed with exit code 0 (only working-copy
   line-ending warnings).
+
+---
+
+## Closeout — DELIV-055
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date confirmed)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/deliv-055`
+- [ ] `git branch -d DELIV-055-migration-host-doc` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
