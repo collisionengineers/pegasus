@@ -538,3 +538,17 @@ Retained partial result: affected build completed; browser capture PASS 4/4 (1m1
 Exact owned residual chain was observed as dotnet PID20040 → vstest7136 → testhost32124, bound by worktree/filter/correlation/parent facts. All three self-exited before exact-PID cleanup; no process was stopped and no foreign process touched. Final census at `2026-09-08T22:59:59.1905583Z`: no dotnet/MSBuild/testhost/vstest, exact head/branch, tracked status clean, disposable capture retained. No source/generated cleanup or hand-edit occurred.
 
 Lease returned to `implementing` revision72. All capture/test grants revoked. Canonical CEALEX-May25 host slot explicitly **IDLE / unassigned**.
+
+## Sole-host removal verification
+
+Canonical DELIV-053 IDLE6024aac530a5970f and INTK IDLE4f3c3626456c4290 reread. /root/final_verifier is sole ACTIVE CEALEX-May25 owner. Frozen clean HEAD6c58bdf1cfa5f238d505956e9ab4e59a9eb32035, exact INTK-066 branch/worktree. All prior browser/capture grants remain revoked. No product/docs/tests edits or commits/push/PR by verifier. Only normal NuGet-generated affected packages.lock.json changes are allowed during restore; record their exact diff and final input tree/hash.
+
+Run sequentially, first genuine failure stops and returns BOTH records IDLE/lease implementing:
+1. dotnet restore ./Pegasus.slnx (normal unlocked restore required to regenerate lock from two explicitly removed direct test dependencies; do not update package versions).
+2. dotnet restore ./Pegasus.slnx --locked-mode
+3. dotnet build ./Pegasus.slnx --configuration Release --no-restore -nodeReuse:false
+4. dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~InstructionDraftWebTests|FullyQualifiedName~ReadinessEndpointTests|FullyQualifiedName~WebCompositionTests|FullyQualifiedName~MultiFormatIntakeWebTests|FullyQualifiedName~AssessmentReportRendererTests|FullyQualifiedName~AssessmentReportDraftWebTests" -- xUnit.MaxParallelThreads=2
+5. scripts/Test-CiChangeFlags.ps1; scripts/Test-TestShard.ps1; scripts/Test-PegasusPlatform.ps1; scripts/Test-DocumentationLinks.ps1; scripts/Test-MarkdownPlacement.ps1 -Base 9ae9db753e3a3ecce1d9735d5c2fbe6fb5b0ff2c -Head 6c58bdf1cfa5f238d505956e9ab4e59a9eb32035, each separately with exit code.
+6. Parse changed surviving PowerShell files using existing PowerShell Parser; no invoking Initialize/Doctor/local Start. Verify installed generated src/Pegasus.Infrastructure/bin/Release/net10.0/playwright.ps1 exists (runtime dependency output), no actual Chromium launch. git diff --check.
+
+Confirm retained group-processing Theory false/true actually selected. Source census must show no Browser-category test, Playwright.CreateAsync or OfflineBrowserAxe in tests; no TestUi/PEGASUS_TEST_UI capture references or deleted script callers in current source/scripts/CI. Old docs-review-temp and dated operations observations are historical evidence, not executed consumers. No full 55-minute integration rerun: earlier complete rail/five corrected failures retained; affected current cohort plus all-build and independent CI are proportional to removal. No cloud, externalSQL, Outlook/Box, packaging, capture, browser, installer execution, broad cleanup. Usual exact owned-node cleanup only after parent exit; no foreign process touched. Verifier owns lease heartbeat and both result records until IDLE.
