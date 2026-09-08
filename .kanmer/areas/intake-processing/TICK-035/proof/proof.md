@@ -286,3 +286,39 @@ Root retains Verifying lease30; there is no stage or lease mutation by this
 proof writer. Only after root reads this whole PASS, refreshes gates and
 moves Done may separately authorized normal closeout proceed. Outcome is
 integrated dev acceptance, not deployment.
+
+
+## Closeout preparation after verified Done — 2026-09-08
+
+Root read the full original proofa4cb5906f9bfa2c7, refreshed synchronized board
+and gates, and moved Done at2026-09-08T02:34:38.664Z. The previous final
+paragraph's Verifying/lease30 description is its historical proof-writing
+state; the accepted verdict/attempts/hashes remain unchanged.
+
+Fresh complete include-archived census finds only TICK-035 occupying the
+recorded TICK-035-principal-routes branch and .worktrees/tick-035, no batch.
+The separately approved verifier root is
+.worktrees/verify-tick-035-56566371a5b80ef59c4f98e377c8e8ff6469b5f7.
+Both exact paths resolve within the intended repository .worktrees directory,
+share C:/Users/Alex/Documents/GitHub/pegasus/.git, and have clean tracked/
+untracked Git status. Author HEAD iscca5521a6315420129320061759209273bb64c67;
+verifier is detached at56566371a5b80ef59c4f98e377c8e8ff6469b5f7.
+No other ticket/root/claim is authorized for cleanup.
+
+Fresh GitHub read confirms PR692 MERGED at2026-09-08T02:20:31Z with that
+full merge SHA. After fresh origin/dev fetch, git merge-base --is-ancestor
+56566371a5b80ef59c4f98e377c8e8ff6469b5f7 origin/dev passes exit0.
+Ticket commit/delivery traceability now names this reachable merged commit,
+not an unmerged author tip; original author history stays in report/review.
+
+Before any removal, the archive manifest's SHA256 was rechecked as
+011233769A658F032BA56E5EDA3EC38DBCB429513978839B52851F454D7BA5BC.
+Every one of15 TRXs and40 capture files matched its expected SHA256 both at
+the source and retained destination (55/55). All13 author results, including
+all six failures, the two merged PASS TRXs and all20 complete capture pairs
+remain preserved. No artifact was overwritten, recreated as a fake prior run
+or removed from the archive.
+
+No source/build/test, deployment/cloud/mail action, stage move or lease change
+was performed during this record-keeping. Normal Git cleanup and release-last
+will be recorded separately below; no force operation is authorized.

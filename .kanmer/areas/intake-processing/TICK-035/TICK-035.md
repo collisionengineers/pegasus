@@ -37,12 +37,17 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 commits:
-  - cca5521a6315420129320061759209273bb64c67
+  - 56566371a5b80ef59c4f98e377c8e8ff6469b5f7
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/692'
+deployment: not-deployed
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 56566371a5b80ef59c4f98e377c8e8ff6469b5f7
+delivery_recorded_at: '2026-09-08T02:36:54.607Z'
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T02:34:38.664Z'
+updated: '2026-09-08T02:36:54.607Z'
 ---
 
 ## What
@@ -63,16 +68,16 @@ evidence, not permission to invent mappings.
 
 ## Acceptance
 
-- Exact evidenced domain routes identify one active principal; unknown,
+- [x] Exact evidenced domain routes identify one active principal; unknown,
   conflicting, shared or intermediary evidence remains explicit and fail-closed.
-- The selected existing extraction profile agrees with the accepted route and
+- [x] The selected existing extraction profile agrees with the accepted route and
   drives the existing Case/Triage/Unidentified destination logic.
-- Direct, forwarded, ambiguous and replay cases use genuine existing fixtures
+- [x] Direct, forwarded, ambiguous and replay cases use genuine existing fixtures
   and prove the destination, principal and lifecycle state, not just selection.
-- Canonical FRD-02 and production callers agree. No second principal catalog,
+- [x] Canonical FRD-02 and production callers agree. No second principal catalog,
   rules engine, mailbox onboarding or separate pipeline is introduced.
 
-## Coordination
+## Historical coordination
 
 [[PLAT-028]] owns customer contracts, DI and Settings until its announced
 merge. Preparation may proceed; overlapping implementation waits for that base.
@@ -85,3 +90,11 @@ provider or cloud write is part of this preparation. Root is the sole heavy
 verification owner.
 
 ## Outcome
+
+Integrated and accepted on dev via [PR692](https://github.com/collisionengineers/pegasus/pull/692), merged 2026-09-08T02:20:31Z at 56566371a5b80ef59c4f98e377c8e8ff6469b5f7. Root read the full exact-merge PASS proof and moved Done on 2026-09-08T02:34:38.664Z. Locked restore/full Release build passed; 247 Core and 28 integration cases passed with no skips. The single Top15 case internally covers fifteen original documents, not fifteen xUnit cases.
+
+One Core route/profile/classification/matching chain now serves the evidenced identities and actual durable destinations. Persisted candidate provenance and physical-document table identity are retained; non-QDOS automatic mail matching requires an agreeing selected profile while QDOS fallback and declared Provider API remain separate supported paths. All three review findings are fixed. Original failed attempts remain in the report/review/proof.
+
+ALS/FW/SBL genuine mail allocation/replay and YML later-report no-Case are the exact tested outcomes. No genuine initial YML envelope allocation, live OCR/mail/provider call, hosted-CI or deployment is claimed. Settings verification is reused only for identical source/snapshots. Mailbox onboarding remains with [[TICK-036]], [[TICK-037]] and [[TICK-038]]; no new closeout follow-up is created. Generated index ownership was already handed to [[UIIMP-017]].
+
+Before cleanup, all 15 TRXs and 40 capture files were archived and source/copy hashes verified under pegasus_pack/current/proofs/TICK-035. The only approved cleanup roots are this ticket's author worktree and exact-merge verifier; other tickets and shared state are preserved. Current delivery is integrated dev, not deployed. Earlier coordination and pending handoff paragraphs are historical records, not current ownership holds.
