@@ -7,7 +7,7 @@ reviewer: "/root/parallel_plan_review"
 independent: true
 plan_hash: "b7e0dfdbb97bcd01"
 ticket_updated: "2026-09-08T14:45:48.793Z"
-board_sha: "517993c94a6c75904e6ff2bee2e86a11de11dc72"
+board_sha: "63104013e525cccd05eeec731a1bae55d87cf5aa"
 expected_reviewers: ["/root/parallel_plan_review"]
 threads_snapshot: []
 findings:
@@ -146,7 +146,9 @@ risk, destructive risk, unmet scoped acceptance check, stale review input, or
 failed/missing required check remains.
 
 PASS for the bounded, non-runtime INTK-065 implementation. This decision does
-not claim the broader repository suite is green, does not accept release or
-deployment, and does not authorize a merge. Any later merge decision requires
-a fresh unchanged head/check/thread/ticket/plan/board gather and explicit
-authority. Exact merged-SHA verification and Done remain separate obligations.
+not claim the broader repository suite is green and does not accept release or
+deployment. Root has supplied explicit authority for ordinary integration to
+dev only. The merge decision still requires a fresh unchanged
+head/check/thread/ticket/plan/board gather; it permits no force, bypass, waiver,
+main promotion, proof, source edit or cleanup. Exact merged-SHA verification
+and Done remain separate obligations.

@@ -65,3 +65,14 @@ The live plan named 13 class-substring selectors, but this filter selected 269 c
 Postcheck at `2026-09-08T15:04:27.8335379Z` retained the exact 10-file source status, clean diff check, and binary diff hash. Only idle reusable MSBuild nodes remained.
 
 Disposition: **FAIL**. No fix, rerun, source write, full rail, assertion weakening, commit, push, PR, merge, or stage mutation was performed.
+
+## 2026-09-08 corrective fixture addendum
+
+Implemented the six approved corrective items within the existing DELIV-056 test-fixture change set. New edits were confined to `CustodyOutboxIntegrationTests.cs` and `InstructionDraftWebTests.cs`; the shared PDF builder was reused unchanged.
+
+- Re-evaluation sources use a genuine attached PDF that truthfully says its work type is not yet classified.
+- Audit custody fixtures now attach both a genuine Audit notification and a distinct original bodyshop report with the repairable assessment. The bodyshop report is attached first because the existing automatic-evidence seed deliberately selects the receipt's first retained attachment as the original report.
+- The counting custody fake counts attachment-retention effects through the existing default lease-guard overload.
+- The duplicate submission test now asserts one shared case, exactly one allocation, and the three truthful receipt-event rows.
+
+No test/build was run and no commit, push, PR, or production action was performed; the sole host verifier remains responsible for the required existing selections. Static `git diff --check` passed (exit 0; Git emitted only LF-to-CRLF warnings). The complete dirty DELIV-056 set remains the original ten test files, with current whole-diff binary hash `f75a69cfdfd243d02d7e1210f39246f1f95bfb81`.
