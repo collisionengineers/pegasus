@@ -417,6 +417,7 @@ public sealed class CaseWorkspacePersistenceTests
                     Guid.NewGuid(),
                     new(true, true, "case-completeness-projection")),
                 null,
+                CaseLifecycleState.ReportPreparation,
                 CancellationToken.None));
 
         Assert.Equal(demoted.Version, (await harness.GetRequiredDataAsync()).Version);

@@ -219,15 +219,16 @@
         </div>
     </div>
 
+        <div class="presence-strip" role="status">
+            <span class="presence-dot" aria-hidden="true"></span>
+            <span>You are editing this case.</span>
+        </div>
     <div class="record-bar">
             <form method="post" action="#">
                 <input type="hidden" name="id" value="test-ui-guid-1" />
                 <input type="hidden" name="expectedVersion" value="7" />
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                <button type="submit" class="btn">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                    <span>Edit Case</span>
-                </button>
+                <button type="submit" class="btn">Recover editing</button>
             <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
     </div>
 
@@ -306,7 +307,7 @@
                         <tbody>
                                 <tr>
                                     <th>Reason</th>
-                                    <td>Images turned out to be incomplete</td>
+                                    <td>Lease gone</td>
                                     <td>&#x2014;</td>
                                 </tr>
                                 <tr>
@@ -316,8 +317,13 @@
                                 </tr>
                                 <tr>
                                     <th>Images complete</th>
-                                    <td>No</td>
                                     <td>Yes</td>
+                                    <td>Yes</td>
+                                </tr>
+                                <tr>
+                                    <th>Evidence reference</th>
+                                    <td>review-evidence-1</td>
+                                    <td>&#x2014;</td>
                                 </tr>
                         </tbody>
                     </table>
@@ -549,7 +555,7 @@
                     <div class="decision-row">
                         <span>Edit authority</span>
                         <strong>
-                                Available
+                                You
                         </strong>
                     </div>
                 </div>
@@ -608,6 +614,7 @@
         </div>
     </div>
 </div>
+
 
 
 

@@ -1,14 +1,65 @@
+using System.Net;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Workflow page: hold, release, and start-work are covered beside the workspace tests; these
+/// The Workflow page: hold and release are covered beside the workspace tests; these
 /// cover return-to-Review, Engineer assignment and finding, and the linked replacement.
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
+    [Fact]
+    public async Task NativeHandoffDialogPostsWithoutEvaOrASeparateReviewAction()
+    {
+        var engineerId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<IAssignCaseEngineer>(services, store);
+            Substitute<IStaffAccountQueries>(services,
+                new StubStaffAccounts(engineerId, "Engineer", StaffRole.Engineer));
+            services.RemoveAll<ISubmitCaseToEva>();
+        });
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("Hand to Engineer", RecordBar(html), StringComparison.Ordinal);
+        var dialog = Section(html, "case-handoff-dialog-title");
+        Assert.Contains("handler=AssignEngineer", dialog, StringComparison.Ordinal);
+        Assert.Contains(engineerId.ToString("D"), dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("reviewed", dialog, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("handler=StartWork", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start report preparation", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AssignEngineer",
+            Section(html, "eva-handoff-dialog-title"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
+
+        using var denied = await workspace.PostAsync("Workflow?handler=AssignEngineer",
+            new FormUrlEncodedContent([]));
+        Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
+        using var response = await workspace.PostAsync("Workflow?handler=AssignEngineer",
+            Form(AntiforgeryValue(dialog),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", InputValue(dialog, "expectedVersion")),
+                ("operationKey", InputValue(dialog, "operationKey")),
+                ("editLeaseToken", InputValue(dialog, "editLeaseToken")),
+                ("engineerId", engineerId.ToString("D")),
+                ("instructionsComplete", InputValue(dialog, "instructionsComplete")),
+                ("imagesComplete", InputValue(dialog, "imagesComplete")),
+                ("evidenceReference", InputValue(dialog, "evidenceReference"))));
+        AssertPrg(response, store.CaseId);
+        var handoff = Assert.Single(store.EngineerAssignments);
+        AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), "Hand to Engineer");
+        Assert.Equal(engineerId, handoff.EngineerId);
+        Assert.Empty(store.Transitions);
+        Assert.Contains("The case was handed to the Engineer.",
+            await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task WorkflowPageBindsReviewReturnEngineerAssignmentFindingAndLinkedReplacement()
     {
@@ -62,7 +113,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(expectedReadiness, transition.Readiness);
 
         var assignment = Assert.Single(store.EngineerAssignments);
-        AssertLeasedMutation(workspace, assignment, "assign-engineer", "Engineer available");
+        AssertLeasedMutation(workspace, assignment, "assign-engineer", "Hand to Engineer");
         Assert.Equal(engineerId, assignment.EngineerId);
         Assert.Equal(expectedReadiness, assignment.Readiness);
 
@@ -111,7 +162,11 @@ public sealed partial class CaseDetailsWebTests
         {
             ThrowNextFailure();
             EngineerAssignments.Add(request);
-            return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = request.EngineerId });
+            return Task.FromResult(CreateWorkflow() with
+            {
+                AssignedEngineerId = request.EngineerId,
+                State = CaseLifecycleState.ReportPreparation
+            });
         }
 
         Task<CaseWorkflowRecord> ISetCaseSignOffEngineer.ExecuteAsync(

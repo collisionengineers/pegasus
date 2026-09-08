@@ -22,34 +22,10 @@ internal sealed class EfAssessmentWorkspaceSource(
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
             .Include(item => item.DueWork);
-        var workspaceState = await workflows
+        var workflow = await workflows
             .Where(item => item.CaseId == caseId)
-            .Select(item => new
-            {
-                Workflow = item,
-                LatestReviewVersion = context.CaseWorkflowEvents
-                    .Where(history => history.CaseId == item.CaseId
-                        && (history.EventType == "state_Review"
-                            || history.EventType == "case_returned_to_review"
-                            || history.EventType == "case_reopened_Review"))
-                    .Select(history => (long?)history.AfterVersion)
-                    .Max() ?? 0,
-                LatestExportVersion = context.EvaFirstHandoffProxies
-                    .Where(export => export.CaseId == item.CaseId)
-                    .Select(export => export.LatestExportedWorkflowVersion)
-                    .SingleOrDefault()
-            })
             .SingleOrDefaultAsync(cancellationToken);
-        if (workspaceState is null)
-        {
-            return null;
-        }
-        var workflow = workspaceState.Workflow;
-        var access = new AssessmentAccessState(
-            Enum.Parse<CaseLifecycleState>(workflow.State),
-            workspaceState.LatestReviewVersion,
-            workspaceState.LatestExportVersion);
-        if (!access.CanOpen)
+        if (workflow is null)
         {
             return null;
         }
