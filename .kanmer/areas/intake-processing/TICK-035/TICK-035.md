@@ -12,16 +12,16 @@ stageEntered:
 taken_at: '2026-09-07T22:43:36.690Z'
 branch: TICK-035-principal-routes
 worktree: .worktrees/tick-035
-claim_expires_at: '2026-09-08T01:48:11.612Z'
+claim_expires_at: '2026-09-08T02:07:33.139Z'
 claim_controller: /root
 lease_id: 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744
-lease_revision: 23
+lease_revision: 24
 lease_controller_run: 20260907T200500Z-v1-remediation
 lease_worker_run: intake_audit
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\tick-035'
 lease_provider: codex
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-08T01:18:11.612Z'
+lease_heartbeat_at: '2026-09-08T01:37:33.139Z'
 labels:
   - capability
   - INT-04
@@ -32,7 +32,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-09-08T01:18:11.612Z'
+updated: '2026-09-08T01:37:33.139Z'
 ---
 
 ## What
