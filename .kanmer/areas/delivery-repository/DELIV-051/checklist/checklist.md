@@ -4,7 +4,7 @@
 
 - [x] Return ticket to Implementing and record expanded scope.
 - [x] Confirm retained canonical release skill covers Linux.
-- [ ] Commit/push operator worktree changes and comment on PR #702.
+- [x] Commit/push operator worktree changes (af1625fae) and comment on PR #702; return PR to draft.
 - [ ] Audit AGENTS.md, docs/**, CONTEXT.md and README.md; refresh research, file map and plan.
 - [ ] Reconcile ownership competition, contradictions, stale text and references to removed files; add necessary documentation.
 - [ ] Resolve copied SKILL (2).md files into the correct canonical skill ownership/discovery shape.
