@@ -27,3 +27,19 @@ Pegasus platform LocalDB state classification passed.
 ```
 
 Result: **PASS** for the authorized frozen three-file correction. No full package build, application build/test/restore, `Test-AzureDeploymentPlan.ps1 -Mode Local`, cloud operation, browser/capture host, deployment, product edit, or child agent ran. Commands were sequential; both invoked PowerShell processes exited.
+
+## Sole-host Local validator follow-up — 2026-09-08 — PASS
+
+The canonical slot grant is recorded in `DELIV-053/scratch/execution`. Fresh census found no dotnet/MSBuild/testhost/vstest process. Frozen branch/HEAD and the three-file status remained unchanged; hashes matched the prior PASS exactly:
+- `Build-ReleaseArtifacts.ps1` `9ef5fc87a23f10a173370d9fdda0f68d9308ec215ae150fb44c8fdcbba0fe5fa`
+- `Test-AzureDeploymentPlan.ps1` `dc4f311e25a3a93a01de5818fac4be21fdea2512588783d978d904c1d2f1737b`
+- `Test-PegasusPlatform.ps1` `6b02404513b56b2cbd981db9b26179e8ad734e0ca2f6e2f09c3622ff53c8601d`
+
+```text
+COMMAND: pwsh -NoProfile -File ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
+EXIT: 0
+WARNING: A new Bicep release is available: v0.46.1. Upgrade now by running "az bicep upgrade".
+Azure deployment plan validation passed (Local; Worker Disabled settings render 'true').
+```
+
+Disposition: **PASS**. The update warning is informational and no upgrade was run. No application build/test/restore, full package build, artifact packaging, browser/capture host, cloud write, deployment, code edit, or child session occurred.
