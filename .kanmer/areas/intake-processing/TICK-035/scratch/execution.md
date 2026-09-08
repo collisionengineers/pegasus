@@ -23,3 +23,7 @@ Final author handoff: PR692 https://github.com/collisionengineers/pegasus/pull/6
 - 2026-09-08T01:48:12.240Z stage review → implementing by codex-mcp-client; reason: needs-changes on 006b556ff3e995c5a2aac0cdb2a4d508ada5be23: F-003 — enforce agreeing selected profile before non-QDOS automatic email matching; retain QDOS correspondence and declared Provider API. Root owns author authorization; same PR/worktree and all fixed history preserved.; review_round 1
 
 - 2026-09-08T01:51:02.571Z lease-phase review → implementing (lease 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744 rev 26; expires 2026-09-08T02:21:02.564Z)
+
+- 2026-09-08T02:06:42.842Z lease-phase implementing → review (lease 2076ecaa-2a2a-4aa7-aa8c-a6a997e38744 rev 29; expires 2026-09-08T02:36:42.835Z)
+
+F-003 round1 handoff: root job80003 build111.42s PASS0warnings, Core2/2 and Integration2/2 PASS; exact hashes/times read back in report70312df54319f367. Commit/push cca5521a6315420129320061759209273bb64c67 [skip ci], exactly2scopedfiles, clean worktree, samePR692 OPEN todev/currenthead readback. Fresh gates PASS; Implementing→Review. Plan7a28b8ab58ed1ca2/filesa37303dd2d9f8f1f/checklist54a984eff71f67c8. Original needs-changes and all failures remain. Stop for pack_reconcile independent exact-head F003delta; no selfreview/merge, cleanup, UIgeneration or nextticket.
