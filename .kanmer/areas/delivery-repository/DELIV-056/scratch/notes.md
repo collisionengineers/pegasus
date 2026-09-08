@@ -1,0 +1,15 @@
+2026-09-08 implementation handoff
+
+Implemented the approved existing-helper extension in `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs`: `CreateDefinitiveQdosInstructionDocument(...)` produces a real PDF document containing formal notification title plus QDOS extraction signals. It accepts scenario fields and optional extra lines; no production policy/parser/source change.
+
+Updated the affected existing transport paths in CustodyOutbox, InstructionDraft, ImageViewing, ImageIntake shared case seed (therefore MailWorkspace/TriageQueues/UploadConfirmation/TestUi callers), MailboxIntake, MultiFormat, QdosTriage, Recovery, SendToAi and UploadConfirmation. Where a test’s asserted path was an actual MIME/PDF/DOCX/MSG/mailbox/upload flow, the formal content is an actual document attachment or structured document, not EmailBody. Direct display/setup continues to use its existing callers; no corpus gate or request bypass was introduced.
+
+SendToAi retains absent-dialog and NotFound POST assertions, and removes only the stale disabled/gated-control markup expectation.
+
+Static evidence only:
+- `git diff --check`: PASS (no diagnostic; Git emitted only CRLF checkout warnings).
+- Exact changed paths are a subset of the approved fourteen-file map: 11 test files, all under `tests/Pegasus.IntegrationTests/`; no production/docs/scripts/corpus changes.
+- Remaining `QDOS instruction` / `Vehicle Registration:` markers are intentional negative/limit probes, a forwarded-address display string, or invalid field input that is mirrored into its attached formal instruction document.
+- No build, test, browser, capture, package, deployment, commit, push, PR, merge, or verification run by this worker.
+
+Await parent-coordinated independent review and designated host verification of the exact existing 13-class selection.
