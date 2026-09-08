@@ -34,17 +34,7 @@ Authority order is defined once in the
   promotion and does not replace that procedure. GitHub protection and
   rulesets are intentionally out of scope on subscription grounds, so the
   main-push CI check is detective rather than a server-side prevention.
-- One transition only: after DELIV-002's PR reaches `dev` with green CI,
-  DELIV-003 may merge `origin/main` into its own branch cut from `origin/dev`
-  and deliver it through the normal reviewed PR to `dev`. It must not update
-  `dev` directly, and the exception expires when that PR merges. Thereafter
-  no routine `main` → `dev` synchronization merge is permitted.
-- One repair transition only: DELIV-046 may merge the authorised
-  `origin/main` head `32f8679d3695e0dcab8f310a1c20f8b129d20190` into its
-  own branch cut from `origin/dev`, then deliver it through a merge-commit PR
-  to `dev`. The exception preserves the two main-only commits and expires when
-  that PR merges. It grants no direct shared-ref update, squash, rebase, reset,
-  force-push, or later `main` → `dev` synchronization.
+- No routine `main` → `dev` synchronization merge is permitted.
 - Commit subjects are imperative and name a capability ID from
   [capabilities](capabilities.md) when one applies; otherwise they name the
   task.
@@ -60,6 +50,8 @@ Authority order is defined once in the
 ## Markdown convention
 
 - The H1 is line 1 of the file; a blank line precedes every heading.
+  The generated Kanmer preamble in AGENTS.md is exempt; normal formatting
+  applies to its human-owned guide.
 - Tables use the compact delimiter row `| --- |` without padded alignment.
 - Prose in root and `docs/` guidance files is hard-wrapped near 78 columns;
   table rows and link-dense lines may run long.

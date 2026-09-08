@@ -65,6 +65,59 @@ let the user decide. Then apply.
 
 Safe to call unconditionally: an already-current board reports nothing to do.
 
+### Proof validation: report, then census, then strict
+
+The same dry run returns `proofValidation` — a read-only census of every
+ticket's `proof/proof.md`, bucketed valid / legacy / invalid / absent with a
+diagnosis per ticket, plus a `digest`. It writes nothing, ever.
+
+A board that predates typed proof records resolves to `report` mode: the Done
+gate still passes on any document under `proof/`, and the parsed state is only
+a warning. A board created by this version starts `strict`, where entering Done
+needs a valid `proof-record/2` PASS.
+
+Moving an existing board to `strict` is a decision the user takes, not one
+setup takes for them. Show the census — a board of any age will be almost
+entirely `legacy`, and that is expected, not a fault — and say plainly that
+strict changes what every in-flight ticket owes at the Done gate while
+rewriting no proof at all. Only if they agree, call `migrate_board` again
+without `dry_run` and with that exact `proof_census_digest`. Never pass a digest
+the user has not seen the census for.
+
+### Declare the project's verification contract
+
+Kanmer's post-merge evidence is a *receipt*: a hosted CI run for the exact
+merge SHA that already discharged some of a ticket's verification obligations.
+Which run counts is the project's own business, so it is declared on the board
+beside the rest of the delivery policy (`board.yml`, camelCase keys):
+
+```yaml
+delivery:
+  integrationBranch: dev
+  verification:
+    workflow: ci.yml         # the workflow file name, as GitHub reports it
+    jobs: [build, test]      # EVERY job that must be completed/success
+    event: push              # push | pull_request | workflow_run
+```
+
+Declaring nothing keeps the shipped default — `pr.yml`, job `verify`, event
+`push`, which is Kanmer's own contract. All three keys are required together
+when the block is present; a half-declared contract is refused rather than
+silently keeping `pr.yml`. Check the effective values with `get_status` →
+`delivery.verification`, and `delivery.verificationSource` to see whether they
+came from the file or the default.
+
+Say this plainly to the user, because it decides how their verification
+actually runs: **a workflow that does not run on pushes to the integration
+branch will always take the fallback.** A `pull_request` run is accepted only
+when the contract's `event` is `pull_request` *and* the run's head SHA equals
+the merge SHA — which a squash merge never produces. Taking the fallback is not
+a failure: the designated verifier runs every obligation in the detached
+worktree at the merge SHA and the proof records `receipts: []` with the reason.
+It is simply slower, and it stays that way until the repository adds a run on
+pushes to its integration branch. Kanmer never renames or edits another
+repository's workflows to make a receipt possible.
+
 ## 4. Refresh the AGENTS.md operating instructions
 
 Run the script that owns the managed block (see below). It only ever rewrites
@@ -234,17 +287,19 @@ old refs. Agents must not mutate protected refs, branch protection, or repositor
 variables; stop and report when the observed branch and configured convention
 disagree.
 
+- **Resolve the request before starting a workflow.** Explaining code, reviewing a reference the owner supplied, or producing an isolated artifact is direct work: no ticket, no branch, no worktree. Track work when it changes this repo's shipped behaviour or when the owner asks. Then pick the profile by consequence, not size — a two-line change to authorization, schema, release behaviour or irreversible data still owes its profile's evidence. Never bypass a gate through late-stage creation or an empty `custom` profile.
 - Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
 - **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
 - Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
 - **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
 - An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
-- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
+- Read what the current step needs: the ticket body, `get_doc_gates`, the governing decision, the relevant plan/checklist section and the latest proof/review pointer. Documents are folders (`research/`, `plan/`, …) so a type can hold several files — pull older attempts only when a claim or a failure investigation needs them. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
 - Work each fresh ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage. A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
 - Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
-- Proof is written on merged `main`, after review and the merge, not before.
+- Proof is written on the configured integration branch after review and the merge, not before. Read it from `get_status` → `delivery.integrationBranch` (default `main`); never hardcode a branch name. Ordinary Done means integrated and accepted there. Deployment belongs to a release or an explicitly deployment-scoped ticket and is never a condition of ordinary Done.
+- **One heavy verification owner per host.** Full rails, packaging and installer builds serialize behind the named verifier recorded in the repo's operating index. A second agent waits for that run — or reuses a matching completed CI result — instead of starting a competing whole-repository build. Lightweight file checks do not queue behind it.
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
-- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
+- Skills run in this order **when a tracked ticket walks the full pipeline**: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. Direct work runs none of them. How far a tracked ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
 - Each skill ends by naming what comes next — read that line before improvising a hand-off.
 
 The local MCP convention is `KANMER_BOARD_BRANCH` in each project-scoped

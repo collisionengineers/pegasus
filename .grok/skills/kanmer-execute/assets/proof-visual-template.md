@@ -2,7 +2,7 @@
 
 *The visual proof. Not a description — a reader must be able to **see** the result without running anything.*
 
-For a `proof:visual` requirement. Gathered on the configured integration branch after review and merge.
+For a `proof:visual` requirement. Gathered on merged `main`.
 
 ## Screenshots
 
@@ -28,11 +28,3 @@ screen proves nothing on its own.
 ## Not shown
 
 Any state, theme or viewport deliberately not captured.
-
-## Verification identity and attempts
-
-- Integration branch: resolve from get_status.delivery.integrationBranch.
-- Exact SHA, environment, command exit codes and evidence paths.
-- Retain every failed or inconclusive attempt and its disposition.
-- Deployment and live operator acceptance are separate proof.
-- PASS is required for ordinary Done; this template grants no waiver.

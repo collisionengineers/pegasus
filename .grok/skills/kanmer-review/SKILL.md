@@ -308,6 +308,13 @@ judge the PR on its own scope.
 
 ## Decide and merge
 
+Review binds to the PR's current head SHA, and a merge requires a
+current-head `scratch/review.md` attestation: `KANMER_GATE_STRICT` makes a
+missing or stale current-head attestation blocking at the CI layer, and until
+that repository variable is set the reviewer must still treat it as blocking
+by policy — a warning in `check-pr.mjs`'s output is not license to merge past
+it.
+
 `pass` requires all of the following:
 
 - the reviewer is independent and the attestation says so truthfully;

@@ -652,10 +652,15 @@ never commit or push the board branch outside an explicit grant.
 
 ### Read the evidence, not its summary
 
-- Read a proof or a review attestation **in full**, never frontmatter-only. The
-  frontmatter carries the only machine-readable verdict, and prose appended
-  later can contradict it; a frontmatter-only read is a recorded cause of a
-  wrong disposition.
+- Read a proof or a review attestation **in full**, never frontmatter-only. On
+  a `schema: 2` proof record the typed `attempts:` ledger is the verdict and the
+  frontmatter merely restates it, so a contradiction between them is refused
+  before you see it. On anything else — every proof written before that schema,
+  reported `legacy` — nothing has been validated, prose appended later can
+  contradict the top line, and a frontmatter-only read is a recorded cause of a
+  wrong disposition. Never advance a ticket to Done on a `legacy` or `invalid`
+  record: reconciliation will not recommend it, and on a strict board the gate
+  will refuse the move.
 - A `threads_snapshot` is a YAML **array**, one entry per thread. A mapping is
   an invalid attestation even where the gate downgrades it to a warning.
 - Every controller git command uses an **absolute path**. A shell whose working

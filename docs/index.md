@@ -17,7 +17,7 @@ design assets remain under [`docs/design/`](design/).
 | What is deployed, released, monitored, or recovery-proved now? | [Operations](operations.md) |
 | How do I set up, develop, test, run, release, monitor, or recover? | [Runbook](runbook.md) |
 | What engineering guidance and evidence tiers apply? | [Engineering](engineering.md) |
-| What procedure governs task claims, plans, reviews, and Git safety? | [Repository task workflow](../AGENTS.md#repository-task-workflow) |
+| What procedure governs task claims, plans, reviews, and Git safety? | Kanmer skills and managed instructions; [Pegasus workflow supplement](../AGENTS.md#repository-task-workflow). |
 | What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
 | What raw supplied evidence exists? | [Reference evidence](../reference/README.md) |
 | What are the UI rules, and the Integrated Operations Workspace shell contract? | [Design](design/README.md) — visual, component and shell authority; route and page behaviour (Work Centre, Cases, Search, Case workspace) is [FRD-12](frd/frd-12-operator-experience.md) |
@@ -39,16 +39,9 @@ in [open decisions](open-decisions.md) and stop the affected work.
 
 ## New Markdown files
 
-A new repository Markdown file is one of: a product requirements document under
-[`docs/prd/`](prd/README.md); a functional requirements document under
-[`docs/frd/`](frd/README.md); a durable technical decision under
-[`docs/adr/`](adr/README.md). Transient task research, plans, checklists,
-reviews, and proof live in the owning Kanmer ticket documents. A new PRD or FRD records its
-canonical owner in [capabilities.md](capabilities.md) and is linked from this
-index. Everything else edits an existing canonical file. Documentation rules and
-conventions themselves live in [`AGENTS.md`](../AGENTS.md), not in an ADR.
-Workspace-local documentation remains governed by its accepted integration
-contract and existing workspace tree.
+Follow [New Markdown placement](../AGENTS.md#new-markdown-placement) for
+allowed file types, ticket documents, registration and workspace exceptions.
+AGENTS.md owns these rules; this index owns navigation and authority.
 
 ## Image-initiated Case authority
 

@@ -451,13 +451,13 @@ but never creates a second one.
    without it cannot take the sanctioned return.
    Link governing docs only when the packet authorizes the link; do not invent
    refs. Keep all writes project-bound when the capability was advertised.
-3. Push the ticket branch and open the PR with the ticket title and
-   `Kanmer: <ID>` footer — on a fresh lane only; a re-entry lane pushes to the
-   branch of the PR already recorded and skips `gh pr create`:
+3. Push the ticket branch and open the PR **as a draft**, with the ticket
+   title and `Kanmer: <ID>` footer — on a fresh lane only; a re-entry lane
+   pushes to the branch of the PR already recorded and skips `gh pr create`:
 
    ```sh
    git push -u origin <id>-<slug>
-   gh pr create --base <delivery.prTarget> --title "<ticket title> (<ID>)" --body-file <assembled-body>
+   gh pr create --draft --base <delivery.prTarget> --title "<ticket title> (<ID>)" --body-file <assembled-body>
    ```
 
    `--base` is not optional: without it `gh` falls back to the repository's
@@ -466,6 +466,22 @@ but never creates a second one.
    target. The batch lane above replaces this generic creation command: only
    its first member may create the shared PR, while every later member must
    resolve, validate, reuse and record that one PR.
+
+   The handoff order is then: `gh pr create --draft` → `update_item` with the
+   PR recorded in `prs[]` (this ticket's step 2 above) → `move_item
+   implementing → review` (step 4 below) → push the board — the GUI syncs it
+   automatically when open and watching this project, and otherwise it is
+   pushed only under an explicit grant, never by an unattended agent (the same
+   rule `kanmer-auto`'s "Push the board before trusting a gate" states) →
+   `gh pr ready <pr>` once the ticket is recorded in Review. The merge gate
+   runs on every `pull_request` event including a draft, but a draft PR's
+   result is **advisory only** (`check-pr.mjs --draft`: every check still
+   runs, findings are reported, and the job always exits 0) — a fresh handoff
+   never shows an expected red required check against an `implementing`
+   snapshot. The strict/warn judgment that actually gates a merge binds to
+   this PR only once `gh pr ready` marks it ready for review, because a
+   `pull_request` event re-evaluates the workflow file that is on the PR
+   branch at that time.
 
 4. Read `get_doc_gates <id>` immediately before `move_item`. Move one gated
    boundary only, from `implementing` to `review`, and record the PR URL in

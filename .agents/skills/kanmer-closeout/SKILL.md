@@ -53,7 +53,13 @@ archives it, moves it to Done, or changes its proof result. Those decisions and
 evidence belong to `kanmer-verify` and the operator.
 
 1. **Confirm `proof.md` is final** (`get_ticket_doc doc: "proof"`); append the PR
-   URL and merge date if verify didn't.
+   URL and merge date if verify didn't. Read the whole document, not the
+   frontmatter: on a current `schema: 2` record the verdict is bound to the
+   final authoritative attempt, but a `legacy` record — anything without
+   `schema: 2` — has never been validated at all, and its body may contradict
+   its own top line. If the ticket reached Done on a legacy proof, say so in
+   the Outcome rather than treating the top-level `PASS` as if it had been
+   checked.
 2. **Record traceability** (`update_item` with `expected_updated`): `commits`
    (the merged SHAs), `prs` (the merged PR ref), and — if the board tracks
    deployment — set `deployment` (`n/a` for non-deployable work, `not-deployed`,

@@ -114,7 +114,7 @@ Ticket mutations (`update_item`, `move_item`, `take_ticket`, `set_ticket_doc`, `
 | `append_scratch` | Append a free-form running note to a ticket's scratch file (`scratch/<slug>.md`). Never gated or validated against the doc types — the agent's running notepad. Read it back with `get_ticket_doc(doc: "scratch/<slug>")`. Use whole-file `set_ticket_doc(doc: "scratch/review")` for frontmatter-backed SHA-bound records; successive note appends are separated by a blank line. | `id`, `slug?` (default `notes`), `content` |
 | `link_doc` | Maintain a ticket's `refs[]` — repo-relative paths to governing docs (PRD/FRD/ADR) in the repo's own `/docs/`. `add` validates the path exists under the project root; `remove` drops it. Distinct from `link_items` (item↔item); this is item↔repo-file. A linked governing doc satisfies the leave-backlog gate. | `id`, `path`, `action` (`add`/`remove`) |
 | `link_items` | Add/remove a structured relation source → target. `rel: "relates"` (default) writes `links[]`; `rel: "blocks"` writes `blocks[]` — source blocks target, and blocked-by derives from it. `add` requires the target to exist; `remove` works even on dangling links so they can be cleaned. | `source_id`, `target_id`, `action` (`add`/`remove`), `rel?` (`relates`/`blocks`) |
-| `migrate_board` | Bring the board fully current: run the v1→v2 migration if needed, then backfill the 7-stage default (alias-aware, additive — never renames/reorders existing stages, never touches item files). Also performs the one-time identity migration (FRD-029), reported under `identity`. `dry_run: true` previews what would move, which stages would be added and whether an identity `wouldAllocate` — a dry run is read-only and does not initialise the board. | `dry_run?` |
+| `migrate_board` | Bring the board fully current: run the v1→v2 migration if needed, then backfill the 7-stage default (alias-aware, additive — never renames/reorders existing stages, never touches item files). Also performs the one-time identity migration (FRD-029), reported under `identity`. `dry_run: true` previews what would move, which stages would be added and whether an identity `wouldAllocate` — a dry run is read-only and does not initialise the board. Every call also returns `proofValidation`: a read-only census of every canonical `proof/proof.md` bucketed valid/legacy/invalid/absent with per-ticket diagnostics and a binding `digest`. Passing that exact digest back on a non-dry run is the only way to enable strict proof validation; it recomputes the census under the board write lock and refuses without writing on any drift, an incomplete census or a pre-format-3 board. Without the digest, strict is never enabled, and no proof, ticket, stage or activity record is ever edited by the census. | `dry_run?`, `proof_census_digest?` |
 | `add_column` | Add an **area** — the only configurable column. Stages are fixed and priority no longer exists, so neither can be added. `color` is a hex string; `prefix` (2–6 uppercase alphanumerics) sets the ids of tickets born there. Rejects an id that already exists. | `id`, `name`, `kind` (`area`), `color?`, `prefix?` |
 | `update_column` | Rename/recolour a column, or pin an area's `prefix`. The column id itself is immutable. | `kind`, `id`, `name?`, `color?`, `prefix?` |
 | `reorder_columns` | Reorder areas; `order` must be a permutation of the existing ids. Stages cannot be reordered — they are constants. | `kind` (`area`), `order` |
@@ -329,12 +329,24 @@ them; call `get_status` to see which format a board uses.
 
 ## SHA-bound record schemas
 
-These records are advisory in this horizon. The ordinary document gates remain
-existence-based: a `FAIL` or `INCONCLUSIVE` proof file still satisfies the
-structural proof gate, while the review/verify skills and future gate consumers
-must stop rather than treat failing evidence as a pass. The records are plain
-Markdown with YAML frontmatter and are parsed with `gray-matter`; do not extract
-SHA fields with a regular expression.
+The review attestation is advisory to the movement gates and load-bearing to
+the CI merge gate. The proof record is read by the movement gate itself, and how
+hard depends on `board.yml`'s `proofValidation.mode` (`get_status.proofValidation`
+reports the resolved `{ mode, source }`):
+
+- **`report`** - the resolved default for any board that does not say, and the
+  historical behaviour: a `FAIL`, `INCONCLUSIVE` or unvalidated proof file still
+  satisfies the structural proof gate, and the parsed state appears as a
+  `get_doc_gates` warning. The review/verify skills must still stop rather than
+  treat failing evidence as a pass.
+- **`strict`** - what a board created by this version is written with: entering
+  Done is satisfied only by a valid `proof-record/2` **PASS** at the canonical
+  `proof/proof.md`. The refused requirement carries a `detail` naming what was
+  actually read (legacy, self-contradicting, FAIL, INCONCLUSIVE, or no canonical
+  record at all).
+
+The records are plain Markdown with YAML frontmatter and are parsed with
+`gray-matter`; do not extract SHA fields with a regular expression.
 
 ### Review attestation
 
@@ -413,36 +425,63 @@ version as `expected_version` when rewriting. Its frontmatter is exactly:
 
 ```yaml
 kind: proof-record
-merged_sha: "<full merge commit SHA>"
+schema: 2
+merged_sha: "<full 40-hex merge commit SHA>"
 environment: "Windows 11 / Node 20 / local merged worktree"
-verified_at: "<ISO-8601 timestamp>"
+verified_at: "<ISO-8601 timestamp, equal to the final authoritative attempt>"
 result: PASS
-attempts: []
+attempts:
+  - # at least one; see below
 ```
 
-`kind` is the literal `proof-record`; `merged_sha`, `environment`, and
-`verified_at` are non-empty strings; and top-level `result` is exactly one of
-`PASS | FAIL | INCONCLUSIVE | NOT_APPLICABLE | WAIVED_BY_OPERATOR`.
-`attempts` is chronological history. Each attempt contains:
+`kind` is the literal `proof-record`. `schema: 2` is what declares a validated
+record: without it the document is reported **legacy** - described, never
+rewritten, never reinterpreted, and no authority for Done under `strict`.
+`merged_sha` is a full 40-hex object id; `environment` is a non-empty string;
+`verified_at` is an ISO timestamp equal to the final authoritative attempt's
+`attempted_at`. Top-level `result` is exactly one of
+`PASS | FAIL | INCONCLUSIVE | WAIVED_BY_OPERATOR` and, apart from a waiver, must
+equal that attempt's result.
+
+`attempts` is a non-empty chronological history whose timestamps strictly
+increase. Each attempt is one of two shapes - a process that ran, or an explicit
+manual/no-process check:
 
 ```yaml
 - attempted_at: "<ISO-8601 timestamp>"
-  command: "<exact command or manual check>"
+  command: "<exact command>"        # with cwd and an integer exit_code...
   cwd: "<repo-root-relative or injected path>"
-  exit_code: 0 # integer, or null for manual/inconclusive checks
-  result: PASS # PASS | FAIL | INCONCLUSIVE | NOT_APPLICABLE
+  exit_code: 0                      # 0 for PASS, non-zero for FAIL
+  result: PASS                      # PASS | FAIL | INCONCLUSIVE
+  authority: authoritative          # authoritative | supporting
   summary: "<observed output/result synopsis>"
+- attempted_at: "<ISO-8601 timestamp>"
+  exit_code: null                   # ...or null, with no command/cwd at all
+  result: INCONCLUSIVE
+  authority: authoritative
+  failure_class: inconclusive
+  summary: "<what could not be run>"
 ```
 
-An attempt's `result` is exactly `PASS | FAIL | INCONCLUSIVE | NOT_APPLICABLE`.
-Failed and inconclusive attempts are retained in order when a later attempt
-passes; a successful rewrite must not erase that history. `WAIVED_BY_OPERATOR`
-is a top-level disposition only and requires the operator identity and reason in
-the Markdown body; it is not a normal attempt result. A `FAIL` or `INCONCLUSIVE`
-record also carries `failure_class: implementation | plan | transient |
-inconclusive`, which `kanmer-verify` uses to route the ticket (Implementing,
-Preparing, retry, or wait); the parser does not enforce it. A record that
-names no class is routed as `inconclusive`, never as a retryable `transient`.
+**The final attempt must be `authoritative`**; earlier ones may be `supporting`.
+A later FAIL therefore cannot be filed behind an earlier PASS - it becomes the
+verdict or the record is invalid. Failed and inconclusive attempts are retained
+in order when a later attempt passes; a rewrite must not erase that history.
+
+A `FAIL` attempt carries `failure_class: implementation | plan | transient`; an
+`INCONCLUSIVE` attempt carries `failure_class: inconclusive`; a `PASS` attempt
+carries none. The top-level `failure_class` of a non-PASS record equals the
+final attempt's, and `kanmer-verify` routes the ticket by it (Implementing,
+Preparing, retry, or wait). Unlike schema 1 this **is** enforced: a schema-2
+FAIL that names no class, or names `inconclusive`, is refused rather than
+defaulted. `WAIVED_BY_OPERATOR` is a top-level disposition only, requires
+`waived_by` and `waiver_reason` in the frontmatter, is not an attempt result,
+and never produces an automated Done recommendation.
+
+Unknown top-level keys are preserved and reported; unknown keys on an *attempt*
+are refused. `receipts[]` (MCP-057) sits beside `attempts[]` and is read by the
+same parser: a receipt whose `head_sha` disagrees with this record's
+`merged_sha` makes the record invalid.
 
 Which documents a ticket owes comes from its **profile**, not from its area and
 not from a fixed pipeline — call `get_doc_gates` for the ticket's actual types
