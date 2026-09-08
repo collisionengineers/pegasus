@@ -34,10 +34,14 @@ links:
   - INTK-061
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - e7db237e47322d2378ccf44749d97024db377aeb
 deployment: not-deployed
+delivery_state: not-integrated
+delivery_recorded_at: '2026-09-08T04:15:55.596Z'
 archived: false
 created: '2026-09-07T23:50:36.423Z'
-updated: '2026-09-08T04:10:20.319Z'
+updated: '2026-09-08T04:15:55.596Z'
 ---
 
 ## What
