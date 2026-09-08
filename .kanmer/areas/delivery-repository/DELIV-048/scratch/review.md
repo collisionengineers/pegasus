@@ -1,77 +1,119 @@
 ---
 kind: review-attestation
-pr: "681"
-head_sha: "b6ffdeda1f8eee7f71e86ca033260de20483cb60"
+pr: "701"
+head_sha: "bfa4e498f8fa8f9b3524f24748b5b89d8b324d67"
 verdict: pass
-reviewer: "root"
+reviewer: "pack_reconcile"
 independent: true
-plan_hash: "f52800f76a333e02"
-ticket_updated: "2026-09-07T21:22:41.671Z"
-board_sha: "803475a61513b35d3d93c6215905ce79c02ce56e"
-expected_reviewers: ["root"]
+plan_hash: "ea1fca1e3f50f1fb"
+ticket_updated: "2026-09-08T06:52:07.867Z"
+board_sha: "544e602291b5a07203d5edb02e47196fa5b5b259"
+expected_reviewers: ["pack_reconcile"]
 threads_snapshot: []
-findings: []
+findings:
+  - id: F-001
+    severity: major
+    summary: "Exact PR681 merge retained a Windows ORAS repair hint requiring Linux."
+    disposition: fixed
 ---
 
-# DELIV-048 independent review
+# DELIV-048 independent follow-up review
 
-Root authored none of this PR. The implementation belongs to
-principal_delivery_audit; root performed focused verification and this distinct
-independent review. Public exact-head review is posted. Expected reviewer
-root has settled; no other independent reviewer was assigned.
+## Decision and independence
 
-## Scope and acceptance
+PASS for PR701's bounded two-file correction at the exact head above.
+Root authored this follow-up; pack_reconcile authored neither changed file
+and is the sole assigned independent reviewer. The distinct agent role, not
+a different GitHub account, establishes independence. Exact-head public
+COMMENT review5138372200 was posted at2026-09-08T06:55:34Z and read back
+before this attestation. No additional reviewer is expected or timeout-absent.
 
-Read the ticket, research, files, plan, checklist, report, EPIC-013 historical
-context and current EPIC-014 authority. Current operator Windows/Linux
-permission supersedes the old WSL/Linux-only group premise. The complete
-14-file diff matches the packet; no product, infra, schema or CI redesign.
+## Inputs and scope
 
-Build-ReleaseArtifacts and Test-AzureDeploymentPlan both call the same
-Get-PegasusMigrationBundle owner. Its supported-platform/x64 checks provide
-win-x64/efbundle.exe or linux-x64/efbundle; validator rejects mismatched names,
-paths and host pairs before artifact use. Unix mode API only runs on Linux.
-Existing four-artifact hash census, Linux Web/Worker publish, OCI digest and
-linux/amd64 inspection, clean SHA and approval checks remain. Database/admin
-bootstrap consumers still pass through the existing Artifact gate.
+Read the whole live ticket, gates, plan ea1fca1e3f50f1fb, file map
+a6eace140ea512ca, report f380ddd091eb9ccb, checklist2d2f694653fb95bb,
+research, execution/verify scratch, prior review ef0df9e8b673889c, and
+whole proof FAIL2462b18082379607. No open-questions document or frozen
+batch exists. Read EPIC-013 historical context and EPIC-014 current authority,
+documentation index, ADR0007/0014/0039 and supported-platform runbook.
+Current operator/ADR0039 Windows-and-Linux support supersedes EPIC-013's
+historic Linux-only premise; original history is not current scope.
 
-ADR0039 properly supersedes0037 without deleting history. Current AGENTS,
-runbook, architecture tooling paragraph and canonical release skill agree.
-The .codex skill remains a forwarding pointer, not a competing procedure.
-ADR0007's retained direct-terminal order and ADR0014's environment boundary
-are preserved. No deployed-state claim is introduced.
+The full dev-relative PR diff is exactly PegasusPlatform.ps1 and
+Test-PegasusPlatform.ps1, +6/-2. Read the whole existing script test,
+changed hint owner and actual Doctor caller. Worktree is clean at the exact
+head. Normal merge59c43f567e7bc9fbf40e5f152beb370d528e3e06 is tree-identical
+to accepted dev96777888bfa7ee7f85d63979a4a09ae10cda7d13 (read-only diff
+exit0), so the resolved ADR-index conflict introduced no separate source
+change. No current application, schema, package, cloud, workflow or other
+ticket change is in this PR.
 
-## Evidence
+## Finding and caller acceptance
 
-Root Windows locked restore and Release build passed, zero warnings/errors,
-59.58s. Focused WorkerActivationReleaseContractTests:17 passed,0 failed/skipped,
-35s. Test-AzureDeploymentPlan -Mode Local passed (update-available Bicep warning
-only). Author's isolated platform script and syntax/diff checks passed;
-reviewer diff check also passed. No extra heavy run was started by reviewer.
+F-001 was discovered by root's exact PR681-merge verification, not silently
+erased by the old review PASS. Proof2462b18082379607 records actual Windows
+Get-PegasusRepairHint oras returning the Linux-only sentence, command07e9d2,
+exit1,1.512s. That contradicts the accepted portable workstation contract.
 
-Native Linux execution and the actual clean coordinated release artifact are
-not proved by host-mocked tests. The plan explicitly assigns final packaging
-and Artifact validation once to the integrated release; these are outstanding
-release evidence, not a missing per-PR duplicate build. No deployment occurred.
+Fixed by bfa4e498f8fa8f9b3524f24748b5b89d8b324d67: Windows now returns
+the same existing pinned ORAS1.3.4 official installation guidance as Linux.
+Get-PegasusRepairHint selects the existing keyed table by the actual
+Get-PegasusPlatform.Kind. Invoke-Doctor.ps1:547 calls that owner for the ORAS
+check, whose existing version requirement is1.3.4. There is no parallel
+installer, fallback, command convention or platform decision.
 
-## Live review and merge policy
+The existing Windows/Linux bundle-mapping loop now supplies Kind in its
+platform fixture and calls the real hint owner on each host. Its exact
+assertion catches the omitted Windows branch. All existing bundle identities,
+manifest rejection/hash/OCI-stub checks and LocalDB classifications remain.
+The original production builder/validator, Linux deployed packages, approved
+artifact and migration boundaries are unchanged.
 
-At gather PR is OPEN/CLEAN, same-repository DELIV-048-portable-release to dev,
-exact head above. Live dev protection returned404 Branch not protected;
-effective branch rules[]; required-check query reports none; rollup[].
-No required check is being bypassed by the approved skip-CI corrective PR.
-Review threads are empty with hasNextPage=false. The status-only advisory
-bot comment IC_kwDOThBrk88AAAABTFckrw has no finding and is not an expected
-reviewer or required check. No findings remain undispositioned.
+## Recorded evidence and limits
 
-Board sync at gather is ahead0/behind0. New ADR0039 is present in the PR;
-the board's stale shared checkout cannot yet resolve link_doc. The existing
-governing ADR0007 reference is valid; leave docs_todo explicit until current
-source is visible rather than copying the file into the user checkout.
+Root executed command3e756e in the author worktree: diff check, existing
+Test-PegasusPlatform.ps1 and actual native Windows hint; PASS exit0,2.2845s.
+This is root-executed evidence from the report/parent handoff, not a reviewer
+test run or a new retained TRX. Reviewer ran no test, .NET build, artifact
+packaging, provider call or cloud write.
 
-## Handoff
+The original PR681 author evidence remains59.58s Release build,17 focused
+architecture passes, Local/script acceptance; original review root PASS at
+b6ffdeda1f8eee7f71e86ca033260de20483cb60 and planf52800f76a333e02 remains
+in review versionef0df9e8b673889c/board history. That earlier review had no
+findings. PR681 squash merge1c1d7a0a45555604bafd3e732bd606bf083b804a and
+the later native-hint FAIL remain distinct from this follow-up PASS.
 
-Re-gather head, threads, checks and board sync immediately before the
-operator-authorized squash merge. Move only Review to Verifying after
-confirmed merge. Exact-merge proof and eventual release packaging belong
-to kanmer-verify and the v1 controller, not this review.
+Final clean integrated release-artifact build/Artifact validation is explicitly
+still required before Done, once at the coordinated release head. No native
+Linux execution, deployment or complete ticket acceptance is inferred from
+host-mocked mappings or this script run.
+
+A read-only documentation lookup first used an incorrect ADR0014 filename;
+Get-Content reported missing path, then the actual linked
+0014-local-to-production-deployment.md was read completely. This was a
+discovery error, not a validation result. gh pr checks --required exited1
+with no checks reported; current protection/rules establish an empty
+required-check set, not a CI PASS.
+
+## Current GitHub/board gather and merge boundary
+
+At the post-publication gather PR701 is OPEN, MERGEABLE/CLEAN, same-repository
+DELIV-048-portable-release to dev96777888bfa7ee7f85d63979a4a09ae10cda7d13,
+head exact above. Effective dev rules[]; branch protectedfalse;
+required_status_checks checks[]/contexts[] enforcementoff; rollup[].
+All review threads[] with hasNextPagefalse, no unresolved finding/thread.
+Only public review5138372200 is present on this head.
+
+Issue comment IC_kwDOThBrk88AAAABTKFGEg is advisory status-only bot evidence,
+running since06:51:39Z with mergeGateEnabledfalse and no actual findings.
+It is not an expected reviewer or required check. If it adds findings or any
+thread/head/plan/ticket/check changes, re-gather and replace this whole file.
+
+Board tip 544e602291b5a07203d5edb02e47196fa5b5b259 was pushed with ahead0/behind0 before
+the attestation. No merge has occurred by this record. Hold PR701 integration
+until principal_delivery_audit completes the coordinated PR700 merge decision;
+then re-gather head/base/diff/checks/threads/ticket/board immediately before
+any ordinary authorized merge. Move only Review to Verifying after confirmed
+merge. Exact-merge proof belongs to kanmer-verify; no Done, cleanup or lease
+transfer is authorized by this review.
