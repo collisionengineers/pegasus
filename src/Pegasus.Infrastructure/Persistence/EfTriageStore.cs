@@ -14,8 +14,155 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfTriageStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
+    IEnumerable<IProviderCaseMatchPolicy> caseMatchPolicies,
     TimeProvider? timeProvider = null) : ITriageStore
 {
+    private readonly IReadOnlyList<IProviderCaseMatchPolicy> _caseMatchPolicies = caseMatchPolicies.ToArray();
+    private const string AutomaticLinkEvent = "triage_case_linked";
+
+    public async Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
+        Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var result = new List<TriageCaseLinkCandidate>();
+        long afterSequence = 0;
+        while (result.Count < maximumItems)
+        {
+            // The output cap follows dynamic matching. An old unknown/nonmatch
+            // must not occupy a recovery slot forever.
+            var page = await context.Triage.AsNoTracking()
+                .Where(item => item.Sequence > afterSequence && item.LinkedCaseId == null
+                    && item.PrincipalId != null && item.State != "cancelled"
+                    && (triageId == null || item.Id == triageId)
+                    && !context.TriageHistory.Any(history => history.TriageId == item.Id
+                        && (history.EventType == "triage_case_unlinked"
+                            || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker"))))
+                .OrderBy(item => item.Sequence).Take(50).ToListAsync(cancellationToken);
+            if (page.Count == 0)
+            {
+                break;
+            }
+            foreach (var triage in page)
+            {
+                afterSequence = triage.Sequence;
+                var candidate = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
+                if (candidate is not null && (caseId is null || candidate.CaseId == caseId))
+                {
+                    result.Add(candidate);
+                    if (result.Count == maximumItems)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    public async Task<bool> LinkAutomaticallyAsync(
+        TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
+        var operationKey = $"triage-auto-link:{candidate.TriageId:N}:{candidate.TriageVersion}";
+        var requestHash = Hash($"{AutomaticLinkEvent}|{candidate.TriageId:N}|{candidate.TriageVersion}|{candidate.CaseId:N}|{candidate.CaseVersion}|{candidate.MatchPolicyKey}|{candidate.MatchPolicyVersion}|{actor.Kind}|{actor.SubjectId}");
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        if (await FindReplayAsync(context, operationKey, cancellationToken) is { } replay)
+        {
+            EnsureReplay(replay, AutomaticLinkEvent, requestHash, candidate.TriageId);
+            return false;
+        }
+
+        var triage = await LoadForMutationAsync(context, candidate.TriageId, candidate.TriageVersion, cancellationToken);
+        // Every origin, principal, competing candidate and replacement lookup
+        // below uses this transaction's context, not a preflight connection.
+        var current = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
+        if (current is null || current.CaseId != candidate.CaseId
+            || current.MatchPolicyKey != candidate.MatchPolicyKey
+            || current.MatchPolicyVersion != candidate.MatchPolicyVersion)
+        {
+            return false;
+        }
+        var workflow = await context.CaseWorkflows.SingleAsync(
+            item => item.CaseId == candidate.CaseId, cancellationToken);
+        CaseMutationGuard.RequireVersion(workflow, candidate.CaseVersion);
+
+        var reason = $"Automatically linked by accepted principal and current typed Case identity ({current.MatchPolicyKey} v{current.MatchPolicyVersion}).";
+        var beforeCaseVersion = workflow.Version;
+        triage.LinkedCaseId = candidate.CaseId;
+        CaseMutationGuard.Complete(workflow);
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(), CaseId = workflow.CaseId, Workflow = workflow,
+            EventType = AutomaticLinkEvent, OperationKey = operationKey, RequestHash = requestHash,
+            ActorKind = actor.Kind.ToString(), ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles), Reason = reason,
+            OccurredAtUtc = UtcNow(), BeforeVersion = beforeCaseVersion, AfterVersion = workflow.Version
+        });
+        AppendHistory(context, triage, AutomaticLinkEvent, actor, operationKey, reason, requestHash);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task<TriageCaseLinkCandidate?> FindAutomaticLinkCandidateAsync(
+        PegasusDbContext context, TriageEntity triage, CancellationToken cancellationToken)
+    {
+        if (triage.LinkedCaseId is not null || triage.PrincipalId is null
+            || ParseState(triage.State) == TriageState.Cancelled
+            || await context.TriageHistory.AnyAsync(history => history.TriageId == triage.Id
+                && (history.EventType == "triage_case_unlinked"
+                    || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker")), cancellationToken))
+        {
+            return null;
+        }
+        var principal = await context.Principals.AsNoTracking().SingleOrDefaultAsync(
+            item => item.Id == triage.PrincipalId && item.IsActive, cancellationToken);
+        var receipt = await context.IntakeReceipts.AsNoTracking().Include(item => item.InstructionDraft)
+            .SingleOrDefaultAsync(item => item.Id == triage.OriginReceiptId, cancellationToken);
+        var evaluation = await context.IntakeEvaluations.AsNoTracking().SingleOrDefaultAsync(
+            item => item.Id == triage.EvaluationRevisionId && item.ProcessedReceiptId == triage.OriginReceiptId,
+            cancellationToken);
+        if (principal is null || receipt?.InstructionDraft is not { } draft || evaluation is null
+            || receipt.SourceChannel != triage.SourceChannel
+            || receipt.ExternalReceiptToken != triage.ExternalReceiptToken
+            || !string.Equals(receipt.SourceHash, triage.SourceHash, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(draft.SuggestedPrincipalCode, principal.Code, StringComparison.OrdinalIgnoreCase)
+            || await context.IntakeEvaluations.AnyAsync(item => item.StagedReceiptId == evaluation.StagedReceiptId
+                && item.Revision > evaluation.Revision, cancellationToken))
+        {
+            return null;
+        }
+
+        var policy = _caseMatchPolicies.SingleOrDefault(item =>
+            string.Equals(item.WorkProviderCode, principal.Code, StringComparison.OrdinalIgnoreCase));
+        if (policy is null)
+        {
+            return null;
+        }
+        var targetId = await TriageCasePairing.MatchAsync(policy, new EfCaseMatchIndex(context),
+            triage.NormalizedVehicleRegistration,
+            new(draft.ClaimNumber, draft.VehicleRegistration, draft.ClaimantName, draft.DateOfIncident), cancellationToken);
+        if (targetId is null)
+        {
+            return null;
+        }
+        var target = await context.Cases.AsNoTracking().SingleOrDefaultAsync(item => item.Id == targetId, cancellationToken);
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleOrDefaultAsync(
+            item => item.CaseId == targetId, cancellationToken);
+        // A Created-in-error redirect cannot replace the known customer with
+        // the replacement's customer, even if its typed keys also match.
+        return target is not null && target.PrincipalId == triage.PrincipalId && workflow is not null
+            && TriageCasePairing.CanLinkTarget(Enum.Parse<CaseLifecycleState>(workflow.State),
+                workflow.ArchivedAtUtc is not null, CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                workflow.EditLeaseExpiresAtUtc, UtcNow())
+            ? new(triage.Id, triage.Version, target.Id, workflow.Version, policy.PolicyKey, policy.PolicyVersion)
+            : null;
+    }
+
     /// <summary>
     /// The single seeded <c>TriageSequences</c> row. The Triage reference
     /// sequence is global, so there is exactly one counter and it is never

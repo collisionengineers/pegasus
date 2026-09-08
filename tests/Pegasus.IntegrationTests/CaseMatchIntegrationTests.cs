@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -416,7 +417,9 @@ public sealed class CaseMatchIntegrationTests
                         acceptanceStore,
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory),
-                        new CommittedWorkPublisherDouble()),
+                        new CommittedWorkPublisherDouble(),
+                        new TriageCasePairing(new EfTriageStore(factory,
+                            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore));
             }

@@ -90,6 +90,13 @@ public sealed class AddTriageNoteTests
 
     private sealed class NoteStore(TriageRecord current) : ITriageStore
     {
+        public Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
+            Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<bool> LinkAutomaticallyAsync(
+            TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public TriageOperationReplay? Replay { get; init; }
 
         public int Probes { get; private set; }

@@ -3,6 +3,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -16,6 +17,7 @@ public sealed class AcceptIntake(
     ICaseWorkflowConfiguration configuration,
     IProviderInspectionModeStore inspectionModeStore,
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
+    ITriageCasePairing triageCasePairing,
     IImageIntakeCasePairing? imageIntakeCasePairing = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
@@ -138,6 +140,10 @@ public sealed class AcceptIntake(
             }
         }
 
+        var triagePairing = await triageCasePairing.PairAcceptedCaseAsync(
+            outcome.Identity.CaseId, cancellationToken);
+        Activity.Current?.SetTag("triage.pairing_failures", triagePairing.Failures);
+        Activity.Current?.SetTag("triage.failure_type", triagePairing.FirstFailure);
         return outcome;
     }
 }

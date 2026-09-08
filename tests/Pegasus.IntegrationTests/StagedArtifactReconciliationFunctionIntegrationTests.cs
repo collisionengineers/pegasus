@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ProviderApi;
@@ -53,6 +54,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
         var pairing = new RecordingPairing();
+        var triagePairing = new RecordingTriagePairing();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             new EmptyCacheCleanup(),
@@ -62,6 +64,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore()),
             groupedImageReconciler,
             pairing,
+            triagePairing,
             unidentifiedReconciler,
             vehicleLookupReconciler,
             providerSubmissionReconciler,
@@ -72,7 +75,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(50, workStore.MaximumItems);
         Assert.True(pendingCustodyFactory.CreateCount > 0);
         Assert.Equal(50, pairing.MaximumItems);
-        Assert.Equal(6, logger.States.Count);
+        Assert.Equal(50, triagePairing.MaximumItems);
+        Assert.Equal(7, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
@@ -93,15 +97,21 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(2, pairingState["Failures"]);
         Assert.Equal(nameof(IntakeAssociationConflictException), pairingState["FirstFailure"]);
 
-        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[3]);
+        var triagePairingState = logger.States[3];
+        Assert.Equal(4, triagePairingState["Candidates"]);
+        Assert.Equal(2, triagePairingState["Linked"]);
+        Assert.Equal(1, triagePairingState["Failures"]);
+        Assert.Equal(nameof(TriageVersionConflictException), triagePairingState["FirstFailure"]);
+
+        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[4]);
         Assert.Equal(0, unidentifiedState["Candidates"]);
         Assert.Equal(0, unidentifiedState["Resolved"]);
         Assert.Equal(0, unidentifiedState["Failures"]);
 
-        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[4]);
+        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[5]);
         Assert.Equal(0, vehicleLookupState["Enqueued"]);
 
-        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[5]);
+        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[6]);
         Assert.Equal(0, providerSubmissionState["Candidates"]);
         Assert.Equal(0, providerSubmissionState["Repaired"]);
         Assert.Equal(0, providerSubmissionState["Failures"]);
@@ -121,12 +131,28 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
             pairing,
+            new TriageCasePairing(new EfTriageStore(contextFactory,
+                [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())])),
             new ReconcileUnidentifiedDestinations(new EmptyUnidentifiedStore(), new UnreachableResolveUnidentified(),
                 receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System),
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
+    }
+
+    private sealed class RecordingTriagePairing : ITriageCasePairing
+    {
+        public int MaximumItems { get; private set; }
+        public Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult(new TriageCasePairingResult(4, 2, 1, nameof(TriageVersionConflictException)));
+        }
+        public Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingPairing : IImageIntakeCasePairing

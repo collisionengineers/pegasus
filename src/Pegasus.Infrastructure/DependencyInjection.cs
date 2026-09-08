@@ -145,6 +145,7 @@ public static class DependencyInjection
         services.AddScoped<IListTriagePage, ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
+        services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
         services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
