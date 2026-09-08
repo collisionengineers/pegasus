@@ -106,7 +106,7 @@ In .worktrees/case-031, PowerShell7, no live providers required:
 
 No extra method/filter, browser, snapshot, full-corpus or capacity run is needed.
 The corrected one-method fixture requires its existing local QDOS source.
-Record actual root command exits and retained artifacts here before publication.
+Actual root exits and retained artifacts are recorded in both attempt sections.
 
 ## Governing docs and simplicity
 
@@ -169,7 +169,8 @@ Both original TRXs remain immutable. Root compiled and reran only:
 The method must execute and pass on this host; a corpus skip is not acceptance.
 Already-passed 57 Core and 12 transport cases need no identical rerun for this
 fixture-only correction. Author git diff --check remains exit0, changed-path
-census is still the approved ten files. No author build/test/commit/push/PR.
+census is still the approved ten files. At that correction freeze there was
+no author build/test/commit/push/PR; subsequent publication is recorded below.
 
 
 ## Root attempt 2 — corrected actual caller PASS
@@ -195,8 +196,9 @@ or runtime/provider activation was required. No source changed after the
 corrected root build/test; git diff --check and ten-file census remain clean.
 
 Current correction authority: plan ecb1dab6abfa296b/files77b89acba62aface,
-amended before source edit under root approval. Next: publish the ten-file
-commit and dev PR, fresh gates to Review, then stop for an independent reviewer.
+amended before source edit under root approval. The ten-file commit and dev
+PR are now published; fresh gates passed and the ticket is in Review. Stop
+for an independent reviewer.
 
 
 ## Published handoff
