@@ -2,7 +2,7 @@
 id: DOCS-019
 type: ticket
 title: Design README still asserts the embedded Andy signature resource (D18-era)
-status: verifying
+status: done
 area: documents-reports
 assignee: codex-mcp-client
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-09-08T04:17:00.364Z'
   review: '2026-09-08T04:30:53.583Z'
   verifying: '2026-09-08T04:45:53.248Z'
+  done: '2026-09-08T04:47:29.592Z'
 taken_at: '2026-09-08T04:28:12.024Z'
 branch: DOCS-019-signature-documentation
 worktree: .worktrees/docs-019
@@ -39,7 +40,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/697'
 archived: false
 created: '2026-09-03T19:35:41.384Z'
-updated: '2026-09-08T04:45:53.248Z'
+updated: '2026-09-08T04:47:29.592Z'
 ---
 
 ## What
