@@ -25,7 +25,7 @@ The bounded D56 fixture correction is implemented and published for independent 
 - Frozen pre-commit binary diff hash: `bdbe80e82a6569a4a79ee57f44998f98f679eef2`; 294 insertions / 108 deletions across exactly the ten paths above.
 - Commit: `23ea02f310a790c9aa3224a10de40efacf5444eb`; it changes exactly those ten paths and the working tree was clean immediately after commit.
 - Remote branch read-back matched that exact commit before PR creation.
-- PR: [#709](https://github.com/collisionengineers/pegasus/pull/709), open draft, base `dev`, head `DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence`, head SHA `23ea02f310a790c9aa3224a10de40efacf5444eb`, with the standalone `Kanmer: DELIV-056` footer.
+- PR: [#709](https://github.com/collisionengineers/pegasus/pull/709), open and ready for independent review, base `dev`, head `DELIV-056-align-intake-regression-fixtures-with-definitive-instruction-evidence`, head SHA `23ea02f310a790c9aa3224a10de40efacf5444eb`, with the standalone `Kanmer: DELIV-056` footer.
 
 ## Verification
 
@@ -46,4 +46,4 @@ The bounded D56 fixture correction is implemented and published for independent 
 
 ## Handoff
 
-The ticket is ready for independent review of draft PR #709 at `23ea02f310a790c9aa3224a10de40efacf5444eb`. The author must not review, merge, move it to Verifying, release, deploy, or clean up its worktree.
+The ticket is in Review with ready-for-review PR #709 at `23ea02f310a790c9aa3224a10de40efacf5444eb`. The author must not review, merge, move it to Verifying, release, deploy, or clean up its worktree.

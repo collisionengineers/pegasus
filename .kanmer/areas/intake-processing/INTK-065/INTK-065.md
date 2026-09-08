@@ -2,7 +2,7 @@
 id: INTK-065
 type: ticket
 title: Refresh principal evidence source inventory after policy consolidation
-status: verifying
+status: done
 area: intake-processing
 order: 0
 assignee: codex-mcp-client
@@ -11,6 +11,7 @@ stageEntered:
   preparing: '2026-09-08T07:15:57.942Z'
   review: '2026-09-08T14:45:48.793Z'
   verifying: '2026-09-08T15:28:33.019Z'
+  done: '2026-09-08T16:10:29.158Z'
 taken_at: '2026-09-08T13:43:28.206Z'
 branch: INTK-065-principal-evidence-inventory
 worktree: .worktrees/intk-065
@@ -37,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/706'
 archived: false
 created: '2026-09-08T07:15:35.565Z'
-updated: '2026-09-08T16:00:33.146Z'
+updated: '2026-09-08T16:10:29.158Z'
 ---
 
 ## What
