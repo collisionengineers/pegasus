@@ -14,5 +14,5 @@ once; no post-merge proof, native Linux execution or deployment is claimed.
 
 - [x] Exact-merge failure preserved and same recorded workspace resumed.
 - [x] Two mapped hint/test changes pass existing script and native hint check.
-- [ ] Follow-up independent exact-head review and integration complete.
+- [x] Follow-up independent exact-head review and integration complete.
 - [ ] Final clean integrated release-artifact validation completes without duplicate build.

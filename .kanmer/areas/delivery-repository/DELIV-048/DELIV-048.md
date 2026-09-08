@@ -36,12 +36,17 @@ refs:
 docs_todo: true
 commits:
   - 1c1d7a0a45555604bafd3e732bd606bf083b804a
+  - 26ba4ed408317cccdb354dc1e115b0297f15df94
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/681'
   - 'https://github.com/collisionengineers/pegasus/pull/701'
+delivery_state: integrated
+delivery_branch: dev
+delivery_sha: 26ba4ed408317cccdb354dc1e115b0297f15df94
+delivery_recorded_at: '2026-09-08T07:14:53.200Z'
 archived: false
 created: '2026-09-04T11:58:34.805Z'
-updated: '2026-09-08T07:11:44.472Z'
+updated: '2026-09-08T07:14:53.200Z'
 ---
 
 ## What
