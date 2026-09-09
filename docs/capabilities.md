@@ -154,7 +154,7 @@ work ordering. A listed identity does not imply current activation or acceptance
 | INT-07 | Automatic ingestion from `info@collisionengineers.co.uk` | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-14 | Automated legacy DOC extraction | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-15 | Automated MSG extraction | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
-| INT-16 | Qualified OCR for retained PDF instruction and estimate pages | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
+| INT-16 | Qualified OCR for incoming scanned instructions | [Qualified OCR](frd/frd-05-documents-extraction-and-custody.md#qualified-ocr) |
 | INT-28 | Automatic matching of image-led and instruction-led records | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association); [Grouped image-intake routing](frd/frd-02-intake-and-source-identity.md#grouped-image-intake-routing) |
 | MAIL-01 | Identify every inbound mailbox item and its mailbox/thread/message identity | [Inbound mailbox identity](frd/frd-08-email-mailbox-and-background-processing.md#inbound-mailbox-identity) |
 | MAIL-02 | Map detailed email classifications to Receiving work, Queries, their named detailed views, reasoned Other, Unidentified, or the separate Triage workflow | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
