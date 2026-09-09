@@ -27,13 +27,19 @@ public sealed class AiJobsModel(
     }
 
     public async Task<IActionResult> OnPostStopAsync(
-        Guid jobId, long expectedVersion, string reason, string operationKey, CancellationToken cancellationToken)
+        Guid jobId,
+        long expectedVersion,
+        string reason,
+        string operationKey,
+        int page,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
+        var returnPage = Math.Max(page, 1);
         if (jobId == Guid.Empty || !IsOperationKeyValid(operationKey) || string.IsNullOrWhiteSpace(reason))
         {
             StatusMessage = "The AI job could not be stopped.";
-            return RedirectToPage();
+            return RedirectToPage(new { page = returnPage });
         }
         try
         {
@@ -44,6 +50,6 @@ public sealed class AiJobsModel(
         {
             StatusMessage = "The AI job changed before it could be stopped.";
         }
-        return RedirectToPage();
+        return RedirectToPage(new { page = returnPage });
     }
 }

@@ -46,6 +46,8 @@ public sealed class IndexModel : AdministrationPageModel
     /// </summary>
     public AiChannelConnectorSettings? ConnectorSettings { get; private set; }
 
+    public bool IsComposed => Status is not null || ConnectorSettings is not null;
+
     [BindProperty]
     public bool TargetEnabled { get; set; }
 

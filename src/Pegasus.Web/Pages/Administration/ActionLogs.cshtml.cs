@@ -24,7 +24,13 @@ public sealed class ActionLogsModel(
     public ActionLogPage Result { get; private set; } = new([], false);
     public int CurrentPage { get; private set; } = 1;
 
-    public string NextPageUrl => "/Administration/ActionLogs?page=" + (CurrentPage + 1)
+    public string NextPageUrl => PageUrl(CurrentPage + 1);
+
+    public string PreviousPageUrl => PageUrl(CurrentPage - 1);
+
+    public string SortUrl => PageUrl(1, oldestFirst: !OldestFirst);
+
+    private string PageUrl(int page, bool? oldestFirst = null) => "/Administration/ActionLogs?page=" + page
         + "&From=" + Query(From)
         + "&To=" + Query(To)
         + "&Search=" + Query(Search)
@@ -34,18 +40,7 @@ public sealed class ActionLogsModel(
         + "&Operation=" + Query(Operation)
         + "&Record=" + Query(Record)
         + "&CorrelationId=" + Query(CorrelationId)
-        + "&Sort=" + Query(Sort);
-
-    public string SortUrl => "/Administration/ActionLogs?From=" + Query(From)
-        + "&To=" + Query(To)
-        + "&Search=" + Query(Search)
-        + "&Area=" + Query(Area)
-        + "&Actor=" + Query(Actor)
-        + "&Result=" + Query(ResultFilter)
-        + "&Operation=" + Query(Operation)
-        + "&Record=" + Query(Record)
-        + "&CorrelationId=" + Query(CorrelationId)
-        + "&Sort=" + (OldestFirst ? string.Empty : "oldest");
+        + "&Sort=" + ((oldestFirst ?? OldestFirst) ? "oldest" : string.Empty);
 
     public async Task<IActionResult> OnGetAsync(
         [FromQuery(Name = "page")] int page = 1,
@@ -56,8 +51,18 @@ public sealed class ActionLogsModel(
         var from = From ?? to.AddDays(-31);
         From = from;
         To = to;
-        CurrentPage = page;
+        CurrentPage = page < 1 ? 1 : page;
         OldestFirst = string.Equals(Sort, "oldest", StringComparison.Ordinal);
+        if (page < 1)
+        {
+            ModelState.AddModelError(nameof(page), "Choose a valid page.");
+            return Page();
+        }
+        if (from >= to || to - from > ListActionLogs.MaximumPeriod)
+        {
+            ModelState.AddModelError(string.Empty, "Choose a valid UTC period.");
+            return Page();
+        }
         try
         {
             Result = await listActionLogs.ExecuteAsync(actor,
@@ -65,7 +70,10 @@ public sealed class ActionLogsModel(
                     Trim(Operation), Trim(Record), Trim(CorrelationId), OldestFirst,
                     CurrentPage), cancellationToken);
         }
-        catch (ArgumentOutOfRangeException) { ModelState.AddModelError(string.Empty, "Choose a valid UTC period."); }
+        catch (ArgumentOutOfRangeException)
+        {
+            ModelState.AddModelError(nameof(page), "Choose a valid page.");
+        }
         return Page();
     }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -171,6 +170,57 @@ public sealed partial class AutomationAdministrationWebTests
     }
 
     [Fact]
+    public async Task SendToAiOnlyCompositionShowsTheAdministrationCardAndRailRow()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = SendToAiIntegrationTests.WithSendToAi(baseFactory, "http://127.0.0.1:8629");
+        using var client = CreateClient(factory);
+
+        var administration = await GetHtmlAsync(client, "/Administration");
+        var automation = await GetHtmlAsync(client, AutomationRoute);
+
+        Assert.Contains($"href=\"{AutomationRoute}\"", administration, StringComparison.Ordinal);
+        Assert.Contains($"href=\"{AutomationRoute}\"", automation, StringComparison.Ordinal);
+        Assert.Contains("AI settings", automation, StringComparison.Ordinal);
+        Assert.DoesNotContain("Registered clients", automation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AdministrationAiJobsLabelsQueueWorkAndKeepsThePageAfterStopping()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAutomationMcp(baseFactory);
+        await SeedJobsAsync(factory, liveJobs: 51, failedJobs: 0);
+        using var client = CreateClient(factory);
+
+        var first = await GetHtmlAsync(client, "/Administration/AiJobs");
+        Assert.Contains("Unidentified-queue pass", first, StringComparison.Ordinal);
+        Assert.Contains("Unidentified queue", first, StringComparison.Ordinal);
+        Assert.Contains("Queued", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("UnidentifiedQueuePass", first, StringComparison.Ordinal);
+        Assert.DoesNotContain(AiJobPolicy.QueueSubjectReference, first, StringComparison.Ordinal);
+        Assert.Contains("Page 1", first, StringComparison.Ordinal);
+        Assert.Contains("page=2", first, StringComparison.OrdinalIgnoreCase);
+
+        var second = await GetHtmlAsync(client, "/Administration/AiJobs?page=2");
+        Assert.Contains("Page 2", second, StringComparison.Ordinal);
+        Assert.Contains("page=1", second, StringComparison.OrdinalIgnoreCase);
+
+        using var stopped = await client.PostAsync(
+            "/Administration/AiJobs?handler=Stop",
+            Form(
+                AntiforgeryValue(second),
+                ("jobId", InputValue(second, "jobId")),
+                ("expectedVersion", InputValue(second, "expectedVersion")),
+                ("operationKey", InputValue(second, "operationKey")),
+                ("page", InputValue(second, "page")),
+                ("reason", "Stop the queued test job.")));
+
+        Assert.Equal(HttpStatusCode.Redirect, stopped.StatusCode);
+        Assert.Equal("/Administration/AiJobs?page=2", stopped.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
     public async Task TheOneSaveStoresTheTimeoutAndStopsSendingToAiWhenTheCheckboxIsCleared()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -247,27 +297,22 @@ public sealed partial class AutomationAdministrationWebTests
     }
 
     [Fact]
-    public async Task ActivityRendersCaseReferencesAndNoFilterNarration()
+    public async Task ActionLogsRendersAutomationHistory()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithAutomationMcp(baseFactory);
-        var caseId = await SeedAcceptedCaseAsync(factory);
-        string caseReference;
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var details = await scope.ServiceProvider.GetRequiredService<IGetCase>()
-                .ExecuteAsync(new(caseId, Administrator), CancellationToken.None)
-                ?? throw new InvalidOperationException("The seeded case is unavailable.");
-            caseReference = details.Summary.Reference;
             await scope.ServiceProvider.GetRequiredService<IActionHistoryWriter>()
                 .AppendAsync(
                     new(
                         Guid.NewGuid(),
                         "automation_mcp",
-                        caseId.ToString("D"),
+                        "automation-history-reference",
                         "pegasus_case_get",
                         AutomationClient,
-                        DateTimeOffset.UtcNow,
+                        now,
                         "Succeeded",
                         "auto-006-activity-reference",
                         null),
@@ -275,23 +320,18 @@ public sealed partial class AutomationAdministrationWebTests
         }
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"{AutomationRoute}/Activity");
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+        var html = await GetHtmlAsync(
+            client,
+            $"/Administration/ActionLogs?From={from}&To={to}&Actor={ClientId}");
 
-        Assert.Contains(caseReference, html, StringComparison.Ordinal);
-        Assert.DoesNotContain(caseId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("you can filter by", html, StringComparison.OrdinalIgnoreCase);
-    }
+        Assert.Contains("automation-history-reference", html, StringComparison.Ordinal);
+        Assert.Contains("pegasus_case_get", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Administration/Automation/Activity", html, StringComparison.Ordinal);
 
-    [Fact]
-    public async Task ActivityOmitsTheEmptyStatePanel()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = CreateClient(factory);
-
-        var html = await GetHtmlAsync(client, $"{AutomationRoute}/Activity");
-
-        Assert.DoesNotContain("automation-activity-heading", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("No Automation activity is recorded", html, StringComparison.Ordinal);
+        using var obsoleteActivity = await client.GetAsync($"{AutomationRoute}/Activity");
+        Assert.Equal(HttpStatusCode.NotFound, obsoleteActivity.StatusCode);
     }
 
     /// <summary>

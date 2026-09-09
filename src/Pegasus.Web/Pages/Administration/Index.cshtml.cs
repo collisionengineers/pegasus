@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Mcp;
 
@@ -22,7 +23,8 @@ public sealed class IndexModel : AdministrationPageModel
     public IActionResult OnGet()
     {
         AutomationComposed =
-            HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
+            HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null
+            || HttpContext.RequestServices.GetService<IAiChannelConnectorStore>() is not null;
 
         if (!TryGetActor(out var actor))
         {

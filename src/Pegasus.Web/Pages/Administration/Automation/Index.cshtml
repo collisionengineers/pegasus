@@ -6,7 +6,7 @@
     ViewData["Title"] = OperatorLabels.Admin.Automation;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "automation";
-    ViewData["AdminAutomationComposed"] = Model.Status is not null;
+    ViewData["AdminAutomationComposed"] = Model.IsComposed;
 
     var registration = Model.Status;
     var connector = Model.ConnectorSettings;
