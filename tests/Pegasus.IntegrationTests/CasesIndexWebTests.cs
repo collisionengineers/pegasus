@@ -215,7 +215,10 @@ public sealed class CasesIndexWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.CacheControl?.NoStore == true);
-        var query = Assert.IsType<SearchCasesQuery>(search.Query);
+        // The shell also searches Held cases for its notification menu after
+        // this handler. Identify the actual filtered request rather than
+        // assuming it is the last call made while rendering the page.
+        var query = Assert.Single(search.Queries, candidate => candidate.Filters.Query == "needle");
         Assert.Equal(ActorKind.Staff, query.Actor.Kind);
         Assert.NotEmpty(query.Actor.Roles);
         Assert.Equal(2, query.Page);
@@ -414,7 +417,7 @@ public sealed class CasesIndexWebTests
         /// <summary>A second result in a D3 terminal state, with the CASE-026 projection fields.</summary>
         public Guid ClosedCaseId { get; } = Guid.NewGuid();
 
-        public SearchCasesQuery? Query { get; private set; }
+        public List<SearchCasesQuery> Queries { get; } = [];
 
         public bool ReturnEmpty { get; set; }
 
@@ -424,7 +427,7 @@ public sealed class CasesIndexWebTests
             SearchCasesQuery query,
             CancellationToken cancellationToken)
         {
-            Query = query;
+            Queries.Add(query);
             if (ThrowUnavailable)
             {
                 throw new InvalidOperationException("sensitive store failure");

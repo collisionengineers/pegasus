@@ -124,7 +124,7 @@ public sealed partial class IndexModel(
         IReadOnlyList<OperatorLabels.CaseRequirement> Outstanding);
 
     public async Task<IActionResult> OnGetAsync(
-        [FromQuery] int? page,
+        [FromQuery(Name = "page")] int? pageNumber,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -135,7 +135,7 @@ public sealed partial class IndexModel(
         {
             return NotFound();
         }
-        PageNumber = page ?? 1;
+        PageNumber = pageNumber ?? 1;
         if (!ModelState.IsValid)
         {
             return Page();
