@@ -66,24 +66,30 @@ public sealed class QdosIntakeWebTests
             html,
             StringComparison.Ordinal);
 
-        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var processedReceiptId = IntakeWebDriver.ReceiptId(processed);
         using var completedStatusPage = await client.GetAsync(upload.Location);
         completedStatusPage.EnsureSuccessStatusCode();
         var completedHtml = await completedStatusPage.Content.ReadAsStringAsync();
         Assert.Contains("<h1>Complete</h1>", completedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-auto-refresh=\"2000\"", completedHtml, StringComparison.Ordinal);
-        // No case exists yet and this ordinary correspondence carries no
-        // identifiable instruction to become one from, so the confirmation
-        // step reports it needing a staff decision rather than offering to
-        // create a case from nothing (INTK-010's decision table).
-        Assert.Contains("Unidentified", completedHtml, StringComparison.Ordinal);
-        Assert.Contains(
-            "This could not be matched automatically and needs a staff decision.",
-            completedHtml,
-            StringComparison.Ordinal);
-        Assert.Contains("/Unidentified/", completedHtml, StringComparison.Ordinal);
+        // Manual material stays unallocated while staff choose a destination
+        // or open an editable proposal; opening that choice is not acceptance.
+        Assert.Contains("Choose a case destination", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Create a new case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/Create?receiptId={processedReceiptId:D}", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Add to an existing case", completedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Open case", completedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Create a case", completedHtml, StringComparison.Ordinal);
+        await using (var receiptScope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = Assert.IsType<IntakeReceipt>(await receiptScope.ServiceProvider
+                .GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(processedReceiptId, CancellationToken.None));
+            Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+            Assert.Null(receipt.CurrentCaseId);
+            Assert.Null(receipt.AcceptedCaseId);
+            Assert.Null(receipt.AllocationState);
+        }
 
         var duplicate = await IntakeWebDriver.UploadAsync(
             client,

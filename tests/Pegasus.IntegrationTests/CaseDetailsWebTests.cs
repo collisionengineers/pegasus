@@ -878,8 +878,7 @@ public sealed partial class CaseDetailsWebTests
         });
 
         // EXT-04: the send page for a case still in Review — the one place the
-        // operator chooses between the API submission and the export. The
-        // capture-aware fetch so a Test UI capture records it.
+        // operator chooses between the API submission and the export.
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
 
         // The page's own copy, as EPIC-011 restyled it: the handoff heading,

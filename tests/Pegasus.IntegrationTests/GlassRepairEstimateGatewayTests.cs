@@ -712,6 +712,8 @@ public sealed class GlassRepairEstimateGatewayTests
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
+        Assert.True(session.State == GlassRepairEstimateSessionState.Active,
+            $"Launch must be Active before callback: State={session.State}, FailureCode={session.FailureCode}.");
         var completed = await harness.CompleteAsync(session);
 
         var conflict = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(

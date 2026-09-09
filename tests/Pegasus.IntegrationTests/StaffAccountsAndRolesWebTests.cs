@@ -114,7 +114,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.Contains("handler=ResetPassword", scriptOffConfirmHtml, StringComparison.Ordinal);
 
         // The Disable branch of the same page, which is the one that carries
-        // the consequence notice; both branches are Test UI catalogue states.
+        // the consequence notice for both branches.
         using var scriptOffDisable = await client.GetAsync(
             $"/Administration/Accounts/Confirm/Disable/{created.Id:D}");
         var scriptOffDisableHtml = await scriptOffDisable.Content.ReadAsStringAsync();

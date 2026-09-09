@@ -335,6 +335,7 @@ public sealed class EfUnidentifiedStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var resolved = UnidentifiedState.Resolved.ToString();
         var receipt = UnidentifiedOriginKind.Receipt.ToString();
+        var submissionGroup = UnidentifiedOriginKind.SubmissionGroup.ToString();
         var automation = ActorKind.Automation.ToString();
         var automationSubject = ReconcileUnidentifiedDestinations.AutomationActorId;
 
@@ -353,7 +354,7 @@ public sealed class EfUnidentifiedStore(
         // oldest-first page and starve every later stale resolution of its
         // recheck in silence. The version is monotonic per receipt, moves on
         // every link, unlink and relink, and needs no clock.
-        var rows = await (
+        var receiptRows = await (
             from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
             join association in context.Set<IntakeManualAssociationEntity>().AsNoTracking()
                 on item.OriginId equals association.IntakeReceiptId
@@ -367,7 +368,48 @@ public sealed class EfUnidentifiedStore(
             select item)
             .Take(maximum)
             .ToArrayAsync(cancellationToken);
-        return rows.Select(Map).ToArray();
+
+        // Group membership is complete and immutable once its one
+        // submission-level decision can settle. Summing every member's manual
+        // association version gives this polymorphic origin the same monotonic
+        // freshness watermark as a receipt: a link, reverse or relink raises
+        // one member's version, while an absent association contributes zero.
+        var groupAssociationVersions =
+            from member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+            join work in context.IntakeWorkItems.AsNoTracking()
+                on member.StagedReceiptId equals work.StagedReceiptId
+            join association in context.IntakeManualAssociations.AsNoTracking()
+                on work.ProcessedReceiptId equals (Guid?)association.IntakeReceiptId into associations
+            from association in associations.DefaultIfEmpty()
+            group association by member.GroupId into grouped
+            select new
+            {
+                GroupId = grouped.Key,
+                Version = grouped.Sum(association => association == null ? 0L : association.Version)
+            };
+
+        var groupRows = await (
+            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            join aggregate in groupAssociationVersions
+                on item.OriginId equals aggregate.GroupId
+            where item.State == resolved
+                && item.OriginKind == submissionGroup
+                && item.ResolvedByActorKind == automation
+                && item.ResolvedByActorSubjectId == automationSubject
+                && (item.ReconciledAssociationVersion == null
+                    || item.ReconciledAssociationVersion != aggregate.Version)
+            orderby item.ResolvedAtUtc, item.Sequence
+            select item)
+            .Take(maximum)
+            .ToArrayAsync(cancellationToken);
+
+        return receiptRows
+            .Concat(groupRows)
+            .OrderBy(item => item.ResolvedAtUtc)
+            .ThenBy(item => item.Sequence)
+            .Take(maximum)
+            .Select(Map)
+            .ToArray();
     }
 
     public async Task MarkResolutionRecheckedAsync(

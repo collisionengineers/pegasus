@@ -52,8 +52,8 @@ Do not invent a technical ADR merely to authorize a documentation move.
 - Hard-wrap ordinary prose near 78 columns; tables, code and link-dense lines
   may run longer. Readability matters more than a line-count target.
 - Use relative links to canonical clauses; repair inbound links when moving or
-  retiring a heading. Generated snapshots and immutable supplied evidence are
-  not reformatted merely to satisfy prose conventions.
+  retiring a heading. Immutable supplied evidence is not reformatted merely to
+  satisfy prose conventions.
 
 ## Decision records
 

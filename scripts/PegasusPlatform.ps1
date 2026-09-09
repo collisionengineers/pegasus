@@ -989,7 +989,7 @@ $script:PegasusRepairHints = @{
     }
     'dev-certs-trust' = @{
         Windows = 'dotnet dev-certs https --trust'
-        Linux = 'sudo apt-get install --yes libnss3-tools, then dotnet dev-certs https --trust (required only for the browser evidence lane)'
+        Linux = 'sudo apt-get install --yes libnss3-tools, then dotnet dev-certs https --trust (required for interactive browser clients)'
     }
     'az' = @{
         Windows = 'winget install --exact --id Microsoft.AzureCLI --version 2.88.0 --scope user'

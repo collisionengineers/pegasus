@@ -48,12 +48,9 @@ The selected alpha direction is Operations-first. The UI must provide:
   reduced-motion support;
 - responsive use without hiding required evidence or actions.
 
-Package-pinned Playwright Chromium automation is the release evidence for the
-named semantic, keyboard, focus, reflow, forced-colour, reduced-motion and axe
-checks that the Browser lane executes. Screen-reader-compatible semantics
-remain required behavior, but the current evidence does not claim
-interoperability with Narrator or any other screen reader, complete WCAG
-conformance, subjective usability, or operator acceptance.
+Screen-reader-compatible semantics remain required behavior. This requirement
+does not itself claim interoperability with Narrator or any other screen reader,
+complete WCAG conformance, subjective usability, or operator acceptance.
 
 Every actionable search result or queue row is a full-row keyboard-focusable
 link or button with visible action affordance. At constrained desktop width,
@@ -486,25 +483,23 @@ signal exists during it — no row is ticked ahead of what the response
 actually proved. No mechanics narration ("receipt", "submission group", or
 similar internal vocabulary) appears on the Upload or status surfaces.
 
-Once a file's processing resolves, the status surface shows a confirmation
-outcome rather than a passive label: what already happened automatically
-(reported, with a link to open it and, where relevant, the existing reversal
-path — never re-offered as a choice), or the staff decision that is
-genuinely open. Where it is open, the surface offers the decision itself:
-the suggested action (create a case from what was uploaded, or — for a
-just-registered vehicle-image case — the registration is reported with its
-reference and link), **Add to an existing case**, and **Cancel**. Add to an
-existing case opens a case search that suggests matching cases as the
-operator types (keyboard-operable, with the active suggestion marked by more
-than colour); choosing a case and confirming with a reason attaches the
-uploaded material to it as an explicit staff decision. Cancel changes
-nothing — the material stays retained with its state honestly shown. The
-exact decision table and the attach contract are owned by
+Once a manual upload's processing resolves, the status surface shows an
+explicit destination decision rather than a passive label. Even one matching
+Case requires staff confirmation: the screen offers viable existing Cases and
+an editable new-Case proposal, whose acceptance is the only point at which a
+formal Case/PO may be allocated. The proposal states that it creates nothing
+until accepted; reject/cancel changes nothing and leaves the material retained.
+**Add to an existing case** is keyboard-operable (the active suggestion is
+marked by more than colour) and requires a reason. Search failures are visibly
+different from no matches, and a response for an earlier query cannot replace a
+newer input. A grouped upload has one server-bound submission decision and
+reports partial completion honestly. The exact decision table and attach
+contract are owned by
 [FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
-A grouped upload shows one submission decision with the per-file processing and
-outcome details beneath it (D20); the per-file confirmation decisions stay per
-file, so members of the same group resolve independently and are never
-collapsed into one group-wide confirmation outcome.
+A grouped upload shows one server-bound submission decision with the per-file
+processing and outcome details beneath it (D20). Its target and reason are
+shared, while each member keeps its own reviewed receipt version and durable
+result; a partial outcome is reported rather than represented as success.
 
 ### Dashboard freshness and reconciliation
 
@@ -558,18 +553,17 @@ current state and account.
 
 ## Acceptance evidence
 
-Authenticated Web and real-browser tests prove: every rail route and its
-count, both redirects, the removed `/VehicleImages` list, the Cases rail
+Acceptance covers every rail route and its count, both redirects,
+the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
 `/Cases/{id}/Assessment` redirect and the read-only rule in Completed
 (D30), the eleven Case record sections and the `?section=` jump (D29), the
-tab limit and eviction, axe accessibility, focus behaviour and no document
-overflow at 1580, 1100 and 760px. The Case record whole-page drop remains
-the one accepted pointer-only exception (D16); ordinary keyboard
-accessibility remains required for every other action on that page.
-Snapshot and catalogue checks are owned by
-[design § Test UI](../design/README.md#test-ui). Deployment and live
-acceptance remain separate evidence tiers
+tab limit and eviction. Authenticated Web tests cover server-owned behavior;
+they do not establish client-side interaction or visual correctness.
+The Case record whole-page drop remains the one
+accepted pointer-only exception (D16); ordinary keyboard accessibility remains
+required for every other action on that page. Deployment and live acceptance
+remain separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

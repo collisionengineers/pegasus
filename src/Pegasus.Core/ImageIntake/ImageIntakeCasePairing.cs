@@ -101,6 +101,30 @@ public sealed class ImageIntakeCasePairing(
             var actor = ActionActor.SystemWorker(ImageIntakeAutomation.ActorId);
             var originReceipt = await receiptQueries.GetAsync(detail.Record.Origin.ReceiptId, cancellationToken)
                 ?? throw new KeyNotFoundException("The registered image origin is unavailable.");
+            // A manual upload must not acquire a destination from the image
+            // reconciliation sweep. A later reasoned staff link is allowed to
+            // complete the existing image lifecycle through this same owner.
+            if (originReceipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload)
+            {
+                // A manual group confirmation owns one explicit, reasoned
+                // link per member.  Do not turn the first member link into
+                // automatic sibling links: that would replace the page's
+                // submitted operation identities and versions halfway through
+                // its one staff decision.  Once every member is linked, the
+                // existing pairing/merge path below remains the sole owner of
+                // the Image-initiated Case lifecycle.
+                var manualImages = await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
+                var manualMemberIds = manualImages.Select(image => image.ReceiptId)
+                    .Prepend(detail.Record.Origin.ReceiptId)
+                    .Distinct()
+                    .ToArray();
+                var manualMembers = await Task.WhenAll(manualMemberIds.Select(
+                    memberId => receiptQueries.GetAsync(memberId, cancellationToken)));
+                if (manualMembers.Any(member => member?.CurrentCaseId is null))
+                {
+                    return new(1, 0, 0);
+                }
+            }
             var staffOriginVersion = originReceipt.AssociationWasStaffDecision
                 ? originReceipt.ManualAssociationVersion : null;
             var targetId = detail.AssociatedCaseId;

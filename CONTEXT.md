@@ -41,7 +41,7 @@ Source evidence of a vehicle other than the Case vehicle, identified from reliab
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
-An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation; its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report.
+An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation on automatic intake routes; manual upload requires explicit staff acceptance first under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). Its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report.
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:

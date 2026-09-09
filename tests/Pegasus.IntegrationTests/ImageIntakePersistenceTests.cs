@@ -231,16 +231,30 @@ public sealed class ImageIntakePersistenceTests
             true,
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
-        var upload = await IntakeWebDriver.PostUploadManyAsync(
-            client,
-            form.AntiforgeryToken,
-            form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", Convert.FromBase64String(TinyPngBase64)),
-                ("close-up.png", "image/png", Convert.FromBase64String(TinyPngBase64))
-            ]);
-        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        var submissionToken = $"mailbox-image-group:{Guid.NewGuid():N}";
+        Guid groupId;
+        await using (var submissionScope = factory.Services.CreateAsyncScope())
+        {
+            var submissionServices = submissionScope.ServiceProvider;
+            var receivedAtUtc = submissionServices.GetRequiredService<TimeProvider>().GetUtcNow();
+            var submittedGroup = await submissionServices.GetRequiredService<IGroupedIntakeSubmission>()
+                .ExecuteAsync(
+                    new(
+                        submissionToken,
+                        "system-worker:approved-inbox-poller",
+                        receivedAtUtc,
+                        [
+                            new(0, new("overview.png", "image/png", Convert.FromBase64String(TinyPngBase64),
+                                receivedAtUtc, "system-worker:approved-inbox-poller",
+                                new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, 0)))),
+                            new(1, new("close-up.png", "image/png", Convert.FromBase64String(TinyPngBase64),
+                                receivedAtUtc, "system-worker:approved-inbox-poller",
+                                new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, 1))))
+                        ],
+                        IntakeSourceChannel.Mailbox),
+                    CancellationToken.None);
+            groupId = submittedGroup.Group.Id;
+        }
 
         Guid[] stagedReceiptIds;
         await using (var lookupScope = factory.Services.CreateAsyncScope())
@@ -683,7 +697,7 @@ public sealed class ImageIntakePersistenceTests
             actor,
             "claim-post-report-lease");
         var receipt = await receipts.GetAsync(imageReceiptId, CancellationToken.None);
-        await Assert.ThrowsAsync<ImageIntakeCaseNotEligibleException>(
+        await Assert.ThrowsAsync<IntakeAssociationConflictException>(
             () => link.ExecuteAsync(
                 new(
                     imageReceiptId,
@@ -695,6 +709,10 @@ public sealed class ImageIntakePersistenceTests
                     "link-post-report-case",
                     "A post-report case must be rejected."),
                 CancellationToken.None));
+        var rejected = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.Null(rejected!.AssociatedCaseId);
+        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, rejected.State);
+        Assert.Null(rejected.MergedIntoCaseId);
 
         var lease = await ClaimLeaseAsync(
             factory.Services,

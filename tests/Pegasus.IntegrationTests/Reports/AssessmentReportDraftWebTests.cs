@@ -22,9 +22,7 @@ namespace Pegasus.IntegrationTests.Reports;
 /// the web: a complete case renders and returns a PDF, and an incomplete
 /// case fails closed with its readiness reasons named instead of throwing.
 /// <see cref="IAssessmentReportRenderer"/> is substituted with a fast fake so
-/// this suite does not need a Chromium install — the real Playwright
-/// renderer already has its own coverage in
-/// <c>tests/Pegasus.IntegrationTests/Reports/AssessmentReportRendererTests.cs</c>.
+/// this suite does not launch Chromium or validate rendered PDF appearance.
 /// Everything upstream of the renderer (the projection, the readiness gate,
 /// the page wiring, authorisation) is exercised for real.
 /// </summary>

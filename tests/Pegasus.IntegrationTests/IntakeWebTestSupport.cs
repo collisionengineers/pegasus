@@ -177,7 +177,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 }).AddScheme<AuthenticationSchemeOptions, IntegrationTestAuthenticationHandler>("IntegrationTest", _ => { });
             }
             services.RemoveAll<TimeProvider>();
-            // Browser/TestServer hosts exercise Web mutations without an
+            // TestServer hosts exercise Web mutations without an
             // Azurite process. Production must compose the required queue
             // publishers, but this host replaces transport only after the
             // Core route tests have proved its exact-ID call contract.
@@ -186,10 +186,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<ICommittedExternalWorkPublisher>();
             services.AddScoped<ICommittedExternalWorkPublisher, CommittedWorkPublisherDouble>();
             services.AddSingleton(timeProvider);
-            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR")))
-            {
-                services.AddTransient<IStartupFilter, TestUiResponseCaptureStartupFilter>();
-            }
             if (artifactStore is not null)
             {
                 services.RemoveAll<IIntakeArtifactStore>();
@@ -563,37 +559,9 @@ internal static partial class IntakeWebDriver
         using var response = await client.GetAsync(url, cancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync(cancellationToken);
-        await CaptureReceiptImagesAsync(client, html, cancellationToken);
         return html;
     }
 
-    /// <summary>
-    /// Under a Test UI capture, a page's receipt images are fetched with the
-    /// page so its offline snapshot shows those receipts and never another's.
-    /// </summary>
-    private static async Task CaptureReceiptImagesAsync(
-        HttpClient client,
-        string html,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR")))
-        {
-            return;
-        }
-
-        var urls = ReceiptImageUrlRegex().Matches(html)
-            .Select(match => WebUtility.HtmlDecode(match.Groups[1].Value))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-        foreach (var url in urls)
-        {
-            using var image = await client.GetAsync(url, cancellationToken);
-            Assert.Equal(HttpStatusCode.OK, image.StatusCode);
-        }
-    }
-
-    /// <summary>The inline receipt-image sources a rendered page shows.</summary>
-    [GeneratedRegex("<img[^>]+src=\"(/Received/[^\"/]+/Image)\"", RegexOptions.IgnoreCase)]
-    internal static partial Regex ReceiptImageUrlRegex();
 
     public static async Task<string> GetAntiforgeryTokenAsync(
         HttpClient client,

@@ -44,7 +44,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new EmptyIntakeReceiptQueries(),
             new UnreachableImageIntakeQueries(),
             new UnreachableTriageQueries(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new UnreachableGroupStore(),
+            new EmptyQueuedIntakeStatuses());
         var vehicleLookupReconciler = new ReconcileAutomaticVehicleLookups(
             new UnreachableAutomaticVehicleLookupStore(),
             VehicleLookupAvailability.Unavailable);
@@ -134,7 +136,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new TriageCasePairing(new EfTriageStore(contextFactory,
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())])),
             new ReconcileUnidentifiedDestinations(new EmptyUnidentifiedStore(), new UnreachableResolveUnidentified(),
-                receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System),
+                receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System,
+                new UnreachableGroupStore(), new EmptyQueuedIntakeStatuses()),
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
@@ -461,6 +464,14 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(
                 "An empty grouped-image reconciliation page must not re-drive any staged receipt.");
+    }
+
+    private sealed class EmptyQueuedIntakeStatuses : IQueuedIntakeStatusQueries
+    {
+        public Task<QueuedIntakeStatus?> GetAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<QueuedIntakeStatus?>(null);
     }
 
     private sealed class UnreachableRegisterUnidentified : IRegisterUnidentified

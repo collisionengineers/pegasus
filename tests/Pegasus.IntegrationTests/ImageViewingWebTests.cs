@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.ImageIntake;
@@ -91,26 +92,11 @@ public sealed class ImageViewingWebTests
             recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var caseEmail = IntakeTestEvidence.CreateEmail(
-            "gallery-case.eml",
-            "Please see the attached instruction.",
-            attachments:
-            [
-                ("instruction.pdf", "application/pdf",
-                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
-                        claimNumber: "GALLERY-01", registration: "AB12 CDE"))
-            ]);
-        var caseUpload = await IntakeWebDriver.UploadAndProcessAsync(
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory,
             client,
-            caseEmail.FileName,
-            caseEmail.MediaType,
-            caseEmail.Content);
-        var caseOriginReceiptId = IntakeWebDriver.ReceiptId(caseUpload);
-        var caseId = await ImageIntakeTestData.PromoteAllocatedCaseAsync(
-            factory.Services,
-            caseOriginReceiptId,
-            nameof(CaseLifecycleState.Review));
+            "AB12 CDE",
+            "GALLERY-01");
 
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
@@ -124,6 +110,32 @@ public sealed class ImageViewingWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
         var detail = await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(detail);
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var workflow = await scope.ServiceProvider.GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(receipt);
+        Assert.NotNull(workflow);
+
+        var fields = new Dictionary<string, string>
+        {
+            ["id"] = detail!.Record.Id.ToString("D"),
+            ["receiptId"] = receiptId.ToString("D"),
+            ["operationId"] = Guid.NewGuid().ToString("D"),
+            ["receiptVersion"] = receipt!.Version.ToString(CultureInfo.InvariantCulture),
+            ["caseId"] = caseId.ToString("D"),
+            ["caseVersion"] = workflow!.Version.ToString(CultureInfo.InvariantCulture),
+            ["reference"] = string.Empty,
+            ["reason"] = "Staff matched the reviewed image to the instructed case."
+        };
+        fields["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var attach = await client.PostAsync(
+            "/Cases?handler=Attach",
+            new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, attach.StatusCode);
+
+        detail = await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         Assert.Equal(caseId, detail!.AssociatedCaseId);
 
         var images = await queries.ListImagesAsync(detail.Record.Id, CancellationToken.None);

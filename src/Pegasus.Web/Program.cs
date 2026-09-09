@@ -743,7 +743,6 @@ builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
-builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
 builder.Services.AddSingleton<IIntakeWorkEnqueuer>(
     new AzureQueueIntakeWorkEnqueuer(
         intakeWorkQueue ?? throw new InvalidOperationException("The intake queue is not configured."),

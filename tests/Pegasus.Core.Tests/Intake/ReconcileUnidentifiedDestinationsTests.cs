@@ -158,15 +158,54 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     }
 
     [Fact]
-    public async Task GroupOriginItemsAreSkipped()
+    public async Task IncompleteGroupOriginItemsRemainOpen()
     {
         var harness = new Harness();
         harness.AddOpenItem(5, UnidentifiedOrigin.SubmissionGroup(Guid.NewGuid()));
 
         var result = await harness.Reconciler.ExecuteAsync(50);
 
-        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(0, 0, 0, 0), result);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), result);
         Assert.Empty(harness.Resolve.Requests);
+    }
+
+    [Fact]
+    public async Task CompleteGroupAtOneCaseResolvesItsGroupOriginItem()
+    {
+        var harness = new Harness();
+        var groupId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var firstStaged = Guid.NewGuid();
+        var secondStaged = Guid.NewGuid();
+        var first = ManuallyLinked(Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting), caseId, "QDOS26100", 1);
+        var second = ManuallyLinked(Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting), caseId, "QDOS26100", 1);
+        harness.Receipts.Receipts[first.Id] = first;
+        harness.Receipts.Receipts[second.Id] = second;
+        harness.Groups.Groups[groupId] = new(
+            groupId,
+            IntakeSourceChannel.ManualUpload,
+            "group-origin",
+            2,
+            "staff",
+            Now,
+            [
+                new(groupId, 0, firstStaged, "first.jpg", ImageHash, false),
+                new(groupId, 1, secondStaged, "second.jpg", ImageHash, false)
+            ]);
+        harness.Statuses.Statuses[firstStaged] = new(
+            firstStaged, "first.jpg", Now, QueuedIntakeStatusKind.Complete, first.Id, null);
+        harness.Statuses.Statuses[secondStaged] = new(
+            secondStaged, "second.jpg", Now, QueuedIntakeStatusKind.Complete, second.Id, null);
+        var item = harness.AddOpenItem(6, UnidentifiedOrigin.SubmissionGroup(groupId));
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0, 0), result);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(item.Id, resolve.UnidentifiedItemId);
+        Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
+        Assert.Equal(caseId.ToString("N"), resolve.TargetId);
+        Assert.Equal("QDOS26100", resolve.TargetReference);
     }
 
     [Fact]
@@ -639,7 +678,9 @@ public sealed class ReconcileUnidentifiedDestinationsTests
                 Receipts,
                 ImageIntakes,
                 Triages,
-                TimeProvider.System);
+                TimeProvider.System,
+                Groups,
+                Statuses);
         }
 
         public FakeUnidentifiedStore Store { get; } = new();
@@ -647,6 +688,10 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public FakeResolveUnidentified Resolve { get; }
 
         public FakeReceiptQueries Receipts { get; } = new();
+
+        public FakeSubmissionGroupStore Groups { get; } = new();
+
+        public FakeQueuedIntakeStatuses Statuses { get; } = new();
 
         public FakeImageIntakeQueries ImageIntakes { get; } = new();
 
@@ -938,6 +983,68 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Guid assetId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IntakeAssetRecord?>(null);
+    }
+
+    private sealed class FakeQueuedIntakeStatuses : IQueuedIntakeStatusQueries
+    {
+        public Dictionary<Guid, QueuedIntakeStatus> Statuses { get; } = [];
+
+        public Task<QueuedIntakeStatus?> GetAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Statuses.TryGetValue(stagedReceiptId, out var status) ? status : null);
+    }
+
+    private sealed class FakeSubmissionGroupStore : IIntakeSubmissionGroupStore
+    {
+        public Dictionary<Guid, IntakeSubmissionGroup> Groups { get; } = [];
+
+        public Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(
+            int maximumItems,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
+        public Task<IntakeSubmissionGroup?> GetAsync(
+            Guid groupId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Groups.TryGetValue(groupId, out var group) ? group : null);
+
+        public Task<IntakeSubmissionGroup?> FindAsync(
+            IntakeSourceChannel channel,
+            string submissionToken,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Groups.Values.FirstOrDefault(group =>
+                group.Channel == channel && group.SubmissionToken == submissionToken));
+
+        public Task<IntakeSubmissionGroup> GetOrCreateAsync(
+            Guid groupId,
+            IntakeSourceChannel channel,
+            string submissionToken,
+            int expectedMemberCount,
+            string actor,
+            DateTimeOffset receivedAtUtc,
+            Guid? parentReceiptId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
+            Guid groupId,
+            int ordinal,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Groups.TryGetValue(groupId, out var group)
+                ? group.Members.SingleOrDefault(member => member.Ordinal == ordinal)
+                : null);
+
+        public Task<IntakeSubmissionGroupMember> AddMemberAsync(
+            Guid groupId,
+            int ordinal,
+            ReceivedIntake received,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
+            Guid groupId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IntakeSubmissionGroupMember>>(
+                Groups.TryGetValue(groupId, out var group) ? group.Members : []);
     }
 
     private sealed class FakeTriageQueries : ITriageQueries

@@ -653,7 +653,8 @@ public sealed record IntakeReceipt(
     IntakeAllocationState? AllocationState = null,
     string? AcceptedCaseReference = null,
     string? ManualLinkedCaseReference = null,
-    ActorKind? ManualAssociationActorKind = null)
+    ActorKind? ManualAssociationActorKind = null,
+    string? ManualAssociationOperationKey = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 

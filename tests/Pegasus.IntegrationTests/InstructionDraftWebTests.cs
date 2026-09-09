@@ -35,6 +35,9 @@ public sealed class InstructionDraftWebTests
         var receipt = await GetReceiptAsync(factory, firstId);
         Assert.Equal(IntakeSourceChannel.ManualUpload, receipt.SourceIdentity.Channel);
         Assert.Equal(externalReceiptToken, receipt.SourceIdentity.ExternalReceiptToken);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.AcceptedCaseId);
+        Assert.Null(receipt.AllocationState);
         Assert.NotEmpty(receipt.AssetRecords);
         using var replayReview = await client.GetAsync(replay.Location);
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
@@ -43,9 +46,16 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        // Receipt recording and the durable automatic-allocation outcome are
-        // separate events for a definitive instruction.
-        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
+        Assert.Equal(1, await ScalarAsync<int>(
+            factory,
+            "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_receipt_recorded'"));
+        Assert.Equal(0, await ScalarAsync<int>(
+            factory,
+            "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_allocation_succeeded'"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -77,10 +87,22 @@ public sealed class InstructionDraftWebTests
             StringComparison.Ordinal);
         Assert.Equal(firstHash, firstReceipt.SourceHash);
         Assert.NotEqual(firstHash, changedHash);
+        Assert.Null(firstReceipt.CurrentCaseId);
+        Assert.Null(firstReceipt.AcceptedCaseId);
+        Assert.Null(firstReceipt.AllocationState);
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
+        Assert.Equal(1, await ScalarAsync<int>(
+            factory,
+            "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_receipt_recorded'"));
+        Assert.Equal(0, await ScalarAsync<int>(
+            factory,
+            "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_allocation_succeeded'"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
         await using var scope = factory.Services.CreateAsyncScope();
         var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
         Assert.NotNull(await artifactStore.ReadAsync(StorageKey(firstHash), CancellationToken.None));
@@ -116,28 +138,30 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(2, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(2 * firstReceipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
-        var sharedCaseId = Assert.IsType<Guid>(firstReceipt.CurrentCaseId);
-        Assert.Equal(sharedCaseId, secondReceipt.CurrentCaseId);
-        Assert.Equal(CaseMatchOutcome.UniqueMatch, secondReceipt.CaseMatchDecision?.Outcome);
-        Assert.Equal(
-            IntakeAllocationProjectionStatus.Succeeded,
-            Assert.IsType<IntakeAllocationState>(firstReceipt.AllocationState).Status);
+        Assert.Null(firstReceipt.CurrentCaseId);
+        Assert.Null(firstReceipt.AcceptedCaseId);
+        Assert.Null(firstReceipt.AllocationState);
+        Assert.Null(secondReceipt.CurrentCaseId);
+        Assert.Null(secondReceipt.AcceptedCaseId);
         Assert.Null(secondReceipt.AllocationState);
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
         Assert.Equal(
             2,
             await ScalarAsync<int>(
                 factory,
                 "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_receipt_recorded'"));
         Assert.Equal(
-            1,
+            0,
             await ScalarAsync<int>(
                 factory,
                 "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_allocation_succeeded'"));
-        Assert.Equal(3, await CountRowsAsync(factory, "IntakeReceiptEvents"));
+        Assert.Equal(2, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
-    public async Task UploadAndReviewPersistsTypedFieldsAndAutomaticallyAllocatesTheInstructedCase()
+    public async Task UploadAndReviewPersistsTypedFieldsWithoutAllocatingBeforeStaffAcceptance()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -151,12 +175,9 @@ public sealed class InstructionDraftWebTests
         var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        var allocation = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
-        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, allocation.Status);
-        Assert.Equal(CaseType.Inspection, allocation.AttemptedCaseType);
-        Assert.Null(allocation.FailureKind);
-        var caseId = Assert.IsType<Guid>(allocation.CaseId);
-        Assert.Equal(caseId, receipt.CurrentCaseId);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.AcceptedCaseId);
+        Assert.Null(receipt.AllocationState);
         var typed = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
         Assert.Equal("QDOS", typed.SuggestedPrincipalCode);
         Assert.Equal("Controlled Claimant", typed.ClaimantName);
@@ -191,11 +212,16 @@ public sealed class InstructionDraftWebTests
             Assert.Contains(value, html, StringComparison.Ordinal);
         }
 
-        // The formal document supplies its current work type, so the normal
-        // allocation transaction creates exactly one instructed case.
-        Assert.Equal(1, await CountRowsAsync(factory, "Cases"));
-        Assert.Equal(1, await CountRowsAsync(factory, "CaseSequences"));
-        Assert.Equal(1, await ScalarAsync<int>(factory, "SELECT COUNT(*) FROM CaseIntakeLinks"));
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
+        Assert.Equal(1, await ScalarAsync<int>(
+            factory,
+            "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_receipt_recorded'"));
+        Assert.Equal(0, await ScalarAsync<int>(
+            factory,
+            "SELECT COUNT(*) FROM [IntakeReceiptEvents] WHERE [EventType] = 'intake_allocation_succeeded'"));
+        Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceiptEvents"));
     }
 
     [Fact]
@@ -310,7 +336,7 @@ public sealed class InstructionDraftWebTests
         var allowed = tableName switch
         {
             "IntakeReceipts" or "InstructionDrafts" or "IntakeAssets" or "IntakeReceiptEvents"
-                or "Cases" or "CaseSequences" => tableName,
+                or "Cases" or "CaseSequences" or "CaseIntakeLinks" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return await ScalarAsync<int>(factory, $"SELECT COUNT(*) FROM [{allowed}]");

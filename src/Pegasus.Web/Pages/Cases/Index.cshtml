@@ -256,21 +256,41 @@
                         </div>
                         @if (detail.Kind == IndexModel.RowKind.Image && detail.OriginReceiptId is { } receiptId)
                         {
-                            <form method="post" asp-page-handler="Attach" class="section-gap">
+                            @if (Model.SelectedImageSubmissionGroupId is { } groupId)
+                            {
+                                <div class="button-row section-gap">
+                                    <a class="btn btn--dark" href="/Upload/Group/@groupId">
+                                        Continue with this submission
+                                    </a>
+                                </div>
+                            }
+                            else
+                            {
+                                var confirmation = Model.UploadCaseConfirmation;
+                                var draft = Model.UploadCaseDraft;
+                                var isConfirmation = confirmation?.ReceiptId == receiptId;
+                                <form method="post" asp-page-handler="Attach" class="section-gap">
                                 <input type="hidden" name="id" value="@Model.SelectedId" />
                                 <input type="hidden" name="receiptId" value="@receiptId" />
+                                <input type="hidden" name="operationId" value="@(isConfirmation ? confirmation!.Input.OperationId : draft?.OperationId ?? Guid.NewGuid())" />
+                                <input type="hidden" name="receiptVersion" value="@(isConfirmation ? confirmation!.Input.ExpectedReceiptVersion : draft?.ExpectedReceiptVersion ?? Model.SelectedImageReceiptVersion)" />
+                                <input type="hidden" name="caseId" value="@(isConfirmation ? confirmation!.CaseId : draft?.CaseId)" />
+                                <input type="hidden" name="caseVersion" value="@(isConfirmation ? confirmation!.Input.ExpectedCaseVersion : draft?.ExpectedCaseVersion)" />
                                 <div class="field">
                                     <label for="attach-reference">Case reference</label>
-                                    <input id="attach-reference" name="reference" required maxlength="60" />
+                                    <input id="attach-reference" name="reference" required maxlength="60"
+                                           value="@(isConfirmation ? confirmation!.Reference : draft?.Reference)"
+                                           readonly="@(isConfirmation ? "readonly" : null)" />
                                 </div>
                                 <div class="field">
                                     <label for="attach-reason">Reason</label>
-                                    <textarea id="attach-reason" name="reason" required maxlength="500"></textarea>
+                                    <textarea id="attach-reason" name="reason" required maxlength="500">@(isConfirmation ? confirmation!.Reason : draft?.Reason)</textarea>
                                 </div>
                                 <div class="button-row section-gap">
-                                    <button type="submit" class="btn btn--dark">Add to an existing case</button>
+                                    <button type="submit" class="btn btn--dark">@(isConfirmation ? "Confirm and add to this case" : "Add to an existing case")</button>
                                 </div>
-                            </form>
+                                </form>
+                            }
                         }
                     }
                 </div>

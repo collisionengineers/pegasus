@@ -22,6 +22,24 @@ public sealed class AllocateDefinitiveIntakeTests
     }
 
     [Fact]
+    public async Task ManualUploadDoesNotAllocateBeforeStaffAcceptsTheProposal()
+    {
+        var receipt = Receipt(CaseType.Inspection, "QDOS") with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "manual-proposal")
+        };
+        var store = new RecordingAllocationStore();
+        var accept = new RecordingAcceptance();
+        var sut = new AllocateIntake(new ReceiptQueries(receipt), store, accept, TimeProvider.System);
+
+        var result = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+
+        Assert.Null(result);
+        Assert.Null(store.Current);
+        Assert.Empty(accept.Requests);
+    }
+
+    [Fact]
     public async Task FailedAutomaticAttemptIsDurableAndIsNotRetriedInBackground()
     {
         var receipt = Receipt(CaseType.Inspection, "MISSING");
