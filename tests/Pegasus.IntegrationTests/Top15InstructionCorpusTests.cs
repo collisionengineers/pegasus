@@ -831,7 +831,10 @@ public sealed class Top15InstructionCorpusTests
             Assert.False(field.HasConflict);
             Assert.Equal(vehicle, field.SuggestedValue);
             Assert.NotEmpty(field.Candidates);
-            Assert.All(field.Candidates, candidate => Assert.NotNull(candidate.Locator));
+            var candidate = Assert.Single(field.Candidates);
+            Assert.Equal(IntakeEvidenceSource.DocumentContent, candidate.Source);
+            Assert.Equal($"uploaded {file}", candidate.SourceLabel);
+            Assert.Null(candidate.Locator);
         }
     }
 

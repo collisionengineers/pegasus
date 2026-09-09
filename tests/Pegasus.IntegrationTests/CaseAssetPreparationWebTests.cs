@@ -97,7 +97,9 @@ public sealed partial class CaseDetailsWebTests
         const string operationKey = "0a0b0c0d0e0f01020304050607080900";
 
         var leased = await workspace.GetWorkspaceAsync();
-        var panel = Section(leased, "report-images-title");
+        var panel = Section(
+            await GetFilesFragmentAsync(workspace, leased),
+            "report-images-title");
         foreach (var field in new[]
         {
             "edits[0].occurrenceId",
@@ -336,7 +338,9 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var leased = await workspace.GetWorkspaceAsync();
-        var files = Section(leased, "report-images-title");
+        var files = Section(
+            await GetFilesFragmentAsync(workspace, leased),
+            "report-images-title");
         var report = Section(leased, "section-report-title");
 
         foreach (var occurrenceId in new[]
@@ -486,13 +490,14 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var leased = await workspace.GetWorkspaceAsync();
+        var files = await GetFilesFragmentAsync(workspace, leased);
         // MapStaticAssets fingerprints the served file name, so the assertion
         // names the asset rather than the exact path the tag helper writes.
         Assert.Contains("js/case-workspace", leased, StringComparison.Ordinal);
 
         foreach (var panel in new[]
         {
-            Section(leased, "report-images-title"),
+            Section(files, "report-images-title"),
             Section(leased, "section-report-title")
         })
         {
@@ -533,6 +538,27 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     private static void AssertFilesPrg(HttpResponseMessage response, Guid caseId) =>
         AssertPreparationPrg(response, caseId, "files");
+
+    /// <summary>
+    /// The Files body mounts after the page's first response. Match the
+    /// browser request: send the rendered lease token only as fragment
+    /// rendering data, so the server can render the existing edit controls.
+    /// </summary>
+    private static async Task<string> GetFilesFragmentAsync(
+        LeasedWorkspace workspace,
+        string renderedWorkspace)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{workspace.Store.CaseId:D}/Section?section=files");
+        request.Headers.Add(
+            "X-Pegasus-Edit-Lease",
+            InputValue(renderedWorkspace, "editLeaseToken"));
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
+    }
 
     /// <summary>
     /// B08: the redirect lands on the section the command was posted from —

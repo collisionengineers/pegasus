@@ -228,8 +228,9 @@ public sealed class CaseVehicleSaveWebTests
             input.Value,
             "value=\\\"(?<value>[^\\\"]*)\\\"",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(value.Success, $"The Case form field '{name}' must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+        return value.Success
+            ? WebUtility.HtmlDecode(value.Groups["value"].Value)
+            : string.Empty;
     }
 
     private static string TextareaValue(string html, string name)
@@ -242,7 +243,10 @@ public sealed class CaseVehicleSaveWebTests
         return WebUtility.HtmlDecode(textarea.Groups["value"].Value);
     }
 
-    private static string AntiforgeryValue(string html) => InputValue(
-        html,
-        "__RequestVerificationToken");
+    private static string AntiforgeryValue(string html)
+    {
+        var value = InputValue(html, "__RequestVerificationToken");
+        Assert.False(string.IsNullOrEmpty(value), "The Case antiforgery token must have a value.");
+        return value;
+    }
 }

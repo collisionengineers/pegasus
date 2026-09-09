@@ -1,11 +1,13 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 
@@ -31,14 +33,21 @@ public sealed partial class StaticAssetCacheWebTests
                 ["Features:LocalIntake"] = "false",
                 ["Features:LocalDocumentCustody"] = "false"
             });
-        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
         {
-            services.RemoveAll<TimeProvider>();
-            services.AddSingleton<TimeProvider>(clock);
-            services.PostConfigure<CookieAuthenticationOptions>(
-                IdentityConstants.ApplicationScheme,
-                options => options.TimeProvider = clock);
-        }));
+            // The local build manifest otherwise receives the development
+            // cache override. Preserve its production fingerprint descriptors.
+            builder.UseSetting("EnableStaticAssetsDevelopmentCaching", "true");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(clock);
+                services.PostConfigure<CookieAuthenticationOptions>(
+                    IdentityConstants.ApplicationScheme,
+                    options => options.TimeProvider = clock);
+            });
+        });
+        Assert.Equal("Production", factory.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {

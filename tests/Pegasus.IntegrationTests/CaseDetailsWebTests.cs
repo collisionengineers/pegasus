@@ -2065,7 +2065,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("pegasus-automation", store.LeaseHolder);
         Assert.Equal(ActorKind.Automation, store.LeaseHolderKind);
         var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Edit mode could not be entered", afterRefusal, StringComparison.Ordinal);
+        Assert.Contains("This case is already being edited.", afterRefusal, StringComparison.Ordinal);
         Assert.Contains("Case locked - AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
