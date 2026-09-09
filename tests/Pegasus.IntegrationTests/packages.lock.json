@@ -2,17 +2,6 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "Deque.AxeCore.Playwright": {
-        "type": "Direct",
-        "requested": "[4.12.0, )",
-        "resolved": "4.12.0",
-        "contentHash": "hmSmXW5SCbUXZo/T0+epp1MSHbhIdWswp8lanqN32dQzKSqghloVxSJqNyv3UGZ52K8Lk2R5sGMl6fvlUHTSIA==",
-        "dependencies": {
-          "Deque.AxeCore.Commons": "4.12.0",
-          "Microsoft.Playwright": "1.20.2",
-          "System.IO.Abstractions": "17.0.24"
-        }
-      },
       "DocumentFormat.OpenXml": {
         "type": "Direct",
         "requested": "[3.5.1, )",
@@ -41,16 +30,6 @@
         "dependencies": {
           "Microsoft.CodeCoverage": "17.14.1",
           "Microsoft.TestPlatform.TestHost": "17.14.1"
-        }
-      },
-      "Microsoft.Playwright": {
-        "type": "Direct",
-        "requested": "[1.61.0, )",
-        "resolved": "1.61.0",
-        "contentHash": "VM149rQ2Pu+3xAzrO2gvh2WRgrWNbIl0jL9LG2oMC9xKUVYDnUrsh+E/5S+NQToVV4S+yhZ3NHsa6kf1PdHeag==",
-        "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
-          "System.ComponentModel.Annotations": "5.0.0"
         }
       },
       "xunit": {
@@ -142,14 +121,6 @@
           "Microsoft.Extensions.DependencyInjection": "6.0.0",
           "Microsoft.Extensions.Http": "6.0.0",
           "System.IdentityModel.Tokens.Jwt": "6.35.0"
-        }
-      },
-      "Deque.AxeCore.Commons": {
-        "type": "Transitive",
-        "resolved": "4.12.0",
-        "contentHash": "s5mYpGoEL08/of5p20qNIBDE3JWKhabEAiG/zL3UkMYXV6V7YA58s5Utjkcym9TNPfshFqlQXfPX6oInrKUuQQ==",
-        "dependencies": {
-          "NewtonSoft.Json": "13.0.1"
         }
       },
       "DocumentFormat.OpenXml.Framework": {
@@ -1217,6 +1188,15 @@
           "Microsoft.Extensions.Primitives": "2.1.1"
         }
       },
+      "Microsoft.Playwright": {
+        "type": "Transitive",
+        "resolved": "1.61.0",
+        "contentHash": "VM149rQ2Pu+3xAzrO2gvh2WRgrWNbIl0jL9LG2oMC9xKUVYDnUrsh+E/5S+NQToVV4S+yhZ3NHsa6kf1PdHeag==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
+          "System.ComponentModel.Annotations": "5.0.0"
+        }
+      },
       "Microsoft.SqlServer.Server": {
         "type": "Transitive",
         "resolved": "1.0.0",
@@ -1608,11 +1588,6 @@
           "Microsoft.IdentityModel.JsonWebTokens": "8.18.0",
           "Microsoft.IdentityModel.Tokens": "8.18.0"
         }
-      },
-      "System.IO.Abstractions": {
-        "type": "Transitive",
-        "resolved": "17.0.24",
-        "contentHash": "hA7bacntMiZv1Yf9xtjwl/GP3GT1mG84QxhAk7ijAUD0pJhJaVVwXScE13vMpXnNtlaRDW6SeyZdWg2j2qrh4w=="
       },
       "System.IO.FileSystem.AccessControl": {
         "type": "Transitive",

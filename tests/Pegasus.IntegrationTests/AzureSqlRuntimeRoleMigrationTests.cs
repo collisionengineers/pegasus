@@ -1165,7 +1165,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                  N'runtime-role-test', N'1', 0, N'case_created', N'Existing Case fixture',
                  N'{emptyEnvelope}', N'{emptyEnvelope}', N'{emptyEnvelope}'),
                 ('{imageReceiptId:D}', N'1_CLVoffside-V1.jpg', N'image/jpeg', 1,
-                 REPLICATE(N'B', 64), N'manual_upload', N'image-role-source:{imageReceiptId:N}',
+                 REPLICATE(N'B', 64), N'mailbox', N'image-role-source:{imageReceiptId:N}',
                  '2031-05-06T10:29:00+00:00', '2031-05-06T10:29:00+00:00',
                  N'runtime-role-test', N'1', 0, N'image_intake_registered', N'Registered image fixture',
                  N'{emptyEnvelope}', N'{emptyEnvelope}', N'{emptyEnvelope}');
@@ -1198,7 +1198,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 [PrincipalId], [CreatedAtUtc], [CreatedByActorKind], [CreatedByActorSubjectId],
                 [Reason], [CreationOperationKey], [RequestFingerprint], [LifecycleState],
                 [LifecycleVersion], [CustodyState])
-            VALUES ('{imageId:D}', '{imageReceiptId:D}', N'manual_upload',
+            VALUES ('{imageId:D}', '{imageReceiptId:D}', N'mailbox',
                 N'image-role-source:{imageReceiptId:N}', REPLICATE(N'B', 64), '{Guid.NewGuid():D}',
                 N'PG18BTY', N'PG18BTY-01', '{principalId:D}', '2031-05-06T10:29:00+00:00',
                 N'SystemWorker', N'image-intake-automation', N'Registered image fixture',

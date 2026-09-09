@@ -94,6 +94,22 @@ public sealed partial class CaseCreateWebTests
     }
 
     [Fact]
+    public async Task RejectProposalReturnsToTheRetainedItemWithoutAllocating()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        Assert.Contains($"/Received/{receipt.Id:D}", form.Html, StringComparison.OrdinalIgnoreCase);
+
+        using var returned = await client.GetAsync($"/Received/{receipt.Id:D}");
+        Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
+    }
+
+    [Fact]
     public async Task HandKeyedCreateSuppliesTheAddressAndAllocatesTheCase()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -250,13 +266,9 @@ public sealed partial class CaseCreateWebTests
         using var first = await PostCreateAsync(client, form, KeyedFields());
         using var replay = await PostCreateAsync(client, form, KeyedFields());
 
-        // The second post never reaches step 1: it reloads the item, sees the
-        // case the first post allocated, and redirects to it from the
-        // already-has-a-case guard. That is what makes one reference, allocated
-        // once, and one correction the observable result of pressing the button
-        // twice. (The replay of the steps themselves is what
-        // CreateResumesAfterAMidSequenceFailureWithoutASecondCorrection covers,
-        // where the first post allocated nothing.)
+        // The second post replays every operation with its original identity.
+        // Core returns the committed acceptance only when the whole request is
+        // unchanged, so one reference and one correction remain observable.
         Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
         Assert.Equal(AssertCaseRedirect(first), AssertCaseRedirect(replay));
@@ -264,6 +276,56 @@ public sealed partial class CaseCreateWebTests
         Assert.Equal(1, await CountAsync(factory.Services, "CaseSequences"));
         Assert.Equal(1, await CountAsync(factory.Services, "CaseIntakeLinks"));
         Assert.Equal(1, await CountEventsAsync(factory.Services, "intake_resolved"));
+    }
+
+    [Fact]
+    public async Task RepeatedCreateSubmissionWithChangedAcceptanceIntentIsRejected()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        using var first = await PostCreateAsync(client, form, KeyedFields());
+        _ = AssertCaseRedirect(first);
+
+        var changed = KeyedFields();
+        changed["CaseType"] = CaseType.InspectionAndAudit.ToString();
+        changed["InstructionComplete"] = bool.FalseString;
+        using var replay = await PostCreateAsync(client, form, changed);
+        var html = await replay.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Contains(
+            "This item was already turned into a case using different details. Reload the page.",
+            html,
+            StringComparison.Ordinal);
+        Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await CountAsync(factory.Services, "CaseIntakeLinks"));
+    }
+
+    [Fact]
+    public async Task RepeatedCreateSubmissionWithChangedAddressIsRejectedBeforeAcceptanceReplay()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        using var first = await PostCreateAsync(client, form, KeyedFields());
+        _ = AssertCaseRedirect(first);
+
+        var changed = KeyedFields();
+        changed["InspectionAddress"] = "99 Changed Street, Exampleton EX1 9ZZ";
+        using var replay = await PostCreateAsync(client, form, changed);
+        var html = await replay.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Contains("The case could not be confirmed. Reload the page before trying again.", html, StringComparison.Ordinal);
+        Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await CountAsync(factory.Services, "CaseIntakeLinks"));
     }
 
     [Fact]
@@ -298,6 +360,26 @@ public sealed partial class CaseCreateWebTests
             StringComparison.Ordinal);
         Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
         Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
+    }
+
+    [Fact]
+    public async Task CreateRejectsAFormThatSuppressesItsRequiredAddressDecision()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        var startingVersion = await ReadReceiptVersionAsync(factory.Services, receipt.Id);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        form.Values["RequiresAddressResolution"] = bool.FalseString;
+        using var response = await PostCreateAsync(client, form, KeyedFields());
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("The inspection address still needs a staff decision.", html, StringComparison.Ordinal);
+        Assert.Equal(startingVersion, await ReadReceiptVersionAsync(factory.Services, receipt.Id));
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
     }
 
     [Fact]
@@ -336,6 +418,43 @@ public sealed partial class CaseCreateWebTests
         _ = AssertCaseRedirect(retried);
         Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await CountEventsAsync(factory.Services, "intake_resolved"));
+    }
+
+    [Fact]
+    public async Task CreateReplaysTheCommittedAddressBeforeRetryingAcceptance()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var failing = new FailFirstStaffCreateAllocation();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IAllocateIntake>();
+                services.AddScoped<IAllocateIntake>(
+                    provider => failing.Wrap(
+                        ActivatorUtilities.CreateInstance<AllocateIntake>(provider)));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        var startingVersion = await ReadReceiptVersionAsync(factory.Services, receipt.Id);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        using var failed = await PostCreateAsync(client, form, KeyedFields());
+        Assert.Equal(HttpStatusCode.OK, failed.StatusCode);
+        // The draft and address have both committed before acceptance faults.
+        Assert.Equal(startingVersion + 2, await ReadReceiptVersionAsync(factory.Services, receipt.Id));
+
+        using var retried = await PostCreateAsync(client, form, KeyedFields());
+
+        _ = AssertCaseRedirect(retried);
+        // Replaying the address uses its original operation/version and does
+        // not write it twice; acceptance consumes the returned address version.
+        Assert.Equal(startingVersion + 3, await ReadReceiptVersionAsync(factory.Services, receipt.Id));
+        Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
     }
 
     [Fact]
@@ -566,7 +685,8 @@ public sealed partial class CaseCreateWebTests
                 ["ReceiptId"] = InputValue(html, "ReceiptId"),
                 ["OperationId"] = InputValue(html, "OperationId"),
                 ["ExpectedReceiptVersion"] = InputValue(html, "ExpectedReceiptVersion"),
-                ["AddressSuggestionFingerprint"] = InputValue(html, "AddressSuggestionFingerprint")
+                ["AddressSuggestionFingerprint"] = InputValue(html, "AddressSuggestionFingerprint"),
+                ["RequiresAddressResolution"] = InputValue(html, "RequiresAddressResolution")
             });
     }
 
@@ -921,6 +1041,37 @@ public sealed partial class CaseCreateWebTests
                     ? Task.FromException<InspectionAddressResolutionSnapshot>(
                         new InvalidOperationException("Injected mid-sequence failure."))
                     : inner.ResolveAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class FailFirstStaffCreateAllocation
+    {
+        private int attempts;
+
+        public IAllocateIntake Wrap(IAllocateIntake inner) => new Wrapper(this, inner);
+
+        private sealed class Wrapper(
+            FailFirstStaffCreateAllocation owner,
+            IAllocateIntake inner) : IAllocateIntake
+        {
+            public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
+                Guid receiptId,
+                Guid evaluationId,
+                CancellationToken cancellationToken = default) =>
+                inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
+
+            public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
+                AcceptIntakeRequest request,
+                CancellationToken cancellationToken = default) =>
+                Interlocked.Increment(ref owner.attempts) == 1
+                    ? Task.FromException<IntakeAllocationResult>(
+                        new InvalidOperationException("Injected post-address failure."))
+                    : inner.AttemptStaffCreateAsync(request, cancellationToken);
+
+            public Task<IntakeAllocationResult> RetryAsync(
+                RetryIntakeAllocationRequest request,
+                CancellationToken cancellationToken = default) =>
+                inner.RetryAsync(request, cancellationToken);
         }
     }
 }

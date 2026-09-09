@@ -990,6 +990,15 @@ public sealed class ProcessQueuedIntake(
         IntakeEvaluationRevision evaluation,
         CancellationToken cancellationToken)
     {
+        // A file placed into Pegasus by a member of staff is deliberately not
+        // consent to a recorded match. It stays available for the upload
+        // confirmation surface, even where matching found exactly one Case.
+        // Mailbox and provider deliveries retain the existing automatic path.
+        if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload)
+        {
+            return false;
+        }
+
         if (receipt.CaseMatchDecision is not
             { Outcome: CaseMatchOutcome.UniqueMatch, MatchedCaseId: { } matchedCaseId } decision)
         {

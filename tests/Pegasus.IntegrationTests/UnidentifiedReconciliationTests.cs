@@ -266,6 +266,99 @@ public sealed class UnidentifiedReconciliationTests
         Assert.Equal(UnidentifiedOrigin.Receipt(secondReceiptId), head.Origin);
     }
 
+    /// <summary>
+    /// A resolved submission group's freshness is the aggregate of its
+    /// members' association versions. This uses the SQL-backed recheck query
+    /// to prove the left join, aggregate and watermark retire after a reverse.
+    /// </summary>
+    [Fact]
+    public async Task AGroupResolutionRechecksItsAggregateAssociationWatermark()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var actor = StaffActor();
+
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", TinyPngBytes),
+                ("close-up.png", "image/png", TinyPngBytes)
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
+
+        Guid[] receiptIds;
+        await using (var groupScope = factory.Services.CreateAsyncScope())
+        {
+            var services = groupScope.ServiceProvider;
+            var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId)
+                ?? throw new InvalidOperationException("The submission group was not persisted.");
+            var statuses = services.GetRequiredService<IQueuedIntakeStatusQueries>();
+            receiptIds = (await Task.WhenAll(group.Members
+                .OrderBy(member => member.Ordinal)
+                .Select(async member =>
+                {
+                    var status = await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None);
+                    return status?.ProcessedReceiptId ?? member.StagedReceiptId;
+                })))
+                .ToArray();
+        }
+
+        var caseId = await SeedCaseAsync(factory.Services, receiptIds[0], "RECON26020");
+        foreach (var receiptId in receiptIds)
+        {
+            await LinkAsync(factory.Services, receiptId, caseId, actor, $"group-recheck-link:{receiptId:N}");
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var reconciler = scope.ServiceProvider.GetRequiredService<ReconcileUnidentifiedDestinations>();
+
+        Assert.True(await reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None));
+        var resolved = await store.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId));
+        Assert.Equal(UnidentifiedState.Resolved, resolved!.State);
+
+        // Null watermark first selects this aggregate of two version-zero links;
+        // marking it retires the real SQL row until a member association moves.
+        var initialHead = Assert.Single(await store.ListResolutionsToRecheckAsync(50));
+        Assert.Equal(UnidentifiedOrigin.SubmissionGroup(groupId), initialHead.Origin);
+        Assert.Equal(
+            new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0),
+            await reconciler.ExecuteAsync(50));
+        Assert.Empty(await store.ListResolutionsToRecheckAsync(50));
+
+        await ReverseAsync(factory.Services, receiptIds[0], caseId, actor, "group-recheck-reverse");
+
+        // Reversing a member raises its association version, so the aggregate
+        // query rediscovers the otherwise-resolved submission-level item.
+        var reverseHead = Assert.Single(await store.ListResolutionsToRecheckAsync(50));
+        Assert.Equal(UnidentifiedOrigin.SubmissionGroup(groupId), reverseHead.Origin);
+        Assert.Equal(
+            new ReconcileUnidentifiedDestinationsResult(1, 0, 1, 0),
+            await reconciler.ExecuteAsync(50));
+        var reopened = await store.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId));
+        Assert.Equal(UnidentifiedState.Open, reopened!.State);
+
+        await LinkAsync(factory.Services, receiptIds[0], caseId, actor, "group-recheck-relink");
+        Assert.True(await reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None));
+        Assert.Single(await store.ListResolutionsToRecheckAsync(50));
+        Assert.Equal(
+            new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0),
+            await reconciler.ExecuteAsync(50));
+        Assert.Empty(await store.ListResolutionsToRecheckAsync(50));
+    }
+
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);

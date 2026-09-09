@@ -403,8 +403,10 @@
         var input = form.querySelector('[data-case-search-input]');
         var list = form.querySelector('[data-case-search-list]');
         var hidden = form.querySelector('[data-case-search-value]');
+        var version = form.querySelector('[data-case-search-version]');
         var url = form.getAttribute('data-case-search-url');
-        if (!input || !list || !hidden || !url || typeof fetch !== 'function') {
+        var receiptId = form.getAttribute('data-case-search-receipt-id');
+        if (!input || !list || !hidden || !version || !url || typeof fetch !== 'function') {
             return;
         }
 
@@ -448,10 +450,38 @@
             if (!chosen) {
                 return;
             }
+            requestSequence++;
+            if (timer) {
+                window.clearTimeout(timer);
+                timer = 0;
+            }
+            if (inFlight) {
+                inFlight.abort();
+                inFlight = null;
+            }
             hidden.value = chosen.caseId;
+            version.value = chosen.version;
             input.value = chosen.reference;
             close();
         };
+
+        form.querySelectorAll('[data-case-search-suggestion]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                requestSequence++;
+                if (timer) {
+                    window.clearTimeout(timer);
+                    timer = 0;
+                }
+                if (inFlight) {
+                    inFlight.abort();
+                    inFlight = null;
+                }
+                hidden.value = button.getAttribute('data-case-id') || '';
+                version.value = button.getAttribute('data-case-version') || '';
+                input.value = button.getAttribute('data-case-reference') || '';
+                close();
+            });
+        });
 
         var render = function (items) {
             options = items;
@@ -483,11 +513,31 @@
             setActive(-1);
         };
 
+        var renderUnavailable = function () {
+            options = [];
+            var unavailable = document.createElement('li');
+            unavailable.className = 'case-search-list__empty';
+            unavailable.textContent = 'Case search is unavailable. Type the exact reference or try again.';
+            list.replaceChildren(unavailable);
+            list.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+            setActive(-1);
+        };
+
         input.addEventListener('input', function () {
             // Typing again always invalidates any earlier selection: the
             // submitted case is either the one just chosen or the typed
             // reference the server resolves — never a stale hidden value.
             hidden.value = '';
+            version.value = '';
+            // Invalidate immediately, including when the new value is too
+            // short to search. Otherwise an older in-flight response can
+            // redraw suggestions for text the operator has already removed.
+            requestSequence++;
+            if (inFlight) {
+                inFlight.abort();
+                inFlight = null;
+            }
             var term = input.value.trim();
             if (timer) {
                 window.clearTimeout(timer);
@@ -497,7 +547,7 @@
                 return;
             }
             timer = window.setTimeout(function () {
-                var sequence = ++requestSequence;
+                var sequence = requestSequence;
                 // Abort the superseded request rather than merely ignoring
                 // its result: the server honours the cancellation, so the
                 // abandoned search stops running instead of completing.
@@ -505,18 +555,25 @@
                     inFlight.abort();
                 }
                 inFlight = typeof AbortController === 'function' ? new AbortController() : null;
-                fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'term=' + encodeURIComponent(term), {
+                var query = 'term=' + encodeURIComponent(term);
+                if (receiptId) {
+                    query += '&receiptId=' + encodeURIComponent(receiptId);
+                }
+                fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + query, {
                     headers: { Accept: 'application/json' },
                     signal: inFlight ? inFlight.signal : undefined
                 }).then(function (response) {
-                    return response.ok ? response.json() : [];
+                    if (!response.ok) {
+                        throw new Error('Case search request failed.');
+                    }
+                    return response.json();
                 }).then(function (items) {
                     if (sequence === requestSequence) {
                         render(items);
                     }
                 }).catch(function () {
                     if (sequence === requestSequence) {
-                        close();
+                        renderUnavailable();
                     }
                 });
             }, 250);

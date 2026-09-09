@@ -2,6 +2,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
 
@@ -13,7 +14,7 @@ namespace Pegasus.IntegrationTests;
 /// hand-built fakes for its three read ports — fast and precise, since every
 /// branch is a pure function of what those ports return. The Web-hosted
 /// end-to-end path (a real upload reaching a real Complete/Failed status) is
-/// covered separately in <c>QdosIntakeWebTests</c> and the Browser suite.
+/// covered separately in <c>QdosIntakeWebTests</c>.
 /// </summary>
 public sealed class UploadOutcomeQueriesTests
 {
@@ -89,12 +90,21 @@ public sealed class UploadOutcomeQueriesTests
             null,
             null);
 
-        var result = await BuildAsync(status, receipt, imageIntakeDetail: detail);
+        var result = await BuildAsync(
+            status,
+            receipt,
+            imageIntakeDetail: detail,
+            suggestions:
+            [
+                new(Guid.NewGuid(), "QDO31000", "AB12 CDE", null, CaseLifecycleState.Review, 4)
+            ]);
 
         Assert.Equal(UploadOutcomeKind.ImageCaseRegistered, result.Kind);
         Assert.Contains("AB12CDE-01", result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("No matching case was found", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal($"/VehicleImages/{imageIntakeId:D}", result.PrimaryAction!.Url);
+        Assert.Single(result.Attach!.SuggestedDestinations);
     }
 
     [Fact]
@@ -107,13 +117,14 @@ public sealed class UploadOutcomeQueriesTests
         var result = await BuildAsync(status, receipt);
 
         Assert.Equal(UploadOutcomeKind.ReadyToCreate, result.Kind);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
-        Assert.Equal("Create a case", result.PrimaryAction!.Label);
+        Assert.Equal("Create a new case", result.PrimaryAction!.Label);
         Assert.Equal($"/Cases/Create?receiptId={receiptId:D}", result.PrimaryAction!.Url);
     }
 
     [Fact]
-    public async Task AmbiguousCandidateMatchOffersToReviewAndAttachWithOverride()
+    public async Task ManualAmbiguousMatchOffersTheRecordedViableDestinationsForConfirmation()
     {
         var receiptId = Guid.NewGuid();
         var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
@@ -131,12 +142,50 @@ public sealed class UploadOutcomeQueriesTests
             1);
         var receipt = MakeReceipt(receiptId, IntakeDecision.NeedsSorting, caseMatchDecision: caseMatch);
 
-        var result = await BuildAsync(status, receipt);
+        var firstCaseId = caseMatch.Candidates[0].CaseId;
+        var secondCaseId = caseMatch.Candidates[1].CaseId;
+        var result = await BuildAsync(status, receipt, suggestions:
+        [
+            new(firstCaseId, "QDO31001", null, "Smith", CaseLifecycleState.NotReady, 7),
+            new(secondCaseId, "QDO31002", null, "Smith", CaseLifecycleState.Review, 3)
+        ]);
 
         Assert.Equal(UploadOutcomeKind.PossibleMatch, result.Kind);
-        Assert.NotNull(result.PrimaryAction);
-        Assert.Equal("Review and attach", result.PrimaryAction!.Label);
-        Assert.Equal($"/Received/{receiptId:D}", result.PrimaryAction!.Url);
+        Assert.NotNull(result.Attach);
+        Assert.Equal([firstCaseId, secondCaseId], result.Attach!.SuggestedDestinations.Select(item => item.CaseId));
+        Assert.All(result.Attach.SuggestedDestinations, item => Assert.NotNull(item.Version));
+        Assert.Null(result.PrimaryAction);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManualUniqueMatchIsShownAsOneSuggestionRatherThanAttached()
+    {
+        var receiptId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            caseMatchDecision: new(
+                CaseMatchOutcome.UniqueMatch,
+                caseId,
+                null,
+                new(null, "AB12CDE", null, null, null),
+                [new(caseId, ["registration"], [])],
+                "One case matched.",
+                "test-policy",
+                1));
+
+        var result = await BuildAsync(
+            StatusOf(QueuedIntakeStatusKind.Complete, receiptId),
+            receipt,
+            suggestions: [new(caseId, "QDO31003", "AB12 CDE", null, CaseLifecycleState.Review, 12)]);
+
+        Assert.Equal(UploadOutcomeKind.PossibleMatch, result.Kind);
+        Assert.Equal(caseId, Assert.Single(result.Attach!.SuggestedDestinations).CaseId);
+        Assert.Null(result.PrimaryAction);
+        Assert.Contains("Choose a case destination", result.Message, StringComparison.Ordinal);
+        Assert.Null(receipt.CurrentCaseId);
     }
 
     [Fact]
@@ -145,7 +194,10 @@ public sealed class UploadOutcomeQueriesTests
         var receiptId = Guid.NewGuid();
         var groupId = Guid.NewGuid();
         var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
-        var receipt = MakeReceipt(receiptId, IntakeDecision.NeedsSorting);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            mediaType: "image/jpeg");
         var unidentifiedId = Guid.NewGuid();
         var byGroup = new UnidentifiedItem(
             unidentifiedId, 1, "U1", UnidentifiedOrigin.SubmissionGroup(groupId),
@@ -158,11 +210,24 @@ public sealed class UploadOutcomeQueriesTests
         // INTK-006/007's "kept intact as one group" routing. The builder
         // must fall back to it rather than reporting this member as if
         // nothing happened.
-        var result = await BuildAsync(status, receipt, submissionGroupId: groupId, unidentifiedByGroup: byGroup);
+        var suggestedCaseId = Guid.NewGuid();
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: groupId,
+            unidentifiedByGroup: byGroup,
+            suggestions:
+            [
+                new(suggestedCaseId, "QDO31004", "AB12 CDE", null, CaseLifecycleState.Review, 6)
+            ]);
 
         Assert.Equal(UploadOutcomeKind.NeedsReview, result.Kind);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal($"/Unidentified/{unidentifiedId:D}", result.PrimaryAction!.Url);
+        Assert.NotNull(result.Attach);
+        Assert.Equal(receiptId, result.Attach!.ReceiptId);
+        Assert.Equal(receipt.Version, result.Attach.ReceiptVersion);
+        Assert.Equal(suggestedCaseId, Assert.Single(result.Attach.SuggestedDestinations).CaseId);
     }
 
     [Fact]
@@ -432,12 +497,14 @@ public sealed class UploadOutcomeQueriesTests
         Guid? submissionGroupId = null,
         ImageIntakeDetail? imageIntakeDetail = null,
         UnidentifiedItem? unidentifiedByReceipt = null,
-        UnidentifiedItem? unidentifiedByGroup = null)
+        UnidentifiedItem? unidentifiedByGroup = null,
+        IReadOnlyList<IntakeAssociationDestination>? suggestions = null)
     {
         var queries = new UploadOutcomeQueries(
             new FakeGetIntake(receipt),
             new FakeImageIntakeQueries(imageIntakeDetail),
-            new FakeUnidentifiedStore(unidentifiedByReceipt, unidentifiedByGroup));
+            new FakeUnidentifiedStore(unidentifiedByReceipt, unidentifiedByGroup),
+            new FakeDestinations(suggestions));
         return queries.BuildAsync(status, submissionGroupId, StaffActor);
     }
 
@@ -446,6 +513,21 @@ public sealed class UploadOutcomeQueriesTests
         public Task<IntakeReceipt?> ExecuteAsync(
             GetIntakeQuery query, CancellationToken cancellationToken = default) =>
             Task.FromResult(receipt);
+    }
+
+    private sealed class FakeDestinations(IReadOnlyList<IntakeAssociationDestination>? suggestions) : IIntakeAssociationDestinationQueries
+    {
+        public Task<IReadOnlyList<IntakeAssociationDestination>> GetSuggestedAsync(
+            IntakeReceipt receipt, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult(suggestions ?? (IReadOnlyList<IntakeAssociationDestination>)[]);
+
+        public Task<IReadOnlyList<IntakeAssociationDestination>> SearchAsync(
+            IntakeReceipt receipt, string term, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IntakeAssociationDestination>>([]);
+
+        public Task<IntakeAssociationDestination?> GetAsync(
+            IntakeReceipt receipt, Guid caseId, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeAssociationDestination?>(null);
     }
 
     private sealed class FakeImageIntakeQueries(ImageIntakeDetail? detail) : IImageIntakeQueries

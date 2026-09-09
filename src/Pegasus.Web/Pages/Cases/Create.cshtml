@@ -76,7 +76,13 @@ else
         <input asp-for="OperationId" type="hidden" />
         <input asp-for="ExpectedReceiptVersion" type="hidden" />
         <input asp-for="AddressSuggestionFingerprint" type="hidden" />
+        <input asp-for="RequiresAddressResolution" type="hidden" />
         <partial name="Shared/_ErrorSummary" />
+
+        <div class="notice notice--warning">
+            <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+            <span>This is a proposal from the uploaded material. No case or purchase order is created unless you accept it below.</span>
+        </div>
 
         @* Read first, edit on demand. Eleven boxes asked the operator to check
            every one; the rows state what was read, and the fields open only
@@ -227,6 +233,10 @@ else
                         <select asp-for="CaseType" data-case-type-selector>
                             <option value="@CaseType.Inspection">Inspection</option>
                             <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+                            @if (Model.IsRetainedClassifiedAudit)
+                            {
+                                <option value="@CaseType.Audit">Audit</option>
+                            }
                         </select>
                         <span asp-validation-for="CaseType" class="field-error"></span>
                     </div>
@@ -252,8 +262,8 @@ else
 
                 @* One committed action, and the way out beside it. *@
                 <div class="cluster">
-                    <button type="submit" class="btn btn--primary">Create case</button>
-                    <a class="btn" asp-page="/Upload">Cancel</a>
+                    <button type="submit" class="btn btn--primary">Accept and create case</button>
+                    <a class="btn" asp-page="/Intake/Details" asp-route-id="@Model.ReceiptId">Reject proposal</a>
                 </div>
             </div>
         </section>

@@ -56,7 +56,7 @@ What Linux gives this project that Windows does not:
 | --- | --- |
 | Runtime parity with production | Web and Worker deploy to Linux, so a Linux workstation runs the same runtime as the deployed application. |
 | A container runtime without Docker Desktop | The local database needs containers. |
-| `poppler-utils` (`pdftoppm`) | Available for optional local PDF raster inspection; automated renderer acceptance uses real Chromium and PDF content assertions. |
+| `poppler-utils` (`pdftoppm`) | Available for optional local PDF raster inspection. |
 | `fonts-liberation` and `fonts-dejavu-core` | The exact fonts the renderer's container image installs, so local PDF glyph metrics match the deployed container. |
 | `perf` and `lldb` beside `dotnet-trace`, `dotnet-counters`, `dotnet-dump` and `dotnet-gcdump` | Deeper diagnosis for the `Performance` evidence profile. |
 | No long-path constraint | The repository's longest tracked relative path (about 122 characters) needs no configuration. |
@@ -113,10 +113,10 @@ Pegasus supports a reproducible `Offline` profile on Windows or Linux with
 PowerShell 7.6.3 or later, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the
 repository-pinned Azurite 3.36.0, Functions Core Tools 4.12.1, the platform's
 supported SQL Server, a Development HTTPS certificate, and the package-pinned
-Playwright Chromium browser. It requires no Azure, Graph, Box, DVLA/DVSA, EVA,
-Infisical, cloud login, or vendor authentication. Package and browser
-restoration may use package feeds; an initialized run's Start and Smoke paths do
-not.
+Playwright Chromium required by report rendering. It requires no Azure, Graph,
+Box, DVLA/DVSA, EVA, Infisical, cloud login, or vendor authentication. Package
+and renderer-dependency restoration may use package feeds; an initialized run's
+Start and Smoke paths do not.
 
 **Platform delta.** *Windows:* the database is SQL Server Express LocalDB, and
 the profile needs no container runtime. *Linux:* the database is a per-run SQL
@@ -165,8 +165,7 @@ Use the owned commands rather than manually composing service terminals:
 ```powershell
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start # Live UI (default)
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop
@@ -176,16 +175,9 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 Doctor checks only its selected profile. It never installs software, trusts a
 certificate, signs in, calls a cloud/vendor endpoint, or creates resources; a
 failed check prints its exact repair command. Initialization restores the
-committed tool/package locks, installs the Playwright Chromium binary selected
-by the pinned package, checks the Offline profile, starts LocalDB, and creates
-only ignored local state.
-
-`-UiMode Live` is the default and uses the owned runtime lifecycle described
-below. `-UiMode Test` is a Start-only shortcut that opens
-`docs/design/test-ui/index.html` in the default browser. It does not require
-initialization and creates no database, storage, process, port, manifest, or
-artifact state. `Status`, `Smoke`, `Stop`, `Reset`, run IDs, startup timeouts,
-and failure controls apply only to Live UI runs.
+committed tool/package locks, installs the Playwright Chromium binary from the
+Infrastructure build output selected by the pinned package, checks the Offline
+profile, starts LocalDB, and creates only ignored local state.
 
 `Cloud` is a separate static prerequisite profile for an already-approved live
 operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
@@ -194,37 +186,8 @@ write, deployment, or SQL bootstrap.
 
 Python creates no virtual environment and installs no package. The integrated
 report renderer requires package-pinned Playwright Chromium and its fonts at
-application runtime; the Web SDK container base supplies them. The browser
-acceptance lane separately uses Chromium to exercise rendered routes. Passing
-that lane does not prove a published image contains its runtime dependencies.
-
-Run the deterministic browser dependency and accessibility gate after
-initialization:
-
-```powershell
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --no-restore --filter 'Category=Browser'
-```
-
-This lane launches the package-pinned headless Chromium with a fixed viewport,
-light colour scheme, and reduced motion. It drives the running local Web host
-through the DevelopmentOffline authenticated staff profile and the rendered
-route responses; it does not treat copied markup or a synthetic browser document
-as route evidence. It runs axe against the returned pages and fails on a missing
-browser, host or route failure, or reported automated axe violation; only axe
-rule identifiers enter assertion output.
-
-The local profile exercises no external adapter, credential, approval, or
-evidence gate. Browser coverage of authenticated and denied states is reproducible
-local caller evidence only; it cannot grant an external approval or activate a
-provider, custody, address, EVA, deployment, or operator-acceptance claim.
-This package-pinned Chromium lane is the selected release accessibility
-evidence for its named automated checks, including the keyboard, focus,
-200%-equivalent reflow, forced-colour, reduced-motion, semantic and axe
-assertions. It does not simulate Narrator or another screen reader and does not
-establish screen-reader interoperability, complete WCAG conformance, subjective
-usability, or operator acceptance. Production identity/session behavior,
-external services, deployment, and operator acceptance remain separate evidence
-boundaries.
+application runtime; the Web SDK container base supplies them. The local
+lifecycle installs Chromium from `src/Pegasus.Infrastructure/bin`.
 
 ## Local setup and run
 
@@ -233,13 +196,10 @@ Run these commands from PowerShell 7 at the repository root:
 ```powershell
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start # Live UI (default)
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
 ```
 
-Test UI opens the tracked static catalogue without initialization or local
-runtime resources. Live UI initialization resolves the exact checkout `HEAD`
-and requires the tracked and
+Initialization resolves the exact checkout `HEAD` and requires the tracked and
 untracked working tree to remain clean before restore, immediately before and
 after the Debug build, and before publishing its marker. The build disables
 incremental compilation so the dependency graph is rebuilt from those clean
@@ -247,24 +207,6 @@ inputs. The marker records the relative paths, byte lengths, and SHA-256 hashes
 of the Web and Worker runtime assemblies. `Start` refuses a changed revision,
 package lock, missing artifact, or runtime-byte mismatch before it creates or
 restarts a run.
-
-The Test UI files are generated from actual integration-test Razor responses,
-not maintained as parallel hand-written pages. Run
-`pwsh ./scripts/Update-TestUiSnapshots.ps1` to refresh them and
-`pwsh ./scripts/Update-TestUiSnapshots.ps1 -Verify` to fail when the committed
-catalogue differs from the current render. Capture requires the normal
-SQL Server integration-test prerequisite; opening Test UI does not.
-
-For a focused refresh, pair the page prefix with the integration-test cohort
-that captures it, then verify the retained capture at the same scope:
-
-```powershell
-pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
-  -Scope case-details `
-  -CaptureFilter "FullyQualifiedName~CaseDetailsWebTests"
-pwsh -NoProfile -File ./scripts/Update-TestUiSnapshots.ps1 `
-  -Verify -SkipCapture -Scope case-details
-```
 
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,
@@ -356,24 +298,18 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
-The focused forms are below; the two integration filters are a complement pair, so
-their union with the two unit projects is exactly the canonical selection:
+The focused forms are below:
 
 ```powershell
 dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
 dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
 Test classes run in parallel. The integration project caps concurrency at four
 in `tests/Pegasus.IntegrationTests/xunit.runner.json`: one named heavy verifier runs whole-solution suites on this host. The per-process
 cap bounds that run’s concurrent restores; it is not permission for competing
-whole-repository verification. The browser selection halves it again on the command line,
-because each of its tests starts a Chromium and a loopback host beside its own
-database. Test UI capture applies the same split in two passes: browser tests at
-the halved cap, then non-browser tests at the project cap. Leave
-`parallelAlgorithm` at its default `conservative`; `aggressive`
+whole-repository verification. Leave `parallelAlgorithm` at its default `conservative`; `aggressive`
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 
@@ -418,7 +354,10 @@ not run. The template database never engages when
 and an unverified template is worse than
 the slower migrate-per-test path the container falls back to.
 
-These commands prove compilation and the tests actually selected and executed. Browser/SQL traits included in that run are not separately omitted evidence. Record unavailable or excluded environments explicitly; corpus, cloud, recovery and operator acceptance are separate only when not exercised by the selected run.
+These commands prove compilation and the tests actually selected and executed.
+SQL traits included in that run are not separately omitted evidence. Record
+unavailable or excluded environments explicitly; corpus, cloud, recovery and
+operator acceptance are separate only when not exercised by the selected run.
 
 ### Imported source workspaces
 
@@ -427,14 +366,6 @@ integrated and retired under ADR-0025 (see
 [workspaces](../workspaces/README.md) for the provenance records). A future
 workspace validates independently with its own solution and is never part of
 the application solution.
-
-Report rendering is part of the application solution. After a Release build,
-install its pinned Playwright Chromium and run the Browser-tagged integration proof:
-
-```powershell
-pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
-dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportRendererTests"
-```
 
 ## Corpus safety and evaluation
 

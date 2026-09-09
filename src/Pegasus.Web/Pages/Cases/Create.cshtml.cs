@@ -47,6 +47,7 @@ public sealed partial class CreateModel(
     IGetIntake getIntake,
     IResolveIntake resolveIntake,
     IAllocateIntake allocateIntake,
+    IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IInspectionAddressResolutionStore addressResolutionStore,
     IProviderInspectionModeStore providerInspectionModeStore,
     ILogger<CreateModel> logger) : StaffPageModel
@@ -77,6 +78,8 @@ public sealed partial class CreateModel(
     /// </summary>
     public string? RefusalMessage { get; private set; }
 
+    private Guid? StandaloneAuditEvidenceId { get; set; }
+
     [BindProperty]
     public Guid ReceiptId { get; set; }
 
@@ -93,6 +96,13 @@ public sealed partial class CreateModel(
 
     [BindProperty]
     public string? AddressSuggestionFingerprint { get; set; }
+
+    // This is rendered once with the page operation.  On a retry the address
+    // snapshot is correctly settled by that operation, but we still have to
+    // replay its request to recover the receipt version acceptance originally
+    // used.  Recomputing from the latest snapshot would skip that write.
+    [BindProperty]
+    public bool RequiresAddressResolution { get; set; }
 
     [BindProperty]
     public string? Reason { get; set; }
@@ -254,6 +264,7 @@ public sealed partial class CreateModel(
         OperationId = NewOperationKey();
         ExpectedReceiptVersion = Receipt.Version;
         AddressSuggestionFingerprint = AddressSuggestion?.Fingerprint ?? string.Empty;
+        RequiresAddressResolution = AsksForAddress;
         return Page();
     }
 
@@ -263,12 +274,6 @@ public sealed partial class CreateModel(
         if (loadResult is not null)
         {
             return loadResult;
-        }
-
-        if ((Receipt.AcceptedCaseId ?? Receipt.CurrentCaseId) is { } allocatedCaseId)
-        {
-            TempData["CaseDetailsStatus"] = "This item already has a case.";
-            return RedirectToPage("/Cases/Details", new { id = allocatedCaseId });
         }
 
         RefusalMessage = DescribeRefusal();
@@ -299,6 +304,12 @@ public sealed partial class CreateModel(
                 string.Empty,
                 "The reviewed details are missing. Reload the page and try again.");
         }
+        if (!RequiresAddressResolution && AsksForAddress)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The inspection address still needs a staff decision. Reload the page and try again.");
+        }
         if (!ModelState.IsValid)
         {
             return Page();
@@ -309,13 +320,14 @@ public sealed partial class CreateModel(
         var reason = Reason!;
         var principalCode = PrincipalCode!;
 
+        var allocationStarted = false;
         try
         {
             // 1. The corrected draft. Always run, never skipped on a
             //    "nothing changed" test: one code path, a decision normalised
             //    by Core's own completeness rule, and an honest record that a
             //    person keyed or confirmed these values.
-            var corrected = await resolveIntake.ExecuteAsync(
+            _ = await resolveIntake.ExecuteAsync(
                 new(
                     Receipt.Id,
                     ExpectedReceiptVersion,
@@ -325,13 +337,17 @@ public sealed partial class CreateModel(
                     IntakeResolutionKind.CorrectDraft,
                     postedDraft),
                 cancellationToken);
-            var version = corrected.Version;
+            // A correction replay returns the current receipt snapshot, which
+            // can include later steps in this same page operation. The next
+            // command must nevertheless retain the version chain the staff
+            // reviewed: one correction advances that rendered version once.
+            var version = ExpectedReceiptVersion + 1;
 
             // 2. The inspection address, where a person still has to settle it.
-            if (AsksForAddress)
+            if (RequiresAddressResolution)
             {
                 var isSupplying = AddressSuggestion is null;
-                var snapshot = await addressResolutionStore.ResolveAsync(
+                await addressResolutionStore.ResolveAsync(
                     new(
                         Receipt.Id,
                         version,
@@ -348,10 +364,15 @@ public sealed partial class CreateModel(
                         DeriveOperationId(operationId, "address"),
                         HttpContext.TraceIdentifier),
                     cancellationToken);
-                version = snapshot.ReceiptVersion;
+                // The address operation advances the stable continuation once
+                // whether it was newly applied or safely replayed. Its replay
+                // snapshot can include a later acceptance, so it is not a
+                // continuation version.
+                version++;
             }
 
             // 3. The acceptance itself, at the version the last write returned.
+            allocationStarted = true;
             var allocation = await allocateIntake.AttemptStaffCreateAsync(
                 new(
                     Receipt.Id,
@@ -364,15 +385,22 @@ public sealed partial class CreateModel(
                     new(
                         InstructionComplete,
                         ImagesComplete),
-                    null,
-                    corrected.InstructionDraft?.InspectionDate),
+                    StandaloneAuditEvidenceId,
+                    postedDraft.InspectionDate),
                 cancellationToken);
 
             if (allocation.State.Status != IntakeAllocationProjectionStatus.Succeeded
                 || allocation.State.CaseId is not { } caseId)
             {
+                // The acceptance transaction may have committed before a
+                // later publisher/recovery action reported a fault.  Read the
+                // receipt again before claiming no reference exists.
+                if (await RedirectIfAcceptanceCommittedAsync(cancellationToken) is { } committed)
+                {
+                    return committed;
+                }
                 TempData["IntakeDetailsError"] = allocation.State.SafeReason
-                    ?? "The case could not be created. No reference was allocated.";
+                    ?? "The case could not be created. Reload the received item before trying again.";
                 return RedirectToPage("/Intake/Details", new { id = Receipt.Id });
             }
 
@@ -396,6 +424,12 @@ public sealed partial class CreateModel(
                 string.Empty,
                 "This item was already turned into a case using different details. Reload the page.");
         }
+        catch (IntakeAllocationOperationConflictException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "This item was already turned into a case using different details. Reload the page.");
+        }
         catch (CaseIdentitySequenceExhaustedException exception)
         {
             LogIdentitySequenceExhausted(logger, Receipt.Id, exception);
@@ -414,9 +448,14 @@ public sealed partial class CreateModel(
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             LogCaseCreationFailed(logger, Receipt.Id, exception);
+            if (allocationStarted
+                && await RedirectIfAcceptanceCommittedAsync(cancellationToken) is { } committed)
+            {
+                return committed;
+            }
             ModelState.AddModelError(
                 string.Empty,
-                "The case could not be created. No reference was allocated; reload the page and try again.");
+                "The case could not be confirmed. Reload the page before trying again.");
         }
 
         // The same operation id and the same expected version are re-rendered,
@@ -494,7 +533,7 @@ public sealed partial class CreateModel(
 
     private void ValidateAddressChoice()
     {
-        if (!AsksForAddress)
+        if (!RequiresAddressResolution)
         {
             return;
         }
@@ -539,7 +578,7 @@ public sealed partial class CreateModel(
 
     private void ValidateAuditCannotBeManuallyCreated()
     {
-        if (CaseType == CaseType.Audit)
+        if (CaseType == CaseType.Audit && !IsRetainedClassifiedAudit)
         {
             ModelState.AddModelError(
                 string.Empty,
@@ -575,7 +614,8 @@ public sealed partial class CreateModel(
 
     private string? DescribeRefusal()
     {
-        if (Receipt.MailClassificationDecision?.CaseType == CaseType.Audit)
+        if (Receipt.MailClassificationDecision?.CaseType == CaseType.Audit
+            && !IsRetainedClassifiedAudit)
         {
             return "This Audit is created automatically from the retained Audit instruction and original report.";
         }
@@ -584,6 +624,7 @@ public sealed partial class CreateModel(
         // hand-keyed case: the correction step normalises the decision, so it
         // is allowed through rather than refused.
         if (Receipt.Decision == IntakeDecision.OcrRequired
+            || Receipt.Decision == IntakeDecision.NeedsSorting
             || IntakeDecisionPolicy.CanBecomeCase(Receipt.Decision))
         {
             return null;
@@ -607,6 +648,12 @@ public sealed partial class CreateModel(
 
         Receipt = receipt;
         ReceiptId = receipt.Id;
+        var auditEvidence = await standaloneAuditEvidenceQueries.GetForReceiptAsync(
+            receipt.Id, cancellationToken);
+        StandaloneAuditEvidenceId = auditEvidence is { IntakeReceiptId: var evidenceReceiptId }
+            && evidenceReceiptId == receipt.Id
+            ? auditEvidence.Id
+            : null;
         // The mode belongs to the principal the case is actually allocated
         // against. On the first GET that is the extracted suggestion, but as
         // soon as an operator confirms a different principal it is theirs —
@@ -628,6 +675,35 @@ public sealed partial class CreateModel(
                 null);
         return null;
     }
+
+    /// <summary>
+    /// The allocation owner records the acceptance atomically, but work after
+    /// that commit can still fault.  Never tell staff that no Case exists
+    /// until this read proves it.  The same read is intentionally not used as
+    /// a pre-submit shortcut: retries must reach Core so its operation hash
+    /// can reject changed intent instead of silently opening the existing
+    /// Case.
+    /// </summary>
+    private async Task<IActionResult?> RedirectIfAcceptanceCommittedAsync(
+        CancellationToken cancellationToken)
+    {
+        if (await LoadAsync(ReceiptId, cancellationToken) is { } failure)
+        {
+            return failure;
+        }
+
+        if (Receipt.AcceptedCaseId is not { } acceptedCaseId)
+        {
+            return null;
+        }
+
+        TempData["CaseDetailsStatus"] = "The case was created. Some follow-up processing may still be pending.";
+        return RedirectToPage("/Cases/Details", new { id = acceptedCaseId });
+    }
+
+    public bool IsRetainedClassifiedAudit =>
+        Receipt.MailClassificationDecision?.CaseType == CaseType.Audit
+        && StandaloneAuditEvidenceId is not null;
 
     private async Task<bool> IsImageBasedAsync(
         string? principalCode,

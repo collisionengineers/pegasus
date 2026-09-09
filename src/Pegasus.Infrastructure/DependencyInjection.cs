@@ -79,6 +79,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<IIntakeAssociationDestinationQueries, EfIntakeAssociationDestinations>();
         services.AddScoped<ICaseEvidenceImageQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<EfIntakeAllocationStore>();
         services.AddScoped<IIntakeAllocationStore>(
