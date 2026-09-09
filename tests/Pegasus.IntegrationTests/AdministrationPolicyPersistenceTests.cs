@@ -233,6 +233,11 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal(firstDefault.Id, firstReplay.Id);
         Assert.Equal(firstDefault.Version, firstReplay.Version);
         Assert.True(firstReplay.IsDefaultStaffSend);
+        var replayConflict = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => defaultCommand.ExecuteAsync(
+                firstSelection with { Reason = "Try to reuse the default selection operation" },
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.OperationConflict, replayConflict.Error);
 
         var transfer = new SetDefaultApprovedMailboxRequest(
             second.Id,
@@ -249,6 +254,25 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal(firstDefault.Version + 1, clearedFirst.Version);
         Assert.True(secondDefault.IsDefaultStaffSend);
         Assert.Single(mailboxes.Where(mailbox => mailbox.IsDefaultStaffSend));
+
+        var removeStaffSendScope = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => mailboxCommand.ExecuteAsync(
+                new(
+                    secondDefault.Id,
+                    secondDefault.Address,
+                    [ApprovedMailboxRouteScope.InboundIntake],
+                    ApprovedMailboxState.Approved,
+                    secondDefault.Version,
+                    administrator,
+                    "Attempt to remove staff send from the default sender",
+                    "approved-mailbox-default-remove-staff-send",
+                    secondDefault.MailboxIdentity,
+                    secondDefault.InboxFolderIdentity,
+                    secondDefault.SentFolderIdentity,
+                    secondDefault.FolderBindings,
+                    secondDefault.VerifiedEncodedMessageSizeLimit),
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement, removeStaffSendScope.Error);
 
         var stale = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
@@ -280,10 +304,22 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement, disableDefault.Error);
 
         await using var context = await database.CreateContextAsync();
-        Assert.Equal(
-            2,
-            await context.ActionHistory.CountAsync(item =>
-                item.EventKind == "approved_mailbox_default_staff_send_selected"));
+        var defaultSelectionHistory = await context.ActionHistory
+            .Where(item => item.EventKind == "approved_mailbox_default_staff_send_selected")
+            .OrderBy(item => item.OccurredAtUtc)
+            .ToArrayAsync();
+        Assert.Equal(2, defaultSelectionHistory.Length);
+        Assert.All(defaultSelectionHistory, item =>
+        {
+            Assert.Equal("approved_mailbox", item.AggregateType);
+            Assert.Equal(administrator.SubjectId, item.ActorSubjectId);
+            Assert.Equal(ActorKind.Staff.ToString(), item.ActorKind);
+        });
+        var transferHistory = Assert.Single(defaultSelectionHistory.Where(item =>
+            item.CorrelationId == transfer.OperationKey));
+        Assert.Equal(transfer.Reason, transferHistory.Reason);
+        Assert.Contains(firstDefault.Id.ToString("D"), transferHistory.BeforeJson, StringComparison.Ordinal);
+        Assert.Contains("\"IsDefaultStaffSend\":true", transferHistory.AfterJson, StringComparison.Ordinal);
     }
 
     private static Task<ApprovedMailbox> CreateApprovedStaffSendMailboxAsync(
@@ -295,14 +331,14 @@ public sealed class AdministrationPolicyPersistenceTests
             new(
                 Guid.NewGuid(),
                 address,
-                [ApprovedMailboxRouteScope.StaffSend],
+                [ApprovedMailboxRouteScope.InboundIntake, ApprovedMailboxRouteScope.StaffSend],
                 ApprovedMailboxState.Approved,
                 0,
                 actor,
                 $"Add {identity} staff-send mailbox",
                 $"approved-mailbox-{identity}",
                 $"{identity}-mailbox",
-                null,
+                $"{identity}-inbox",
                 null,
                 null,
                 10485760),

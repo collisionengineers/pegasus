@@ -894,6 +894,10 @@ public sealed partial class QdosTriageIntegrationTests
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             inner.UpdateAsync(request, cancellationToken);
 
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            inner.SetDefaultAsync(request, cancellationToken);
+
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);

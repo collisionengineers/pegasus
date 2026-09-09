@@ -869,6 +869,10 @@ public sealed class RetainedMailTests
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FolderMoveState(bool isAtDestination = false)

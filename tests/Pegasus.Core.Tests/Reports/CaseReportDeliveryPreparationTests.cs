@@ -513,6 +513,10 @@ public sealed class CaseReportDeliveryPreparationTests
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             Task.FromResult(false);

@@ -1054,6 +1054,10 @@ public sealed class StaffCorrespondenceWebTests
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             inner.UpdateAsync(request, cancellationToken);
 
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            inner.SetDefaultAsync(request, cancellationToken);
+
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
@@ -1092,6 +1096,10 @@ public sealed class StaffCorrespondenceWebTests
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The read-only compose test cannot update a mailbox.");
+
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The read-only compose test cannot select a default mailbox.");
 
         public Task<bool> IsApprovedAsync(
             string mailboxAddress,
