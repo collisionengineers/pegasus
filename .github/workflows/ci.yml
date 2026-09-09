@@ -152,12 +152,12 @@ jobs:
     # Two levels of overlap, because neither alone is enough on a four-vCPU
     # runner: test classes run in parallel within a shard, capped by
     # tests/Pegasus.IntegrationTests/xunit.runner.json, and the shards divide
-    # whole classes across runners. Measured: the whole lane parallel on one
-    # runner is 11m55s of tests, against ~4 minutes per shard.
+    # whole classes across runners. Allow setup/build plus the longest shard
+    # and evidence upload: the 2026-09-09 run exhausted a 30-minute job budget.
     needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       # One shard's failure must not hide another shard's coverage report.
       fail-fast: false
