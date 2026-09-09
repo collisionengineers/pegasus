@@ -13,6 +13,8 @@
     // Set by a hosting page whose submission-level card owns the decision:
     // the outcome renders as a report only, offering nothing per file.
     var compact = ViewData["UploadOutcomeCompact"] is true;
+    var confirmation = ViewData["UploadCaseConfirmation"] as Pegasus.Web.Presentation.UploadCaseAttachmentConfirmation;
+    var draft = ViewData["UploadCaseDraft"] as Pegasus.Web.Presentation.UploadCaseAttachmentDraft;
 }
 <div class="upload-outcome">
     @if (Model.ChipLabel is not null)
@@ -44,35 +46,70 @@
     @if (!compact && Model.Attach is { } attach)
     {
         var attachDomId = $"case-attach-{attach.ReceiptId:N}";
+        var isConfirmation = confirmation?.ReceiptId == attach.ReceiptId;
+        var retainedDraft = draft?.ReceiptId == attach.ReceiptId ? draft : null;
+        var operationId = isConfirmation ? confirmation!.Input.OperationId : retainedDraft?.OperationId ?? Guid.NewGuid();
         @* Native disclosure, so opening and closing the search works without
            script; script upgrades the input inside to a combobox. *@
-        <details class="upload-attach" data-refresh-hold>
+        <details class="upload-attach" data-refresh-hold open="@(attach.SuggestedDestinations.Count > 0 ? "open" : null)">
             <summary class="btn btn--small">Add to an existing case</summary>
             <form method="post"
                   asp-page-handler="Attach"
                   class="upload-attach__form"
-                  data-case-search
+                data-case-search
+                  data-case-search-receipt-id="@attach.ReceiptId"
                   data-case-search-url="@Url.Page(null, "CaseSearch")">
                 <input type="hidden" name="receiptId" value="@attach.ReceiptId" />
-                <input type="hidden" name="caseId" value="" data-case-search-value />
+                <input type="hidden" name="receiptVersion" value="@(isConfirmation ? confirmation!.Input.ExpectedReceiptVersion : retainedDraft?.ExpectedReceiptVersion ?? attach.ReceiptVersion)" />
+                <input type="hidden" name="operationId" value="@operationId" />
+                <input type="hidden" name="caseId" value="@(isConfirmation ? confirmation!.CaseId : retainedDraft?.CaseId)" data-case-search-value />
+                <input type="hidden" name="caseVersion" value="@(isConfirmation ? confirmation!.Input.ExpectedCaseVersion : retainedDraft?.ExpectedCaseVersion)" data-case-search-version />
+                @if (!isConfirmation && attach.SuggestedDestinations.Count > 0)
+                {
+                    <div class="field">
+                        <span class="field-label">Possible existing case@(attach.SuggestedDestinations.Count == 1 ? string.Empty : "s")</span>
+                        <div class="button-row">
+                            @foreach (var suggestion in attach.SuggestedDestinations)
+                            {
+                                <button type="button"
+                                        class="btn btn--small"
+                                        data-case-search-suggestion
+                                        data-case-id="@suggestion.CaseId"
+                                        data-case-reference="@suggestion.Reference"
+                                        data-case-version="@suggestion.Version">
+                                    @suggestion.Reference
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
                 <div class="field">
                     <label for="@(attachDomId)-input">Case</label>
-                    <input id="@(attachDomId)-input"
-                           name="reference"
-                           type="text"
-                           maxlength="60"
-                           required
-                           autocomplete="off"
-                           spellcheck="false"
-                           data-case-search-input />
-                    <ul id="@(attachDomId)-list" class="case-search-list" hidden data-case-search-list></ul>
+                    @if (isConfirmation)
+                    {
+                        <input id="@(attachDomId)-input" name="reference" type="text" value="@confirmation!.Reference" readonly />
+                        <p class="field-hint">Confirm that this is the case you intend to add the upload to.</p>
+                    }
+                    else
+                    {
+                        <input id="@(attachDomId)-input"
+                               name="reference"
+                               type="text"
+                               value="@(retainedDraft?.Reference ?? (attach.SuggestedDestinations.Count == 1 ? attach.SuggestedDestinations[0].Reference : null))"
+                               maxlength="60"
+                               required
+                               autocomplete="off"
+                               spellcheck="false"
+                               data-case-search-input />
+                        <ul id="@(attachDomId)-list" class="case-search-list" hidden data-case-search-list></ul>
+                    }
                 </div>
                 <div class="field">
                     <label for="@(attachDomId)-reason">Reason for adding to this case</label>
-                    <textarea id="@(attachDomId)-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    <textarea id="@(attachDomId)-reason" name="reason" maxlength="500" rows="2" required>@(isConfirmation ? confirmation!.Reason : retainedDraft?.Reason)</textarea>
                 </div>
                 <div class="button-row">
-                    <button type="submit" class="btn btn--primary btn--small">Add to this case</button>
+                    <button type="submit" class="btn btn--primary btn--small">@(isConfirmation ? "Confirm and add to this case" : "Add to this case")</button>
                 </div>
             </form>
         </details>

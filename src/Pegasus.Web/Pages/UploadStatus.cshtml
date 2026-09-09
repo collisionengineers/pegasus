@@ -2,6 +2,8 @@
 @model Pegasus.Web.Pages.UploadStatusModel
 @{
     ViewData["Title"] = "Upload status";
+    ViewData["UploadCaseConfirmation"] = Model.UploadCaseConfirmation;
+    ViewData["UploadCaseDraft"] = Model.UploadCaseDraft;
 }
 
 @* The state is the heading; the values are the panel. Nothing beneath the

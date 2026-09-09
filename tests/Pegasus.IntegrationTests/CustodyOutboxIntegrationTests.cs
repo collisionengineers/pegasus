@@ -2674,6 +2674,25 @@ public sealed class CustodyOutboxIntegrationTests
                 .FindBySourceIdentityAsync(source.Source.SourceIdentity, CancellationToken.None));
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
+        await SeedPrincipalAsync(services, QdosPrincipal.Code);
+        var accepted = await services.GetRequiredService<IAllocateIntake>()
+            .AttemptStaffCreateAsync(
+                new(
+                    receipt.Id,
+                    receipt.Version,
+                    ActionActor.Staff(
+                        DevelopmentOfflineIdentity.AdministratorId,
+                        [StaffRole.Administrator]),
+                    $"custody-accept:{Guid.NewGuid():N}",
+                    "Staff accepted the processed custody instruction.",
+                    CaseType.Inspection,
+                    QdosPrincipal.Code,
+                    new(InstructionComplete: true, ImagesComplete: false),
+                    null,
+                    receipt.InstructionDraft?.InspectionDate),
+                CancellationToken.None);
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, accepted.State.Status);
+
         var allocation = Assert.IsType<IntakeAllocationState>(
             (await services.GetRequiredService<IIntakeReceiptQueries>()
                 .GetAsync(receipt.Id, CancellationToken.None))!.AllocationState);

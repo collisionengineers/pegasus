@@ -43,6 +43,7 @@ public sealed class IndexModel(
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
     IUploadCaseDecision caseDecision,
+    IGetIntake getIntake,
     IListIntake listIntake,
     IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
@@ -234,6 +235,12 @@ public sealed class IndexModel(
 
     public QuickDetail? Selected { get; private set; }
 
+    /// <summary>The version rendered with the awaiting-image confirmation form.</summary>
+    public long? SelectedImageReceiptVersion { get; private set; }
+
+    /// <summary>The existing submission workflow owns a manual multi-image decision.</summary>
+    public Guid? SelectedImageSubmissionGroupId { get; private set; }
+
     /// <summary>The compact stepper's four steps, in workflow order.</summary>
     public static readonly IReadOnlyList<(string Label, string Icon)> Steps =
     [
@@ -360,11 +367,65 @@ public sealed class IndexModel(
         {
             SelectedId = selectedRow.Id;
             Selected = await LoadDetailAsync(actor, selectedRow, cancellationToken);
+            if (Selected is { Kind: RowKind.Image, OriginReceiptId: { } receiptId })
+            {
+                SelectedImageReceiptVersion = (await getIntake.ExecuteAsync(
+                    new(receiptId, actor), cancellationToken))?.Version;
+                var image = await _imageIntakeQueries.GetAsync(SelectedId.Value, cancellationToken);
+                if (RequiresGroupConfirmation(image) && image!.Record.SubmissionGroupId is { } groupId)
+                {
+                    SelectedImageSubmissionGroupId = groupId;
+                }
+            }
         }
 
         LoadedAtUtc = _timeProvider.GetUtcNow();
         return Page();
     }
+
+    protected override async Task<bool> SurfaceContainsReceiptAsync(
+        Guid surfaceId,
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var image = await _imageIntakeQueries.GetByOriginReceiptAsync(receiptId, cancellationToken);
+        return image is not null
+            && image.Record.Id == surfaceId
+            && image.Record.Origin.ReceiptId == receiptId
+            && !RequiresGroupConfirmation(image);
+    }
+
+    protected override Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken) =>
+        SelectedOriginReceiptIdsAsync(surfaceId, cancellationToken);
+
+    private async Task<IReadOnlyList<Guid>> SelectedOriginReceiptIdsAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken)
+    {
+        var image = await _imageIntakeQueries.GetAsync(surfaceId, cancellationToken);
+        return image is null
+            || image.State != ImageInitiatedCaseState.AwaitingInstruction
+            || RequiresGroupConfirmation(image)
+            ? []
+            : [image.Record.Origin.ReceiptId];
+    }
+
+    protected override async Task<IActionResult> RenderSurfaceAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken)
+    {
+        TabFilter = "awaiting";
+        SelectedId = surfaceId;
+        return await OnGetAsync(cancellationToken);
+    }
+
+    private static bool RequiresGroupConfirmation(ImageIntakeDetail? image) =>
+        image is not null
+        && image.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+        && image.Record.SubmissionGroupId is not null
+        && image.GroupExpectedMemberCount > 1;
 
     private async Task<IReadOnlyList<QueueRow>> LoadCasesAsync(ActionActor actor, CancellationToken cancellationToken)
     {

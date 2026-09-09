@@ -35,7 +35,9 @@ public sealed class ReconcileUnidentifiedDestinations(
     IIntakeReceiptQueries receiptQueries,
     IImageIntakeQueries imageIntakeQueries,
     ITriageQueries triageQueries,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IIntakeSubmissionGroupStore groupStore,
+    IQueuedIntakeStatusQueries statuses)
 {
     /// <summary>
     /// The automation identity every resolution written here carries. Public
@@ -63,15 +65,6 @@ public sealed class ReconcileUnidentifiedDestinations(
         foreach (var item in open)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (item.Origin.Kind != UnidentifiedOriginKind.Receipt)
-            {
-                // Nothing registers a group-origin item today (verified: the
-                // only reader of that origin shape is the upload confirmation
-                // surface); whatever eventually writes one owns its
-                // resolution shape too.
-                continue;
-            }
-
             if (candidates >= maximumItems)
             {
                 break;
@@ -80,9 +73,15 @@ public sealed class ReconcileUnidentifiedDestinations(
             candidates++;
             try
             {
-                var receipt = await receiptQueries.GetAsync(item.Origin.Id, cancellationToken);
-                if (receipt is not null
-                    && await SynchronizeForReceiptAsync(receipt, cancellationToken))
+                var synchronized = item.Origin.Kind switch
+                {
+                    UnidentifiedOriginKind.Receipt => await SynchronizeForReceiptOriginAsync(
+                        item.Origin.Id, cancellationToken),
+                    UnidentifiedOriginKind.SubmissionGroup => await SynchronizeForSubmissionGroupAsync(
+                        item.Origin.Id, cancellationToken),
+                    _ => false
+                };
+                if (synchronized)
                 {
                     resolved++;
                 }
@@ -115,12 +114,27 @@ public sealed class ReconcileUnidentifiedDestinations(
                     continue;
                 }
 
+                if (item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
+                {
+                    var groupDestination = await DestinationForSubmissionGroupAsync(
+                        item.Origin.Id, cancellationToken);
+                    if (await SynchronizeForSubmissionGroupAsync(item.Origin.Id, cancellationToken))
+                    {
+                        corrected++;
+                    }
+                    if (groupDestination is not null)
+                    {
+                        await unidentifiedStore.MarkResolutionRecheckedAsync(
+                            item.Id, groupDestination.AssociationVersion, cancellationToken);
+                    }
+                    continue;
+                }
+
                 var receipt = await receiptQueries.GetAsync(item.Origin.Id, cancellationToken);
                 if (receipt is null)
                 {
                     continue;
                 }
-
                 if (await SynchronizeForReceiptAsync(receipt, cancellationToken))
                 {
                     corrected++;
@@ -147,6 +161,75 @@ public sealed class ReconcileUnidentifiedDestinations(
         }
 
         return new(candidates, resolved, corrected, failures);
+    }
+
+    private async Task<bool> SynchronizeForReceiptOriginAsync(
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
+        return receipt is not null
+            && await SynchronizeForReceiptAsync(receipt, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the one Unidentified item owned by a grouped manual upload
+    /// only after every durable member has reached the same Case. A member
+    /// link can commit before the request completes, so this is callable from
+    /// that request and from the worker sweep that recovers an interruption.
+    /// </summary>
+    public async Task<bool> SynchronizeForSubmissionGroupAsync(
+        Guid groupId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await unidentifiedStore.GetByOriginAsync(
+            UnidentifiedOrigin.SubmissionGroup(groupId), cancellationToken);
+        if (existing is null)
+        {
+            return false;
+        }
+
+        var groupDestination = await DestinationForSubmissionGroupAsync(groupId, cancellationToken);
+        var destination = groupDestination?.Destination;
+        if (existing.State == UnidentifiedState.Open)
+        {
+            if (destination is null)
+            {
+                return false;
+            }
+
+            await ResolveAsync(existing, destination, cancellationToken);
+            return true;
+        }
+
+        // A staff resolution remains authoritative. The reconciliation only
+        // owns resolutions it wrote itself.
+        if (!IsOwnResolution(existing))
+        {
+            return false;
+        }
+
+        if (destination is not null && Records(existing, destination))
+        {
+            return false;
+        }
+
+        var reopened = await unidentifiedStore.ReopenAsync(
+            new(
+                existing.Id,
+                existing.Version,
+                ReconciliationActor,
+                OperationKey("reopen", existing),
+                ReopenReason,
+                timeProvider.GetUtcNow()),
+            cancellationToken);
+        if (destination is null)
+        {
+            return true;
+        }
+
+        await ResolveAsync(reopened.Item, destination, cancellationToken);
+        return true;
     }
 
     /// <summary>
@@ -177,10 +260,27 @@ public sealed class ReconcileUnidentifiedDestinations(
         // Open branch, re-gated on the receipt having no case association.
         var existing = await unidentifiedStore.GetByOriginAsync(
             UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
-        if (existing is null)
+        var synchronized = existing is not null
+            && await SynchronizeReceiptItemAsync(existing, receipt, cancellationToken);
+
+        // Group membership is durable and the token convention has one owner.
+        // A receipt action can therefore also refresh its group-owned item,
+        // without guessing a submission identity from a route or filename.
+        var group = await groupStore.FindForMemberSourceAsync(
+            receipt.SourceIdentity, cancellationToken);
+        if (group is not null)
         {
-            return false;
+            synchronized |= await SynchronizeForSubmissionGroupAsync(group.Id, cancellationToken);
         }
+
+        return synchronized;
+    }
+
+    private async Task<bool> SynchronizeReceiptItemAsync(
+        UnidentifiedItem existing,
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
 
         if (existing.State == UnidentifiedState.Open)
         {
@@ -308,6 +408,47 @@ public sealed class ReconcileUnidentifiedDestinations(
         return null;
     }
 
+    private async Task<SubmissionGroupDestination?> DestinationForSubmissionGroupAsync(
+        Guid groupId,
+        CancellationToken cancellationToken)
+    {
+        var group = await groupStore.GetAsync(groupId, cancellationToken);
+        if (group is null
+            || group.Members.Count == 0
+            || group.Members.Count != group.ExpectedMemberCount)
+        {
+            return null;
+        }
+
+        var receipts = await Task.WhenAll(group.Members.Select(async member =>
+        {
+            var status = await statuses.GetAsync(member.StagedReceiptId, cancellationToken);
+            if (status is not { Status: QueuedIntakeStatusKind.Complete }
+                || status.ProcessedReceiptId is not { } receiptId)
+            {
+                return null;
+            }
+            return await receiptQueries.GetAsync(receiptId, cancellationToken);
+        }));
+        if (receipts.Any(receipt => receipt?.CurrentCaseId is null))
+        {
+            return null;
+        }
+
+        var first = receipts[0]!;
+        if (receipts.Any(receipt => receipt!.CurrentCaseId != first.CurrentCaseId))
+        {
+            return null;
+        }
+
+        return new(
+            new(
+                UnidentifiedResolutionTargetKind.InstructionCase,
+                first.CurrentCaseId!.Value.ToString("N"),
+                first.CurrentCaseReference),
+            receipts.Sum(receipt => receipt!.ManualAssociationVersion ?? 0));
+    }
+
     private Task<UnidentifiedResolveResult> ResolveAsync(
         UnidentifiedItem item,
         UnidentifiedDestination destination,
@@ -364,4 +505,8 @@ public sealed class ReconcileUnidentifiedDestinations(
         UnidentifiedResolutionTargetKind Kind,
         string Id,
         string? Reference);
+
+    private sealed record SubmissionGroupDestination(
+        UnidentifiedDestination Destination,
+        long AssociationVersion);
 }

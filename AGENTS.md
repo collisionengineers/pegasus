@@ -98,12 +98,12 @@ read 2026-09-08.
   output, and stop condition. The primary owns assignment, file-overlap
   resolution, approvals, integration, and release operations.
 - Children do not recursively delegate, change unrelated files, or autonomously
-  start tests, builds, verification scripts, capture/browser hosts, or packaging.
+  start tests, builds, verification scripts, or packaging.
   Scout, investigator, and reviewer never perform external writes; other children
   need an explicit bounded workflow that authorizes the action and target. Role
   profiles do not grant permissions or override parent runtime policy.
 - All host test/build work, including focused commands, verification scripts,
-  capture/browser hosts, and packaging, is serialized behind one explicit current
+  and packaging, is serialized behind one explicit current
   host-slot owner. Each such assignment names the canonical
   `<ticket>/scratch/execution.md` host-slot record. Before running, the owner
   reads it and refuses a missing, stale, ambiguous, wrong-host, wrong-input, or
@@ -148,8 +148,8 @@ coordinate heavy verification through the active Kanmer execution context.
 
 Read [engineering verification policy](docs/engineering.md#verification-policy)
 and the [verification procedure](docs/runbook.md).
-For routed Razor changes, follow the existing Razor skills and their scoped
-snapshot procedure. Report failed, omitted and inconclusive checks honestly.
+For routed Razor changes, follow the existing Razor skills. Report failed,
+omitted and inconclusive checks honestly.
 Obsolete documentation-parser contracts do not justify retaining incorrect docs.
 
 ## Repository map

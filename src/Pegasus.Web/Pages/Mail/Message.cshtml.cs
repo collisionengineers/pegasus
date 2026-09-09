@@ -25,7 +25,7 @@ public sealed class MessageModel(
     ISendToAiControl sendToAiControl,
     CorrectRetainedMailClassification correctClassification,
     MoveRetainedMailFolder moveRetainedMailFolder,
-    IUploadCaseDecision caseDecision,
+    ISearchCases searchCases,
     IGetCase getCase,
     IStaffMailSend staffMailSend,
     IStaffMailAttachmentResolver attachmentResolver,
@@ -1223,7 +1223,20 @@ public sealed class MessageModel(
         }
         if (!string.IsNullOrWhiteSpace(CaseQuery))
         {
-            CaseResults = await caseDecision.SearchAsync(CaseQuery, actor, cancellationToken);
+            var trimmed = CaseQuery.Trim();
+            if (trimmed.Length < 2)
+            {
+                CaseResults = [];
+                return;
+            }
+            var results = await searchCases.ExecuteAsync(
+                new(actor, new(Query: trimmed), Page: 1, PageSize: 8), cancellationToken);
+            CaseResults = results.Items.Select(item => new UploadCaseSuggestion(
+                item.CaseId,
+                item.Reference,
+                item.Registration,
+                item.Claimant,
+                OperatorLabels.CaseStage(item.State))).ToArray();
         }
     }
 

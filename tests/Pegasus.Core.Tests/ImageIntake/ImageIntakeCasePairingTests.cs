@@ -133,6 +133,79 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Fact]
+    public async Task ManualUploadRemainsPendingThroughTheRecoverySweepUntilStaffAssociatesIt()
+    {
+        var receipt = Summary("AB12CDE-01", "AB12CDE");
+        var queries = new FakeQueries
+        {
+            Unassociated = [receipt],
+            OriginChannel = IntakeSourceChannel.ManualUpload
+        };
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE")]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .ReconcileAsync(50, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 0, 0), result);
+        Assert.Empty(mutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task ManualGroupMergesOnlyAfterStaffHasLinkedEveryRegisteredImage()
+    {
+        var receiptId = Guid.NewGuid();
+        var siblingReceiptId = Guid.NewGuid();
+        var origin = new ImageIntakeOrigin(
+            receiptId,
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "manual-image"),
+            new string('a', 64),
+            Guid.NewGuid());
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(Guid.NewGuid(), origin, "AB12CDE", "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            CaseId,
+            "QDS26001",
+            AssociatedCaseVersion: 7);
+        var queries = new FakeQueries
+        {
+            OriginChannel = IntakeSourceChannel.ManualUpload,
+            ByOriginReceipt = { [receiptId] = detail },
+            Images = [new(siblingReceiptId, "sibling.png", "image/png")]
+        };
+        var mutationStore = new FakeMutationStore();
+        var pairing = new ImageIntakeCasePairing(
+            queries, new FakeCandidates(), mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries);
+
+        var deferred = await pairing.PairRegisteredReceiptAsync(receiptId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 0, 0), deferred);
+        Assert.Empty(queries.Merges);
+        Assert.Empty(mutationStore.AutoLinks);
+
+        queries.ManualLinkedCaseIds[siblingReceiptId] = CaseId;
+
+        var result = await pairing.PairRegisteredReceiptAsync(receiptId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 1, 0), result);
+        Assert.Empty(mutationStore.AutoLinks);
+        var merged = Assert.Single(queries.Merges);
+        Assert.Equal(detail.Record.Id, merged.ImageIntakeId);
+        Assert.Equal(CaseId, merged.CaseId);
+        Assert.Equal(0, merged.ExpectedVersion);
+        Assert.Equal(0, merged.ExpectedStaffOriginAssociationVersion);
+        var completed = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, completed.State);
+        Assert.Equal(CaseId, completed.MergedIntoCaseId);
+        Assert.Equal(origin, completed.Record.Origin);
+    }
+
+    [Fact]
     public async Task AnAlreadyLinkedAwaitingIntakeRetriesTheMergeWithoutRelinking()
     {
         // AutoLinkAsync already succeeded on a previous pass (or a manual
@@ -194,6 +267,8 @@ public sealed class ImageIntakeCasePairingTests
 
     private sealed class FakeQueries : IImageIntakeStore, IIntakeReceiptQueries
     {
+        public IntakeSourceChannel OriginChannel { get; init; } = IntakeSourceChannel.Mailbox;
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
             int maximumItems, Guid? caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>(Unassociated
@@ -202,7 +277,11 @@ public sealed class ImageIntakeCasePairingTests
 
         public IReadOnlyList<ImageIntakeSummary> Unassociated { get; init; } = [];
 
+        public IReadOnlyList<ImageIntakeImage> Images { get; init; } = [];
+
         public Dictionary<Guid, ImageIntakeDetail> ByOriginReceipt { get; init; } = [];
+
+        public Dictionary<Guid, Guid?> ManualLinkedCaseIds { get; } = [];
 
         public List<MergeImageInitiatedCaseRequest> Merges { get; } = [];
 
@@ -228,8 +307,10 @@ public sealed class ImageIntakeCasePairingTests
             var source = ByOriginReceipt.Values.SingleOrDefault(item => item.Record.Id == request.ImageIntakeId);
             var originId = source?.Record.Origin.ReceiptId
                 ?? Unassociated.Single(item => item.Id == request.ImageIntakeId).OriginReceiptId;
+            var origin = source?.Record.Origin
+                ?? new(originId, new(OriginChannel, "token"), new string('a', 64), Guid.NewGuid());
             var updated = new ImageIntakeRecord(request.ImageIntakeId,
-                new(originId, new(IntakeSourceChannel.Mailbox, "token"), new string('a', 64), Guid.NewGuid()),
+                origin,
                 "AB12CDE", "AB12CDE-01", ImageInitiatedCaseState.MergedIntoInstructionCase,
                 MergedIntoCaseId: request.CaseId, PendingExternalWorkId: PendingExternalWorkId);
             ByOriginReceipt[originId] = new(updated, DateTimeOffset.UtcNow, request.CaseId, "QDS26001");
@@ -243,6 +324,11 @@ public sealed class ImageIntakeCasePairingTests
             Assert.Null(associated);
             return Task.FromResult(Unassociated);
         }
+
+        public Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
+            Guid imageIntakeId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Images);
 
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
@@ -263,7 +349,7 @@ public sealed class ImageIntakeCasePairingTests
             var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == intakeReceiptId);
             return Task.FromResult(summary is null ? null : new ImageIntakeDetail(
                 new(summary.Id, new(intakeReceiptId,
-                    new(IntakeSourceChannel.Mailbox, "token"), new string('a', 64), Guid.NewGuid()),
+                    new(OriginChannel, "token"), new string('a', 64), Guid.NewGuid()),
                     summary.NormalizedVehicleRegistration, summary.ImageIntakeReference,
                     summary.State, PrincipalId: summary.PrincipalId),
                 summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference));
@@ -272,13 +358,19 @@ public sealed class ImageIntakeCasePairingTests
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
         {
             var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == id);
-            var caseId = ByOriginReceipt.GetValueOrDefault(id)?.AssociatedCaseId ?? summary?.AssociatedCaseId;
+            var caseId = ManualLinkedCaseIds.GetValueOrDefault(id)
+                ?? ByOriginReceipt.GetValueOrDefault(id)?.AssociatedCaseId
+                ?? summary?.AssociatedCaseId;
             return Task.FromResult<IntakeReceipt?>(new(
                 id, "retained.png", "image/png", 1, new string('a', 64),
-                new(IntakeSourceChannel.Mailbox, "token"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+                new(OriginChannel, "token"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
                 IntakeDecision.ImageIntakeRegistered, "Registered", [], [], null, [], null, null,
                 false, "retained", "1", null, null,
-                ManualLinkedCaseId: caseId, ManualAssociationVersion: caseId is null ? null : 0));
+                ManualLinkedCaseId: caseId,
+                ManualAssociationVersion: caseId is null ? null : 0,
+                ManualAssociationActorKind: caseId is not null && OriginChannel == IntakeSourceChannel.ManualUpload
+                    ? ActorKind.Staff
+                    : null));
         }
 
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

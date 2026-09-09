@@ -12,6 +12,8 @@ public sealed class UploadStatusModel(
     IQueuedIntakeStatusQueries queries,
     IUploadOutcomeQueries outcomeQueries,
     IUploadCaseDecision caseDecision,
+    IGetIntake getIntake,
+    IIntakeSubmissionGroupStore submissionGroups,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
@@ -69,6 +71,12 @@ public sealed class UploadStatusModel(
         Status = status;
         IsDuplicate = duplicate;
 
+        if (TryGetActor(out var groupActor)
+            && await FindManualSiblingGroupAsync(status, groupActor, cancellationToken) is { } group)
+        {
+            return RedirectToPage("/UploadGroupStatus", new { id = group.Id });
+        }
+
         // The confirmation decision needs a full receipt read for a terminal
         // status; Received/Processing never reach the branch that needs one.
         if (status.Status is QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed
@@ -82,4 +90,57 @@ public sealed class UploadStatusModel(
 
     protected override IActionResult RedirectToSurface(Guid id) =>
         RedirectToPage("/UploadStatus", new { id });
+
+    protected override Task<IActionResult> RenderSurfaceAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken) =>
+        OnGetAsync(surfaceId, duplicate: false, cancellationToken: cancellationToken);
+
+    protected override async Task<bool> SurfaceContainsReceiptAsync(
+        Guid surfaceId,
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var status = await queries.GetAsync(surfaceId, cancellationToken);
+        if (status is null || (status.ProcessedReceiptId ?? status.StagedReceiptId) != receiptId
+            || !TryGetActor(out var actor))
+        {
+            return false;
+        }
+
+        return await FindManualSiblingGroupAsync(status, actor, cancellationToken) is null;
+    }
+
+    protected override async Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
+        Guid surfaceId,
+        CancellationToken cancellationToken)
+    {
+        var status = await queries.GetAsync(surfaceId, cancellationToken);
+        if (status is null || !TryGetActor(out var actor)
+            || await FindManualSiblingGroupAsync(status, actor, cancellationToken) is not null)
+        {
+            return [];
+        }
+
+        return [status.ProcessedReceiptId ?? status.StagedReceiptId];
+    }
+
+    private async Task<IntakeSubmissionGroup?> FindManualSiblingGroupAsync(
+        QueuedIntakeStatus status,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var receiptId = status.ProcessedReceiptId ?? status.StagedReceiptId;
+        var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+        if (receipt is null)
+        {
+            return null;
+        }
+
+        var group = await submissionGroups.FindForMemberSourceAsync(
+            receipt.SourceIdentity, cancellationToken);
+        return group is { Channel: IntakeSourceChannel.ManualUpload, HasSiblingMembers: true }
+            ? group
+            : null;
+    }
 }

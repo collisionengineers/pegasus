@@ -13,35 +13,9 @@ scrolling Case record with section jumps is the accepted Case layout. Native
 engineering and reports remain independent of optional EVA. Prototype behavior
 is reference evidence; it does not overrule current requirements.
 
-Record the actual scope of rendered/browser/operator evidence. A screenshot,
+Record the actual scope of rendered/operator evidence. A screenshot,
 asset or planned interaction does not prove the implemented caller, deployment
 or acceptance. Engineering defines those evidence tiers; do not repeat them here.
-
-## Test UI
-
-[The Test UI catalogue](test-ui/index.html) is the disposable, offline
-catalogue of current routed Web surfaces. Open it directly from the repository
-to inspect generated static HTML snapshots without .NET, authentication, a
-database, or external services. State files use the
-pages/route-key--state.html convention; `catalogue.json` is the single
-route-classification and state list.
-
-The catalogue is design evidence only. It does not implement, approve, deploy,
-or simulate server behaviour, and it is never an application or publish input.
-Its markup is captured from the current Razor pages and PageModels, with only
-volatile security/operation values and local URLs normalized. Do not edit the
-generated HTML by hand. Approval of a
-Test UI experiment is separate from implementation in the Live Razor pages.
-Each visual state names the current Razor/PageModel branch it represents in the
-catalogue manifest. Regenerate and verify after changing a routed Razor page:
-`scripts/Update-TestUiSnapshots.ps1`, then
-`scripts/Update-TestUiSnapshots.ps1 -Verify` and
-`scripts/Test-UiCatalogue.ps1`.
-
-The [route map](../frd/frd-12-operator-experience.md) below states what the catalogue's route keys become
-as each wave lands: PLAT-029 makes the structural edits to `catalogue.json`
-(moved routes, 301 stubs, the removed `/VehicleImages` list), and each page
-ticket re-snapshots its own routes.
 
 ## Product direction
 
@@ -807,26 +781,9 @@ Required behavior:
 - permanent consequences visible without hover;
 - server authorisation regardless of route visibility.
 
-When a planned surface has a real caller, the package-pinned Playwright
-Chromium Browser lane records:
-
-1. keyboard-only traversal;
-2. semantic structure and accessible-name inspection;
-3. focus and error behavior;
-4. 1280px-and-wider desktop review;
-5. 1024–1279px constrained-desktop review;
-6. 200% zoom review;
-7. forced-colours review;
-8. reduced-motion review;
-9. contrast review;
-10. automated accessibility scanning through the real caller.
-
-These checks are the selected release accessibility evidence. They do not
-simulate Narrator or another screen reader and do not establish screen-reader
-interoperability, complete WCAG conformance, subjective usability, or operator
-acceptance. Each visible capability/state also needs authenticated Web-caller
-and named Core-owner evidence. Generated imagery or synthetic operational
-material cannot prove acceptance.
+Each visible capability/state also needs authenticated Web-caller and named
+Core-owner evidence. Generated imagery or synthetic operational material cannot
+prove acceptance.
 
 ## Source and runtime map
 
@@ -995,17 +952,14 @@ consequences remain visible without hover or colour alone.
 Use skip link, labelled navigation, semantic tables/captions/header/sort
 state, keyboard row selection, pane/tab relationships, associated error
 summary, restrained live announcements, visible focus and safe modal focus
-handling. The wave-5 final walk records the browser proof at 1580, 1100 and
-760px. Mobile is `Not planned`.
+handling. The desktop layouts cover 1580, 1100 and 760px. Mobile is `Not
+planned`.
 
 When implemented:
 
 - each visible row and state needs authenticated Web-caller and named
   Core-owner evidence;
-- the package-pinned Chromium Browser lane records keyboard, focus/error,
-  forced-colours, reduced-motion and the three widths; screen-reader-compatible
-  semantics remain required behavior, but screen-reader interoperability is
-  not part of the selected evidence;
+- screen-reader-compatible semantics remain required behavior;
 - operator review uses approved genuine local immutable material only;
   generated imagery or synthetic operational material cannot prove
   acceptance; and
