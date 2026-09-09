@@ -34,12 +34,13 @@ public sealed partial class StaffAccountsAndRolesWebTests
         // One area, drawn as the design contract draws it.
         Assert.Contains("Staff accounts &amp; roles", html, StringComparison.Ordinal);
         Assert.Contains("class=\"admin-layout\"", html, StringComparison.Ordinal);
-        foreach (var column in new[] { "Username", "Role", "State", "Save", "Account" })
+        foreach (var column in new[] { "Username", "Roles", "Sign-off Engineer", "State" })
         {
             Assert.Contains($"<th scope=\"col\">{column}</th>", html, StringComparison.Ordinal);
         }
 
         Assert.Contains("Create staff account", html, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"create-account-dialog\"", html, StringComparison.Ordinal);
 
         // The role control reuses Roles/Index's independent checkbox set, so
         // selecting another role never clears the account's existing roles.
@@ -61,6 +62,10 @@ public sealed partial class StaffAccountsAndRolesWebTests
             StringComparison.Ordinal);
         Assert.False(administrator.MustChangePassword);
         Assert.Contains(">Password change complete</span>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-dialog-open=\"settings-{administrator.Id:D}\"",
+            html,
+            StringComparison.Ordinal);
 
         // The superseded pages' explanatory copy did not travel with them.
         Assert.DoesNotContain("At least eight characters", html, StringComparison.Ordinal);
@@ -96,6 +101,10 @@ public sealed partial class StaffAccountsAndRolesWebTests
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             $"data-dialog-open=\"sign-off-{created.Id:D}\"",
+            createdHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-dialog-open=\"settings-{created.Id:D}\"",
             createdHtml,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -146,6 +155,10 @@ public sealed partial class StaffAccountsAndRolesWebTests
         Assert.Equal(
             rejectedCreateReason,
             WebUtility.HtmlDecode(createReasonInput.Groups["value"].Value));
+        Assert.Contains(
+            "data-dialog-open-on-load=\"true\"",
+            duplicateCreateHtml,
+            StringComparison.Ordinal);
 
         // A rejected role post keeps both its selected roles and reason on the
         // targeted row, matching the superseded Roles page's behaviour.
@@ -172,6 +185,10 @@ public sealed partial class StaffAccountsAndRolesWebTests
             WebUtility.HtmlDecode(rejectedRoleReasonInput.Groups["value"].Value));
         Assert.True(CheckboxIsChecked(rejectedRolesHtml, created.Id, StaffRole.Engineer));
         Assert.True(CheckboxIsChecked(rejectedRolesHtml, created.Id, StaffRole.User));
+        Assert.Contains(
+            $"data-dialog=\"settings-{created.Id:D}\" data-dialog-open-on-load=\"true\"",
+            rejectedRolesHtml,
+            StringComparison.Ordinal);
 
         // Role assignment — the capability the separate Roles page carried.
         using var rolesPost = await client.PostAsync(
@@ -192,7 +209,7 @@ public sealed partial class StaffAccountsAndRolesWebTests
         var signOffHtml = await signOffLanding.Content.ReadAsStringAsync();
         signOffLanding.EnsureSuccessStatusCode();
         Assert.Contains(
-            $"data-dialog-open=\"sign-off-{created.Id:D}\"",
+            $"data-dialog-open=\"settings-{created.Id:D}\"",
             signOffHtml,
             StringComparison.Ordinal);
         Assert.Empty(InlineScriptRegex().Matches(signOffHtml));
@@ -236,9 +253,14 @@ public sealed partial class StaffAccountsAndRolesWebTests
                 Guid.NewGuid().ToString("N"),
                 signature: null));
         Assert.Equal(HttpStatusCode.OK, missingNamePost.StatusCode);
+        var missingNameHtml = await missingNamePost.Content.ReadAsStringAsync();
         Assert.Contains(
             OperatorLabels.StaffAccounts.PrintedNameRequired,
-            await missingNamePost.Content.ReadAsStringAsync(),
+            missingNameHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-dialog=\"settings-{created.Id:D}\" data-dialog-open-on-load=\"true\"",
+            missingNameHtml,
             StringComparison.Ordinal);
 
         // Account disable remains an explicit, reasoned action.

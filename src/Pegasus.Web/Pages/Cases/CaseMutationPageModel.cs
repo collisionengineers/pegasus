@@ -222,8 +222,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             {
                 StoreClaimLeaseOperation(id, operationId.ToString("N"));
             }
-            TempData[ErrorTempDataKey] =
-                "Edit mode could not be entered because the case changed or is being edited by another member of staff.";
+            TempData[ErrorTempDataKey] = ClaimLeaseFailureMessage(exception);
         }
 
         return redirect();
@@ -550,6 +549,24 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// <summary>The lease itself is gone: it expired, or another actor holds it.</summary>
     protected static bool IsLeaseLoss(Exception exception) =>
         exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException;
+
+    /// <summary>
+    /// The claim store raises a lease conflict only after it has found a live edit lease for the
+    /// Case. Other failures must not be presented as another editor: a stale version and a
+    /// transient fault have different recovery paths and the latter supplies no evidence of a
+    /// competing staff member.
+    /// </summary>
+    private static string ClaimLeaseFailureMessage(Exception exception) => exception switch
+    {
+        CaseEditLeaseConflictException =>
+            "This case is already being edited. Reload to resume your edits or see who is editing it.",
+        CaseEditLeaseExpiredException =>
+            "Edit mode could not be entered because the previous edit attempt expired. Reload the case and try again.",
+        CaseVersionConflictException =>
+            "Edit mode could not be entered because the case changed. Reload the case and try again.",
+        _ =>
+            "Edit mode could not be entered. Retry the same request, and if it continues, reload the case or contact support."
+    };
 
     /// <summary>
     /// The refused mutations after which the editor must reacquire rather than resubmit. A lost

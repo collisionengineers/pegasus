@@ -153,6 +153,53 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(CaseLifecycleState.Review, result.Data.State);
     }
 
+    [Fact]
+    public async Task EditingMakeAlongsideAnUnchangedAcceptedRegistrationProjectsPartialConfirmedVehicleEvidence()
+    {
+        // The original instruction's registration remains its accepted Fact.
+        // Correcting Make is a separate confirmation and must not make the
+        // vehicle-evidence reader reject the Case or invent registration
+        // confirmation provenance.
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "lease-confirmed-make");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-confirmed-make") with
+            {
+                Vehicle = new(
+                    "AB12 CDE",
+                    "Ford",
+                    null,
+                    null,
+                    new Dictionary<string, string?>(StringComparer.Ordinal))
+            },
+            CancellationToken.None);
+
+        Assert.Equal("AB12CDE", saved.Data.Vehicle.Registration.Fact?.Value);
+        Assert.Null(saved.Data.Vehicle.Registration.Confirmed);
+        Assert.Equal("Ford", saved.Data.Vehicle.Make.Confirmed?.Value);
+
+        var evidence = await new EfVehicleWorkflowStore(
+                harness.Factory,
+                harness.TimeProvider)
+            .GetAsync(harness.CaseId, CancellationToken.None);
+
+        Assert.NotNull(evidence);
+        Assert.NotNull(evidence.Confirmed);
+        Assert.Null(evidence.Confirmed!.Registration);
+        Assert.Equal("Ford", evidence.Confirmed.Make?.Value);
+
+        var cases = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
+            .SearchAsync(
+                new(harness.StaffActor, new CaseSearchFilters()),
+                CancellationToken.None);
+        Assert.Contains(cases.Items, item => item.CaseId == harness.CaseId);
+    }
+
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.PostReport)]

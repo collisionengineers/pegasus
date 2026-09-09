@@ -17,6 +17,12 @@ Record the actual scope of rendered/operator evidence. A screenshot,
 asset or planned interaction does not prove the implemented caller, deployment
 or acceptance. Engineering defines those evidence tiers; do not repeat them here.
 
+The 9 September pre-v1 correction uses the supplied in-progress UI as the
+visual reference: compact 13.5px body text, 36px controls, restrained surfaces
+and table rows, and account settings in dialogs. Current FRD interactions
+remain authoritative. Review actual routed pages and their error/edit states;
+the presence of shared CSS or prototype screenshots is not visual acceptance.
+
 ## Product direction
 
 The application is an operational, restrained, desktop-first internal
@@ -62,7 +68,7 @@ The `.app-shell` grid is a 220px sticky `.app-rail` beside the `.app-column`.
 The rail is the dark `--nav` gradient with a 3px `--red` top stripe. Its
 content, top to bottom:
 
-- **Brand** — the `pegasus-lockup` mark at 48px beside "PEGASUS" and the line
+- **Brand** — the `pegasus-lockup` mark at 40px beside "PEGASUS" and the line
   "Case management".
 - **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
   [count], Upload, Cases (`/cases`) [count], Search (`/search`), Operations
@@ -73,7 +79,7 @@ content, top to bottom:
   block (avatar initials, name, role, account-menu button).
 
 The current route is signalled by a white background, a `--red` left border
-and a red icon well, with `aria-current="page"`; the border is the non-colour
+and a red icon, with `aria-current="page"`; the border is the non-colour
 cue. Below 980px the rail lies down into a horizontal bar, labels hide, and
 the current-route border moves to the bottom edge, so the cue survives the
 reflow; nothing is hidden at any width except the rail foot and nav labels,

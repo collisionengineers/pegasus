@@ -89,7 +89,41 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.DoesNotContain("GOLF", html, StringComparison.Ordinal);
     }
 
-    private sealed class FakeGetCase(Guid caseId, bool includeConfirmedFacts = false)
+    [Fact]
+    public async Task PartialConfirmedVehicleEvidenceKeepsTheAcceptedRegistrationVisible()
+    {
+        var caseId = Guid.NewGuid();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentAccess>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                var source = new FakeGetCase(caseId, includePartialConfirmedFacts: true);
+                services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
+                services.AddSingleton<IGetAssessmentWorkspace>(source);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139"),
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+
+        using var response = await client.GetAsync($"/Cases/{caseId:D}?section=vehicle");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
+        Assert.Contains("FORD", html, StringComparison.Ordinal);
+    }
+
+    private sealed class FakeGetCase(
+        Guid caseId,
+        bool includeConfirmedFacts = false,
+        bool includePartialConfirmedFacts = false)
         : IGetCase, IGetAssessmentWorkspace
     {
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
@@ -108,11 +142,16 @@ public sealed class AssessmentVehiclePrefillWebTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             var observation = Observation(caseId);
+            var confirmed = includePartialConfirmedFacts
+                ? new ConfirmedVehicleEvidence(null, ConfirmedField("FORD"), null, null, null)
+                : null;
             CaseDetails details = new(
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], [])
             {
-                Data = includeConfirmedFacts ? Data(identity, workflow) : null,
-                VehicleEvidence = new(caseId, null, observation, [observation], []),
+                Data = includeConfirmedFacts || includePartialConfirmedFacts
+                    ? Data(identity, workflow, includePartialConfirmedFacts)
+                    : null,
+                VehicleEvidence = new(caseId, confirmed, observation, [observation], []),
             };
             return Task.FromResult<CaseDetails?>(details);
         }
@@ -154,7 +193,21 @@ public sealed class AssessmentVehiclePrefillWebTests
             null,
             DateTimeOffset.UtcNow);
 
-    private static CaseDataProjection Data(CaseIdentity identity, CaseWorkflowRecord workflow)
+    private static ConfirmedVehicleField<string> ConfirmedField(string value) => new(
+        value,
+        "staff_correction",
+        "engineer-1",
+        "Staff correction",
+        "case_data_edit",
+        1,
+        "engineer-1",
+        DateTimeOffset.UtcNow,
+        null);
+
+    private static CaseDataProjection Data(
+        CaseIdentity identity,
+        CaseWorkflowRecord workflow,
+        bool partialConfirmedVehicleEvidence = false)
     {
         var source = new CaseDataSource(CaseDataSourceKind.IntakeEvidence, "instruction", "Instruction", "test", 1);
         CaseField<T> Empty<T>() where T : notnull => new(null, null, null);
@@ -162,6 +215,10 @@ public sealed class AssessmentVehiclePrefillWebTests
             null,
             null,
             new(value, CaseDataValueKind.Confirmed, source, "engineer-1", DateTimeOffset.UtcNow));
+        CaseField<T> Fact<T>(T value) where T : notnull => new(
+            new(value, CaseDataValueKind.Fact, source, null, null),
+            null,
+            null);
         return new(
             identity,
             new(Guid.NewGuid(), IntakeSourceChannel.Mailbox, "mail", "hash", DateTimeOffset.UtcNow, "reader", "1", null, null),
@@ -172,7 +229,12 @@ public sealed class AssessmentVehiclePrefillWebTests
             new(Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),
-            new(Confirmed("AB12CDE"), Confirmed("FORD"), Confirmed("FOCUS"), Confirmed(40000L), Confirmed("miles")),
+            new(
+                partialConfirmedVehicleEvidence ? Fact("AB12CDE") : Confirmed("AB12CDE"),
+                Confirmed("FORD"),
+                partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("FOCUS"),
+                partialConfirmedVehicleEvidence ? Empty<long>() : Confirmed(40000L),
+                partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("miles")),
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),

@@ -9,35 +9,87 @@
 
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
-    <section class="panel" aria-labelledby="admin-areas-title">
-        <div class="panel-head"><h2 id="admin-areas-title">Areas</h2></div>
-        <div class="panel-body">
+    <div class="stack admin-content">
+        <section class="panel" aria-labelledby="admin-identity-title">
+            <div class="panel-head"><h2 id="admin-identity-title">People and access</h2></div>
+            <div class="panel-body">
+                <div class="admin-grid">
+                    <a class="admin-card" asp-page="/Administration/Accounts/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                        <h3>@OperatorLabels.Admin.Accounts</h3>
+                        <p>Manage staff access and sign-off roles.</p>
+                    </a>
+                    <a class="admin-card" asp-page="/Administration/Principals/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                        <h3>@OperatorLabels.Admin.Principals</h3>
+                        <p>Manage organisations and their operating rules.</p>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="admin-configuration-title">
+            <div class="panel-head"><h2 id="admin-configuration-title">Configuration</h2></div>
+            <div class="panel-body">
+                <div class="admin-grid">
+                    <a class="admin-card" asp-page="/Administration/Configuration">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                        <h3>@OperatorLabels.Admin.Configuration</h3>
+                        <p>Set the workflow requirements for casework.</p>
+                    </a>
+                    <a class="admin-card" asp-page="/Administration/Mailboxes">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                        <h3>@OperatorLabels.Admin.Mail</h3>
+                        <p>Approve mailbox routes and mail categories.</p>
+                    </a>
+                    <a class="admin-card" asp-page="/Administration/ValuationPresets/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                        <h3>@OperatorLabels.Admin.ValuationPresets</h3>
+                        <p>Manage valuation values used in case assessments.</p>
+                    </a>
+                    <a class="admin-card" asp-page="/Administration/ClaimSources/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                        <h3>@OperatorLabels.Admin.ClaimSources</h3>
+                        <p>Manage claim-source contacts and their status.</p>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="admin-oversight-title">
+            <div class="panel-head"><h2 id="admin-oversight-title">Operations and oversight</h2></div>
+            <div class="panel-body">
             <div class="admin-grid">
-                <a class="admin-card" asp-page="/Administration/Accounts/Index">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
-                    <h3>@OperatorLabels.Admin.Accounts</h3>
+                <a class="admin-card" asp-page="/Administration/Health">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                    <h3>@OperatorLabels.Admin.Health</h3>
+                    <p>Review recorded service and mailbox health.</p>
                 </a>
-                <a class="admin-card" asp-page="/Administration/Principals/Index">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
-                    <h3>@OperatorLabels.Admin.Principals</h3>
+                <a class="admin-card" asp-page="/Administration/ActionLogs">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <h3>@OperatorLabels.Admin.ActionLogs</h3>
+                    <p>Search the recorded actions made in Pegasus.</p>
                 </a>
-                <a class="admin-card" asp-page="/Administration/Configuration">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
-                    <h3>@OperatorLabels.Admin.Configuration</h3>
+                <a class="admin-card" asp-page="/Administration/Reports">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                    <h3>@OperatorLabels.Admin.Reports</h3>
+                    <p>Review report delivery activity and turnaround.</p>
                 </a>
-                <a class="admin-card" asp-page="/Administration/Mailboxes">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
-                    <h3>@OperatorLabels.Admin.Mail</h3>
+                <a class="admin-card" asp-page="/Administration/AiJobs">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <h3>@OperatorLabels.Admin.AiJobs</h3>
+                    <p>Review queued and completed AI work.</p>
                 </a>
-                @* A capability a deployment has not composed is absent. *@
                 @if (Model.AutomationComposed)
                 {
                     <a class="admin-card" asp-page="/Administration/Automation/Index">
                         <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                         <h3>@OperatorLabels.Admin.Automation</h3>
+                        <p>Control composed automation channels.</p>
                     </a>
                 }
             </div>
-        </div>
-    </section>
+            </div>
+        </section>
+    </div>
 </div>

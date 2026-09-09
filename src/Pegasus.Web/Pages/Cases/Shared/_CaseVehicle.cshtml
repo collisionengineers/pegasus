@@ -10,7 +10,7 @@
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
     string Value(string? text) => string.IsNullOrWhiteSpace(text)
         ? OperatorLabels.CaseWorkspace.AbsentValue : text;
-    var registration = details.VehicleEvidence?.Confirmed?.Registration.Value
+    var registration = details.VehicleEvidence?.Confirmed?.Registration?.Value
         ?? data?.Vehicle.Registration.Current?.Value ?? details.Summary.Registration;
     // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an
     // unaccepted suggestion, which would render with no marker distinguishing

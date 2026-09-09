@@ -54,6 +54,9 @@ public sealed class IndexModel(
     /// <summary>The operation key the Create staff account form carries.</summary>
     public string CreateOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>Whether the create dialog must be restored after a rejected post.</summary>
+    public bool CreatePostSubmitted { get; private set; }
+
     /// <summary>The account targeted by the most recent role post.</summary>
     public Guid RolePostStaffId { get; private set; }
 
@@ -87,6 +90,7 @@ public sealed class IndexModel(
         string? operationKey,
         CancellationToken cancellationToken)
     {
+        CreatePostSubmitted = true;
         NewUserName = userName?.Trim() ?? string.Empty;
         NewReason = reason ?? string.Empty;
         return RunAsync(

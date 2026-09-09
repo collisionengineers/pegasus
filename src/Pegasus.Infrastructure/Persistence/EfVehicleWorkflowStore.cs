@@ -609,18 +609,15 @@ internal sealed class EfVehicleWorkflowStore(
         Dictionary<string, CaseDataFieldEntity> fields,
         IReadOnlyDictionary<Guid, VehicleLookupObservation> observations)
     {
-        if (!fields.TryGetValue(CaseDataFieldNames.VehicleRegistration, out var registration))
+        if (fields.Count == 0)
         {
-            if (fields.Count != 0)
-            {
-                throw new InvalidDataException(
-                    "Confirmed vehicle fields exist without a confirmed vehicle registration.");
-            }
             return null;
         }
 
         return new(
-            MapTextField(registration, observations),
+            fields.TryGetValue(CaseDataFieldNames.VehicleRegistration, out var registration)
+                ? MapTextField(registration, observations)
+                : null,
             fields.TryGetValue(CaseDataFieldNames.VehicleMake, out var make)
                 ? MapTextField(make, observations)
                 : null,

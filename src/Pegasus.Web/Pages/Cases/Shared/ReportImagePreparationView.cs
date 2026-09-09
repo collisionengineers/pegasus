@@ -128,7 +128,7 @@ public sealed record ReportImagePreparationView(
         IReadOnlyList<CaseAssetPreparation> items)
     {
         var details = page.Case!;
-        var leaseToken = page.LeaseToken;
+        var leaseToken = page.RenderLeaseToken;
         return new(
             section,
             details.Summary.CaseId,
