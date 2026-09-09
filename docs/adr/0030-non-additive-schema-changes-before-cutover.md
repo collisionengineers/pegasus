@@ -3,7 +3,7 @@ id: ADR-0030
 status: accepted
 date: 2026-08-24
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0046]
 related_capabilities: []
 related_frd: []
 tags: [deployment, schema, migrations, cutover]
@@ -21,8 +21,9 @@ Development-data preservation and historical alpha cohort gates do not constrain
 
 ## Status
 
-Accepted. This ADR supersedes the expand-and-contract requirement in ADR-0002
-for releases made **before** the QDOS cutover, and only for that window.
+Accepted, with the old-runtime fault window in obligation 1 partially superseded
+by ADR-0046. This ADR still supersedes the expand-and-contract requirement in
+ADR-0002 for releases made **before** the QDOS cutover, and only for that window.
 ADR-0002 remains accepted and its body is not edited; from cutover its clause
 governs again unchanged.
 

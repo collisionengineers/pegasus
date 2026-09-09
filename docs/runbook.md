@@ -571,10 +571,19 @@ clear cursors manually to manufacture a backfill. Opening or filtering retained
 mail in Pegasus changes no Outlook read state, folder, flag or category.
 
 Global Worker containment, individual Function activation and per-mailbox
-capabilities are independent. Keep Worker functions disabled during the
-approved migration/grant/bootstrap sequence; turn them on only through the
-reviewed release procedure. Development agents do not perform these live
-mailbox, tenant, permission or send operations.
+capabilities are independent. For a destructive migration, keep Worker functions
+disabled through the approved containment/migration/grant/bootstrap sequence and
+turn them on only through the reviewed release procedure. The ordinary additive
+route retains its reviewed activation order. Development agents do not perform
+these live mailbox, tenant, permission or send operations.
+
+For a destructive migration, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
+requires more than disabled Functions: the old Worker must read back `Stopped`
+and the exact old Web revision must read back inactive with zero replicas before
+SQL. The release procedure stages only approved new Worker bytes while the old
+schema remains intact, then explicitly activates the compatible new Web and
+Worker after migration, grants and migration-head verification. A failed final
+activation is an unfinished outage, not a successful release.
 
 ## Automation OAuth certificate operation
 
@@ -655,6 +664,12 @@ Check it against the actual schema and current preservation requirements.
 Current disposable test data creates no cutover-based compatibility obligation;
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
 compatible artifact rollback from an authorized reset or roll-forward.
+
+After a destructive migration begins, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
+requires forward-only recovery. Do not use the previous-artifact route to revive
+an old Web revision or old Worker package against the changed or unknown schema.
+The canonical [release procedure](../.agents/skills/pegasus-release/SKILL.md)
+owns the exact containment, migration, reactivation and smoke commands.
 
 #### Previous-artifact rollback (Web and Worker)
 

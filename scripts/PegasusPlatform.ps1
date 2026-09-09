@@ -63,6 +63,26 @@ function Get-PegasusMigrationBundle {
     }
 }
 
+function Get-PegasusWorkerDisabledSettingNames {
+    <#
+        .SYNOPSIS
+        Returns the complete production Worker Disabled-setting census.
+
+        .DESCRIPTION
+        Bicep remains the deployment owner of these settings. Release validation
+        and smoke use this one producer so their exact-name census cannot drift.
+    #>
+    return @(
+        'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
+        'AzureWebJobs.UnifiedWorkFunction.Disabled',
+        'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
+        'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
+        'AzureWebJobs.InboxRecoveryFunction.Disabled',
+        'AzureWebJobs.SentEvidencePollFunction.Disabled',
+        'AzureWebJobs.DueWorkSweepFunction.Disabled'
+    )
+}
+
 function Get-PegasusPathComparison {
     <#
         .SYNOPSIS

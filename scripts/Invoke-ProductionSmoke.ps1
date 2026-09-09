@@ -33,15 +33,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$expectedWorkerSettings = @(
-    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.UnifiedWorkFunction.Disabled',
-    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
-    'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
-    'AzureWebJobs.InboxRecoveryFunction.Disabled',
-    'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled'
-)
+. (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
+$expectedWorkerSettings = @(Get-PegasusWorkerDisabledSettingNames)
 $workerAppName = 'pegasus-prod-worker-252ow37gij'
 
 $settingsJson = (& az functionapp config appsettings list `
