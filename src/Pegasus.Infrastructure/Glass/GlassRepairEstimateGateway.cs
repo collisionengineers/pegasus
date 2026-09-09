@@ -696,11 +696,6 @@ public sealed class GlassRepairEstimateGateway(
                     Name: string.Empty),
                 cancellationToken);
             results.ImportedEstimateId = imported.EstimateId;
-            if (imported.EstimateId is null)
-            {
-                return await WriteAsync(session, GlassRepairEstimateSessionState.AwaitingImport,
-                    null, provider, callbackDigest, results, cancellationToken);
-            }
         }
         catch (Exception stale)
             when (stale is CaseVersionConflictException

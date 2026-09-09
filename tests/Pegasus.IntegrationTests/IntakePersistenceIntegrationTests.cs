@@ -129,10 +129,19 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260907093000_PublicUploadOccurrenceReplacementLineage",
                 "20260907100000_RemoveAutomaticEvaSubmission",
                 "20260907210000_ReportInputInvalidationPermissions",
-                "20260907221500_RemoveCaseStaffConfirmation"
+                "20260907221500_RemoveCaseStaffConfirmation",
+                "20260909091500_RemoveCaseDocumentOcrOperations"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'IntakeOcrOperations') AND name = N'DocumentVersionId'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'IntakeOcrOperations') AND name = N'IntakeAssetId' AND is_nullable = 0"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(N'IntakeOcrOperations') AND name = N'IX_IntakeOcrOperations_IntakeAssetId'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'DocumentContentCacheEntries') AND name = N'DocumentVersionId'"));
         // AUTO-012's accept-recovery joins compare SQL Server's uniqueidentifier
         // conversion, which is UPPERCASE, against tokens .NET wrote lowercase
         // (Guid.ToString("N") for ExternalReceiptToken, "D" for AggregateId).

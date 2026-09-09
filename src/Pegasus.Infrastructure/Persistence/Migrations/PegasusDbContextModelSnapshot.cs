@@ -4862,10 +4862,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("DocumentVersionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("IntakeAssetId")
+                    b.Property<Guid>("IntakeAssetId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("LastError")
@@ -4914,12 +4911,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationKey")
                         .IsUnique();
 
-                    b.HasIndex("DocumentVersionId", "SourceSha256");
-
-                    b.ToTable("IntakeOcrOperations", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_IntakeOcrOperations_Source", "([DocumentVersionId] IS NULL AND [IntakeAssetId] IS NOT NULL) OR ([DocumentVersionId] IS NOT NULL AND [IntakeAssetId] IS NULL)");
-                        });
+                    b.ToTable("IntakeOcrOperations", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", b =>
@@ -8596,15 +8588,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeOcrOperationEntity", b =>
                 {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", null)
-                        .WithMany()
-                        .HasForeignKey("DocumentVersionId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeAssetEntity", null)
                         .WithMany()
                         .HasForeignKey("IntakeAssetId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeReceiptEventEntity", b =>

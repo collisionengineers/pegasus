@@ -2,7 +2,7 @@
 
 Use the procedure for the operation at hand. Product requirements belong to the
 FRDs; engineering policy belongs to [engineering](engineering.md). Current task
-authorization and verification ownership belong to Kanmer.
+authorization comes from the operator; the primary agent owns verification.
 
 - [Local setup](runbook.md#local-setup-and-run)
 - [Build and test commands](runbook.md#locked-restore-build-and-test)
@@ -404,6 +404,21 @@ Run the focused corpus lane only when genuine ignored input is present and requi
 ```powershell
 dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 ```
+
+### Private reference evidence
+
+Pack-backed corpus tests read a private evidence collection through
+`PEGASUS_REFERENCE_PACK_ROOT`. Set it to the absolute path of the ignored
+`reference-evidence/` directory, independently of the current worktree.
+The locator name remains the existing test input; it must not point at the
+mutable `pegasus_pack/` planning workspace. Preserve source-relative paths,
+recorded extraction text, inventories and source hashes when provisioning
+this collection. Do not commit or upload its genuine source material.
+
+Run these tests explicitly with the collection configured; report unavailable
+source evidence as unavailable. Ordinary CI excludes the Corpus category and
+is not evidence that the private collection passed. Keep `corpus/` immutable;
+the private collection is separate and does not replace it.
 
 ## Provider-domain reference authoring
 

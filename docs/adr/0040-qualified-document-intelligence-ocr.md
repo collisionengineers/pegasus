@@ -3,7 +3,7 @@ id: ADR-0040
 status: accepted
 date: 2026-09-07
 supersedes: [ADR-0001]
-superseded_by: []
+superseded_by: [ADR-0047]
 related_capabilities: [INT-16, EXT-12]
 related_frd: [frd-05, frd-07]
 tags: [extraction, pdf, ocr]
@@ -16,6 +16,11 @@ Accepted under the operator's 7 September v1 instruction. This decision
 supersedes ADR-0001's scan-only, `prebuilt-read` OCR choice. It does not prove
 implementation, provisioning or live acceptance. ADR-0003's PdfPig selection
 and ADR-0005's ordinary intake qualification and limits remain accepted.
+
+The source qualification and estimate-import clauses below are superseded by
+[ADR-0047](0047-scanned-instruction-ocr-only.md), following the 9 September
+operator decision. The provider, model, API, managed identity and custody
+decisions remain in force.
 
 ## Context
 

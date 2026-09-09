@@ -290,6 +290,16 @@ public sealed class AnalyzeRetainedInstruction(
             return Conflict("The intake receipt does not exist.");
         }
 
+        if (request.OcrEvidence is not null && !IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+        {
+            return new(
+                RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                null,
+                "OCR is available only for incoming mailbox or manual-upload instructions.",
+                [],
+                false);
+        }
+
         if (receipt.Version != request.ExpectedReceiptVersion)
         {
             return Conflict(
@@ -318,6 +328,13 @@ public sealed class AnalyzeRetainedInstruction(
                 false);
         }
 
+        // OCR is bound to the scanned PDF asset, but re-analysis begins from
+        // the receipt's original source so an e-mail's body and other readable
+        // attachments remain ordinary evidence alongside the OCR page.
+        var readAsset = request.OcrEvidence is null
+            ? asset
+            : IntakeFileIdentity.SourceAsset(receipt) ?? asset;
+
         IntakeSourceReadResult readResult;
         try
         {
@@ -329,26 +346,70 @@ public sealed class AnalyzeRetainedInstruction(
                     request.Actor,
                     DocumentId: null,
                     VersionId: null,
-                    IntakeAssetId: asset.Id,
+                    IntakeAssetId: readAsset.Id,
                     CaseId: null,
                     IntakeReceiptId: receipt.Id,
-                    asset.ContentHash,
-                    asset.ContentLength),
+                    readAsset.ContentHash,
+                    readAsset.ContentLength),
                 cancellationToken);
 
             using var buffer = new MemoryStream();
             await content.Content.CopyToAsync(buffer, cancellationToken);
-            readResult = request.OcrEvidence is { } completedOcr
-                ? CreateOcrReadResult(completedOcr)
-                : await sourceReader.ReadAsync(
-                    new(
-                        content.FileName,
-                        content.MediaType,
-                        buffer.ToArray(),
-                        receipt.ReceivedAtUtc,
-                        ActorLabel(request.Actor),
-                        receipt.SourceIdentity),
-                    cancellationToken);
+            var ordinaryReadResult = await sourceReader.ReadAsync(
+                new(
+                    content.FileName,
+                    content.MediaType,
+                    buffer.ToArray(),
+                    receipt.ReceivedAtUtc,
+                    ActorLabel(request.Actor),
+                    receipt.SourceIdentity),
+                cancellationToken);
+            if (ordinaryReadResult.ScannedPdfPages
+                .Select(candidate => candidate.SourceLabel)
+                .Distinct(StringComparer.Ordinal)
+                .Skip(1)
+                .Any())
+            {
+                return new(
+                    RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                    null,
+                    "Instructions with more than one scanned source require staff review.",
+                    [],
+                    false);
+            }
+            if (request.OcrEvidence is { } completedOcr)
+            {
+                var completedSourceLabels = OcrSourceLabels(receipt, ordinaryReadResult, asset.Id);
+                if (completedSourceLabels.Count == 0)
+                {
+                    return new(
+                        RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                        null,
+                        "The completed OCR source is no longer qualified by the retained instruction.",
+                        [],
+                        false);
+                }
+
+                var remaining = ordinaryReadResult.ScannedPdfPages
+                    .Where(candidate => !completedSourceLabels.Contains(candidate.SourceLabel)
+                        || !completedOcr.QualifiedPages.Contains(candidate.PageNumber))
+                    .ToArray();
+                if (remaining.Length > 0)
+                {
+                    return new(
+                        RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                        null,
+                        "The completed OCR output does not cover every qualified page.",
+                        [],
+                        false);
+                }
+
+                readResult = MergeOcrReadResult(ordinaryReadResult, completedOcr, completedSourceLabels);
+            }
+            else
+            {
+                readResult = ordinaryReadResult;
+            }
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
@@ -378,23 +439,21 @@ public sealed class AnalyzeRetainedInstruction(
             && readResult.RequiresOcr
             && readResult.ScannedPdfPages.Count > 0)
         {
-            var pages = readResult.ScannedPdfPages
-                .Select(candidate => candidate.PageNumber)
-                .Distinct()
-                .Order()
-                .ToArray();
-            await IntakeOcrOperations.BeginAsync(
-                ocrOperations,
-                receipt.Id,
-                asset,
-                pages,
-                cancellationToken);
-            return new(
-                RetainedInstructionAnalysisOutcome.SourceUnavailable,
-                null,
-                "The qualified source pages are awaiting OCR.",
-                [],
-                false);
+            if (!IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+            {
+                return new(
+                    RetainedInstructionAnalysisOutcome.SourceUnavailable,
+                    null,
+                    "OCR is available only for incoming mailbox or manual-upload instructions.",
+                    [],
+                    false);
+            }
+
+            if (!await BeginQualifiedOcrAsync(receipt, readResult.ScannedPdfPages, cancellationToken))
+            {
+                return MissingOcrSource();
+            }
+            return AwaitingOcr();
         }
 
         // A PARTIALLY read source is not a source to extract from, and every
@@ -481,14 +540,14 @@ public sealed class AnalyzeRetainedInstruction(
             readResult.ReaderVersion,
             selection.MatchedVariantKeys,
             policy as IInstructionFieldRoles,
-            request.OcrEvidence is not null).ToList();
+            request.OcrEvidence).ToList();
         if (request.OcrEvidence is { } lookupOcr)
         {
             var registrations = extraction.Fields.Where(field =>
                 string.Equals(field.Name, "Vehicle registration", StringComparison.Ordinal)
                 && !field.HasConflict
                 && field.Candidates.Count == 1).ToArray();
-            if (registrations.Length == 1)
+            if (registrations.Length == 1 && IsOcrLocator(registrations[0].Candidates[0].Locator, lookupOcr))
             {
                 var registration = registrations[0];
                 var raw = registration.Candidates[0];
@@ -499,8 +558,8 @@ public sealed class AnalyzeRetainedInstruction(
                 candidates.AddRange(BuildVehicleLookupCandidates(
                     lookup,
                     profile,
-                    readResult.ReaderKey,
-                    readResult.ReaderVersion));
+                    OcrReaderKey(lookupOcr),
+                    lookupOcr.Result.ApiVersion));
             }
         }
 
@@ -538,8 +597,9 @@ public sealed class AnalyzeRetainedInstruction(
         string readerVersion,
         IReadOnlyList<string> matchedVariantKeys,
         IInstructionFieldRoles? fieldRoles,
-        bool forceReviewOnly = false)
+        CompletedOcrEvidence? ocrEvidence = null)
     {
+        var forceReviewOnly = ocrEvidence is not null;
         var policyVersion = profile.DocumentProfileVersion.ToString(CultureInfo.InvariantCulture);
         var documentRole = profile.Signature.DocumentRole;
         var candidates = new List<RetainedInstructionCandidate>
@@ -633,6 +693,9 @@ public sealed class AnalyzeRetainedInstruction(
             var role = Role(fieldRoles, field.Name);
             foreach (var candidate in field.Candidates)
             {
+                var (candidateReaderKey, candidateReaderVersion) = IsOcrLocator(candidate.Locator, ocrEvidence)
+                    ? (OcrReaderKey(ocrEvidence!), ocrEvidence!.Result.ApiVersion)
+                    : (readerKey, readerVersion);
                 candidates.Add(new(
                     Guid.NewGuid(),
                     documentRole,
@@ -652,8 +715,8 @@ public sealed class AnalyzeRetainedInstruction(
                     // label is parsed only for a fragment that carries none.
                     candidate.Locator?.Page ?? PageFrom(candidate.SourceLabel),
                     occurrence++,
-                    readerKey,
-                    readerVersion,
+                    candidateReaderKey,
+                    candidateReaderVersion,
                     profile.DocumentProfileKey,
                     policyVersion,
                     disposition,
@@ -663,6 +726,17 @@ public sealed class AnalyzeRetainedInstruction(
 
         return candidates.ToArray();
     }
+
+    private static bool IsOcrLocator(IntakeSourceLocator? locator, CompletedOcrEvidence? evidence) =>
+        locator is not null
+        && evidence is not null
+        && string.Equals(locator.DocumentRole, "ocr", StringComparison.Ordinal)
+        && string.Equals(locator.Sha256, evidence.SourceSha256, StringComparison.OrdinalIgnoreCase)
+        && locator.Page is { } page
+        && evidence.QualifiedPages.Contains(page);
+
+    private static string OcrReaderKey(CompletedOcrEvidence evidence) =>
+        $"{evidence.Result.Provider}/{evidence.Result.ModelId}";
 
     private static IEnumerable<RetainedInstructionCandidate> BuildVehicleLookupCandidates(
         VehicleRegistrationCandidateLookupResult lookup,
@@ -885,6 +959,73 @@ public sealed class AnalyzeRetainedInstruction(
             ReaderKey: $"{evidence.Result.Provider}/{evidence.Result.ModelId}",
             ReaderVersion: evidence.Result.ApiVersion);
     }
+
+    internal static IntakeSourceReadResult MergeOcrReadResult(
+        IntakeSourceReadResult ordinary,
+        CompletedOcrEvidence evidence,
+        IReadOnlySet<string> ocrSourceLabels)
+    {
+        var qualified = evidence.QualifiedPages.ToHashSet();
+        var readableContent = ordinary.Content
+            .Where(fragment =>
+                !ocrSourceLabels.Any(sourceLabel => fragment.SourceLabel.StartsWith(sourceLabel + ",", StringComparison.Ordinal))
+                || fragment.Locator?.Page is not { } page
+                || !qualified.Contains(page))
+            .ToArray();
+        var ocr = CreateOcrReadResult(evidence);
+        return ordinary with
+        {
+            Content = [.. readableContent, .. ocr.Content],
+            RequiresOcr = false,
+            OcrCandidates = []
+        };
+    }
+
+    private async Task<bool> BeginQualifiedOcrAsync(
+        IntakeReceipt receipt,
+        IReadOnlyList<ScannedPdfOcrCandidate> candidates,
+        CancellationToken cancellationToken)
+    {
+        foreach (var pagesByAsset in candidates.GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
+        {
+            var ocrAsset = IntakeOcrOperations.ResolveQualifiedAsset(receipt, pagesByAsset.Key);
+            if (ocrAsset is null)
+            {
+                return false;
+            }
+
+            await IntakeOcrOperations.BeginAsync(
+                ocrOperations,
+                receipt.Id,
+                ocrAsset,
+                pagesByAsset.Select(candidate => candidate.PageNumber).Distinct().Order().ToArray(),
+                cancellationToken);
+        }
+
+        return true;
+    }
+
+    private static HashSet<string> OcrSourceLabels(
+        IntakeReceipt receipt,
+        IntakeSourceReadResult result,
+        Guid assetId) => result.ScannedPdfPages
+        .Where(candidate => IntakeOcrOperations.ResolveQualifiedAsset(receipt, candidate.SourceLabel)?.Id == assetId)
+        .Select(candidate => candidate.SourceLabel)
+        .ToHashSet(StringComparer.Ordinal);
+
+    private static AnalyzeRetainedInstructionResult AwaitingOcr() => new(
+        RetainedInstructionAnalysisOutcome.SourceUnavailable,
+        null,
+        "The qualified source pages are awaiting OCR.",
+        [],
+        false);
+
+    private static AnalyzeRetainedInstructionResult MissingOcrSource() => new(
+        RetainedInstructionAnalysisOutcome.SourceUnavailable,
+        null,
+        "A scanned instruction source is not retained for OCR.",
+        [],
+        false);
 
     private sealed record OcrPageProvenance(
         IReadOnlyList<IntakeOcrLine> Lines,

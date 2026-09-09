@@ -191,7 +191,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     [Fact]
-    public async Task EstimateImportInvokesCanonicalTypedBoundaryAndSurfacesPendingOcr()
+    public async Task EstimateImportInvokesTheCanonicalTypedBoundary()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         var importer = new CapturingEstimateImporter();
@@ -232,20 +232,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(versionId, request.DocumentVersionId);
         Assert.Equal(hash, request.Sha256);
 
-        var ocrId = Guid.NewGuid();
-        importer.Result = new(null, ocrId, Pegasus.Core.Intake.IntakeOcrState.Unknown);
-        using var pending = await PostMcpAsync(client, token, ToolCallPayload(
-            81, "pegasus_estimate_import", new
-            {
-                caseId, expectedVersion = 7, editLeaseToken = "lease-token",
-                operationKey = "mcp:estimate-import-complete", name = "Audatex 1",
-                occurrenceId, documentVersionId = versionId, sha256 = hash
-            }));
-        var pendingResult = await ReadStructuredContentAsync(pending);
-        Assert.False(pendingResult.TryGetProperty("estimateId", out _));
-        Assert.Equal(ocrId, pendingResult.GetProperty("ocrOperationId").GetGuid());
-        Assert.Equal("Unknown", pendingResult.GetProperty("ocrState").GetString());
-        Assert.Equal(2, importer.Calls);
+        Assert.Equal(1, importer.Calls);
     }
 
     [Fact]
@@ -929,7 +916,7 @@ public sealed class AutomationAssessmentIngressTests
         public static readonly Guid EstimateId = Guid.Parse("80b99604-d8b3-4028-9bc4-b744f82c297f");
         public ImportRawEstimateRequest? Request { get; private set; }
         public int Calls { get; private set; }
-        public EstimateImportResult Result { get; set; } = new(EstimateId, null, null);
+        public EstimateImportResult Result { get; set; } = new(EstimateId);
         public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Request = request;

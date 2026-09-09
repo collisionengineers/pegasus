@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Security.Cryptography;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
@@ -31,7 +30,7 @@ public interface IImportRawEstimate
     Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
 }
 
-public sealed record EstimateImportResult(Guid? EstimateId, Guid? OcrOperationId, IntakeOcrState? OcrState);
+public sealed record EstimateImportResult(Guid EstimateId);
 
 /// <summary>
 /// The totals a source document prints for itself. They are reconciliation
@@ -67,9 +66,6 @@ public sealed record ParsedEstimate(
     RepairSpecificationSourceRoute Route,
     EstimateSourceTotals? SourceTotals = null);
 
-/// <summary>A completed format read, or the exact pages positively qualified for OCR.</summary>
-public sealed record EstimateDocumentReadResult(ParsedEstimate? Estimate, IReadOnlyList<int> QualifiedOcrPages);
-
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
 /// money is worse than no money, so a parser never drops or repairs an
@@ -94,7 +90,7 @@ public interface IEstimateDocumentParser
     /// <see cref="EstimateParseRejectedException"/> naming why nothing was
     /// imported. Never returns a partial line set.
     /// </summary>
-    EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null);
+    ParsedEstimate Parse(ReadOnlyMemory<byte> content);
 }
 
 /// <summary>
@@ -119,8 +115,7 @@ public sealed class ImportRawEstimate(
     IGetCaseDocumentMetadata metadata,
     IReadLogicalDocumentVersion documents,
     IListCaseEstimates estimates,
-    IRepairSpecificationStore store,
-    IIntakeOcrOperationStore ocr) : IImportRawEstimate
+    IRepairSpecificationStore store) : IImportRawEstimate
 {
     /// <summary>The reason recorded against every imported Draft.</summary>
     public const string ImportReason = "Imported an estimate from its retained source document.";
@@ -148,7 +143,7 @@ public sealed class ImportRawEstimate(
         if (existing.FirstOrDefault(estimate =>
                 string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
         {
-            return new(replayed.SpecificationId, null, null);
+            return new(replayed.SpecificationId);
         }
 
         await using var document = await documents.OpenAsync(
@@ -168,44 +163,8 @@ public sealed class ImportRawEstimate(
                 : "More than one estimate format recognizes the document.");
         }
         var parser = matches[0];
-        var read = parser.Parse(content);
-        if (read.Estimate is null)
-        {
-            if (read.QualifiedOcrPages.Count == 0)
-            {
-                throw new EstimateParseRejectedException("No estimate or qualified OCR pages were read.");
-            }
-            // Authority is checked again after the bounded read, immediately before
-            // the durable OCR action. Neither this check nor pending consumes it.
-            await store.RequireImportAuthorityAsync(request, cancellationToken);
-            var operation = await IntakeOcrOperations.BeginDocumentAsync(ocr, retained, read.QualifiedOcrPages, cancellationToken);
-            if (operation.CaseId != retained.CaseId || operation.OccurrenceId != retained.OccurrenceId
-                || operation.DocumentVersionId != retained.VersionId || operation.IntakeReceiptId is not null
-                || operation.IntakeAssetId is not null || operation.SourceContentLength != retained.ContentLength
-                || !string.Equals(operation.SourceSha256, sha256, StringComparison.OrdinalIgnoreCase)
-                || !operation.QualifiedPages.SequenceEqual(read.QualifiedOcrPages))
-            {
-                throw new EstimateParseRejectedException("The retained OCR operation does not identify this exact source.");
-            }
-            if (operation.State != IntakeOcrState.Completed)
-            {
-                return new(null, operation.Id, operation.State);
-            }
-            var result = operation.Result;
-            var ocrRequest = new IntakeOcrRequest(null, retained.VersionId, null, sha256,
-                retained.ContentLength, read.QualifiedOcrPages, operation.OperationKey, retained.CaseId, retained.OccurrenceId);
-            if (result is null || result.State != IntakeOcrState.Completed
-                || result.Provider != IntakeOcrProviderIdentity.Provider || result.ModelId != IntakeOcrProviderIdentity.ModelId
-                || !string.Equals(operation.ResponseSha256, result.ResponseSha256, StringComparison.Ordinal)
-                || IntakeOcrPolicy.Validate(ocrRequest, result) is not null)
-            {
-                throw new EstimateParseRejectedException("The completed OCR result has no valid source-backed evidence.");
-            }
-            read = parser.Parse(content, result.PageResults);
-        }
-        var parsed = read.Estimate
-            ?? throw new EstimateParseRejectedException("The retained OCR output does not complete this estimate.");
-        if (read.QualifiedOcrPages.Count != 0 || !RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
+        var parsed = parser.Parse(content);
+        if (!RepairSpecificationPolicy.IsDocumentRoute(parsed.Route))
         {
             throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
         }
@@ -235,7 +194,7 @@ public sealed class ImportRawEstimate(
                     line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
                 new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))),
             cancellationToken);
-        return new(saved.SpecificationId, null, null);
+        return new(saved.SpecificationId);
     }
 
     private static async Task<ReadOnlyMemory<byte>> ReadAsync(

@@ -202,8 +202,7 @@ internal sealed class IntakeSourceCandidateEntity
 internal sealed class IntakeOcrOperationEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }
-    public Guid? DocumentVersionId { get; set; }
-    public Guid? IntakeAssetId { get; set; }
+    public Guid IntakeAssetId { get; set; }
     public required string SourceSha256 { get; set; }
     public required string QualifiedPagesJson { get; set; }
     public required string OperationKey { get; set; }

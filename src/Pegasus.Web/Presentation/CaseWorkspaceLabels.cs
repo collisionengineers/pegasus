@@ -1,7 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Intake;
 
 namespace Pegasus.Web.Presentation;
 
@@ -82,12 +81,6 @@ public static class CaseWorkspaceLabels
         public const string Sources = "Retained estimate sources";
         public const string SourceRetained = "Estimate source retained.";
         public const string Imported = "Estimate imported as a Draft.";
-        public static string OcrStatus(IntakeOcrState? state) => state switch
-        {
-            IntakeOcrState.Unknown => "OCR outcome unknown.",
-            IntakeOcrState.Failed => "OCR failed.",
-            _ => "OCR pending.",
-        };
     }
 
     /// <summary>

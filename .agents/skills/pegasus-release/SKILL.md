@@ -356,8 +356,9 @@ az functionapp stop --subscription $subscriptionId --resource-group $resourceGro
 if ($LASTEXITCODE -ne 0) { throw 'Worker stop failed.' }
 $workerStopped = $false
 for ($attempt = 1; $attempt -le 12; $attempt++) {
-  $workerState = (az functionapp show --subscription $subscriptionId `
-    --resource-group $resourceGroup --name $workerApp --query state --output tsv).Trim()
+  $workerState = (az resource show --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' `
+    --api-version 2024-04-01 --query properties.state --output tsv).Trim()
   if ($LASTEXITCODE -ne 0) { throw 'Unable to read Worker state.' }
   if ($workerState -ceq 'Stopped') { $workerStopped = $true; break }
   Start-Sleep -Seconds 5
@@ -411,8 +412,9 @@ Immediately before SQL, take a fresh containment read-back rather than relying
 on the earlier polling result:
 
 ```powershell
-$preSqlWorkerState = (az functionapp show --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $workerApp --query state --output tsv).Trim()
+$preSqlWorkerState = (az resource show --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' `
+  --api-version 2024-04-01 --query properties.state --output tsv).Trim()
 if ($LASTEXITCODE -ne 0 -or $preSqlWorkerState -cne 'Stopped') {
   throw 'Worker is not freshly confirmed Stopped before destructive SQL.'
 }
@@ -554,8 +556,9 @@ azd provision -e $releaseEnvironment --no-prompt
 if ($LASTEXITCODE -ne 0) { throw 'Compatible release activation failed.' }
 Wait-PegasusExpectedWebRevision `
   -ExpectedRevisionName $expectedWebRevisionName -ExpectedImage $expectedWebImage
-$workerState = (az functionapp show --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $workerApp --query state --output tsv).Trim()
+$workerState = (az resource show --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' `
+  --api-version 2024-04-01 --query properties.state --output tsv).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Unable to read Worker state after activation.' }
 if ($workerState -cne 'Running' -and $workerState -cne 'Stopped') {
   throw "Worker state after activation is neither Running nor Stopped: '$workerState'."
@@ -566,8 +569,9 @@ if ($workerState -ceq 'Stopped') {
 }
 $workerRunning = $false
 for ($attempt = 1; $attempt -le 12; $attempt++) {
-  $workerState = (az functionapp show --subscription $subscriptionId `
-    --resource-group $resourceGroup --name $workerApp --query state --output tsv).Trim()
+  $workerState = (az resource show --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' `
+    --api-version 2024-04-01 --query properties.state --output tsv).Trim()
   if ($LASTEXITCODE -ne 0) { throw 'Unable to read Worker state after start.' }
   if ($workerState -ceq 'Running') { $workerRunning = $true; break }
   Start-Sleep -Seconds 5

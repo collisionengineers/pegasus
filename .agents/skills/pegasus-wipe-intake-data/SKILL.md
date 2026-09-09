@@ -32,7 +32,7 @@ touches a subset of it.
   content-addressed `sha256/*` store and in-flight `staging/*` blobs. There
   is no case/date prefix in the path, so the whole container is always the
   target.
-- **~70 non-preserved SQL tables** — everything intake and case-handling
+- **The 87 non-preserved SQL tables found by the latest dry run** — everything intake and case-handling
   writes: `Cases`, `CaseDocuments`, `CaseHistory`, `IntakeReceipts`,
   `IntakeStagedReceipts`, `IntakeAssets`, `RetainedMailboxMessages`,
   `RetainedMailboxAttachments`, `DocumentVersions`/`DocumentOccurrences`,
@@ -50,12 +50,13 @@ touches a subset of it.
   runtime storage (`app-package`, `azure-webjobs-*`, work queues). Intake wake
   and work identifiers do live here; the wipe leaves them intact. On resume,
   queued mail notifications must use the new persisted receive-time cutoff.
-- **The SQL preserve list** (31 tables + `ApprovedMailbox*`) — identity/auth
+- **The SQL preserve list** (33 named tables + `ApprovedMailbox*`) — identity/auth
   (`AspNet*`, `OpenIddict*`), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `ProviderDomain*`/
   `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
-  `SecurityEvents`, and the three sequence tables (so no case/image/
-  unidentified reference is ever reused).
+  `SecurityEvents`, `ValuationPresets` (administrator-managed configuration),
+  and the four sequence tables, including `TriageSequences` (so no
+  case/image/Triage/unidentified reference is ever reused).
 - **Outlook and Box themselves** — the script only touches Azure Blob and
   Azure SQL; no Graph or Box API call exists in it.
 
@@ -72,7 +73,8 @@ messages whose occurrence identities the wipe removed.
    pwsh ./scripts/Invoke-IntakeDataWipe.ps1
    ```
    Prints the current blob count/size and the SQL table/row breakdown to be
-   wiped. This *is* the fresh inventory the live-operation approval matrix
+   wiped. The current dry run found 121 tables: 34 preserved and 87 to wipe.
+   This *is* the fresh inventory the live-operation approval matrix
    requires — always re-run it immediately before executing, never reuse a
    stale count.
 
@@ -99,9 +101,11 @@ messages whose occurrence identities the wipe removed.
    newly received or forwarded mail remains eligible.
 
 4. **Verify:** the script's own post-run output reports blobs remaining
-   (expect 0) and "Wiped tables still holding rows" (expect 0), plus
-   preserved-row totals and sequence values (`CaseSequences`/
-   `ImageIntakeSequences`/`UnidentifiedSequences`) unchanged. Reload the
+   (expect 0) and "Wiped tables still holding rows" (expect 0), plus an
+   exact before/after comparison of every value in the four reference-sequence
+   tables (`CaseSequences`/`ImageIntakeSequences`/`TriageSequences`/
+   `UnidentifiedSequences`) and the `ValuationPresets` row count (expect 0
+   changes). Reload the
    Pegasus Web UI and confirm no cases/emails remain — that's the actual
    end-to-end signal an operator cares about.
 

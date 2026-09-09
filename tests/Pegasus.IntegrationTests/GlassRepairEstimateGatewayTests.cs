@@ -1644,7 +1644,7 @@ public sealed class GlassRepairEstimateGatewayTests
         public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Refusal is null ? Task.FromResult(new EstimateImportResult(EstimateId, null, null))
+            return Refusal is null ? Task.FromResult(new EstimateImportResult(EstimateId))
                 : Task.FromException<EstimateImportResult>(Refusal);
         }
     }

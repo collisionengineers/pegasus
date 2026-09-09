@@ -920,7 +920,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var engineer = harness.EngineerActor;
         var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-store-lease");
         var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser()
-            .Parse(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml())).Estimate!;
+            .Parse(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml()));
         var hash = Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml())));
         var source = new RepairSpecificationSource(RepairSpecificationSourceRoute.Glasses,
             "estimate-import:store-contract", parsed.SourceVersion, hash);

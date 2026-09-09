@@ -824,32 +824,40 @@ public sealed class ProcessQueuedIntake(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        foreach (var candidates in receipt.ScannedPdfPages
-                     .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal))
+        if (!IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
         {
-            // The reader labels a top-level PDF by its upload name; retention
-            // labels that same asset "uploaded source". Attachments already
-            // carry the reader's qualified label.
-            var isUploadedPdf = string.Equals(
-                candidates.Key,
-                $"uploaded {Path.GetFileName(receipt.SourceFileName)}",
-                StringComparison.Ordinal);
-            var asset = receipt.AssetRecords.SingleOrDefault(item =>
-                isUploadedPdf
-                    ? item.Kind == IntakeAssetKind.Source
-                        && item.Disposition == IntakeAssetDisposition.Source
-                    : string.Equals(item.SourceLabel, candidates.Key, StringComparison.Ordinal));
-            if (asset is null)
-            {
-                throw new InvalidDataException(
-                    "An OCR-qualified source does not identify its retained asset.");
-            }
+            return;
+        }
 
+        var qualifiedSources = receipt.ScannedPdfPages
+            .GroupBy(candidate => candidate.SourceLabel, StringComparer.Ordinal)
+            .Select(candidates => new
+            {
+                Asset = IntakeOcrOperations.ResolveQualifiedAsset(receipt, candidates.Key),
+                Pages = candidates.Select(candidate => candidate.PageNumber).ToArray()
+            })
+            .ToArray();
+        if (qualifiedSources.Any(source => source.Asset is null))
+        {
+            throw new InvalidDataException(
+                "An OCR-qualified source does not identify its retained asset.");
+        }
+
+        // One instruction analysis can incorporate OCR from one immutable
+        // retained source. Never queue side effects for a multi-source scan
+        // that the analysis boundary will correctly refuse for staff review.
+        if (qualifiedSources.Select(source => source.Asset!.Id).Distinct().Skip(1).Any())
+        {
+            return;
+        }
+
+        foreach (var source in qualifiedSources)
+        {
             await IntakeOcrOperations.BeginAsync(
                 ocrOperations,
                 receipt.Id,
-                asset,
-                candidates.Select(candidate => candidate.PageNumber).ToArray(),
+                source.Asset!,
+                source.Pages,
                 cancellationToken);
         }
     }

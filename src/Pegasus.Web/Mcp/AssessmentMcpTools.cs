@@ -91,12 +91,10 @@ internal sealed record EstimateSaveToolResult(
 
 internal sealed record EstimateImportToolResult(
     Guid CaseId,
-    Guid? EstimateId,
+    Guid EstimateId,
     string Name,
     string OperationKey,
-    string CorrelationId,
-    Guid? OcrOperationId,
-    string? OcrState);
+    string CorrelationId);
 internal sealed record EstimateListToolItem(
     Guid EstimateId,
     int Version,
@@ -221,7 +219,7 @@ internal sealed class AssessmentMcpTools(
                     cancellationToken);
                 return new EstimateImportToolResult(
                     caseId, imported.EstimateId, name.Trim(), key,
-                    AutomationMcpAuditor.CorrelationId(context, key), imported.OcrOperationId, imported.OcrState?.ToString());
+                    AutomationMcpAuditor.CorrelationId(context, key));
             }),
             cancellationToken);
     }

@@ -14,7 +14,7 @@ the affected owner; record only the genuinely undecided portion.
 | Durable technical decisions and current successors | [ADRs](adr/README.md) |
 | Domain terminology | [CONTEXT](../CONTEXT.md) |
 | Stable capability identities and requirement links | [Capabilities](capabilities.md) |
-| Current work, ordering, grants and delivery evidence | Kanmer ticket/group and its linked PR/CI records |
+| Current work, ordering, grants and delivery evidence | Current operator task and its linked PR/CI records |
 | Unresolved product or technical choices | [Open decisions](open-decisions.md) |
 | Source structure and policy/caller locations | [Architecture](current-architecture.md) |
 | Last observed deployed estate and operational support | [Operations](operations.md) |
@@ -38,7 +38,7 @@ skills retain their defined scope; do not create skills for documentation sectio
 `docs/engineering/`; vendor evidence stays under `docs/external-component-documents/`.
 These locations do not create new product or workflow authority.
 
-Routine task research, plans, reviews and proof belong to Kanmer. An explicit
+Routine task review and proof belong with the PR and CI records. An explicit
 operator request may create a temporary review artifact at the requested path;
 mark it temporary and remove it when its useful results have durable owners.
 Do not invent a technical ADR merely to authorize a documentation move.
@@ -62,4 +62,4 @@ uses the next unissued ID; do not fill the deliberately unissued ADR-0017 gap.
 Frontmatter records status and successor relationships. For partial replacement,
 identify replaced clauses and surviving owners explicitly: a whole-file
 superseded label must not hide a still-active rule. PRD/FRD indexes define their
-document shapes; Kanmer's templates do not override Pegasus-specific placement.
+document shapes.

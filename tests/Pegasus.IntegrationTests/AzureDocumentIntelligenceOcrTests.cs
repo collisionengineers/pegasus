@@ -344,7 +344,6 @@ public sealed class AzureDocumentIntelligenceOcrTests
     private static IntakeOcrRequest Request(int[] pages) =>
         new(
             Guid.NewGuid(),
-            null,
             Guid.NewGuid(),
             SourceHash,
             SourceBytes.Length,

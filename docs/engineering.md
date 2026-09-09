@@ -3,14 +3,14 @@
 How repository work is done. Product behavior lives in
 [requirements](prd/README.md), stable identities in [capabilities](capabilities.md),
 procedures in the [runbook](runbook.md), operational evidence in
-[operations](operations.md), and current work on the Kanmer board (`.kanmer/`).
+[operations](operations.md), and current work in the operator task and PRs.
 Authority order is defined once in the
 [documentation index](index.md).
 
 ## Delivery evidence
 
-Kanmer owns the task lifecycle, branch/worktree claims and review/proof gates.
-Read the active execution context for the integration branch and host verifier.
+Integrate reviewed work into `dev`. The primary agent records the candidate SHA
+and assigns one owner for heavy verification on the host.
 CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head
 success or a justified path skip is evidence for that job only.
 
@@ -67,7 +67,7 @@ layer. `Audit` and `Triage` keep their reserved business meanings.
 
 Add an interface only for a real external boundary, a second concrete caller,
 or an accepted ADR. A deferred capability belongs in
-Kanmer for allocation; unresolved behavior belongs in open decisions. Do not
+the current work plan for allocation; unresolved behavior belongs in open decisions. Do not
 build dormant registration, unused endpoints or dark destructive code for
 hypothetical future work. Wire required implementation to its real caller and
 remove superseded code within the affected scope.

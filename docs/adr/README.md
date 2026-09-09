@@ -57,13 +57,14 @@ never renumbered or reused.
 | [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
 | [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | accepted | — | EXT-04 |
 | [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
-| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | — | INT-16, EXT-12 |
+| [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0047 (source qualification only) | INT-16, EXT-12 |
 | [ADR-0041](0041-persistent-automation-keys-and-grant-attribution.md) | Persistent Automation keys and grant attribution | accepted | — | — |
 | [ADR-0042](0042-staff-send-operation-journal.md) | Staff-send operation journal and Sent evidence | accepted | — | — |
 | [ADR-0043](0043-per-engineer-vendor-credential-protection.md) | Per-Engineer vendor credential protection | accepted | — | — |
 | [ADR-0044](0044-mail-occurrence-and-business-identity.md) | Mail occurrence and business identity | accepted | — | — |
 | [ADR-0045](0045-document-custody-and-derived-caches.md) | Document custody and derived caches | accepted | — | — |
 | [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
+| [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | accepted | — | INT-16 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

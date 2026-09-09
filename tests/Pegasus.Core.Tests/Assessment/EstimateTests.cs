@@ -3,7 +3,6 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
@@ -703,7 +702,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save, new ImportOcrStore());
+            save);
 
         await import.ExecuteAsync(ImportRequest(name: "  Repairer quote  "), CancellationToken.None);
 
@@ -719,7 +718,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save, new ImportOcrStore());
+            save);
 
         var id = await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -756,7 +755,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(existing),
-            save, new ImportOcrStore());
+            save);
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -774,12 +773,12 @@ public sealed class EstimateTests
                 new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"),
                 new StubParser(RepairSpecificationSourceRoute.Json, ".pdf", "Other"),
             ],
-            Retained, documents, new StubList(), save, new ImportOcrStore());
+            Retained, documents, new StubList(), save);
         var many = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => ambiguous.ExecuteAsync(ImportRequest(), CancellationToken.None));
         Assert.Contains("More than one", many.Message, StringComparison.Ordinal);
 
-        var none = new ImportRawEstimate([JsonStub()], Retained, documents, new StubList(), save, new ImportOcrStore());
+        var none = new ImportRawEstimate([JsonStub()], Retained, documents, new StubList(), save);
         var unrecognized = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => none.ExecuteAsync(ImportRequest(), CancellationToken.None));
         Assert.Contains("No estimate format", unrecognized.Message, StringComparison.Ordinal);
@@ -800,7 +799,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(already),
-            save, new ImportOcrStore());
+            save);
 
         var id = await import.ExecuteAsync(ImportRequest(operationKey: "op-import-2"), CancellationToken.None);
 
@@ -817,7 +816,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments("different bytes"u8.ToArray(), "estimate.pdf", "application/pdf"),
             new StubList(),
-            save, new ImportOcrStore());
+            save);
 
         var rejected = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
@@ -835,7 +834,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save, new ImportOcrStore());
+            save);
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
         Assert.Equal(RepairSpecificationSourceRoute.Json, Assert.Single(save.Saved).Source.Route);
@@ -848,7 +847,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, documents, new StubList(), save, new ImportOcrStore());
+            Retained, documents, new StubList(), save);
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -867,7 +866,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            new StubMetadata(retained: null), documents, new StubList(), save, new ImportOcrStore());
+            new StubMetadata(retained: null), documents, new StubList(), save);
 
         var rejected = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
@@ -888,7 +887,7 @@ public sealed class EstimateTests
         var estimates = new StubList(already);
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), estimates, save, new ImportOcrStore());
+            Retained, new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), estimates, save);
 
         // Non-Engineers, malformed mutation envelopes and stale persisted
         // authority all fail before consulting a source-hash replay.
@@ -919,7 +918,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser((RepairSpecificationSourceRoute)99, ".pdf", "Audatex")],
-            Retained, documents, estimates, save, new ImportOcrStore());
+            Retained, documents, estimates, save);
 
         await Assert.ThrowsAsync<EstimateParseRejectedException>(() => import.ExecuteAsync(
             ImportRequest(), CancellationToken.None));
@@ -930,59 +929,6 @@ public sealed class EstimateTests
     }
 
     private static EstimateDetails Details() => Header(rate: 40m) with { Name = "Estimate 1" };
-
-    [Theory]
-    [InlineData(IntakeOcrState.Pending)]
-    [InlineData(IntakeOcrState.Unknown)]
-    [InlineData(IntakeOcrState.Failed)]
-    public async Task QualifiedOcrReturnsTheSameDurableOperationWithoutSavingRows(IntakeOcrState state)
-    {
-        var store = new FakeSpecificationStore();
-        var ocr = new ImportOcrStore { State = state };
-        var import = new ImportRawEstimate([new OcrParser()], Retained,
-            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), new StubList(), store, ocr);
-
-        var first = await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
-        var replay = await import.ExecuteAsync(ImportRequest(operationKey: "op-import-replay"), CancellationToken.None);
-
-        Assert.Null(first.EstimateId);
-        Assert.Equal(state, first.OcrState);
-        Assert.Equal(first.OcrOperationId, replay.OcrOperationId);
-        Assert.Equal(2, ocr.Begins.Count);
-        Assert.Equal(ocr.Begins[0], ocr.Begins[1]);
-        Assert.Equal(4, store.AuthorityChecks.Count);
-        Assert.Empty(store.Saved);
-    }
-
-    [Fact]
-    public async Task CanonicalAutomationImportUsesRetainedCompletedEvidenceWithoutAnAiJob()
-    {
-        var store = new FakeSpecificationStore();
-        var ocr = new ImportOcrStore { State = IntakeOcrState.Completed };
-        var import = new ImportRawEstimate([new OcrParser()], Retained,
-            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), new StubList(), store, ocr);
-
-        var result = await import.ExecuteAsync(ImportRequest(actor: Client), CancellationToken.None);
-
-        Assert.NotNull(result.EstimateId);
-        var saved = Assert.Single(store.Saved);
-        Assert.Equal(Client, saved.Actor);
-        Assert.Null(saved.AiJobId);
-        Assert.Equal(RepairSpecificationSourceRoute.Glasses, saved.Source.Route);
-        Assert.Equal(ImportSha256, Assert.Single(saved.Lines).SourceDocumentSha256);
-    }
-
-    [Fact]
-    public async Task ACompletedOcrResultMissingAQualifiedPageImportsNothing()
-    {
-        var store = new FakeSpecificationStore();
-        var ocr = new ImportOcrStore { State = IntakeOcrState.Completed, OmitPage = true };
-        var import = new ImportRawEstimate([new OcrParser()], Retained,
-            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), new StubList(), store, ocr);
-
-        await Assert.ThrowsAsync<EstimateParseRejectedException>(() => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
-        Assert.Empty(store.Saved);
-    }
 
     private static EstimateDetails Header(
         decimal? rate = null,
@@ -1051,11 +997,11 @@ public sealed class EstimateTests
         public bool CanParse(string fileName, string mediaType) =>
             string.Equals(Path.GetExtension(fileName), extension, StringComparison.OrdinalIgnoreCase);
 
-        public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null) => new(new(
+        public ParsedEstimate Parse(ReadOnlyMemory<byte> content) => new(
             $"{providerName} v1",
             [LineInput("repair") with { WorkUnits = 1.5m, Materials = 4m }],
             providerName, route,
-            new EstimateSourceTotals(Net: 60m)), []);
+            new EstimateSourceTotals(Net: 60m));
     }
 
     private sealed class StubMetadata(CaseDocumentMetadata? retained) : IGetCaseDocumentMetadata
@@ -1068,43 +1014,6 @@ public sealed class EstimateTests
                 && query.VersionId == retained.VersionId
                 ? retained
                 : null);
-    }
-
-    // Protocol evidence only: not a fabricated Glass PDF or a fifth-sample OCR oracle.
-    private sealed class OcrParser : IEstimateDocumentParser
-    {
-        public bool CanParse(string fileName, string mediaType) => mediaType == "application/pdf";
-
-        public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null) =>
-            ocrPages is null ? new(null, [1, 2])
-                : new(new("retained OCR protocol", [LineInput("repair")], "Glass's", RepairSpecificationSourceRoute.Glasses), []);
-    }
-
-    private sealed class ImportOcrStore : IIntakeOcrOperationStore
-    {
-        public IntakeOcrState State { get; init; } = IntakeOcrState.Pending;
-        public bool OmitPage { get; init; }
-        public List<Guid> Begins { get; } = [];
-
-        public Task<IntakeOcrOperation> BeginAsync(Guid operationId, IntakeOcrRequest request, CancellationToken cancellationToken)
-        {
-            Begins.Add(operationId);
-            var pages = request.QualifiedPages.Where(page => !OmitPage || page != 2)
-                .Select(page => new IntakeOcrPage(page, "Protocol output", [], [])).ToArray();
-            var result = new IntakeOcrResult(State, IntakeOcrProviderIdentity.Provider, IntakeOcrProviderIdentity.ModelId,
-                IntakeOcrProviderIdentity.ApiVersion, "recorded-operation", ImportSha256, pages);
-            return Task.FromResult(new IntakeOcrOperation(operationId, null, request.DocumentVersionId, null,
-                request.SourceSha256, request.SourceContentLength, request.QualifiedPages, request.OperationKey,
-                State, 1, "recorded-operation", ImportSha256, Result: result,
-                CaseId: request.CaseId, OccurrenceId: request.OccurrenceId));
-        }
-
-        public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeOcrOperation> RecordSubmitAttemptAsync(Guid operationId, long expectedVersion, DateTimeOffset attemptedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeOcrOperation> RecordSubmittedAsync(Guid operationId, long expectedVersion, string providerOperationId, DateTimeOffset submittedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeOcrOperation> CompleteAsync(Guid operationId, long expectedVersion, IntakeOcrResult result, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeOcrOperation> CompleteAnalysisAsync(Guid operationId, long expectedVersion, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeOcrOperation> RecordOutcomeAsync(Guid operationId, long expectedVersion, IntakeOcrState state, IntakeOcrFailure failure, DateTimeOffset? retryAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class StubDocuments(byte[] content, string fileName, string mediaType)
