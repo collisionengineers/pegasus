@@ -31,3 +31,12 @@ Existing operational callers retain parameters and behavior. Full exact census
 must still reject absent/extra/duplicate/malformed settings and wrong values.
 No runtime schema polling, generic shutdown service, feature flag, new dependency,
 new script entry point, or alert suppression. No live operation is authorized.
+
+## Post-merge correction — 9 September 2026
+
+Only tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs
+may change in this correction: update the stale literal-census source to canonical
+PegasusPlatform.ps1 and prove both script consumers dot-source/use the helper.
+Every ExpectedFunctions and unsafe-disable assertion remains; existing runtime
+negative fixtures are reused. All original production/scripts/docs paths above
+are read-only for this correction. No CI classifier, harness or dependency edits.
