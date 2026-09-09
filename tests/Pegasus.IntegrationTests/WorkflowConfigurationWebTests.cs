@@ -23,8 +23,8 @@ public sealed partial class WorkflowConfigurationWebTests
         // states the current workflow-policy record.
         Assert.Contains("<title>Workflow configuration · Pegasus</title>", html, StringComparison.Ordinal);
         Assert.Contains("<h1>Workflow configuration</h1>", html, StringComparison.Ordinal);
-        Assert.Contains("<h2 id=\"workflow-configuration-title\">Workflow configuration</h2>", html, StringComparison.Ordinal);
-        Assert.Equal(2, HeadingRegex().Matches(html).Cast<Match>()
+        Assert.Contains("<h2 id=\"workflow-configuration-title\">Current workflow policy</h2>", html, StringComparison.Ordinal);
+        Assert.Equal(1, HeadingRegex().Matches(html).Cast<Match>()
             .Count(heading => heading.Groups["text"].Value.Trim() == "Workflow configuration"));
         Assert.Matches(PolicyVersionMetaRegex(), html);
         Assert.Contains("This workflow policy is fixed. There are no editable settings.", html, StringComparison.Ordinal);

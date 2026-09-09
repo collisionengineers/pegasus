@@ -213,9 +213,7 @@ public sealed class InstructionExtractionPolicySelector(
                 .Select(document => new
                 {
                     document.Content,
-                    Variants = Matches(entry.Profile!.Signature, document.Text)
-                        ? MatchingVariants(entry.Profile!, document.Text)
-                        : null,
+                    Variants = MatchingVariants(entry.Profile!, document.Text),
                     IsAlternativeMatch = entry.Profile!.AlternativeSignatures.Any(signature =>
                         string.Equals(signature.DocumentRole, documentRole, StringComparison.OrdinalIgnoreCase)
                         && Matches(signature, document.Text))
