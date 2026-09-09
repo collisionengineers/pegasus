@@ -39,7 +39,7 @@ public sealed partial class ClaimSourceAdministrationTests
         {
             ["__RequestVerificationToken"] = InputValue(indexHtml, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(indexHtml, "OperationKey"),
-            ["Reason"] = InputValue(indexHtml, "Reason"),
+            ["Reason"] = "Web caller create proof",
             ["Name"] = "Web Caller Claim Source",
             ["ContactName"] = "Pat Example",
             ["Telephone"] = "01234 000111",
@@ -149,7 +149,7 @@ public sealed partial class ClaimSourceAdministrationTests
         {
             ["__RequestVerificationToken"] = InputValue(indexHtml, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(indexHtml, "OperationKey"),
-            ["Reason"] = InputValue(indexHtml, "Reason"),
+            ["Reason"] = "Stale-write create proof",
             ["Name"] = "Stale Write Claim Source",
             ["ContactName"] = "Sam Example",
             ["Telephone"] = "01234 000222",
@@ -248,7 +248,7 @@ public sealed partial class ClaimSourceAdministrationTests
         {
             ["__RequestVerificationToken"] = InputValue(indexHtml, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(indexHtml, "OperationKey"),
-            ["Reason"] = InputValue(indexHtml, "Reason"),
+            ["Reason"] = "Replay create proof",
             ["Name"] = "Replayed Claim Source",
             ["ContactName"] = "Robin Example",
             ["Telephone"] = "01234 000333",

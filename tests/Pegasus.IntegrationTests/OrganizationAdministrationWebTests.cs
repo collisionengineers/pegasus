@@ -106,6 +106,7 @@ public sealed partial class OrganizationAdministrationWebTests
             evaSubmissionPost.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {evaSubmissionPost.StatusCode}. " +
                 $"Validation errors: {await DescribeValidationErrorsAsync(evaSubmissionPost)}");
+        Assert.Equal(evaSubmissionPath, evaSubmissionPost.Headers.Location?.OriginalString);
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
@@ -123,6 +124,7 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["LocationReason"] = "Image Based Assessment default"
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
+        Assert.Equal(evaSubmissionPath, locationPost.Headers.Location?.OriginalString);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT CASE WHEN DefaultInspectionAddress IS NULL THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 

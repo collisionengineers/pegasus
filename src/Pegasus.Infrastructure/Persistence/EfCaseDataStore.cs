@@ -359,12 +359,15 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.ClaimantContactNumber),
             TextField(snapshot, CaseDataFieldNames.ClaimantAddress)),
         new(TextField(snapshot, CaseDataFieldNames.ClaimNumber)),
-        new(
+        new CaseVehicleData(
             TextField(snapshot, CaseDataFieldNames.VehicleRegistration),
             TextField(snapshot, CaseDataFieldNames.VehicleMake),
             TextField(snapshot, CaseDataFieldNames.VehicleModel),
             LongField(snapshot, CaseDataFieldNames.VehicleMileage),
-            TextField(snapshot, CaseDataFieldNames.VehicleMileageUnit)),
+            TextField(snapshot, CaseDataFieldNames.VehicleMileageUnit))
+        {
+            Description = TextField(snapshot, CaseDataFieldNames.VehicleDescription)
+        },
         new(
             DateField(snapshot, CaseDataFieldNames.IncidentDate),
             TextField(snapshot, CaseDataFieldNames.AccidentCircumstances)),

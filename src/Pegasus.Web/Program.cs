@@ -1143,7 +1143,8 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
     .ShortCircuit();
 
 app.MapStaticAssets()
-    .AllowAnonymous();
+    .AllowAnonymous()
+    .ShortCircuit();
 app.MapGet("/diagnostics/version", () => Results.Ok(new
 {
     version = productVersion,

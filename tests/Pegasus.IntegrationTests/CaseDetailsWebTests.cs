@@ -674,6 +674,30 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheLazyFilesFragmentKeepsPreparedImagesReadOnlyWhenAssessmentAccessIsDenied()
+    {
+        var store = new PreparedImages().Store();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            services.RemoveAll<IGetAssessmentAccess>();
+            services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen: false));
+        });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("report-images", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SaveAssetPreparation", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResetAssetPreparation", fragment, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// PLAT-011: the case history table shows the resolved actor name, never the
     /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its

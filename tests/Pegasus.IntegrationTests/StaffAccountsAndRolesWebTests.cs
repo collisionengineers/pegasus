@@ -147,18 +147,17 @@ public sealed partial class StaffAccountsAndRolesWebTests
                 ("reason", rejectedCreateReason)));
         Assert.Equal(HttpStatusCode.OK, duplicateCreatePost.StatusCode);
         var duplicateCreateHtml = await duplicateCreatePost.Content.ReadAsStringAsync();
-        var createReasonInput = InputTagRegex().Matches(duplicateCreateHtml)
-            .Cast<Match>()
-            .Single(candidate => candidate.Value.Contains(
-                "id=\"create-reason\"",
-                StringComparison.Ordinal));
         Assert.Equal(
             rejectedCreateReason,
-            WebUtility.HtmlDecode(createReasonInput.Groups["value"].Value));
+            TextareaValue(duplicateCreateHtml, "create-reason"));
         Assert.Contains(
             "data-dialog-open-on-load=\"true\"",
             duplicateCreateHtml,
             StringComparison.Ordinal);
+        AssertDialogContains(
+            duplicateCreateHtml,
+            "create-account-dialog",
+            "That username is already assigned.");
 
         // A rejected role post keeps both its selected roles and reason on the
         // targeted row, matching the superseded Roles page's behaviour.
@@ -175,20 +174,19 @@ public sealed partial class StaffAccountsAndRolesWebTests
                 ("reason", rejectedRoleReason)));
         Assert.Equal(HttpStatusCode.OK, rejectedRolesPost.StatusCode);
         var rejectedRolesHtml = await rejectedRolesPost.Content.ReadAsStringAsync();
-        var rejectedRoleReasonInput = InputTagRegex().Matches(rejectedRolesHtml)
-            .Cast<Match>()
-            .Single(candidate => candidate.Value.Contains(
-                $"id=\"roles-{created.Id:D}-reason\"",
-                StringComparison.Ordinal));
         Assert.Equal(
             rejectedRoleReason,
-            WebUtility.HtmlDecode(rejectedRoleReasonInput.Groups["value"].Value));
+            TextareaValue(rejectedRolesHtml, $"roles-{created.Id:D}-reason"));
         Assert.True(CheckboxIsChecked(rejectedRolesHtml, created.Id, StaffRole.Engineer));
         Assert.True(CheckboxIsChecked(rejectedRolesHtml, created.Id, StaffRole.User));
         Assert.Contains(
             $"data-dialog=\"settings-{created.Id:D}\" data-dialog-open-on-load=\"true\"",
             rejectedRolesHtml,
             StringComparison.Ordinal);
+        AssertDialogContains(
+            rejectedRolesHtml,
+            $"settings-{created.Id:D}",
+            "Select only supported staff roles.");
 
         // Role assignment — the capability the separate Roles page carried.
         using var rolesPost = await client.PostAsync(
@@ -262,6 +260,10 @@ public sealed partial class StaffAccountsAndRolesWebTests
             $"data-dialog=\"settings-{created.Id:D}\" data-dialog-open-on-load=\"true\"",
             missingNameHtml,
             StringComparison.Ordinal);
+        AssertDialogContains(
+            missingNameHtml,
+            $"settings-{created.Id:D}",
+            OperatorLabels.StaffAccounts.PrintedNameRequired);
 
         // Account disable remains an explicit, reasoned action.
         using var disablePost = await client.PostAsync(
@@ -569,6 +571,28 @@ public sealed partial class StaffAccountsAndRolesWebTests
         return WebUtility.HtmlDecode(match!.Groups["value"].Value);
     }
 
+    private static string TextareaValue(string html, string id)
+    {
+        var match = TextareaRegex().Matches(html)
+            .Cast<Match>()
+            .SingleOrDefault(candidate => string.Equals(
+                WebUtility.HtmlDecode(candidate.Groups["id"].Value),
+                id,
+                StringComparison.Ordinal));
+        Assert.True(match is not null, $"The staff accounts area must render textarea '{id}'.");
+        return WebUtility.HtmlDecode(match!.Groups["value"].Value);
+    }
+
+    private static void AssertDialogContains(string html, string dialogId, string expectedText)
+    {
+        var dialog = Regex.Match(
+            html,
+            $"<div class=\"dialog-backdrop\" data-dialog=\"{Regex.Escape(dialogId)}\"(?<content>(?:(?!<div class=\"dialog-backdrop\" data-dialog=)[\\s\\S])*)",
+            RegexOptions.CultureInvariant);
+        Assert.True(dialog.Success, $"The staff accounts area must render dialog '{dialogId}'.");
+        Assert.Contains(expectedText, dialog.Groups["content"].Value, StringComparison.Ordinal);
+    }
+
     private static bool CheckboxIsChecked(string html, Guid staffId, StaffRole role)
     {
         var id = $"roles-{staffId:D}-select-{role}";
@@ -585,6 +609,11 @@ public sealed partial class StaffAccountsAndRolesWebTests
         "<input\\b(?=[^>]*\\bname=\"(?<name>[^\"]+)\")(?=[^>]*\\bvalue=\"(?<value>[^\"]*)\")[^>]*>",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex InputTagRegex();
+
+    [GeneratedRegex(
+        "<textarea\\b(?=[^>]*\\bid=\"(?<id>[^\"]+)\")[^>]*>(?<value>[\\s\\S]*?)</textarea>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex TextareaRegex();
 
     [GeneratedRegex(
         "<input\\b[^>]*\\btype=\"checkbox\"[^>]*\\bname=\"selectedRoles\"[^>]*>",

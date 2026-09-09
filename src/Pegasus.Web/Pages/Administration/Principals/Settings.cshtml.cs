@@ -142,7 +142,7 @@ public sealed class SettingsModel(
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     "The principal's manual EVA submission setting was updated.";
-                return RedirectToPage("Index");
+                return RedirectToPage(new { principalId });
             }
             catch (OrganizationAdministrationException exception)
             {
@@ -214,7 +214,7 @@ public sealed class SettingsModel(
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     "The principal's default inspection location was updated.";
-                return RedirectToPage("Index");
+                return RedirectToPage(new { principalId });
             }
             catch (OrganizationAdministrationException exception)
             {

@@ -54,29 +54,29 @@ public sealed class VehicleWorkflowTerminalTests
     }
 
     [Fact]
-    public async Task RequestFailsClosedWithoutOneConfirmedCanonicalRegistration()
+    public async Task RequestFailsClosedWithoutOneAcceptedCanonicalRegistration()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
         var editLeaseToken = await PrepareCanonicalRegistrationAsync(database, caseId, null);
         await using var scope = database.CreateAsyncScope();
 
-        var exception = await Assert.ThrowsAsync<ConfirmedVehicleRegistrationRequiredException>(() =>
+        var exception = await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "AB12CDE", "missing-registration", editLeaseToken));
 
-        Assert.Equal(0, exception.ConfirmedRegistrationCount);
+        Assert.Equal(0, exception.AcceptedRegistrationCount);
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
     }
 
     [Fact]
-    public async Task RequestRejectsCommandThatDiffersFromConfirmedCanonicalRegistration()
+    public async Task RequestRejectsCommandThatDiffersFromAcceptedCanonicalRegistration()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
         var editLeaseToken = await PrepareCanonicalRegistrationAsync(database, caseId, "AB12CDE");
         await using var scope = database.CreateAsyncScope();
 
-        await Assert.ThrowsAsync<ConfirmedVehicleRegistrationConflictException>(() =>
+        await Assert.ThrowsAsync<AcceptedVehicleRegistrationConflictException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "XY34ZAB", "mismatched-registration", editLeaseToken));
 
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
@@ -97,10 +97,10 @@ public sealed class VehicleWorkflowTerminalTests
         }
         await using var scope = database.CreateAsyncScope();
 
-        var exception = await Assert.ThrowsAsync<ConfirmedVehicleRegistrationRequiredException>(() =>
+        var exception = await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "AB12CDE", "ambiguous-registration", editLeaseToken));
 
-        Assert.Equal(2, exception.ConfirmedRegistrationCount);
+        Assert.Equal(2, exception.AcceptedRegistrationCount);
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
     }
 
@@ -133,6 +133,55 @@ public sealed class VehicleWorkflowTerminalTests
             $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
         Assert.Equal(0L, await database.ScalarAsync<long>(
             $"SELECT Version FROM Cases WHERE Id = '{caseId:D}'"));
+    }
+
+    [Fact]
+    public async Task ExactAcceptedFactRegistrationCreatesOneWorkItem()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        var editLeaseToken = await PrepareCanonicalRegistrationAsync(
+            database,
+            caseId,
+            "AB12CDE",
+            "fact");
+        await using var scope = database.CreateAsyncScope();
+
+        var result = await RequestAsync(
+            scope.ServiceProvider,
+            caseId,
+            "AB12CDE",
+            "exact-accepted-fact-registration",
+            editLeaseToken);
+
+        Assert.False(result.IsReplay);
+        Assert.Equal("AB12CDE", result.Registration);
+        Assert.Equal(1, await ExternalWorkCountAsync(database, caseId));
+    }
+
+    [Fact]
+    public async Task ConfirmedRegistrationTakesPrecedenceOverAnAcceptedFact()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        var editLeaseToken = await PrepareCanonicalRegistrationAsync(database, caseId, "AB12CDE");
+        await database.ExecuteAsync("ALTER TABLE CaseDataFields DROP CONSTRAINT PK_CaseDataFields");
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"fact"}, {"text"}, {"XY34ZAB"}, {"intake_evidence"}, {"instruction-source"}, {"Accepted instruction registration"}, {"vehicle-test"}, {1}, {null}, {(DateTimeOffset?)null})");
+        }
+        await using var scope = database.CreateAsyncScope();
+
+        var result = await RequestAsync(
+            scope.ServiceProvider,
+            caseId,
+            "AB12CDE",
+            "confirmed-registration-precedence",
+            editLeaseToken);
+
+        Assert.Equal("AB12CDE", result.Registration);
+        Assert.Equal(1, await ExternalWorkCountAsync(database, caseId));
     }
 
     [Fact]
@@ -230,7 +279,8 @@ public sealed class VehicleWorkflowTerminalTests
     private static async Task<string> PrepareCanonicalRegistrationAsync(
         LocalDbTestDatabase database,
         Guid caseId,
-        string? registration)
+        string? registration,
+        string valueKind = "confirmed")
     {
         const string editLeaseToken = "canonical-registration-lease";
         var leaseHash = Convert.ToHexString(
@@ -243,7 +293,7 @@ public sealed class VehicleWorkflowTerminalTests
         if (registration is not null)
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"confirmed"}, {"text"}, {registration}, {"case_acceptance"}, {"canonical-registration-source"}, {"Canonical accepted registration"}, {"vehicle-test"}, {1}, {Staff.SubjectId}, {FixedUtcNow})");
+                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"case_acceptance"}, {"canonical-registration-source"}, {"Canonical accepted registration"}, {"vehicle-test"}, {1}, {(valueKind == "confirmed" ? Staff.SubjectId : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
         }
         return editLeaseToken;
     }

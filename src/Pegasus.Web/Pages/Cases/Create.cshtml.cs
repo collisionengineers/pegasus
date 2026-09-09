@@ -215,13 +215,12 @@ public sealed partial class CreateModel(
         Guid receiptId,
         CancellationToken cancellationToken = default)
     {
-        // A typed URL or a stale bookmark can reach this handler with no
-        // receiptId at all. Without this guard LoadAsync passes Guid.Empty
-        // straight to IGetIntake, which throws (CASE-003) instead of the
-        // designed not-found page.
+        // Add and Ctrl+N start without a receipt. Begin the existing
+        // instruction-upload journey; a concrete receipt returns here for
+        // review before any Case or reference is created.
         if (receiptId == Guid.Empty)
         {
-            return NotFound();
+            return RedirectToPage("/Upload");
         }
 
         var loadResult = await LoadAsync(receiptId, cancellationToken);

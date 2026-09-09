@@ -40,20 +40,21 @@ public sealed partial class CaseCreateWebTests
         [StaffRole.Administrator]);
 
     /// <summary>
-    /// CASE-003: a stale bookmark or a typed URL can reach this handler with
-    /// no receiptId at all. Before the guard, LoadAsync passed Guid.Empty
-    /// straight to IGetIntake, which throws — a 500 in production rather than
-    /// the designed not-found page.
+    /// Add, Work Centre and Ctrl+N start without a receipt. They must begin
+    /// the working upload journey, not turn a normal action into a 404.
     /// </summary>
     [Fact]
-    public async Task CreateWithNoReceiptIdReturnsNotFoundInsteadOfThrowing()
+    public async Task CreateWithNoReceiptIdStartsTheInstructionUploadJourney()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync("/Cases/Create");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/Upload", response.Headers.Location?.OriginalString);
+        using var upload = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
     }
 
     [Fact]

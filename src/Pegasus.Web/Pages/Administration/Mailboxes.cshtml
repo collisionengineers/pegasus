@@ -4,7 +4,8 @@
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Administration.MailboxesModel
 @{
-    ViewData["Title"] = OperatorLabels.Nav.Administration;
+    ViewData["Title"] = OperatorLabels.Admin.Mail;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "mail";
     ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
@@ -37,10 +38,9 @@
             <section aria-labelledby="approved-mailboxes-title">
                 <div class="cluster cluster--between">
                     <h3 id="approved-mailboxes-title">@OperatorLabels.MailSettings.ApprovedMailboxes</h3>
-                    <a href="#mailbox-setup">Mailbox setup</a>
                 </div>
                 <details id="mailbox-setup" class="section-gap">
-                    <summary>How mailbox approval works</summary>
+                    <summary>Mailbox setup</summary>
                     <div class="stack section-gap">
                         <p>Pegasus does not create Microsoft 365 mailboxes or grant Exchange access.</p>
                         <ol>

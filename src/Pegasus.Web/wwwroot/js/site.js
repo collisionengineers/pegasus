@@ -92,58 +92,71 @@
 
     // Reason dialogs: a focus trap so a modal that asks for a required reason
     // cannot be tabbed out of while it is open.
-    document.querySelectorAll('dialog[data-focus-trap]').forEach(function (dialog) {
-        dialog.addEventListener('keydown', function (event) {
-            if (event.key !== 'Tab') {
+    function bindNativeDialogs(root) {
+        root.querySelectorAll('dialog[data-focus-trap]').forEach(function (dialog) {
+            if (dialog.dataset.focusTrapBound === 'true') {
                 return;
             }
+            dialog.dataset.focusTrapBound = 'true';
+            dialog.addEventListener('keydown', function (event) {
+                if (event.key !== 'Tab') {
+                    return;
+                }
 
-            var focusable = dialog.querySelectorAll(
-                'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-            if (focusable.length === 0) {
+                var focusable = dialog.querySelectorAll(
+                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+                if (focusable.length === 0) {
+                    return;
+                }
+
+                var first = focusable[0];
+                var last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+        });
+
+        // Buttons that open their own dialog, so an action can carry its fields
+        // without the page shipping a permanently open form for every action.
+        root.querySelectorAll('[data-dialog-open]').forEach(function (trigger) {
+            var dialog = document.getElementById(trigger.getAttribute('data-dialog-open'));
+            if (!dialog || typeof dialog.showModal !== 'function' || trigger.dataset.nativeDialogBound === 'true') {
                 return;
             }
+            trigger.dataset.nativeDialogBound = 'true';
 
-            var first = focusable[0];
-            var last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
+            trigger.addEventListener('click', function (event) {
                 event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
+                dialog.showModal();
+                var initial = dialog.querySelector('[data-dialog-initial-focus]')
+                    || dialog.querySelector('input, select, textarea, button');
+                if (initial) {
+                    initial.focus();
+                }
+            });
+        });
+
+        root.querySelectorAll('dialog [data-dialog-close]').forEach(function (button) {
+            if (button.dataset.nativeDialogBound === 'true') {
+                return;
+            }
+            button.dataset.nativeDialogBound = 'true';
+            button.addEventListener('click', function (event) {
                 event.preventDefault();
-                first.focus();
-            }
+                var dialog = button.closest('dialog');
+                if (dialog) {
+                    dialog.close();
+                }
+            });
         });
-    });
-
-    // Buttons that open their own dialog, so an action can carry its fields
-    // without the page shipping a permanently open form for every action.
-    document.querySelectorAll('[data-dialog-open]').forEach(function (trigger) {
-        var dialog = document.getElementById(trigger.getAttribute('data-dialog-open'));
-        if (!dialog || typeof dialog.showModal !== 'function') {
-            return;
-        }
-
-        trigger.addEventListener('click', function (event) {
-            event.preventDefault();
-            dialog.showModal();
-            var initial = dialog.querySelector('[data-dialog-initial-focus]')
-                || dialog.querySelector('input, select, textarea, button');
-            if (initial) {
-                initial.focus();
-            }
-        });
-    });
-
-    document.querySelectorAll('[data-dialog-close]').forEach(function (button) {
-        button.addEventListener('click', function (event) {
-            event.preventDefault();
-            var dialog = button.closest('dialog');
-            if (dialog) {
-                dialog.close();
-            }
-        });
-    });
+    }
+    bindNativeDialogs(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindNativeDialogs);
 
     // Global drop safety net. Without this, a file dropped anywhere off a
     // dropzone's own listeners below — the heading, a panel border, released
@@ -1019,94 +1032,103 @@
 
     var dialogOpeners = {};
 
-    document.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
-        if (dialog.dataset.dialogBound === 'true') {
-            return;
-        }
-        dialog.dataset.dialogBound = 'true';
-
-        var dialogId = dialog.getAttribute('data-dialog') || dialog.id;
-        var release = null;
-        var invoker = null;
-
-        // A hidden input (the antiforgery token) matches the selector but
-        // cannot take focus; focusing it leaves focus on the invoking control,
-        // which is about to become inert and lose it to body.
-        function focusable() {
-            return Array.prototype.filter.call(
-                dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                function (element) {
-                    return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
-                });
-        }
-
-        function open(source) {
-            invoker = source;
-            dialog.hidden = false;
-            release = inertOutside(dialog);
-            document.addEventListener('keydown', onKeydown, true);
-            var items = focusable();
-            var initial = dialog.querySelector('[data-dialog-initial-focus]')
-                || items.find(function (element) { return element.matches('input, select, textarea'); })
-                || items[0];
-            if (initial) {
-                initial.focus();
-            }
-            dialog.dispatchEvent(new CustomEvent('pegasus:dialog-open', { bubbles: true }));
-        }
-
-        function close() {
-            dialog.hidden = true;
-            if (release) {
-                release();
-                release = null;
-            }
-            document.removeEventListener('keydown', onKeydown, true);
-            if (invoker) {
-                invoker.focus();
-            }
-        }
-
-        dialog.pegasusClose = close;
-        dialog.pegasusOpen = open;
-
-        function onKeydown(event) {
-            if (event.key === 'Escape') {
-                // Safe: closing abandons an unsent reason and changes nothing.
-                event.preventDefault();
-                close();
+    function bindBackdropDialogs(root) {
+        root.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
+            if (dialog.dataset.dialogBound === 'true') {
                 return;
             }
-            if (event.key !== 'Tab') {
-                return;
-            }
-            var items = focusable();
-            if (items.length === 0) {
-                return;
-            }
-            var first = items[0];
-            var last = items[items.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        }
+            dialog.dataset.dialogBound = 'true';
 
-        dialog.querySelectorAll('[data-dialog-dismiss], [data-dialog-close]').forEach(function (control) {
-            control.addEventListener('click', close);
+            var dialogId = dialog.getAttribute('data-dialog') || dialog.id;
+            var release = null;
+            var invoker = null;
+
+            // A hidden input (the antiforgery token) matches the selector but
+            // cannot take focus; focusing it leaves focus on the invoking control,
+            // which is about to become inert and lose it to body.
+            function focusable() {
+                return Array.prototype.filter.call(
+                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                    function (element) {
+                        return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
+                    });
+            }
+
+            function open(source) {
+                invoker = source;
+                dialog.hidden = false;
+                release = inertOutside(dialog);
+                document.addEventListener('keydown', onKeydown, true);
+                var items = focusable();
+                var initial = dialog.querySelector('[data-dialog-initial-focus]')
+                    || items.find(function (element) { return element.matches('input, select, textarea'); })
+                    || items[0];
+                if (initial) {
+                    initial.focus();
+                }
+                dialog.dispatchEvent(new CustomEvent('pegasus:dialog-open', { bubbles: true }));
+            }
+
+            function close() {
+                dialog.hidden = true;
+                if (release) {
+                    release();
+                    release = null;
+                }
+                document.removeEventListener('keydown', onKeydown, true);
+                if (invoker) {
+                    invoker.focus();
+                }
+            }
+
+            dialog.pegasusClose = close;
+            dialog.pegasusOpen = open;
+
+            function onKeydown(event) {
+                if (event.key === 'Escape') {
+                    // Safe: closing abandons an unsent reason and changes nothing.
+                    event.preventDefault();
+                    close();
+                    return;
+                }
+                if (event.key !== 'Tab') {
+                    return;
+                }
+                var items = focusable();
+                if (items.length === 0) {
+                    return;
+                }
+                var first = items[0];
+                var last = items[items.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+
+            dialog.querySelectorAll('[data-dialog-dismiss], [data-dialog-close]').forEach(function (control) {
+                control.addEventListener('click', close);
+            });
+
+            dialog.addEventListener('click', function (event) {
+                if (event.target === dialog) {
+                    close();
+                }
+            });
+
+            dialogOpeners[dialogId] = open;
         });
-
-        dialog.addEventListener('click', function (event) {
-            if (event.target === dialog) {
-                close();
+        bindDialogOpeners(root);
+        root.querySelectorAll('[data-dialog-open-on-load="true"]').forEach(function (dialog) {
+            if (dialog.pegasusOpen && dialog.dataset.dialogAutoOpened !== 'true') {
+                dialog.dataset.dialogAutoOpened = 'true';
+                dialog.pegasusOpen();
             }
         });
-
-        dialogOpeners[dialogId] = open;
-    });
+    }
 
     // The openers are bound by root rather than once over the document, so a
     // lazily mounted Case section's controls open their dialog too.
@@ -1123,14 +1145,8 @@
             control.addEventListener('click', function () { open(control); });
         });
     }
-    bindDialogOpeners(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindDialogOpeners);
-
-    document.querySelectorAll('[data-dialog-open-on-load="true"]').forEach(function (dialog) {
-        if (dialog.pegasusOpen) {
-            dialog.pegasusOpen();
-        }
-    });
+    bindBackdropDialogs(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindBackdropDialogs);
 
     // Evidence viewer ([data-evidence-viewer], DOCS-011): preview an evidence
     // image or PDF over the page instead of navigating away from the case.

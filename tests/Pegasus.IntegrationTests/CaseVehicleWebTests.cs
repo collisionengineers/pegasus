@@ -19,6 +19,48 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class CaseDetailsWebTests
 {
     [Fact]
+    public async Task VehicleSectionRendersTheSourceDescriptionWithExtractedProvenance()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        store.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with
+            {
+                Make = new(null, null, null),
+                Model = new(null, null, null),
+                Description = new(
+                    new(
+                        "SEAT LEON SPORT TDI 105",
+                        CaseDataValueKind.Fact,
+                        new(
+                            CaseDataSourceKind.IntakeEvidence,
+                            "receipt-token",
+                            "attachment-6 page-1",
+                            "qdos_instruction",
+                            8)),
+                    null,
+                    null)
+            }
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Contains(
+            "<dt>Source vehicle description</dt><dd>SEAT LEON SPORT TDI 105",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Extracted\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"vehicleDescription\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<dt>Make</dt><dd>SEAT", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<dt>Model</dt><dd>LEON", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task VehiclePageBindsLookupAndOneFieldSuggestionAcceptance()
     {
         var store = new RecordingCaseDetailsStore();
@@ -177,6 +219,65 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task LookupUsesAnAcceptedFactButNeverARegistrationSuggestion()
+    {
+        var acceptedStore = new RecordingCaseDetailsStore();
+        var acceptedData = await acceptedStore.GetAsync(acceptedStore.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        var acceptedRegistration = acceptedData.Vehicle.Registration.Confirmed
+            ?? throw new InvalidOperationException("The vehicle fixture has no confirmed registration.");
+        acceptedStore.DataOverride = acceptedData with
+        {
+            Vehicle = acceptedData.Vehicle with
+            {
+                Registration = new(acceptedRegistration with
+                {
+                    Kind = CaseDataValueKind.Fact,
+                    ConfirmedByActor = null,
+                    ConfirmedAtUtc = null
+                }, null, null)
+            }
+        };
+        using var acceptedWorkspace = await EnterEditModeAsync(acceptedStore, _ => { });
+
+        var acceptedHtml = await GetHtmlAsync(
+            acceptedWorkspace.Client,
+            $"/Cases/{acceptedStore.CaseId:D}?section=vehicle");
+        var acceptedLookup = LookupForm(acceptedHtml);
+
+        Assert.Contains("name=\"registration\" value=\"AB12CDE\"", acceptedLookup, StringComparison.Ordinal);
+        Assert.DoesNotContain("disabled", acceptedLookup, StringComparison.Ordinal);
+
+        var suggestedStore = new RecordingCaseDetailsStore();
+        var suggestedData = await suggestedStore.GetAsync(suggestedStore.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        suggestedStore.DataOverride = suggestedData with
+        {
+            Vehicle = suggestedData.Vehicle with
+            {
+                Registration = new(
+                    null,
+                    suggestedData.Vehicle.Registration.Confirmed! with
+                    {
+                        Kind = CaseDataValueKind.Suggestion,
+                        ConfirmedByActor = null,
+                        ConfirmedAtUtc = null
+                    },
+                    null)
+            }
+        };
+        using var suggestedWorkspace = await EnterEditModeAsync(suggestedStore, _ => { });
+
+        var suggestedHtml = await GetHtmlAsync(
+            suggestedWorkspace.Client,
+            $"/Cases/{suggestedStore.CaseId:D}?section=vehicle");
+        var suggestedLookup = LookupForm(suggestedHtml);
+
+        Assert.Contains("name=\"registration\" value=\"\"", suggestedLookup, StringComparison.Ordinal);
+        Assert.Contains("disabled", suggestedLookup, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// PLAT-061: `.gated::after` renders `attr(data-condition)` with no
     /// `[data-condition]` guard, so a gate whose condition is absent paints an
@@ -223,6 +324,17 @@ public sealed partial class CaseDetailsWebTests
         var end = html.IndexOf("</span>", marker, StringComparison.Ordinal);
         Assert.True(end > start, "The gate is not closed.");
         return html[start..end];
+    }
+
+    private static string LookupForm(string html)
+    {
+        const string handler = "handler=RequestVehicleLookup";
+        var start = html.IndexOf(handler, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The vehicle lookup form must render in edit mode.");
+        start = html.LastIndexOf("<form", start, StringComparison.Ordinal);
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The vehicle lookup form must close.");
+        return html[start..(end + "</form>".Length)];
     }
 
     private static int CountOccurrences(string html, string value)

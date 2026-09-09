@@ -33,7 +33,9 @@ namespace Pegasus.IntegrationTests;
 /// the claimant's identity.</item>
 /// </list>
 ///
-/// What it deliberately does NOT assert is a coverage floor. Five samples per
+/// The broad inventory does not assert a coverage floor. The exact-field tests
+/// below do require every independently labelled value in their bounded fixtures;
+/// an absent expected field is a failure, not safe abstention. Five samples per
 /// principal prove examples, not production accuracy, and the implementation
 /// plan is explicit that no accuracy threshold may be claimed without
 /// operator-labelled holdouts. So recall, ambiguity and missing counts are
@@ -786,6 +788,51 @@ public sealed class Top15InstructionCorpusTests
             readable > 0,
             "No labelled original could be read completely, so nothing was measured.");
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [ReferencePackFact]
+    public async Task PchOriginalsPreserveEveryExplicitVehicleMakeWithoutInventingModelOrMileage()
+    {
+        // Literal Vehicle Make rows in the five hash-bound originals. PCH calls
+        // the whole printed description Make; neither Model nor the blank
+        // Mileage row may be inferred by splitting this description.
+        (string File, string Vehicle)[] vehicles =
+        [
+            ("PCH 01.DOC", "VOLVO Xc90 r-design t8 phev awd"),
+            ("PCH 02.DOC", "MERCEDES-BENZ A 180 amg line premium+ m"),
+            ("PCH 03.DOC", "BMW 220i luxury auto"),
+            ("PCH 04.DOC", "Toyota Proace"),
+            ("PCH 05.DOC", "BMW X5 XDRIVE40D M SPORT AUTO")
+        ];
+        var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
+        var policy = new PchInstructionExtractionPolicy();
+        var selector = new InstructionExtractionPolicySelector([policy]);
+        foreach (var (file, vehicle) in vehicles)
+        {
+            var expectation = Assert.Single(Expectations,
+                item => item.PackRelativePath == $"{CorpusRoot}/{file}");
+            var bytes = await File.ReadAllBytesAsync(Path.Combine(
+                PackRoot(), expectation.PackRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            Assert.Equal(expectation.Sha256, hash);
+            var read = await reader.ReadAsync(Source(bytes, file, hash), CancellationToken.None);
+            Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
+            Assert.False(read.IsIncomplete);
+            Assert.Equal(InstructionPolicySelectionOutcome.Selected,
+                selector.Select(read, InstructionDocumentSignature.InstructionRole).Outcome);
+            var result = policy.Extract(read, ProcessedAtUtc,
+                new("PCH", policy.DocumentProfileKey, policy.DocumentProfileVersion));
+            var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+            Assert.Equal(expectation.Identity.VehicleRegistration, draft.VehicleRegistration);
+            Assert.Equal(vehicle, draft.VehicleMake);
+            Assert.Null(draft.VehicleModel);
+            Assert.Null(draft.VehicleMileage);
+            var field = Assert.Single(result.Fields, item => item.Name == "Vehicle make");
+            Assert.False(field.HasConflict);
+            Assert.Equal(vehicle, field.SuggestedValue);
+            Assert.NotEmpty(field.Candidates);
+            Assert.All(field.Candidates, candidate => Assert.NotNull(candidate.Locator));
+        }
     }
 
     [ReferencePackFact]

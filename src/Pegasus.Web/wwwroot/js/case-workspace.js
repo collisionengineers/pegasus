@@ -27,7 +27,23 @@
     // "may this be reordered at all".
     var SUPPORTING = 'article.report-image[draggable="true"]';
 
-    document.querySelectorAll('[data-report-images]').forEach(function (panel) {
+    // Mounted Files bodies arrive after this script has run. Bind each panel
+    // once for the initial document and for every lazy section mount; the
+    // ordinary Move controls remain the complete script-off route.
+    function bindReportImages(root) {
+        if (!root) {
+            return;
+        }
+        var panels = [];
+        if (root.matches && root.matches('[data-report-images]')) {
+            panels.push(root);
+        }
+        Array.prototype.push.apply(panels, root.querySelectorAll('[data-report-images]'));
+        panels.forEach(function (panel) {
+        if (panel.dataset.reportImagesBound === 'true') {
+            return;
+        }
+        panel.dataset.reportImagesBound = 'true';
         var dragged = null;
 
         var sequence = function () {
@@ -198,5 +214,9 @@
             field.value = value === null ? '' : value;
             form.appendChild(field);
         };
-    });
+        });
+    }
+
+    bindReportImages(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportImages);
 })();

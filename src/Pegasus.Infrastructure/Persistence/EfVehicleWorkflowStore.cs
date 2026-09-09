@@ -105,19 +105,37 @@ internal sealed class EfVehicleWorkflowStore(
             .Select(item => item.Value)
             .Take(2)
             .ToArrayAsync(cancellationToken);
-        if (confirmedRegistrations.Length != 1)
+        if (confirmedRegistrations.Length > 1)
         {
-            throw new ConfirmedVehicleRegistrationRequiredException(
+            throw new AcceptedVehicleRegistrationRequiredException(
                 command.CaseId,
                 confirmedRegistrations.Length);
         }
 
-        var confirmedRegistration = confirmedRegistrations[0];
-        if (!string.Equals(confirmedRegistration, command.Registration, StringComparison.Ordinal))
+        var acceptedRegistrations = confirmedRegistrations.Length == 1
+            ? confirmedRegistrations
+            : await context.CaseDataFields
+                .AsNoTracking()
+                .Where(item => item.CaseId == command.CaseId
+                    && item.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && item.ValueKind == CaseDataCodes.Fact)
+                .OrderBy(item => item.SourceIdentity)
+                .Select(item => item.Value)
+                .Take(2)
+                .ToArrayAsync(cancellationToken);
+        if (acceptedRegistrations.Length != 1)
         {
-            throw new ConfirmedVehicleRegistrationConflictException(
+            throw new AcceptedVehicleRegistrationRequiredException(
                 command.CaseId,
-                confirmedRegistration,
+                acceptedRegistrations.Length);
+        }
+
+        var acceptedRegistration = acceptedRegistrations[0];
+        if (!string.Equals(acceptedRegistration, command.Registration, StringComparison.Ordinal))
+        {
+            throw new AcceptedVehicleRegistrationConflictException(
+                command.CaseId,
+                acceptedRegistration,
                 command.Registration);
         }
 

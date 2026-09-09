@@ -72,9 +72,11 @@ before/after values.
 
 ### Staff accounts
 
-The staff accounts table lists Name, Username, Role, and State, with role
-assignment inline: Save is enabled only once the role has changed and requires
-a reason. Account actions are Create, Enable, Disable, Delete access, Force
+The staff accounts table lists Name, Username, Roles, and State in compact
+rows. Each row opens a Settings dialog for role assignment and account actions;
+Create opens its own dialog (9 September 2026 operator-selected UI correction).
+A role change requires a reason and preserves entered values and visible
+validation inside Settings when refused. Account actions are Create, Enable, Disable, Delete access, Force
 logout and Reset password. Periodic reviews, review dates and review actions
 are removed by the 6 September 2026 operator decision. An account cannot
 disable or delete itself, and concurrent actions cannot remove the last

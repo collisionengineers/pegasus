@@ -573,6 +573,7 @@ public sealed record InstructionReviewField(
         "Claimant name" => CaseDataFieldNames.ClaimantName,
         "Claim number" or "Claim reference" => CaseDataFieldNames.ClaimNumber,
         "Vehicle registration" => CaseDataFieldNames.VehicleRegistration,
+        "Vehicle description" => CaseDataFieldNames.VehicleDescription,
         "Vehicle make" or "Vehicle make and model" => CaseDataFieldNames.VehicleMake,
         "Vehicle model" => CaseDataFieldNames.VehicleModel,
         "Vehicle mileage" => CaseDataFieldNames.VehicleMileage,

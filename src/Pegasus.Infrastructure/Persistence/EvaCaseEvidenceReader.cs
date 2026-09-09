@@ -112,25 +112,22 @@ public static class EvaCaseEvidenceReader
     /// <summary>
     /// Make and model as one value, from whichever source the case has.
     ///
-    /// The staff-confirmed vehicle record wins, exactly as before. What changed
-    /// (ENG-015) is the fallback: it used to read <c>Vehicle.Model</c> alone, so
-    /// an export carried "X5 SE - X DRIVE Type 5 DOOR SUV" where EVA is sent
-    /// "BMW X5 …". Both branches now compose the same way, so the two cannot
-    /// state the vehicle differently.
+    /// Each staff-confirmed component wins independently. A missing confirmed
+    /// make or model falls back to that component's accepted Case field, so a
+    /// partial confirmation cannot drop the other source-backed component.
     /// </summary>
     private static EvaEvidenceValue VehicleModel(
         ConfirmedVehicleEvidence? vehicle,
         CaseDataProjection caseData)
-    {
-        var confirmed = Compose(
-            vehicle?.Make is null ? null : FromVehicleField(vehicle.Make, static value => value),
-            vehicle?.Model is null ? null : FromVehicleField(vehicle.Model, static value => value));
-        return string.IsNullOrWhiteSpace(confirmed.Value)
-            ? Compose(
-                FromCaseField(caseData.Vehicle.Make, static value => value),
-                FromCaseField(caseData.Vehicle.Model, static value => value))
-            : confirmed;
-    }
+        => Compose(
+            Fallback(
+                vehicle?.Make is null ? MissingEvidence : FromVehicleField(vehicle.Make, static value => value),
+                caseData.Vehicle.Make,
+                static value => value),
+            Fallback(
+                vehicle?.Model is null ? MissingEvidence : FromVehicleField(vehicle.Model, static value => value),
+                caseData.Vehicle.Model,
+                static value => value));
 
     /// <summary>Make and model joined, skipping whichever the case lacks.</summary>
     private static EvaEvidenceValue Compose(EvaEvidenceValue? make, EvaEvidenceValue? model)

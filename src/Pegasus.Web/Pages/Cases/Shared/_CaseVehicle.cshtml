@@ -10,13 +10,19 @@
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
     string Value(string? text) => string.IsNullOrWhiteSpace(text)
         ? OperatorLabels.CaseWorkspace.AbsentValue : text;
-    var registration = details.VehicleEvidence?.Confirmed?.Registration?.Value
-        ?? data?.Vehicle.Registration.Current?.Value ?? details.Summary.Registration;
     // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an
     // unaccepted suggestion, which would render with no marker distinguishing
     // it from a recorded value while the chip beside it still offers "Use …".
+    var acceptedRegistration = data?.Vehicle.Registration.Confirmed?.Value
+        ?? data?.Vehicle.Registration.Fact?.Value;
+    var registration = details.VehicleEvidence?.Confirmed?.Registration?.Value
+        ?? acceptedRegistration
+        // The list-summary value is only the identity when no Case-data
+        // projection is available; never use it to promote a suggestion.
+        ?? (data is null ? details.Summary.Registration : null);
     var make = data?.Vehicle.Make.Confirmed?.Value ?? data?.Vehicle.Make.Fact?.Value;
     var model = data?.Vehicle.Model.Confirmed?.Value ?? data?.Vehicle.Model.Fact?.Value;
+    var description = data?.Vehicle.Description.Fact;
     var mileage = data?.Vehicle.Mileage.Confirmed?.Value ?? data?.Vehicle.Mileage.Fact?.Value;
     var unit = data?.Vehicle.MileageUnit.Confirmed?.Value ?? data?.Vehicle.MileageUnit.Fact?.Value;
     var makeSuggestion = data?.Vehicle.Make.Suggestion;
@@ -84,6 +90,7 @@
     <div class="panel-body">
         <div class="overview-facts">
             <dl><dt>Registration</dt><dd>@Value(registration)</dd></dl>
+            <dl><dt>Source vehicle description</dt><dd>@Value(description?.Value)@if (description is not null){<partial name="Shared/_Provenance" model="description.Source" />}</dd></dl>
             <dl><dt>Make</dt><dd>@Value(make)</dd>@if (mayEdit && showMake){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@makeSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Make" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(makeSuggestion.Value)</button></form>}</dl>
             <dl><dt>Model</dt><dd>@Value(model)</dd>@if (mayEdit && showModel){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@modelSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Model" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(modelSuggestion.Value)</button></form>}</dl>
             <dl><dt>Year</dt><dd>@Value(year?.ToString())</dd></dl>

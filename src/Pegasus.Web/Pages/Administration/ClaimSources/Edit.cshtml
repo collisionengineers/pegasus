@@ -1,68 +1,67 @@
 @page "{id:guid}"
 @model Pegasus.Web.Pages.Administration.ClaimSources.EditModel
 @{
-    ViewData["Title"] = "Edit claim source";
+    ViewData["Title"] = OperatorLabels.Admin.ClaimSources;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "claim-sources";
 }
 
-<a class="back-link" asp-page="Index">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Claim Sources
-</a>
+<partial name="Shared/_PageHeader" />
 
-@* Defensive only: the handler returns 404 when the claim source is absent,
-   so the not-found surface is owned by the error page. *@
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+
 @if (Model.ClaimSource is not null)
 {
-    <div class="page-heading">
-        <div>
-            <h1>Edit @Model.ClaimSource.Name</h1>
+    <section class="panel" aria-labelledby="edit-claim-source-title">
+        <div class="panel-head">
+            <div><h2 id="edit-claim-source-title">Edit @Model.ClaimSource.Name</h2></div>
+            <div>
+                <partial name="Shared/_StatusChip" model="@(Model.ClaimSource.Active ? "Active" : "Disabled")" />
+                <span class="muted tabular">Version @Model.ClaimSource.Version</span>
+            </div>
         </div>
-        <div class="page-heading-actions">
-            <partial name="Shared/_StatusChip" model="@(Model.ClaimSource.Active ? "Active" : "Disabled")" />
-            <span class="updated tabular">Version @Model.ClaimSource.Version</span>
-        </div>
-    </div>
 
-    <div class="panel form-panel form-panel--wide">
-        <form method="post" asp-page-handler="Update" asp-route-id="@Model.ClaimSource.Id">
+        <form method="post" asp-page-handler="Update" asp-route-id="@Model.ClaimSource.Id" class="panel-body stack">
             <div asp-validation-summary="ModelOnly"></div>
             <input asp-for="ExpectedVersion" type="hidden" />
             <input asp-for="OperationKey" type="hidden" />
-            <div>
-                <label asp-for="Name">Name</label>
+            <div class="field">
+                <label class="req" asp-for="Name">Name</label>
                 <input asp-for="Name" autocomplete="off" />
                 <span asp-validation-for="Name"></span>
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="ContactName">Contact name (optional)</label>
                 <input asp-for="ContactName" autocomplete="off" />
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="Telephone">Telephone (optional)</label>
                 <input asp-for="Telephone" autocomplete="off" />
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="Email">Email (optional)</label>
                 <input asp-for="Email" autocomplete="off" />
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="Notes">Notes (optional)</label>
                 <textarea asp-for="Notes" rows="3"></textarea>
             </div>
-            @* Disable is this same form with Active cleared — every Case that
-               already referenced this claim source keeps its own copied
-               snapshot untouched. *@
-            <div>
+            <div class="field">
                 <label class="choice"><input asp-for="Active" /> <span>Active</span></label>
             </div>
-            <div>
-                <label asp-for="Reason">Reason for change</label>
+            <div class="field">
+                <label class="req" asp-for="Reason">Reason for change</label>
                 <textarea asp-for="Reason" rows="3"></textarea>
                 <span asp-validation-for="Reason"></span>
             </div>
             <div class="button-row">
-                <button type="submit" class="primary-action">Save claim source</button>
+                <a class="btn" asp-page="Index">Cancel</a>
+                <button type="submit" class="btn btn--primary">Save claim source</button>
             </div>
         </form>
-    </div>
+    </section>
 }
+</div>
+</div>
