@@ -29,15 +29,7 @@ $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
 $releaseArtifactPath = Join-Path $repositoryRoot 'scripts/Build-ReleaseArtifacts.ps1'
-$expectedWorkerSettings = @(
-    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.UnifiedWorkFunction.Disabled',
-    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
-    'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
-    'AzureWebJobs.InboxRecoveryFunction.Disabled',
-    'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled'
-)
+$expectedWorkerSettings = @(Get-PegasusWorkerDisabledSettingNames)
 # The executed production runbook (azure-production-replacement-plan.md) and
 # the one-off predecessor archive/retirement scripts were retired after the
 # 2026-08-02 release; their content assertions retired with them (git history).
@@ -369,15 +361,10 @@ foreach ($grantMigration in $grantMigrationFiles) {
         "Database bootstrap must account for grant-carrying migration $($grantMigration.Name)."
 }
 
-$smokeWorkerMatches = [regex]::Matches(
-    $productionSmoke,
-    "'(AzureWebJobs\.[^']+\.Disabled)'"
-)
-$smokeWorkerSettings = @($smokeWorkerMatches | ForEach-Object { $_.Groups[1].Value })
-Assert-ExactOrdinalCensus `
-    -Expected $expectedWorkerSettings `
-    -Actual $smokeWorkerSettings `
-    -Failure 'Production smoke must inspect the exact seven-function disabled-setting census.'
+Assert-Text `
+    $productionSmoke `
+    '\$expectedWorkerSettings\s*=\s*@\(Get-PegasusWorkerDisabledSettingNames\)' `
+    'Production smoke must consume the canonical Worker disabled-setting census.'
 Assert-Text $productionSmoke 'az\s+functionapp\s+config\s+appsettings\s+list' 'Production smoke must read the live Worker app settings.'
 Assert-Text $productionSmoke "ExpectedWorkerActivation\s*-eq\s*'approved-live-worker'[\s\S]*?'false'[\s\S]*?'true'" 'Production smoke must map approved-live-worker to enabled settings and disabled to disabled settings.'
 Assert-Text $productionSmoke 'HashSet\[string\][\s\S]*StringComparer\]::Ordinal' 'Production smoke must compare every Worker setting name with ordinal semantics.'

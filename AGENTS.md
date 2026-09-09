@@ -181,6 +181,12 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   and [migration recipe](.agents/skills/pegasus-release/references/database-migration.md)
   for the authorized workstation and platform-matching artifacts.
+- Plan destructive migrations explicitly: identify the affected capability and
+  forward-only recovery boundary, then require approved old-Worker `Stopped` and
+  exact old-Web inactive/zero-replica read-back before SQL. After actual release,
+  approve a concrete window outside typical usage. The release is incomplete
+  until approved new Web/Worker bytes are explicitly active, healthy and smoked;
+  never revive old bytes after destructive SQL begins.
 - A closed feature or composition gate is not delivery. An inert UI preview may
   exist only where its accepted interface contract permits it.
 
