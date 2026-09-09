@@ -82,8 +82,9 @@ public sealed partial class PchInstructionExtractionPolicy
     /// footer signals
     /// ("Performance Car Hire Ltd is an appointed representative of Lawshield
     /// UK Ltd" prints both firm names in one sentence). Which template was
-    /// used is therefore genuinely ambiguous for four of the five, and it is
-    /// recorded as ambiguous. WHO the principal is never was in doubt, which
+    /// used is therefore ambiguous when both footer signals are recovered.
+    /// A reader that omits the footer records no template identity from the
+    /// audit heading alone. WHO the principal is never was in doubt, which
     /// is why these are variants of one profile and not two profiles.
     ///
     /// The Everywhen variant the method file names has no accepted signature

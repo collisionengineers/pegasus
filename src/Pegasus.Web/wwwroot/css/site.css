@@ -178,7 +178,7 @@ strong{font-weight:650}
 .btn--small{min-height:32px;padding:5px 9px;font-size:11px}
 .btn .icon{width:16px;height:16px}
 .btn.is-disabled,.btn:disabled{opacity:.45;background:var(--surface-3);color:var(--muted);border-color:var(--line);pointer-events:none;cursor:not-allowed}
-.input,.select,.textarea,input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="date"],input[type="datetime-local"],input[type="number"],input[type="password"],input[type="time"],select,textarea{width:100%;min-height:var(--control);border:1px solid var(--line-strong);background:#fff;padding:6px 9px;border-radius:var(--radius)}
+.input,.select,.textarea,input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="date"],input[type="month"],input[type="datetime-local"],input[type="number"],input[type="password"],input[type="time"],select,textarea{width:100%;min-height:var(--control);border:1px solid var(--line-strong);background:#fff;padding:6px 9px;border-radius:var(--radius)}
 .textarea,textarea{min-height:96px;resize:vertical}
 .input::placeholder,input::placeholder,textarea::placeholder{color:#8a8985}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -600,6 +600,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .account-settings-section{border:1px solid var(--line);background:var(--surface-2)}
 .account-settings-section>summary{min-height:42px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;font-weight:650}
 .account-settings-section>summary::-webkit-details-marker{display:none}
+.account-settings-section>summary::marker{content:""}
 .account-settings-section>summary::after{content:"+";font-size:18px;line-height:1}
 .account-settings-section[open]>summary{border-bottom:1px solid var(--line);background:#fff}
 .account-settings-section[open]>summary::after{content:"−"}
