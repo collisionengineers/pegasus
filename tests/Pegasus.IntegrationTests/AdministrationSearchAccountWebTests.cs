@@ -225,16 +225,33 @@ public sealed class AdministrationSearchAccountWebTests
         var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
         var first = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}");
+        Assert.Contains("Page 1", first, StringComparison.Ordinal);
         Assert.Contains("page=2", first, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Actor=pager-actor", first, StringComparison.OrdinalIgnoreCase);
 
         var second = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=2");
+        Assert.Contains("Page 2", second, StringComparison.Ordinal);
+        Assert.Contains("page=1", second, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("page=3", second, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Actor=pager-actor", second, StringComparison.OrdinalIgnoreCase);
 
         var third = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+        Assert.Contains("Page 3", third, StringComparison.Ordinal);
+        Assert.Contains("page=2", third, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("action-100", third, StringComparison.Ordinal);
         Assert.DoesNotContain("page=4", third, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ActionLogPageValidationIsSeparateFromUtcPeriodValidation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync("/Administration/ActionLogs?page=0");
+
+        Assert.Contains("Choose a valid page.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Choose a valid UTC period.", html, StringComparison.Ordinal);
     }
 
     [Fact]

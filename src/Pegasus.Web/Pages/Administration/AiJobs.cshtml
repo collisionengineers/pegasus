@@ -10,10 +10,12 @@
 @foreach (var job in Model.Result.Jobs)
 {
     <tr>
-        <td>@job.Kind</td>
-        <td>@job.SubjectReference</td>
+        <td>@OperatorLabels.AiJobs.Kind(job.Kind)</td>
+        <td>@(job.SubjectKind == AiJobSubjectKind.Queue ? OperatorLabels.AiJobs.QueueRecord : job.SubjectReference)</td>
         <td>@OperatorLabels.OfficeTime(job.CreatedAtUtc, "")</td>
-        <td>@job.State</td>
+        <td><partial name="Shared/_StatusChip"
+                     model="@OperatorLabels.AiJobs.State(job.State)"
+                     view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' /></td>
         <td>
             @if (!AiJobStates.IsTerminal(job.State))
             {
@@ -23,6 +25,7 @@
                         <input type="hidden" name="jobId" value="@job.JobId" />
                         <input type="hidden" name="expectedVersion" value="@job.Version" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                        <input type="hidden" name="page" value="@Model.CurrentPage" />
                         <label>Reason <input name="reason" maxlength="500" required /></label>
                         <button class="btn btn--small" type="submit">Stop</button>
                     </form>
@@ -39,5 +42,20 @@
 {
     <tr><td colspan="5" class="muted">No AI jobs are recorded.</td></tr>
 }
-</tbody></table></div>@if (Model.Result.HasMore) { <a asp-page="/Administration/AiJobs" asp-route-page="@(Model.CurrentPage + 1)">Next</a> }</div></section>
+</tbody></table></div>
+@if (Model.CurrentPage > 1 || Model.Result.HasMore)
+{
+    <nav class="pagination" aria-label="AI job pages">
+        @if (Model.CurrentPage > 1)
+        {
+            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-page="@(Model.CurrentPage - 1)">Previous</a>
+        }
+        <span>Page @Model.CurrentPage</span>
+        @if (Model.Result.HasMore)
+        {
+            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-page="@(Model.CurrentPage + 1)">Next</a>
+        }
+    </nav>
+}
+</div></section>
 </div></div>

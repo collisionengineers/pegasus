@@ -17,7 +17,7 @@
                     @foreach (var row in snapshot.Rows)
                     {
                         <tr>
-                            <td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td><td>@row.Service</td>
+                            <td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td><td>@OperatorLabels.ServiceHealthServiceName(row.Service)</td>
                             <td>@OperatorLabels.ServiceHealthStateName(row.State)</td>
                             <td>@if (row.Area == Pegasus.Core.Operations.ServiceHealthArea.Mail) { <span>Last successful poll: </span> }@OperatorLabels.OfficeTime(row.LatestEvidenceAtUtc, "")</td>
                             <td>@row.FailureCode</td><td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td>
