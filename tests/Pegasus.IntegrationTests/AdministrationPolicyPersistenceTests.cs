@@ -195,4 +195,116 @@ public sealed class AdministrationPolicyPersistenceTests
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.OperationConflict, replayConflict.Error);
     }
+
+    [Fact]
+    public async Task DefaultStaffSendMailboxTransferIsAuthorizedVersionedAuditedAndReplaySafe()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var mailboxCommand = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
+        var defaultCommand = scope.ServiceProvider.GetRequiredService<SetDefaultApprovedMailbox>();
+        var list = scope.ServiceProvider.GetRequiredService<ListApprovedMailboxes>();
+        var first = await CreateApprovedStaffSendMailboxAsync(
+            mailboxCommand, administrator, "default-first@collisionengineers.co.uk", "first");
+        var second = await CreateApprovedStaffSendMailboxAsync(
+            mailboxCommand, administrator, "default-second@collisionengineers.co.uk", "second");
+
+        var firstSelection = new SetDefaultApprovedMailboxRequest(
+            first.Id,
+            first.Version,
+            null,
+            null,
+            administrator,
+            "Set the first verified mailbox as Compose sender",
+            "approved-mailbox-default-first");
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => defaultCommand.ExecuteAsync(
+                firstSelection with
+                {
+                    Actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                    OperationKey = "approved-mailbox-default-denied"
+                },
+                default));
+
+        var firstDefault = await defaultCommand.ExecuteAsync(firstSelection, default);
+        var firstReplay = await defaultCommand.ExecuteAsync(firstSelection, default);
+        Assert.True(firstDefault.IsDefaultStaffSend);
+        Assert.Equal(firstDefault.Id, firstReplay.Id);
+        Assert.Equal(firstDefault.Version, firstReplay.Version);
+        Assert.True(firstReplay.IsDefaultStaffSend);
+
+        var transfer = new SetDefaultApprovedMailboxRequest(
+            second.Id,
+            second.Version,
+            firstDefault.Id,
+            firstDefault.Version,
+            administrator,
+            "Move the Compose sender to the second verified mailbox",
+            "approved-mailbox-default-second");
+        var secondDefault = await defaultCommand.ExecuteAsync(transfer, default);
+        var mailboxes = await list.ExecuteAsync(administrator, default);
+        var clearedFirst = Assert.Single(mailboxes.Where(mailbox => mailbox.Id == first.Id));
+        Assert.False(clearedFirst.IsDefaultStaffSend);
+        Assert.Equal(firstDefault.Version + 1, clearedFirst.Version);
+        Assert.True(secondDefault.IsDefaultStaffSend);
+        Assert.Single(mailboxes.Where(mailbox => mailbox.IsDefaultStaffSend));
+
+        var stale = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => defaultCommand.ExecuteAsync(
+                firstSelection with
+                {
+                    ExpectedVersion = clearedFirst.Version,
+                    OperationKey = "approved-mailbox-default-stale"
+                },
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.VersionConflict, stale.Error);
+
+        var disableDefault = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => mailboxCommand.ExecuteAsync(
+                new(
+                    secondDefault.Id,
+                    secondDefault.Address,
+                    secondDefault.RouteScopes,
+                    ApprovedMailboxState.Disabled,
+                    secondDefault.Version,
+                    administrator,
+                    "Attempt to disable the default sender without selecting a replacement",
+                    "approved-mailbox-default-disable",
+                    secondDefault.MailboxIdentity,
+                    secondDefault.InboxFolderIdentity,
+                    secondDefault.SentFolderIdentity,
+                    secondDefault.FolderBindings,
+                    secondDefault.VerifiedEncodedMessageSizeLimit),
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement, disableDefault.Error);
+
+        await using var context = await database.CreateContextAsync();
+        Assert.Equal(
+            2,
+            await context.ActionHistory.CountAsync(item =>
+                item.EventKind == "approved_mailbox_default_staff_send_selected"));
+    }
+
+    private static Task<ApprovedMailbox> CreateApprovedStaffSendMailboxAsync(
+        UpdateApprovedMailbox command,
+        ActionActor actor,
+        string address,
+        string identity) =>
+        command.ExecuteAsync(
+            new(
+                Guid.NewGuid(),
+                address,
+                [ApprovedMailboxRouteScope.StaffSend],
+                ApprovedMailboxState.Approved,
+                0,
+                actor,
+                $"Add {identity} staff-send mailbox",
+                $"approved-mailbox-{identity}",
+                $"{identity}-mailbox",
+                null,
+                null,
+                null,
+                10485760),
+            default);
 }

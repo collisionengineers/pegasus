@@ -28,7 +28,8 @@ public sealed record ApprovedMailbox(
     int Version,
     IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings,
     long Generation = 0,
-    long? VerifiedEncodedMessageSizeLimit = null);
+    long? VerifiedEncodedMessageSizeLimit = null,
+    bool IsDefaultStaffSend = false);
 
 public sealed record ApprovedMailboxFolderBinding(
     MailLogicalFolderType FolderType,
@@ -48,6 +49,15 @@ public sealed record UpdateApprovedMailboxRequest(
     string? SentFolderIdentity = null,
     IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null,
     long? VerifiedEncodedMessageSizeLimit = null);
+
+public sealed record SetDefaultApprovedMailboxRequest(
+    Guid MailboxId,
+    int ExpectedVersion,
+    Guid? ExpectedPreviousDefaultMailboxId,
+    int? ExpectedPreviousDefaultMailboxVersion,
+    ActionActor Actor,
+    string Reason,
+    string OperationKey);
 
 /// <summary>
 /// One mailbox the approved estate says inbound-intake polling may read, with the
@@ -147,6 +157,11 @@ public interface IApprovedMailboxStore : IApprovedMailboxPolicy
     Task<ApprovedMailbox> UpdateAsync(
         UpdateApprovedMailboxRequest request,
         CancellationToken cancellationToken);
+
+    Task<ApprovedMailbox> SetDefaultAsync(
+        SetDefaultApprovedMailboxRequest request,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("This approved-mailbox store does not support selecting a default staff-send mailbox.");
 }
 
 public sealed class ListApprovedMailboxes(IApprovedMailboxStore store)
@@ -329,6 +344,60 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
     }
 }
 
+public sealed class SetDefaultApprovedMailbox(IApprovedMailboxStore store)
+{
+    private readonly IApprovedMailboxStore _store =
+        store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<ApprovedMailbox> ExecuteAsync(
+        SetDefaultApprovedMailboxRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageApprovedMailboxes);
+        if (request.MailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("A mailbox identifier is required.", nameof(request));
+        }
+        if (request.ExpectedVersion <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request), "The expected mailbox version must be positive.");
+        }
+        if (request.ExpectedPreviousDefaultMailboxId.HasValue != request.ExpectedPreviousDefaultMailboxVersion.HasValue
+            || request.ExpectedPreviousDefaultMailboxVersion is <= 0)
+        {
+            throw new ArgumentException(
+                "The expected current default mailbox version is invalid.", nameof(request));
+        }
+
+        return _store.SetDefaultAsync(
+            request with
+            {
+                Reason = RequireText(request.Reason, 1000, "A mailbox-policy reason is required."),
+                OperationKey = RequireText(request.OperationKey, 100, "An operation key is required.")
+            },
+            cancellationToken);
+    }
+
+    private static string RequireText(string value, int maximumLength, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException(message);
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > maximumLength)
+        {
+            throw new ArgumentException($"The value cannot exceed {maximumLength} characters.");
+        }
+
+        return normalized;
+    }
+}
+
 public enum ApprovedMailboxUpdateError
 {
     NotFound,
@@ -339,7 +408,9 @@ public enum ApprovedMailboxUpdateError
     InvalidMailboxIdentity,
     MailboxIdentityImmutable,
     DuplicateMailboxIdentity,
-    MissingVerifiedSendLimit
+    MissingVerifiedSendLimit,
+    DefaultStaffSendMailboxIneligible,
+    DefaultStaffSendMailboxRequiresReplacement
 }
 
 public sealed class ApprovedMailboxUpdateException(

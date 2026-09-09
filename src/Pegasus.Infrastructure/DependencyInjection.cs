@@ -374,6 +374,7 @@ public static class DependencyInjection
         services.AddScoped<IApprovedMailboxSubscriptionStore, EfApprovedMailboxSubscriptionStore>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
+        services.AddScoped<SetDefaultApprovedMailbox>();
         services.AddScoped<EfApprovedOutlookCategoryStore>();
         services.AddScoped<IApprovedOutlookCategoryStore>(provider =>
             provider.GetRequiredService<EfApprovedOutlookCategoryStore>());

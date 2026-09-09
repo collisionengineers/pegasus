@@ -51,6 +51,42 @@
                         </ol>
                     </div>
                 </details>
+                @{
+                    var currentDefault = Model.Mailboxes.SingleOrDefault(mailbox => mailbox.IsDefaultStaffSend);
+                }
+                <form method="post" asp-page-handler="SetDefault" class="stack section-gap">
+                    <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxId" value="@currentDefault?.Id" />
+                    <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxVersion" value="@currentDefault?.Version" />
+                    <input type="hidden" name="DefaultMailboxForm.OperationKey" value="@Model.DefaultMailboxOperationKey" />
+                    @if (Model.EligibleDefaultStaffSendMailboxes.Count == 0)
+                    {
+                        <p>No eligible staff-send mailbox is available to select.</p>
+                    }
+                    else
+                    {
+                        <div class="field">
+                            <label for="default-staff-send-mailbox">Default Compose sender</label>
+                            <select id="default-staff-send-mailbox" name="DefaultMailboxForm.SelectedMailbox" required>
+                                @foreach (var mailbox in Model.EligibleDefaultStaffSendMailboxes)
+                                {
+                                    <option value="@Model.DefaultMailboxSelectionFor(mailbox)" selected="@Model.IsDefaultMailboxSelection(mailbox)">
+                                        @mailbox.Address
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="field">
+                        <label class="req" for="default-staff-send-reason">Reason</label>
+                        <input id="default-staff-send-reason" name="DefaultMailboxForm.Reason"
+                               value="@Model.DefaultMailboxReason" required maxlength="1000" />
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--dark" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">
+                            Set default Compose sender
+                        </button>
+                    </div>
+                </form>
                 <div class="table-wrap no-border">
                     <table>
                         <caption class="sr-only">@OperatorLabels.MailSettings.ApprovedMailboxes</caption>
