@@ -184,3 +184,9 @@ Ready resumed packet validated exact clean .worktrees/plat-046, branch PLAT-046-
 Normal merge origin/dev retained PR711 actual merge c3219cd28c69530441e2bba7357063372628ff37 as ancestor (local merge ae78a134c). One-file correction commit a2bb0e120575d46828911d15031e7a36dc1ff4de reads literal function names from canonical PegasusPlatform.ps1 and explicitly asserts both smoke/deploymentPlan dot-source and assign the shared helper. ExpectedFunctions and every unsafe-disable assertion and runtime negative fixture remain unchanged. Git diff --check exit0 (line-ending advisory only); branch clean. No restore/build/test/script/cloud/SQL/push/PR command was run. Original proof FAIL dc4ca8507b568ff3 and review of original711 remain untouched.
 
 Frozen for root's sole-host verification grant to /root/verify_711_712. After local PASS, root must authorize push/draft corrective PR; no author merge. Unrelated stale recorded worktree warnings and .opencode skill drift are retained observations, not repaired.
+
+## Corrective draft published while local verification queued
+
+Root explicitly authorized publication before local PASS to overlap remote CI with the existing host owner. Pushed exact clean a2bb0e120575d46828911d15031e7a36dc1ff4de without force and opened draft PR https://github.com/collisionengineers/pegasus/pull/713 to dev. Readback OPEN DRAFT, exact branch/head confirmed. prs[] now retains both original711 and corrective713. CI pull_request run34298650052 is in_progress at this exact head: https://github.com/collisionengineers/pegasus/actions/runs/34298650052.
+
+No local architecture PASS claim, Review move, ready action, merge or host command performed. Ticket remains Implementing; original postmerge FAIL proof unchanged. Await root's sole-host verification result before final report/checklist and Review handoff.
