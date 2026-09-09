@@ -257,12 +257,24 @@ public sealed class ImageIntakeWebTests
 
     private static string BackToCasesHref(string html)
     {
-        var link = Regex.Match(html,
-            "<a\\b[^>]*href=\"(?<href>[^\"]*)\"[^>]*>[\\s\\S]*?<span>Back to Cases</span>\\s*</a>",
-            RegexOptions.CultureInvariant,
-            TimeSpan.FromSeconds(1));
-        Assert.True(link.Success, "The Back to Cases link must be rendered.");
-        return WebUtility.HtmlDecode(link.Groups["href"].Value);
+        foreach (Match link in Regex.Matches(
+            html,
+            "<a\\b[^>]*href=\"(?<href>[^\"]*)\"[^>]*>(?<body>.*?)</a>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1)))
+        {
+            if (Regex.IsMatch(
+                link.Groups["body"].Value,
+                "<span>Back to Cases</span>",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            {
+                return WebUtility.HtmlDecode(link.Groups["href"].Value);
+            }
+        }
+
+        Assert.True(false, "The Back to Cases link must be rendered.");
+        return string.Empty;
     }
 }
 
