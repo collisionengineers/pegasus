@@ -91,6 +91,12 @@ Both concern unchanged upload decision paths outside the Worker architecture
 correction. Existing INTK-066/PR712 owns the manual-confirmation behavior and
 explicitly authorized browser/snapshot retirement. No workaround, test deletion,
 waiver or source absorption into PR713 is authorized or performed here.
+Supporting INTK-066 evidence: the exact named UploadConfirmationWebTests method
+passed in the current 0172 TRX in 00:00:05.1543188. Commit
+da6ff8e16815100e42da65e60df3e45a3cced2d2 changes the production manual-destination
+workflow and its assertions to "Choose a case destination", retaining actual
+association, exact Case URL, no automatic association and replay/version checks.
+This supports deferral to its existing owner, not a wording-only waiver.
 Remaining SQL1/2 and browser jobs were pending at gather, NOT PASS; they are
 nonrequired evidence outside this ticket's acceptance. Any newly revealed
 in-scope risk before merge requires fresh disposition.
