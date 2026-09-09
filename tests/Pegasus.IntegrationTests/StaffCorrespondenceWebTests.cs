@@ -257,7 +257,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -314,7 +314,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -501,7 +501,7 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = token,
             ["OperationKey"] = operationKey,
             ["CaseReference"] = caseReference,
-            ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
+            ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["To"] = "claimant@example.invalid",
             ["Subject"] = "Following up",
             ["Body"] = "Please find the update below."
@@ -553,7 +553,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below.",

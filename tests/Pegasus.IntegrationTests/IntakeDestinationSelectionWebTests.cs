@@ -8,6 +8,7 @@ using Pegasus.Core.Workflow;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 

@@ -249,11 +249,11 @@ public sealed class AdministrationPolicyPersistenceTests
             "approved-mailbox-default-second");
         var secondDefault = await defaultCommand.ExecuteAsync(transfer, default);
         var mailboxes = await list.ExecuteAsync(administrator, default);
-        var clearedFirst = Assert.Single(mailboxes.Where(mailbox => mailbox.Id == first.Id));
+        var clearedFirst = Assert.Single(mailboxes, mailbox => mailbox.Id == first.Id);
         Assert.False(clearedFirst.IsDefaultStaffSend);
         Assert.Equal(firstDefault.Version + 1, clearedFirst.Version);
         Assert.True(secondDefault.IsDefaultStaffSend);
-        Assert.Single(mailboxes.Where(mailbox => mailbox.IsDefaultStaffSend));
+        Assert.Single(mailboxes, mailbox => mailbox.IsDefaultStaffSend);
 
         var removeStaffSendScope = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => mailboxCommand.ExecuteAsync(
@@ -315,8 +315,8 @@ public sealed class AdministrationPolicyPersistenceTests
             Assert.Equal(administrator.SubjectId, item.ActorSubjectId);
             Assert.Equal(ActorKind.Staff.ToString(), item.ActorKind);
         });
-        var transferHistory = Assert.Single(defaultSelectionHistory.Where(item =>
-            item.CorrelationId == transfer.OperationKey));
+        var transferHistory = Assert.Single(defaultSelectionHistory, item =>
+            item.CorrelationId == transfer.OperationKey);
         Assert.Equal(transfer.Reason, transferHistory.Reason);
         Assert.Contains(firstDefault.Id.ToString("D"), transferHistory.BeforeJson, StringComparison.Ordinal);
         Assert.Contains("\"IsDefaultStaffSend\":true", transferHistory.AfterJson, StringComparison.Ordinal);
