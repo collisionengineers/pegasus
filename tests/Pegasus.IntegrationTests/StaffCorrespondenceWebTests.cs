@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -37,11 +36,31 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(0, send.SendCalls);
     }
 
+    [Fact]
+    public async Task OfflineMailSurfacesRenderNoSendControlAndRefuseForgedSend()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory);
+
+        using var get = await client.GetAsync("/Inbox/Compose");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("handler=Send", html, StringComparison.OrdinalIgnoreCase);
+
+        using var post = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken")
+            }));
+        Assert.Equal(HttpStatusCode.NotFound, post.StatusCode);
+    }
+
     [Theory]
     [InlineData(false, true, false)]
     [InlineData(true, false, false)]
     [InlineData(true, true, true)]
-    public async Task FromMailboxRequiresStaffSendAndPositiveGeneration(
+    public async Task FromMailboxRequiresTheDefaultStaffSendCapability(
         bool staffSend, bool positiveGeneration, bool expected)
     {
         const string address = "capability@example.invalid";
@@ -60,9 +79,11 @@ public sealed class StaffCorrespondenceWebTests
             ActivatedAtUtc: NowUtc,
             Version: 0,
             FolderBindings: [],
-            Generation: positiveGeneration ? 1 : 0);
+            Generation: positiveGeneration ? 1 : 0,
+            IsDefaultStaffSend: staffSend && positiveGeneration);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
+        using var configured = Configure(baseFactory, new RecordingStaffMailSend());
+        using var factory = configured.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IApprovedMailboxStore>();
@@ -125,7 +146,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task AnUnknownApprovedMailboxReturnsTheFormWithoutSending()
+    public async Task MissingDefaultMailboxReturnsTheFormWithoutSending()
     {
         var send = new RecordingStaffMailSend();
         using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
@@ -137,7 +158,6 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
-                ["ApprovedMailboxId"] = Guid.NewGuid().ToString("D"),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Test",
                 ["Body"] = "Test body."
@@ -145,12 +165,12 @@ public sealed class StaffCorrespondenceWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Choose an approved mailbox", html, StringComparison.Ordinal);
+        Assert.Contains("No default approved mailbox", html, StringComparison.Ordinal);
         Assert.Equal(0, send.SendCalls);
     }
 
     [Fact]
-    public async Task AStaleCaseContextReturnsTheFormWithoutSending()
+    public async Task ComposeUsesTheFreshServerCaseVersion()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -160,9 +180,9 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseId={caseId:D}");
+            client, $"/Inbox/Compose?caseReference={caseReference}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
@@ -170,18 +190,16 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
-                ["CaseId"] = caseId.ToString("D"),
+                ["CaseReference"] = caseReference,
                 ["ExpectedContextVersion"] = "-1",
-                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Test",
                 ["Body"] = "Test body."
             }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("changed after this page was loaded", html, StringComparison.Ordinal);
-        Assert.Equal(0, send.SendCalls);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(await CaseVersionAsync(factory, caseId), command.ExpectedContextVersion);
     }
 
     [Fact]
@@ -195,19 +213,16 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
-        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var (_, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseId={caseId:D}");
+            client, $"/Inbox/Compose?caseReference={caseReference}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
-                ["CaseId"] = caseId.ToString("D"),
-                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
-                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["CaseReference"] = caseReference,
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -230,10 +245,9 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
-        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseId={caseId:D}");
+            client, $"/Inbox/Compose?caseReference={caseReference}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
@@ -241,9 +255,7 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
-                ["CaseId"] = caseId.ToString("D"),
-                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
-                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["CaseReference"] = caseReference,
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -275,10 +287,13 @@ public sealed class StaffCorrespondenceWebTests
     /// a resend and never a success banner. The redirect after send carries
     /// the operation id forward so the GET it lands on can actually show it.
     /// </summary>
-    [Fact]
-    public async Task AnUnknownOutcomeRendersReconcileWithoutResendingOrClaimingSuccess()
+    [Theory]
+    [InlineData(StaffMailState.Submitted)]
+    [InlineData(StaffMailState.Unknown)]
+    public async Task UnresolvedOutcomeReconcilesWithoutResendingOrClaimingSuccess(
+        StaffMailState unresolvedState)
     {
-        var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
+        var send = new RecordingStaffMailSend { NextState = unresolvedState };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var caseId = await SeedSupportedCaseAsync(
@@ -286,10 +301,9 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
-        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseId={caseId:D}");
+            client, $"/Inbox/Compose?caseReference={caseReference}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
@@ -297,9 +311,7 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
-                ["CaseId"] = caseId.ToString("D"),
-                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
-                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["CaseReference"] = caseReference,
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -315,12 +327,24 @@ public sealed class StaffCorrespondenceWebTests
         var html = await statusPage.Content.ReadAsStringAsync();
 
         Assert.DoesNotContain("notice--success", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(unresolvedState), html, StringComparison.Ordinal);
         Assert.Contains("handler=Reconcile", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(OperatorLabels.StaffMail.Reconcile, html, StringComparison.Ordinal);
         // Rendering the status panel must never itself trigger a resend.
         Assert.Equal(1, send.SendCalls);
         Assert.Equal(0, send.ReconcileCalls);
+
+        using var reconcile = await client.PostAsync(
+            "/Inbox/Compose?handler=Reconcile",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["operationId"] = ExtractOperationId(location).ToString("D"),
+                ["expectedOperationVersion"] = "1"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, reconcile.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+        Assert.Equal(1, send.ReconcileCalls);
     }
 
     /// <summary>
@@ -339,17 +363,14 @@ public sealed class StaffCorrespondenceWebTests
         await SeedSendableMailboxAsync(baseFactory);
         using var factory = Configure(baseFactory, send);
         using var client = CreateClient(factory);
-        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
-        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseId={caseId:D}");
+            client, $"/Inbox/Compose?caseReference={caseReference}");
         var form = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
             ["OperationKey"] = operationKey,
-            ["CaseId"] = caseId.ToString("D"),
-            ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
-            ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+            ["CaseReference"] = caseReference,
             ["To"] = "claimant@example.invalid",
             ["Subject"] = "Following up",
             ["Body"] = "Please find the update below."
@@ -390,10 +411,9 @@ public sealed class StaffCorrespondenceWebTests
         using var factory = Configure(
             baseFactory, send, attachmentResolver: new ChangedAttachmentResolver());
         using var client = CreateClient(factory);
-        var mailboxId = await SentEvidenceMailboxIdAsync(factory);
-        var expectedVersion = await CaseVersionAsync(factory, caseId);
+        var caseReference = await CaseReferenceAsync(factory, caseId);
         var (operationKey, token) = await ComposeFormTokensAsync(
-            client, $"/Inbox/Compose?caseId={caseId:D}");
+            client, $"/Inbox/Compose?caseReference={caseReference}");
 
         using var response = await client.PostAsync(
             "/Inbox/Compose?handler=Send",
@@ -401,9 +421,7 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
-                ["CaseId"] = caseId.ToString("D"),
-                ["ExpectedContextVersion"] = expectedVersion.ToString(CultureInfo.InvariantCulture),
-                ["ApprovedMailboxId"] = mailboxId.ToString("D"),
+                ["CaseReference"] = caseReference,
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below.",
@@ -450,12 +468,10 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(0, send.SendCalls);
         var token = InputValue(html, "__RequestVerificationToken");
         var operationKey = InputValue(html, "CorrespondenceOperationKey");
-        var version = InputValue(html, "ExpectedCorrespondenceCaseVersion");
         var form = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
             ["CorrespondenceOperationKey"] = operationKey,
-            ["ExpectedCorrespondenceCaseVersion"] = version,
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -500,6 +516,67 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
+    public async Task RetainedReplyCanChangeTheAssociatedCaseByBusinessReference()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var associatedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 ASSOCIATED", "SC08-MSG-ASSOCIATED");
+        var selectedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 SELECTED", "SC08-MSG-SELECTED");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = RetainedReplyForm(
+            html,
+            InputValue(html, "CorrespondenceOperationKey"),
+            "Reply for the selected Case.");
+        form["CorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
+
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
+    }
+
+    [Fact]
+    public async Task UnassociatedRetainedReplyRequiresACaseReferenceBeforeSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var selectedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 UNASSOCIATED", "SC08-MSG-UNASSOCIATED");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = RetainedReplyForm(
+            html,
+            InputValue(html, "CorrespondenceOperationKey"),
+            "Reply for an unassociated message.");
+
+        using var refused = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Empty(send.Commands);
+
+        form["CorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
+        using var sent = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
+    }
+
+    [Fact]
     public async Task UnknownRetainedReplyReplaysAndReconcilesWithoutResending()
     {
         var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
@@ -516,7 +593,6 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
-            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -587,7 +663,6 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
-            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -686,7 +761,6 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
                 ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
-                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
                 ["CorrespondenceSubject"] = "Re: Source subject",
                 ["CorrespondenceBody"] = "Reviewed response."
             }));
@@ -700,7 +774,6 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
                 ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}",
-                ["ExpectedCorrespondenceCaseVersion"] = "1",
                 ["CorrespondenceSubject"] = "Re: Source subject",
                 ["CorrespondenceBody"] = "Second action."
             }));
@@ -833,7 +906,6 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
-                ["ExpectedCorrespondenceCaseVersion"] = "1",
                 ["CorrespondenceOperationKey"] = $"mailbox-negative:{Guid.NewGuid():N}",
                 ["CorrespondenceSubject"] = "Re: Source subject",
                 ["CorrespondenceBody"] = "Reviewed response."
@@ -876,7 +948,6 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["ExpectedCorrespondenceCaseVersion"] = "1",
                 ["CorrespondenceOperationKey"] = $"fresh:{Guid.NewGuid():N}",
                 ["CorrespondenceSubject"] = "Re: Source subject",
                 ["CorrespondenceBody"] = "Reviewed response."
@@ -904,7 +975,6 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
                 ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
                 ["CorrespondenceTo"] = string.Empty,
                 ["CorrespondenceCc"] = string.Empty,
@@ -933,7 +1003,6 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
-            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1044,7 +1113,8 @@ public sealed class StaffCorrespondenceWebTests
                         Generation = mailboxCapability is not null
                             && mailbox.Id == mailboxCapability.MailboxId
                                 ? mailboxCapability.Generation
-                                : mailbox.Generation > 0 ? mailbox.Generation : 1
+                                : mailbox.Generation > 0 ? mailbox.Generation : 1,
+                        IsDefaultStaffSend = true
                     }
                     : mailbox)
                 .ToArray();
@@ -1082,7 +1152,6 @@ public sealed class StaffCorrespondenceWebTests
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["CorrespondenceOperationKey"] = operationKey,
-        ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
         ["CorrespondenceSubject"] = "Re: Source subject",
         ["CorrespondenceBody"] = body
     };
@@ -1152,7 +1221,7 @@ public sealed class StaffCorrespondenceWebTests
 
     private static async Task<SeededCorrespondence> SeedRetainedCorrespondenceAsync(
         IntakeWebApplicationFactory factory,
-        Guid caseId)
+        Guid? caseId)
     {
         const string mailboxGraphId = "sc08-sender";
         const string mailboxAddress = "sc08-sender@collisionengineers.co.uk";
@@ -1189,9 +1258,12 @@ public sealed class StaffCorrespondenceWebTests
                     LastCompletedAtUtc = NowUtc.AddMinutes(-1)
                 });
             }
-            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
-            if (workflow.Version <= 0)
-                workflow.Version = 1;
+            if (caseId is { } associatedCaseId)
+            {
+                var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == associatedCaseId);
+                if (workflow.Version <= 0)
+                    workflow.Version = 1;
+            }
             context.IntakeReceipts.Add(new()
             {
                 Id = receiptId,
@@ -1213,19 +1285,22 @@ public sealed class StaffCorrespondenceWebTests
                 OcrCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope<
                     IReadOnlyList<ScannedPdfOcrCandidate>>([])
             });
-            context.IntakeManualAssociations.Add(new()
+            if (caseId is { } linkedCaseId)
             {
-                IntakeReceiptId = receiptId,
-                CaseId = caseId,
-                IsActive = true,
-                Version = 1,
-                LinkedAtUtc = NowUtc,
-                ActorKind = ActorKind.Staff.ToString(),
-                ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
-                ActorRolesJson = "[\"Administrator\"]",
-                Reason = "Fixture message association.",
-                LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
-            });
+                context.IntakeManualAssociations.Add(new()
+                {
+                    IntakeReceiptId = receiptId,
+                    CaseId = linkedCaseId,
+                    IsActive = true,
+                    Version = 1,
+                    LinkedAtUtc = NowUtc,
+                    ActorKind = ActorKind.Staff.ToString(),
+                    ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+                    ActorRolesJson = "[\"Administrator\"]",
+                    Reason = "Fixture message association.",
+                    LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+                });
+            }
             await context.SaveChangesAsync();
         }
 
@@ -1316,6 +1391,19 @@ public sealed class StaffCorrespondenceWebTests
             [StaffRole.Administrator]);
         var details = await getCase.ExecuteAsync(new(caseId, actor), CancellationToken.None);
         return details!.Workflow.Version;
+    }
+
+    private static async Task<string> CaseReferenceAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var getCase = scope.ServiceProvider.GetRequiredService<IGetCase>();
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        var details = await getCase.ExecuteAsync(new(caseId, actor), CancellationToken.None);
+        return details!.Summary.Reference;
     }
 
     /// <summary>

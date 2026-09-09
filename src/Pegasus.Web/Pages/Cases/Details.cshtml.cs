@@ -21,6 +21,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Email;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
@@ -76,8 +77,11 @@ public sealed partial class DetailsModel(
     IGlassRepairEstimateSessionReader glassSessions,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
-    RequestUploadLimits? requestUploadLimits = null) : CaseMutationPageModel(logger)
+    RequestUploadLimits? requestUploadLimits = null,
+    IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
+    public bool StaffMailAvailable => staffMailSend is not null
+        && staffMailSend is not UnavailableStaffMailSend;
     /// <summary>
     /// The accepted upload-request limits, registered only when the host
     /// configures them; without them the Files section offers no request.

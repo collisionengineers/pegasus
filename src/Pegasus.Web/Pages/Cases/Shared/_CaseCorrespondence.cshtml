@@ -1,12 +1,23 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Intake
 @using Pegasus.Web.Presentation
-@* Called only when Model.Case.QueryEmails is non-empty (see _CaseFiles.cshtml);
-   this partial always renders the section. *@
 <section class="section-gap" aria-labelledby="case-queries-title">
     <div class="blockhead">
         <h2 id="case-queries-title">@OperatorLabels.MailOperationalDestinationLabel(MailOperationalDestination.Queries)</h2>
+        @if (Model.StaffMailAvailable)
+        {
+            <a class="btn" asp-page="/Mail/Compose" asp-route-caseReference="@Model.Case!.Summary.Reference">
+                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                <span>Compose</span>
+            </a>
+        }
     </div>
+    @if (Model.Case!.QueryEmails.Count == 0)
+    {
+        <p class="muted">No retained correspondence is associated with this Case.</p>
+    }
+    else
+    {
     <div class="table-wrap">
         <table>
             <thead>
@@ -32,4 +43,5 @@
             </tbody>
         </table>
     </div>
+    }
 </section>
