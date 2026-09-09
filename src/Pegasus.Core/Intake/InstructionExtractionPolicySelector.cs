@@ -67,8 +67,10 @@ public interface IInstructionDocumentProfile
     /// The accepted template variants of THIS profile, where the registry
     /// records more than one signature for one principal - PCH's Performance
     /// and Lawshield forms. A document matches the profile only when the
-    /// profile signature holds AND at least one accepted variant holds, so no
-    /// variant is inferred from a logo and a variant nobody has evidenced
+    /// profile signature holds AND at least one accepted variant holds, unless
+    /// an <see cref="AlternativeSignatures"/> entry supplies supported
+    /// identification evidence.
+    /// No variant is inferred from a logo and a variant nobody has evidenced
     /// (PCH's Everywhen) matches nothing.
     ///
     /// Two variants of ONE profile both matching is not ambiguity about which
@@ -77,6 +79,16 @@ public interface IInstructionDocumentProfile
     /// variants is matched by its signature alone, exactly as before.
     /// </summary>
     IReadOnlyList<InstructionTemplateVariant> Variants => [];
+
+    /// <summary>
+    /// Additional document signatures that supply supported profile evidence
+    /// when a reader projection omits a template's identifying material. They
+    /// select the profile with <see cref="Signature"/> but deliberately do not
+    /// name a template variant, because a matching signature is profile
+    /// evidence rather than evidence of which accepted template produced the
+    /// document.
+    /// </summary>
+    IReadOnlyList<InstructionDocumentSignature> AlternativeSignatures => [];
 }
 
 /// <summary>
@@ -201,9 +213,14 @@ public sealed class InstructionExtractionPolicySelector(
                 .Select(document => new
                 {
                     document.Content,
-                    Variants = MatchingVariants(entry.Profile!, document.Text)
+                    Variants = Matches(entry.Profile!.Signature, document.Text)
+                        ? MatchingVariants(entry.Profile!, document.Text)
+                        : null,
+                    IsAlternativeMatch = entry.Profile!.AlternativeSignatures.Any(signature =>
+                        string.Equals(signature.DocumentRole, documentRole, StringComparison.OrdinalIgnoreCase)
+                        && Matches(signature, document.Text))
                 })
-                .Where(document => document.Variants is not null)
+                .Where(document => document.Variants is not null || document.IsAlternativeMatch)
                 .ToArray()
             })
             .Where(entry => entry.Documents.Length > 0)
@@ -214,7 +231,7 @@ public sealed class InstructionExtractionPolicySelector(
         {
             0 => InstructionPolicySelection.NotApplicable(),
             1 => InstructionPolicySelection.Selected(matches[0].Policy,
-                matches[0].Documents.SelectMany(document => document.Variants!)
+                matches[0].Documents.SelectMany(document => document.Variants ?? [])
                     .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()) with
                 {
                     InstructionContent = matches[0].Documents.SelectMany(document => document.Content).ToArray()

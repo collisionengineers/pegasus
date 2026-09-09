@@ -303,20 +303,18 @@ public sealed class PchInstructionExtractionPolicyTests
     }
 
     [Fact]
-    public void TheProfileDeclaresTheThreeRecordedVariantsAndNoOthers()
+    public void TheProfileDeclaresItsTwoRecordedVariantsAndTheFooterIndependentAuditEvidence()
     {
         var policy = new PchInstructionExtractionPolicy();
 
         Assert.Equal(
             [
                 PchInstructionExtractionPolicy.PerformanceVariantKey,
-                PchInstructionExtractionPolicy.LawshieldVariantKey,
-                PchInstructionExtractionPolicy.ConnexusAuditVariantKey
+                PchInstructionExtractionPolicy.LawshieldVariantKey
             ],
             policy.Variants.Select(variant => variant.Key));
-        Assert.Equal(2, policy.DocumentProfileVersion);
-        var audit = Assert.Single(policy.Variants,
-            variant => variant.Key == PchInstructionExtractionPolicy.ConnexusAuditVariantKey);
+        Assert.Equal(3, policy.DocumentProfileVersion);
+        var audit = Assert.Single(policy.AlternativeSignatures);
         Assert.Equal(
             ["URGENT NEW INSTRUCTION (Connexus Audit Report)", "Registration No:", "Vehicle Make:"],
             audit.Signature.RequiredSignals);

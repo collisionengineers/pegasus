@@ -388,11 +388,9 @@ public sealed class InstructionExtractionPolicySelectorTests
             + "Performance Car Hire, 1210 Centre Park Square, Warrington, WA1 1RU"));
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, performanceOnly.Outcome);
         Assert.Equal(
-            [
-                PchInstructionExtractionPolicy.ConnexusAuditVariantKey,
-                PchInstructionExtractionPolicy.PerformanceVariantKey
-            ],
+            [PchInstructionExtractionPolicy.PerformanceVariantKey],
             performanceOnly.MatchedVariantKeys);
+        Assert.False(performanceOnly.HasAmbiguousVariant);
 
         // The audit body and Performance footer overlap inside PCH, so this
         // stays one selected profile rather than becoming cross-policy
@@ -401,9 +399,8 @@ public sealed class InstructionExtractionPolicySelectorTests
             "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: MERCEDES-BENZ A 180\n"
             + "Registration No: XS02ANG"));
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, auditOnly.Outcome);
-        Assert.Equal(
-            [PchInstructionExtractionPolicy.ConnexusAuditVariantKey],
-            auditOnly.MatchedVariantKeys);
+        Assert.Empty(auditOnly.MatchedVariantKeys);
+        Assert.False(auditOnly.HasAmbiguousVariant);
 
         var bothFooters = Select(selector, Readable(
             "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: BMW 220i\n"

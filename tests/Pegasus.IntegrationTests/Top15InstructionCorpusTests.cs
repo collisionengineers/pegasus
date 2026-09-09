@@ -800,17 +800,16 @@ public sealed class Top15InstructionCorpusTests
         [
             ("PCH 01.DOC", "VOLVO Xc90 r-design t8 phev awd",
                 [
-                    PchInstructionExtractionPolicy.ConnexusAuditVariantKey,
                     PchInstructionExtractionPolicy.PerformanceVariantKey
                 ]),
             ("PCH 02.DOC", "MERCEDES-BENZ A 180 amg line premium+ m",
-                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey]),
+                []),
             ("PCH 03.DOC", "BMW 220i luxury auto",
-                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey]),
+                []),
             ("PCH 04.DOC", "Toyota Proace",
-                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey]),
+                []),
             ("PCH 05.DOC", "BMW X5 XDRIVE40D M SPORT AUTO",
-                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey])
+                [])
         ];
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var policy = new PchInstructionExtractionPolicy();
