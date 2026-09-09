@@ -1,10 +1,3 @@
-[mcp_servers.kanmer]
-command = "powershell.exe"
-args = [ "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:LOCALAPPDATA 'Kanmer\\bin\\kanmer-mcp.cmd')" ]
-
-[mcp_servers.kanmer.env]
-KANMER_BOARD_BRANCH = "kanmer-board"
-
 [agents]
 enabled = true
 max_concurrent_threads_per_session = 8
