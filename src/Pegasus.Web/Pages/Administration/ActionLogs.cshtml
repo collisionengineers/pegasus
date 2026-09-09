@@ -31,7 +31,7 @@
                             <tbody>
                             @foreach (var row in Model.Result.Rows)
                             {
-                                <tr><td>@row.OccurredAtUtc.ToString("u")</td><td>@row.Actor</td><td>@row.Area</td><td>@row.Operation</td><td>@row.Reference</td><td>@row.Result</td></tr>
+                                <tr><td>@row.OccurredAtUtc.ToString("u")</td><td>@Model.ActorLabel(row)</td><td>@row.Area</td><td>@row.Operation</td><td>@(Model.ReferenceLabel(row) ?? "—")</td><td>@row.Result</td></tr>
                             }
                             </tbody>
                         </table>

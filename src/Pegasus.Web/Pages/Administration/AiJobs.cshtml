@@ -25,7 +25,7 @@
                         <input type="hidden" name="jobId" value="@job.JobId" />
                         <input type="hidden" name="expectedVersion" value="@job.Version" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                        <input type="hidden" name="page" value="@Model.CurrentPage" />
+                        <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
                         <label>Reason <input name="reason" maxlength="500" required /></label>
                         <button class="btn btn--small" type="submit">Stop</button>
                     </form>
@@ -48,12 +48,12 @@
     <nav class="pagination" aria-label="AI job pages">
         @if (Model.CurrentPage > 1)
         {
-            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-page="@(Model.CurrentPage - 1)">Previous</a>
+            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-pageNumber="@(Model.CurrentPage - 1)">Previous</a>
         }
         <span>Page @Model.CurrentPage</span>
         @if (Model.Result.HasMore)
         {
-            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-page="@(Model.CurrentPage + 1)">Next</a>
+            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-pageNumber="@(Model.CurrentPage + 1)">Next</a>
         }
     </nav>
 }

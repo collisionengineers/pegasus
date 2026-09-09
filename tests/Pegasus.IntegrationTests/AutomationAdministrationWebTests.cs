@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -200,11 +201,11 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.DoesNotContain("UnidentifiedQueuePass", first, StringComparison.Ordinal);
         Assert.DoesNotContain(AiJobPolicy.QueueSubjectReference, first, StringComparison.Ordinal);
         Assert.Contains("Page 1", first, StringComparison.Ordinal);
-        Assert.Contains("page=2", first, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageNumber=2", first, StringComparison.OrdinalIgnoreCase);
 
-        var second = await GetHtmlAsync(client, "/Administration/AiJobs?page=2");
+        var second = await GetHtmlAsync(client, "/Administration/AiJobs?pageNumber=2");
         Assert.Contains("Page 2", second, StringComparison.Ordinal);
-        Assert.Contains("page=1", second, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageNumber=1", second, StringComparison.OrdinalIgnoreCase);
 
         using var stopped = await client.PostAsync(
             "/Administration/AiJobs?handler=Stop",
@@ -213,11 +214,11 @@ public sealed partial class AutomationAdministrationWebTests
                 ("jobId", InputValue(second, "jobId")),
                 ("expectedVersion", InputValue(second, "expectedVersion")),
                 ("operationKey", InputValue(second, "operationKey")),
-                ("page", InputValue(second, "page")),
+                ("pageNumber", InputValue(second, "pageNumber")),
                 ("reason", "Stop the queued test job.")));
 
         Assert.Equal(HttpStatusCode.Redirect, stopped.StatusCode);
-        Assert.Equal("/Administration/AiJobs?page=2", stopped.Headers.Location?.OriginalString);
+        Assert.Equal("/Administration/AiJobs?pageNumber=2", stopped.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -301,15 +302,20 @@ public sealed partial class AutomationAdministrationWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithAutomationMcp(baseFactory);
+        var caseId = await SeedAcceptedCaseAsync(factory);
         var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        string caseReference;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<IActionHistoryWriter>()
+            caseReference = (await scope.ServiceProvider.GetRequiredService<IGetCaseHeader>()
+                .ExecuteAsync(new(caseId, Administrator), CancellationToken.None))!.Summary.Reference;
+            var history = scope.ServiceProvider.GetRequiredService<IActionHistoryWriter>();
+            await history
                 .AppendAsync(
                     new(
                         Guid.NewGuid(),
                         "automation_mcp",
-                        "automation-history-reference",
+                        caseId.ToString("D"),
                         "pegasus_case_get",
                         AutomationClient,
                         now,
@@ -317,6 +323,18 @@ public sealed partial class AutomationAdministrationWebTests
                         "auto-006-activity-reference",
                         null),
                     CancellationToken.None);
+            await history.AppendAsync(
+                new(
+                    Guid.NewGuid(),
+                    "Case",
+                    caseId.ToString("D"),
+                    "case_reviewed",
+                    Administrator,
+                    now,
+                    "Succeeded",
+                    "staff-action-log-display",
+                    null),
+                CancellationToken.None);
         }
         using var client = CreateClient(factory);
 
@@ -324,10 +342,15 @@ public sealed partial class AutomationAdministrationWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
         var html = await GetHtmlAsync(
             client,
-            $"/Administration/ActionLogs?From={from}&To={to}&Actor={ClientId}");
+            $"/Administration/ActionLogs?From={from}&To={to}");
 
-        Assert.Contains("automation-history-reference", html, StringComparison.Ordinal);
+        Assert.Contains(caseReference, html, StringComparison.Ordinal);
+        Assert.Contains(AutomationMcp.ClientDisplayName, html, StringComparison.Ordinal);
+        Assert.Contains(DevelopmentOfflineIdentity.UserName, html, StringComparison.Ordinal);
         Assert.Contains("pegasus_case_get", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(caseId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(ClientId, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("/Administration/Automation/Activity", html, StringComparison.Ordinal);
 
         using var obsoleteActivity = await client.GetAsync($"{AutomationRoute}/Activity");

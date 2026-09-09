@@ -18,7 +18,8 @@ public sealed record ActionLogFilter(
 
 public sealed record ActionLogRow(
     Guid Id, string Area, string Operation, string Reference, string Actor,
-    DateTimeOffset OccurredAtUtc, string Result, string CorrelationId);
+    DateTimeOffset OccurredAtUtc, string Result, string CorrelationId,
+    string? ActorKind);
 
 public sealed record ActionLogPage(IReadOnlyList<ActionLogRow> Rows, bool HasMore);
 
