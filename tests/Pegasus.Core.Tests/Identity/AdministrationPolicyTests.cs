@@ -90,6 +90,26 @@ public sealed class AdministrationPolicyTests
     }
 
     [Fact]
+    public async Task DefaultStaffSendMailboxSelectionRequiresAdministrator()
+    {
+        var store = new MailboxStore();
+        var command = new SetDefaultApprovedMailbox(store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
+            new(
+                Guid.NewGuid(),
+                1,
+                null,
+                null,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                "Attempted default sender selection",
+                "mailbox-default-denied"),
+            default));
+
+        Assert.Null(store.DefaultRequest);
+    }
+
+    [Fact]
     public async Task ApprovedMailboxUpdateNormalizesAddressAndRetainsExplicitScopes()
     {
         var store = new MailboxStore();
@@ -365,6 +385,8 @@ public sealed class AdministrationPolicyTests
 
         public UpdateApprovedMailboxRequest? UpdateRequest { get; private set; }
 
+        public SetDefaultApprovedMailboxRequest? DefaultRequest { get; private set; }
+
         public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
         {
             ListCount++;
@@ -388,6 +410,28 @@ public sealed class AdministrationPolicyTests
                 request.State == ApprovedMailboxState.Approved ? DateTimeOffset.UtcNow : null,
                 request.ExpectedVersion + 1,
                 request.FolderBindings?.ToArray() ?? []));
+        }
+
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request,
+            CancellationToken cancellationToken)
+        {
+            DefaultRequest = request;
+            return Task.FromResult(new ApprovedMailbox(
+                request.MailboxId,
+                "default@collisionengineers.co.uk",
+                [ApprovedMailboxRouteScope.StaffSend],
+                ApprovedMailboxState.Approved,
+                "default-mailbox",
+                null,
+                null,
+                true,
+                DateTimeOffset.UtcNow,
+                request.ExpectedVersion + 1,
+                [],
+                1,
+                10485760,
+                true));
         }
 
         public Task<bool> IsApprovedAsync(

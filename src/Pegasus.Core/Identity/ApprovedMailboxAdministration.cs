@@ -160,8 +160,7 @@ public interface IApprovedMailboxStore : IApprovedMailboxPolicy
 
     Task<ApprovedMailbox> SetDefaultAsync(
         SetDefaultApprovedMailboxRequest request,
-        CancellationToken cancellationToken) =>
-        throw new NotSupportedException("This approved-mailbox store does not support selecting a default staff-send mailbox.");
+        CancellationToken cancellationToken);
 }
 
 public sealed class ListApprovedMailboxes(IApprovedMailboxStore store)
