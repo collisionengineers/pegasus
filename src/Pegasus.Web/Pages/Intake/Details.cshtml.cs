@@ -622,16 +622,16 @@ public sealed partial class DetailsModel(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        if (Receipt.CurrentCaseId is { } associatedCaseId)
+        if (LeasedCaseId is { } leasedCaseId)
         {
-            AssociationTargetCase = await getCase.ExecuteAsync(new(associatedCaseId, actor), cancellationToken);
+            AssociationTargetCase = await getCase.ExecuteAsync(new(leasedCaseId, actor), cancellationToken);
             AssociationTargetCaseVersion = AssociationTargetCase?.Workflow.Version;
             return;
         }
 
-        if (LeasedCaseId is { } leasedCaseId)
+        if (Receipt.CurrentCaseId is { } associatedCaseId)
         {
-            AssociationTargetCase = await getCase.ExecuteAsync(new(leasedCaseId, actor), cancellationToken);
+            AssociationTargetCase = await getCase.ExecuteAsync(new(associatedCaseId, actor), cancellationToken);
             AssociationTargetCaseVersion = AssociationTargetCase?.Workflow.Version;
             return;
         }

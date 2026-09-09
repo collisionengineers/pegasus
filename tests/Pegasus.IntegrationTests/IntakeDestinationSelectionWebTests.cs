@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Workflow;
@@ -107,6 +108,65 @@ public sealed class IntakeDestinationSelectionWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("Inspection-address confirmation", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ActiveLeaseKeepsItsReviewedTargetWhenAnotherCaseIsLinked()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var leaseTargetId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "LEASE-TARGET-01");
+        var concurrentCaseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY34 ZZZ", "CONCURRENT-TARGET-01");
+        var receipt = await StoreUnidentifiedReceiptAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+
+        var selectedHtml = await client.GetStringAsync($"/Received/{receipt.Id:D}?targetCaseId={leaseTargetId:D}");
+        using var claimed = await client.PostAsync($"/Received/{receipt.Id:D}?handler=ClaimCaseLease",
+            new FormUrlEncodedContent(HiddenFormValues(selectedHtml, "ClaimCaseLease")));
+        Assert.Equal(HttpStatusCode.Redirect, claimed.StatusCode);
+
+        var concurrentWorkflow = await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(concurrentCaseId, CancellationToken.None);
+        var concurrentLease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(concurrentCaseId, concurrentWorkflow!.Version, actor, $"concurrent-link:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        var currentReceipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receipt.Id, CancellationToken.None);
+        await services.GetRequiredService<ILinkIntake>().ExecuteAsync(new(
+            receipt.Id,
+            concurrentCaseId,
+            currentReceipt!.Version,
+            concurrentLease.Version,
+            concurrentLease.Token,
+            actor,
+            $"concurrent-link:{Guid.NewGuid():N}",
+            "Another staff action linked the receipt while this lease remained active."));
+
+        var cases = services.GetRequiredService<IGetCase>();
+        var leaseTarget = await cases.ExecuteAsync(new(leaseTargetId, actor), CancellationToken.None);
+        var concurrentCase = await cases.ExecuteAsync(new(concurrentCaseId, actor), CancellationToken.None);
+        Assert.NotNull(leaseTarget);
+        Assert.NotNull(concurrentCase);
+
+        var html = await client.GetStringAsync($"/Received/{receipt.Id:D}");
+        var selectedCard = Regex.Match(html,
+            "<section class=\"decision-card section-gap\"[^>]*>(.*?)</section>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+        Assert.True(selectedCard.Success, "The active lease must retain a visible selected-case card.");
+        Assert.Contains(leaseTarget!.Summary.Reference, selectedCard.Groups[1].Value, StringComparison.Ordinal);
+        Assert.Contains(leaseTarget.Summary.Registration!, selectedCard.Groups[1].Value, StringComparison.Ordinal);
+        Assert.Contains(leaseTarget.Summary.Claimant!, selectedCard.Groups[1].Value, StringComparison.Ordinal);
+        Assert.Contains("Review", selectedCard.Groups[1].Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(concurrentCase!.Summary.Reference, selectedCard.Groups[1].Value, StringComparison.Ordinal);
+        Assert.Contains(concurrentCase.Summary.Reference, html, StringComparison.Ordinal);
+        Assert.Contains("The claimed case does not match the current association", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=LinkCase", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ReverseCaseLink", html, StringComparison.Ordinal);
     }
 
     [Fact]
