@@ -322,16 +322,71 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Contains("\"IsDefaultStaffSend\":true", transferHistory.AfterJson, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task DefaultStaffSendMailboxRequiresSentEvidenceScopeAndResolvedFolder()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var mailboxCommand = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
+        var defaultCommand = scope.ServiceProvider.GetRequiredService<SetDefaultApprovedMailbox>();
+        var staged = await CreateApprovedStaffSendMailboxAsync(
+            mailboxCommand,
+            administrator,
+            "staged-default@collisionengineers.co.uk",
+            "staged",
+            includeSentEvidence: false,
+            includeSentFolder: false);
+
+        var withoutSentEvidence = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => defaultCommand.ExecuteAsync(
+                new(staged.Id, staged.Version, null, null, administrator,
+                    "Attempt to select an unpolled sender", "default-without-sent-evidence"),
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxIneligible, withoutSentEvidence.Error);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var entity = await context.ApprovedMailboxes.SingleAsync(item => item.Id == staged.Id);
+            entity.AllowSentEvidence = true;
+            entity.Version++;
+            await context.SaveChangesAsync();
+        }
+        var withoutSentFolder = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => defaultCommand.ExecuteAsync(
+                new(staged.Id, staged.Version + 1, null, null, administrator,
+                    "Attempt to select a sender without its Sent folder", "default-without-sent-folder"),
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxIneligible, withoutSentFolder.Error);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var entity = await context.ApprovedMailboxes.SingleAsync(item => item.Id == staged.Id);
+            entity.SentFolderIdentity = "staged-sent";
+            entity.Version++;
+            await context.SaveChangesAsync();
+        }
+        var selected = await defaultCommand.ExecuteAsync(
+            new(staged.Id, staged.Version + 2, null, null, administrator,
+                "Select the configured Sent-evidence sender", "default-with-sent-evidence"),
+            default);
+        Assert.True(selected.IsDefaultStaffSend);
+    }
+
     private static Task<ApprovedMailbox> CreateApprovedStaffSendMailboxAsync(
         UpdateApprovedMailbox command,
         ActionActor actor,
         string address,
-        string identity) =>
+        string identity,
+        bool includeSentEvidence = true,
+        bool includeSentFolder = true) =>
         command.ExecuteAsync(
             new(
                 Guid.NewGuid(),
                 address,
-                [ApprovedMailboxRouteScope.InboundIntake, ApprovedMailboxRouteScope.StaffSend],
+                includeSentEvidence
+                    ? [ApprovedMailboxRouteScope.InboundIntake, ApprovedMailboxRouteScope.SentEvidence, ApprovedMailboxRouteScope.StaffSend]
+                    : [ApprovedMailboxRouteScope.InboundIntake, ApprovedMailboxRouteScope.StaffSend],
                 ApprovedMailboxState.Approved,
                 0,
                 actor,
@@ -339,7 +394,7 @@ public sealed class AdministrationPolicyPersistenceTests
                 $"approved-mailbox-{identity}",
                 $"{identity}-mailbox",
                 $"{identity}-inbox",
-                null,
+                includeSentFolder ? $"{identity}-sent" : null,
                 null,
                 10485760),
             default);
