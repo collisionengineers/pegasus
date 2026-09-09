@@ -326,7 +326,7 @@ public sealed partial class AutomationAdministrationWebTests
             await history.AppendAsync(
                 new(
                     Guid.NewGuid(),
-                    "Case",
+                    "case",
                     caseId.ToString("D"),
                     "case_reviewed",
                     Administrator,
@@ -344,13 +344,17 @@ public sealed partial class AutomationAdministrationWebTests
             client,
             $"/Administration/ActionLogs?From={from}&To={to}");
 
-        Assert.Contains(caseReference, html, StringComparison.Ordinal);
-        Assert.Contains(AutomationMcp.ClientDisplayName, html, StringComparison.Ordinal);
-        Assert.Contains(DevelopmentOfflineIdentity.UserName, html, StringComparison.Ordinal);
-        Assert.Contains("pegasus_case_get", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(caseId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(ClientId, html, StringComparison.Ordinal);
-        Assert.DoesNotContain(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        var automationRow = TableRow(html, "pegasus_case_get");
+        Assert.Contains(caseReference, automationRow, StringComparison.Ordinal);
+        Assert.Contains(AutomationMcp.ClientDisplayName, automationRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(caseId.ToString("D"), automationRow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(ClientId, automationRow, StringComparison.Ordinal);
+
+        var staffRow = TableRow(html, "case_reviewed");
+        Assert.Contains(caseReference, staffRow, StringComparison.Ordinal);
+        Assert.Contains(DevelopmentOfflineIdentity.UserName, staffRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(caseId.ToString("D"), staffRow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), staffRow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("/Administration/Automation/Activity", html, StringComparison.Ordinal);
 
         using var obsoleteActivity = await client.GetAsync($"{AutomationRoute}/Activity");
@@ -412,6 +416,16 @@ public sealed partial class AutomationAdministrationWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+
+    private static string TableRow(string html, string operation)
+    {
+        var match = Regex.Match(
+            html,
+            $"<tr>(?:(?!</tr>).)*{Regex.Escape(operation)}(?:(?!</tr>).)*</tr>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(match.Success, $"The action-log row for '{operation}' must render.");
+        return match.Value;
+    }
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {
