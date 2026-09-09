@@ -287,7 +287,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(factory, client, "two-scanned-attachments.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(IntakeDecision.OcrRequired, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal(2, receipt.ScannedPdfPages.Select(candidate => candidate.SourceLabel).Distinct().Count());
         Assert.Equal(2, receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.Attachment));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
