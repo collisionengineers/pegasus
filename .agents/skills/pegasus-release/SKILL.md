@@ -188,6 +188,11 @@ if ($remoteImage.digest -ne $manifest.webImage.digest) {
 
 The uploaded digest must equal `webImage.digest` in the approved manifest.
 
+`RunningAtMaxScale` is a normal running state: Azure has started the maximum
+configured replica count. Accept it only alongside the same exact revision,
+digest, `Healthy` and `Provisioned` checks as `Running`; see
+[Azure revision running states](https://learn.microsoft.com/en-us/azure/container-apps/revisions#running-status).
+
 ```powershell
 function Wait-PegasusExpectedWebRevision {
   param(
@@ -223,7 +228,7 @@ function Wait-PegasusExpectedWebRevision {
       }
       if ($revision.image -cne $ExpectedImage) { throw 'Expected Web revision image differs from the approved digest.' }
       if ($revision.health -ceq 'Healthy' -and
-          $revision.running -ceq 'Running' -and
+          $revision.running -cin @('Running', 'RunningAtMaxScale') -and
           $revision.provisioning -ceq 'Provisioned') { return }
       if ($revision.health -ceq 'Unhealthy' -or
           $revision.running -in @('Stopped', 'Degraded', 'Failed', 'Unknown') -or
@@ -233,7 +238,7 @@ function Wait-PegasusExpectedWebRevision {
       if ($revision.health -cne 'None' -and $revision.health -cne 'Healthy') {
         throw 'Expected Web revision reported an unknown health state.'
       }
-      if ($revision.running -cne 'Processing' -and $revision.running -cne 'Running') {
+      if ($revision.running -cnotin @('Processing', 'Running', 'RunningAtMaxScale')) {
         throw 'Expected Web revision reported an unknown running state.'
       }
       if ($revision.provisioning -cne 'Provisioning' -and $revision.provisioning -cne 'Provisioned') {
