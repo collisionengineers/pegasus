@@ -15,7 +15,10 @@ public sealed class PchInstructionExtractionPolicyTests
         new(2026, 6, 1, 9, 0, 0, TimeSpan.Zero);
 
     private static readonly EstablishedPrincipalContext PchContext =
-        new("PCH", PchInstructionExtractionPolicy.DocumentProfileKeyValue, 1);
+        new(
+            "PCH",
+            PchInstructionExtractionPolicy.DocumentProfileKeyValue,
+            PchInstructionExtractionPolicy.DocumentProfileVersionValue);
 
     /// <summary>
     /// The audit-request form, in the shape the originals print it. Tabs
@@ -300,16 +303,26 @@ public sealed class PchInstructionExtractionPolicyTests
     }
 
     [Fact]
-    public void TheProfileDeclaresTheTwoRecordedVariantsAndNoOthers()
+    public void TheProfileDeclaresTheThreeRecordedVariantsAndNoOthers()
     {
         var policy = new PchInstructionExtractionPolicy();
 
         Assert.Equal(
             [
                 PchInstructionExtractionPolicy.PerformanceVariantKey,
-                PchInstructionExtractionPolicy.LawshieldVariantKey
+                PchInstructionExtractionPolicy.LawshieldVariantKey,
+                PchInstructionExtractionPolicy.ConnexusAuditVariantKey
             ],
             policy.Variants.Select(variant => variant.Key));
+        Assert.Equal(2, policy.DocumentProfileVersion);
+        var audit = Assert.Single(policy.Variants,
+            variant => variant.Key == PchInstructionExtractionPolicy.ConnexusAuditVariantKey);
+        Assert.Equal(
+            ["URGENT NEW INSTRUCTION (Connexus Audit Report)", "Registration No:", "Vehicle Make:"],
+            audit.Signature.RequiredSignals);
+        Assert.Equal(
+            ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"],
+            audit.Signature.NegativeSignals);
         Assert.Equal(
             InstructionDocumentSignature.InstructionRole,
             policy.Signature.DocumentRole);

@@ -796,18 +796,26 @@ public sealed class Top15InstructionCorpusTests
         // Literal Vehicle Make rows in the five hash-bound originals. PCH calls
         // the whole printed description Make; neither Model nor the blank
         // Mileage row may be inferred by splitting this description.
-        (string File, string Vehicle)[] vehicles =
+        (string File, string Vehicle, string[] Variants)[] vehicles =
         [
-            ("PCH 01.DOC", "VOLVO Xc90 r-design t8 phev awd"),
-            ("PCH 02.DOC", "MERCEDES-BENZ A 180 amg line premium+ m"),
-            ("PCH 03.DOC", "BMW 220i luxury auto"),
-            ("PCH 04.DOC", "Toyota Proace"),
-            ("PCH 05.DOC", "BMW X5 XDRIVE40D M SPORT AUTO")
+            ("PCH 01.DOC", "VOLVO Xc90 r-design t8 phev awd",
+                [
+                    PchInstructionExtractionPolicy.ConnexusAuditVariantKey,
+                    PchInstructionExtractionPolicy.PerformanceVariantKey
+                ]),
+            ("PCH 02.DOC", "MERCEDES-BENZ A 180 amg line premium+ m",
+                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey]),
+            ("PCH 03.DOC", "BMW 220i luxury auto",
+                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey]),
+            ("PCH 04.DOC", "Toyota Proace",
+                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey]),
+            ("PCH 05.DOC", "BMW X5 XDRIVE40D M SPORT AUTO",
+                [PchInstructionExtractionPolicy.ConnexusAuditVariantKey])
         ];
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var policy = new PchInstructionExtractionPolicy();
         var selector = new InstructionExtractionPolicySelector([policy]);
-        foreach (var (file, vehicle) in vehicles)
+        foreach (var (file, vehicle, variants) in vehicles)
         {
             var expectation = Assert.Single(Expectations,
                 item => item.PackRelativePath == $"{CorpusRoot}/{file}");
@@ -818,8 +826,9 @@ public sealed class Top15InstructionCorpusTests
             var read = await reader.ReadAsync(Source(bytes, file, hash), CancellationToken.None);
             Assert.Equal(IntakeSourceReadStatus.Readable, read.Status);
             Assert.False(read.IsIncomplete);
-            Assert.Equal(InstructionPolicySelectionOutcome.Selected,
-                selector.Select(read, InstructionDocumentSignature.InstructionRole).Outcome);
+            var selection = selector.Select(read, InstructionDocumentSignature.InstructionRole);
+            Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+            Assert.Equal(variants, selection.MatchedVariantKeys);
             var result = policy.Extract(read, ProcessedAtUtc,
                 new("PCH", policy.DocumentProfileKey, policy.DocumentProfileVersion));
             var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);

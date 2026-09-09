@@ -371,12 +371,13 @@ public sealed class InstructionExtractionPolicySelectorTests
     }
 
     /// <summary>
-    /// The shipped PCH profile against the shapes its own originals carry: one
-    /// footer, both footers, and the audit heading whose "Connexus" is not the
-    /// "Connexus Vehicle Assessors" negative signal.
+    /// The shipped PCH profile against the shapes its own originals carry: the
+    /// audit body without a readable footer, one footer, both footers, and the
+    /// audit heading whose "Connexus" is not the "Connexus Vehicle Assessors"
+    /// negative signal.
     /// </summary>
     [Fact]
-    public void TheShippedPchProfileReadsItsOwnFootersAndIsNotTrippedByTheAuditHeading()
+    public void TheShippedPchProfileReadsItsOwnAuditBodyAndFooters()
     {
         var selector = new InstructionExtractionPolicySelector(
             [new PchInstructionExtractionPolicy()]);
@@ -387,8 +388,22 @@ public sealed class InstructionExtractionPolicySelectorTests
             + "Performance Car Hire, 1210 Centre Park Square, Warrington, WA1 1RU"));
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, performanceOnly.Outcome);
         Assert.Equal(
-            [PchInstructionExtractionPolicy.PerformanceVariantKey],
+            [
+                PchInstructionExtractionPolicy.ConnexusAuditVariantKey,
+                PchInstructionExtractionPolicy.PerformanceVariantKey
+            ],
             performanceOnly.MatchedVariantKeys);
+
+        // The audit body and Performance footer overlap inside PCH, so this
+        // stays one selected profile rather than becoming cross-policy
+        // ambiguity.
+        var auditOnly = Select(selector, Readable(
+            "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: MERCEDES-BENZ A 180\n"
+            + "Registration No: XS02ANG"));
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, auditOnly.Outcome);
+        Assert.Equal(
+            [PchInstructionExtractionPolicy.ConnexusAuditVariantKey],
+            auditOnly.MatchedVariantKeys);
 
         var bothFooters = Select(selector, Readable(
             "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: BMW 220i\n"
@@ -399,8 +414,8 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         // The assessor firms' own letters share the labels and are not PCH.
         var lookalike = Select(selector, Readable(
-            "Vehicle Make: BMW 220i\nRegistration No: BD69NJY\n"
-            + "Performance Car Hire\nPrepared by Connexus Vehicle Assessors"));
+            "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: BMW 220i\n"
+            + "Registration No: BD69NJY\nPrepared by Connexus Vehicle Assessors"));
         Assert.Equal(InstructionPolicySelectionOutcome.NotApplicable, lookalike.Outcome);
     }
 

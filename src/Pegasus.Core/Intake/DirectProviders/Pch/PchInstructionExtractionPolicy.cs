@@ -40,7 +40,7 @@ public sealed partial class PchInstructionExtractionPolicy
     /// </summary>
     public const string DocumentProfileKeyValue = "pch_instruction_document";
 
-    public const int DocumentProfileVersionValue = 1;
+    public const int DocumentProfileVersionValue = 2;
 
     public string DocumentProfileKey => DocumentProfileKeyValue;
 
@@ -48,14 +48,11 @@ public sealed partial class PchInstructionExtractionPolicy
 
     /// <summary>
     /// What every accepted PCH template shares, and nothing more. The two
-    /// fingerprints the corpus records for this principal —
-    /// `collision-profile-pch-performance` and `collision-profile-pch-lawshield`
-    /// in <c>reference/workproviders-and-repairers/principal-identification-corpus.v1.json</c>
-    /// — differ only in their brand signal and agree on these two labels and
-    /// these two negative signals. So the labels are the profile's signature
-    /// and the brand signals are its <see cref="Variants"/>: no signal is
-    /// invented here, and the specificity comes from a recorded variant rather
-    /// than from a phrase nobody accepted.
+    /// documented PCH forms agree on these two labels and these two negative
+    /// signals. The visible Connexus audit body and the documented company
+    /// footers are its <see cref="Variants"/>. So the labels are the profile's
+    /// signature: no signal is invented here, and the specificity comes from a
+    /// recorded variant rather than from a phrase nobody accepted.
     ///
     /// The negative signals are the assessor firms whose letters share these
     /// labels. Note that they are the FULL firm names: four of the five
@@ -74,18 +71,21 @@ public sealed partial class PchInstructionExtractionPolicy
 
     public const string LawshieldVariantKey = "collision-profile-pch-lawshield";
 
+    public const string ConnexusAuditVariantKey = "collision-profile-pch-connexus-audit";
+
     /// <summary>
-    /// The two accepted template signatures, transcribed from the corpus
-    /// fingerprints. Both are recorded evidence about a template; neither is
-    /// an identity to merge.
+    /// The accepted template signatures, transcribed from the corpus
+    /// fingerprints. Both footer signals and the audit body signal are
+    /// recorded evidence about a template; none is an identity to merge.
     ///
-    /// They are NOT mutually exclusive in the recorded originals: sample 01
-    /// carries only the Performance footer, and samples 02 to 05 carry both
+    /// They are NOT mutually exclusive in the recorded originals: every
+    /// original carries the Connexus audit body, sample 01 also carries the
+    /// Performance footer, and samples 02 to 05 carry both footer signals
     /// ("Performance Car Hire Ltd is an appointed representative of Lawshield
     /// UK Ltd" prints both firm names in one sentence). Which template was
-    /// used is therefore genuinely ambiguous for four of the five, and it is
-    /// recorded as ambiguous. WHO the principal is never was in doubt, which
-    /// is why these are variants of one profile and not two profiles.
+    /// used is therefore genuinely ambiguous within one profile, and it is
+    /// recorded as such. WHO the principal is never was in doubt, which is why
+    /// these are variants of one profile and not separate profiles.
     ///
     /// The Everywhen variant the method file names has no accepted signature
     /// and no local original, so it is deliberately absent: an unproved
@@ -104,6 +104,16 @@ public sealed partial class PchInstructionExtractionPolicy
             new(
                 InstructionDocumentSignature.InstructionRole,
                 ["Lawshield", "Registration No:", "Vehicle Make:"],
+                ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"])),
+        // The DOC reader exposes the visible main Word story but not the
+        // footer. The exact audit heading and the two labels are present in
+        // all five originals, including the four whose company footer does
+        // not reach readable content.
+        new(
+            ConnexusAuditVariantKey,
+            new(
+                InstructionDocumentSignature.InstructionRole,
+                ["URGENT NEW INSTRUCTION (Connexus Audit Report)", "Registration No:", "Vehicle Make:"],
                 ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"]))
     ];
 
