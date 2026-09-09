@@ -1,85 +1,106 @@
 ---
 kind: review-attestation
-pr: "711"
-head_sha: "7e5aff7cf9c2bb69710ec962c4b5e18ded9fde08"
+pr: "713"
+head_sha: "a2bb0e120575d46828911d15031e7a36dc1ff4de"
 verdict: pass
 reviewer: "/root/review_merge_711"
 independent: true
-plan_hash: "6dc328062a78eda0"
-ticket_updated: "2026-09-08T18:40:24.775Z"
-board_sha: "a2a456a7dbe52e3d1a6fda032f5a2f412e3f7cb3"
+plan_hash: "8c4cdb7b3a400d66"
+ticket_updated: "2026-09-09T01:25:07.073Z"
+board_sha: "ec0ed5f0ef565604f7dbfb37ff7c3cf273a1c956"
 expected_reviewers: ["/root/review_merge_711"]
 threads_snapshot: []
-findings: []
+findings:
+  - id: F-001
+    severity: major
+    summary: "PR711 omitted the affected architecture literal-census test consumer."
+    disposition: fixed
+    reason: "Corrected by a2bb0e120575d46828911d15031e7a36dc1ff4de; exact census and both consumer wiring are asserted without weakening existing safety tests."
+  - id: F-002
+    severity: major
+    summary: "Pre-confirmation upload tests fail outside this architecture-only corrective PR."
+    disposition: deferred-to-ticket
+    ticket: INTK-066
+    reason: "Existing PR712 owns manual-upload confirmation behavior and operator-authorized browser/snapshot removal; PR713 changes only the Worker architecture test."
 ---
 
-# Independent consolidated review — PLAT-046 / PR 711
+# Independent corrective review — PLAT-046 / PR713
 
-Round 0 whole-PR review by a separately assigned agent role, not its author.
-The sole expected reviewer settled on the exact head in
-[public review](https://github.com/collisionengineers/pegasus/pull/711#issuecomment-5594102721).
-There are no GitHub review threads. The automated security-summary comment has
-no findings; it is acknowledged evidence, not an expected reviewer or gate.
+The distinct author is /root/remediate_711_contract. Sole expected reviewer
+/root/review_merge_711 settled at the exact head in
+[public review](https://github.com/collisionengineers/pegasus/pull/713#issuecomment-5594453423).
+GitHub review-thread census is empty. Automated security summary reports no
+findings and is not an expected reviewer.
 
-## Scope and acceptance
+## Inputs and scope
 
-Read ticket, research, files, plan, checklist, implementation report, execution
-and alert context, governing runbook, ADR-0030/0046 and index, current release
-skill and migration recipe. No open-questions document or group is attached.
-The exact eleven changed files match the approved packet; application, schema,
-Bicep, alerts and historical operations observations are unchanged.
+Read live ticket, amended plan/files/checklist, implementation report
+8f0043dc56ba1741, original research and governing release/runbook owners,
+and retained FAIL proof dc4ca8507b568ff3. No group/open-question is attached.
+Reviewed the whole corrective PR: exactly one test file, 13 additions/3 removals,
+against integrated dev c3219cd28c69530441e2bba7357063372628ff37.
+This is the bounded post-merge correction, not a renewed unrestricted feature
+audit. Production scripts, dependency graph and release policy are unchanged.
 
-Reviewed both routes through current script callers. Normal/additive retains
-migration-before-package ordering. Destructive planning requires classification,
-affected capability, explicit short-outage approval and forward-only recovery.
-The approved disabled Worker package is staged while old schema remains intact,
-then whole Worker Stopped and exact old-Web inactive/zero-replica state are
-freshly checked before SQL. Migration/grants/head precede new Web provision and
-explicit compatible Worker activation, Running readback and full smoke.
-Unknown/malformed target or containment state cannot authorize SQL.
-No old-runtime recovery is permitted after destructive SQL begins.
+## F-001 — fixed
 
-The canonical seven Worker Disabled names match current Function attributes and
-Bicep and feed both actual validator/smoke consumers plus the release recipe.
-Existing ordinal missing/extra/duplicate/name/value failure checks remain.
-No schema polling, compatibility layer, dependency, alert weakening or new
-operational entry point was introduced. ADR/index/runbook/AGENTS describe the
-same current policy, including post-release outside-usage scheduling.
+The previous consumer searched Invoke-ProductionSmoke.ps1 for literals moved
+by PR711 into Get-PegasusWorkerDisabledSettingNames. Its empty result was
+deterministic. The new test reads the canonical producer, retains ExpectedFunctions,
+and proves both smoke and deployment-plan callers dot-source and use that helper.
+Every prior unsafe-disable assertion and runtime missing/extra/duplicate/case/
+malformed/value rejection fixture remains. Existing test infrastructure is reused.
 
-## Evidence
+The original [PR711 review](https://github.com/collisionengineers/pegasus/pull/711#issuecomment-5594102721)
+missed this affected consumer. Its claimed completeness was invalidated by the
+subsequent exact c3219cd post-merge FAIL; that proof and history are retained,
+not relabeled PASS. The corrective commit fixes that one root-cause class.
 
-Exact-head repository-check run
-[34264394009](https://github.com/collisionengineers/pegasus/actions/runs/34264394009)
-has PASS for changes, documentation, local-development-scripts, reference-data
-and infrastructure. Application/SQL/browser/snapshot lanes are scope-skipped,
-not claimed executed. The current CI classifier selects the appropriate
-script/infrastructure scope. GitHub reports no protected dev branch or active
-branch rules/required checks; this is not a verification waiver.
+## Required evidence and CI classification
 
-Reused exact-head recorded PASS for Test-PegasusPlatform, Local deployment-plan,
-documentation links, Markdown placement and 19/19 PowerShell fences parsed.
-Earlier predecessor Local failure and parser invocation failure remain retained.
-Reviewer git diff --check exited 0. Read-only source lookups for guessed filenames
-and an unsupported gh diff --stat option failed; subsequent actual-file reads
-and local exact-base/head diff supplied the intended evidence. These were not
-build/test failures or live operations.
+Amended plan acceptance requires the formerly failing test and existing
+WorkerActivationReleaseContractTests safety evidence. Sole verifier recorded
+locked restore, Release architecture build with zero warnings/errors, all
+116 architecture tests PASS (including all 24 Worker activation tests),
+Test-PegasusPlatform and Local Test-AzureDeploymentPlan PASS on this exact head.
+Reviewer git diff --check passed. No reviewer build/test was run.
 
-Checked current Microsoft primary sources:
-[Flex ZIP deployment](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-how-to),
-[Recreate/default update semantics](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-site-updates),
-[disabled Functions and master-key exception](https://learn.microsoft.com/en-us/azure/azure-functions/disable-function),
-and [Container Apps revision lifecycle](https://learn.microsoft.com/en-us/azure/container-apps/revisions).
-These support the distinctions in the route; ZIP success alone is not shutdown
-evidence and disabled triggers are not a stopped host.
+[CI run34298650052](https://github.com/collisionengineers/pegasus/actions/runs/34298650052)
+has unit, changes, documentation, local-development-scripts and reference-data
+PASS. Infrastructure is scope-skipped. The absence of a GitHub protected dev
+branch (404), active branch rules ([]), and required checks was read directly.
+Absence of protection is not a waiver of the plan: those actual architecture
+and script obligations are satisfied. Current AGENTS and engineering verification
+policy require effect-proportional checks and treat the classifier as a routing
+aid; the broad tests/** Build flag selects unrelated suites but does not expand
+this one-file correction's approved acceptance.
 
-## Decision and residual boundary
+## F-002 — deferred to [[INTK-066]]
 
-PASS; no actionable findings. No new host build/test, Azure/SQL write, live
-deployment or destructive rehearsal was performed. Exact candidate startup and
-function census, target approval, real containment and final smoke remain
-mandatory release-time evidence, not claims made by this review.
+Actual failures, not PASS or presumed flakes:
 
-The operator explicitly authorized merging PR 711 to dev when ready.
-Immediately re-gather head/checks/threads and board sync before merge. After a
-confirmed merge, move only Review to Verifying and hand off to kanmer-verify;
-no proof or deployment belongs to this review.
+- [test-ui job102300801076](https://github.com/collisionengineers/pegasus/actions/runs/34298650052/job/102300801076):
+  UploadCaseSearchBrowserTests.CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision
+  timed out after 30000ms waiting for details.upload-attach > summary.
+  Capture phase had 134 pass/1 fail and aborted; this is not snapshot drift.
+- [SQL shard3 job102300801071](https://github.com/collisionengineers/pegasus/actions/runs/34298650052/job/102300801071):
+  UploadConfirmationWebTests.AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely
+  could not find "No existing case matched this"; 634 pass/1 fail.
+
+Both concern unchanged upload decision paths outside the Worker architecture
+correction. Existing INTK-066/PR712 owns the manual-confirmation behavior and
+explicitly authorized browser/snapshot retirement. No workaround, test deletion,
+waiver or source absorption into PR713 is authorized or performed here.
+Remaining SQL1/2 and browser jobs were pending at gather, NOT PASS; they are
+nonrequired evidence outside this ticket's acceptance. Any newly revealed
+in-scope risk before merge requires fresh disposition.
+
+## Decision and handoff
+
+PASS for the exact bounded corrective PR; no open findings or unmet scoped
+acceptance. This does not mean all CI jobs are green or the old UI behavior is
+accepted. The operator authorized the necessary corrective merge to dev as
+part of completing PR711. Confirm remote board contains this record and
+re-gather head/plan/ticket/checks/threads immediately before merge.
+After merge, move only Review to Verifying; kanmer-verify owns exact corrective
+merge-SHA proof. No main promotion, cloud write, deployment or code edit occurred.
