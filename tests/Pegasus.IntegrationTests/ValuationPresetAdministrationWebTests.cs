@@ -211,9 +211,14 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("Enter an amount of", body, StringComparison.Ordinal);
         Assert.Contains("<details open=\"open\">", body, StringComparison.Ordinal);
         Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
+        Assert.Contains("name=\"amount\" type=\"text\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
         Assert.Contains("<td>Tow bar</td>", body, StringComparison.Ordinal);
         Assert.Contains("&#xA3;300.00", body, StringComparison.Ordinal);
+        var reloaded = await GetPageAsync(client);
+        Assert.DoesNotContain("Updated tow bar", reloaded, StringComparison.Ordinal);
+        Assert.Contains("<td>Tow bar</td>", reloaded, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;300.00", reloaded, StringComparison.Ordinal);
     }
 
     /// <summary>
