@@ -370,56 +370,19 @@
             </dl>
         </div>
 
-        @if (Model.LeasedCaseId is null)
+        @if (Model.AssociationTargetCase is { } targetCase)
         {
-            @if (Model.AssociationTargetCase is not { } targetCase)
-            {
-                <form method="get" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id" class="filter-bar">
-                    <div class="field">
-                        <label for="association-case-query">Case/PO, registration, claimant or claim number</label>
-                        <input id="association-case-query" name="caseQuery" value="@Model.AssociationCaseQuery" maxlength="300" required autocomplete="off" />
+            <section class="decision-card section-gap" aria-labelledby="selected-case-title">
+                <h3 id="selected-case-title" class="decision-head">Selected case</h3>
+                <div class="decision-body stack">
+                    <div class="definition-list">
+                        <dl class="definition"><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></dl>
+                        <dl class="definition"><dt>Registration</dt><dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd></dl>
+                        <dl class="definition"><dt>Claimant</dt><dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd></dl>
+                        <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
                     </div>
-                    <button type="submit" class="btn">Search cases</button>
-                </form>
-
-                @if (Model.AssociationCaseResults.Count > 0)
-                {
-                    <div class="section-gap stack">
-                        @foreach (var candidate in Model.AssociationCaseResults)
-                        {
-                            <a class="row-button" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id"
-                               asp-route-targetCaseId="@candidate.CaseId" asp-route-caseQuery="@Model.AssociationCaseQuery">
-                                <span class="row-top"><strong>@candidate.Reference</strong><span class="row-meta">@OperatorLabels.CaseStage(candidate.State)</span></span>
-                                <span class="row-excerpt">@(candidate.Registration ?? "Registration not recorded") · @(candidate.Claimant ?? "Claimant not recorded")</span>
-                            </a>
-                        }
-                    </div>
-                }
-                else if (Model.AssociationSuggestedCases.Count > 0)
-                {
-                    <div class="section-gap stack">
-                        @foreach (var candidate in Model.AssociationSuggestedCases)
-                        {
-                            <a class="row-button" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id"
-                               asp-route-targetCaseId="@candidate.CaseId">
-                                <span class="row-top"><strong>@candidate.Reference</strong><span class="row-meta">@OperatorLabels.CaseStage(candidate.State)</span></span>
-                                <span class="row-excerpt">@(candidate.Registration ?? "Registration not recorded") · @(candidate.Claimant ?? "Claimant not recorded")</span>
-                            </a>
-                        }
-                    </div>
-                }
-            }
-            else
-            {
-                <section class="decision-card section-gap" aria-labelledby="selected-case-title">
-                    <h3 id="selected-case-title" class="decision-head">Selected case</h3>
-                    <div class="decision-body stack">
-                        <div class="definition-list">
-                            <dl class="definition"><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></dl>
-                            <dl class="definition"><dt>Registration</dt><dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd></dl>
-                            <dl class="definition"><dt>Claimant</dt><dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd></dl>
-                            <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
-                        </div>
+                    @if (Model.LeasedCaseId is null)
+                    {
                         <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id" class="stack">
                             <input type="hidden" name="caseQuery" value="@Model.AssociationCaseQuery" />
                             <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
@@ -429,11 +392,49 @@
                                 <button type="submit" class="btn">Enter case edit mode</button>
                             </div>
                         </form>
-                    </div>
-                </section>
+                    }
+                </div>
+            </section>
+        }
+        else if (Model.LeasedCaseId is null)
+        {
+            <form method="get" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id" class="filter-bar">
+                <div class="field">
+                    <label for="association-case-query">Case/PO, registration, claimant or claim number</label>
+                    <input id="association-case-query" name="caseQuery" value="@Model.AssociationCaseQuery" maxlength="300" required autocomplete="off" />
+                </div>
+                <button type="submit" class="btn">Search cases</button>
+            </form>
+
+            @if (Model.AssociationCaseResults.Count > 0)
+            {
+                <div class="section-gap stack">
+                    @foreach (var candidate in Model.AssociationCaseResults)
+                    {
+                        <a class="row-button" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id"
+                           asp-route-targetCaseId="@candidate.CaseId" asp-route-caseQuery="@Model.AssociationCaseQuery">
+                            <span class="row-top"><strong>@candidate.Reference</strong><span class="row-meta">@OperatorLabels.CaseStage(candidate.State)</span></span>
+                            <span class="row-excerpt">@(candidate.Registration ?? "Registration not recorded") · @(candidate.Claimant ?? "Claimant not recorded")</span>
+                        </a>
+                    }
+                </div>
+            }
+            else if (Model.AssociationSuggestedCases.Count > 0)
+            {
+                <div class="section-gap stack">
+                    @foreach (var candidate in Model.AssociationSuggestedCases)
+                    {
+                        <a class="row-button" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id"
+                           asp-route-targetCaseId="@candidate.CaseId">
+                            <span class="row-top"><strong>@candidate.Reference</strong><span class="row-meta">@OperatorLabels.CaseStage(candidate.State)</span></span>
+                            <span class="row-excerpt">@(candidate.Registration ?? "Registration not recorded") · @(candidate.Claimant ?? "Claimant not recorded")</span>
+                        </a>
+                    }
+                </div>
             }
         }
-        else if (Model.LeasedCaseVersion is { } leasedCaseVersion
+        @if (Model.LeasedCaseId is not null
+            && Model.LeasedCaseVersion is { } leasedCaseVersion
             && Model.CaseEditLeaseToken is { } editLeaseToken)
         {
             if (Model.Receipt.CurrentCaseId == Model.LeasedCaseId)
@@ -504,6 +505,11 @@
     </section>
 }
 
+@if (Model.ProviderIsImageBased
+    || Model.AddressResolution.Evaluation.Suggestion is not null
+    || Model.AddressResolution.ResolvedValue is not null
+    || Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
+{
 <section class="panel section-gap" aria-labelledby="inspection-address-title">
     <div class="panel-head"><h2 id="inspection-address-title">Inspection-address confirmation</h2></div>
     <div class="panel-body stack">
@@ -564,6 +570,7 @@
         }
     </div>
 </section>
+}
 
 @* There is exactly one acceptance caller in the application, and it is not
    here. This screen is the record of what arrived and what was decided about

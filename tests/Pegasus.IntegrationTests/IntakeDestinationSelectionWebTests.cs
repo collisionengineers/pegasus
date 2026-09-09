@@ -60,6 +60,28 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.True(leasedHtml.Contains("Case edit mode is active until", StringComparison.Ordinal),
             "The claim must succeed before linking. Visible notices: " + string.Join(" | ", notices));
         var linkForm = HiddenFormValues(leasedHtml, "LinkCase");
+        Assert.Contains("DESTINATION-CASE-01", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("AB12CDE", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("Fixture Claimant", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("Review", leasedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Enter case edit mode", leasedHtml, StringComparison.Ordinal);
+
+        var staleLinkForm = new Dictionary<string, string>(linkForm)
+        {
+            ["expectedIntakeVersion"] = "-1",
+            ["reason"] = "The stale link must retain the selected target for retry."
+        };
+        using var staleLink = await client.PostAsync($"/Received/{receipt.Id:D}?handler=LinkCase",
+            new FormUrlEncodedContent(staleLinkForm));
+        Assert.Equal(HttpStatusCode.Redirect, staleLink.StatusCode);
+        var retryHtml = await client.GetStringAsync(staleLink.Headers.Location);
+        Assert.Contains("The intake command could not be applied", retryHtml, StringComparison.Ordinal);
+        Assert.Contains("DESTINATION-CASE-01", retryHtml, StringComparison.Ordinal);
+        Assert.Contains("AB12CDE", retryHtml, StringComparison.Ordinal);
+        Assert.Contains("Fixture Claimant", retryHtml, StringComparison.Ordinal);
+        Assert.Contains("Review", retryHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Enter case edit mode", retryHtml, StringComparison.Ordinal);
+        linkForm = HiddenFormValues(retryHtml, "LinkCase");
         linkForm["reason"] = "Staff identified the Case from the retained source.";
         using var linked = await client.PostAsync($"/Received/{receipt.Id:D}?handler=LinkCase", new FormUrlEncodedContent(linkForm));
         Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
@@ -71,6 +93,20 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.Equal(UnidentifiedState.Resolved, resolved!.State);
         Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolved.ResolutionTargetKind);
         Assert.Equal(caseId, Guid.Parse(resolved.ResolutionTargetId!));
+    }
+
+    [Fact]
+    public async Task ManualUnidentifiedPdfDoesNotRenderAnEmptyInspectionAddressSection()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await StoreUnidentifiedReceiptAsync(factory);
+
+        using var response = await client.GetAsync($"/Received/{receipt.Id:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Inspection-address confirmation", html, StringComparison.Ordinal);
     }
 
     [Fact]

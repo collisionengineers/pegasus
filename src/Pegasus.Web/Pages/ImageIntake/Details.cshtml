@@ -13,7 +13,9 @@
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
     </div>
     <div class="page-actions">
-        <a class="btn" asp-page="/Cases/Index" asp-route-tab="not_ready">
+        <a class="btn" asp-page="/Cases/Index"
+           asp-route-tab="@(Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction ? "awaiting" : null)"
+           asp-route-selected="@(Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction ? Model.Detail.Record.Id : null)">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>
