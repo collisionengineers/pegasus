@@ -405,6 +405,76 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Empty(send.Commands);
     }
 
+    [Fact]
+    public async Task EmptyComposeCaseSearchRequiresATermAndDoesNotSend()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync("/Inbox/Compose");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=SearchCase",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["OperationKey"] = InputValue(html, "OperationKey"),
+                ["CaseQuery"] = string.Empty,
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Draft subject",
+                ["Body"] = "Draft message body."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "Enter a Case search term.",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+        Assert.Empty(send.Commands);
+    }
+
+    [Fact]
+    public async Task ComposeSelectionReplacesThePostedCaseReference()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var oldCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 OLD", "SC08-COMPOSE-OLD");
+        var selectedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 SELECT", "SC08-COMPOSE-SELECT");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var oldReference = await CaseReferenceAsync(factory, oldCaseId);
+        var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
+        using var get = await client.GetAsync($"/Inbox/Compose?caseReference={oldReference}");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=SelectCase",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["OperationKey"] = InputValue(html, "OperationKey"),
+                ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
+                ["CaseReference"] = oldReference,
+                ["SelectedCaseReference"] = selectedReference,
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Draft subject",
+                ["Body"] = "Draft message body."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            selectedReference,
+            InputValue(await response.Content.ReadAsStringAsync(), "CaseReference"));
+        Assert.Empty(send.Commands);
+    }
+
     /// <summary>
     /// C08-R-4: a second POST carrying the same <c>OperationKey</c> as an
     /// already-recorded send must not send again — it shows the operation
@@ -595,12 +665,14 @@ public sealed class StaffCorrespondenceWebTests
         using var client = CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
         var html = await get.Content.ReadAsStringAsync();
+        var associatedReference = await CaseReferenceAsync(factory, associatedCaseId);
         var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
         var selection = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceCaseReference"] = associatedReference,
             ["SelectedCorrespondenceCaseReference"] = selectedReference,
             ["CorrespondenceTo"] = "selected@example.invalid",
             ["CorrespondenceCc"] = "copy@example.invalid",
@@ -614,6 +686,9 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(selection));
         Assert.Equal(HttpStatusCode.OK, selectionResponse.StatusCode);
         var selectedHtml = await selectionResponse.Content.ReadAsStringAsync();
+        Assert.Equal(
+            selectedReference,
+            InputValue(selectedHtml, "CorrespondenceCaseReference"));
         Assert.Contains("selected@example.invalid", selectedHtml, StringComparison.Ordinal);
         Assert.Contains("copy@example.invalid", selectedHtml, StringComparison.Ordinal);
         Assert.Contains("Forward for the selected Case.", selectedHtml, StringComparison.Ordinal);
@@ -667,6 +742,10 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(form));
         Assert.Equal(HttpStatusCode.OK, selection.StatusCode);
         var selectedHtml = await selection.Content.ReadAsStringAsync();
+        Assert.Equal(
+            await CaseReferenceAsync(factory, selectedCaseId),
+            InputValue(selectedHtml, "CorrespondenceCaseReference"));
+        Assert.Contains("reply@example.invalid", selectedHtml, StringComparison.Ordinal);
         var selectedForm = RetainedReplyForm(
             selectedHtml,
             InputValue(selectedHtml, "CorrespondenceOperationKey"),
