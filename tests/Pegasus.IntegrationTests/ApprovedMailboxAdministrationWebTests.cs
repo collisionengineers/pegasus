@@ -387,7 +387,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("<option value=\"\" selected>Select an eligible staff-send mailbox</option>", html, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"\" selected=\"selected\">Select an eligible staff-send mailbox</option>", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"value=\"{staleSelection}\" selected", html, StringComparison.Ordinal);
         Assert.Contains("Your previous selection of instructions@collisionengineers.co.uk changed.", html, StringComparison.Ordinal);
         Assert.Contains(
