@@ -156,11 +156,11 @@ public sealed class ShellAndStatusPageWebTests
 
     private sealed class ReexecutedStatus(string originalPath) : IStatusCodeReExecuteFeature
     {
-        public string OriginalPathBase => string.Empty;
+        public string OriginalPathBase { get; set; } = string.Empty;
 
-        public string OriginalPath => originalPath;
+        public string OriginalPath { get; set; } = originalPath;
 
-        public string OriginalQueryString => string.Empty;
+        public string OriginalQueryString { get; set; } = string.Empty;
     }
 
     [Fact]
