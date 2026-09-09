@@ -77,7 +77,7 @@ public sealed class ImageIntakeWebTests
         var imageIntakePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail!.Record.Id:D}");
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
-        Assert.Contains($"/Cases?tab=awaiting&amp;selected={detail.Record.Id:D}", imageIntakePage, StringComparison.Ordinal);
+        Assert.Equal($"/Cases?tab=awaiting&selected={detail.Record.Id:D}", BackToCasesHref(imageIntakePage));
     }
 
     [Fact]
@@ -127,9 +127,7 @@ public sealed class ImageIntakeWebTests
         Assert.Contains("Associated with Case", receiptPage);
         Assert.Contains("AB12CDE-01", receiptPage);
         var associatedImagePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
-        Assert.Contains("href=\"/Cases\"", associatedImagePage, StringComparison.Ordinal);
-        Assert.DoesNotContain("tab=awaiting", associatedImagePage, StringComparison.Ordinal);
-        Assert.DoesNotContain("selected=", associatedImagePage, StringComparison.Ordinal);
+        Assert.Equal("/Cases", BackToCasesHref(associatedImagePage));
         var casePage = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Cases/{caseId:D}?section=files");
@@ -255,6 +253,16 @@ public sealed class ImageIntakeWebTests
                 Assert.NotEqual(alternate, match.Groups["value"].Value.Trim());
             }
         }
+    }
+
+    private static string BackToCasesHref(string html)
+    {
+        var link = Regex.Match(html,
+            "<a\\b[^>]*href=\"(?<href>[^\"]*)\"[^>]*>[\\s\\S]*?<span>Back to Cases</span>\\s*</a>",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+        Assert.True(link.Success, "The Back to Cases link must be rendered.");
+        return WebUtility.HtmlDecode(link.Groups["href"].Value);
     }
 }
 
