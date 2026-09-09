@@ -54,7 +54,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
             }
             using var response = await browser.GetAsync("/Administration/Health");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains("Automation ingress", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            var html = await response.Content.ReadAsStringAsync();
+            Assert.Contains("Automation clients", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("Automation ingress", html, StringComparison.Ordinal);
         }
     }
 

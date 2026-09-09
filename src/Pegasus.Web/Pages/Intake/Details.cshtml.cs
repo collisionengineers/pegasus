@@ -182,6 +182,14 @@ public sealed partial class DetailsModel(
         {
             await LoadAssociationTargetAsync(actor, cancellationToken);
         }
+        if (LeasedCaseId is { } leasedCaseId
+            && LeasedCaseVersion is { }
+            && CaseEditLeaseToken is { }
+            && Receipt.CurrentCaseId is { } currentCaseId
+            && currentCaseId != leasedCaseId)
+        {
+            ClearCaseLease(clearCurrentLease: false);
+        }
         return Page();
     }
 
@@ -537,7 +545,7 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public void ClearCaseLease(bool clearCurrentLease = true)
+    private void ClearCaseLease(bool clearCurrentLease = true)
     {
         TempData.Remove("IntakeCaseLeaseId");
         TempData.Remove("IntakeCaseLeaseVersion");
