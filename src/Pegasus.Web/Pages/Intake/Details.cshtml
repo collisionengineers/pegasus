@@ -369,39 +369,67 @@
             </dl>
         </div>
 
-        @if (Model.AssociationCandidates.Count > 0 && Model.Receipt.CurrentCaseId is null)
-        {
-            <ul class="stack">
-                @foreach (var candidate in Model.AssociationCandidates)
-                {
-                    <li>@candidate.CaseReference · case @candidate.CaseId · version @candidate.CaseVersion</li>
-                }
-            </ul>
-        }
-
         @if (Model.LeasedCaseId is null)
         {
-            <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id" class="stack">
-                @if (Model.Receipt.CurrentCaseId is { } associatedCaseId)
-                {
-                    <input type="hidden" name="caseId" value="@associatedCaseId" />
-                }
-                else
-                {
+            @if (Model.AssociationTargetCase is not { } targetCase)
+            {
+                <form method="get" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id" class="filter-bar">
                     <div class="field">
-                        <label class="req" for="association-case-id">Case identifier</label>
-                        <input id="association-case-id" name="caseId" required autocomplete="off" />
+                        <label for="association-case-query">Case/PO, registration, claimant or claim number</label>
+                        <input id="association-case-query" name="caseQuery" value="@Model.AssociationCaseQuery" maxlength="300" required autocomplete="off" />
+                    </div>
+                    <button type="submit" class="btn">Search cases</button>
+                </form>
+
+                @if (Model.AssociationCaseResults.Count > 0)
+                {
+                    <div class="section-gap stack">
+                        @foreach (var candidate in Model.AssociationCaseResults)
+                        {
+                            <a class="row-button" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id"
+                               asp-route-targetCaseId="@candidate.CaseId" asp-route-caseQuery="@Model.AssociationCaseQuery">
+                                <span class="row-top"><strong>@candidate.Reference</strong><span class="row-meta">@OperatorLabels.CaseStage(candidate.State)</span></span>
+                                <span class="row-excerpt">@(candidate.Registration ?? "Registration not recorded") · @(candidate.Claimant ?? "Claimant not recorded")</span>
+                            </a>
+                        }
                     </div>
                 }
-                <div class="field">
-                    <label class="req" for="association-case-version">Expected case version</label>
-                    <input id="association-case-version" name="expectedCaseVersion" type="number" min="0" required />
-                </div>
-                <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                <div class="button-row">
-                    <button type="submit" class="btn">Enter case edit mode</button>
-                </div>
-            </form>
+                else if (Model.AssociationSuggestedCases.Count > 0)
+                {
+                    <div class="section-gap stack">
+                        @foreach (var candidate in Model.AssociationSuggestedCases)
+                        {
+                            <a class="row-button" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id"
+                               asp-route-targetCaseId="@candidate.CaseId">
+                                <span class="row-top"><strong>@candidate.Reference</strong><span class="row-meta">@OperatorLabels.CaseStage(candidate.State)</span></span>
+                                <span class="row-excerpt">@(candidate.Registration ?? "Registration not recorded") · @(candidate.Claimant ?? "Claimant not recorded")</span>
+                            </a>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <section class="decision-card section-gap" aria-labelledby="selected-case-title">
+                    <h3 id="selected-case-title" class="decision-head">Selected case</h3>
+                    <div class="decision-body stack">
+                        <div class="definition-list">
+                            <dl class="definition"><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></dl>
+                            <dl class="definition"><dt>Registration</dt><dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd></dl>
+                            <dl class="definition"><dt>Claimant</dt><dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd></dl>
+                            <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
+                        </div>
+                        <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id" class="stack">
+                            <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
+                            <input type="hidden" name="expectedCaseVersion" value="@Model.AssociationTargetCaseVersion" />
+                            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                            <div class="button-row">
+                                <button type="submit" class="btn">Enter case edit mode</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            }
         }
         else if (Model.LeasedCaseVersion is { } leasedCaseVersion
             && Model.CaseEditLeaseToken is { } editLeaseToken)

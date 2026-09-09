@@ -20,6 +20,8 @@ public sealed partial class DetailsModel(
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
     IAcquireCaseEditLease acquireCaseEditLease,
+    IIntakeAssociationDestinationQueries associationDestinations,
+    IGetCase getCase,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IImageIntakeQueries imageIntakeQueries,
     IImageIntakeOriginResolver imageIntakeOriginResolver,
@@ -147,6 +149,20 @@ public sealed partial class DetailsModel(
 
     public string? CaseEditLeaseToken { get; private set; }
 
+    [BindProperty(SupportsGet = true, Name = "caseQuery")]
+    public string? AssociationCaseQuery { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "targetCaseId")]
+    public Guid? AssociationTargetCaseId { get; set; }
+
+    public IReadOnlyList<IntakeAssociationDestination> AssociationCaseResults { get; private set; } = [];
+
+    public IReadOnlyList<IntakeAssociationDestination> AssociationSuggestedCases { get; private set; } = [];
+
+    public CaseDetails? AssociationTargetCase { get; private set; }
+
+    public long? AssociationTargetCaseVersion { get; private set; }
+
 
 
     public async Task<IActionResult> OnGetAsync(
@@ -162,6 +178,10 @@ public sealed partial class DetailsModel(
 
         IsDuplicate = duplicate;
         RestoreCaseLease();
+        if (TryGetActor(out var actor))
+        {
+            await LoadAssociationTargetAsync(actor, cancellationToken);
+        }
         return Page();
     }
 
@@ -577,6 +597,55 @@ public sealed partial class DetailsModel(
         RetainedAnalysis = await latestRetainedInstructionAnalysis.ExecuteAsync(
             new(Receipt.Id, actor),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// A staff member chooses a Case by its usable reference or surrounding
+    /// facts. The selected Case is then read again here, so the edit-lease form
+    /// carries its current identifier and version rather than asking staff to
+    /// copy internal values from another screen.
+    /// </summary>
+    private async Task LoadAssociationTargetAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (Receipt.CurrentCaseId is { } associatedCaseId)
+        {
+            AssociationTargetCase = await getCase.ExecuteAsync(new(associatedCaseId, actor), cancellationToken);
+            AssociationTargetCaseVersion = AssociationTargetCase?.Workflow.Version;
+            return;
+        }
+
+        var targetCaseId = AssociationTargetCaseId;
+        if (targetCaseId is { } selectedCaseId)
+        {
+            var destination = await associationDestinations.GetAsync(Receipt, selectedCaseId, actor, cancellationToken);
+            var selected = destination is null
+                ? null
+                : await getCase.ExecuteAsync(new(selectedCaseId, actor), cancellationToken);
+            if (selected is not null && destination is not null)
+            {
+                AssociationTargetCase = selected;
+                AssociationTargetCaseVersion = destination.Version;
+                return;
+            }
+            ModelState.AddModelError(string.Empty, "The selected case is no longer available. Search and choose a case again.");
+        }
+
+        var query = AssociationCaseQuery?.Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            AssociationSuggestedCases = await associationDestinations.GetSuggestedAsync(Receipt, actor, cancellationToken);
+            return;
+        }
+
+        if (query.Length is < 2 or > 300)
+        {
+            ModelState.AddModelError(string.Empty, "Enter between two and 300 characters to search for a case.");
+            return;
+        }
+
+        AssociationCaseResults = await associationDestinations.SearchAsync(Receipt, query, actor, cancellationToken);
     }
 
     /// <summary>

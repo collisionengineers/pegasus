@@ -1090,6 +1090,11 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Task.FromResult(
                 DetailsByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail : null);
 
+        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
+            Guid submissionGroupId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ImageIntakeDetail?>(null);
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
             IReadOnlyCollection<Guid> intakeReceiptIds,
             CancellationToken cancellationToken) =>

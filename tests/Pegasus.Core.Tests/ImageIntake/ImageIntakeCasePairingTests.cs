@@ -355,6 +355,11 @@ public sealed class ImageIntakeCasePairingTests
                 summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference));
         }
 
+        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
+            Guid submissionGroupId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
         {
             var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == id);

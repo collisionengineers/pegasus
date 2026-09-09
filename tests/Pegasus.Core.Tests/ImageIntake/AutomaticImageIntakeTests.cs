@@ -741,6 +741,11 @@ public sealed class AutomaticImageIntakeTests
             Guid intakeReceiptId,
             CancellationToken cancellationToken) => Task.FromResult(Existing);
 
+        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
+            Guid submissionGroupId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
             IReadOnlyCollection<Guid> intakeReceiptIds,
             CancellationToken cancellationToken) =>

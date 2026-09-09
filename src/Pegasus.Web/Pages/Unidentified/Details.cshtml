@@ -1,5 +1,6 @@
-﻿@page "/Unidentified/{id:guid}"
+@page "/Unidentified/{id:guid}"
 @model Pegasus.Web.Pages.Unidentified.DetailsModel
+@using Pegasus.Core.ImageIntake
 @using Pegasus.Core.Intake.Unidentified
 @using Pegasus.Web.Presentation
 @{
@@ -120,54 +121,59 @@
 
 @if (isOpen)
 {
-    <div class="dialog-backdrop" data-dialog="unidentified-resolve-dialog" hidden>
+    <div class="dialog-backdrop" data-dialog="unidentified-resolve-dialog"
+         data-dialog-open-on-load="@(Model.OpenResolutionDialog ? "true" : "false")" hidden>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-resolve-dialog-title">
             <div class="dialog-head">
                 <h2 id="unidentified-resolve-dialog-title" tabindex="-1">Resolve @Model.Item.Reference</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
-            <form method="post" asp-page-handler="Resolve" asp-route-id="@Model.Item.Id">
-                <input type="hidden" asp-for="ExpectedVersion" />
-                <input type="hidden" asp-for="OperationKey" />
-                <div class="dialog-body stack">
-                    <div class="notice notice--warning">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                        <span>The U-reference and original source remain after resolution.</span>
-                    </div>
-                    <div class="field">
-                        <label class="req" for="unidentified-target-kind">Destination</label>
-                        <select id="unidentified-target-kind" asp-for="TargetKind" required data-dialog-initial-focus>
-                            @foreach (UnidentifiedResolutionTargetKind kind in Enum.GetValues<UnidentifiedResolutionTargetKind>())
-                            {
-                                <option value="@kind">@OperatorLabels.UnidentifiedResolutionTarget(kind)</option>
-                            }
+            <div class="dialog-body stack">
+                <partial name="Shared/_ErrorSummary" />
+                <div class="notice notice--warning"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>The U-reference and original source remain after resolution.</span></div>
+                <form method="get" asp-page="/Unidentified/Details" asp-route-id="@Model.Item.Id" class="filter-bar">
+                    <div class="field"><label class="req" for="unidentified-action">Resolution</label>
+                        <select id="unidentified-action" name="action" required data-dialog-initial-focus>
+                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction" selected="@((Model.ResolutionAction is null or Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction) ? "selected" : null)">Add to an existing Case</option>
+                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction ? "selected" : null)">Create a Case from an accepted instruction</option>
+                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction ? "selected" : null)">Register Image-initiated Case</option>
+                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction ? "selected" : null)">Close with reason</option>
                         </select>
                     </div>
-                    <div class="field">
-                        <label class="req" for="unidentified-target-id">Destination identifier</label>
-                        <input id="unidentified-target-id" asp-for="TargetId" maxlength="200" required autocomplete="off" />
-                    </div>
-                    <div class="field">
-                        <label for="unidentified-target-reference">Destination reference</label>
-                        <input id="unidentified-target-reference" asp-for="TargetReference" maxlength="200" autocomplete="off" />
-                    </div>
-                    <div class="field">
-                        <label class="req" for="unidentified-resolution-reason">Reason</label>
-                        <textarea id="unidentified-resolution-reason" asp-for="ResolutionReason" maxlength="500" rows="3" required></textarea>
-                    </div>
-                </div>
-                <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                        <span>Record resolution</span>
-                    </button>
-                </div>
-            </form>
+                    <button type="submit" class="btn">Continue</button>
+                </form>
+                @if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction)
+                {
+                    @if (Model.SourceReceipt is { } associationReceipt) { <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@associationReceipt.Id">Open Case association</a> }
+                    else if (Model.SourceSubmissionGroup?.Channel == IntakeSourceChannel.ManualUpload)
+                    {
+                        <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@Model.Item.Origin.Id">Open submission association</a>
+                    }
+                    else if (Model.SourceImageIntake is { State: ImageInitiatedCaseState.AwaitingInstruction } imageIntake)
+                    {
+                        <a class="btn btn--primary" asp-page="/Cases/Index" asp-route-tab="awaiting" asp-route-selected="@imageIntake.Record.Id">Open awaiting instruction</a>
+                    }
+                    else if (Model.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup) { <p>This group is not currently ready for Case association.</p> }
+                    else { <p>This retained source is not available for Case association.</p> }
+                }
+                else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction)
+                {
+                    @if (Model.CanCreateCase && Model.SourceReceipt is { } createReceipt) { <a class="btn btn--primary" asp-page="/Cases/Create" asp-route-receiptId="@createReceipt.Id">Open Case creation</a> } else { <p>This retained source cannot create a Case.</p> }
+                }
+                else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction)
+                {
+                    @if (Model.CanRegisterImage && Model.SourceReceipt is { } imageReceipt) { <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@imageReceipt.Id">Open image registration</a> } else { <p>This retained source cannot register an Image-initiated Case.</p> }
+                }
+                else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction)
+                {
+                    <form method="post" asp-page-handler="Resolve" asp-route-id="@Model.Item.Id" class="stack">
+                        <input type="hidden" asp-for="ExpectedVersion" /><input type="hidden" asp-for="OperationKey" /><input type="hidden" name="action" value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction" />
+                        <div class="field"><label class="req" for="unidentified-resolution-reason">Reason</label><textarea id="unidentified-resolution-reason" asp-for="ResolutionReason" maxlength="500" rows="3" required></textarea></div>
+                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Close with reason</button></div>
+                    </form>
+                }
+            </div>
         </section>
     </div>
 }
-
 <partial name="Shared/_EvidenceViewer" />

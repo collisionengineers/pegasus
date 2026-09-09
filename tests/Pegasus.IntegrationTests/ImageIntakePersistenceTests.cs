@@ -312,6 +312,9 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None);
         Assert.Equal(record.Id, fromSibling!.Record.Id);
 
+        var fromGroup = await queries.GetBySubmissionGroupAsync(groupId, CancellationToken.None);
+        Assert.Equal(record.Id, fromGroup!.Record.Id);
+
         // A second registration for the same group — different operation key,
         // different member origin, exactly a racing sibling's attempt —
         // returns the one existing row instead of allocating a second

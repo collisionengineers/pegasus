@@ -884,6 +884,22 @@ public sealed class EfImageIntakeStore(
             : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
     }
 
+    public async Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
+        Guid submissionGroupId,
+        CancellationToken cancellationToken)
+    {
+        if (submissionGroupId == Guid.Empty)
+        {
+            return null;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await GetDetailAsync(
+            context,
+            item => item.SubmissionGroupId == submissionGroupId,
+            cancellationToken);
+    }
+
     /// <summary>
     /// Resolves the ImageIntake a receipt belongs to: its own origin
     /// registration, or — when the receipt is a member of a submission group
