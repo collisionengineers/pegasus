@@ -9,6 +9,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
@@ -615,6 +616,9 @@ public sealed class UploadConfirmationWebTests
     [InlineData("missing-receipt")]
     [InlineData("missing-member")]
     [InlineData("omitted-ready-member")]
+    [InlineData("different-case")]
+    [InlineData("different-operation")]
+    [InlineData("stale-member")]
     public async Task IncompleteGroupPostChangesNoAssociationOrHistory(string condition)
     {
         using var factory = new IntakeWebApplicationFactory(
@@ -622,13 +626,18 @@ public sealed class UploadConfirmationWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "XY34 ZZZ", "GROUP-READINESS-01");
+        var firstEmail = IntakeTestEvidence.CreateEmail("first-instruction.eml",
+            "QDOS instruction\r\nClaimant Name: Attach Claimant\r\nClaim Number: GROUP-DOC-01\r\nVehicle Registration: CD34 EFG");
+        var secondEmail = IntakeTestEvidence.CreateEmail("second-instruction.eml",
+            "QDOS instruction\r\nClaimant Name: Attach Claimant\r\nClaim Number: GROUP-DOC-02\r\nVehicle Registration: CD34 EFG");
+        (string, string, byte[])[] files = condition is "different-case" or "different-operation" or "stale-member"
+            ? [(firstEmail.FileName, firstEmail.MediaType, firstEmail.Content),
+               (secondEmail.FileName, secondEmail.MediaType, secondEmail.Content)]
+            : [("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+               ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))];
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
         var upload = await IntakeWebDriver.PostUploadManyAsync(client,
-            form.AntiforgeryToken, form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
-                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
-            ]);
+            form.AntiforgeryToken, form.ExternalReceiptToken, files);
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         await using var scope = factory.Services.CreateAsyncScope();
@@ -643,7 +652,7 @@ public sealed class UploadConfirmationWebTests
             var status = (await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None))!;
             before.Add((await receipts.GetAsync(status.ProcessedReceiptId!.Value, CancellationToken.None))!);
         }
-        var caseVersion = await CaseVersionAsync(factory, caseId);
+        var reviewedVersions = before.ToDictionary(receipt => receipt.Id, receipt => receipt.Version);
         await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
         var sibling = group.Members[1].StagedReceiptId;
@@ -663,6 +672,34 @@ public sealed class UploadConfirmationWebTests
             await db.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE IntakeSubmissionGroups SET ExpectedMemberCount = ExpectedMemberCount + 1 WHERE Id = {groupId}");
         }
+        else if (condition == "stale-member")
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeReceipts SET Version = Version + 1 WHERE Id = {before[1].Id}");
+        }
+        else if (condition is "different-case" or "different-operation")
+        {
+            var priorCaseId = condition == "different-case"
+                ? await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, "EF56 HJK", "GROUP-OTHER-01")
+                : caseId;
+            var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+            var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+                new(priorCaseId, await CaseVersionAsync(factory, priorCaseId), actor, "group-prior-decision-lease"));
+            await scope.ServiceProvider.GetRequiredService<ILinkIntake>().ExecuteAsync(
+                new(before[1].Id, priorCaseId, before[1].Version, lease.Version, lease.Token, actor,
+                    "group-prior-decision", "Staff previously associated this separate instruction."));
+        }
+        before[1] = (await receipts.GetAsync(before[1].Id, CancellationToken.None))!;
+        var caseVersion = await CaseVersionAsync(factory, caseId);
+        Assert.Null(before[0].CurrentCaseId);
+        if (condition is "different-case" or "different-operation" or "stale-member")
+        {
+            var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+            var available = await scope.ServiceProvider.GetRequiredService<IIntakeAssociationDestinationQueries>()
+                .GetAsync(before[0], caseId, actor, CancellationToken.None);
+            Assert.NotNull(available);
+            Assert.Equal(caseVersion, available.Version);
+        }
         var historyBefore = await db.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS Value FROM IntakeMutationHistory").SingleAsync();
         var fields = new Dictionary<string, string>
@@ -672,20 +709,20 @@ public sealed class UploadConfirmationWebTests
             ["reason"] = "Staff reviewed the complete submission.",
             ["operationId"] = Guid.NewGuid().ToString("D"),
             ["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture),
-            [$"receiptVersions[{before[0].Id:D}]"] = before[0].Version.ToString(CultureInfo.InvariantCulture)
+            [$"receiptVersions[{before[0].Id:D}]"] = reviewedVersions[before[0].Id].ToString(CultureInfo.InvariantCulture)
         };
         Assert.Equal(HttpStatusCode.OK, await PostGroupHandlerAsync(
             client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields));
         if (condition != "omitted-ready-member")
         {
-            fields[$"receiptVersions[{before[1].Id:D}]"] = before[1].Version.ToString(CultureInfo.InvariantCulture);
+            fields[$"receiptVersions[{before[1].Id:D}]"] = reviewedVersions[before[1].Id].ToString(CultureInfo.InvariantCulture);
             Assert.Equal(HttpStatusCode.OK, await PostGroupHandlerAsync(
                 client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields));
         }
         foreach (var original in before)
         {
             var after = (await receipts.GetAsync(original.Id, CancellationToken.None))!;
-            Assert.Null(after.CurrentCaseId);
+            Assert.Equal(original.CurrentCaseId, after.CurrentCaseId);
             Assert.Equal(original.Version, after.Version);
             Assert.Equal(original.ManualAssociationOperationKey, after.ManualAssociationOperationKey);
         }

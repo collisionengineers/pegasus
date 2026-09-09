@@ -444,6 +444,45 @@ public sealed class UploadCaseDecision(
         var nextCaseVersion = expectedCaseVersion;
         try
         {
+            // A known conflict anywhere in the reviewed submission must stop
+            // before the first new link. Completed members can only be the
+            // identical decision's committed prefix; all pending members see
+            // the same current Case version until this attempt starts writing.
+            var completedPrefix = 0;
+            var pendingFound = false;
+            for (var index = 0; index < memberReceiptIds.Count; index++)
+            {
+                var receiptId = memberReceiptIds[index];
+                var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+                if (receipt is null)
+                {
+                    return PartialFailure(completedPrefix, "A file in this submission is no longer available. Refresh before trying again.");
+                }
+                if (receipt.CurrentCaseId is not null)
+                {
+                    var operationKey = DecisionOperationKey(
+                        $"upload-attach-group:{groupId:N}", operationId, receiptId, targetCaseId,
+                        expectedReceiptVersions[receiptId], expectedCaseVersion + index, actor, reason);
+                    if (pendingFound || receipt.CurrentCaseId != targetCaseId
+                        || !string.Equals(receipt.ManualAssociationOperationKey, operationKey, StringComparison.Ordinal))
+                    {
+                        return PartialFailure(completedPrefix, "A file in this submission already has a different decision. No further files were added. Refresh to review it.");
+                    }
+                    completedPrefix++;
+                    continue;
+                }
+                pendingFound = true;
+                if (receipt.Version != expectedReceiptVersions[receiptId])
+                {
+                    return PartialFailure(completedPrefix, "A file in this submission changed after it was reviewed. Refresh to review it.");
+                }
+                var pendingDestination = await destinations.GetAsync(receipt, targetCaseId, actor, cancellationToken);
+                if (pendingDestination is null || pendingDestination.Version != expectedCaseVersion + completedPrefix)
+                {
+                    return PartialFailure(completedPrefix, "A file in this submission can no longer be added to that case. Refresh to review it.");
+                }
+            }
+
             foreach (var receiptId in memberReceiptIds)
             {
                 var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
