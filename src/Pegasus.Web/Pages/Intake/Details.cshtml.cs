@@ -336,6 +336,7 @@ public sealed partial class DetailsModel(
             if (source.CurrentCaseId != caseId
                 && await associationDestinations.GetAsync(source, caseId, actor, cancellationToken) is null)
             {
+                logger.LogInformation("Case {CaseId} is not an available destination for retained source {ReceiptId}.", caseId, id);
                 TempData["IntakeDetailsError"] = "The selected case is no longer available for this source.";
                 return RedirectToPage("/Intake/Details", new { id, targetCaseId = caseId, caseQuery = AssociationCaseQuery });
             }
@@ -352,6 +353,7 @@ public sealed partial class DetailsModel(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            logger.LogInformation(exception, "Case edit mode could not be entered for retained source {ReceiptId} and Case {CaseId}.", id, caseId);
             TempData["IntakeDetailsError"] =
                 "Case edit mode could not be entered. Check the case version and try again.";
         }
