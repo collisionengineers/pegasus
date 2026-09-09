@@ -103,10 +103,28 @@ public sealed class ActionLogsModel(
     }
 
     public string? ReferenceLabel(ActionLogRow row) =>
-        string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase)
+        IsCaseReference(row)
         && Guid.TryParse(row.Reference, out var caseId)
             ? _caseReferences.GetValueOrDefault(caseId)
             : Guid.TryParse(row.Reference, out _) ? null : row.Reference;
+
+    private static bool IsCaseReference(ActionLogRow row) =>
+        string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(row.Area, "automation_mcp", StringComparison.Ordinal)
+        && row.Operation is
+            "pegasus_case_get"
+            or "pegasus_case_edit_begin"
+            or "pegasus_case_edit_renew"
+            or "pegasus_case_edit_end"
+            or "pegasus_case_update_details"
+            or "pegasus_document_add"
+            or "pegasus_document_download"
+            or "pegasus_document_export"
+            or "pegasus_estimate_import"
+            or "pegasus_estimate_save"
+            or "pegasus_estimate_list"
+            or "pegasus_assessment_get"
+            or "pegasus_assessment_update";
 
     private async Task ResolveStaffNamesAsync(CancellationToken cancellationToken) =>
         _staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
@@ -121,7 +139,7 @@ public sealed class ActionLogsModel(
         CancellationToken cancellationToken)
     {
         foreach (var caseId in Result.Rows
-                     .Where(row => string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase))
+                     .Where(IsCaseReference)
                      .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
                      .Where(id => id != Guid.Empty)
                      .Distinct())
