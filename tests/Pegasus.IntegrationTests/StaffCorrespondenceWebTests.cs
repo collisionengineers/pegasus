@@ -351,6 +351,103 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
+    public async Task UnknownComposeOperationSurvivesCaseSearchAndSelection()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var oldCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 UNKNOWN OLD", "SC08-UNKNOWN-OLD");
+        var selectedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 UNKNOWN SELECT", "SC08-UNKNOWN-SELECT");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send, attachmentResolver: new StableAttachmentResolver());
+        using var client = CreateClient(factory);
+        var oldReference = await CaseReferenceAsync(factory, oldCaseId);
+        var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
+        var (operationKey, token) = await ComposeFormTokensAsync(
+            client, $"/Inbox/Compose?caseReference={oldReference}");
+
+        using var sent = await client.PostAsync(
+            "/Inbox/Compose?handler=Send",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["OperationKey"] = operationKey,
+                ["CaseReference"] = oldReference,
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, oldCaseId)).ToString(),
+                ["To"] = "claimant@example.invalid",
+                ["Subject"] = "Initial subject",
+                ["Body"] = "Initial message."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        Assert.Equal(1, send.SendCalls);
+
+        using var status = await client.GetAsync(sent.Headers.Location);
+        var statusHtml = await status.Content.ReadAsStringAsync();
+        var draft = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
+            ["OperationKey"] = InputValue(statusHtml, "OperationKey"),
+            ["OperationId"] = InputValue(statusHtml, "OperationId"),
+            ["ExpectedContextVersion"] = InputValue(statusHtml, "ExpectedContextVersion"),
+            ["CaseReference"] = oldReference,
+            ["CaseQuery"] = selectedReference,
+            ["To"] = "draft@example.invalid",
+            ["Cc"] = "copy@example.invalid",
+            ["Subject"] = "Draft subject",
+            ["Body"] = "Draft message.",
+            ["SelectedAttachments"] = StableAttachmentResolver.Selection
+        };
+
+        using var search = await client.PostAsync(
+            ButtonFormAction(statusHtml, "SearchCase"),
+            new FormUrlEncodedContent(draft));
+        Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+        var searchHtml = await search.Content.ReadAsStringAsync();
+        Assert.Contains(selectedReference, searchHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), searchHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=Reconcile", searchHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(draft["OperationId"], InputValue(searchHtml, "OperationId"));
+        Assert.Equal("draft@example.invalid", InputValue(searchHtml, "To"));
+        Assert.Equal("copy@example.invalid", InputValue(searchHtml, "Cc"));
+        Assert.Equal("Draft subject", InputValue(searchHtml, "Subject"));
+        Assert.Equal("Draft message.", TextAreaValue(searchHtml, "Body"));
+        AssertSelectedAttachment(searchHtml, StableAttachmentResolver.Selection);
+
+        draft["__RequestVerificationToken"] = InputValue(searchHtml, "__RequestVerificationToken");
+        draft["OperationKey"] = InputValue(searchHtml, "OperationKey");
+        draft["OperationId"] = InputValue(searchHtml, "OperationId");
+        draft["ExpectedContextVersion"] = InputValue(searchHtml, "ExpectedContextVersion");
+        draft["CaseReference"] = InputValue(searchHtml, "CaseReference");
+        draft["CaseQuery"] = InputValue(searchHtml, "CaseQuery");
+        draft["To"] = InputValue(searchHtml, "To");
+        draft["Cc"] = InputValue(searchHtml, "Cc");
+        draft["Subject"] = InputValue(searchHtml, "Subject");
+        draft["Body"] = TextAreaValue(searchHtml, "Body");
+        draft["SelectedCaseReference"] = selectedReference;
+
+        using var selection = await client.PostAsync(
+            ButtonFormAction(searchHtml, "SelectCase"),
+            new FormUrlEncodedContent(draft));
+        Assert.Equal(HttpStatusCode.OK, selection.StatusCode);
+        var selectedHtml = await selection.Content.ReadAsStringAsync();
+        Assert.Equal(selectedReference, InputValue(selectedHtml, "CaseReference"));
+        Assert.Equal(
+            (await CaseVersionAsync(factory, selectedCaseId)).ToString(),
+            InputValue(selectedHtml, "ExpectedContextVersion"));
+        Assert.Equal(draft["OperationId"], InputValue(selectedHtml, "OperationId"));
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), selectedHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=Reconcile", selectedHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("draft@example.invalid", InputValue(selectedHtml, "To"));
+        Assert.Equal("copy@example.invalid", InputValue(selectedHtml, "Cc"));
+        Assert.Equal("Draft subject", InputValue(selectedHtml, "Subject"));
+        Assert.Equal("Draft message.", TextAreaValue(selectedHtml, "Body"));
+        AssertSelectedAttachment(selectedHtml, StableAttachmentResolver.Selection);
+        Assert.Equal(1, send.SendCalls);
+    }
+
+    [Fact]
     public async Task InvalidComposeReconcileUsesPrgWithoutCallingThePort()
     {
         var send = new RecordingStaffMailSend();
@@ -649,7 +746,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task RetainedForwardSelectionPreservesTheDraftAndRefreshesTheCaseVersion()
+    public async Task RetainedForwardSearchAndSelectionUseRenderedActionsAndRetainFormState()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -665,18 +762,27 @@ public sealed class StaffCorrespondenceWebTests
             new(seeded.MailboxId, seeded.MailboxGeneration),
             new StableAttachmentResolver());
         using var client = CreateClient(factory);
-        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
+        var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&unread=true&sort=oldest";
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward&{listContext}");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
         var associatedReference = await CaseReferenceAsync(factory, associatedCaseId);
         var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
-        var selection = new Dictionary<string, string>
+        var draft = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["mailbox"] = InputValue(html, "mailbox"),
+            ["folder"] = InputValue(html, "folder"),
+            ["pageNumber"] = InputValue(html, "pageNumber"),
+            ["search"] = InputValue(html, "search"),
+            ["queue"] = InputValue(html, "queue"),
+            ["unread"] = InputValue(html, "unread"),
+            ["sort"] = InputValue(html, "sort"),
+            ["compose"] = InputValue(html, "compose"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceCaseReference"] = associatedReference,
-            ["SelectedCorrespondenceCaseReference"] = selectedReference,
+            ["CorrespondenceCaseQuery"] = selectedReference,
             ["CorrespondenceTo"] = "selected@example.invalid",
             ["CorrespondenceCc"] = "copy@example.invalid",
             ["CorrespondenceSubject"] = "Fwd: Source subject",
@@ -684,31 +790,82 @@ public sealed class StaffCorrespondenceWebTests
             ["SelectedAttachments"] = StableAttachmentResolver.Selection
         };
 
+        using var searchResponse = await client.PostAsync(
+            ButtonFormAction(html, "SearchCorrespondenceCase"),
+            new FormUrlEncodedContent(draft));
+        Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
+        var searchHtml = await searchResponse.Content.ReadAsStringAsync();
+        Assert.Contains(selectedReference, searchHtml, StringComparison.Ordinal);
+        Assert.Equal("forward", InputValue(searchHtml, "compose"));
+        Assert.Equal(string.Empty, InputValue(searchHtml, "folder"));
+        Assert.Equal("2", InputValue(searchHtml, "pageNumber"));
+        Assert.Equal(string.Empty, InputValue(searchHtml, "search"));
+        Assert.Equal(string.Empty, InputValue(searchHtml, "queue"));
+        Assert.Equal("true", InputValue(searchHtml, "unread"));
+        Assert.Equal("oldest", InputValue(searchHtml, "sort"));
+        Assert.Equal("selected@example.invalid", InputValue(searchHtml, "CorrespondenceTo"));
+        Assert.Equal("copy@example.invalid", InputValue(searchHtml, "CorrespondenceCc"));
+        Assert.Equal("Fwd: Source subject", InputValue(searchHtml, "CorrespondenceSubject"));
+        Assert.Equal("Forward for the selected Case.", TextAreaValue(searchHtml, "CorrespondenceBody"));
+        AssertSelectedAttachment(searchHtml, StableAttachmentResolver.Selection);
+
+        draft["__RequestVerificationToken"] = InputValue(searchHtml, "__RequestVerificationToken");
+        draft["mailbox"] = InputValue(searchHtml, "mailbox");
+        draft["folder"] = InputValue(searchHtml, "folder");
+        draft["pageNumber"] = InputValue(searchHtml, "pageNumber");
+        draft["search"] = InputValue(searchHtml, "search");
+        draft["queue"] = InputValue(searchHtml, "queue");
+        draft["unread"] = InputValue(searchHtml, "unread");
+        draft["sort"] = InputValue(searchHtml, "sort");
+        draft["compose"] = InputValue(searchHtml, "compose");
+        draft["CorrespondenceOperationKey"] = InputValue(searchHtml, "CorrespondenceOperationKey");
+        draft["ExpectedCorrespondenceCaseVersion"] = InputValue(
+            searchHtml, "ExpectedCorrespondenceCaseVersion");
+        draft["CorrespondenceCaseReference"] = InputValue(searchHtml, "CorrespondenceCaseReference");
+        draft["CorrespondenceCaseQuery"] = InputValue(searchHtml, "CorrespondenceCaseQuery");
+        draft["CorrespondenceTo"] = InputValue(searchHtml, "CorrespondenceTo");
+        draft["CorrespondenceCc"] = InputValue(searchHtml, "CorrespondenceCc");
+        draft["CorrespondenceSubject"] = InputValue(searchHtml, "CorrespondenceSubject");
+        draft["CorrespondenceBody"] = TextAreaValue(searchHtml, "CorrespondenceBody");
+        draft["SelectedCorrespondenceCaseReference"] = selectedReference;
+
         using var selectionResponse = await client.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=SelectCorrespondenceCase&compose=forward",
-            new FormUrlEncodedContent(selection));
+            ButtonFormAction(searchHtml, "SelectCorrespondenceCase"),
+            new FormUrlEncodedContent(draft));
         Assert.Equal(HttpStatusCode.OK, selectionResponse.StatusCode);
         var selectedHtml = await selectionResponse.Content.ReadAsStringAsync();
         Assert.Equal(
             selectedReference,
             InputValue(selectedHtml, "CorrespondenceCaseReference"));
-        Assert.Contains("selected@example.invalid", selectedHtml, StringComparison.Ordinal);
-        Assert.Contains("copy@example.invalid", selectedHtml, StringComparison.Ordinal);
-        Assert.Contains("Forward for the selected Case.", selectedHtml, StringComparison.Ordinal);
-        Assert.Contains(StableAttachmentResolver.Selection, selectedHtml, StringComparison.Ordinal);
-        Assert.Contains("checked", selectedHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            (await CaseVersionAsync(factory, selectedCaseId)).ToString(),
+            InputValue(selectedHtml, "ExpectedCorrespondenceCaseVersion"));
+        Assert.Equal("forward", InputValue(selectedHtml, "compose"));
+        Assert.Equal(seeded.MailboxId.ToString("D"), InputValue(selectedHtml, "mailbox"));
+        Assert.Equal(string.Empty, InputValue(selectedHtml, "folder"));
+        Assert.Equal("2", InputValue(selectedHtml, "pageNumber"));
+        Assert.Equal(string.Empty, InputValue(selectedHtml, "search"));
+        Assert.Equal(string.Empty, InputValue(selectedHtml, "queue"));
+        Assert.Equal("true", InputValue(selectedHtml, "unread"));
+        Assert.Equal("oldest", InputValue(selectedHtml, "sort"));
+        Assert.Equal(draft["CorrespondenceOperationKey"], InputValue(selectedHtml, "CorrespondenceOperationKey"));
+        Assert.Equal("selected@example.invalid", InputValue(selectedHtml, "CorrespondenceTo"));
+        Assert.Equal("copy@example.invalid", InputValue(selectedHtml, "CorrespondenceCc"));
+        Assert.Equal("Fwd: Source subject", InputValue(selectedHtml, "CorrespondenceSubject"));
+        Assert.Equal("Forward for the selected Case.", TextAreaValue(selectedHtml, "CorrespondenceBody"));
+        AssertSelectedAttachment(selectedHtml, StableAttachmentResolver.Selection);
 
-        selection["__RequestVerificationToken"] = InputValue(selectedHtml, "__RequestVerificationToken");
-        selection["CorrespondenceOperationKey"] = InputValue(selectedHtml, "CorrespondenceOperationKey");
-        selection["ExpectedCorrespondenceCaseVersion"] = InputValue(
+        draft["__RequestVerificationToken"] = InputValue(selectedHtml, "__RequestVerificationToken");
+        draft["CorrespondenceOperationKey"] = InputValue(selectedHtml, "CorrespondenceOperationKey");
+        draft["ExpectedCorrespondenceCaseVersion"] = InputValue(
             selectedHtml, "ExpectedCorrespondenceCaseVersion");
-        selection["CorrespondenceCaseReference"] = InputValue(
+        draft["CorrespondenceCaseReference"] = InputValue(
             selectedHtml, "CorrespondenceCaseReference");
-        selection.Remove("SelectedCorrespondenceCaseReference");
+        draft.Remove("SelectedCorrespondenceCaseReference");
 
         using var post = await client.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Forward&compose=forward",
-            new FormUrlEncodedContent(selection));
+            FormAction(selectedHtml, "Forward"),
+            new FormUrlEncodedContent(draft));
         Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
         var command = Assert.Single(send.Commands);
         Assert.Equal(selectedCaseId, command.ContextId);
@@ -1340,6 +1497,42 @@ public sealed class StaffCorrespondenceWebTests
         var value = Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase);
         Assert.True(value.Success, $"The input '{name}' had no value.");
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    private static string ButtonFormAction(string html, string handler)
+    {
+        var button = Regex.Match(
+            html,
+            $"<button[^>]*formaction=\"(?<action>[^\"]*handler={Regex.Escape(handler)}[^\"]*)\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(button.Success, $"The '{handler}' button had no form action.");
+        return WebUtility.HtmlDecode(button.Groups["action"].Value);
+    }
+
+    private static string TextAreaValue(string html, string name)
+    {
+        var area = Regex.Match(
+            html,
+            $"<textarea[^>]*name=\"{Regex.Escape(name)}\"[^>]*>(?<value>.*?)</textarea>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(area.Success, $"The textarea '{name}' was not rendered.");
+        return WebUtility.HtmlDecode(area.Groups["value"].Value);
+    }
+
+    private static void AssertSelectedAttachment(string html, string selection) =>
+        Assert.Matches(new Regex(
+                $"<input[^>]*name=\"SelectedAttachments\"[^>]*value=\"{Regex.Escape(selection)}\"[^>]*checked",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant),
+            html);
+
+    private static string FormAction(string html, string handler)
+    {
+        var form = Regex.Match(
+            html,
+            $"<form[^>]*action=\"(?<action>[^\"]*handler={Regex.Escape(handler)}[^\"]*)\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(form.Success, $"The '{handler}' form had no action.");
+        return WebUtility.HtmlDecode(form.Groups["action"].Value);
     }
 
     private static Dictionary<string, string> RetainedReplyForm(

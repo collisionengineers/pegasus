@@ -61,6 +61,7 @@
     <form method="post" asp-page-handler="Send" class="panel">
         <div class="panel-body">
             <input type="hidden" asp-for="OperationKey" />
+            <input type="hidden" asp-for="OperationId" />
             <input type="hidden" asp-for="ExpectedContextVersion" />
             <div class="field">
                 <label asp-for="CaseQuery">Find a Case</label>

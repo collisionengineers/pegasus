@@ -102,14 +102,7 @@ public sealed class ComposeModel(
         await LoadDefaultMailboxAsync(cancellationToken);
         await LoadCaseContextAsync(actor, cancellationToken);
 
-        // Carries the just-sent operation's identity across the post-send
-        // redirect, so the Send-status panel — and, for Unknown, the
-        // Reconcile form that is its only caller — actually renders on the
-        // page the operator lands on instead of being silently discarded.
-        if (OperationId is { } operationId)
-        {
-            Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
-        }
+        await LoadOperationAsync(actor, cancellationToken);
 
         return Page();
     }
@@ -127,6 +120,7 @@ public sealed class ComposeModel(
         }
 
         await LoadDefaultMailboxAsync(cancellationToken);
+        await LoadOperationAsync(actor, cancellationToken);
 
         var to = ParseRecipients(To);
         if (to.Length == 0)
@@ -236,6 +230,7 @@ public sealed class ComposeModel(
         }
 
         await LoadDefaultMailboxAsync(cancellationToken);
+        await LoadOperationAsync(actor, cancellationToken);
         await LoadSelectedCaseAsync(actor, cancellationToken);
         if (!TryNormalizeCaseQuery(out var query) || string.IsNullOrWhiteSpace(query))
         {
@@ -263,6 +258,7 @@ public sealed class ComposeModel(
         }
 
         await LoadDefaultMailboxAsync(cancellationToken);
+        await LoadOperationAsync(actor, cancellationToken);
         var details = await ResolveCaseAsync(actor, SelectedCaseReference, cancellationToken);
         if (details is null)
         {
@@ -355,6 +351,14 @@ public sealed class ComposeModel(
                 && item.IsDefaultStaffSend)
             .ToArray();
         DefaultMailbox = defaults.Length == 1 ? defaults[0] : null;
+    }
+
+    private async Task LoadOperationAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (OperationId is { } operationId)
+        {
+            Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
+        }
     }
 
     private async Task LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
