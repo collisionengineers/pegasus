@@ -474,6 +474,21 @@ Run the focused corpus lane only when genuine ignored input is present and requi
 dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 ```
 
+### Private reference evidence
+
+Pack-backed corpus tests read a private evidence collection through
+`PEGASUS_REFERENCE_PACK_ROOT`. Set it to the absolute path of the ignored
+`reference-evidence/` directory, independently of the current worktree.
+The locator name remains the existing test input; it must not point at the
+mutable `pegasus_pack/` planning workspace. Preserve source-relative paths,
+recorded extraction text, inventories and source hashes when provisioning
+this collection. Do not commit or upload its genuine source material.
+
+Run these tests explicitly with the collection configured; report unavailable
+source evidence as unavailable. Ordinary CI excludes the Corpus category and
+is not evidence that the private collection passed. Keep `corpus/` immutable;
+the private collection is separate and does not replace it.
+
 ## Provider-domain reference authoring
 
 Provider-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only:
@@ -875,18 +890,3 @@ The allocated [OPS-09](capabilities.md) capability and its [product-quality obje
 Repeat the proof after material persistence or release changes where required. Recurring quarterly recovery is `Not planned`.
 
 A recovery, restore, failover, or retirement exercise requires exact target approval, fresh inventory, a recoverable target, retained source data, and a rollback path.
-
-### Private reference evidence
-
-Pack-backed corpus tests read a private evidence collection through
-`PEGASUS_REFERENCE_PACK_ROOT`. Set it to the absolute path of the ignored
-`reference-evidence/` directory, independently of the current worktree.
-The locator name remains the existing test input; it must not point at the
-mutable `pegasus_pack/` planning workspace. Preserve source-relative paths,
-recorded extraction text, inventories and source hashes when provisioning
-this collection. Do not commit or upload its genuine source material.
-
-Run these tests explicitly with the collection configured; report unavailable
-source evidence as unavailable. Ordinary CI excludes the Corpus category and
-is not evidence that the private collection passed. Keep `corpus/` immutable;
-the private collection is separate and does not replace it.
