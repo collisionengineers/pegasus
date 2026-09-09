@@ -268,3 +268,19 @@ Source commit de45919d7 followed by conflict-free normal merge of independently 
 - 2026-09-09T01:03:20.164Z lease-phase implementing → running-command (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 81; expires 2026-09-09T01:33:20.154Z)
 
 - 2026-09-09T01:08:47.767Z lease-phase running-command → implementing (lease eef8e3c2-cb07-4588-a7f9-5cb09a3433fc rev 82; expires 2026-09-09T01:38:47.751Z)
+
+## INTK066 remediation round1 verification results — host IDLE
+
+/root/verify_711_712 sole CEALEX-May25 verifier checked exact frozen clean ea4ae262ed471f72f60dfb3157fc7e70ca130bcc, recorded INTK066 worktree/branch/common repository. Fresh resumed packet ready; external PEGASUS_TEST_SQL_DATASOURCE/USER/PASSWORD and DOTNET_STARTUP_HOOKS absent; zero pre-existing heavy processes. Lease81 running-command then82 implementing.
+
+Sequential authorized commands, all exit0:
+- dotnet restore Pegasus.slnx --locked-mode: all projects up to date; no lock changes.
+- dotnet build Pegasus.slnx --configuration Release --no-restore -nodeReuse:false: PASS,0 warnings/errors,1m47.67s.
+- dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName=Pegasus.IntegrationTests.GlassRepairEstimateGatewayTests.ADifferentCallbackQueryForTheSameSessionIsRefusedAndChangesNothing" --logger "console;verbosity=normal" -- xUnit.MaxParallelThreads=2: PASS37/37,0skips,0failures,2.0662minutes, runtime10.0.10. Original failing Glass callback PASS198ms with launch assertion. Same-filter --list-tests exit0 confirmed exactly37 selected tests including all five IncompleteGroupPostChangesNoAssociationOrHistory conditions (processing,failed,missing-receipt,missing-member,omitted-ready-member), both AttachGroupAddsEveryOpenMemberToTheChosenCase interruptAfterFirstMember false/true (both pass6s) and both WorkingMember offerCreation false/true. List was discovery only, not a rerun.
+- pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1: PASS141files.
+- pwsh -NoProfile -File ./scripts/Test-MarkdownPlacement.ps1 -Base c3219cd28c69530441e2bba7357063372628ff37 -Head ea4ae262ed471f72f60dfb3157fc7e70ca130bcc: PASS.
+- git diff --check c3219cd28c69530441e2bba7357063372628ff37 HEAD: PASS.
+
+No failing assertion occurred. HTTP fixture logs retained ordinary MARS savepoint and HTTPS-port warnings. Historical CI e8bc3fc failure remains unresolved mechanism, not erased by this new-head pass. Root notified a statically found completed-group navigation regression during frozen run; checks were continued as directed, with no source edit. These scoped passes do NOT establish final UI acceptance; queued narrow navigation fix needs its own frozen-head evidence.
+
+After completed restore/build/test parents exited, six exact reusable restore MSBuild nodes were individually revalidated by PID/start/parent32484/executable/nodemode and stopped:24756,9156,12544,28108,24392,1824. First immediate census observed1 exiting process; subsequent census0. No foreign process touched. Final exacthead clean, no source/lock edits, browser/capture/package/cloud/SQLexternal/Outlook/Box action, commit/push or PR action. Both canonicalDELIV053 andINTK066 host slots explicitly **IDLE / unassigned**. Source may now unfreeze for authorized navigation correction.
