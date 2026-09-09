@@ -175,3 +175,42 @@ No stale plan readiness service, alert weakening or old-runtime fallback.
 Scoped implementation/evidence recorded and PR open to configured dev integration,
 ready for independent kanmer-review. Do not merge, deploy, start another ticket or
 clean foreign work.
+
+## Post-merge correction — 9 September 2026
+
+This bounded amendment governs the current re-entry; the completed original work
+above is retained as history, not authority to repeat or expand it. Evidence:
+`proof/proof.md`@`dc4ca8507b568ff3` FAIL at PR711 merge
+`c3219cd28c69530441e2bba7357063372628ff37`. The architecture contract still
+parses literal names from productionSmoke after centralization, producing [].
+Meet docs/runbook.md's strict Worker activation contract without policy changes.
+
+Only change tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs.
+Read literal names from scripts/PegasusPlatform.ps1, assert ExpectedFunctions
+unchanged, and require both smoke and deploymentPlan to dot-source that helper
+and assign @(Get-PegasusWorkerDisabledSettingNames). Retain every existing
+unsafe-disable assertion and reuse existing runtime negative fixtures. No new
+harness, dependency, production/script change, CI classifier change or docs policy.
+The prior no-dotnet constraint applied to original script/docs execution; the
+new C# test change needs explicitly granted sole-host restore/build/test evidence.
+The author runs no host checks and waits for /root/verify_711_712 ownership.
+
+Ordered correction: validate and renew exact recorded branch/worktree; merge
+origin/dev normally to retain actual merged history; make the one-file correction;
+freeze a local commit; ask root for exact-head verification. With PASS and root
+push authorization, open a new draft corrective PR to dev (711 is already merged),
+retain original PR/commit/proof history, report and get gates, move to Review,
+mark ready and stop for independent reviewer. No self-merge or force history.
+
+Acceptance: the exact formerly failing test and existing full
+WorkerActivationReleaseContractTests class pass under the host verifier;
+ExpectedFunctions and unsafe-disable/missing/extra/duplicate/value checks remain.
+Commands, granted sole verifier only: dotnet restore
+ tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --locked-mode;
+dotnet build tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj
+ --configuration Release --no-restore -nodeReuse:false; dotnet test that project
+ --configuration Release --no-build --filter
+ FullyQualifiedName~Pegasus.ArchitectureTests.WorkerActivationReleaseContractTests.
+Root may bind the exact-test-first run and qualifying evidence in the host grant.
+Static git diff --check is allowed without host slot. First failure stops and is
+retained; no autonomous retry. Original FAIL proof remains untouched here.
