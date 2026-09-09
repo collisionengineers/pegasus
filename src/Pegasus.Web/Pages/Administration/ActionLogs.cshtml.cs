@@ -103,7 +103,7 @@ public sealed class ActionLogsModel(
     }
 
     public string? ReferenceLabel(ActionLogRow row) =>
-        string.Equals(row.Area, "Case", StringComparison.Ordinal)
+        string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase)
         && Guid.TryParse(row.Reference, out var caseId)
             ? _caseReferences.GetValueOrDefault(caseId)
             : Guid.TryParse(row.Reference, out _) ? null : row.Reference;
@@ -121,7 +121,7 @@ public sealed class ActionLogsModel(
         CancellationToken cancellationToken)
     {
         foreach (var caseId in Result.Rows
-                     .Where(row => string.Equals(row.Area, "Case", StringComparison.Ordinal))
+                     .Where(row => string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase))
                      .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
                      .Where(id => id != Guid.Empty)
                      .Distinct())
