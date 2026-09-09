@@ -229,3 +229,13 @@ Additional exact allowed files: `scripts/Initialize-LocalDevelopment.ps1` and `s
 ## Final direct-reference cleanup
 
 Additional exact allowed file `scripts/PegasusPlatform.ps1`: replace the stale browser-evidence-lane phrase in the Linux certificate-trust repair hint with interactive browser clients. This is a text-only hint correction; retain the repair command and all certificate/runtime behavior. Validate the existing platform script check at final head; no second application suite required for this string.
+
+## Remediation round 1 — authorized PR712 readiness
+
+Resolve F-001 as one complete-submission validation class: before any group POST attachment require the declared member count, all durable statuses complete, and a usable pending or settled outcome for every member. Require the full server-ordered receipt roster, including previously completed members whose identical operation is proved by the existing attachment owner. Preserve partial-retry input and per-member version/operation checks; no batch framework. Use the same readiness for UI/search. Add real HTTP/SQL tests for processing, missing status/member and failed/unsupported siblings, proving no new receipt association/version/history or Case version change; retain complete and partial replay tests.
+
+Resolve F-002 by qualifying only CONTEXT.md Audit summary and docs/frd/frd-01-case-identity-and-lifecycle.md allocation summary with the accepted FRD-02 manual confirmation exception. Additional allowed files are those two summaries. This changes no policy beyond approved manual acceptance.
+
+Controller additionally authorizes tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs only to assert Active and print State/FailureCode before CompleteAsync in ADifferentCallbackQueryForTheSameSessionIsRefusedAndChangesNothing. No Glass implementation/timeout/retry changes; CASE-047 retains actual Glass root-cause ownership. Historical CI failure remains unresolved pending new exact-head CI.
+
+Verify frozen source through granted sole host: Release build, UploadConfirmationWebTests and the exact Glass test (plus related group/replay cohorts selected from current tests); documentation links/placement and diff checks. No browser/snapshot commands. Hand off same PR in Review; independent reviewer alone may merge to dev under 9 September user authorization.

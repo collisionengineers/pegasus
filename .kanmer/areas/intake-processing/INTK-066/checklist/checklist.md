@@ -10,3 +10,9 @@
 ## Handoff
 
 PR712 is open and ready for independent review against dev at e8bc3fcb47b2b47e405c806d17314cccefc71e26. Kanmer Review gate passed, PR is recorded, and board sync was current before marking ready. No merge or deployment.
+
+## Remediation round 1
+
+- [ ] Close F-001 complete group validation and real POST regression; preserve retries.
+- [ ] Close F-002 summaries and expose Glass launch precondition without behavioral changes.
+- [ ] Record granted focused evidence and new-head CI, update report, push same PR and return to Review.
