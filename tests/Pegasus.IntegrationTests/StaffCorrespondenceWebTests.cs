@@ -1549,7 +1549,14 @@ public sealed class StaffCorrespondenceWebTests
             $"<textarea[^>]*name=\"{Regex.Escape(name)}\"[^>]*>(?<value>.*?)</textarea>",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
         Assert.True(area.Success, $"The textarea '{name}' was not rendered.");
-        return WebUtility.HtmlDecode(area.Groups["value"].Value);
+        var value = WebUtility.HtmlDecode(area.Groups["value"].Value);
+        // HTML ignores one newline immediately after the textarea start tag.
+        // Preserve any additional newline that belongs to the entered draft.
+        if (value.StartsWith("\r\n", StringComparison.Ordinal))
+        {
+            return value[2..];
+        }
+        return value.StartsWith('\n') || value.StartsWith('\r') ? value[1..] : value;
     }
 
     private static void AssertSelectedAttachment(string html, string selection) =>
