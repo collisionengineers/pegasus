@@ -11,7 +11,7 @@ namespace Pegasus.Infrastructure.Custody;
 internal sealed class EfCaseArtifactCustody(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     IDocumentContentStore documentContentStore,
-    IIntakeArtifactStore intakeArtifactStore,
+    IIntakeQuarantineArtifactStore quarantineArtifactStore,
     TimeProvider timeProvider,
     BoxContentClient? box = null,
     string? holdingFolderId = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
@@ -23,14 +23,20 @@ internal sealed class EfCaseArtifactCustody(
     {
         Validate(request);
         await RequireRetainAuthorizationAsync(request, cancellationToken);
-        var bytes = await ReadVerifiedAsync(request, cancellationToken);
+        await using var staged = await StageVerifiedAsync(request, cancellationToken);
         await RequireRetainAuthorizationAsync(request, cancellationToken);
-        var pendingKey = request.CaseId is not null
-            ? await intakeArtifactStore.StoreAsync(request.Sha256, bytes, cancellationToken)
-            : null;
+        staged.Position = 0;
+        var retained = await quarantineArtifactStore.StoreStreamAsync(
+            staged, request.ContentLength, cancellationToken);
+        if (retained.ContentLength != request.ContentLength
+            || !string.Equals(retained.ContentHash, NormalizeHash(request.Sha256), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The retained artifact does not match the verified content.");
+        }
+        await quarantineArtifactStore.VerifyAsync(retained, cancellationToken);
         return request.CaseId is { } caseId
-            ? await RetainCaseAsync(caseId, request, bytes, pendingKey!, cancellationToken)
-            : await RetainHoldingAsync(request, bytes, cancellationToken);
+            ? await RetainCaseAsync(caseId, request, staged, retained.StorageKey, cancellationToken)
+            : await RetainHoldingAsync(request, staged, cancellationToken);
     }
 
     private async Task RequireRetainAuthorizationAsync(
@@ -215,7 +221,7 @@ internal sealed class EfCaseArtifactCustody(
     private async Task<CaseArtifactCustodyResult> RetainCaseAsync(
         Guid caseId,
         CaseArtifactCustodyRequest request,
-        ReadOnlyMemory<byte> bytes,
+        Stream content,
         string pendingContentStorageKey,
         CancellationToken cancellationToken)
     {
@@ -338,8 +344,9 @@ internal sealed class EfCaseArtifactCustody(
             version.MediaType,
             version.BoxFileId,
             version.BoxVersionId);
+        content.Position = 0;
         var write = await documentContentStore.StoreVersionAsync(
-            address, bytes, version.Sha256, cancellationToken);
+            address, content, request.ContentLength, version.Sha256, cancellationToken);
         if (documentContentStore is BoxDocumentContentStore
             && (string.IsNullOrWhiteSpace(write.RemoteId)
                 || string.IsNullOrWhiteSpace(write.BoxVersionId)))
@@ -392,7 +399,7 @@ internal sealed class EfCaseArtifactCustody(
 
     private async Task<CaseArtifactCustodyResult> RetainHoldingAsync(
         CaseArtifactCustodyRequest request,
-        ReadOnlyMemory<byte> bytes,
+        Stream content,
         CancellationToken cancellationToken)
     {
         var receiptId = request.IntakeReceiptId!.Value;
@@ -413,10 +420,11 @@ internal sealed class EfCaseArtifactCustody(
         }
         if (documentContentStore is not BoxDocumentContentStore)
         {
-            var retained = await intakeArtifactStore.ReadAsync(asset.StorageKey, cancellationToken)
-                ?? throw new FileNotFoundException("The local holding artifact content is unavailable.");
-            _ = await ReadVerifiedAsync(
-                request with { Content = new MemoryStream(retained.ToArray(), writable: false) },
+            await quarantineArtifactStore.VerifyAsync(
+                new IntakeQuarantineArtifact(
+                    asset.StorageKey,
+                    asset.ContentHash,
+                    asset.ContentLength),
                 cancellationToken);
             asset.CustodyStatus = "confirmed";
             await db.SaveChangesAsync(cancellationToken);
@@ -451,8 +459,15 @@ internal sealed class EfCaseArtifactCustody(
         var fileName = $"{receiptId:N}-{asset.Id:N}-{SafeName(request.FileName)}";
         var existing = await box.FindChildAsync(
             holdingFolderId, fileName, "file", cancellationToken);
+        content.Position = 0;
         var file = existing ?? await box.UploadAsync(
-            holdingFolderId, fileName, bytes, request.MediaType, cancellationToken);
+            holdingFolderId,
+            fileName,
+            content,
+            request.ContentLength,
+            request.MediaType,
+            NormalizeHash(request.Sha256),
+            cancellationToken);
         await using (var retained = await box.OpenVersionReadAsync(
                          file.Id,
                          file.VersionId ?? throw new InvalidDataException(
@@ -460,7 +475,11 @@ internal sealed class EfCaseArtifactCustody(
                          request.ContentLength,
                          cancellationToken))
         {
-            _ = await ReadVerifiedAsync(request with { Content = retained }, cancellationToken);
+            await VerifyStreamAsync(
+                retained,
+                request.ContentLength,
+                NormalizeHash(request.Sha256),
+                cancellationToken);
         }
         asset.BoxFileId = file.Id;
         asset.BoxVersionId = file.VersionId;
@@ -531,7 +550,7 @@ internal sealed class EfCaseArtifactCustody(
         }
     }
 
-    private static async Task<ReadOnlyMemory<byte>> ReadVerifiedAsync(
+    private static async Task<FileStream> StageVerifiedAsync(
         CaseArtifactCustodyRequest request,
         CancellationToken cancellationToken)
     {
@@ -539,32 +558,80 @@ internal sealed class EfCaseArtifactCustody(
         {
             throw new InvalidDataException("The artifact exceeds the supported bounded custody size.");
         }
-        using var retained = new MemoryStream((int)request.ContentLength);
+        var path = Path.Combine(Path.GetTempPath(), $"pegasus-custody-{Guid.NewGuid():N}.tmp");
+        var staged = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            64 * 1024,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose | FileOptions.SequentialScan);
+        try
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var buffer = new byte[64 * 1024];
+            long copied = 0;
+            while (true)
+            {
+                var read = await request.Content.ReadAsync(buffer.AsMemory(), cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+                copied = checked(copied + read);
+                if (copied > request.ContentLength)
+                {
+                    throw new InvalidDataException("Artifact length verification failed.");
+                }
+                hash.AppendData(buffer, 0, read);
+                await staged.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+            var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+            if (copied != request.ContentLength
+                || !string.Equals(actual, NormalizeHash(request.Sha256), StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Artifact content verification failed.");
+            }
+            await staged.FlushAsync(cancellationToken);
+            staged.Position = 0;
+            return staged;
+        }
+        catch
+        {
+            await staged.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static async Task VerifyStreamAsync(
+        Stream content,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var buffer = new byte[81920];
+        var buffer = new byte[64 * 1024];
         long copied = 0;
         while (true)
         {
-            var read = await request.Content.ReadAsync(buffer, cancellationToken);
+            var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
             if (read == 0)
             {
                 break;
             }
             copied = checked(copied + read);
-            if (copied > request.ContentLength)
+            if (copied > expectedLength)
             {
                 throw new InvalidDataException("Artifact length verification failed.");
             }
             hash.AppendData(buffer, 0, read);
-            await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }
         var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-        if (copied != request.ContentLength
-            || !string.Equals(actual, NormalizeHash(request.Sha256), StringComparison.Ordinal))
+        if (copied != expectedLength
+            || !string.Equals(actual, expectedSha256, StringComparison.Ordinal))
         {
             throw new InvalidDataException("Artifact content verification failed.");
         }
-        return retained.ToArray();
     }
 
     private static void Validate(CaseArtifactCustodyRequest request)

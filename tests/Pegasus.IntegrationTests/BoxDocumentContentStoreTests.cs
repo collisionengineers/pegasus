@@ -70,6 +70,48 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     [Fact]
+    public async Task StreamStoreStagesNonSeekableContentAndPreservesTheCallerStream()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var bytes = Encoding.UTF8.GetBytes("streamed managed document content");
+        using var content = new ChunkedReadStream(bytes, 3);
+
+        var written = await store.StoreVersionAsync(
+            Address(),
+            content,
+            bytes.LongLength,
+            Sha256(bytes),
+            CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Created, written.Disposition);
+        Assert.True(content.CanRead);
+        Assert.True(content.ReadCount > 1);
+        Assert.True(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+    }
+
+    [Fact]
+    public async Task StreamStoreRejectsAnInvalidHashBeforeWritingToBox()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var bytes = Encoding.UTF8.GetBytes("streamed content with the wrong declared hash");
+        using var content = new ChunkedReadStream(bytes, 2);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.StoreVersionAsync(
+            Address(),
+            content,
+            bytes.LongLength,
+            Sha256(Encoding.UTF8.GetBytes("different content")),
+            CancellationToken.None));
+
+        Assert.Equal(1, box.UploadCount);
+        Assert.False(box.PathExists($"{CaseReference}/002 evidence.jpg"));
+    }
+
+    [Fact]
     public async Task IdenticalRepeatStoreIsAReplayNotASecondUpload()
     {
         var box = new InMemoryBox();
@@ -725,5 +767,53 @@ public sealed class BoxDocumentContentStoreTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) => Task.FromResult(box.Handle(request));
+    }
+
+    private sealed class ChunkedReadStream(byte[] bytes, int maximumReadLength) : Stream
+    {
+        private int position;
+        private bool disposed;
+
+        public int ReadCount { get; private set; }
+        public override bool CanRead => !disposed;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => bytes.LongLength;
+        public override long Position
+        {
+            get => position;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            disposed = true;
+            base.Dispose(disposing);
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            ReadAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (position == bytes.Length)
+            {
+                return ValueTask.FromResult(0);
+            }
+
+            var count = Math.Min(Math.Min(buffer.Length, maximumReadLength), bytes.Length - position);
+            bytes.AsSpan(position, count).CopyTo(buffer.Span);
+            position += count;
+            ReadCount++;
+            return ValueTask.FromResult(count);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

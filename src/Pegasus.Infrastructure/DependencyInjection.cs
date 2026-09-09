@@ -215,6 +215,8 @@ public static class DependencyInjection
         services.AddScoped<IIntakeOcrOperationStore>(provider =>
             provider.GetRequiredService<EfIntakeOcrOperationStore>());
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
+        services.AddScoped<IManualCaseCreationStore, EfManualCaseCreationStore>();
+        services.AddScoped<ICreateManualCase, CreateManualCase>();
 
         // Registered here rather than only in the Web composition root, because
         // allocation is no longer a staff action: the Worker's processing path
@@ -224,6 +226,8 @@ public static class DependencyInjection
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
         services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
+        services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
+        services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
@@ -235,7 +239,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IAssignStaffRolesStore>(provider =>
+        services.AddScoped<IUpdateStaffAccountSettingsStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IEnableStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
@@ -245,21 +249,17 @@ public static class DependencyInjection
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDeleteStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
-        services.AddScoped<IUpdateStaffAccountSignOffStore>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
         services.AddScoped<IGetStaffHeldCaseEditLeases, GetStaffHeldCaseEditLeases>();
-        services.AddScoped<IGetRoleAssignments, GetRoleAssignments>();
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
-        services.AddScoped<IAssignStaffRoles, AssignStaffRoles>();
+        services.AddScoped<IUpdateStaffAccountSettings, UpdateStaffAccountSettings>();
         services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
         services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
         services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
         services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
-        services.AddScoped<IUpdateStaffAccountSignOff, UpdateStaffAccountSignOff>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
         services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
         services.AddScoped<EfPerUserExternalCredentialStore>();
@@ -272,11 +272,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
-        services.AddScoped<EfClaimSourceAdministration>();
-        services.AddScoped<IClaimSourceAdministration>(
-            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
-        services.AddScoped<IClaimSourceQueries>(
-            provider => provider.GetRequiredService<EfClaimSourceAdministration>());
         services.AddScoped<IOrganizationDirectoryQueries, EfOrganizationDirectory>();
         services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
@@ -304,7 +299,7 @@ public static class DependencyInjection
         services.AddScoped<IListPrincipals, ListPrincipals>();
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
-        services.AddScoped<IUpdatePrincipalEvaSubmission, UpdatePrincipalEvaSubmission>();
+        services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
@@ -363,6 +358,14 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfWorkflowConfigurationStore>());
         services.AddScoped<GetWorkflowConfiguration>();
         services.AddScoped<UpdateWorkflowConfiguration>();
+        services.AddScoped<ILabourRateCardStore, EfLabourRateCardStore>();
+        services.AddScoped<LabourRateCardAdministration>();
+        services.AddScoped<EfEditScopeStore>();
+        services.AddScoped<IEditScopeLeases>(provider => provider.GetRequiredService<EfEditScopeStore>());
+        services.AddScoped<IEditScopeRevocations>(provider => provider.GetRequiredService<EfEditScopeStore>());
+        services.AddScoped<EfContactDirectoryAdministration>();
+        services.AddScoped<IContactDirectoryAdministration>(provider => provider.GetRequiredService<EfContactDirectoryAdministration>());
+        services.AddScoped<IContactDirectoryQueries>(provider => provider.GetRequiredService<EfContactDirectoryAdministration>());
         services.AddScoped<EfApprovedMailboxStore>();
         services.AddScoped<IApprovedMailboxStore>(
             provider => provider.GetRequiredService<EfApprovedMailboxStore>());
@@ -423,12 +426,6 @@ public static class DependencyInjection
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
-        services.AddScoped<EfEngineerNoteStore>();
-        services.AddScoped<IEngineerNoteStore>(provider =>
-            provider.GetRequiredService<EfEngineerNoteStore>());
-        services.AddScoped<IEngineerNoteQueries>(provider =>
-            provider.GetRequiredService<EfEngineerNoteStore>());
-        services.AddScoped<IAddEngineerNote, AddEngineerNote>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<ICaseWorkspaceStore, EfCaseWorkspaceStore>();
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
@@ -569,7 +566,7 @@ public static class DependencyInjection
             services.AddScoped(provider => new EfCaseArtifactCustody(
                 provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 provider.GetRequiredService<IDocumentContentStore>(),
-                provider.GetRequiredService<IIntakeArtifactStore>(),
+                provider.GetRequiredService<IIntakeQuarantineArtifactStore>(),
                 provider.GetRequiredService<TimeProvider>()));
             services.AddScoped<ICaseArtifactCustody>(provider =>
                 provider.GetRequiredService<EfCaseArtifactCustody>());
@@ -789,7 +786,7 @@ public static class DependencyInjection
         services.AddScoped(provider => new EfCaseArtifactCustody(
             provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
             provider.GetRequiredService<IDocumentContentStore>(),
-            provider.GetRequiredService<IIntakeArtifactStore>(),
+            provider.GetRequiredService<IIntakeQuarantineArtifactStore>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<BoxContentClient>(),
             provider.GetRequiredService<BoxCustodyOptions>().HoldingFolderId));

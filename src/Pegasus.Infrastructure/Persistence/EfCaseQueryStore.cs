@@ -381,7 +381,12 @@ public sealed class EfCaseQueryStore(
             .ThenByDescending(item => item.Id)
             .Take(200)
             .ToArrayAsync(cancellationToken);
-        var history = historyEntities.Select(MapHistoryEntry).ToArray();
+        var history = historyEntities
+            .Select(MapHistoryEntry)
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .ThenByDescending(item => item.EntryId)
+            .Take(200)
+            .ToArray();
         var activeLease = ResolveActiveLease(workflow, timeProvider.GetUtcNow());
 
         return new CaseDetails(
@@ -481,11 +486,42 @@ public sealed class EfCaseQueryStore(
             on workflow.CaseId equals caseEntity.Id
         join principal in context.Set<PrincipalEntity>().AsNoTracking()
             on caseEntity.PrincipalId equals principal.Id
-        join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking()
-            on caseEntity.OriginIntakeReceiptId equals receipt.Id
+        join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
+            on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
+        from receipt in receipts.DefaultIfEmpty()
         join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
             on receipt.Id equals draftCandidate.IntakeReceiptId into drafts
         from draft in drafts.DefaultIfEmpty()
+        join confirmedClaimantCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedClaimantCandidate.CaseId into confirmedClaimants
+        from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
+        join confirmedClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedClaimNumberCandidate.CaseId into confirmedClaimNumbers
+        from confirmedClaimNumber in confirmedClaimNumbers.DefaultIfEmpty()
+        join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedRegistrationCandidate.CaseId into confirmedRegistrations
+        from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
+        join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedMakeCandidate.CaseId into confirmedMakes
+        from confirmedMake in confirmedMakes.DefaultIfEmpty()
+        join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedModelCandidate.CaseId into confirmedModels
+        from confirmedModel in confirmedModels.DefaultIfEmpty()
+        join confirmedCircumstancesCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedCircumstancesCandidate.CaseId into confirmedCircumstanceRows
+        from confirmedCircumstances in confirmedCircumstanceRows.DefaultIfEmpty()
         select new SearchRow
         {
             CaseId = caseEntity.Id,
@@ -495,15 +531,17 @@ public sealed class EfCaseQueryStore(
             Principal = principal.Code,
             State = workflow.State,
             EngineerId = workflow.AssignedEngineerId,
-            Registration = draft == null ? null : draft.VehicleRegistration,
-            Claimant = draft == null ? null : draft.ClaimantName,
-            ClaimNumber = draft == null ? null : draft.ClaimNumber,
-            VehicleMake = draft == null ? null : draft.VehicleMake,
-            VehicleModel = draft == null ? null : draft.VehicleModel,
-            AccidentCircumstances = draft == null ? null : draft.AccidentCircumstances,
-            ReceivedAtUtc = receipt.ReceivedAtUtc,
+            Registration = draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
+            Claimant = draft == null ? confirmedClaimant!.Value : draft.ClaimantName,
+            ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
+            VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
+            VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
+            AccidentCircumstances = draft == null
+                ? confirmedCircumstances!.Value
+                : draft.AccidentCircumstances,
+            ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             InstructionDate = draft == null ? null : draft.InstructionDate,
-            Origin = receipt.SourceChannel,
+            Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
             InstructionComplete = caseEntity.InstructionComplete,
@@ -674,6 +712,46 @@ public sealed class EfCaseQueryStore(
         return entities.Select(MapHistoryEntry).ToArray();
     }
 
+    private static IEnumerable<CaseGuidanceEntry> ReadGuidance(CaseWorkflowEventEntity item)
+    {
+        if (string.IsNullOrWhiteSpace(item.ResultJson))
+        {
+            yield break;
+        }
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(item.ResultJson);
+        }
+        catch (JsonException)
+        {
+            yield break;
+        }
+        using (document)
+        {
+            if (!document.RootElement.TryGetProperty("guidance", out var guidance)
+                || guidance.ValueKind != JsonValueKind.Array)
+            {
+                yield break;
+            }
+            foreach (var applied in guidance.EnumerateArray())
+            {
+                if (!applied.TryGetProperty("eventType", out var eventType)
+                    || !applied.TryGetProperty("organizationName", out var organizationName)
+                    || !applied.TryGetProperty("text", out var text)
+                    || !applied.TryGetProperty("templateVersion", out var templateVersion)
+                    || string.IsNullOrWhiteSpace(eventType.GetString())
+                    || string.IsNullOrWhiteSpace(organizationName.GetString())
+                    || string.IsNullOrWhiteSpace(text.GetString()))
+                {
+                    continue;
+                }
+                yield return new CaseGuidanceEntry(eventType.GetString()!, organizationName.GetString()!, templateVersion.GetInt64(), text.GetString()!);
+            }
+        }
+    }
+
     private static CaseHistoryEntry MapHistoryEntry(CaseWorkflowEventEntity item) => new(
         item.EventType,
         item.ActorSubjectId,
@@ -683,7 +761,8 @@ public sealed class EfCaseQueryStore(
         item.BeforeVersion,
         item.AfterVersion)
     {
-        EntryId = item.Id
+        EntryId = item.Id,
+        Guidance = ReadGuidance(item).ToArray()
     };
 
     private static CaseSearchItem MapSearchItem(SearchRow item) => new(

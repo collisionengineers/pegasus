@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 
@@ -25,6 +26,14 @@ internal sealed class EfCaseNoteStore(IDbContextFactory<PegasusDbContext> contex
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
+        if (request.Note.Length > AddCaseNote.MaximumLength)
+        {
+            throw new ArgumentException(
+                $"A note cannot exceed {AddCaseNote.MaximumLength} characters.",
+                nameof(request));
+        }
+
+        var requestHash = RequestHash(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var workflow = await context.CaseWorkflows
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
@@ -32,14 +41,16 @@ internal sealed class EfCaseNoteStore(IDbContextFactory<PegasusDbContext> contex
 
         // Replay protection is the operation key, as everywhere else: a resubmitted
         // form must not leave the case wearing the same note twice.
-        var replayed = await context.CaseWorkflowEvents
+        var replay = await context.CaseWorkflowEvents
             .AsNoTracking()
-            .AnyAsync(
+            .Where(
                 item => item.CaseId == request.CaseId
-                    && item.OperationKey == request.OperationKey,
-                cancellationToken);
-        if (replayed)
+                    && item.OperationKey == request.OperationKey)
+            .Select(item => item.RequestHash)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (replay is not null)
         {
+            EnsureExactReplay(replay, requestHash);
             return;
         }
 
@@ -52,7 +63,7 @@ internal sealed class EfCaseNoteStore(IDbContextFactory<PegasusDbContext> contex
             Workflow = workflow,
             EventType = AddCaseNote.EventType,
             OperationKey = request.OperationKey,
-            RequestHash = request.OperationKey,
+            RequestHash = requestHash,
             ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
@@ -61,6 +72,48 @@ internal sealed class EfCaseNoteStore(IDbContextFactory<PegasusDbContext> contex
             BeforeVersion = workflow.Version,
             AfterVersion = workflow.Version
         });
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
+        {
+            // The operation-key index is the race-safe idempotency boundary.
+            // Only a winning note with this key makes the losing submission a
+            // replay; every other database failure must remain visible.
+            await using var replayContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+            var concurrentReplay = await replayContext.CaseWorkflowEvents
+                .AsNoTracking()
+                .Where(
+                    item => item.CaseId == request.CaseId
+                        && item.OperationKey == request.OperationKey)
+                .Select(item => item.RequestHash)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (concurrentReplay is null)
+            {
+                throw;
+            }
+            EnsureExactReplay(concurrentReplay, requestHash);
+        }
+    }
+
+    private static string RequestHash(AddCaseNoteRequest request) =>
+        CaseOperationReplay.Hash(JsonSerializer.Serialize(new
+        {
+            request.CaseId,
+            ActorKind = request.Actor.Kind.ToString(),
+            request.Actor.SubjectId,
+            Roles = request.Actor.Roles.OrderBy(role => role).ToArray(),
+            request.OperationKey,
+            request.Note
+        }));
+
+    private static void EnsureExactReplay(string recordedHash, string requestHash)
+    {
+        if (!CaseOperationReplay.FixedTimeEquals(recordedHash, requestHash))
+        {
+            throw new InvalidOperationException(
+                "This operation key is already associated with a different Case note.");
+        }
     }
 }

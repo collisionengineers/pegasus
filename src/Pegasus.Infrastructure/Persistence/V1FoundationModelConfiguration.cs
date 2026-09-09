@@ -108,21 +108,6 @@ internal static class V1FoundationModelConfiguration
             e.Property(x => x.VerifiedSha256).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
             e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
-        builder.Entity<ClaimSourceEntity>(e =>
-        {
-            e.ToTable("ClaimSources"); e.HasKey(x => x.Id); e.HasIndex(x => x.Name);
-            e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
-        });
-        builder.Entity<OrganizationDirectoryEntryEntity>(e =>
-        {
-            e.ToTable("OrganizationDirectoryEntries"); e.HasKey(x => x.Id);
-            e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
-            e.Property(x => x.Telephone).HasMaxLength(50); e.Property(x => x.Email).HasMaxLength(320); e.Property(x => x.UpdatedBy).HasMaxLength(200);
-            e.Property(x => x.Role).HasMaxLength(50); e.Property(x => x.Name).HasMaxLength(300); e.Property(x => x.NormalizedName).HasMaxLength(300);
-            e.Property(x => x.Postcode).HasMaxLength(20); e.Property(x => x.NormalizedPostcode).HasMaxLength(20);
-            e.HasIndex(x => new { x.Role, x.NormalizedName, x.Id });
-            e.HasIndex(x => new { x.Role, x.NormalizedPostcode, x.Id });
-        });
         builder.Entity<PublicUploadSessionEntity>(e =>
         {
             e.ToTable("PublicUploadSessions"); e.HasKey(x => x.Id); e.HasIndex(x => x.RequestUploadLinkId).IsUnique();

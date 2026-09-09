@@ -12,8 +12,10 @@ namespace Pegasus.Web.Pages.Administration;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class ActionLogsModel(
     ListActionLogs listActionLogs,
+    GetAdministrationHealthMetrics getMetrics,
     TimeProvider timeProvider,
     IGetCaseHeader getCaseHeader,
+    ISearchCases searchCases,
     IStaffAccountQueries staffAccounts) : AdministrationPageModel
 {
     private readonly Dictionary<Guid, string> _caseReferences = [];
@@ -31,6 +33,13 @@ public sealed class ActionLogsModel(
     public bool OldestFirst { get; private set; }
     public ActionLogPage Result { get; private set; } = new([], false);
     public int CurrentPage { get; private set; } = 1;
+    public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
+    public string? AutomationActorSubjectId { get; private set; }
+    public AdministrationHealthMetrics? Metrics { get; private set; }
+
+    public string AutomationActorLabel => OperatorLabels.AutomationActorLabel(
+        AutomationActorSubjectId ?? string.Empty,
+        AutomationActorSubjectId);
 
     public string NextPageUrl => PageUrl(CurrentPage + 1);
 
@@ -55,6 +64,7 @@ public sealed class ActionLogsModel(
         CancellationToken cancellationToken = default)
     {
         if (!TryGetActor(out var actor)) return Forbid();
+        await LoadPeopleAsync(cancellationToken);
         var to = To ?? timeProvider.GetUtcNow();
         var from = From ?? to.AddDays(-31);
         From = from;
@@ -73,10 +83,12 @@ public sealed class ActionLogsModel(
         }
         try
         {
+            var record = await ResolveRecordFilterAsync(actor, cancellationToken);
             Result = await listActionLogs.ExecuteAsync(actor,
                 new(from, to, Trim(Search), Trim(Area), Trim(Actor), Trim(ResultFilter),
-                    Trim(Operation), Trim(Record), Trim(CorrelationId), OldestFirst,
+                    Trim(Operation), record, Trim(CorrelationId), OldestFirst,
                     CurrentPage), cancellationToken);
+            Metrics = await getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
             await ResolveStaffNamesAsync(cancellationToken);
             await ResolveCaseReferencesAsync(actor, cancellationToken);
         }
@@ -87,6 +99,40 @@ public sealed class ActionLogsModel(
         return Page();
     }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private async Task LoadPeopleAsync(CancellationToken cancellationToken)
+    {
+        var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
+        People = people.Accounts
+            .OrderBy(account => account.UserName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(account => account.Id)
+            .ToArray();
+        AutomationActorSubjectId = HttpContext.RequestServices
+            .GetService<AutomationMcpOptions>()?
+            .ClientId;
+    }
+
+    private async Task<string?> ResolveRecordFilterAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var entered = Trim(Record);
+        if (entered is null || Guid.TryParse(entered, out _))
+        {
+            return entered;
+        }
+
+        var matches = await searchCases.ExecuteAsync(
+            new(actor, new(CaseReference: entered), PageSize: 10),
+            cancellationToken);
+        var match = matches.Items.SingleOrDefault(item =>
+            string.Equals(item.Reference, entered, StringComparison.OrdinalIgnoreCase));
+        // Not every recorded reference belongs to a Case (for example, an
+        // administration or security record). A recognised Case reference is
+        // translated before querying; other plain references retain their
+        // established exact-match behaviour.
+        return match?.CaseId.ToString("D") ?? entered;
+    }
 
     public string ActorLabel(ActionLogRow row)
     {

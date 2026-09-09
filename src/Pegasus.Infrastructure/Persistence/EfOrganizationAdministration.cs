@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -18,7 +20,7 @@ public sealed class EfOrganizationAdministration(
       IOrganizationAdministrationQueries
 {
     private const string CreatePrincipalKind = "create_principal";
-    private const string UpdatePrincipalEvaSubmissionKind = "update_principal_eva_submission";
+    private const string UpdatePrincipalReportSettingsKind = "update_principal_report_settings";
     private const string UpdatePrincipalDefaultInspectionLocationKind =
         "update_principal_default_inspection_location";
     private const string ReplacePrincipalKind = "replace_principal";
@@ -45,11 +47,11 @@ public sealed class EfOrganizationAdministration(
             token => ReplacePrincipalOnceAsync(request, token),
             cancellationToken);
 
-    public Task<Principal> UpdatePrincipalEvaSubmissionAsync(
-        UpdatePrincipalEvaSubmissionRequest request,
+    public Task<Principal> UpdatePrincipalReportSettingsAsync(
+        UpdatePrincipalReportSettingsRequest request,
         CancellationToken cancellationToken) =>
         ExecuteWithConcurrencyRetryAsync(
-            token => UpdatePrincipalEvaSubmissionOnceAsync(request, token),
+            token => UpdatePrincipalReportSettingsOnceAsync(request, token),
             cancellationToken);
 
     public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
@@ -71,7 +73,8 @@ public sealed class EfOrganizationAdministration(
             request.Name,
             request.Code,
             inspectionMode = ProviderInspectionModePolicy.ToCode(request.InspectionMode),
-            request.EvaManualSubmission
+            request.ReportGenerationPolicy,
+            request.ReportRecipients
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -100,6 +103,11 @@ public sealed class EfOrganizationAdministration(
             OrganizationId = organization.Id,
             Role = ToCode(OrganizationRole.WorkProvider)
         });
+        organization.ContactRoles.Add(new ContactRoleEntity
+        {
+            OrganizationId = organization.Id,
+            Role = "principal"
+        });
         var codeAlreadyExists = await context.Principals
             .AsNoTracking()
             .AnyAsync(
@@ -114,7 +122,8 @@ public sealed class EfOrganizationAdministration(
             request.Code,
             codeAlreadyExists,
             request.InspectionMode,
-            request.EvaManualSubmission);
+            request.ReportGenerationPolicy,
+            request.ReportRecipients);
         var lineage = new PrincipalSequenceLineageEntity
         {
             Id = lineageId,
@@ -130,7 +139,9 @@ public sealed class EfOrganizationAdministration(
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
             InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
-            EvaManualSubmission = result.EvaManualSubmission,
+            ReportGenerationPolicy = result.ReportGenerationPolicy.ToString(),
+            IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
+            ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
             Version = result.Version
         };
         context.PrincipalSequenceLineages.Add(lineage);
@@ -160,7 +171,7 @@ public sealed class EfOrganizationAdministration(
     }
 
     /// <summary>
-    /// EXT-04: switch a principal's EVA submission settings.
+    /// Changes a principal's report route and report-recipient suggestions.
     ///
     /// The only principal attribute that changes in place. Everything else
     /// about a principal is immutable once work has been allocated against it,
@@ -173,18 +184,20 @@ public sealed class EfOrganizationAdministration(
     /// administration operation writes, so switching the route on is as
     /// traceable as creating the principal was.
     /// </summary>
-    private async Task<Principal> UpdatePrincipalEvaSubmissionOnceAsync(
-        UpdatePrincipalEvaSubmissionRequest request,
+    private async Task<Principal> UpdatePrincipalReportSettingsOnceAsync(
+        UpdatePrincipalReportSettingsRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var requestHash = HashRequest(new
         {
-            command = UpdatePrincipalEvaSubmissionKind,
+            command = UpdatePrincipalReportSettingsKind,
             actor = ActorMaterial(request.Actor),
             request.PrincipalId,
             request.ExpectedVersion,
-            request.EvaManualSubmission,
+            request.ExpectedContactVersion,
+            request.ReportGenerationPolicy,
+            request.ReportRecipients,
             request.Reason
         });
 
@@ -197,7 +210,7 @@ public sealed class EfOrganizationAdministration(
         {
             var replay = ReadReplay<Principal>(
                 receipt,
-                UpdatePrincipalEvaSubmissionKind,
+                UpdatePrincipalReportSettingsKind,
                 requestHash);
             await transaction.CommitAsync(cancellationToken);
             return replay;
@@ -206,20 +219,31 @@ public sealed class EfOrganizationAdministration(
         var entity = await context.Principals
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        var contact = await RequirePrincipalContactScopeAsync(
+            context,
+            entity,
+            request.ExpectedContactVersion,
+            request.Actor,
+            request.EditLeaseToken,
+            _timeProvider.GetUtcNow(),
+            cancellationToken);
         var before = ToPrincipal(entity);
-        var result = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+        var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
             request.ExpectedVersion,
-            request.EvaManualSubmission);
+            request.ReportGenerationPolicy,
+            request.ReportRecipients);
 
-        entity.EvaManualSubmission = result.EvaManualSubmission;
+        entity.ReportGenerationPolicy = result.ReportGenerationPolicy.ToString();
+        entity.IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
+        entity.ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions);
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();
         AddReceipt(
             context,
             request.OperationKey,
-            UpdatePrincipalEvaSubmissionKind,
+            UpdatePrincipalReportSettingsKind,
             requestHash,
             result,
             now);
@@ -227,13 +251,14 @@ public sealed class EfOrganizationAdministration(
             context,
             "principal",
             entity.Id,
-            "principal_eva_submission_updated",
+            "principal_report_settings_updated",
             request.Actor,
             request.OperationKey,
             now,
             request.Reason,
             before,
             result);
+        CompletePrincipalContactScope(context, contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -256,6 +281,7 @@ public sealed class EfOrganizationAdministration(
             actor = ActorMaterial(request.Actor),
             request.PrincipalId,
             request.ExpectedVersion,
+            request.ExpectedContactVersion,
             kind = request.Kind.ToString(),
             request.Label,
             request.Address,
@@ -284,6 +310,14 @@ public sealed class EfOrganizationAdministration(
         var entity = await context.Principals
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        var contact = await RequirePrincipalContactScopeAsync(
+            context,
+            entity,
+            request.ExpectedContactVersion,
+            request.Actor,
+            request.EditLeaseToken,
+            _timeProvider.GetUtcNow(),
+            cancellationToken);
         if (entity.Version != request.ExpectedVersion)
         {
             throw Error(OrganizationAdministrationError.StaleVersion);
@@ -337,6 +371,7 @@ public sealed class EfOrganizationAdministration(
             request.Reason,
             before,
             result);
+        CompletePrincipalContactScope(context, contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -353,6 +388,7 @@ public sealed class EfOrganizationAdministration(
             actor = ActorMaterial(request.Actor),
             request.PrincipalId,
             request.ExpectedVersion,
+            request.ExpectedContactVersion,
             request.SuccessorCode,
             request.Reason
         });
@@ -372,6 +408,14 @@ public sealed class EfOrganizationAdministration(
         var predecessor = await context.Principals
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        var contact = await RequirePrincipalContactScopeAsync(
+            context,
+            predecessor,
+            request.ExpectedContactVersion,
+            request.Actor,
+            request.EditLeaseToken,
+            _timeProvider.GetUtcNow(),
+            cancellationToken);
         var before = ToPrincipal(predecessor);
         var codeAlreadyExists = await context.Principals
             .AsNoTracking()
@@ -398,7 +442,9 @@ public sealed class EfOrganizationAdministration(
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
             InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
-            EvaManualSubmission = result.EvaManualSubmission,
+            ReportGenerationPolicy = result.ReportGenerationPolicy.ToString(),
+            IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
+            ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
             DefaultInspectionLocationLabel = predecessor.DefaultInspectionLocationLabel,
             DefaultInspectionAddress = predecessor.DefaultInspectionAddress,
             DefaultInspectionPostcode = predecessor.DefaultInspectionPostcode,
@@ -439,6 +485,7 @@ public sealed class EfOrganizationAdministration(
             request.Reason,
             before: null,
             after: result);
+        CompletePrincipalContactScope(context, contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -492,7 +539,8 @@ public sealed class EfOrganizationAdministration(
             entity.Version,
             allocatedCaseCount,
             ProviderInspectionModePolicy.Parse(entity.InspectionMode),
-            entity.EvaManualSubmission,
+            Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
+            RecipientSettings(entity),
             entity.DefaultInspectionLocationLabel,
             entity.DefaultInspectionAddress,
             entity.DefaultInspectionPostcode,
@@ -520,7 +568,46 @@ public sealed class EfOrganizationAdministration(
             entity.IsActive,
             entity.Version,
             ProviderInspectionModePolicy.Parse(entity.InspectionMode),
-            entity.EvaManualSubmission);
+            Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
+            RecipientSettings(entity));
+
+    private static PrincipalReportRecipientSettings RecipientSettings(PrincipalEntity entity) =>
+        PrincipalReportRecipientSettings.Normalize(
+            entity.IncludeOriginalInstructionSender,
+            JsonSerializer.Deserialize<string[]>(entity.ReportRecipientAddressesJson, SerializerOptions));
+
+    internal static async Task<OrganizationEntity> RequirePrincipalContactScopeAsync(
+        PegasusDbContext context,
+        PrincipalEntity principal,
+        long expectedContactVersion,
+        ActionActor actor,
+        string editLeaseToken,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var contact = await context.Organizations.SingleAsync(
+            item => item.Id == principal.OrganizationId,
+            cancellationToken);
+        await EfEditScopeStore.RequireAsync(
+            context,
+            EditScopeKind.Contact,
+            contact.Id,
+            contact.Version,
+            expectedContactVersion,
+            actor,
+            editLeaseToken,
+            now,
+            cancellationToken);
+        return contact;
+    }
+
+    internal static void CompletePrincipalContactScope(
+        PegasusDbContext context,
+        OrganizationEntity contact)
+    {
+        contact.Version = checked(contact.Version + 1);
+        EfEditScopeStore.Complete(context, EditScopeKind.Contact, contact.Id);
+    }
 
     private static OrganizationRole ParseRole(string role) => role switch
     {

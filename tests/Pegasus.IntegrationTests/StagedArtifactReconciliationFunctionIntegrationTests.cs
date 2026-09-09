@@ -178,6 +178,14 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("An empty pending-custody batch must not store content.");
 
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("An empty pending-custody batch must not store content.");
+
         public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId,
             string expectedSha256, long expectedLength, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("An empty pending-custody batch must not read content.");
@@ -626,6 +634,16 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "The reconciliation timer must not store a new artifact.");
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The reconciliation timer must not stage a new artifact.");
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,

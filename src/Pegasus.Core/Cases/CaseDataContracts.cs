@@ -63,13 +63,13 @@ public sealed record CaseField<T>(
 }
 
 public sealed record CaseOriginIdentity(
-    Guid IntakeReceiptId,
-    IntakeSourceChannel Channel,
-    string ExternalReceiptToken,
-    string SourceHash,
-    DateTimeOffset ReceivedAtUtc,
-    string SourceReaderKey,
-    string SourceReaderVersion,
+    Guid? IntakeReceiptId,
+    IntakeSourceChannel? Channel,
+    string? ExternalReceiptToken,
+    string? SourceHash,
+    DateTimeOffset? ReceivedAtUtc,
+    string? SourceReaderKey,
+    string? SourceReaderVersion,
     string? ExtractionPolicyKey,
     int? ExtractionPolicyVersion);
 
@@ -128,7 +128,30 @@ public sealed record CaseInspectionData(
 public sealed record CaseCompletenessEvaluation(
     bool SatisfiesPolicy,
     string PolicyKey,
-    int PolicyVersion);
+    int PolicyVersion)
+{
+    public IReadOnlyList<string> MissingRequirements { get; init; } = [];
+
+    public bool Equals(CaseCompletenessEvaluation? other) =>
+        other is not null
+        && SatisfiesPolicy == other.SatisfiesPolicy
+        && PolicyKey == other.PolicyKey
+        && PolicyVersion == other.PolicyVersion
+        && MissingRequirements.SequenceEqual(other.MissingRequirements, StringComparer.Ordinal);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(SatisfiesPolicy);
+        hash.Add(PolicyKey, StringComparer.Ordinal);
+        hash.Add(PolicyVersion);
+        foreach (var requirement in MissingRequirements)
+        {
+            hash.Add(requirement, StringComparer.Ordinal);
+        }
+        return hash.ToHashCode();
+    }
+}
 
 public sealed record CaseCompletenessProjection(
     CaseCompleteness Values,
@@ -207,7 +230,6 @@ public sealed record CaseEditableData(
     string? ClaimSourceContactName = null,
     string? ClaimSourceContactTelephone = null,
     string? ClaimSourceContactEmailAddress = null,
-    string? ClaimSourceCaseNote = null,
     Guid? StorageBusinessId = null,
     long? StorageBusinessVersion = null,
     string? StorageBusinessName = null,

@@ -68,12 +68,12 @@ public static class CaseCompletenessPolicy
                 "The current case-workflow policy identity is invalid.");
         }
 
-        var satisfiesPolicy = completeness.IsReadyForReview();
+        var missingRequirements = configuration.MissingRequirements(completeness);
 
         return new(
-            satisfiesPolicy,
+            missingRequirements.Count == 0,
             configuration.PolicyKey,
-            configuration.PolicyVersion);
+            configuration.PolicyVersion) { MissingRequirements = missingRequirements };
     }
 }
 
@@ -211,7 +211,6 @@ public static class CaseDataPolicy
             ClaimSourceContactName = Text(data.ClaimSourceContactName, 300, nameof(data.ClaimSourceContactName)),
             ClaimSourceContactTelephone = Text(data.ClaimSourceContactTelephone, 100, nameof(data.ClaimSourceContactTelephone)),
             ClaimSourceContactEmailAddress = Text(data.ClaimSourceContactEmailAddress, 320, nameof(data.ClaimSourceContactEmailAddress)),
-            ClaimSourceCaseNote = Paragraphs(data.ClaimSourceCaseNote, 2000, nameof(data.ClaimSourceCaseNote)),
             StorageBusinessName = Text(data.StorageBusinessName, 300, nameof(data.StorageBusinessName)),
             StorageBusinessContactName = Text(data.StorageBusinessContactName, 300, nameof(data.StorageBusinessContactName)),
             StorageBusinessContactTelephone = Text(data.StorageBusinessContactTelephone, 100, nameof(data.StorageBusinessContactTelephone)),

@@ -158,6 +158,11 @@ public sealed class LocalCaseCustodyAtomicWriteTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("The atomic custody test only reads its retained source.");
 
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, Stream value, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The atomic custody test only reads its retained source.");
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken)

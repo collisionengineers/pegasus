@@ -1944,7 +1944,6 @@ public sealed class MailWorkspaceWebTests
                     version,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
                     $"mail-unlink-accept:{Guid.NewGuid():N}",
-                    "Reviewed source evidence and confirmed the case intake.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
                     new(true, true)),

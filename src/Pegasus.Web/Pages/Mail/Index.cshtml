@@ -19,14 +19,16 @@
         <h1>Inbox</h1>
     </div>
     <div class="page-actions">
-        @if (Model.StaffMailAvailable)
-        {
-            <a class="btn" asp-page="/Mail/Compose">
-                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                <span>Compose</span>
-            </a>
-        }
-        <partial name="Shared/_FreshnessBanner" model="Model.Freshness.LastSuccessfulUpdateAtUtc" />
+        <div class="page-action-group">
+            @if (Model.StaffMailAvailable)
+            {
+                <a class="btn" asp-page="/Mail/Compose">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                    <span>Compose</span>
+                </a>
+            }
+            <partial name="Shared/_FreshnessBanner" model="Model.Freshness.LastSuccessfulUpdateAtUtc" />
+        </div>
     </div>
 </header>
 
@@ -34,7 +36,7 @@
     <div class="field">
         <label for="mailbox-filter">Mailbox</label>
         <select id="mailbox-filter" name="mailbox">
-            <option value="" selected="@(Model.MailboxFilter is null)">All approved mailboxes</option>
+            <option value="" selected="@(Model.MailboxFilter is null)">All Mailboxes</option>
             @foreach (var mailbox in Model.Mailboxes)
             {
                 <option value="@mailbox.MailboxId"
@@ -57,7 +59,7 @@
            folders never submits a queue the deleted view refuses. *@
         <label for="queue-filter">Queue</label>
         <select id="queue-filter" name="queue" disabled="@(Model.Folder == MailFolderScope.DeletedItems)">
-            <option value="" selected="@(Model.QueueFilter is null)">All retained mail</option>
+            <option value="" selected="@(Model.QueueFilter is null)">All emails</option>
             <optgroup label="Operational queues">
                 @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
                 {

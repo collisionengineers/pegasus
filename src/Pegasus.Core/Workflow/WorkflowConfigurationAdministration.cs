@@ -6,7 +6,13 @@ public sealed record UpdateWorkflowConfigurationRequest(
     int ExpectedVersion,
     ActionActor Actor,
     string Reason,
-    string OperationKey);
+    string OperationKey)
+{
+    public bool RequireInstructions { get; init; } = true;
+    public bool RequireImages { get; init; } = true;
+    public int ChaseIntervalDays { get; init; } = 7;
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public interface IWorkflowConfigurationStore : ICaseWorkflowConfiguration
 {
@@ -17,6 +23,7 @@ public interface IWorkflowConfigurationStore : ICaseWorkflowConfiguration
 
 public sealed class GetWorkflowConfiguration(IWorkflowConfigurationStore store)
 {
+    public static readonly Guid RecordId = Guid.Parse("6fb87d95-8b35-41d1-8873-5fa6c7d87c50");
     private readonly IWorkflowConfigurationStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
@@ -43,6 +50,8 @@ public sealed class UpdateWorkflowConfiguration(IWorkflowConfigurationStore stor
         StaffAuthorization.Require(
             request.Actor,
             StaffAccessRight.ManageWorkflowConfiguration);
+        if (request.ChaseIntervalDays is < 1 or > 365)
+            throw new ArgumentOutOfRangeException(nameof(request), "Chase interval must be between 1 and 365 days.");
         if (request.ExpectedVersion < 1)
         {
             throw new ArgumentOutOfRangeException(

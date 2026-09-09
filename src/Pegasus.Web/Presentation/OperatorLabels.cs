@@ -231,6 +231,17 @@ public static class OperatorLabels
         return items;
     }
 
+    /// <summary>
+    /// Maps the current workflow-policy evaluation to the two operator actions.
+    /// Raw completeness facts are evidence; the evaluation decides which facts
+    /// are actually required under the persisted configuration.
+    /// </summary>
+    public static IReadOnlyList<CaseRequirement> CaseRequirements(
+        IReadOnlyList<string> missingRequirements) =>
+        CaseRequirements(
+            missingRequirements.Contains("Instructions", StringComparer.Ordinal),
+            missingRequirements.Contains("Images", StringComparer.Ordinal));
+
     /// <summary>The primary navigation and the shell's section labels — one list.</summary>
     public static class Nav
     {
@@ -385,6 +396,8 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.Mail => "Mail",
         Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
         Pegasus.Core.Operations.NeedsAttentionKind.ExternalWork => "External work",
+        Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
+        Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         _ => Humanise(kind.ToString())
     };
 
@@ -613,7 +626,7 @@ public static class OperatorLabels
     {
         ServiceHealthArea.Mail => "Mail",
         ServiceHealthArea.Intake => "Receiving",
-        ServiceHealthArea.Custody => "Custody",
+        ServiceHealthArea.Custody => "Box",
         ServiceHealthArea.Eva => "EVA",
         ServiceHealthArea.Ai => "AI",
         ServiceHealthArea.Automation => "Automation",
@@ -623,13 +636,11 @@ public static class OperatorLabels
     /// <summary>The Service health row's state, as the operator reads it.</summary>
     public static string ServiceHealthStateName(ServiceHealthState state) => state switch
     {
-        ServiceHealthState.Current => "Current",
-        ServiceHealthState.Partial => "Partial",
-        ServiceHealthState.Failed => "Failed",
-        ServiceHealthState.Running => "Running",
-        ServiceHealthState.Configured => "Configured",
-        ServiceHealthState.ReviewRequired => "Review required",
-        _ => Humanise(state.ToString())
+        ServiceHealthState.Current or ServiceHealthState.Running => "Working",
+        ServiceHealthState.Partial or ServiceHealthState.Failed or ServiceHealthState.ReviewRequired =>
+            "Needs attention",
+        ServiceHealthState.Configured => "No recorded activity",
+        _ => "Unknown"
     };
 
     /// <summary>The external thing a service's recorded evidence depends on.</summary>
@@ -758,6 +769,9 @@ public static class OperatorLabels
         "custody_confirmed" => "Document stored",
         "custody_failed" => "Document storage failed",
         "provider_inspection_mode_applied" => "Inspection mode taken from the principal",
+        "principal_guidance_applied" => "Principal guidance applied",
+        "case_guidance_applied" => "Guidance applied",
+        "claim_source_guidance_applied" => "Claim source guidance applied",
         "triage_response_linked" => "Reply linked",
         _ => Humanise(eventType)
     };
@@ -1359,7 +1373,8 @@ public static class OperatorLabels
 
         public static string SignOffState(StaffAccountSummary account)
         {
-            if (!account.Roles.Contains(Pegasus.Core.Identity.StaffRole.Engineer))
+            if (account.Role is not (Pegasus.Core.Identity.StaffRole.Administrator
+                or Pegasus.Core.Identity.StaffRole.Engineer))
             {
                 return "—";
             }
@@ -1461,17 +1476,6 @@ public static class OperatorLabels
     /// </summary>
     public static class CaseWorkspace
     {
-        // CASE-039: Engineer notes
-        public const string EngineerNotesSectionTitle = "Engineer notes";
-        public const string AddEngineerNote = "Add note";
-        public const string AddEngineerNoteTitle = "Add Engineer note";
-        public const string EngineerNoteField = "Note";
-        public const string EngineerNoteAdded = "The Engineer note was added.";
-
-        public static string EngineerNoteCount(int count) =>
-            count == 1 ? "1 note" : $"{count} notes";
-        // end CASE-039
-
         // CASE-009: read-only query correspondence table.
         public const string Received = "Received";
         public const string Sender = "Sender";
@@ -1531,7 +1535,7 @@ public static class OperatorLabels
         public sealed record CaseSection(string Key, string Label, string Icon);
 
         /// <summary>
-        /// The eleven Case record sections in their fixed order (D30,
+        /// The Case record sections in their fixed order (D30,
         /// FRD-12 §Case workspace). One list: the page model's accepted
         /// <c>?section=</c> vocabulary, the jump-nav, the section hosts and
         /// their headings all read it, so no second section list exists in
@@ -1540,7 +1544,6 @@ public static class OperatorLabels
         public static readonly IReadOnlyList<CaseSection> Sections =
         [
             new("overview", "Overview", "icon-layout-dashboard"),
-            new("engineer-notes", EngineerNotesSectionTitle, "icon-pencil"),
             new("inspection", "Inspection", "icon-map-pin"),
             new("vehicle", "Vehicle", "icon-car"),
             new("damage", "Damage", "icon-alert-triangle"),

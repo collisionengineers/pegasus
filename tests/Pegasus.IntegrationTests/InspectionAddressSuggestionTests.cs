@@ -48,22 +48,15 @@ public sealed class InspectionAddressSuggestionTests
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
-            context.Set<OrganizationDirectoryEntryEntity>().Add(new()
+            context.Set<OrganizationEntity>().Add(new()
             {
                 Id = Guid.NewGuid(),
-                Role = "repairer",
+                ContactRoles = [new() { Role = "repairer" }],
                 Name = "Riverside Repairs Ltd",
-                NormalizedName = "RIVERSIDE REPAIRS LTD",
                 Address = "1 Riverside Way",
                 Postcode = "AB1 3EE",
-                NormalizedPostcode = "AB13EE",
-                SourceKind = "manual",
-                SourceRecordId = null,
-                SourceVersion = 1,
-                UpdatedBy = Administrator.SubjectId,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
                 Active = true,
-                Version = 0
+                Version = 1
             });
             await context.SaveChangesAsync();
         }
@@ -168,22 +161,15 @@ public sealed class InspectionAddressSuggestionTests
             await using var context = await contextFactory.CreateDbContextAsync();
             for (var index = 0; index < 30; index++)
             {
-                context.Set<OrganizationDirectoryEntryEntity>().Add(new()
+                context.Set<OrganizationEntity>().Add(new()
                 {
                     Id = Guid.NewGuid(),
-                    Role = "storage",
+                    ContactRoles = [new() { Role = "storage" }],
                     Name = $"Bounded Storage {index:D2}",
-                    NormalizedName = $"BOUNDED STORAGE {index:D2}",
                     Address = $"{index} Bounded Way",
                     Postcode = null,
-                    NormalizedPostcode = null,
-                    SourceKind = "manual",
-                    SourceRecordId = null,
-                    SourceVersion = 1,
-                    UpdatedBy = Administrator.SubjectId,
-                    UpdatedAtUtc = DateTimeOffset.UtcNow,
                     Active = true,
-                    Version = 0
+                    Version = 1
                 });
             }
             await context.SaveChangesAsync();
@@ -208,22 +194,15 @@ public sealed class InspectionAddressSuggestionTests
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
-            context.Set<OrganizationDirectoryEntryEntity>().Add(new()
+            context.Set<OrganizationEntity>().Add(new()
             {
                 Id = Guid.NewGuid(),
-                Role = "storage",
+                ContactRoles = [new() { Role = "storage" }],
                 Name = "Withdrawn Storage Site",
-                NormalizedName = "WITHDRAWN STORAGE SITE",
                 Address = "9 Withdrawn Road",
                 Postcode = null,
-                NormalizedPostcode = null,
-                SourceKind = "manual",
-                SourceRecordId = null,
-                SourceVersion = 1,
-                UpdatedBy = Administrator.SubjectId,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
                 Active = false,
-                Version = 0
+                Version = 1
             });
             await context.SaveChangesAsync();
         }
@@ -260,22 +239,15 @@ public sealed class InspectionAddressSuggestionTests
             var contextFactory = scope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
-            context.Set<OrganizationDirectoryEntryEntity>().Add(new()
+            context.Set<OrganizationEntity>().Add(new()
             {
                 Id = directoryId,
-                Role = "repairer",
+                ContactRoles = [new() { Role = "repairer" }],
                 Name = "Ash",
-                NormalizedName = "ASH",
                 Address = "2 Ash Lane",
                 Postcode = "AB1 9ZZ",
-                NormalizedPostcode = "AB19ZZ",
-                SourceKind = "manual",
-                SourceRecordId = null,
-                SourceVersion = 3,
-                UpdatedBy = Administrator.SubjectId,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
                 Active = true,
-                Version = 0
+                Version = 3
             });
             await context.SaveChangesAsync();
         }
@@ -344,6 +316,8 @@ public sealed class InspectionAddressSuggestionTests
             .Where(item => item.CaseId == caseId)
             .Select(item => item.OriginIntakeReceiptId)
             .SingleAsync();
+        var receiptSourceIdentity = originIntakeReceiptId?.ToString("D")
+            ?? throw new InvalidOperationException("The seeded Case has no origin receipt.");
         context.Set<CaseDataFieldEntity>().Add(new()
         {
             CaseId = caseId,
@@ -352,7 +326,7 @@ public sealed class InspectionAddressSuggestionTests
             ValueType = CaseDataCodes.Text,
             Value = inspectionAddress,
             SourceKind = CaseDataCodes.CaseAcceptance,
-            SourceIdentity = originIntakeReceiptId.ToString("D"),
+            SourceIdentity = receiptSourceIdentity,
             SourceLabel = "accepted inspection address",
             PolicyKey = Ext18InspectionAddressPolicy.PolicyKey,
             PolicyVersion = Ext18InspectionAddressPolicy.PolicyVersion,

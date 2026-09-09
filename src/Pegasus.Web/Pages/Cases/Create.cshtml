@@ -5,7 +5,7 @@
 @{
     ViewData["Title"] = "New case";
 
-    var draft = Model.DraftFields.Draft;
+    var draft = Model.IsManual ? null : Model.DraftFields.Draft;
 }
 
 @*
@@ -36,6 +36,100 @@
         </dl>
     }
 }
+
+@if (Model.IsManual)
+{
+    <header class="page-header">
+        <div class="page-title">
+            <p class="eyebrow">New case</p>
+            <h1>Create case</h1>
+        </div>
+    </header>
+
+    <form method="post" asp-page-handler="Create" class="stack">
+        <input asp-for="IsManual" type="hidden" />
+        <input asp-for="OperationId" type="hidden" />
+        <partial name="Shared/_ErrorSummary" />
+
+        <section class="panel" aria-labelledby="case-title">
+            <div class="panel-head"><h2 id="case-title">Case</h2></div>
+            <div class="panel-body stack">
+                <div class="grid grid-2">
+                    <div class="field">
+                        <label class="req" asp-for="PrincipalCode">Principal code</label>
+                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" required />
+                        <span asp-validation-for="PrincipalCode" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="ClaimSourceId">Claim Source</label>
+                        <select asp-for="ClaimSourceId">
+                            <option value="">Not recorded</option>
+                            @foreach (var claimSource in Model.ClaimSourceChoices)
+                            {
+                                <option value="@claimSource.OrganizationId">@claimSource.Name</option>
+                            }
+                        </select>
+                        <span asp-validation-for="ClaimSourceId" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="CaseType">Case type</label>
+                        <select asp-for="CaseType">
+                            <option value="@CaseType.Inspection">Inspection</option>
+                            <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+                        </select>
+                        <span asp-validation-for="CaseType" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label class="req" asp-for="ClaimantName">Claimant</label>
+                        <input asp-for="ClaimantName" maxlength="300" required />
+                        <span asp-validation-for="ClaimantName" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label class="req" asp-for="ClaimNumber">Claim number</label>
+                        <input asp-for="ClaimNumber" maxlength="100" required />
+                        <span asp-validation-for="ClaimNumber" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label class="req" asp-for="VehicleRegistration">Registration</label>
+                        <input asp-for="VehicleRegistration" maxlength="20" required />
+                        <span asp-validation-for="VehicleRegistration" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="InstructionDate">Instruction date</label>
+                        <input asp-for="InstructionDate" type="date" />
+                        <span asp-validation-for="InstructionDate" class="field-error"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="vehicle-title">
+            <div class="panel-head"><h2 id="vehicle-title">Vehicle and inspection</h2></div>
+            <div class="panel-body stack">
+                <div class="grid grid-2">
+                    <div class="field"><label asp-for="VehicleMake">Make</label><input asp-for="VehicleMake" maxlength="100" /></div>
+                    <div class="field"><label asp-for="VehicleModel">Model</label><input asp-for="VehicleModel" maxlength="100" /></div>
+                    <div class="field"><label asp-for="VehicleMileage">Mileage</label><input asp-for="VehicleMileage" type="number" min="0" /></div>
+                    <div class="field">
+                        <label asp-for="VehicleMileageUnit">Mileage unit</label>
+                        <select asp-for="VehicleMileageUnit"><option value="">Not recorded</option><option value="miles">Miles</option><option value="kilometres">Kilometres</option></select>
+                    </div>
+                    <div class="field"><label asp-for="DateOfIncident">Incident date</label><input asp-for="DateOfIncident" type="date" /></div>
+                    <div class="field"><label asp-for="InspectionDate">Inspection date</label><input asp-for="InspectionDate" type="date" /></div>
+                </div>
+                <div class="field"><label asp-for="InspectionAddress">Inspection address</label><textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea></div>
+                <div class="field"><label asp-for="AccidentCircumstances">Accident circumstances</label><textarea asp-for="AccidentCircumstances" maxlength="2000" rows="4"></textarea></div>
+            </div>
+        </section>
+
+        <div class="cluster">
+            <button type="submit" class="btn btn--primary">Create case</button>
+            <a class="btn" asp-page="/Cases/Index">Cancel</a>
+        </div>
+    </form>
+}
+else
+{
 
 @* The heading names the file this case is being made from. "New case" was the
    eyebrow, the H1 and the start of the lede — three lines saying it once. *@
@@ -78,11 +172,6 @@ else
         <input asp-for="AddressSuggestionFingerprint" type="hidden" />
         <input asp-for="RequiresAddressResolution" type="hidden" />
         <partial name="Shared/_ErrorSummary" />
-
-        <div class="notice notice--warning">
-            <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
-            <span>This is a proposal from the uploaded material. No case or purchase order is created unless you accept it below.</span>
-        </div>
 
         @* Read first, edit on demand. Eleven boxes asked the operator to check
            every one; the rows state what was read, and the fields open only
@@ -214,9 +303,8 @@ else
             </div>
         </section>
 
-        @* Completeness was its own panel, which read as a separate decision. It
-           is part of describing the case being created, so it sits with it, and
-           so does the reason the one committed action needs. *@
+        @* Evidence completeness is derived from the reviewed receipt and the
+           current policy; an operator does not certify it with checkboxes. *@
         <section class="panel" aria-labelledby="case-title">
             <div class="panel-head">
                 <h2 id="case-title">Case</h2>
@@ -242,24 +330,6 @@ else
                     </div>
                 </div>
 
-                <fieldset class="field">
-                    <legend>Evidence completeness</legend>
-                    <label class="choice">
-                        <input asp-for="InstructionComplete" />
-                        <span>Instruction evidence is complete</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="ImagesComplete" />
-                        <span>Image evidence is complete</span>
-                    </label>
-                </fieldset>
-
-                <div class="field">
-                    <label class="req" asp-for="Reason">Why this case is being created</label>
-                    <textarea asp-for="Reason" maxlength="500" rows="3" required></textarea>
-                    <span asp-validation-for="Reason" class="field-error"></span>
-                </div>
-
                 @* One committed action, and the way out beside it. *@
                 <div class="cluster">
                     <button type="submit" class="btn btn--primary">Accept and create case</button>
@@ -268,4 +338,5 @@ else
             </div>
         </section>
     </form>
+}
 }

@@ -2,6 +2,9 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
+using System.Net.Mail;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Pegasus.Core.Reports;
 
@@ -16,10 +19,11 @@ public interface IReportSendReadiness
 public sealed record CaseReportDeliveryPreparation(
     Guid Id, Guid CaseId, Guid GenerationId, long GenerationVersion, long Version,
     IReadOnlyList<StaffMailAttachment> Artifacts, ActionActor PreparedBy,
-    DateTimeOffset PreparedAtUtc);
+    DateTimeOffset PreparedAtUtc, string RecipientSuggestionFingerprint);
 public sealed record PrepareCaseReportDeliveryRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
-    Guid GenerationId, long ExpectedGenerationVersion, string OperationKey);
+    Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
+    ReportRecipientReview? ReviewedRecipients = null);
 public interface IPrepareCaseReportDelivery
 {
     Task<CaseReportDeliveryPreparation> ExecuteAsync(
@@ -27,15 +31,31 @@ public interface IPrepareCaseReportDelivery
 }
 
 /// <summary>
-/// The delivery intent as it is addressed: the structured case contacts the
-/// report goes to and the subject it goes under. Nothing here is typed by an
-/// operator or parsed from a note; it is resolved from the Case's own
-/// structured contact facts by <see cref="CaseReportDeliveryPolicy"/>.
+/// The immutable delivery intent addressing: staff review its To and Cc
+/// recipients before preparation freezes them with the report subject.
 /// </summary>
 public sealed record CaseReportDeliveryAddressing(
     IReadOnlyList<StaffMailRecipient> To,
     IReadOnlyList<StaffMailRecipient> Cc,
     string Subject);
+
+/// <summary>The staff-reviewed recipients to freeze in one delivery preparation.</summary>
+public sealed record ReportRecipientReview(
+    IReadOnlyList<string> To,
+    IReadOnlyList<string> Cc);
+
+public sealed record ReportRecipientSuggestions(
+    string CaseReference,
+    PrincipalReportRecipientSettings Settings,
+    string? OriginalInstructionSender)
+{
+    public string Fingerprint => CaseReportDeliveryPolicy.SuggestionFingerprint(this);
+}
+
+public interface IReportRecipientSuggestionQueries
+{
+    Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+}
 
 /// <summary>
 /// One persisted preparation read back with the current facts the send
@@ -56,11 +76,12 @@ public sealed record CaseReportDeliveryPreparationRecord(
 
 /// <summary>
 /// The store-side input of one preparation: the guarded request plus the
-/// addressing Core already resolved from structured contacts.
+/// staff-reviewed addressing and the Principal suggestion fingerprint.
 /// </summary>
 public sealed record PrepareCaseReportDeliveryCommand(
     PrepareCaseReportDeliveryRequest Request,
-    CaseReportDeliveryAddressing Addressing);
+    CaseReportDeliveryAddressing Addressing,
+    string RecipientSuggestionFingerprint);
 
 public interface ICaseReportDeliveryPreparationStore
 {
@@ -109,44 +130,100 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// Resolves the recipients from the Case's structured contacts: the file
-    /// handler Pegasus corresponds with about the case is addressed, and the
-    /// recorded claim source contact is copied when it is a different
-    /// address. The subject is the Case reference. A Case with no contact
-    /// address cannot be prepared.
+    /// Resolves only the Principal's configured recipient suggestions. The
+    /// original sender comes from the Case's origin instruction, never a
+    /// later reply, and Claim Source is never copied implicitly.
     /// </summary>
-    public static CaseReportDeliveryAddressing Address(CaseDataProjection data)
+    public static CaseReportDeliveryAddressing Address(ReportRecipientSuggestions suggestions)
     {
-        ArgumentNullException.ThrowIfNull(data);
-        var contact = Recipient(data.Contact.EmailAddress.Current?.Value, data.Contact.Name.Current?.Value)
-            ?? throw new InvalidOperationException(
-                $"Case '{data.Identity.CaseId}' has no contact e-mail address to deliver the report to.");
-        var claimSource = data.Workspace?.ClaimSource is { } source
-            ? Recipient(source.ContactEmailAddress, source.ContactName ?? source.Name)
-            : null;
-        IReadOnlyList<StaffMailRecipient> cc = claimSource is not null && !SameAddress(claimSource, contact)
-            ? [claimSource]
-            : [];
-        return new([contact], cc, data.Identity.Reference);
+        ArgumentNullException.ThrowIfNull(suggestions);
+        ArgumentNullException.ThrowIfNull(suggestions.Settings);
+        var recipients = suggestions.Settings.AdditionalAddresses
+            .Select(address => Recipient(address, null))
+            .OfType<StaffMailRecipient>()
+            .ToList();
+        if (suggestions.Settings.IncludeOriginalInstructionSender
+            && Recipient(suggestions.OriginalInstructionSender, null) is { } original)
+        {
+            recipients.Insert(0, original);
+        }
+        var to = recipients
+            .GroupBy(recipient => recipient.Address, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+        if (to.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Case '{suggestions.CaseReference}' has no resolved report recipients.");
+        }
+        return new(to, [], suggestions.CaseReference);
     }
 
     /// <summary>
-    /// The prepared addressing must still resolve from the Case's structured
-    /// contacts at send time: a contact edited after preparation changes the
-    /// delivery intent, so the preparation is refused rather than sent to
-    /// the address it no longer names.
+    /// Validates staff-reviewed To and Cc fields before freezing them. The
+    /// Principal suggestions seed the review only; they never overwrite the
+    /// staff choice and Claim Source is not an implicit recipient.
     /// </summary>
-    public static void RequireAddressingCurrent(
-        CaseReportDeliveryAddressing prepared, CaseReportDeliveryAddressing current)
+    public static CaseReportDeliveryAddressing ReviewedAddress(
+        ReportRecipientSuggestions suggestions,
+        ReportRecipientReview review)
     {
-        ArgumentNullException.ThrowIfNull(prepared);
-        ArgumentNullException.ThrowIfNull(current);
-        if (!SameRecipients(prepared.To, current.To)
-            || !SameRecipients(prepared.Cc, current.Cc)
-            || !string.Equals(prepared.Subject, current.Subject, StringComparison.Ordinal))
+        ArgumentNullException.ThrowIfNull(suggestions);
+        ArgumentNullException.ThrowIfNull(review);
+        var to = Recipients(review.To, nameof(review.To));
+        if (to.Length == 0)
         {
             throw new InvalidOperationException(
-                "The Case's contacts changed after the report was prepared; prepare it again.");
+                $"Case '{suggestions.CaseReference}' has no reviewed report recipients.");
+        }
+        var cc = Recipients(review.Cc, nameof(review.Cc))
+            .Where(candidate => !to.Any(recipient => SameAddress(recipient, candidate)))
+            .ToArray();
+        return new(to, cc, suggestions.CaseReference);
+    }
+
+    public static ReportRecipientReview SuggestedReview(ReportRecipientSuggestions suggestions)
+    {
+        ArgumentNullException.ThrowIfNull(suggestions);
+        ArgumentNullException.ThrowIfNull(suggestions.Settings);
+        var recipients = suggestions.Settings.AdditionalAddresses
+            .Select(address => Recipient(address, null))
+            .OfType<StaffMailRecipient>();
+        if (suggestions.Settings.IncludeOriginalInstructionSender
+            && Recipient(suggestions.OriginalInstructionSender, null) is { } original)
+        {
+            recipients = new[] { original }.Concat(recipients);
+        }
+        return new(recipients
+            .GroupBy(recipient => recipient.Address, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First().Address)
+            .ToArray(), []);
+    }
+
+    public static string SuggestionFingerprint(ReportRecipientSuggestions suggestions)
+    {
+        ArgumentNullException.ThrowIfNull(suggestions);
+        var material = string.Join("\u001f",
+            suggestions.Settings.IncludeOriginalInstructionSender,
+            suggestions.OriginalInstructionSender?.Trim().ToUpperInvariant() ?? "",
+            string.Join("\u001e", suggestions.Settings.AdditionalAddresses
+                .Select(address => address.Trim().ToUpperInvariant())));
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+    }
+
+    /// <summary>
+    /// The Principal recipient suggestions must remain unchanged after
+    /// preparation. The reviewed To/Cc list itself is frozen and may differ
+    /// from those suggestions.
+    /// </summary>
+    public static void RequireSuggestionCurrent(string preparedFingerprint, string currentFingerprint)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(preparedFingerprint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(currentFingerprint);
+        if (!string.Equals(preparedFingerprint, currentFingerprint, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The Principal's recipient suggestions changed after the report was prepared; prepare it again.");
         }
     }
 
@@ -283,7 +360,7 @@ public static class CaseReportDeliveryPolicy
     private static StaffMailRecipient? Recipient(string? address, string? displayName)
     {
         var trimmed = address?.Trim();
-        if (string.IsNullOrEmpty(trimmed))
+        if (string.IsNullOrEmpty(trimmed) || !MailAddress.TryCreate(trimmed, out _))
         {
             return null;
         }
@@ -301,6 +378,16 @@ public static class CaseReportDeliveryPolicy
         && left.Zip(right).All(pair =>
             SameAddress(pair.First, pair.Second)
             && string.Equals(pair.First.DisplayName, pair.Second.DisplayName, StringComparison.Ordinal));
+
+    private static StaffMailRecipient[] Recipients(
+        IReadOnlyList<string>? values,
+        string parameterName) => (values ?? [])
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Select(value => Recipient(value, null)
+            ?? throw new ArgumentException("Each reviewed recipient must be a valid e-mail address.", parameterName))
+        .GroupBy(recipient => recipient.Address, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.First())
+        .ToArray();
 }
 
 /// <summary>
@@ -311,7 +398,7 @@ public static class CaseReportDeliveryPolicy
 /// </summary>
 public sealed class PrepareCaseReportDelivery(
     ICaseReportDeliveryPreparationStore store,
-    ICaseDataQueries caseData) : IPrepareCaseReportDelivery
+    IReportRecipientSuggestionQueries recipientSuggestions) : IPrepareCaseReportDelivery
 {
     public async Task<CaseReportDeliveryPreparation> ExecuteAsync(
         PrepareCaseReportDeliveryRequest request, CancellationToken cancellationToken)
@@ -328,12 +415,14 @@ public sealed class PrepareCaseReportDelivery(
 
         // The structured contacts are read outside the store's transaction:
         // they are a Case-data read, never something the operator posts.
-        var data = await caseData.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
+        var suggestions = await recipientSuggestions.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        var addressing = CaseReportDeliveryPolicy.Address(data);
+        var review = request.ReviewedRecipients
+            ?? CaseReportDeliveryPolicy.SuggestedReview(suggestions);
+        var addressing = CaseReportDeliveryPolicy.ReviewedAddress(suggestions, review);
 
         var record = await store
-            .PrepareAsync(new(request, addressing), cancellationToken)
+            .PrepareAsync(new(request, addressing, suggestions.Fingerprint), cancellationToken)
             .ConfigureAwait(false);
         return record.Preparation;
     }
@@ -369,7 +458,7 @@ public sealed class ReportSendReadiness(ICaseReportDeliveryPreparationStore stor
 /// </summary>
 public sealed class SendPreparedCaseReport(
     ICaseReportDeliveryPreparationStore store,
-    ICaseDataQueries caseData,
+    IReportRecipientSuggestionQueries recipientSuggestions,
     IApprovedMailboxStore mailboxes,
     IReportSendReadiness readiness,
     IStaffReportSend send) : ISendPreparedCaseReport
@@ -386,10 +475,11 @@ public sealed class SendPreparedCaseReport(
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 $"Report delivery preparation '{request.PreparationId}' is unavailable on case '{request.CaseId}'.");
-        var data = await caseData.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
+        var suggestions = await recipientSuggestions.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        CaseReportDeliveryPolicy.RequireAddressingCurrent(
-            record.Addressing, CaseReportDeliveryPolicy.Address(data));
+        CaseReportDeliveryPolicy.RequireSuggestionCurrent(
+            record.Preparation.RecipientSuggestionFingerprint,
+            suggestions.Fingerprint);
 
         var preparation = record.Preparation;
         var report = new ReportSendReadinessRequest(

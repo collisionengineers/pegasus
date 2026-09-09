@@ -19,8 +19,8 @@ namespace Pegasus.IntegrationTests;
 /// AUTO-006 / EPIC-011 §1.12: the Automation &amp; AI administration area.
 /// The Automation panel states the registered client, the AI job ledger's own
 /// Active and Failed counters (ADR-0035) and the kill switch; the AI settings
-/// panel carries one Save. Both are absent where the deployment does not
-/// compose them, and neither explains itself.
+/// panel carries one Save. Where neither capability is composed, the direct
+/// route gives a short unavailable state instead of an empty content pane.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed partial class AutomationAdministrationWebTests
@@ -154,7 +154,7 @@ public sealed partial class AutomationAdministrationWebTests
     }
 
     [Fact]
-    public async Task WithoutTheAutomationCompositionThePanelAndItsRailRowAreAbsent()
+    public async Task WithoutTheAutomationCompositionTheRouteStatesThatItIsUnavailable()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -166,8 +166,10 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.DoesNotContain("Start automation", html, StringComparison.Ordinal);
         // The shared rail lists Automation &amp; AI only where it is composed.
         Assert.DoesNotContain($"href=\"{AutomationRoute}\"", html, StringComparison.Ordinal);
-        // An absent capability is absent, not narrated.
-        Assert.DoesNotContain("is not part of this deployment", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "This deployment does not have Automation or AI configuration available.",
+            html,
+            StringComparison.Ordinal);
     }
 
     [Fact]

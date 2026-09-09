@@ -2442,5 +2442,56 @@ th a:hover { text-decoration: underline; }
 /* The Case tab's single working column. */
 .form-column { max-width: 680px; }
 
+/* U1: the first corrective pass keeps operational pages compact. These classes
+   deliberately build on the shared panel, table and control rules above so
+   individual administration pages do not become separate visual systems. */
+.page-action-group { display: inline-flex; align-items: center; gap: var(--sp-2); }
+
+.compact-search__main {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: end;
+}
+
+.compact-search__main .button-row { grid-column: 1 / -1; margin-top: 0; }
+.compact-search__more { padding: 0 var(--sp-4) var(--sp-4); }
+.compact-search__more summary { cursor: pointer; color: var(--charcoal); font-size: var(--t-sm); font-weight: 700; }
+.compact-search__more-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); margin-top: var(--sp-3); }
+
+/* The result table has only the facts needed to identify a case. The selected
+   case retains its wider preview beside it, so normal desktop use does not
+   require an inner horizontal scrollbar. */
+.case-search-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, .86fr); }
+.case-search-layout .table-wrap table { min-width: 0; table-layout: fixed; }
+.case-search-layout th, .case-search-layout td { padding: var(--sp-2) var(--sp-3); }
+
+.compact-log-filter {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-3);
+  align-items: end;
+}
+.compact-log-filter .button-row { justify-content: flex-start; }
+
+.inline-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1); }
+.preset-add-row td { background: var(--paper); }
+.preset-add-row input, .table-wrap td > input[form] { min-width: 0; width: 100%; height: 32px; padding: 5px var(--sp-2); font-size: var(--t-sm); }
+
+.compact-credential-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+.compact-credential-form .button-row { grid-column: 1 / -1; }
+.unavailable-panel .panel-body { color: var(--muted); }
+.service-health-table td { white-space: normal; }
+
+@media (max-width: 1180px) {
+  .compact-search__main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .compact-search__more-fields, .compact-log-filter { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .compact-search__main, .compact-search__more-fields, .compact-log-filter, .compact-credential-form { grid-template-columns: 1fr; }
+  .case-search-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* A mail subject is the record title and wraps; an ellipsis read as clipping. */
 .record__head h1.wrap { overflow: visible; white-space: normal; text-overflow: clip; }

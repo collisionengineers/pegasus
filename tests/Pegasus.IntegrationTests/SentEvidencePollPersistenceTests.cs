@@ -250,6 +250,14 @@ public sealed class SentEvidencePollPersistenceTests
         using var provider = services.BuildServiceProvider(validateScopes: true);
         using var scope = provider.CreateScope();
         var scopedServices = scope.ServiceProvider;
+        var findingLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.Triage,
+                triageId,
+                0,
+                staffActor,
+                "sent-poll-auto-link-finding-edit"),
+            default);
         var finding = await scopedServices.GetRequiredService<IRecordTriageFinding>().ExecuteAsync(
             new(
                 triageId,
@@ -259,7 +267,10 @@ public sealed class SentEvidencePollPersistenceTests
                 "Retained assessment before exact response",
                 RoadworthinessFinding.Roadworthy,
                 AssessmentFinding.Repairable,
-                SupersedesFindingId: null),
+                SupersedesFindingId: null)
+            {
+                EditLeaseToken = findingLease.Token
+            },
             default);
         Assert.Equal(1, finding.Version);
 
@@ -369,13 +380,24 @@ public sealed class SentEvidencePollPersistenceTests
 
         var pollOutcomeId = await factory.Database.ScalarAsync<Guid>(
             $"SELECT PollOutcomeId FROM EmailResponseEvidence WHERE SentEvidenceId = '{sentEvidence.Id:D}'");
+        var unlinkLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.Triage,
+                triageId,
+                2,
+                staffActor,
+                "sent-poll-response-unlink-edit"),
+            default);
         var unlinkRequest = new TriageResponseEvidenceUnlinkRequest(
             triageId,
             sentEvidence.Id,
             2,
             staffActor,
             "sent-poll-response-unlink",
-            "Temporarily remove the current response association");
+            "Temporarily remove the current response association")
+        {
+            EditLeaseToken = unlinkLease.Token
+        };
         var unlinkResponse = scopedServices.GetRequiredService<IUnlinkTriageResponseEvidence>();
         await unlinkResponse.ExecuteAsync(unlinkRequest, default);
         await unlinkResponse.ExecuteAsync(unlinkRequest, default);
@@ -397,6 +419,14 @@ public sealed class SentEvidencePollPersistenceTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageId = '{triageId:D}'"));
 
+        var relinkLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.Triage,
+                triageId,
+                3,
+                staffActor,
+                "sent-poll-response-relink-edit"),
+            default);
         var relinkRequest = new TriageResponseEvidenceLinkRequest(
             triageId,
             pollOutcomeId,
@@ -404,7 +434,10 @@ public sealed class SentEvidencePollPersistenceTests
             3,
             staffActor,
             "sent-poll-response-relink",
-            "Restore the retained exact response association");
+            "Restore the retained exact response association")
+        {
+            EditLeaseToken = relinkLease.Token
+        };
         var linkResponse = scopedServices.GetRequiredService<ILinkTriageResponseEvidence>();
         await linkResponse.ExecuteAsync(relinkRequest, default);
         await linkResponse.ExecuteAsync(relinkRequest, default);
@@ -436,13 +469,17 @@ public sealed class SentEvidencePollPersistenceTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageHistory WHERE TriageId = '{triageId:D}' AND EventType = 'triage_response_unlinked'"));
 
+        var completionLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triageId, 4, staffActor, "sent-poll-completion-edit"),
+            default);
         var completed = await scopedServices.GetRequiredService<ICompleteTriage>().ExecuteAsync(
             new(
                 triageId,
                 4,
                 staffActor,
                 "sent-poll-auto-link-complete",
-                "Finding and exact response evidence confirmed"),
+                "Finding and exact response evidence confirmed")
+            { EditLeaseToken = completionLease.Token },
             default);
         Assert.Equal(TriageState.Completed, completed.State);
         Assert.Equal(5, completed.Version);

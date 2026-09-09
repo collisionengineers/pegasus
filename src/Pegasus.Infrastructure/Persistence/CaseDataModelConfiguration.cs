@@ -18,11 +18,11 @@ internal static class CaseDataModelConfiguration
                     "[ExtractionPolicyVersion] IS NULL OR [ExtractionPolicyVersion] > 0");
             });
             entity.HasKey(item => item.CaseId);
-            entity.Property(item => item.OriginSourceChannel).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.OriginExternalReceiptToken).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.OriginSourceHash).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(item => item.SourceReaderKey).HasMaxLength(100).IsRequired();
-            entity.Property(item => item.SourceReaderVersion).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.OriginSourceChannel).HasMaxLength(40);
+            entity.Property(item => item.OriginExternalReceiptToken).HasMaxLength(200);
+            entity.Property(item => item.OriginSourceHash).HasMaxLength(64).IsFixedLength();
+            entity.Property(item => item.SourceReaderKey).HasMaxLength(100);
+            entity.Property(item => item.SourceReaderVersion).HasMaxLength(200);
             entity.Property(item => item.ExtractionPolicyKey).HasMaxLength(100);
             entity.Property(item => item.CompletenessPolicyKey).HasMaxLength(100).IsRequired();
             entity.HasIndex(item => item.OriginIntakeReceiptId);

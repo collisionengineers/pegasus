@@ -8,6 +8,9 @@
     var caseId = Model.Case!.Workflow.CaseId;
     var generation = Model.CurrentReportGeneration;
     var preparation = Model.CurrentDeliveryPreparation;
+    var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
+        ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
+        : new ReportRecipientReview([], []);
 }
 
 <section class="panel" aria-labelledby="section-report-title">
@@ -116,6 +119,25 @@
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
+                    <fieldset class="field">
+                        <legend>Reviewed recipients</legend>
+                        <label for="report-recipient-to">To</label>
+                        <div id="report-recipient-to" class="stack">
+                            @foreach (var recipient in suggestedRecipients.To.DefaultIfEmpty(string.Empty))
+                            {
+                                <input name="toRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report recipient" />
+                            }
+                        </div>
+                        <button type="button" class="btn" data-add-report-recipient="report-recipient-to" data-report-recipient-name="toRecipients">Add To recipient</button>
+                        <label for="report-recipient-cc">Cc</label>
+                        <div id="report-recipient-cc" class="stack">
+                            @foreach (var recipient in suggestedRecipients.Cc.DefaultIfEmpty(string.Empty))
+                            {
+                                <input name="ccRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report copy recipient" />
+                            }
+                        </div>
+                        <button type="button" class="btn" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">Add Cc recipient</button>
+                    </fieldset>
                     <button type="submit" class="btn">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.PrepareDelivery</span>

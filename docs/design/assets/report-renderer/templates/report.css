@@ -216,6 +216,10 @@ tbody tr:nth-child(even) td { background: #f5f5f5; }
 .vehicle-photo.rot180 { transform: rotate(180deg); }
 .vehicle-photo.rot270 { transform: rotate(270deg); }
 .work-list { margin-bottom: 4mm; }
+.impact-diagram { display: flex; justify-content: center; margin: 2mm 0; }
+.impact-diagram svg { height: 75mm; width: auto; }
+.impact-diagram path, .impact-diagram polygon, .impact-diagram ellipse { fill: #f5f5f5; stroke: #777; stroke-width: 1.5; }
+.impact-diagram .marked { fill: #c80a32; stroke: #8d0020; }
 
 /* ============================================================================
    DENSITY VARIANTS (valuation auto-fit) — ported verbatim

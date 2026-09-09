@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Uploads;
@@ -111,20 +110,18 @@ public sealed partial class RequestModel(
             return Page();
         }
 
-        await using var content = new MemoryStream((int)Upload!.Length);
-        await Upload.CopyToAsync(content, cancellationToken);
-
         try
         {
             var result = await uploadToRequest.ExecuteAsync(
                 new(
                     Token,
                     new(
-                        Path.GetFileName(Upload.FileName),
+                        Path.GetFileName(Upload!.FileName),
                         string.IsNullOrWhiteSpace(Upload.ContentType)
                             ? "application/octet-stream"
                             : Upload.ContentType,
-                        content.ToArray(),
+                        Upload.Length,
+                        _ => ValueTask.FromResult<Stream>(Upload.OpenReadStream()),
                         operationKey),
                     attemptsInCurrentWindow,
                     ReplacementOccurrenceId),

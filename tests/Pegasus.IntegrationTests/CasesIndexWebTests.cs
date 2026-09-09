@@ -305,8 +305,7 @@ public sealed class CasesIndexWebTests
         using var client = CreateClient(factory);
 
         // ?selected= reads the named row server-side: its facts, its D3
-        // terminal chip and its own Case link, with Copy Case/PO beside the
-        // swapped region where the shell's copy binding can reach it.
+        // terminal chip and its own Case link.
         using var response = await client.GetAsync($"/Search?selected={search.ClosedCaseId:D}");
         var html = await response.Content.ReadAsStringAsync();
 
@@ -326,13 +325,8 @@ public sealed class CasesIndexWebTests
         Assert.Contains("CLM43", html, StringComparison.Ordinal);
         Assert.Contains("Unassigned", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.ClosedCaseId:D}\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-copy-target=\"search-copy-reference\"", html, StringComparison.Ordinal);
-        Assert.Contains("Copy Case/PO", html, StringComparison.Ordinal);
-        // Copy Case/PO and the refresh form's selected row live outside the
-        // region the shell swaps, so every row carries the reference the page
-        // moves them to when the selection changes without a round trip.
-        Assert.Contains("data-copy-reference=\"QDOS3100042\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-copy-reference=\"QDOS3100043\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Copy Case/PO", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-copy-reference", html, StringComparison.Ordinal);
         Assert.Contains("name=\"selected\"", html, StringComparison.Ordinal);
     }
 

@@ -304,6 +304,21 @@
                                             <input id="estimate-labour-rate" name="estimateLabourRate" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.LabourRate" />
                                         </div>
                                         <div>
+                                            <label for="estimate-rate-card">Labour-rate card</label>
+                                            <select id="estimate-rate-card" name="selectedRateCard">
+                                                <option value="">Keep entered rate</option>
+                                                @foreach (var card in Model.LabourRateCards.Where(x => x.Enabled))
+                                                {
+                                                    var cardKey = $"{card.Id:D}:{card.Version}";
+                                                    var selected = Context.Request.HasFormContentType
+                                                        ? Context.Request.Form["selectedRateCard"] == cardKey
+                                                        : details.Rate is { RateCardId: { } rateCardId, RateCardVersion: { } rateCardVersion }
+                                                            && rateCardId == card.Id && rateCardVersion == card.Version;
+                                                    <option value="@cardKey" selected="@(selected ? "selected" : null)">@card.Name — £@card.HourlyRate.ToString("N2")/hour</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div>
                                             <label for="estimate-materials">@EngineerLabels.PaintMaterialsPounds</label>
                                             <input id="estimate-materials" name="estimatePaintMaterials" type="number" min="0" step="0.01" inputmode="decimal" class="tabular" value="@details.PaintMaterials" />
                                         </div>

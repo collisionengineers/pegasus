@@ -2,14 +2,96 @@
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var mayEdit = Model.CanEditEngineering && Model.Case!.Data is not null;
+    var rawImpacts = Model.AssessmentEditorValue(AssessmentVocabulary.DamageImpacts) ?? "[]";
+    var damageFields = CaseWorkspaceLabels.Editors.Damage;
+}
 
-<section class="panel" aria-labelledby="section-damage-title">
+<section class="panel case-damage" aria-labelledby="section-damage-title"
+         data-damage-editor data-damage-editable="@mayEdit.ToString().ToLowerInvariant()" data-damage-impacts="@rawImpacts">
     <div class="panel-head"><h2 id="section-damage-title">@EngineerLabels.Damage</h2></div>
-    <div class="panel-body">
-        <dl class="detail-list">
-            <div><dt>@EngineerLabels.ImpactLocation</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ImpactLocation)</dd></div>
-            <div><dt>@EngineerLabels.ImpactSeverity</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ImpactSeverity)</dd></div>
-            <div><dt>@EngineerLabels.IncidentNarrative</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</dd></div>
-        </dl>
+    <div class="panel-body stack">
+        @if (mayEdit)
+        {
+            <input type="hidden" id="case-damage-impacts" name="damageImpacts" form="case-edit-form" value="@rawImpacts" data-damage-input />
+        }
+        <div class="damage-workbench">
+            <div class="damage-diagram-wrap">
+                <svg class="damage-diagram" viewBox="0 0 300 520" role="img" aria-labelledby="damage-diagram-title damage-diagram-description">
+                    <title id="damage-diagram-title">Vehicle damage diagram</title>
+                    <desc id="damage-diagram-description">Select a vehicle region to view its damage. The controls below cover underside, interior and mechanical damage.</desc>
+                    <path class="vehicle-outline" d="M95 22h110l27 63 21 69v213l-21 69-27 62H95l-27-62-21-69V154l21-69z" />
+                    <g class="damage-zones">
+                        <path data-damage-zone="bonnet" d="M112 83h76l12 44h-100z" /><path data-damage-zone="windscreen" d="M105 132h90l9 33h-108z" /><path data-damage-zone="roof" d="M100 170h100v153H100z" /><path data-damage-zone="rear_screen" d="M105 328h90l9 34h-108z" /><path data-damage-zone="tailgate" d="M112 367h76l12 46h-100z" />
+                        <path data-damage-zone="front_left_corner" d="M76 94l33-11 3 44-35 18z" /><path data-damage-zone="front_centre" d="M112 46h76v32h-76z" /><path data-damage-zone="front_right_corner" d="M224 94l-33-11-3 44 35 18z" />
+                        <path data-damage-zone="left_front_wing" d="M70 151l30-17v53l-29 20z" /><path data-damage-zone="left_front_door" d="M65 211l35-20v62l-36 20z" /><path data-damage-zone="left_rear_door" d="M64 278l36-20v61l-35 19z" /><path data-damage-zone="left_quarter" d="M69 343l31-18v54l-30 19z" />
+                        <path data-damage-zone="right_front_wing" d="M230 151l-30-17v53l29 20z" /><path data-damage-zone="right_front_door" d="M235 211l-35-20v62l36 20z" /><path data-damage-zone="right_rear_door" d="M236 278l-36-20v61l35 19z" /><path data-damage-zone="right_quarter" d="M231 343l-31-18v54l30 19z" />
+                        <path data-damage-zone="rear_left_corner" d="M76 405l35 17-2 45-33-13z" /><path data-damage-zone="rear_centre" d="M112 418h76v35h-76z" /><path data-damage-zone="rear_right_corner" d="M224 405l-35 17 2 45 33-13z" />
+                        <ellipse data-damage-zone="wheel_left_front" cx="77" cy="185" rx="13" ry="29" /><ellipse data-damage-zone="wheel_right_front" cx="223" cy="185" rx="13" ry="29" /><ellipse data-damage-zone="wheel_left_rear" cx="77" cy="335" rx="13" ry="29" /><ellipse data-damage-zone="wheel_right_rear" cx="223" cy="335" rx="13" ry="29" />
+                    </g>
+                </svg>
+                <div class="damage-extra-zones" aria-label="Other vehicle areas">
+                    @foreach (var zone in new[] { "underside", "interior", "mechanical" })
+                    {
+                        <button type="button" class="btn btn--small" data-damage-zone="@zone">@AssessmentVocabulary.DamageZones[zone].Display</button>
+                    }
+                </div>
+            </div>
+            <div class="damage-editor-panel">
+                <p class="muted" data-damage-empty>Select a vehicle region.</p>
+                <div data-damage-fields hidden>
+                    <h3 data-damage-zone-label></h3>
+                    @if (mayEdit)
+                    {
+                        <div class="field"><label for="damage-severity">Severity</label><select id="damage-severity" data-damage-severity>@foreach (var severity in AssessmentVocabulary.DamageSeverities){<option value="@severity.Key">@severity.Value.Display</option>}</select></div>
+                        <div class="field"><label for="damage-note">Notes</label><textarea id="damage-note" rows="3" maxlength="200" data-damage-note></textarea></div>
+                        <div class="button-row"><button type="button" class="btn btn--danger" data-damage-remove>Remove damage</button></div>
+                    }
+                    else
+                    {
+                        <dl class="detail-list"><div><dt>Severity</dt><dd data-damage-read-severity></dd></div><div><dt>Notes</dt><dd data-damage-read-note></dd></div></dl>
+                    }
+                </div>
+                <ul class="damage-impact-list" data-damage-impact-list aria-label="Recorded damage"></ul>
+            </div>
+        </div>
+        <div class="grid grid-2" aria-label="Damage observations">
+            @foreach (var field in damageFields)
+            {
+                var definition = AssessmentVocabulary.Definitions[field.Key];
+                var value = Model.AssessmentEditorValue(field.Key);
+                var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
+                if (Model.CanEditAssessmentField(field.Key))
+                {
+                    <div class="field">
+                        <label for="edit-@field.Key">@field.Value</label>
+                        @if (definition.Type == AssessmentFieldType.Enumerated)
+                        {
+                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
+                                <option value="" selected="@(value is null)"></option>
+                                @foreach (var code in definition.Codes ?? [])
+                                {
+                                    <option value="@code" selected="@(value == code)">@code.Replace('_', ' ')</option>
+                                }
+                            </select>
+                        }
+                        else if (definition.Type == AssessmentFieldType.Money)
+                        {
+                            <input id="edit-@field.Key" name="@name" form="case-edit-form" type="number" step="0.01" value="@value" maxlength="@definition.MaximumLength" />
+                        }
+                        else
+                        {
+                            <textarea id="edit-@field.Key" name="@name" form="case-edit-form" rows="3" maxlength="@definition.MaximumLength">@value</textarea>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <dl class="detail-list"><div><dt>@field.Value</dt><dd>@Model.AssessmentValue(field.Key)</dd></div></dl>
+                }
+            }
+        </div>
+        <dl class="detail-list"><div><dt>@EngineerLabels.IncidentNarrative</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</dd></div></dl>
     </div>
 </section>

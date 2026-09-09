@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration.ValuationPresets;
@@ -23,7 +24,9 @@ namespace Pegasus.Web.Pages.Administration.ValuationPresets;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IListValuationPresets listValuationPresets,
-    ISaveValuationPreset saveValuationPreset) : AdministrationPageModel
+    ISaveValuationPreset saveValuationPreset,
+    IEditScopeLeases editScopes,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : AdministrationPageModel
 {
     /// <summary>Every preset, enabled and disabled, in the Core query's order.</summary>
     public IReadOnlyList<ValuationPreset> Presets { get; private set; } = [];
@@ -58,8 +61,59 @@ public sealed class IndexModel(
     /// <summary>The reason submitted by the most recent row post.</summary>
     public string RowReason { get; private set; } = string.Empty;
 
-    public Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
-        RunAsync(_ => Task.FromResult<string?>(null), cancellationToken);
+    public Guid EditingPresetId { get; private set; }
+    public long EditingPresetVersion { get; private set; }
+    public string EditingLeaseToken { get; private set; } = string.Empty;
+
+    public async Task<IActionResult> OnGetAsync(
+        Guid? editPresetId,
+        long? expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        await LoadAsync(actor, cancellationToken);
+        if (editPresetId is not { } presetId || expectedVersion is not { } version)
+        {
+            return Page();
+        }
+
+        var preset = Presets.SingleOrDefault(item => item.Id == presetId);
+        if (preset is null)
+        {
+            return NotFound();
+        }
+        if (preset.Version != version)
+        {
+            ModelState.AddModelError(string.Empty, ValuationPresetLabels.StaleVersion);
+            return Page();
+        }
+
+        try
+        {
+            var lease = await editScopes.ClaimAsync(
+                new(EditScopeKind.ValuationPreset, preset.Id, preset.Version, actor, NewOperationKey()),
+                cancellationToken);
+            EditingPresetId = preset.Id;
+            EditingPresetVersion = preset.Version;
+            EditingLeaseToken = lease.Token;
+        }
+        catch (EditScopeConflictException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                await EditConflictMessageAsync(preset.Id, actor, cancellationToken));
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            ModelState.AddModelError(string.Empty, ValuationPresetLabels.StaleVersion);
+        }
+
+        return Page();
+    }
 
     public Task<IActionResult> OnPostCreateAsync(
         Guid presetId,
@@ -110,6 +164,7 @@ public sealed class IndexModel(
         decimal? amount,
         bool active,
         string? reason,
+        string? editLeaseToken,
         string? operationKey,
         CancellationToken cancellationToken)
     {
@@ -117,6 +172,9 @@ public sealed class IndexModel(
         RowLabel = label ?? string.Empty;
         RowAmount = Request.Form["amount"].ToString();
         RowReason = reason ?? string.Empty;
+        EditingPresetId = presetId;
+        EditingPresetVersion = expectedVersion;
+        EditingLeaseToken = editLeaseToken ?? string.Empty;
         return RunAsync(
             async actor =>
             {
@@ -134,11 +192,67 @@ public sealed class IndexModel(
                         expectedVersion,
                         actor,
                         reason!,
-                        operationKey!),
+                        operationKey!)
+                    {
+                        EditLeaseToken = editLeaseToken ?? string.Empty
+                    },
                     cancellationToken);
                 return active ? ValuationPresetLabels.Saved : ValuationPresetLabels.Disabled;
             },
             cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostCancelEditAsync(
+        Guid presetId,
+        string? editLeaseToken,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (presetId == Guid.Empty || !IsOperationKeyValid(operationKey)
+            || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return RedirectToPage();
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.ValuationPreset, presetId, actor, operationKey!, editLeaseToken),
+                cancellationToken);
+        }
+        catch (EditScopeExpiredException)
+        {
+            // Closing an already-expired edit session has no remaining work.
+        }
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostHeartbeatEditAsync(
+        Guid presetId,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (presetId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new ConflictObjectResult("Editing this valuation preset has ended. Reload it before making further changes.");
+        }
+
+        try
+        {
+            await editScopes.HeartbeatAsync(
+                new(EditScopeKind.ValuationPreset, presetId, actor, editLeaseToken),
+                cancellationToken);
+            return new OkResult();
+        }
+        catch (EditScopeExpiredException)
+        {
+            return new ConflictObjectResult("Editing this valuation preset has ended. Reload it before making further changes.");
+        }
     }
 
     /// <summary>
@@ -172,6 +286,20 @@ public sealed class IndexModel(
         catch (StaffAuthorizationException)
         {
             return Forbid();
+        }
+        catch (EditScopeConflictException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                await EditConflictMessageAsync(EditingPresetId, actor, cancellationToken));
+        }
+        catch (EditScopeExpiredException)
+        {
+            ModelState.AddModelError(string.Empty, "Your preset edit session expired. Reopen it and try again.");
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            ModelState.AddModelError(string.Empty, ValuationPresetLabels.StaleVersion);
         }
 
         if (confirmation is not null)
@@ -235,6 +363,29 @@ public sealed class IndexModel(
         ValuationPresetError.OperationConflict => ValuationPresetLabels.OperationConflict,
         _ => ValuationPresetLabels.NotAccepted
     };
+
+    private async Task<string> EditConflictMessageAsync(
+        Guid presetId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var active = await editScopes.GetActiveAsync(
+            EditScopeKind.ValuationPreset,
+            presetId,
+            actor,
+            cancellationToken);
+        if (active is null)
+        {
+            return "Another member of staff is editing this preset. Reload to try again.";
+        }
+
+        var holder = await describeEditAuthorityHolder.ExecuteAsync(
+            active.HolderKind,
+            active.Holder,
+            actor,
+            cancellationToken);
+        return $"Preset editing is unavailable because {EditModeDisplay.HolderName(holder)} is editing it.";
+    }
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {

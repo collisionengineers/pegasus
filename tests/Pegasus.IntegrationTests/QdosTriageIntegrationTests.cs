@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
@@ -218,7 +219,7 @@ public sealed partial class QdosTriageIntegrationTests
             0,
             "cancel",
             "Stale cancellation must fail");
-        Assert.Contains("not expected version 0", staleHtml, StringComparison.Ordinal);
+        Assert.Contains("changed while you were working", staleHtml, StringComparison.Ordinal);
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(1, triage.Record.Version);
         Assert.Equal(2, triage.History.Count);
@@ -493,13 +494,23 @@ public sealed partial class QdosTriageIntegrationTests
         string reason,
         params KeyValuePair<string, string>[] additionalFields)
     {
+        var editPage = await OpenEditAsync(client, triageId, expectedVersion, antiforgeryToken);
+        var editLeaseToken = TriageEditLeaseTokenRegex().Matches(editPage)
+            .Select(match => Value(match.Value))
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return editPage;
+        }
+
         var fields = new List<KeyValuePair<string, string>>
         {
             KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken),
             KeyValuePair.Create("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
             KeyValuePair.Create("operationKey", Guid.NewGuid().ToString("N")),
             KeyValuePair.Create("actionName", actionName),
-            KeyValuePair.Create("reason", reason)
+            KeyValuePair.Create("reason", reason),
+            KeyValuePair.Create("editLeaseToken", editLeaseToken)
         };
         fields.AddRange(additionalFields);
 
@@ -521,6 +532,30 @@ public sealed partial class QdosTriageIntegrationTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return html;
+    }
+
+    private static async Task<string> OpenEditAsync(
+        HttpClient client,
+        Guid triageId,
+        long expectedVersion,
+        string antiforgeryToken)
+    {
+        using var response = await client.PostAsync(
+            $"/Triage/{triageId:D}?handler=Edit",
+            new FormUrlEncodedContent(
+            [
+                KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken),
+                KeyValuePair.Create("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture))
+            ]));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    private static string Value(string tag)
+    {
+        var match = TriageEditLeaseTokenValueRegex().Match(tag);
+        Assert.True(match.Success);
+        return match.Groups["value"].Value;
     }
 
 
@@ -579,4 +614,10 @@ public sealed partial class QdosTriageIntegrationTests
         return evaluations;
     }
     private sealed record EvaluationRevision(Guid Id, int Revision);
+
+    [GeneratedRegex("<input[^>]*name=\"editLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex TriageEditLeaseTokenRegex();
+
+    [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)]
+    private static partial Regex TriageEditLeaseTokenValueRegex();
 }

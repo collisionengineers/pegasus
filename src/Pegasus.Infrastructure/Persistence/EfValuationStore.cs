@@ -884,6 +884,17 @@ public sealed class EfValuationPresetStore(
                     entity.Version);
             }
 
+            await EfEditScopeStore.RequireAsync(
+                context,
+                EditScopeKind.ValuationPreset,
+                entity.Id,
+                entity.Version,
+                request.ExpectedVersion,
+                request.Actor,
+                request.EditLeaseToken,
+                now,
+                cancellationToken);
+
             before = Map(entity);
             entity.Label = request.Label;
             entity.SuggestedAmount = request.SuggestedAmount;
@@ -916,6 +927,10 @@ public sealed class EfValuationPresetStore(
             AfterJson = JsonSerializer.Serialize(after, SerializerOptions),
             PolicyVersion = ValuationCalculationPolicy.PolicyStamp,
         });
+        if (request.ExpectedVersion > 0)
+        {
+            EfEditScopeStore.Complete(context, EditScopeKind.ValuationPreset, entity.Id);
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return after;

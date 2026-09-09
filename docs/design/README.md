@@ -802,7 +802,7 @@ prove acceptance.
 | Setup, testing, release, and recovery procedure | [Runbook](../runbook.md) | Procedure is not execution evidence |
 | Engineering procedure | [Engineering](../engineering.md) | Reviewed implementation and verification |
 | Design authority | This file | Approved tokens, assets, class vocabulary and page contracts |
-| Design contract of record | EPIC-011 group `context.md` §1 and D1–D28; EPIC-012 group `context.md` §Shared decisions D29–D43 for the Case record (Kanmer board) | Transcribed here; the board record is the batch constraint |
+| Interaction contract | Current operator instructions and [FRD-12](../frd/frd-12-operator-experience.md) | Earlier imported design decisions provide context only where consistent with current requirements |
 | Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` (PLAT-029) |
 | Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` (PLAT-029) |
 | Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` (PLAT-029) |

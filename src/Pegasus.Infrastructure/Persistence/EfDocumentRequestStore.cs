@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -250,7 +249,11 @@ internal sealed class EfDocumentRequestStore(
 
         // The hand-over runs outside the transaction: custody keeps its own
         // durable state and must not be called while our locks are held.
-        await using var content = OpenContent(command.File.Content);
+        await using var content = await command.File.OpenContentAsync(cancellationToken);
+        if (content is null || !content.CanRead)
+        {
+            throw new InvalidDataException("The public-upload content stream is unavailable.");
+        }
         RetainedIncomingArtifact retained;
         try
         {
@@ -511,7 +514,7 @@ internal sealed class EfDocumentRequestStore(
                 AcceptedByteCount = Math.Max(0, policyLink.AcceptedByteCount - reservation.Size)
             };
         }
-        var authorization = uploadPolicy.Authorize(
+        var authorization = await uploadPolicy.AuthorizeAsync(
             policyLink,
             new(command.Token, command.File, command.AttemptsInCurrentRateWindow),
             priorReceipt?.ContentHash,
@@ -519,7 +522,8 @@ internal sealed class EfDocumentRequestStore(
             // the file-count bound does not apply to it. Whether the slot it
             // names really is one of those is settled in ReplaceAsync, which
             // refuses anything else before a row is written.
-            isReplacement: command.ReplacementOccurrenceId is not null);
+            isReplacement: command.ReplacementOccurrenceId is not null,
+            cancellationToken: cancellationToken);
         if (authorization.MayEnterCustody
             && reservation is not null
             && !string.Equals(
@@ -531,11 +535,12 @@ internal sealed class EfDocumentRequestStore(
             // this key. Different bytes are a new submission and must pass
             // the unadjusted aggregate limits before they receive a derived
             // operation key below.
-            authorization = uploadPolicy.Authorize(
+            authorization = await uploadPolicy.AuthorizeAsync(
                 ToUploadLink(link),
                 new(command.Token, command.File, command.AttemptsInCurrentRateWindow),
                 priorReceipt?.ContentHash,
-                isReplacement: command.ReplacementOccurrenceId is not null);
+                isReplacement: command.ReplacementOccurrenceId is not null,
+                cancellationToken: cancellationToken);
         }
         if (!authorization.MayEnterCustody)
         {
@@ -669,7 +674,7 @@ internal sealed class EfDocumentRequestStore(
                 OperationKey = scopedOperationKey,
                 ProposedName = authorization.SafeFileName!,
                 MediaType = command.File.MediaType.Trim(),
-                Size = command.File.Content.Length,
+                Size = command.File.ContentLength,
                 Sha256 = authorization.ContentHash!,
                 // Prospective custody arrival: counts/reserves capacity
                 // under this link lock before releasing the lock.
@@ -804,7 +809,7 @@ internal sealed class EfDocumentRequestStore(
                 OperationKey = scopedOperationKey,
                 ProposedName = authorization.SafeFileName!,
                 MediaType = command.File.MediaType.Trim(),
-                Size = command.File.Content.Length,
+                Size = command.File.ContentLength,
                 Sha256 = authorization.ContentHash!,
                 // Prospective custody arrival: counts/reserves capacity
                 // under this link lock before releasing the lock.
@@ -1166,16 +1171,6 @@ internal sealed class EfDocumentRequestStore(
             return false;
         }
     }
-
-    /// <summary>
-    /// Reads the submitted bytes without copying them a second time when the
-    /// caller already owns an array — a hundred-megabyte per-file limit makes
-    /// that copy worth avoiding.
-    /// </summary>
-    private static MemoryStream OpenContent(ReadOnlyMemory<byte> content) =>
-        MemoryMarshal.TryGetArray(content, out var segment) && segment.Array is not null
-            ? new MemoryStream(segment.Array, segment.Offset, segment.Count, writable: false)
-            : new MemoryStream(content.ToArray(), writable: false);
 
     private static PublicUploadSession ToSession(PublicUploadSessionEntity value) => new(
         value.Id,

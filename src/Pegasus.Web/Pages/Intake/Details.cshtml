@@ -1,4 +1,4 @@
-﻿@* The folder is the internal domain name; the route is the operator's. *@
+@* The folder is the internal domain name; the route is the operator's. *@
 @page "/Received/{id:guid}"
 @model Pegasus.Web.Pages.Intake.DetailsModel
 @using Pegasus.Core.ImageIntake
@@ -21,7 +21,7 @@
         <p class="eyebrow">Received review</p>
         @if (allocationSucceeded)
         {
-            <h1>Case created</h1>
+            <h1>Linked to Case</h1>
         }
         else if (allocationIncomplete)
         {
@@ -89,7 +89,7 @@
             @if (allocation.FailureKind == IntakeAllocationFailureKind.PrincipalUnavailable)
             {
                 <div class="button-row">
-                    <a class="btn" asp-page="/Administration/Principals/Index">Open Principal administration</a>
+                    <a class="btn" asp-page="/Administration/Contacts/Index">Open Contacts</a>
                 </div>
             }
             @if (Model.CanRetryAllocation)
@@ -122,7 +122,7 @@
                     imageHref, imageHref, Model.Receipt.SourceFileName, Model.Receipt.MediaType) }" />
             }
             <div class="definition-list">
-                <dl class="definition"><dt>Decision</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt)</dd></dl>
+                <dl class="definition"><dt>Status</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt)</dd></dl>
                 <dl class="definition"><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></dl>
                 <dl class="definition"><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(Model.Receipt.SourceIdentity.Channel)</dd></dl>
                 <dl class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Receipt.ReceivedAtUtc)</dd></dl>
@@ -164,11 +164,11 @@
 @if (Model.ImageIntake is { } imageIntake)
 {
     <section class="panel section-gap" aria-labelledby="image-intake-title">
-        <div class="panel-head"><h2 id="image-intake-title">Image intake</h2></div>
+        <div class="panel-head"><h2 id="image-intake-title">Vehicle images</h2></div>
         <div class="panel-body stack">
             <div class="definition-list">
                 <dl class="definition">
-                    <dt>Image Intake Reference</dt>
+                    <dt>Image reference</dt>
                     <dd><a asp-page="/ImageIntake/Details" asp-route-id="@imageIntake.Record.Id">@imageIntake.Record.ImageIntakeReference</a></dd>
                 </dl>
                 <dl class="definition"><dt>Vehicle registration</dt><dd>@imageIntake.Record.NormalizedVehicleRegistration</dd></dl>
@@ -182,7 +182,7 @@
                         }
                         else
                         {
-                            <text>Image intake registered</text>
+                            <text>Vehicle images registered</text>
                         }
                     </dd>
                 </dl>
@@ -194,7 +194,7 @@
 @if (Model.CanRegisterImageIntake)
 {
     <section class="panel section-gap" aria-labelledby="register-image-intake-title">
-        <div class="panel-head"><h2 id="register-image-intake-title">Register Image intake</h2></div>
+        <div class="panel-head"><h2 id="register-image-intake-title">Register images</h2></div>
         <div class="panel-body">
             <form method="post" asp-page-handler="RegisterImageIntake" asp-route-id="@Model.Receipt.Id" class="stack">
                 <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
@@ -207,7 +207,7 @@
                     <textarea id="register-reason" name="reason" maxlength="500" rows="2" required></textarea>
                 </div>
                 <div class="button-row">
-                    <button type="submit" class="btn btn--primary">Register Image intake</button>
+                    <button type="submit" class="btn btn--primary">Register images</button>
                 </div>
             </form>
         </div>
@@ -352,11 +352,11 @@
 }
 
 <section class="panel section-gap" aria-labelledby="case-association-title">
-    <div class="panel-head"><h2 id="case-association-title">Current case association</h2></div>
+    <div class="panel-head"><h2 id="case-association-title">Case link</h2></div>
     <div class="panel-body stack">
         <div class="definition-list">
             <dl class="definition">
-                <dt>Case/PO</dt>
+                <dt>Case</dt>
                 <dd>
                     @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
                     {
@@ -376,7 +376,7 @@
                 <h3 id="selected-case-title" class="decision-head">Selected case</h3>
                 <div class="decision-body stack">
                     <div class="definition-list">
-                        <dl class="definition"><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></dl>
+@if (Model.Receipt.CurrentCaseId != targetCase.Summary.CaseId) { <dl class="definition"><dt>Case</dt><dd>@targetCase.Summary.Reference</dd></dl> }
                         <dl class="definition"><dt>Registration</dt><dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd></dl>
                         <dl class="definition"><dt>Claimant</dt><dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd></dl>
                         <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
@@ -389,7 +389,7 @@
                             <input type="hidden" name="expectedCaseVersion" value="@Model.AssociationTargetCaseVersion" />
                             <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                             <div class="button-row">
-                                <button type="submit" class="btn">Enter case edit mode</button>
+                                <button type="submit" class="btn">@(Model.Receipt.CurrentCaseId is null ? "Link to Case" : "Change Case link")</button>
                             </div>
                         </form>
                     }
@@ -439,6 +439,8 @@
         {
             if (Model.Receipt.CurrentCaseId == Model.LeasedCaseId)
             {
+                <button type="button" class="btn" data-dialog-open="unlink-case-dialog">Unlink Case</button>
+                <div class="dialog-backdrop" data-dialog="unlink-case-dialog" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unlink-case-dialog-title"><div class="dialog-head"><h2 id="unlink-case-dialog-title">Unlink Case</h2></div><div class="dialog-body">
                 <form method="post" asp-page-handler="ReverseCaseLink" asp-route-id="@Model.Receipt.Id" class="stack">
                     <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
                     <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
@@ -449,13 +451,16 @@
                         <label class="req" for="reverse-link-reason">Reason for reversing this association</label>
                         <textarea id="reverse-link-reason" name="reason" maxlength="500" rows="2" required></textarea>
                     </div>
-                    <div class="button-row">
+                    <div class="dialog-foot"><button type="submit" class="btn" asp-page-handler="CancelCaseLink" formnovalidate>Cancel</button>
                         <button type="submit" class="btn">Reverse current association</button>
                     </div>
                 </form>
+</div></section></div>
             }
             else if (Model.Receipt.CurrentCaseId is null)
             {
+                <button type="button" class="btn" data-dialog-open="link-case-dialog">Link selected Case</button>
+                <div class="dialog-backdrop" data-dialog="link-case-dialog" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="link-case-dialog-title"><div class="dialog-head"><h2 id="link-case-dialog-title">Link selected Case</h2></div><div class="dialog-body">
                 <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Receipt.Id" class="stack">
                     <input type="hidden" name="caseId" value="@Model.LeasedCaseId" />
                     <input type="hidden" name="expectedIntakeVersion" value="@Model.Receipt.Version" />
@@ -466,10 +471,11 @@
                         <label class="req" for="link-case-reason">Reason for linking this case</label>
                         <textarea id="link-case-reason" name="reason" maxlength="500" rows="2" required></textarea>
                     </div>
-                    <div class="button-row">
+                    <div class="dialog-foot"><button type="submit" class="btn" asp-page-handler="CancelCaseLink" formnovalidate>Cancel</button>
                         <button type="submit" class="btn btn--primary">Link selected case</button>
                     </div>
                 </form>
+</div></section></div>
             }
             else
             {
@@ -486,7 +492,7 @@
 {
     var draft = Model.Receipt.InstructionDraft;
     <section class="panel section-gap" aria-labelledby="typed-draft-title">
-        <div class="panel-head"><h2 id="typed-draft-title">Typed review draft</h2></div>
+        <div class="panel-head"><h2 id="typed-draft-title">Instruction details</h2></div>
         <div class="panel-body">
             <div class="definition-list">
                 <dl class="definition"><dt>Suggested principal</dt><dd>@(draft.SuggestedPrincipalCode ?? "Not suggested")</dd></dl>

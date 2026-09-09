@@ -611,6 +611,14 @@ public sealed partial class AssessmentReportDraftWebTests
             string expectedSha256, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Assessment GET must not write document content.");
 
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Assessment GET must not write document content.");
+
         public Task<Stream> OpenReadAsync(
             Guid caseId, string caseReference, Guid versionId, string expectedSha256,
             long expectedLength, CancellationToken cancellationToken) =>

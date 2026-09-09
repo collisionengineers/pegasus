@@ -35,7 +35,6 @@ public static class CaseDataFieldNames
     public const string ClaimSourceContactName = "claim_source_contact_name";
     public const string ClaimSourceContactTelephone = "claim_source_contact_telephone";
     public const string ClaimSourceContactEmailAddress = "claim_source_contact_email";
-    public const string ClaimSourceCaseNote = "claim_source_case_note";
     public const string StorageBusinessId = "storage_business_id";
     public const string StorageBusinessVersion = "storage_business_version";
     public const string StorageBusinessName = "storage_business_name";
@@ -88,7 +87,6 @@ public static class CaseDataFieldNames
         ClaimSourceContactName,
         ClaimSourceContactTelephone,
         ClaimSourceContactEmailAddress,
-        ClaimSourceCaseNote,
         StorageBusinessId,
         StorageBusinessVersion,
         StorageBusinessName,

@@ -42,7 +42,6 @@ public sealed class CaseVehicleSaveWebTests
                     0,
                     actor,
                     "accept-case-vehicle-save-web",
-                    "Accepted the instruction before correcting vehicle data.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
                     new(true, true),

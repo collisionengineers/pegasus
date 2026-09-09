@@ -69,6 +69,96 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
         }
     }
 
+    public async Task<DocumentContentWriteResult> StoreVersionAsync(
+        ManagedDocumentContentAddress address,
+        Stream content,
+        long contentLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        ArgumentNullException.ThrowIfNull(content);
+        ValidateIdentifiers(address.CaseId, address.CaseReference, address.VersionId);
+        ArgumentOutOfRangeException.ThrowIfNegative(contentLength);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException("The managed document stream must be readable.", nameof(content));
+        }
+
+        var normalizedHash = NormalizeSha256(expectedSha256);
+        var path = Resolve(address.CaseReference, address.VersionId);
+        var directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(
+            directory,
+            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        var buffer = new byte[64 * 1024];
+        long copied = 0;
+        try
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            await using (var destination = new FileStream(
+                             temporaryPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             64 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                while (true)
+                {
+                    var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
+                    if (read == 0)
+                    {
+                        break;
+                    }
+
+                    copied = checked(copied + read);
+                    if (copied > contentLength)
+                    {
+                        throw new InvalidDataException(
+                            "Document custody length verification failed.");
+                    }
+
+                    hash.AppendData(buffer, 0, read);
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+
+                if (copied != contentLength
+                    || !string.Equals(
+                        Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(),
+                        normalizedHash,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Document custody content verification failed.");
+                }
+
+                await destination.FlushAsync(cancellationToken);
+                RandomAccess.FlushToDisk(destination.SafeFileHandle);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                File.Move(temporaryPath, path, overwrite: false);
+            }
+            catch (IOException) when (File.Exists(path))
+            {
+                await VerifyAsync(path, normalizedHash, contentLength, cancellationToken);
+            }
+
+            return new(DocumentContentWriteDisposition.Created, null);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
     public Task DeleteAsync(
         Guid caseId,
         string caseReference,

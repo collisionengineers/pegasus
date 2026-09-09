@@ -10,39 +10,65 @@ public sealed partial class WorkflowConfigurationWebTests
     private const string Route = "/Administration/Configuration";
 
     [Fact]
-    public async Task AdministratorSeesReadOnlyPolicyVersionWithoutReviewControls()
+    public async Task AdministratorSeesActualWorkflowValuesAndExplicitEdit()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-
         var html = await GetPageAsync(client);
-
-        Assert.Contains("<div class=\"admin-layout\">", html, StringComparison.Ordinal);
-        Assert.Matches(CurrentAreaLinkRegex(), html);
-        // The page title identifies this administration area; the panel then
-        // states the current workflow-policy record.
-        Assert.Contains("<title>Workflow configuration · Pegasus</title>", html, StringComparison.Ordinal);
-        Assert.Contains("<h1>Workflow configuration</h1>", html, StringComparison.Ordinal);
-        Assert.Contains("<h2 id=\"workflow-configuration-title\">Current workflow policy</h2>", html, StringComparison.Ordinal);
-        Assert.Equal(1, HeadingRegex().Matches(html).Cast<Match>()
-            .Count(heading => heading.Groups["text"].Value.Trim() == "Workflow configuration"));
-        Assert.Matches(PolicyVersionMetaRegex(), html);
-        Assert.Contains("This workflow policy is fixed. There are no editable settings.", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Policy</dt>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Current version</dt>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("workflow-review-title", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("RequireStaffInstructionReviewBeforeEngineerAssignment", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("RequireStaffImageReviewBeforeEngineerAssignment", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"Reason\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Save configuration", html, StringComparison.Ordinal);
-        Assert.DoesNotMatch(ConfigurationFormRegex(), html);
-
-        Assert.DoesNotContain("Relaxing a gate applies", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Instruction document required", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Eligible images required", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Chase interval", html, StringComparison.Ordinal);
+        Assert.Contains("Case workflow", html, StringComparison.Ordinal);
+        Assert.Contains("Chase interval", html, StringComparison.Ordinal);
+        Assert.Contains("Labour-rate cards", html, StringComparison.Ordinal);
+        Assert.Contains("handler=Edit", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("There are no editable settings", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"LeaseToken\"", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SaveRequiresLeaseAndCancelDiscardsConfiguredValues()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetPageAsync(client);
+        var id = Pegasus.Core.Workflow.GetWorkflowConfiguration.RecordId.ToString("D");
+        using var edit = await client.PostAsync(Route + "?handler=Edit", new FormUrlEncodedContent(new Dictionary<string,string>
+        {
+            ["recordId"] = id, ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken")
+        }));
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        var editor = await edit.Content.ReadAsStringAsync();
+        var fields = new Dictionary<string,string>
+        {
+            ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
+            ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
+            ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true", ["RequireImages"] = "false", ["ChaseIntervalDays"] = "12",
+            ["Reason"] = "Change the schedule"
+        };
+        var forged = new Dictionary<string,string>(fields) { ["LeaseToken"] = new string('a', 64) };
+        using var refused = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(forged));
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("could not be saved", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        using var cancel = await client.PostAsync(Route + "?handler=Cancel", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, cancel.StatusCode);
+        Assert.Contains("7 days", await GetPageAsync(client), StringComparison.Ordinal);
+        using var again = await client.PostAsync(Route + "?handler=Edit", new FormUrlEncodedContent(new Dictionary<string,string>
+        {
+            ["recordId"] = id, ["__RequestVerificationToken"] = fields["__RequestVerificationToken"]
+        }));
+        editor = await again.Content.ReadAsStringAsync();
+        fields["LeaseToken"] = Field(editor, "LeaseToken");
+        fields["OperationKey"] = Field(editor, "OperationKey");
+        using var saved = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        Assert.Contains("12 days", await GetPageAsync(client), StringComparison.Ordinal);
+    }
+
+    private static string Field(string html, string name)
+    {
+        var tag = Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>");
+        Assert.True(tag.Success, "Missing field " + name);
+        return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"([^\"]*)\"").Groups[1].Value);
+    }
     [Fact]
     public async Task ComposedAutomationIsListedInThisPageAdministrationRail()
     {

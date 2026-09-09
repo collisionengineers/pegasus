@@ -63,6 +63,16 @@ record through the accepted intake routes only.
 
 Triage records have the states `Open`, `Awaiting information`, `Finding recorded`, `Completed`, and `Cancelled`.
 
+An existing Triage is read-only until an authorised staff member selects Edit.
+That claim is scoped to the single Triage record, not its queue or its linked
+Case, and follows the same five-minute duration and one-minute heartbeat as a
+Case edit lease. Every staff mutation — including assignment, determinations,
+notes, response evidence, workflow state and case association — rechecks the
+scope holder, token and current Triage version in its own transaction. Save
+releases the Triage scope; Cancel commits no mutation. Manual case association
+also retains its separate current Case edit lease; neither scope substitutes for
+the other.
+
 A recorded finding has two independently optional dimensions:
 
 - Roadworthiness: `Roadworthy` or `Unroadworthy`;
@@ -80,6 +90,11 @@ email evidence contract, but neither composing nor sending is a completion gate.
 finding into a definitive instruction for a later Case.
 
 Triage may have an optional assignee but no due date or chase schedule. It may link to at most one current case; a case may have many Triages. The [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix) permits every staff role to reasonedly unlink or relink; the exact prior/current Case identities, actor, time, reason, and evidence remain in permanent history.
+
+Selecting or changing the assigned Engineer is an ordinary Triage edit and
+does not require a reason. The stored history records the selected assignment,
+actor and time. Meaningful Triage determinations, cancellation, reopening and
+case-association decisions retain their required reasons.
 
 Cancellation and reopen require reasons. Reopen always returns to `Open` and never erases the prior finding, reply, actor, or chronology.
 

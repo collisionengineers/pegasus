@@ -38,7 +38,6 @@ public sealed class AutomationActorTests
     [Theory]
     [InlineData(StaffAccessRight.AccessStaffApplication)]
     [InlineData(StaffAccessRight.ManageStaffAccounts)]
-    [InlineData(StaffAccessRight.AssignStaffRoles)]
     [InlineData(StaffAccessRight.ManageOrganizationsAndPrincipals)]
     [InlineData(StaffAccessRight.ManageWorkflowConfiguration)]
     [InlineData(StaffAccessRight.ManageApprovedMailboxes)]

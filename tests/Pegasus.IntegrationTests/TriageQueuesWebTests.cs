@@ -259,14 +259,21 @@ public sealed class TriageQueuesWebTests
                 ActionActor.SystemWorker("test-worker"),
                 $"triage-create:{Guid.NewGuid():N}"),
             CancellationToken.None);
+        var actor = StaffActor();
+        var triageEditLeaseToken = (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triage.Id, triage.Version, actor,
+                $"triage-assign-edit:{Guid.NewGuid():N}"), CancellationToken.None)).Token;
         await services.GetRequiredService<IAssignTriage>().ExecuteAsync(
             new(
                 triage.Id,
                 triage.Version,
                 DevelopmentOfflineIdentity.AdministratorId,
-                StaffActor(),
+                actor,
                 $"triage-assign:{Guid.NewGuid():N}",
-                "Assigned for the queue-row test."),
+                "Assigned for the queue-row test.")
+            {
+                EditLeaseToken = triageEditLeaseToken
+            },
             CancellationToken.None);
 
         using var response = await client.GetAsync("/Cases?tab=triage");
@@ -461,7 +468,7 @@ public sealed class TriageQueuesWebTests
         Assert.DoesNotContain("<table", html, StringComparison.Ordinal);
         Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
         // The rail groups the workflow; the filters are selects.
-        Assert.Contains("Case workflow", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Case workflow<", html, StringComparison.Ordinal);
         Assert.Contains("Workflow", html, StringComparison.Ordinal);
         Assert.Contains("Exceptions", html, StringComparison.Ordinal);
         Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
@@ -660,8 +667,14 @@ public sealed class TriageQueuesWebTests
         await RegisterImageIntakeAsync(factory, client, services, "CC33CCC");
         var firstDetail = Assert.IsType<ImageIntakeDetail>(
             await queries.GetAsync(first.Id, CancellationToken.None));
+        var imageEditLeaseToken = (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.ImageIntake, first.Id, firstDetail.LifecycleVersion, actor,
+                $"image-intake-principal-edit:{Guid.NewGuid():N}"), CancellationToken.None)).Token;
         await store.SetPrincipalAsync(
-            new(first.Id, alpha, actor, firstDetail.LifecycleVersion),
+            new(first.Id, alpha, actor, firstDetail.LifecycleVersion)
+            {
+                EditLeaseToken = imageEditLeaseToken
+            },
             CancellationToken.None);
 
         var summaries = await queries.ListAsync(false, CancellationToken.None);

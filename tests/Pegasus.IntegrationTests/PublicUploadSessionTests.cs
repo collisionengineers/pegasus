@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
@@ -140,6 +141,90 @@ public sealed class PublicUploadSessionTests
         Assert.True(authorization.MayEnterCustody);
     }
 
+    [Fact]
+    public async Task AStreamedFileIsHashedAndAuthorizedWithoutAnInMemoryFile()
+    {
+        var issue = RequestUploadToken.Create();
+        var content = Enumerable.Range(0, 96 * 1024)
+            .Select(value => (byte)value)
+            .ToArray();
+        var opened = 0;
+        var file = new RequestUploadFile(
+            "estimate.pdf",
+            "application/pdf",
+            content.LongLength,
+            _ =>
+            {
+                opened++;
+                return ValueTask.FromResult<Stream>(
+                    new NonSeekableReadStream(content));
+            },
+            "streamed-upload-1");
+        var policy = new RequestUploadPolicy(
+            Limits("accepted-v1"),
+            new FixedTimeProvider(Start));
+
+        var authorization = await policy.AuthorizeAsync(
+            Link(issue, "accepted-v1"),
+            new(issue.Secret.Token, file, 0));
+
+        Assert.Equal(RequestUploadDecision.Accepted, authorization.Decision);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
+            authorization.ContentHash);
+        Assert.Equal(1, opened);
+    }
+
+    [Fact]
+    public async Task AStreamWhoseActualLengthDiffersFromItsDeclaredLengthIsRefused()
+    {
+        var issue = RequestUploadToken.Create();
+        var content = "document"u8.ToArray();
+        var file = new RequestUploadFile(
+            "estimate.pdf",
+            "application/pdf",
+            content.LongLength + 1,
+            _ => ValueTask.FromResult<Stream>(new NonSeekableReadStream(content)),
+            "truncated-upload-1");
+        var policy = new RequestUploadPolicy(
+            Limits("accepted-v1"),
+            new FixedTimeProvider(Start));
+
+        var authorization = await policy.AuthorizeAsync(
+            Link(issue, "accepted-v1"),
+            new(issue.Secret.Token, file, 0));
+
+        Assert.Equal(RequestUploadDecision.InvalidFile, authorization.Decision);
+        Assert.False(authorization.MayEnterCustody);
+        Assert.Null(authorization.ContentHash);
+    }
+
+    [Fact]
+    public async Task ADeclaredOverLimitStreamIsRefusedBeforeItIsOpened()
+    {
+        var issue = RequestUploadToken.Create();
+        var limits = Limits("accepted-v1");
+        var opened = false;
+        var file = new RequestUploadFile(
+            "estimate.pdf",
+            "application/pdf",
+            limits.MaximumFileBytes + 1,
+            _ =>
+            {
+                opened = true;
+                throw new InvalidOperationException("An over-limit source must not be read.");
+            },
+            "over-limit-upload-1");
+        var policy = new RequestUploadPolicy(limits, new FixedTimeProvider(Start));
+
+        var authorization = await policy.AuthorizeAsync(
+            Link(issue, "accepted-v1"),
+            new(issue.Secret.Token, file, 0));
+
+        Assert.Equal(RequestUploadDecision.LimitExceeded, authorization.Decision);
+        Assert.False(opened);
+    }
+
     private static PublicUploadSession NewSession() => new(
         Guid.NewGuid(),
         Guid.NewGuid(),
@@ -188,5 +273,10 @@ public sealed class PublicUploadSessionTests
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class NonSeekableReadStream(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override bool CanSeek => false;
     }
 }

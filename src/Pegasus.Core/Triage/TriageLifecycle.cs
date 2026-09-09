@@ -466,7 +466,6 @@ public static class TriageLifecycleRules
         }
 
         ValidateActorAndOperation(request.Actor, request.OperationKey);
-        RequireText(request.Reason, "A reason is required.", 500, nameof(request));
     }
 
     public static void ValidateFinding(

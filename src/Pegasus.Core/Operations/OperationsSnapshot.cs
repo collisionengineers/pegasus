@@ -88,6 +88,7 @@ public sealed class GetOperationsSnapshot(
     IUnidentifiedStore unidentifiedStore,
     GetRequestOperations requestOperations,
     IStaffAccountQueries staffAccounts,
+    ICaseWorkflowConfiguration workflowConfiguration,
     TimeProvider timeProvider) : IGetOperationsSnapshot, IGetAttentionRows
 {
     /// <summary>
@@ -120,6 +121,8 @@ public sealed class GetOperationsSnapshot(
         requestOperations ?? throw new ArgumentNullException(nameof(requestOperations));
     private readonly IStaffAccountQueries staffAccounts =
         staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
+    private readonly ICaseWorkflowConfiguration workflowConfiguration =
+        workflowConfiguration ?? throw new ArgumentNullException(nameof(workflowConfiguration));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -143,6 +146,8 @@ public sealed class GetOperationsSnapshot(
             dayEndUtc,
             inputs.DueWork,
             inputs.Held,
+            inputs.Review,
+            inputs.UnassignedEngineer,
             inputs.Unidentified,
             inputs.Triage,
             inputs.Requests,
@@ -179,6 +184,8 @@ public sealed class GetOperationsSnapshot(
             dayEndUtc,
             inputs.DueWork,
             inputs.Held,
+            inputs.Review,
+            inputs.UnassignedEngineer,
             inputs.Unidentified,
             inputs.Triage,
             inputs.Requests,
@@ -188,7 +195,7 @@ public sealed class GetOperationsSnapshot(
     }
 
     /// <summary>
-    /// The five needs-attention sources, fetched once and shared by the full
+    /// The needs-attention sources, fetched once and shared by the full
     /// snapshot and the notifications menu's narrower read — one query each,
     /// never a second copy of the fetch behind a second wording.
     /// </summary>
@@ -215,12 +222,37 @@ public sealed class GetOperationsSnapshot(
         var held = await searchCases.ExecuteAsync(
             new(actor, new(State: CaseLifecycleState.Held), Page: 1, PageSize: MaximumNeedsAttention),
             cancellationToken);
+        var review = await searchCases.ExecuteAsync(
+            new(actor, new(State: CaseLifecycleState.Review), Page: 1, PageSize: MaximumNeedsAttention),
+            cancellationToken);
+        var currentWorkflowConfiguration = await workflowConfiguration.GetCurrentAsync(cancellationToken);
         var unidentified = await unidentifiedStore.ListQueueAsync(null, cancellationToken);
         var requests = await requestOperations.ExecuteAsync(actor, cancellationToken);
+
+        var reviewPartitions = review.Items
+            .Select(item => new
+            {
+                Item = item,
+                IsReadyForEngineerAssignment = item.EngineerId is null
+                    && CaseCompletenessPolicy.Evaluate(
+                        new(item.InstructionComplete ?? false, item.ImagesComplete ?? false),
+                        currentWorkflowConfiguration).SatisfiesPolicy
+            })
+            .ToArray();
+        var unassignedEngineer = reviewPartitions
+            .Where(partition => partition.IsReadyForEngineerAssignment)
+            .Select(partition => partition.Item)
+            .ToArray();
+        var reviewCases = reviewPartitions
+            .Where(partition => !partition.IsReadyForEngineerAssignment)
+            .Select(partition => partition.Item)
+            .ToArray();
 
         return new AttentionInputs(
             dueWork,
             held.Items,
+            reviewCases,
+            unassignedEngineer,
             unidentified,
             triageWithoutFinding,
             openTriagePage.TotalCount + awaitingTriagePage.TotalCount,
@@ -230,13 +262,15 @@ public sealed class GetOperationsSnapshot(
     private readonly record struct AttentionInputs(
         IReadOnlyList<CaseDueWork> DueWork,
         IReadOnlyList<CaseSearchItem> Held,
+        IReadOnlyList<CaseSearchItem> Review,
+        IReadOnlyList<CaseSearchItem> UnassignedEngineer,
         IReadOnlyList<UnidentifiedQueueRow> Unidentified,
         IReadOnlyList<TriageSummary> Triage,
         int TriageTotalCount,
         IReadOnlyList<RequestOperationProjection> Requests);
 
     /// <summary>
-    /// The five needs-attention kinds, each read from the query that already
+    /// The needs-attention kinds, each read from the query that already
     /// backs its Cases tab or Operations table, ordered by priority, then the
     /// earliest due instant (work with no due instant last), then reference,
     /// and cut at <see cref="MaximumNeedsAttention"/>.
@@ -246,6 +280,8 @@ public sealed class GetOperationsSnapshot(
         DateTimeOffset dayEndUtc,
         IReadOnlyList<CaseDueWork> dueWork,
         IReadOnlyList<CaseSearchItem> heldCases,
+        IReadOnlyList<CaseSearchItem> reviewCases,
+        IReadOnlyList<CaseSearchItem> unassignedEngineerCases,
         IReadOnlyList<UnidentifiedQueueRow> unidentified,
         IReadOnlyList<TriageSummary> triage,
         IEnumerable<RequestOperationProjection> requests,
@@ -297,7 +333,44 @@ public sealed class GetOperationsSnapshot(
                 held.NextChaseAtUtc,
                 LastOutcome: null,
                 held.Origin,
-                Attempts: null));
+                Attempts: null,
+                Received: held.ReceivedAtUtc));
+        }
+
+        foreach (var review in reviewCases)
+        {
+            items.Add(new(
+                NeedsAttentionKind.ReviewCase,
+                review.CaseId,
+                review.Reference,
+                VehicleLabel(review),
+                review.Principal,
+                nameof(CaseLifecycleState.Review),
+                DuePriority(review.NextChaseAtUtc, asOfUtc, dayEndUtc),
+                Owner: null,
+                review.NextChaseAtUtc,
+                LastOutcome: null,
+                review.Origin,
+                Attempts: null,
+                Received: review.ReceivedAtUtc));
+        }
+
+        foreach (var unassigned in unassignedEngineerCases)
+        {
+            items.Add(new(
+                NeedsAttentionKind.UnassignedEngineer,
+                unassigned.CaseId,
+                unassigned.Reference,
+                VehicleLabel(unassigned),
+                unassigned.Principal,
+                "Engineer assignment required",
+                DuePriority(unassigned.NextChaseAtUtc, asOfUtc, dayEndUtc),
+                Owner: "Unassigned",
+                unassigned.NextChaseAtUtc,
+                LastOutcome: null,
+                unassigned.Origin,
+                Attempts: null,
+                Received: unassigned.ReceivedAtUtc));
         }
 
         foreach (var row in unidentified)
@@ -314,7 +387,8 @@ public sealed class GetOperationsSnapshot(
                 Due: null,
                 LastOutcome: null,
                 row.MediaKind.ToString(),
-                Attempts: null));
+                Attempts: null,
+                Received: row.ReceivedAtUtc));
         }
 
         foreach (var record in triage)
@@ -331,7 +405,8 @@ public sealed class GetOperationsSnapshot(
                 Due: null,
                 LastOutcome: null,
                 Source: null,
-                Attempts: null));
+                Attempts: null,
+                Received: record.CreatedAtUtc));
         }
 
         foreach (var request in requests)
@@ -357,8 +432,11 @@ public sealed class GetOperationsSnapshot(
         }
 
         return items
+            .GroupBy(item => (item.Kind, item.Id))
+            .Select(group => group.First())
             .OrderBy(item => item.Priority)
             .ThenBy(item => item.Due ?? DateTimeOffset.MaxValue)
+            .ThenBy(item => item.Received ?? DateTimeOffset.MaxValue)
             .ThenBy(item => item.Reference, StringComparer.Ordinal)
             .Take(MaximumNeedsAttention)
             .ToArray();
@@ -378,4 +456,13 @@ public sealed class GetOperationsSnapshot(
         staffId is { } id
             ? ActorDisplayNames.Resolve(ActorKind.Staff, id.ToString(), staffNames)
             : null;
+
+    private static string VehicleLabel(CaseSearchItem item) => string.Join(
+        " ",
+        new[] { item.VehicleMake, item.VehicleModel, item.Registration }
+            .Where(value => !string.IsNullOrWhiteSpace(value))) switch
+    {
+        { Length: > 0 } vehicle => vehicle,
+        _ => item.Claimant ?? item.Reference
+    };
 }

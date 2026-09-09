@@ -144,7 +144,6 @@ internal static class AutomationMcpTestSupport
                     0,
                     ActionActor.SystemWorker("mcp-ingress-integration"),
                     $"case-accept:{Guid.NewGuid():N}",
-                    "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
                     completeness ?? new(true, true)),

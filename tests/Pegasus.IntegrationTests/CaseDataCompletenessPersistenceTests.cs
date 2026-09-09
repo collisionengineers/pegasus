@@ -14,6 +14,32 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseDataCompletenessPersistenceTests
 {
+    [Fact]
+    public async Task CompletenessMutationUsesPersistedConfigurationInsteadOfEarlierEvaluation()
+    {
+        await using var harness = await CaseDataHarness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var facts = new CaseCompleteness(true, false);
+        var staleEvaluation = CaseCompletenessPolicy.Evaluate(facts, new("case-workflow", 1));
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
+            configuration.RequireImages = false;
+            configuration.Version++;
+            await context.SaveChangesAsync();
+        }
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-configured-readiness");
+        var result = await harness.DataStore.ConfirmCompletenessAsync(new(harness.CaseId, initial.Version,
+            harness.StaffActor, "save-configured-readiness", "Confirm retained facts", lease.Token, facts),
+            staleEvaluation, default);
+        Assert.Equal(CaseLifecycleState.Review, result.State);
+        Assert.True(result.Completeness.Evaluation.SatisfiesPolicy);
+        Assert.False(result.Completeness.Values.ImagesComplete);
+        var reloaded = await harness.GetRequiredDataAsync();
+        Assert.Empty(reloaded.Completeness.Evaluation.MissingRequirements);
+        Assert.True(reloaded.Completeness.Evaluation.PolicyVersion > staleEvaluation.PolicyVersion);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -102,7 +128,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         };
         return CaseDataSnapshotFactory.Create(accepted, receipt,
             new(receiptId, 1, ActionActor.SystemWorker("system-worker:intake-processing"),
-                "provenance-probe", "provenance-probe", CaseType.Inspection, "PCH",
+                "provenance-probe", CaseType.Inspection, "PCH",
                 new(true, false), new(false, "completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
             DateTimeOffset.UtcNow);
     }
@@ -110,32 +136,130 @@ public sealed class CaseDataCompletenessPersistenceTests
     [Fact]
     public async Task RemovingStaffConfirmationColumnsRetainsCaseFactsAndHistory()
     {
-        await using var harness = await CaseDataHarness.CreateAsync();
-        var before = await harness.GetRequiredDataAsync();
-        var historyCount = await harness.HistoryCountAsync();
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.False(context.Database.HasPendingModelChanges());
+        const string caseId = "85000000-0000-0000-0000-000000000041";
+        const string receiptId = "85000000-0000-0000-0000-000000000042";
+        const string sourceHash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
 
         await context.Database.MigrateAsync("20260907210000_ReportInputInvalidationPermissions");
-        Assert.Equal(4, await CountRetiredColumnsAsync());
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE Cases SET InstructionConfirmedByStaff = 1, ImagesConfirmedByStaff = 1 WHERE Id = {harness.CaseId}");
+        await database.ExecuteAsync(
+            """
+            INSERT INTO Organizations (Id, Name, Version)
+            VALUES ('85000000-0000-0000-0000-000000000010', 'Staff confirmation migration provider', 0);
 
-        await context.Database.MigrateAsync();
+            INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc)
+            VALUES ('85000000-0000-0000-0000-000000000011', '2031-05-06T10:30:00+00:00');
+
+            INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version)
+            VALUES ('85000000-0000-0000-0000-000000000012',
+                    '85000000-0000-0000-0000-000000000010', 'SCFM',
+                    '85000000-0000-0000-0000-000000000011', 1, 0);
+
+            INSERT INTO IntakeReceipts
+                (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel,
+                 ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey,
+                 SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson,
+                 FieldsJson, OcrCandidatesJson)
+            VALUES
+                ('85000000-0000-0000-0000-000000000042', 'staff-confirmation.eml',
+                 'message/rfc822', 1,
+                 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'manual_upload',
+                 'staff-confirmation-migration', '2031-05-06T10:30:00+00:00',
+                 '2031-05-06T10:30:00+00:00', 'migration-reader', '1', 0,
+                 'case_created', 'accepted', '{"version":1,"data":[]}',
+                 '{"version":1,"data":[]}', '{"version":1,"data":[]}');
+
+            INSERT INTO Cases
+                (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type,
+                 InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete,
+                 ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff,
+                 CreatedAtUtc, Version, ConcurrencyToken)
+            VALUES
+                ('85000000-0000-0000-0000-000000000041',
+                 '85000000-0000-0000-0000-000000000012',
+                 '85000000-0000-0000-0000-000000000011', 2031, 41, 'SCFM31041',
+                 'inspection', 'review', 'pending',
+                 '85000000-0000-0000-0000-000000000042', 1, 1, 0, 0,
+                 '2031-05-06T10:30:00+00:00', 41, NEWID());
+
+            INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken)
+            VALUES ('85000000-0000-0000-0000-000000000041', 'Review', 17, NEWID());
+
+            INSERT INTO CaseDataSnapshots
+                (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken,
+                 OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion,
+                 CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied,
+                 AcceptedAtUtc)
+            VALUES
+                ('85000000-0000-0000-0000-000000000041',
+                 '85000000-0000-0000-0000-000000000042', 'manual_upload',
+                 'staff-confirmation-migration',
+                 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+                 '2031-05-06T10:30:00+00:00', 'migration-reader', '1',
+                 'case-workflow', 1, 1, '2031-05-06T10:30:00+00:00');
+
+            INSERT INTO ActionHistory
+                (Id, AggregateType, AggregateId, EventKind, ActorKind, ActorSubjectId,
+                 ActorRolesJson, OccurredAtUtc, Outcome, CorrelationId, Reason, PolicyVersion)
+            VALUES
+                ('85000000-0000-0000-0000-000000000043', 'case',
+                 '85000000-0000-0000-0000-000000000041', 'case_created', 'staff',
+                 'staff:migration', '[]', '2031-05-06T10:30:00+00:00', 'success',
+                 'staff-confirmation-migration', 'accepted', 'case-workflow:1');
+            """);
+
+        Assert.Equal(4, await CountRetiredColumnsAsync());
+        await database.ExecuteAsync(
+            $"UPDATE Cases SET InstructionConfirmedByStaff = 1, ImagesConfirmedByStaff = 1 WHERE Id = '{caseId}'");
+
+        await context.Database.MigrateAsync("20260907221500_RemoveCaseStaffConfirmation");
 
         Assert.Equal(0, await CountRetiredColumnsAsync());
-        var after = await harness.GetRequiredDataAsync();
-        Assert.Equal(before.Identity, after.Identity);
-        Assert.Equal(before.State, after.State);
-        Assert.Equal(before.Version, after.Version);
-        Assert.Equal(before.Completeness, after.Completeness);
-        Assert.Equal(before.Origin, after.Origin);
-        Assert.Equal(historyCount, await harness.HistoryCountAsync());
-        Assert.Equal(41, await harness.HiddenCaseVersionAsync());
+        Assert.Equal("SCFM31041", await database.ScalarAsync<string>(
+            $"SELECT Reference FROM Cases WHERE Id = '{caseId}'"));
+        Assert.Equal("inspection", await database.ScalarAsync<string>(
+            $"SELECT Type FROM Cases WHERE Id = '{caseId}'"));
+        Assert.Equal("review", await database.ScalarAsync<string>(
+            $"SELECT InitialState FROM Cases WHERE Id = '{caseId}'"));
+        Assert.Equal("pending", await database.ScalarAsync<string>(
+            $"SELECT CustodyState FROM Cases WHERE Id = '{caseId}'"));
+        Assert.Equal("Review", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId}'"));
+        Assert.Equal(17L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT InstructionComplete FROM Cases WHERE Id = '{caseId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT ImagesComplete FROM Cases WHERE Id = '{caseId}'"));
+        Assert.Equal("case-workflow", await database.ScalarAsync<string>(
+            $"SELECT CompletenessPolicyKey FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT CompletenessPolicyVersion FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT CompletenessPolicySatisfied FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal(receiptId, await database.ScalarAsync<string>(
+            $"SELECT CONVERT(nvarchar(36), OriginIntakeReceiptId) FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal("manual_upload", await database.ScalarAsync<string>(
+            $"SELECT OriginSourceChannel FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal("staff-confirmation-migration", await database.ScalarAsync<string>(
+            $"SELECT OriginExternalReceiptToken FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal(sourceHash, await database.ScalarAsync<string>(
+            $"SELECT OriginSourceHash FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
+            await database.ScalarAsync<DateTimeOffset>(
+                $"SELECT OriginReceivedAtUtc FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal("migration-reader", await database.ScalarAsync<string>(
+            $"SELECT SourceReaderKey FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal("1", await database.ScalarAsync<string>(
+            $"SELECT SourceReaderVersion FROM CaseDataSnapshots WHERE CaseId = '{caseId}'"));
+        Assert.Equal(1L, await database.ScalarAsync<long>(
+            $"SELECT COUNT_BIG(*) FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId}'"));
+        Assert.Equal(41L, await database.ScalarAsync<long>(
+            $"SELECT Version FROM Cases WHERE Id = '{caseId}'"));
 
-        Task<int> CountRetiredColumnsAsync() => context.Database.SqlQuery<int>(
-                $"SELECT COUNT(*) AS [Value] FROM sys.columns WHERE object_id IN (OBJECT_ID('dbo.Cases'), OBJECT_ID('dbo.IntakeAllocationAttempts')) AND name IN ('InstructionConfirmedByStaff', 'ImagesConfirmedByStaff')")
-            .SingleAsync();
+        Task<int> CountRetiredColumnsAsync() => database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id IN (OBJECT_ID('dbo.Cases'), OBJECT_ID('dbo.IntakeAllocationAttempts')) AND name IN ('InstructionConfirmedByStaff', 'ImagesConfirmedByStaff')");
     }
 
     [Fact]
@@ -542,7 +666,6 @@ public sealed class CaseDataCompletenessPersistenceTests
                         resolved.ReceiptVersion,
                         staffActor,
                         "accept-case-data-fixture",
-                        "Accepted reviewed QDOS case data",
                         CaseType.Inspection,
                         "QDOS",
                         new(
@@ -573,7 +696,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                     new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore),
                     workflowStore,
-                    new EfCaseWorkspaceStore(factory, timeProvider, configuration));
+                    new EfCaseWorkspaceStore(factory, timeProvider));
             }
             catch
             {

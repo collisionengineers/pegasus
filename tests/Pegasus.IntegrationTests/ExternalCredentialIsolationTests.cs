@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -34,11 +35,14 @@ public sealed class ExternalCredentialIsolationTests
                     context,
                     protection,
                     TimeProvider.System);
+                var lease = await ClaimStaffAccountAsync(database, engineerId, administrator);
                 var status = await store.ReplaceAsync(
                     administrator,
                     engineerId,
                     ExternalCredentialProvider.GlassRepairEstimate,
-                    expectedVersion: 0,
+                    expectedCredentialVersion: 0,
+                    expectedStaffAccountVersion: lease.RecordVersion,
+                    editLeaseToken: lease.Token,
                     username: "alex.glass",
                     password: "provider-password",
                     enabled: true,
@@ -101,21 +105,27 @@ public sealed class ExternalCredentialIsolationTests
             TimeProvider.System);
         var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
         var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+        var firstLease = await ClaimStaffAccountAsync(database, engineerId, administrator);
 
         var first = await store.ReplaceAsync(
             administrator,
             engineerId,
             ExternalCredentialProvider.GlassRepairEstimate,
             0,
+            firstLease.RecordVersion,
+            firstLease.Token,
             "alex.glass",
             "first-password",
             true,
             default);
+        var secondLease = await ClaimStaffAccountAsync(database, engineerId, administrator);
         var second = await store.ReplaceAsync(
             administrator,
             engineerId,
             ExternalCredentialProvider.GlassRepairEstimate,
             first.Version,
+            secondLease.RecordVersion,
+            secondLease.Token,
             "alex.glass",
             "second-password",
             true,
@@ -129,11 +139,14 @@ public sealed class ExternalCredentialIsolationTests
         Assert.NotNull(replaced);
         Assert.True(SecretEquals("second-password", replaced.Password));
 
+        var clearLease = await ClaimStaffAccountAsync(database, engineerId, administrator);
         await store.ClearAsync(
             administrator,
             engineerId,
             ExternalCredentialProvider.GlassRepairEstimate,
             second.Version,
+            clearLease.RecordVersion,
+            clearLease.Token,
             default);
         Assert.Null(await store.GetEnabledAsync(
             engineer,
@@ -166,6 +179,22 @@ public sealed class ExternalCredentialIsolationTests
             });
             Assert.True(result.Succeeded);
         }
+    }
+
+    private static async Task<EditScopeLease> ClaimStaffAccountAsync(
+        LocalDbTestDatabase database,
+        Guid staffId,
+        ActionActor actor)
+    {
+        await using var context = await database.CreateContextAsync();
+        var version = await context.Users
+            .Where(item => item.Id == staffId)
+            .Select(item => item.Version)
+            .SingleAsync();
+        await using var scope = database.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.StaffAccount, staffId, version, actor, Guid.NewGuid().ToString("N")),
+            default);
     }
 
     private static bool SecretEquals(string expected, string actual) =>

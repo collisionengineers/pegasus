@@ -540,10 +540,16 @@ public sealed class ImageIntakePersistenceTests
             .Select(item => item.PrincipalId).SingleAsync();
         var store = services.GetRequiredService<IImageIntakeStore>();
         var image = await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None);
-        await store.SetPrincipalAsync(new(image!.Record.Id, otherPrincipal, StaffActor(), 0), CancellationToken.None);
+        await store.SetPrincipalAsync(new(image!.Record.Id, otherPrincipal, StaffActor(), 0)
+        {
+            EditLeaseToken = await ClaimImageEditLeaseAsync(services, image.Record.Id, 0, StaffActor(), "auto-link-other")
+        }, CancellationToken.None);
         await Assert.ThrowsAsync<IntakeAssociationConflictException>(() => mutations.AutoLinkAsync(
             request, DateTimeOffset.UtcNow, CancellationToken.None));
-        await store.SetPrincipalAsync(new(image.Record.Id, selected.PrincipalId, StaffActor(), 1), CancellationToken.None);
+        await store.SetPrincipalAsync(new(image.Record.Id, selected.PrincipalId, StaffActor(), 1)
+        {
+            EditLeaseToken = await ClaimImageEditLeaseAsync(services, image.Record.Id, 1, StaffActor(), "auto-link-selected")
+        }, CancellationToken.None);
         await Assert.ThrowsAsync<CaseVersionConflictException>(() => mutations.AutoLinkAsync(
             request with { ExpectedCaseVersion = 1 }, DateTimeOffset.UtcNow, CancellationToken.None));
         await ClaimLeaseAsync(services, caseId, StaffActor(), "image-current-lease");
@@ -591,7 +597,10 @@ public sealed class ImageIntakePersistenceTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var firstPrincipal = await context.Cases.Where(item => item.Id == firstCase)
             .Select(item => item.PrincipalId).SingleAsync();
-        await store.SetPrincipalAsync(new(image!.Record.Id, firstPrincipal, StaffActor(), 0), CancellationToken.None);
+        await store.SetPrincipalAsync(new(image!.Record.Id, firstPrincipal, StaffActor(), 0)
+        {
+            EditLeaseToken = await ClaimImageEditLeaseAsync(services, image.Record.Id, 0, StaffActor(), "stale-merge-principal")
+        }, CancellationToken.None);
         await mutations.AutoLinkAsync(new(imageReceipt, firstCase, 0,
             ActionActor.SystemWorker(ImageIntakeAutomation.ActorId), "before-staff-reversal",
             "Automatic association: unambiguous registration match."), DateTimeOffset.UtcNow, CancellationToken.None);
@@ -869,14 +878,28 @@ public sealed class ImageIntakePersistenceTests
 
         var reason = "Instructions never arrived for this vehicle.";
         var operationKey = $"close-replay:{imageReceiptId:N}";
+        var closeRequest = new CloseImageInitiatedCaseRequest(
+            detail.Record.Id,
+            actor,
+            operationKey,
+            reason,
+            detail.LifecycleVersion)
+        {
+            EditLeaseToken = await ClaimImageEditLeaseAsync(
+                services,
+                detail.Record.Id,
+                detail.LifecycleVersion,
+                actor,
+                "close-replay-lease")
+        };
         var closed = await store.CloseAsync(
-            new(detail.Record.Id, actor, operationKey, reason, detail.LifecycleVersion),
+            closeRequest,
             CancellationToken.None);
         Assert.Equal(ImageInitiatedCaseState.StaffClosed, closed.State);
 
         // The exact same command replays (idempotent retry) ...
         var replayed = await store.CloseAsync(
-            new(detail.Record.Id, actor, operationKey, reason, detail.LifecycleVersion),
+            closeRequest,
             CancellationToken.None);
         Assert.Equal(ImageInitiatedCaseState.StaffClosed, replayed.State);
 
@@ -934,7 +957,10 @@ public sealed class ImageIntakePersistenceTests
 
         // Set.
         var set = await store.SetPrincipalAsync(
-            new(imageIntakeId, alpha, actor, detail.LifecycleVersion),
+            new(imageIntakeId, alpha, actor, detail.LifecycleVersion)
+            {
+                EditLeaseToken = await ClaimImageEditLeaseAsync(services, imageIntakeId, detail.LifecycleVersion, actor, "principal-set")
+            },
             CancellationToken.None);
         Assert.Equal(alpha, set.PrincipalId);
         Assert.Equal(detail.LifecycleVersion + 1, set.LifecycleVersion);
@@ -950,7 +976,10 @@ public sealed class ImageIntakePersistenceTests
         // Re-submitting the same value is a no-op that leaves the version
         // alone, so it can never invalidate an open form by itself.
         var repeated = await store.SetPrincipalAsync(
-            new(imageIntakeId, alpha, actor, set.LifecycleVersion),
+            new(imageIntakeId, alpha, actor, set.LifecycleVersion)
+            {
+                EditLeaseToken = await ClaimImageEditLeaseAsync(services, imageIntakeId, set.LifecycleVersion, actor, "principal-repeat")
+            },
             CancellationToken.None);
         Assert.Equal(set.LifecycleVersion, repeated.LifecycleVersion);
 
@@ -964,13 +993,24 @@ public sealed class ImageIntakePersistenceTests
                 await queries.GetAsync(imageIntakeId, CancellationToken.None)).Record.PrincipalId);
 
         // A principal that is not active cannot be recorded.
+        var retiredLease = await ClaimImageEditLeaseAsync(
+            services, imageIntakeId, set.LifecycleVersion, actor, "principal-retired");
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetPrincipalAsync(
-            new(imageIntakeId, retired, actor, set.LifecycleVersion),
+            new(imageIntakeId, retired, actor, set.LifecycleVersion)
+            {
+                EditLeaseToken = retiredLease
+            },
             CancellationToken.None));
+        await services.GetRequiredService<IEditScopeLeases>().ReleaseAsync(
+            new(EditScopeKind.ImageIntake, imageIntakeId, actor, "principal-retired-release", retiredLease),
+            CancellationToken.None);
 
         // Replace, then clear back to `Not known`.
         var replaced = await store.SetPrincipalAsync(
-            new(imageIntakeId, beta, actor, set.LifecycleVersion),
+            new(imageIntakeId, beta, actor, set.LifecycleVersion)
+            {
+                EditLeaseToken = await ClaimImageEditLeaseAsync(services, imageIntakeId, set.LifecycleVersion, actor, "principal-replace")
+            },
             CancellationToken.None);
         Assert.Equal(beta, replaced.PrincipalId);
         Assert.Equal(
@@ -979,7 +1019,10 @@ public sealed class ImageIntakePersistenceTests
                 await queries.GetAsync(imageIntakeId, CancellationToken.None)).PrincipalCode);
 
         var cleared = await store.SetPrincipalAsync(
-            new(imageIntakeId, null, actor, replaced.LifecycleVersion),
+            new(imageIntakeId, null, actor, replaced.LifecycleVersion)
+            {
+                EditLeaseToken = await ClaimImageEditLeaseAsync(services, imageIntakeId, replaced.LifecycleVersion, actor, "principal-clear")
+            },
             CancellationToken.None);
         Assert.Null(cleared.PrincipalId);
         var afterClear = Assert.IsType<ImageIntakeDetail>(
@@ -992,6 +1035,55 @@ public sealed class ImageIntakePersistenceTests
             historyCount,
             (await store.ListHistoryAsync(imageIntakeId, CancellationToken.None)).Count);
         Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, afterClear.State);
+    }
+
+    [Fact]
+    public async Task StaffImageIntakeMutationRequiresItsOwnLiveEditScope()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receiptId = await UploadImageAsync(factory, client);
+        var principalId = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, receiptId, "AB12CDE", "edit-scope-registration");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var detail = Assert.IsType<ImageIntakeDetail>(
+            await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        var owner = StaffActor();
+
+        await Assert.ThrowsAsync<EditScopeExpiredException>(() => store.SetPrincipalAsync(
+            new(detail.Record.Id, principalId, owner, detail.LifecycleVersion),
+            CancellationToken.None));
+
+        var lease = await leases.ClaimAsync(
+            new(EditScopeKind.ImageIntake, detail.Record.Id, detail.LifecycleVersion, owner,
+                "image-intake-scope-owner"),
+            CancellationToken.None);
+        var other = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.ClaimAsync(
+            new(EditScopeKind.ImageIntake, detail.Record.Id, detail.LifecycleVersion, other,
+                "image-intake-scope-other"),
+            CancellationToken.None));
+
+        var saved = await store.SetPrincipalAsync(
+            new(detail.Record.Id, principalId, owner, detail.LifecycleVersion)
+            {
+                EditLeaseToken = lease.Token
+            },
+            CancellationToken.None);
+        Assert.Equal(principalId, saved.PrincipalId);
+        await Assert.ThrowsAsync<EditScopeExpiredException>(() => store.SetPrincipalAsync(
+            new(detail.Record.Id, null, owner, saved.LifecycleVersion)
+            {
+                EditLeaseToken = lease.Token
+            },
+            CancellationToken.None));
     }
 
     private static async Task<Guid> UploadImageAsync(
@@ -1060,6 +1152,19 @@ public sealed class ImageIntakePersistenceTests
                 actor,
                 operationKey),
             CancellationToken.None);
+    }
+
+    private static async Task<string> ClaimImageEditLeaseAsync(
+        IServiceProvider services,
+        Guid imageIntakeId,
+        long expectedVersion,
+        ActionActor actor,
+        string operationKey)
+    {
+        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.ImageIntake, imageIntakeId, expectedVersion, actor, operationKey),
+            CancellationToken.None);
+        return lease.Token;
     }
 
     private static async Task<Guid> SeedCaseAsync(

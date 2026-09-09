@@ -68,16 +68,14 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.True(match.Success, "The valuation preset list section must render.");
         var presetList = match.Value;
 
-        // Razor's default encoder writes the pound sign as a numeric entity,
-        // so the printed £#,##0.00 arrives as &#xA3; followed by the figure.
         Assert.Contains("Tow bar", presetList, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;300.00", presetList, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;1,500.00", presetList, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;0.00", presetList, StringComparison.Ordinal);
+        Assert.Contains("<span>300.00</span>", presetList, StringComparison.Ordinal);
+        Assert.Contains("<span>1500.00</span>", presetList, StringComparison.Ordinal);
+        Assert.Contains("<span>0.00</span>", presetList, StringComparison.Ordinal);
         Assert.Contains(">Enabled<", presetList, StringComparison.Ordinal);
-        Assert.Contains("Create preset", body, StringComparison.Ordinal);
-        Assert.Contains("<details", presetList, StringComparison.Ordinal);
-        Assert.DoesNotContain("<details open=", presetList, StringComparison.Ordinal);
+        Assert.Contains(">Add preset<", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<details", presetList, StringComparison.Ordinal);
+        Assert.Contains(">Edit<", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Change</th>", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Save</th>", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<p>", presetList, StringComparison.Ordinal);
@@ -109,17 +107,18 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         page = await GetPageAsync(client);
         Assert.Contains("Roof rack", page, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;125.00", page, StringComparison.Ordinal);
+        Assert.Contains(">125.00<", page, StringComparison.Ordinal);
 
-        var edit = RowForm(page, TowBarPresetId, "Tow bar", "350.00", "true", "The allowance rose.");
+        var editPage = await OpenPresetEditAsync(client, TowBarPresetId, 1);
+        var edit = RowForm(editPage, TowBarPresetId, "Tow bar", "350.00", "true", "The allowance rose.");
         using (var edited = await PostSaveAsync(client, edit))
         {
             Assert.Equal(HttpStatusCode.Found, edited.StatusCode);
         }
 
         page = await GetPageAsync(client);
-        Assert.Contains("&#xA3;350.00", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("&#xA3;300.00", page, StringComparison.Ordinal);
+        Assert.Contains(">350.00<", page, StringComparison.Ordinal);
+        Assert.DoesNotContain(">300.00<", page, StringComparison.Ordinal);
 
         // The version the first post consumed is stale on a second, freshly
         // keyed post, and the page says so rather than writing a second edit.
@@ -135,14 +134,14 @@ public sealed partial class ValuationPresetAdministrationWebTests
                 "The preset changed after this page was loaded.",
                 refusedPage,
                 StringComparison.Ordinal);
-            Assert.Contains("<details open=\"open\">", refusedPage, StringComparison.Ordinal);
             Assert.Contains("value=\"The allowance rose.\"", refusedPage, StringComparison.Ordinal);
         }
 
+        var disablePage = await OpenPresetEditAsync(client, TowBarPresetId, 2);
         using (var disabled = await PostSaveAsync(
             client,
             RowForm(
-                page,
+                disablePage,
                 TowBarPresetId,
                 "Tow bar",
                 "350.00",
@@ -154,8 +153,9 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         page = await GetPageAsync(client);
         Assert.Contains(">Disabled<", page, StringComparison.Ordinal);
-        Assert.Contains(">Enable<", page, StringComparison.Ordinal);
         Assert.Contains("Tow bar", page, StringComparison.Ordinal);
+        var enablePage = await OpenPresetEditAsync(client, TowBarPresetId, 3);
+        Assert.Contains(">Enable<", enablePage, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var page = await GetPageAsync(client);
+        var page = await OpenPresetEditAsync(client, TowBarPresetId, 1);
         var operationKey = LastValue(page, OperationKeyRegex());
 
         using var response = await client.PostAsync(
@@ -198,7 +198,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var page = await GetPageAsync(client);
+        var page = await OpenPresetEditAsync(client, TowBarPresetId, 1);
 
         using var response = await PostSaveAsync(
             client,
@@ -213,16 +213,17 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Enter an amount of", body, StringComparison.Ordinal);
-        Assert.Contains("<details open=\"open\">", body, StringComparison.Ordinal);
         Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
-        Assert.Contains("name=\"amount\" type=\"text\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
+        Assert.Contains("name=\"amount\" type=\"number\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
-        Assert.Contains("<td>Tow bar</td>", body, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;300.00", body, StringComparison.Ordinal);
+        Assert.Contains(
+            "value=\"The attempted amount needs correction.\"",
+            body,
+            StringComparison.Ordinal);
         var reloaded = await GetPageAsync(client);
         Assert.DoesNotContain("Updated tow bar", reloaded, StringComparison.Ordinal);
-        Assert.Contains("<td>Tow bar</td>", reloaded, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;300.00", reloaded, StringComparison.Ordinal);
+        Assert.Contains(">Tow bar<", reloaded, StringComparison.Ordinal);
+        Assert.Contains(">300.00<", reloaded, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -247,6 +248,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
         {
             ["presetId"] = FirstValue(row, PresetIdRegex()),
             ["expectedVersion"] = FirstValue(row, ExpectedVersionRegex()),
+            ["editLeaseToken"] = FirstValue(row, EditLeaseTokenRegex()),
             ["operationKey"] = FirstValue(row, OperationKeyRegex()),
             ["label"] = label,
             ["amount"] = amount,
@@ -264,6 +266,17 @@ public sealed partial class ValuationPresetAdministrationWebTests
     private static async Task<string> GetPageAsync(HttpClient client)
     {
         using var response = await client.GetAsync(Page);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    private static async Task<string> OpenPresetEditAsync(
+        HttpClient client,
+        Guid presetId,
+        long expectedVersion)
+    {
+        using var response = await client.GetAsync(
+            $"{Page}?editPresetId={presetId:D}&expectedVersion={expectedVersion}");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }
@@ -314,6 +327,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
     [GeneratedRegex("<input[^>]*name=\"presetId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex PresetIdRegex();
     [GeneratedRegex("<input[^>]*name=\"expectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
+    [GeneratedRegex("<input[^>]*name=\"editLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex EditLeaseTokenRegex();
     [GeneratedRegex("<input[^>]*name=\"operationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();

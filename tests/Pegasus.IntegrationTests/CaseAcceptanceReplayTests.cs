@@ -26,7 +26,7 @@ public sealed partial class CaseAcceptanceReplayTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly ActionActor AcceptingActor = ActionActor.Staff(
         Guid.Parse("11111111-1111-1111-1111-111111111111"),
-        [StaffRole.Administrator, StaffRole.Engineer]);
+        [StaffRole.Administrator]);
 
 
     [Fact]
@@ -43,7 +43,6 @@ public sealed partial class CaseAcceptanceReplayTests
             reviewedVersion,
             AcceptingActor,
             "acceptance:exact-replay",
-            "Reviewed source evidence and confirmed the case intake.",
             CaseType.Inspection,
             PrincipalCode,
             new(true, true));
@@ -65,11 +64,10 @@ public sealed partial class CaseAcceptanceReplayTests
         Assert.Contains(PrincipalCode, persisted.CommandMaterialJson, StringComparison.Ordinal);
         Assert.Contains(request.Actor.SubjectId, persisted.CommandMaterialJson, StringComparison.Ordinal);
         Assert.Contains(nameof(StaffRole.Administrator), persisted.CommandMaterialJson, StringComparison.Ordinal);
-        Assert.Contains(request.Reason, persisted.CommandMaterialJson, StringComparison.Ordinal);
         Assert.Equal(nameof(ActorKind.Staff), persisted.ActorKind);
         Assert.Equal(AcceptingActor.SubjectId, persisted.ActorSubjectId);
         Assert.Equal("[\"Administrator\",\"Engineer\"]", persisted.ActorRolesJson);
-        Assert.Equal(request.Reason, persisted.Reason);
+        Assert.Equal("Case created from received item.", persisted.Reason);
 
         AcceptIntakeRequest[] changedRequests =
         [
@@ -86,7 +84,6 @@ public sealed partial class CaseAcceptanceReplayTests
             request with { Actor = ActionActor.Staff(
                 Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 [StaffRole.Administrator]) },
-            request with { Reason = "A materially different acceptance reason." },
             request with { ExpectedVersion = reviewedVersion + 1 }
         ];
 
@@ -122,7 +119,6 @@ public sealed partial class CaseAcceptanceReplayTests
                 reviewedVersion,
                 AcceptingActor,
                 "acceptance:stale-review",
-                "Reviewed the intake before the concurrent change.",
                 CaseType.Inspection,
                 PrincipalCode,
                 new(true, true)),
@@ -134,7 +130,7 @@ public sealed partial class CaseAcceptanceReplayTests
     }
 
     [Fact]
-    public async Task MissingAcceptanceReasonIsRejectedBeforePersistence()
+    public async Task AcceptanceDoesNotRequireAUserCreationReason()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
@@ -143,20 +139,18 @@ public sealed partial class CaseAcceptanceReplayTests
         await using var scope = factory.Services.CreateAsyncScope();
         var acceptIntake = scope.ServiceProvider.GetRequiredService<IAcceptIntake>();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => acceptIntake.ExecuteAsync(
+        var outcome = await acceptIntake.ExecuteAsync(
             new(
                 receipt.Id,
                 reviewedVersion,
                 AcceptingActor,
-                "acceptance:missing-reason",
-                "   ",
+                "acceptance:no-user-reason",
                 CaseType.Inspection,
                 PrincipalCode,
                 new(true, true)),
-            CancellationToken.None));
-        Assert.Equal(0, await CountRowsAsync(factory.Services, "Cases"));
-        Assert.Equal(0, await CountRowsAsync(factory.Services, "CaseIntakeLinks"));
-        Assert.Equal(0, await CountRowsAsync(factory.Services, "IntakeMutationHistory"));
+            CancellationToken.None);
+        Assert.False(outcome.IsDuplicate);
+        Assert.Equal(1, await CountRowsAsync(factory.Services, "Cases"));
     }
 
 
@@ -175,7 +169,6 @@ public sealed partial class CaseAcceptanceReplayTests
                     reviewedVersion,
                     AcceptingActor,
                     "acceptance:association-lifecycle",
-                    "Confirmed evidence before testing association lifecycle.",
                     CaseType.Inspection,
                     PrincipalCode,
                     new(true, true)),

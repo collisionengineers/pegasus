@@ -56,6 +56,62 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Validate(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
         Verify(content.Span, normalizedHash, content.Length);
+        return await StoreVerifiedVersionAsync(
+            address,
+            content.Length,
+            normalizedHash,
+            () => client.UploadAsync(
+                address.CaseRootRemoteId!,
+                FlatFileName(address),
+                content,
+                address.MediaType,
+                cancellationToken),
+            cancellationToken);
+    }
+
+    public async Task<DocumentContentWriteResult> StoreVersionAsync(
+        ManagedDocumentContentAddress address,
+        Stream content,
+        long contentLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        Validate(address);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentOutOfRangeException.ThrowIfNegative(contentLength);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException("The managed document stream must be readable.", nameof(content));
+        }
+
+        var normalizedHash = NormalizeSha256(expectedSha256);
+        await using var staged = await StageVerifiedStreamAsync(
+            content,
+            contentLength,
+            normalizedHash,
+            cancellationToken);
+        return await StoreVerifiedVersionAsync(
+            address,
+            contentLength,
+            normalizedHash,
+            () => client.UploadAsync(
+                address.CaseRootRemoteId!,
+                FlatFileName(address),
+                staged,
+                contentLength,
+                address.MediaType,
+                normalizedHash,
+                cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<DocumentContentWriteResult> StoreVerifiedVersionAsync(
+        ManagedDocumentContentAddress address,
+        long contentLength,
+        string normalizedHash,
+        Func<Task<BoxContentClient.BoxItem>> createAsync,
+        CancellationToken cancellationToken)
+    {
         var caseFolder = address.CaseRootRemoteId!;
         var fileName = FlatFileName(address);
         if (address.BoxFileId is { Length: > 0 }
@@ -63,11 +119,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         {
             RequirePersistedBoxIdentity(address);
             await using var persisted = await OpenOwnedExactVersionAsync(
-                address.BoxFileId!, address.BoxVersionId!, caseFolder, content.Length, cancellationToken);
-            Verify(
-                await ReadExactlyAsync(persisted, content.Length, cancellationToken),
-                normalizedHash,
-                content.Length);
+                address.BoxFileId!, address.BoxVersionId!, caseFolder, contentLength, cancellationToken);
+            await VerifyStreamAsync(persisted, normalizedHash, contentLength, cancellationToken);
             return new(
                 DocumentContentWriteDisposition.Replay,
                 address.BoxFileId!,
@@ -82,14 +135,14 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             // that PLAT-041 is about, and the fields it compares are the ones
             // DOCS-010 proved must come from the file object itself.
             await VerifyFileMetadataAsync(
-                existing, caseFolder, address.MediaType, content.Length, cancellationToken);
+                existing, caseFolder, address.MediaType, contentLength, cancellationToken);
             await using var retained = await client.OpenVersionReadAsync(
                 existing.Id,
                 existing.VersionId ?? throw new InvalidDataException(
                     "Box omitted the existing file version identity."),
-                content.Length,
+                contentLength,
                 cancellationToken);
-            Verify(await ReadExactlyAsync(retained, content.Length, cancellationToken), normalizedHash, content.Length);
+            await VerifyStreamAsync(retained, normalizedHash, contentLength, cancellationToken);
             return new(
                 DocumentContentWriteDisposition.Replay,
                 existing.Id,
@@ -97,12 +150,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                     ?? throw new InvalidDataException("Box omitted the existing file version identity."));
         }
 
-        var created = await client.UploadAsync(
-            caseFolder,
-            fileName,
-            content,
-            address.MediaType,
-            cancellationToken);
+        var created = await createAsync();
         var createdVersionId = created.VersionId
             ?? throw new InvalidDataException("Box omitted the created file version identity.");
         createdFiles[address.VersionId] = new(
@@ -110,7 +158,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             address.CaseId,
             address.CaseReference,
             normalizedHash,
-            content.Length,
+            contentLength,
             createdVersionId,
             caseFolder);
         return new(
@@ -351,6 +399,77 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         if (await content.ReadAsync(new byte[1], cancellationToken) != 0)
             throw new InvalidDataException("Document custody length verification failed.");
         return bytes;
+    }
+
+    private static async Task<FileStream> StageVerifiedStreamAsync(
+        Stream content,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pegasus-box-upload-{Guid.NewGuid():N}.tmp");
+        var staged = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+        try
+        {
+            await CopyAndVerifyAsync(content, staged, expectedLength, expectedSha256, cancellationToken);
+            await staged.FlushAsync(cancellationToken);
+            staged.Position = 0;
+            return staged;
+        }
+        catch
+        {
+            await staged.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static Task VerifyStreamAsync(
+        Stream content,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken) =>
+        CopyAndVerifyAsync(content, destination: null, expectedLength, expectedSha256, cancellationToken);
+
+    private static async Task CopyAndVerifyAsync(
+        Stream content,
+        Stream? destination,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        long copied = 0;
+        while (true)
+        {
+            var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+            copied = checked(copied + read);
+            if (copied > expectedLength)
+            {
+                throw new InvalidDataException("Document custody length verification failed.");
+            }
+            hash.AppendData(buffer, 0, read);
+            if (destination is not null)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+        }
+        var actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        if (copied != expectedLength
+            || !string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Document custody hash verification failed.");
+        }
     }
 
     private async Task<Stream> OpenExactVersionAsync(

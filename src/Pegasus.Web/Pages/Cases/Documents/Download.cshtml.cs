@@ -96,14 +96,16 @@ public sealed partial class DownloadModel(
     /// <summary>
     /// Which media types may be rendered inline from this origin. A case
     /// document is arbitrary operator-supplied content, so retained HTML served
-    /// inline would execute as same-origin script; only images and PDFs, which
-    /// no browser executes, are ever dispositioned for display. This restates
+    /// inline would execute as same-origin script; only images, PDFs and the
+    /// two admitted video media types are ever dispositioned for display. This restates
     /// for custody content the rule the retained-image routes already apply.
     /// Everything else keeps the attachment disposition.
     /// </summary>
     private static bool IsInlineSafe(string mediaType) =>
         MediaTypeHeaderValue.TryParse(mediaType, out var parsed)
         && (parsed.MediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+            || parsed.MediaType.Equals(Pegasus.Core.Intake.IntakeUploadFilePolicy.Mp4MediaType, StringComparison.OrdinalIgnoreCase)
+            || parsed.MediaType.Equals(Pegasus.Core.Intake.IntakeUploadFilePolicy.MovMediaType, StringComparison.OrdinalIgnoreCase)
             || (parsed.Type.Equals("image", StringComparison.OrdinalIgnoreCase)
                 // SVG is an image that executes script when it is navigated to,
                 // and the document link this route now serves is navigable --

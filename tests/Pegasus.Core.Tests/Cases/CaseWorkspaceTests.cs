@@ -75,21 +75,22 @@ public sealed class CaseWorkspaceTests
     }
 
     [Fact]
-    public void AdministratorWithoutEngineerRoleCannotWriteAWorkspaceFinding()
+    public void AdministratorCanWriteAWorkspaceFinding()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            CaseWorkspacePolicy.ValidateAndNormalize(
-                Request(
-                    request => request with
+        var normalized = CaseWorkspacePolicy.ValidateAndNormalize(
+            Request(
+                request => request with
+                {
+                    Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
-                        Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
-                        {
-                            [AssessmentVocabulary.Outcome] = "repairable"
-                        })
-                    },
-                    Administrator)));
+                        [AssessmentVocabulary.Outcome] = "repairable"
+                    })
+                },
+                Administrator));
 
-        Assert.Contains("Engineer", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            "repairable",
+            CaseWorkspacePolicy.AssessmentFields(normalized)[AssessmentVocabulary.Outcome]);
     }
 
     [Fact]
@@ -328,16 +329,18 @@ public sealed class CaseWorkspaceTests
     }
 
     [Fact]
-    public void OnlyAnEngineerMaySubmitTheEstimateSection()
+    public void AdministratorMaySubmitTheEstimateSection()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            CaseWorkspacePolicy.ValidateAndNormalize(
-                Request(
-                    request => request with
-                    {
-                        Estimate = new(null, null, [])
-                    },
-                    Administrator)));
+        var normalized = CaseWorkspacePolicy.ValidateAndNormalize(
+            Request(
+                request => request with
+                {
+                    Estimate = new(null, null, [])
+                },
+                Administrator));
+
+        Assert.NotNull(normalized.Estimate);
+        Assert.Empty(normalized.Estimate.Lines!);
     }
 
     private static CaseWorkspaceInspection Inspection(

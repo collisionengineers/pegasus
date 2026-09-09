@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -22,7 +23,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseWorkspaceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
-    ICaseWorkflowConfiguration workflowConfiguration,
     IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null) : ICaseWorkspaceStore
 {
     private const string EventType = "case_workspace_saved";
@@ -35,8 +35,6 @@ public sealed class EfCaseWorkspaceStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         request = CaseWorkspacePolicy.ValidateAndNormalize(request);
-        var configuration = await workflowConfiguration.GetCurrentAsync(cancellationToken);
-
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
@@ -66,6 +64,12 @@ public sealed class EfCaseWorkspaceStore(
         var now = UtcNow();
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
+        // Read the persisted configuration under the same transaction as the
+        // guarded Case so the readiness written below is never based on a
+        // configuration snapshot from before this edit began.
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(
+            context,
+            cancellationToken);
         if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
             || !AssessmentPolicy.IsWritableState(state))
         {
@@ -77,6 +81,12 @@ public sealed class EfCaseWorkspaceStore(
         var beforeCompleteness = Completeness(snapshot);
         var data = CaseDataPolicy.Normalize(
             CaseWorkspacePolicy.Overlay(beforeData, request));
+        var appliedGuidance = await CaseGuidance.ResolveClaimSourceAsync(
+            context,
+            request.CaseId,
+            beforeData,
+            data,
+            cancellationToken);
         if (data != beforeData)
         {
             CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
@@ -112,6 +122,28 @@ public sealed class EfCaseWorkspaceStore(
             request.Actor,
             now);
 
+        IReadOnlyList<CaseAssetPreparation>? preparedImages = null;
+        if (request.ImagePreparation is { Edits: { Count: > 0 } preparationEdits })
+        {
+            // This is deliberately the preparation store's transaction-local
+            // routine, rather than its public command. The workspace owns the
+            // serializable transaction, the single Case version increment and
+            // the single history entry for all of the submitted changes.
+            preparedImages = await EfCaseAssetPreparationStore.PrepareSaveAsync(
+                context,
+                workflow,
+                new SaveCaseAssetPreparationRequest(
+                    request.CaseId,
+                    request.ExpectedVersion,
+                    request.Actor,
+                    request.OperationKey,
+                    request.Reason,
+                    request.EditLeaseToken,
+                    preparationEdits),
+                now,
+                cancellationToken);
+        }
+
         var (estimate, beforeLines, afterLines) = await SaveEstimateAsync(
             context,
             request,
@@ -145,22 +177,43 @@ public sealed class EfCaseWorkspaceStore(
         {
             if (evaluation.SatisfiesPolicy)
             {
+                var enteringReview = state != CaseLifecycleState.Review;
                 workflow.State = nameof(CaseLifecycleState.Review);
                 CaseChaseState.Stop(workflow);
+                if (enteringReview)
+                {
+                    AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                        context, workflow, checked(workflow.Version + 1), now);
+                }
             }
             else
             {
                 workflow.State = nameof(CaseLifecycleState.NotReady);
-                CaseDueWorkScheduler.Schedule(
+                await CaseDueWorkScheduler.ScheduleAsync(
                     context,
                     workflow,
                     snapshot.Case.AcceptedInspectionDeadline,
-                    now);
+                    now,
+                    cancellationToken);
             }
         }
 
         var beforeVersion = workflow.Version;
         CaseMutationGuard.Complete(workflow);
+        var afterJson = JsonSerializer.Serialize(
+            new
+            {
+                Data = data,
+                Completeness = afterCompleteness,
+                Fields = afterFields,
+                EstimateLines = afterLines,
+                Estimate = estimate is null
+                    ? null
+                    : new { estimate.Id, estimate.Version, estimate.Name },
+                ImagePreparation = preparedImages,
+                Guidance = appliedGuidance
+            },
+            JsonOptions);
         CaseMutationHistory.Add(
             context,
             workflow,
@@ -180,25 +233,19 @@ public sealed class EfCaseWorkspaceStore(
                     EstimateLines = beforeLines
                 },
                 JsonOptions),
-            JsonSerializer.Serialize(
-                new
-                {
-                    Data = data,
-                    Completeness = afterCompleteness,
-                    Fields = afterFields,
-                    EstimateLines = afterLines,
-                    Estimate = estimate is null
-                        ? null
-                        : new { estimate.Id, estimate.Version, estimate.Name }
-                },
-                JsonOptions),
+            afterJson,
             $"{CaseWorkspacePolicy.PolicyKey}/v{CaseWorkspacePolicy.PolicyVersion}",
             now);
+        if (appliedGuidance.Count > 0)
+        {
+            context.CaseWorkflowEvents.Local
+                .Single(item => item.CaseId == request.CaseId && item.OperationKey == request.OperationKey)
+                .ResultJson = afterJson;
+        }
         // The workspace save covers narrative, content and settlement facts
         // a frozen report pins: the Case's current generation goes stale in
         // this same transaction, so the change and the staleness it causes
-        // commit together or not at all. Engineer notes are a separate
-        // command and never reach this path.
+        // commit together or not at all.
         await EfCaseReportGenerationStore.MarkStaleAsync(
             context,
             request.CaseId,
@@ -347,7 +394,8 @@ public sealed class EfCaseWorkspaceStore(
                 .OrderBy(item => item.Position)
                 .ToArrayAsync(cancellationToken);
         return new(
-            EfCaseDataStore.Map(snapshot, workflow),
+            EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow),
+                await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)),
             EfCaseAssessmentStore.Map(
                 workflow,
                 fields,
@@ -382,6 +430,7 @@ public sealed class EfCaseWorkspaceStore(
                 request.Inspection,
                 request.Vehicle,
                 request.Damage,
+                request.ImagePreparation,
                 request.Valuation,
                 request.Estimate,
                 request.Settlement,
@@ -403,3 +452,97 @@ public sealed class EfCaseWorkspaceStore(
         return now.Offset == TimeSpan.Zero ? now : now.ToUniversalTime();
     }
 }
+
+/// <summary>
+/// Builds immutable guidance snapshots for the workflow event that is already
+/// recording the mutation. Callers must include the returned values in that
+/// event's result payload; this helper never creates a competing event or
+/// increments a Case version.
+/// </summary>
+internal static class CaseGuidance
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    public static async Task ApplyCreationAsync(PegasusDbContext context, CaseWorkflowEntity workflow,
+        Guid? claimSourceId, DateTimeOffset now, string requestHash, CancellationToken cancellationToken)
+    {
+        var guidance = ForOrganization("principal_guidance_applied", workflow.Case.Principal.Organization).ToList();
+        if (claimSourceId is { } sourceId)
+        {
+            var source = await context.Organizations.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == sourceId && item.Active && item.ContactRoles.Any(role => role.Role == "claim_source"), cancellationToken)
+                ?? throw new InvalidOperationException("The selected Claim Source is unavailable.");
+            guidance.AddRange(ForOrganization("claim_source_guidance_applied", source));
+        }
+        if (guidance.Count == 0) return;
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(), CaseId = workflow.CaseId, Workflow = workflow,
+            EventType = "case_guidance_applied", OperationKey = $"creation-guidance:{workflow.CaseId:N}",
+            RequestHash = requestHash, ActorKind = nameof(ActorKind.Automation), ActorSubjectId = "case-guidance",
+            ActorRolesJson = "[]", Reason = "", OccurredAtUtc = now,
+            BeforeVersion = workflow.Version, AfterVersion = workflow.Version,
+            ResultJson = JsonSerializer.Serialize(new { Guidance = guidance }, JsonOptions)
+        });
+    }
+
+    public static IReadOnlyList<AppliedCaseGuidance> ForOrganization(
+        string eventType,
+        OrganizationEntity organization)
+    {
+        if (string.IsNullOrWhiteSpace(organization.GuidanceTemplate)
+            || organization.GuidanceTemplateVersion < 1)
+        {
+            return [];
+        }
+        return [new(
+            eventType,
+            organization.Id,
+            organization.Name,
+            organization.GuidanceTemplateVersion,
+            organization.GuidanceTemplate,
+            $"{eventType}:{organization.Id:N}:{organization.GuidanceTemplateVersion}")];
+    }
+
+    public static async Task<IReadOnlyList<AppliedCaseGuidance>> ResolveClaimSourceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseEditableData before,
+        CaseEditableData after,
+        CancellationToken cancellationToken)
+    {
+        if (after.ClaimSourceId is not { } organizationId
+            || (before.ClaimSourceId == organizationId
+                && before.ClaimSourceVersion == after.ClaimSourceVersion))
+        {
+            return [];
+        }
+
+        var organization = await context.Organizations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == organizationId, cancellationToken);
+        if (organization is null
+            || string.IsNullOrWhiteSpace(organization.GuidanceTemplate)
+            || organization.GuidanceTemplateVersion < 1)
+        {
+            return [];
+        }
+
+        var applicationIdentity = $"claim_source_guidance_applied:{organization.Id:N}:{organization.GuidanceTemplateVersion}";
+        var alreadyApplied = await context.CaseWorkflowEvents
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == caseId
+                    && item.ResultJson != null
+                    && item.ResultJson.Contains(applicationIdentity),
+                cancellationToken);
+        return alreadyApplied ? [] : ForOrganization("claim_source_guidance_applied", organization);
+    }
+}
+
+internal sealed record AppliedCaseGuidance(
+    string EventType,
+    Guid OrganizationId,
+    string OrganizationName,
+    long TemplateVersion,
+    string Text,
+    string ApplicationIdentity);

@@ -222,6 +222,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
         var disabled = await GetPageAsync(client);
+        var disabledEdit = await OpenMailboxEditAsync(client, mailboxId, 1, disabled);
         var replaced = await PostAsync(client, new()
         {
             ["MailboxForm.MailboxId"] = mailboxId,
@@ -231,11 +232,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Disabled",
             ["MailboxForm.Reason"] = "Correct the inactive mailbox coordinates",
-            ["__RequestVerificationToken"] = AntiforgeryToken(disabled)
+            ["MailboxForm.EditLeaseToken"] = MailboxEditToken(disabledEdit, mailboxId),
+            ["__RequestVerificationToken"] = AntiforgeryToken(disabledEdit)
         });
         Assert.Equal(HttpStatusCode.Found, replaced.StatusCode);
 
         var replacement = await GetPageAsync(client);
+        var replacementEdit = await OpenMailboxEditAsync(client, mailboxId, 2, replacement);
         var reenabled = await PostAsync(client, new()
         {
             ["MailboxForm.MailboxId"] = mailboxId,
@@ -245,7 +248,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
             ["MailboxForm.Reason"] = "Enable the verified replacement mailbox",
-            ["__RequestVerificationToken"] = AntiforgeryToken(replacement)
+            ["MailboxForm.EditLeaseToken"] = MailboxEditToken(replacementEdit, mailboxId),
+            ["__RequestVerificationToken"] = AntiforgeryToken(replacementEdit)
         });
         Assert.Equal(HttpStatusCode.Found, reenabled.StatusCode);
 
@@ -289,6 +293,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
         var reloaded = await GetPageAsync(client);
+        var editing = await OpenMailboxEditAsync(client, mailboxId, 1, reloaded);
         var response = await PostAsync(client, new()
         {
             ["MailboxForm.MailboxId"] = mailboxId,
@@ -298,7 +303,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
             ["MailboxForm.Reason"] = "Attempt to point this row at another mailbox",
-            ["__RequestVerificationToken"] = AntiforgeryToken(reloaded)
+            ["MailboxForm.EditLeaseToken"] = MailboxEditToken(editing, mailboxId),
+            ["__RequestVerificationToken"] = AntiforgeryToken(editing)
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -476,10 +482,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", page, StringComparison.Ordinal);
         Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", page, StringComparison.Ordinal);
         var health = await client.GetStringAsync("/Administration/Health");
-        Assert.Contains("<dd>Current (06 May 2031 11:20)</dd>", health, StringComparison.Ordinal);
-        Assert.Matches("<span>Last successful poll: </span>\\s*06 May 2031 11:20</td>", health);
-        Assert.Contains("<td>graph_unavailable</td>", health, StringComparison.Ordinal);
+        Assert.Contains("instructions@collisionengineers.co.uk", health, StringComparison.Ordinal);
+        Assert.Contains("Needs attention", health, StringComparison.Ordinal);
+        Assert.Contains("Microsoft Graph", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("graph_unavailable", health, StringComparison.Ordinal);
         Assert.DoesNotContain("<th>Latest evidence</th>", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recorded counts and processing times", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("Mailbox freshness", health, StringComparison.Ordinal);
         Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", page, StringComparison.Ordinal);
         Assert.Contains("<dt>Subscription expiry</dt><dd>02 Sep 2026 10:05</dd>", page, StringComparison.Ordinal);
         Assert.Contains(
@@ -523,6 +532,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         AssertFolderBinding(configured, "Billing", "Not configured");
         Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
         var operationKeys = OperationKeyTagRegex().Matches(configured);
+        var editing = await OpenMailboxEditAsync(client, mailboxId, 1, configured);
         var refreshed = await client.PostAsync(
             "/Administration/Mailboxes?handler=ResolveFolders",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -533,7 +543,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
                 ["MailboxForm.Address"] = NewAddress,
                 ["MailboxForm.SelectedState"] = "Approved",
                 ["MailboxForm.Reason"] = "Refresh approved logical folder bindings",
-                ["__RequestVerificationToken"] = AntiforgeryToken(configured)
+                ["MailboxForm.EditLeaseToken"] = MailboxEditToken(editing, mailboxId),
+                ["__RequestVerificationToken"] = AntiforgeryToken(editing)
             }));
 
         Assert.Equal(HttpStatusCode.Found, refreshed.StatusCode);
@@ -570,6 +581,37 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         client.PostAsync(
             "/Administration/Mailboxes?handler=Update",
             new FormUrlEncodedContent(fields));
+
+    private static async Task<string> OpenMailboxEditAsync(
+        HttpClient client,
+        string mailboxId,
+        int expectedVersion,
+        string page)
+    {
+        using var response = await client.PostAsync(
+            "/Administration/Mailboxes?handler=EditMailbox",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["mailboxId"] = mailboxId,
+                ["expectedVersion"] = expectedVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["__RequestVerificationToken"] = AntiforgeryToken(page)
+            }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    private static string MailboxEditToken(string html, string mailboxId)
+    {
+        var updateForm = MailboxUpdateFormRegex().Matches(html)
+            .Select(match => match.Groups["form"].Value)
+            .Single(form => NewMailboxIdTagRegex().Matches(form)
+                .Select(match => Value(match.Value))
+                .Any(value => string.Equals(value, mailboxId, StringComparison.OrdinalIgnoreCase)));
+
+        return MailboxEditTokenTagRegex().Matches(updateForm)
+            .Select(match => Value(match.Value))
+            .Single(value => !string.IsNullOrWhiteSpace(value));
+    }
 
     private static string AntiforgeryToken(string html) =>
         Value(AntiforgeryTagRegex().Match(html).Value);
@@ -651,6 +693,12 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex OperationKeyTagRegex();
+
+    [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.EditLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex MailboxEditTokenTagRegex();
+
+    [GeneratedRegex("<form[^>]*action=\"[^\"]*\\?handler=Update[^\"]*\"[^>]*>(?<form>.*?)</form>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex MailboxUpdateFormRegex();
 
     [GeneratedRegex("<input[^>]*name=\"DefaultMailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex DefaultMailboxOperationKeyTagRegex();

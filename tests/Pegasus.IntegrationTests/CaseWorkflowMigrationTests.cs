@@ -134,7 +134,16 @@ public sealed class CaseWorkflowMigrationTests
                 "20260907210000_ReportInputInvalidationPermissions",
                 "20260907221500_RemoveCaseStaffConfirmation",
                 "20260909091500_RemoveCaseDocumentOcrOperations",
-                "20260909120000_ApprovedMailboxDefaultStaffSend"
+                "20260909120000_ApprovedMailboxDefaultStaffSend",
+                "20260909140000_EditScopeOwnership",
+                "20260909141000_Contacts",
+                "20260909142000_StaffAccountSingleRoleAndVersion",
+                "20260909143000_EditableWorkflowConfiguration",
+                "20260909144000_PrincipalReportGenerationPolicies",
+                "20260909145000_GuidanceAndRemoveEngineerNotes",
+                "20260909146000_ManualCaseCreation",
+                "20260909147000_RemoveClaimSourceCaseNote",
+                "20260909148000_CanonicalContactLocations"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

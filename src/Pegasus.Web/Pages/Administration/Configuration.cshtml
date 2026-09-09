@@ -1,36 +1,102 @@
 @page
+@using Pegasus.Core.Workflow
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
     ViewData["Title"] = OperatorLabels.Admin.Configuration;
     ViewData["AdminArea"] = "configuration";
     ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
+    var workflowEditing = Model.EditingId == GetWorkflowConfiguration.RecordId;
 }
-
 <partial name="Shared/_PageHeader" />
-
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
-    <section class="panel" aria-labelledby="workflow-configuration-title">
-        <div class="panel-head">
-            <div>
-                <h2 id="workflow-configuration-title">Current workflow policy</h2>
-                <div class="panel-title-meta">
-                    @OperatorLabels.WorkflowConfiguration.Meta(Model.Configuration.PolicyVersion)
-                </div>
+    <div class="stack">
+        <partial name="Shared/_ErrorSummary" />
+        <section class="panel" aria-labelledby="workflow-title">
+            <div class="panel-head">
+                <h2 id="workflow-title">Case workflow</h2>
+                @if (!Model.IsEditing)
+                {
+                    <form method="post" asp-page-handler="Edit">
+                        <input type="hidden" name="recordId" value="@GetWorkflowConfiguration.RecordId" />
+                        <button class="btn" type="submit">Edit</button>
+                    </form>
+                }
             </div>
-        </div>
-        <div class="panel-body stack">
-            <p class="empty-state">This workflow policy is fixed. There are no editable settings.</p>
-            <dl class="definition-list">
-                <div class="definition">
-                    <dt>Policy</dt>
-                    <dd>@Model.Configuration.PolicyKey</dd>
+            <div class="panel-body">
+                @if (!workflowEditing)
+                {
+                    <dl class="definition-list">
+                        <div class="definition"><dt>Instructions</dt><dd>@(Model.Configuration.RequireInstructions ? "Required" : "Not required")</dd></div>
+                        <div class="definition"><dt>Images</dt><dd>@(Model.Configuration.RequireImages ? "Required" : "Not required")</dd></div>
+                        <div class="definition"><dt>Chase interval</dt><dd>@Model.Configuration.ChaseIntervalDays days</dd></div>
+                    </dl>
+                }
+                else
+                {
+                    <fieldset form="configuration-edit" class="stack">
+                        <legend>Required before Review</legend>
+                        <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
+                        <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
+                        <div class="field"><label for="chase-days">Chase interval (days)</label>
+                            <input form="configuration-edit" id="chase-days" name="ChaseIntervalDays" type="number" min="1" max="365" value="@Model.ChaseIntervalDays" required style="max-width:10rem" />
+                        </div>
+                        <p class="muted">Applies to new schedules. Existing chase dates stay as scheduled.</p>
+                    </fieldset>
+                }
+            </div>
+        </section>
+        <section class="panel" aria-labelledby="rates-title">
+            <div class="panel-head"><h2 id="rates-title">Labour-rate cards</h2>
+                @if (!Model.IsEditing)
+                {
+                    <form method="post" asp-page-handler="NewCard"><button class="btn" type="submit">Add rate card</button></form>
+                }
+            </div>
+            <div class="table-wrap no-border"><table>
+                <thead><tr><th>Name</th><th>Panel and paint (£/hour)</th><th>Enabled</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var card in Model.RateCards.Where(x => x.Id != Model.EditingId))
+                {
+                    <tr><td>@card.Name</td><td>@card.HourlyRate.ToString("N2")</td><td>@(card.Enabled ? "Yes" : "No")</td><td>
+                    @if (!Model.IsEditing)
+                    {
+                        <form method="post" asp-page-handler="Edit"><input type="hidden" name="recordId" value="@card.Id" /><button class="btn btn--small" type="submit">Edit</button></form>
+                    }
+                    </td></tr>
+                }
+                @if (Model.IsEditing && !workflowEditing)
+                {
+                    <tr>
+                        <td><input form="configuration-edit" aria-label="Name" name="CardName" value="@Model.CardName" maxlength="200" required /></td>
+                        <td><input form="configuration-edit" aria-label="Hourly rate" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@Model.HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture)" required /></td>
+                        <td><select form="configuration-edit" aria-label="Enabled" name="Enabled"><option value="true" selected="@Model.Enabled">Yes</option><option value="false" selected="@(!Model.Enabled)">No</option></select></td><td></td>
+                    </tr>
+                }
+                </tbody>
+            </table></div>
+        </section>
+        @if (Model.IsEditing)
+        {
+            <form id="configuration-edit" method="post" asp-page-handler="Save" data-config-editor data-heartbeat-ms="@EditScopeAuthority.HeartbeatInterval.TotalMilliseconds" data-existing="@(Model.ExpectedVersion > 0 ? "true" : "false")">
+                <input type="hidden" asp-for="EditingId" /><input type="hidden" asp-for="ExpectedVersion" />
+                <input type="hidden" asp-for="LeaseToken" /><input type="hidden" asp-for="OperationKey" />
+                <div class="button-row">
+                    <button type="submit" class="btn" asp-page-handler="Cancel" formnovalidate>Cancel</button>
+                    <button type="button" class="btn btn--primary" data-dialog-open="configuration-confirm">Save</button>
                 </div>
-                <div class="definition">
-                    <dt>Current version</dt>
-                    <dd>@Model.Configuration.PolicyVersion</dd>
+                <div class="dialog-backdrop" data-dialog="configuration-confirm" hidden>
+                    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="configuration-confirm-title">
+                        <div class="dialog-head"><h2 id="configuration-confirm-title">Save changes</h2></div>
+                        <div class="dialog-body field"><label for="configuration-reason">Reason</label><textarea id="configuration-reason" asp-for="Reason" rows="2" maxlength="1000" required></textarea></div>
+                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button class="btn btn--primary" type="submit">Confirm</button></div>
+                    </section>
                 </div>
-            </dl>
-        </div>
-    </section>
+                <p data-config-lease-message class="muted" role="status"></p>
+            </form>
+        }
+    </div>
 </div>
+@section Scripts {
+    <script src="~/js/workflow-configuration.js" asp-append-version="true"></script>
+}

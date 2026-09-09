@@ -2,12 +2,11 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Cases;
 
-public enum OrganizationDirectoryRole { Repairer, Storage, InspectionLocation }
+public enum OrganizationDirectoryRole { Repairer, Storage }
 public sealed record OrganizationDirectoryRecord(
     Guid Id, OrganizationDirectoryRole Role, string Name, string? ContactName,
     string? Telephone, string? Email, string Address, string? Postcode,
-    bool Active, long Version, string SourceKind, Guid SourceRecordId,
-    long SourceVersion, DateTimeOffset UpdatedAtUtc);
+    bool Active, long Version);
 public sealed record OrganizationDirectoryQuery(
     ActionActor Actor, string Prefix, OrganizationDirectoryRole? Role, int Limit = 20);
 public interface IOrganizationDirectoryQueries

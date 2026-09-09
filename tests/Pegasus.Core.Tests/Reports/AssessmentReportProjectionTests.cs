@@ -41,7 +41,7 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal("Secure bumper", snapshot.Vehicle.TemporaryRepairMethod);
         Assert.Equal(25m, snapshot.Vehicle.TemporaryRepairCost);
         var impact = Assert.Single(snapshot.Damage.Impacts);
-        Assert.Equal(new ReportImpact("Right rear", "Moderate", "Quarter panel"), impact);
+        Assert.Equal(new ReportImpact("Right rear", "Moderate", "Quarter panel", "right_rear"), impact);
         Assert.Equal("OK", snapshot.Damage.RightFrontTyre);
         Assert.Equal("Worn", snapshot.Damage.LeftFrontTyre);
         Assert.Equal("Damaged", snapshot.Damage.RightRearTyre);

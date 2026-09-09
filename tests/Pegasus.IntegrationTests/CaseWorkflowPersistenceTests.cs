@@ -1431,7 +1431,7 @@ public sealed class CaseWorkflowPersistenceTests
         var staffId = Guid.NewGuid();
         var actor = ActionActor.Staff(
             staffId,
-            [StaffRole.Engineer, StaffRole.Administrator]);
+            [StaffRole.Administrator]);
         var request = new ClaimCaseEditLeaseRequest(
             harness.CaseId,
             0,
@@ -1445,7 +1445,7 @@ public sealed class CaseWorkflowPersistenceTests
             {
                 Actor = ActionActor.Staff(
                     staffId,
-                    [StaffRole.Administrator, StaffRole.Engineer])
+                    [StaffRole.Administrator])
             },
             default);
 
@@ -1468,7 +1468,7 @@ public sealed class CaseWorkflowPersistenceTests
         var staffId = Guid.NewGuid();
         var actor = ActionActor.Staff(
             staffId,
-            [StaffRole.Administrator, StaffRole.Engineer]);
+            [StaffRole.Administrator]);
         var request = new ClaimCaseEditLeaseRequest(
             harness.CaseId,
             0,
@@ -1488,7 +1488,7 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store.ClaimAsync(
                 request with
                 {
-                    Actor = ActionActor.Staff(staffId, [StaffRole.Administrator])
+                    Actor = ActionActor.Staff(staffId, [StaffRole.Engineer])
                 },
                 default));
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
@@ -1501,7 +1501,7 @@ public sealed class CaseWorkflowPersistenceTests
                 {
                     Actor = ActionActor.Staff(
                         Guid.NewGuid(),
-                        [StaffRole.Administrator, StaffRole.Engineer])
+                        [StaffRole.Administrator])
                 },
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>

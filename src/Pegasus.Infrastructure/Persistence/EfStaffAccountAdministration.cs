@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 using OpenIddict.EntityFrameworkCore.Models;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -16,12 +17,11 @@ public sealed class EfStaffAccountAdministration(
     TimeProvider timeProvider)
     : ICreateStaffAccountStore,
       IDisableStaffAccountStore,
-      IAssignStaffRolesStore,
+      IUpdateStaffAccountSettingsStore,
       IEnableStaffAccountStore,
       IForceStaffLogoutStore,
       IResetStaffPasswordStore,
-      IDeleteStaffAccountStore,
-      IUpdateStaffAccountSignOffStore
+      IDeleteStaffAccountStore
 {
     public async Task<CreateStaffAccountResult> CreateAsync(
         CreateStaffAccountRequest request,
@@ -50,10 +50,10 @@ public sealed class EfStaffAccountAdministration(
                 throw OperationConflict();
             }
 
-            var replayRoles = await GetRolesAsync(replayUser);
+            var replayRole = await GetRoleAsync(replayUser);
             await transaction.CommitAsync(cancellationToken);
             return new(
-                EfStaffAccountQueries.Summary(replayUser, replayRoles),
+                EfStaffAccountQueries.Summary(replayUser, replayRole),
                 WasReplay: true);
         }
 
@@ -69,7 +69,7 @@ public sealed class EfStaffAccountAdministration(
             request.Actor,
             request.UserName,
             request.TemporaryPassword,
-            [StaffRole.User],
+            StaffRole.User,
             "staff_account_created",
             request.OperationKey,
             request.Reason,
@@ -111,38 +111,48 @@ public sealed class EfStaffAccountAdministration(
             }
 
             var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
-            var replayRoles = await GetRolesAsync(replayUser);
+            var replayRole = await GetRoleAsync(replayUser);
             var replayCounts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
-                    replayRoles),
+                    replayRole),
                 replayCounts.Authorizations,
                 replayCounts.Tokens,
                 WasReplay: true);
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
-        var roles = await GetRolesAsync(user);
+        var role = await GetRoleAsync(user);
+        await EfEditScopeStore.RequireAsync(
+            context, EditScopeKind.StaffAccount, user.Id, user.Version,
+            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
+            timeProvider.GetUtcNow(), cancellationToken);
         if (user.IsEnabled
-            && roles.Contains(StaffRole.Administrator)
+            && role == StaffRole.Administrator
             && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
         {
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.LastAdministrator);
         }
 
-        var before = Snapshot(user, roles);
+        var before = Snapshot(user, role);
         user.IsEnabled = false;
+        user.Version++;
         var revoked = (Authorizations: 0L, Tokens: 0L);
-        if (before != Snapshot(user, roles))
+        if (before != Snapshot(user, role))
         {
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
         }
         revoked = await RevokeAuthorizationsAndTokensAsync(
             user.Id,
             scrubTokenMaterial: false,
+            cancellationToken);
+
+        await EfEditScopeStore.ClearForActorAsync(
+            context,
+            ActionActor.Staff(user.Id, [role]),
             cancellationToken);
 
         var now = timeProvider.GetUtcNow();
@@ -152,7 +162,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_disabled",
             request.OperationKey,
             before,
-            Snapshot(user, roles, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -161,25 +171,26 @@ public sealed class EfStaffAccountAdministration(
             request.OperationKey,
             "staff_account_disabled",
             now);
+        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
             EfStaffAccountQueries.Summary(
                 user,
-                roles),
+                role),
             revoked.Authorizations,
             revoked.Tokens,
             WasReplay: false);
     }
 
-    public async Task<AssignStaffRolesResult> AssignAsync(
-        AssignStaffRolesRequest request,
+    public async Task<UpdateStaffAccountSettingsResult> UpdateAsync(
+        UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await AssignCoreAsync(request, cancellationToken);
+            return await UpdateSettingsCoreAsync(request, cancellationToken);
         }
         catch (Exception exception) when (IsConcurrencyConflict(exception))
         {
@@ -187,11 +198,10 @@ public sealed class EfStaffAccountAdministration(
         }
     }
 
-    private async Task<AssignStaffRolesResult> AssignCoreAsync(
-        AssignStaffRolesRequest request,
+    private async Task<UpdateStaffAccountSettingsResult> UpdateSettingsCoreAsync(
+        UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        var requestedRoles = request.Roles.OrderBy(role => role).ToArray();
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
@@ -199,9 +209,9 @@ public sealed class EfStaffAccountAdministration(
         if (replay is not null)
         {
             if (replay.AggregateId != request.StaffId.ToString("D")
-                || replay.EventKind != "staff_roles_changed"
+                || replay.EventKind != "staff_account_settings_updated"
                 || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal)
-                || !RecordedRolesEqual(replay.AfterJson, requestedRoles))
+                || !RecordedSettingsEqual(replay.AfterJson, request))
             {
                 throw OperationConflict();
             }
@@ -212,34 +222,47 @@ public sealed class EfStaffAccountAdministration(
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
-                    await GetRolesAsync(replayUser)),
+                    await GetRoleAsync(replayUser)),
                 replayCounts.Authorizations,
                 replayCounts.Tokens,
                 WasReplay: true);
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
-        var currentRoles = await GetRolesAsync(user);
+        var currentRole = await GetRoleAsync(user);
+        await EfEditScopeStore.RequireAsync(
+            context,
+            EditScopeKind.StaffAccount,
+            user.Id,
+            user.Version,
+            request.ExpectedVersion,
+            request.Actor,
+            request.EditLeaseToken,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
         if (user.IsEnabled
-            && currentRoles.Contains(StaffRole.Administrator)
-            && !requestedRoles.Contains(StaffRole.Administrator)
+            && currentRole == StaffRole.Administrator
+            && request.Role != StaffRole.Administrator
             && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
         {
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.LastAdministrator);
         }
 
-        var before = Snapshot(user, currentRoles);
-        var rolesChanged = !currentRoles.SequenceEqual(requestedRoles);
-        var revoked = (Authorizations: 0L, Tokens: 0L);
-        if (rolesChanged)
+        var before = Snapshot(user, currentRole);
+        var roleChanged = currentRole != request.Role;
+        if (roleChanged
+            && Guid.TryParse(request.Actor.SubjectId, out var actorId)
+            && actorId == user.Id)
         {
-            ThrowIfFailed(await userManager.RemoveFromRolesAsync(
-                user,
-                currentRoles.Select(RoleName)));
-            ThrowIfFailed(await userManager.AddToRolesAsync(
-                user,
-                requestedRoles.Select(RoleName)));
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.SelfAction);
+        }
+        var revoked = (Authorizations: 0L, Tokens: 0L);
+        if (roleChanged)
+        {
+            ThrowIfFailed(await userManager.RemoveFromRoleAsync(user, RoleName(currentRole)));
+            ThrowIfFailed(await userManager.AddToRoleAsync(user, RoleName(request.Role)));
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
             revoked = await RevokeAuthorizationsAndTokensAsync(
                 user.Id,
@@ -247,28 +270,49 @@ public sealed class EfStaffAccountAdministration(
                 cancellationToken);
         }
 
+        var previousDefault = await context.Users.SingleOrDefaultAsync(
+            item => item.IsDefaultSignOffEngineer,
+            cancellationToken);
+        ApplySignOffSettings(user, request, previousDefault);
+        if (previousDefault is not null
+            && previousDefault.Id != user.Id
+            && !previousDefault.IsDefaultSignOffEngineer)
+        {
+            previousDefault.Version++;
+        }
+        var settingsChanged = before != Snapshot(user, request.Role);
+        if (settingsChanged)
+        {
+            user.Version++;
+        }
+
         var now = timeProvider.GetUtcNow();
         AddHistory(
             request.Actor,
             user.Id,
-            "staff_roles_changed",
+            "staff_account_settings_updated",
             request.OperationKey,
             before,
-            Snapshot(user, requestedRoles, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, request.Role, revoked.Authorizations, revoked.Tokens),
             now,
             request.Reason);
-        if (rolesChanged)
+        if (roleChanged)
         {
             AddSecurityEvent(
                 SecurityEventType.SecurityStampChanged,
                 user.Id.ToString("D"),
                 request.OperationKey,
-                "staff_roles_changed",
+                "staff_account_settings_updated",
                 now);
+            await EfEditScopeStore.ClearForActorAsync(
+                context,
+                ActionActor.Staff(user.Id, [request.Role]),
+                cancellationToken);
         }
 
+        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
-        if (rolesChanged)
+        if (settingsChanged)
         {
             await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         }
@@ -276,7 +320,7 @@ public sealed class EfStaffAccountAdministration(
         return new(
             EfStaffAccountQueries.Summary(
                 user,
-                requestedRoles),
+                request.Role),
             revoked.Authorizations,
             revoked.Tokens,
             WasReplay: false);
@@ -302,21 +346,20 @@ public sealed class EfStaffAccountAdministration(
             await transaction.CommitAsync(cancellationToken);
             var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
             return new(
-                EfStaffAccountQueries.Summary(replayUser, await GetRolesAsync(replayUser)),
+                EfStaffAccountQueries.Summary(replayUser, await GetRoleAsync(replayUser)),
                 WasReplay: true);
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
-        var roles = await GetRolesAsync(user);
-        if (roles.Length == 0)
-        {
-            throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.InvalidAccount);
-        }
-
-        var before = Snapshot(user, roles);
+        var role = await GetRoleAsync(user);
+        await EfEditScopeStore.RequireAsync(
+            context, EditScopeKind.StaffAccount, user.Id, user.Version,
+            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
+            timeProvider.GetUtcNow(), cancellationToken);
+        var before = Snapshot(user, role);
         user.IsEnabled = true;
-        if (before != Snapshot(user, roles))
+        user.Version++;
+        if (before != Snapshot(user, role))
         {
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
             _ = await RevokeAuthorizationsAndTokensAsync(
@@ -332,13 +375,16 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_enabled",
             request.OperationKey,
             before,
-            Snapshot(user, roles),
+            Snapshot(user, role),
             now,
             request.Reason);
+        await EfEditScopeStore.ClearForActorAsync(
+            context, ActionActor.Staff(user.Id, [role]), cancellationToken);
+        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new(EfStaffAccountQueries.Summary(user, roles), WasReplay: false);
+        return new(EfStaffAccountQueries.Summary(user, role), WasReplay: false);
     }
 
     public async Task<ForceStaffLogoutResult> ForceLogoutAsync(
@@ -358,8 +404,13 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
-        var roles = await GetRolesAsync(user);
-        var before = Snapshot(user, roles);
+        var role = await GetRoleAsync(user);
+        await EfEditScopeStore.RequireAsync(
+            context, EditScopeKind.StaffAccount, user.Id, user.Version,
+            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
+            timeProvider.GetUtcNow(), cancellationToken);
+        var before = Snapshot(user, role);
+        user.Version++;
         ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
         var revoked = await RevokeAuthorizationsAndTokensAsync(
             user.Id,
@@ -372,7 +423,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_logout_forced",
             request.OperationKey,
             before,
-            Snapshot(user, roles, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -381,6 +432,9 @@ public sealed class EfStaffAccountAdministration(
             request.OperationKey,
             "staff_logout_forced",
             now);
+        await EfEditScopeStore.ClearForActorAsync(
+            context, ActionActor.Staff(user.Id, [role]), cancellationToken);
+        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(user.Id, revoked.Authorizations, revoked.Tokens, WasReplay: false);
@@ -408,8 +462,13 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var temporaryPassword = GenerateTemporaryPassword();
-        var roles = await GetRolesAsync(user);
-        var before = Snapshot(user, roles);
+        var role = await GetRoleAsync(user);
+        await EfEditScopeStore.RequireAsync(
+            context, EditScopeKind.StaffAccount, user.Id, user.Version,
+            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
+            timeProvider.GetUtcNow(), cancellationToken);
+        var before = Snapshot(user, role);
+        user.Version++;
         user.PasswordHash = userManager.PasswordHasher.HashPassword(user, temporaryPassword);
         user.MustChangePassword = true;
         ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
@@ -424,7 +483,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_password_reset",
             request.OperationKey,
             before,
-            Snapshot(user, roles, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -433,6 +492,9 @@ public sealed class EfStaffAccountAdministration(
             request.OperationKey,
             "staff_password_reset",
             now);
+        await EfEditScopeStore.ClearForActorAsync(
+            context, ActionActor.Staff(user.Id, [role]), cancellationToken);
+        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
@@ -465,22 +527,22 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
-        var roles = await GetRolesAsync(user);
+        var role = await GetRoleAsync(user);
+        await EfEditScopeStore.RequireAsync(
+            context, EditScopeKind.StaffAccount, user.Id, user.Version,
+            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
+            timeProvider.GetUtcNow(), cancellationToken);
         if (user.IsEnabled
-            && roles.Contains(StaffRole.Administrator)
+            && role == StaffRole.Administrator
             && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
         {
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.LastAdministrator);
         }
 
-        var before = Snapshot(user, roles);
-        if (roles.Length > 0)
-        {
-            ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, roles.Select(RoleName)));
-        }
-
+        var before = Snapshot(user, role);
         user.IsEnabled = false;
+        user.Version++;
         user.MustChangePassword = true;
         user.PasswordHash = null;
         user.IsSignOffEngineer = false;
@@ -495,6 +557,8 @@ public sealed class EfStaffAccountAdministration(
             scrubTokenMaterial: true,
             cancellationToken);
         ClearExternalCredentialsAndSessions(user.Id);
+        await EfEditScopeStore.ClearForActorAsync(
+            context, ActionActor.Staff(user.Id, [role]), cancellationToken);
         var now = timeProvider.GetUtcNow();
         AddHistory(
             request.Actor,
@@ -502,7 +566,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_deleted",
             request.OperationKey,
             before,
-            Snapshot(user, [], revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -511,6 +575,7 @@ public sealed class EfStaffAccountAdministration(
             request.OperationKey,
             "staff_account_deleted",
             now);
+        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -519,99 +584,6 @@ public sealed class EfStaffAccountAdministration(
             revoked.Authorizations,
             revoked.Tokens,
             CredentialsCleared: true,
-            WasReplay: false);
-    }
-
-    public async Task<UpdateStaffAccountSignOffResult> UpdateAsync(
-        UpdateStaffAccountSignOffRequest request,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var replay = await FindOperationAsync(request.OperationKey, cancellationToken);
-        if (replay is not null)
-        {
-            if (replay.AggregateId != request.StaffId.ToString("D")
-                || replay.EventKind != "staff_account_sign_off_updated"
-                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal)
-                || !RecordedSignOffEqual(replay.AfterJson, request))
-            {
-                throw OperationConflict();
-            }
-
-            var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
-            var replayRoles = await GetRolesAsync(replayUser);
-            await transaction.CommitAsync(cancellationToken);
-            return new(
-                EfStaffAccountQueries.Summary(
-                    replayUser,
-                    replayRoles),
-                WasReplay: true);
-        }
-
-        var user = await FindUserAsync(request.StaffId, cancellationToken);
-        var roles = await GetRolesAsync(user);
-        if (!roles.Contains(StaffRole.Engineer))
-        {
-            throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole);
-        }
-
-        var previousDefault = await context.Users.SingleOrDefaultAsync(
-            item => item.IsDefaultSignOffEngineer,
-            cancellationToken);
-        var previousDefaultId = previousDefault?.Id;
-        var before = SignOffSnapshot(user, previousDefaultId);
-
-        user.IsSignOffEngineer = request.IsSignOffEngineer;
-        user.SignOffPrintedName = request.PrintedName;
-        user.SignOffQualifications = request.Qualifications;
-        if (request.Signature is not null)
-        {
-            user.SignOffSignature = request.Signature;
-            user.SignOffSignatureDigest = SignatureDigest(request.Signature);
-        }
-
-        if (request.IsDefault
-            && !SignOffEngineerEligibility.IsEligible(
-                user.IsEnabled,
-                roles,
-                user.IsSignOffEngineer,
-                user.SignOffSignature))
-        {
-            throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.IneligibleSignOffEngineer);
-        }
-
-        if (request.IsDefault && previousDefault is not null && previousDefault.Id != user.Id)
-        {
-            previousDefault.IsDefaultSignOffEngineer = false;
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
-        user.IsDefaultSignOffEngineer = request.IsDefault;
-        var newDefaultId = request.IsDefault
-            ? user.Id
-            : previousDefault is { Id: var id } && id != user.Id
-                ? id
-                : (Guid?)null;
-        AddHistory(
-            request.Actor,
-            user.Id,
-            "staff_account_sign_off_updated",
-            request.OperationKey,
-            before,
-            SignOffSnapshot(user, newDefaultId),
-            timeProvider.GetUtcNow(),
-            request.Reason);
-        await context.SaveChangesAsync(cancellationToken);
-        await InvalidateChangedSignatoriesAsync(timeProvider.GetUtcNow(), cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(
-            EfStaffAccountQueries.Summary(
-                user,
-                roles),
             WasReplay: false);
     }
 
@@ -629,14 +601,13 @@ public sealed class EfStaffAccountAdministration(
         ActionActor actor,
         string userName,
         string temporaryPassword,
-        IReadOnlyCollection<StaffRole> roles,
+        StaffRole role,
         string eventKind,
         string operationKey,
         string? reason,
         CancellationToken cancellationToken)
     {
         var normalizedUserName = NormalizeUserName(userName);
-        foreach (var role in roles)
         {
             var normalizedRoleName = RoleName(role).ToUpperInvariant();
             if (!await context.Roles.AnyAsync(
@@ -644,7 +615,7 @@ public sealed class EfStaffAccountAdministration(
                     cancellationToken))
             {
                 throw new InvalidOperationException(
-                    "The required staff roles have not been initialized.");
+                    "The required staff role has not been initialized.");
             }
         }
 
@@ -660,7 +631,7 @@ public sealed class EfStaffAccountAdministration(
             ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
         ThrowIfFailed(await userManager.CreateAsync(user, temporaryPassword));
-        ThrowIfFailed(await userManager.AddToRolesAsync(user, roles.Select(RoleName)));
+        ThrowIfFailed(await userManager.AddToRoleAsync(user, RoleName(role)));
 
         AddHistory(
             actor,
@@ -668,10 +639,10 @@ public sealed class EfStaffAccountAdministration(
             eventKind,
             operationKey,
             beforeJson: null,
-            Snapshot(user, roles),
+            Snapshot(user, role),
             timeProvider.GetUtcNow(),
             reason);
-        return EfStaffAccountQueries.Summary(user, roles.OrderBy(role => role).ToArray());
+        return EfStaffAccountQueries.Summary(user, role);
     }
 
     private Task<ActionHistoryEntity?> FindOperationAsync(
@@ -786,10 +757,54 @@ public sealed class EfStaffAccountAdministration(
             .Replace('+', 'A')
             .Replace('/', 'b');
 
-    private async Task<StaffRole[]> GetRolesAsync(PegasusIdentityUser user)
+    private async Task<StaffRole> GetRoleAsync(PegasusIdentityUser user)
     {
         var roleNames = await userManager.GetRolesAsync(user);
-        return roleNames.Select(EfStaffAccountQueries.ParseRole).OrderBy(role => role).ToArray();
+        return roleNames.Count == 1
+            ? EfStaffAccountQueries.ParseRole(roleNames.Single())
+            : throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.InvalidAccount);
+    }
+
+    private static void ApplySignOffSettings(
+        PegasusIdentityUser user,
+        UpdateStaffAccountSettingsRequest request,
+        PegasusIdentityUser? previousDefault)
+    {
+        if (request.IsDefaultSignOffEngineer
+            && !SignOffEngineerEligibility.IsEligible(
+                user.IsEnabled,
+                request.Role,
+                request.IsSignOffEngineer,
+                request.Signature ?? user.SignOffSignature))
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.IneligibleSignOffEngineer);
+        }
+
+        user.IsSignOffEngineer = request.IsSignOffEngineer;
+        user.SignOffPrintedName = request.IsSignOffEngineer ? request.PrintedName : null;
+        user.SignOffQualifications = request.IsSignOffEngineer ? request.Qualifications : null;
+        if (request.Signature is not null)
+        {
+            user.SignOffSignature = request.Signature;
+            user.SignOffSignatureDigest = SignatureDigest(request.Signature);
+        }
+
+        if (!request.IsSignOffEngineer)
+        {
+            user.SignOffSignature = null;
+            user.SignOffSignatureDigest = null;
+        }
+
+        if (request.IsDefaultSignOffEngineer
+            && previousDefault is not null
+            && previousDefault.Id != user.Id)
+        {
+            previousDefault.IsDefaultSignOffEngineer = false;
+        }
+
+        user.IsDefaultSignOffEngineer = request.IsDefaultSignOffEngineer;
     }
 
     private void AddHistory(
@@ -842,7 +857,7 @@ public sealed class EfStaffAccountAdministration(
 
     private static string Snapshot(
         PegasusIdentityUser user,
-        IReadOnlyCollection<StaffRole> roles,
+        StaffRole role,
         long revokedAuthorizations = 0,
         long revokedTokens = 0) =>
         JsonSerializer.Serialize(new
@@ -851,36 +866,19 @@ public sealed class EfStaffAccountAdministration(
             user.UserName,
             user.IsEnabled,
             user.MustChangePassword,
-            Roles = roles.OrderBy(role => role).Select(RoleName),
+            Role = RoleName(role),
+            user.IsSignOffEngineer,
+            user.SignOffPrintedName,
+            user.SignOffQualifications,
+            user.SignOffSignatureDigest,
+            user.IsDefaultSignOffEngineer,
             RevokedAuthorizations = revokedAuthorizations,
             RevokedTokens = revokedTokens
         });
 
-    private static bool RecordedRolesEqual(
+    private static bool RecordedSettingsEqual(
         string? afterJson,
-        IReadOnlyCollection<StaffRole> requestedRoles)
-    {
-        if (afterJson is null)
-        {
-            return false;
-        }
-
-        using var document = JsonDocument.Parse(afterJson);
-        if (!document.RootElement.TryGetProperty("Roles", out var roleElement)
-            || roleElement.ValueKind != JsonValueKind.Array)
-        {
-            return false;
-        }
-
-        var recordedRoles = roleElement.EnumerateArray()
-            .Select(item => EfStaffAccountQueries.ParseRole(item.GetString() ?? string.Empty))
-            .OrderBy(role => role);
-        return recordedRoles.SequenceEqual(requestedRoles.OrderBy(role => role));
-    }
-
-    private static bool RecordedSignOffEqual(
-        string? afterJson,
-        UpdateStaffAccountSignOffRequest request)
+        UpdateStaffAccountSettingsRequest request)
     {
         if (afterJson is null)
         {
@@ -889,12 +887,15 @@ public sealed class EfStaffAccountAdministration(
 
         using var document = JsonDocument.Parse(afterJson);
         var root = document.RootElement;
-        if (!root.TryGetProperty("IsSignOffEngineer", out var flag)
-            || flag.GetBoolean() != request.IsSignOffEngineer
-            || !JsonTextEquals(root, "SignOffPrintedName", request.PrintedName)
-            || !JsonTextEquals(root, "SignOffQualifications", request.Qualifications)
-            || !root.TryGetProperty("IsDefaultSignOffEngineer", out var isDefault)
-            || isDefault.GetBoolean() != request.IsDefault)
+        if (!root.TryGetProperty("Role", out var roleElement)
+            || roleElement.ValueKind != JsonValueKind.String
+            || EfStaffAccountQueries.ParseRole(roleElement.GetString() ?? string.Empty) != request.Role
+            || !root.TryGetProperty("IsSignOffEngineer", out var signOff)
+            || signOff.GetBoolean() != request.IsSignOffEngineer
+            || !JsonTextEquals(root, "SignOffPrintedName", request.IsSignOffEngineer ? request.PrintedName : null)
+            || !JsonTextEquals(root, "SignOffQualifications", request.IsSignOffEngineer ? request.Qualifications : null)
+            || !root.TryGetProperty("IsDefaultSignOffEngineer", out var defaultSignOff)
+            || defaultSignOff.GetBoolean() != request.IsDefaultSignOffEngineer)
         {
             return false;
         }

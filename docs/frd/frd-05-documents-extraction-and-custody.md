@@ -5,20 +5,22 @@
 
 ### Supported source boundary
 
-The intended intake boundary covers PDF, DOC, DOCX, EML, and MSG source material plus attached images and route metadata. Current support is proved only by the actual application caller and current architecture/evidence, not by an imported workspace or plan. One engine owns each format: PDF stays on the PdfPig path (ADR-0001/ADR-0003 — the only live PDF implementation), DOCX on OpenXml, EML on MimeKit, and DOC/MSG on the CollisionDocNet-derived compound-file readers integrated by ADR-0025 and scoped to those two formats.
+The intended intake boundary covers PDF, DOC, DOCX, EML, and MSG source material, attached images, and MP4/MOV video evidence plus route metadata. Current support is proved only by the actual application caller and current architecture/evidence, not by an imported workspace or plan. One engine owns each readable document format: PDF stays on the PdfPig path (ADR-0001/ADR-0003 — the only live PDF implementation), DOCX on OpenXml, EML on MimeKit, and DOC/MSG on the CollisionDocNet-derived compound-file readers integrated by ADR-0025 and scoped to those two formats. Video is retained and labelled for review, never treated as readable document text.
 
 Pegasus must:
 
 - preserve source bytes before deriving content;
 - isolate parsing and enforce depth, count, size, decompression, relationship,
-  and cancellation limits — manual upload currently remains bounded at 100 MiB
-  per file; future intake bounds require the research and operator decision in
-  `INTK-052`, while the Provider API envelope stays at 30 MB and is owned by
+  and cancellation limits — source upload is bounded by the accepted 100 MiB
+  per-file, 20-file and 200 MiB aggregate limits in
+  [FRD-02](frd-02-intake-and-source-identity.md#source-upload-limits), while
+  the Provider API envelope stays at 30 MB and is owned by
   [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary);
 - return structured text/images/provenance and explicit partial/unsupported/technical-failure outcomes;
 - retain extraction engine/package/version and policy provenance;
 - never execute macros, active content, external relationships, or embedded instructions;
 - distinguish scan-like material from corrupt, blank, unsupported, or encrypted material.
+- retain accepted MP4/MOV evidence without submitting it to document OCR or image cropping; offer safe preview only for a browser-supported encoding and retain download in every case.
 
 ### Qualified OCR
 

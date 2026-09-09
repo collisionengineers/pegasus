@@ -122,6 +122,25 @@ public sealed class AutomationIntakeParityIngressTests
             mcpFactory, intakeClient, email.FileName, email.MediaType, email.Content);
 
         var token = await RequestTokenAsync(client, "automation.intake");
+        using (var toolsResponse = await PostMcpAsync(client, token, ToolsListPayload(9)))
+        {
+            using var toolsDocument = await ReadJsonRpcAsync(toolsResponse);
+            var tools = toolsDocument.RootElement
+                .GetProperty("result").GetProperty("tools").EnumerateArray()
+                .Where(tool => tool.GetProperty("name").GetString() is
+                    "pegasus_triage_edit_begin" or "pegasus_triage_edit_renew" or "pegasus_triage_edit_end"
+                    or "pegasus_triage_cancel")
+                .ToDictionary(tool => tool.GetProperty("name").GetString()!);
+            Assert.Equal(4, tools.Count);
+            Assert.True(tools["pegasus_triage_edit_begin"].GetProperty("inputSchema")
+                .GetProperty("properties").TryGetProperty("expectedVersion", out _));
+            Assert.True(tools["pegasus_triage_edit_renew"].GetProperty("inputSchema")
+                .GetProperty("properties").TryGetProperty("editLeaseToken", out _));
+            Assert.True(tools["pegasus_triage_edit_end"].GetProperty("inputSchema")
+                .GetProperty("properties").TryGetProperty("editLeaseToken", out _));
+            Assert.True(tools["pegasus_triage_cancel"].GetProperty("inputSchema")
+                .GetProperty("properties").TryGetProperty("editLeaseToken", out _));
+        }
         using var listResponse = await PostMcpAsync(client, token,
             ToolCallPayload(10, "pegasus_triage_list", new { limit = 10 }));
         var list = await ReadStructuredContentAsync(listResponse);
@@ -138,11 +157,66 @@ public sealed class AutomationIntakeParityIngressTests
         var source = await ReadStructuredContentAsync(sourceResponse);
         Assert.True(source.GetProperty("contentIncluded").GetBoolean());
 
-        using var cancelResponse = await PostMcpAsync(client, token,
+        using (var missingLeaseResponse = await PostMcpAsync(client, token,
             ToolCallPayload(12, "pegasus_triage_cancel", new
             {
                 triageId,
                 expectedVersion = version,
+                editLeaseToken = "",
+                reason = "No longer requires Triage.",
+                operationKey = "mcp:triage-cancel-missing-lease"
+            })))
+        {
+            using var missingLease = await ReadJsonRpcAsync(missingLeaseResponse);
+            Assert.True(missingLease.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("Triage edit lease token is required", missingLease.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using var beginResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(13, "pegasus_triage_edit_begin", new
+            {
+                triageId,
+                expectedVersion = version,
+                operationKey = "mcp:triage-edit-begin"
+            }));
+        var lease = await ReadStructuredContentAsync(beginResponse);
+        var editLeaseToken = lease.GetProperty("editLeaseToken").GetString()!;
+        Assert.Equal(version, lease.GetProperty("triageVersion").GetInt64());
+
+        using var renewResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(14, "pegasus_triage_edit_renew", new
+            {
+                triageId,
+                editLeaseToken,
+                operationKey = "mcp:triage-edit-renew"
+            }));
+        var renewedLease = await ReadStructuredContentAsync(renewResponse);
+        Assert.Equal(editLeaseToken, renewedLease.GetProperty("editLeaseToken").GetString());
+        Assert.Equal(version, renewedLease.GetProperty("triageVersion").GetInt64());
+        Assert.True(renewedLease.GetProperty("expiresAtUtc").GetDateTimeOffset() > DateTimeOffset.UtcNow);
+
+        var foreignToken = new string('f', 64);
+        using (var foreignLeaseResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(15, "pegasus_triage_cancel", new
+            {
+                triageId,
+                expectedVersion = version,
+                editLeaseToken = foreignToken,
+                reason = "No longer requires Triage.",
+                operationKey = "mcp:triage-cancel-foreign-lease"
+            })))
+        {
+            using var foreignLease = await ReadJsonRpcAsync(foreignLeaseResponse);
+            Assert.True(foreignLease.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.DoesNotContain(foreignToken, foreignLease.RootElement.ToString(), StringComparison.Ordinal);
+        }
+
+        using var cancelResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(16, "pegasus_triage_cancel", new
+            {
+                triageId,
+                expectedVersion = version,
+                editLeaseToken,
                 reason = "No longer requires Triage.",
                 operationKey = "mcp:triage-cancel-test"
             }));
@@ -151,6 +225,24 @@ public sealed class AutomationIntakeParityIngressTests
             .GetProperty("record").GetProperty("state").GetString());
         Assert.Contains(cancelled.GetProperty("detail").GetProperty("history").EnumerateArray(),
             entry => entry.GetProperty("actor").GetString() == ClientId);
+
+        using var replacementBeginResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(17, "pegasus_triage_edit_begin", new
+            {
+                triageId,
+                expectedVersion = version + 1,
+                operationKey = "mcp:triage-edit-begin-after-cancel"
+            }));
+        var replacementLease = await ReadStructuredContentAsync(replacementBeginResponse);
+
+        using var endResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(18, "pegasus_triage_edit_end", new
+            {
+                triageId,
+                editLeaseToken = replacementLease.GetProperty("editLeaseToken").GetString(),
+                operationKey = "mcp:triage-edit-end"
+            }));
+        Assert.True((await ReadStructuredContentAsync(endResponse)).GetProperty("released").GetBoolean());
     }
     private sealed class CountingArtifactStore : IIntakeArtifactStore
     {
@@ -166,6 +258,17 @@ public sealed class AutomationIntakeParityIngressTests
             var storageKey = $"sha256/{contentHash[..2]}/{contentHash}";
             content[storageKey] = value.ToArray();
             return Task.FromResult(storageKey);
+        }
+
+        public async Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, Stream value, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await value.CopyToAsync(buffer, cancellationToken);
+            var storageKey = await StoreAsync(contentHash, buffer.ToArray(), cancellationToken);
+            return new(storageKey, contentHash, contentLength, firstSeenAtUtc,
+                StagedArtifactDisposition.Pending, string.Empty);
         }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(

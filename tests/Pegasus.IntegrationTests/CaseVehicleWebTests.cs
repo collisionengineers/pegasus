@@ -19,7 +19,7 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class CaseDetailsWebTests
 {
     [Fact]
-    public async Task CaseOverviewUsesAcceptedFactsAndExcludesVehicleSuggestions()
+    public async Task CaseOverviewUsesAcceptedFactsAndLeavesVehicleFactsInVehicleSection()
     {
         var store = new RecordingCaseDetailsStore();
         var data = await store.GetAsync(store.CaseId, CancellationToken.None)
@@ -78,14 +78,18 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}");
         var overview = OverviewPanel(html);
 
-        Assert.Contains("Confirmed make Fact model", overview, StringComparison.Ordinal);
         Assert.Contains("Fact circumstances", overview, StringComparison.Ordinal);
+        Assert.Contains("<dt>Incident date</dt>", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Incident detail", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Confirmed make Fact model", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("AB12CDE", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Fact make", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggested registration", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggested make", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggested model", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggested circumstances", overview, StringComparison.Ordinal);
+        Assert.Contains("<dt>Make</dt><dd>Confirmed make</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Model</dt><dd>Fact model</dd>", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -38,6 +38,25 @@ public sealed partial class PendingWorkRecoveryFunction(
         int externalWorkCount);
 }
 
+/// <summary>Replays only automatic EVA Review intentions that committed with a Case transition.</summary>
+public sealed partial class AutomaticEvaReviewSubmissionFunction(
+    ProcessAutomaticEvaReviewSubmissions processAutomaticEvaReviewSubmissions,
+    ILogger<AutomaticEvaReviewSubmissionFunction> logger)
+{
+    [Function(nameof(AutomaticEvaReviewSubmissionFunction))]
+    public async Task RunAsync(
+        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false)] TimerInfo timer,
+        CancellationToken cancellationToken)
+    {
+        var processed = await processAutomaticEvaReviewSubmissions.ExecuteAsync(50, cancellationToken);
+        LogProcessed(logger, processed);
+    }
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Processed {Count} automatic EVA Review submissions.")]
+    private static partial void LogProcessed(ILogger logger, int count);
+}
+
 public sealed class UnifiedWorkFunction(
     IProcessQueuedIntake processQueuedIntake,
     IProcessQueuedExternalWork processQueuedExternalWork,

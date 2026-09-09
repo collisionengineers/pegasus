@@ -23,14 +23,19 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        var engineerRoleName = StaffRoleNames.Engineer.ToUpperInvariant();
+        var engineerEligibleRoleNames = new[]
+        {
+            StaffRoleNames.Administrator.ToUpperInvariant(),
+            StaffRoleNames.Engineer.ToUpperInvariant()
+        };
         return await context.Users.AsNoTracking()
             .Where(user => user.IsEnabled
                 && user.UserName != null
                 && context.UserRoles
                 .Join(context.Roles, userRole => userRole.RoleId, role => role.Id,
                     (userRole, role) => new { userRole.UserId, role.NormalizedName })
-                .Any(role => role.UserId == user.Id && role.NormalizedName == engineerRoleName))
+                .Any(role => role.UserId == user.Id
+                    && engineerEligibleRoleNames.Contains(role.NormalizedName!)))
             .OrderBy(user => user.UserName)
             .ThenBy(user => user.Id)
             .Select(user => new CaseEngineerChoice(user.Id, user.UserName!))
@@ -67,14 +72,16 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
             where userIds.Contains(userRole.UserId)
             select new { userRole.UserId, RoleName = role.Name! })
             .ToListAsync(cancellationToken);
-        var rolesByUser = roleRows.ToLookup(
+        var rolesByUser = roleRows.ToDictionary(
             item => item.UserId,
             item => ParseRole(item.RoleName));
 
         return new(
             users.Select(user => Summary(
                     user,
-                    rolesByUser[user.Id].OrderBy(role => role).ToArray()))
+                    rolesByUser.TryGetValue(user.Id, out var role)
+                        ? role
+                        : throw new InvalidOperationException("A staff account has no role.")))
                 .ToArray(),
             hasMoreAccounts);
     }
@@ -91,15 +98,13 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
             return null;
         }
 
-        var roles = await (
+        var roleNames = await (
             from userRole in context.UserRoles.AsNoTracking()
             join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
             where userRole.UserId == staffId
             select role.Name!)
             .ToListAsync(cancellationToken);
-        return Summary(
-            user,
-            roles.Select(ParseRole).OrderBy(role => role).ToArray());
+        return Summary(user, ParseSingleRole(roleNames));
     }
 
     public async Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
@@ -127,23 +132,30 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken)
     {
-        var engineerRoleName = StaffRoleNames.Engineer.ToUpperInvariant();
+        var eligibleRoleNames = new[]
+        {
+            StaffRoleNames.Administrator.ToUpperInvariant(),
+            StaffRoleNames.Engineer.ToUpperInvariant()
+        };
         var candidates = await (
             from user in context.Users.AsNoTracking()
             join userRole in context.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
             join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where user.IsSignOffEngineer && role.NormalizedName == engineerRoleName
+            where user.IsEnabled
+                && user.IsSignOffEngineer
+                && user.SignOffSignature != null
+                && eligibleRoleNames.Contains(role.NormalizedName!)
             orderby user.SignOffPrintedName, user.Id
-            select user)
+            select new { User = user, RoleName = role.Name! })
             .ToListAsync(cancellationToken);
 
         return candidates
-            .Where(user => SignOffEngineerEligibility.IsEligible(
-                user.IsEnabled,
-                [StaffRole.Engineer],
-                user.IsSignOffEngineer,
-                user.SignOffSignature))
-            .Select(Profile)
+            .Where(candidate => SignOffEngineerEligibility.IsEligible(
+                candidate.User.IsEnabled,
+                ParseRole(candidate.RoleName),
+                candidate.User.IsSignOffEngineer,
+                candidate.User.SignOffSignature))
+            .Select(candidate => Profile(candidate.User))
             .ToArray();
     }
 
@@ -159,16 +171,16 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
             return null;
         }
 
-        var roles = await (
+        var roleNames = await (
             from userRole in context.UserRoles.AsNoTracking()
             join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
             where userRole.UserId == staffId
             select role.Name!)
             .ToListAsync(cancellationToken);
-        var parsedRoles = roles.Select(ParseRole).ToArray();
+        var staffRole = ParseSingleRole(roleNames);
         return SignOffEngineerEligibility.IsEligible(
             user.IsEnabled,
-            parsedRoles,
+            staffRole,
             user.IsSignOffEngineer,
             user.SignOffSignature)
             ? Profile(user)
@@ -178,15 +190,16 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>
     internal static StaffAccountSummary Summary(
         PegasusIdentityUser user,
-        IReadOnlyCollection<StaffRole> roles) =>
+        StaffRole role) =>
         new(
             user.Id,
             user.UserName ?? throw new InvalidOperationException(
                 "A staff account has no username."),
             user.IsEnabled,
             user.MustChangePassword,
-            roles.OrderBy(role => role).ToArray())
+            role)
         {
+            Version = user.Version,
             SignOff = new(
                 user.IsSignOffEngineer,
                 user.SignOffPrintedName,
@@ -215,4 +228,10 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         _ => throw new InvalidOperationException(
             "A staff account has an unrecognized role.")
     };
+
+    private static StaffRole ParseSingleRole(List<string> roleNames) =>
+        roleNames.Count == 1
+            ? ParseRole(roleNames.Single())
+            : throw new InvalidOperationException(
+                "A staff account must have exactly one role.");
 }

@@ -77,7 +77,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 ExpectedVersion: 1,
                 administrator,
                 "The maintained tow bar allowance rose.",
-                "valuation-preset-edit"),
+                "valuation-preset-edit")
+            {
+                EditLeaseToken = await ClaimPresetEditAsync(
+                    harness, TowBarPresetId, 1, administrator, "valuation-preset-edit-lease")
+            },
             CancellationToken.None);
         Assert.Equal(2, edited.Version);
         Assert.Equal(350m, edited.SuggestedAmount);
@@ -92,7 +96,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 ExpectedVersion: 1,
                 administrator,
                 "Decals are no longer offered.",
-                "valuation-preset-disable"),
+                "valuation-preset-disable")
+            {
+                EditLeaseToken = await ClaimPresetEditAsync(
+                    harness, DecalsPresetId, 1, administrator, "valuation-preset-disable-lease")
+            },
             CancellationToken.None);
         Assert.False(disabled.Active);
         Assert.Equal(2, disabled.Version);
@@ -250,6 +258,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         // A preset that moved after the form was rendered is refused, and the
         // refusal leaves the Case exactly as it was.
+        var presetAdministrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         await new SaveValuationPreset(presets).ExecuteAsync(
             new(
                 TowBarPresetId,
@@ -257,9 +266,17 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 350m,
                 Active: true,
                 ExpectedVersion: 1,
-                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                presetAdministrator,
                 "The maintained tow bar allowance rose.",
-                "valuation-apply-preset-edit"),
+                "valuation-apply-preset-edit")
+            {
+                EditLeaseToken = await ClaimPresetEditAsync(
+                    harness,
+                    TowBarPresetId,
+                    1,
+                    presetAdministrator,
+                    "valuation-apply-preset-edit-lease")
+            },
             CancellationToken.None);
         var applyLease = await LeaseAsync("valuation-apply-lease");
         var stale = await Assert.ThrowsAsync<ValuationPresetException>(() =>
@@ -359,4 +376,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             chosen,
             guideStamp);
     }
+
+    private static async Task<string> ClaimPresetEditAsync(
+        Harness harness,
+        Guid presetId,
+        long expectedVersion,
+        ActionActor actor,
+        string operationKey) =>
+        (await new EfEditScopeStore(harness.Factory, harness.Clock).ClaimAsync(
+            new(EditScopeKind.ValuationPreset, presetId, expectedVersion, actor, operationKey),
+            CancellationToken.None)).Token;
 }

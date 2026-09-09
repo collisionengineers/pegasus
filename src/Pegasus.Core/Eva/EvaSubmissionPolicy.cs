@@ -3,18 +3,19 @@ using System.Net;
 using System.Text;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
 /// <summary>
-/// A principal's optional manual EVA API setting (EXT-04).
+/// The selected report-generation route for a Principal.
 /// </summary>
-public sealed record EvaSubmissionModes(bool Manual)
+public sealed record EvaSubmissionModes(PrincipalReportGenerationPolicy Policy)
 {
-    public static EvaSubmissionModes Disabled { get; } = new(false);
+    public static EvaSubmissionModes Disabled { get; } = new(PrincipalReportGenerationPolicy.Pegasus);
 
-    public bool IsEnabled => Manual;
+    public bool IsEnabled => PrincipalReportGenerationPolicyRules.IsEva(Policy);
 }
 
 /// <summary>
@@ -79,13 +80,19 @@ public static class EvaSubmissionPolicy
     }
 
     /// <summary>
-    /// Whether an operator may submit this case by hand. Requires the manual
-    /// setting specifically.
+    /// Whether an operator may submit this case by hand. ZIP export is a
+    /// separate export route and automatic API work is Worker-owned.
     /// </summary>
     public static bool AllowsManualSubmission(EvaSubmissionModes modes)
     {
         ArgumentNullException.ThrowIfNull(modes);
-        return modes.Manual;
+        return PrincipalReportGenerationPolicyRules.AllowsManualApi(modes.Policy);
+    }
+
+    public static bool AllowsAutomaticSubmission(EvaSubmissionModes modes)
+    {
+        ArgumentNullException.ThrowIfNull(modes);
+        return PrincipalReportGenerationPolicyRules.RequiresAutomaticApiOnReview(modes.Policy);
     }
 
     /// <summary>
@@ -95,6 +102,50 @@ public static class EvaSubmissionPolicy
     /// actor acting for one.
     /// </summary>
     public static StaffAccessRight RequiredRight => StaffAccessRight.PerformCasework;
+
+    /// <summary>
+    /// Stable actor authority for a request. It is intentionally separate
+    /// from the Principal's current mode so an exact completed replay remains
+    /// readable when settings changed after the original handoff.
+    /// </summary>
+    public static void RequireAuthorizedActor(
+        ActionActor actor,
+        EvaSubmissionInitiator initiator)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (initiator == EvaSubmissionInitiator.Manual)
+        {
+            StaffAuthorization.Require(actor, RequiredRight);
+            return;
+        }
+        if (initiator != EvaSubmissionInitiator.AutomaticReview
+            || actor.Kind != ActorKind.SystemWorker)
+        {
+            throw new InvalidOperationException("The EVA submission initiator is not authorised.");
+        }
+    }
+
+    public static void RequireAuthorizedInitiator(
+        EvaSubmissionModes modes,
+        ActionActor actor,
+        EvaSubmissionInitiator initiator)
+    {
+        ArgumentNullException.ThrowIfNull(modes);
+        RequireAuthorizedActor(actor, initiator);
+        if (initiator == EvaSubmissionInitiator.Manual)
+        {
+            if (!AllowsManualSubmission(modes) && !AllowsAutomaticSubmission(modes))
+            {
+                throw new InvalidOperationException("The Principal has not selected manual EVA API submission.");
+            }
+            return;
+        }
+
+        if (!AllowsAutomaticSubmission(modes))
+        {
+            throw new InvalidOperationException("The EVA submission initiator is not authorised for this Principal.");
+        }
+    }
 
     /// <summary>
     /// Whether the principal's settings authorise the act being attempted.

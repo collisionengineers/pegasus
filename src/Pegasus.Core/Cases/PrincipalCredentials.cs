@@ -56,7 +56,9 @@ public sealed record PrincipalCredentialCommandRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason,
+    long ExpectedContactVersion,
+    string EditLeaseToken);
 
 /// <summary>
 /// <see cref="Secret"/> is the clear secret, present exactly once: the first
@@ -344,6 +346,12 @@ public static class PrincipalCredentialPolicy
                 nameof(request),
                 "The expected version cannot be negative.");
         }
+        if (request.ExpectedContactVersion < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The expected contact version cannot be negative.");
+        }
 
         return request with
         {
@@ -354,7 +362,11 @@ public static class PrincipalCredentialPolicy
             Reason = OrganizationAdministrationPolicy.NormalizeRequiredText(
                 request.Reason,
                 OrganizationAdministrationPolicy.MaximumReasonLength,
-                nameof(request.Reason))
+                nameof(request.Reason)),
+            EditLeaseToken = OrganizationAdministrationPolicy.NormalizeRequiredText(
+                request.EditLeaseToken,
+                200,
+                nameof(request.EditLeaseToken))
         };
     }
 

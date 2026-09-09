@@ -158,6 +158,67 @@
     bindNativeDialogs(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindNativeDialogs);
 
+    // Scoped edits expire unless the operator is actively keeping the edit
+    // session open. Each marked form carries only its existing antiforgery
+    // value and opaque lease token; the server owns the record and actor
+    // resolution. A failed renewal stops rather than silently continuing with
+    // an edit the operator can no longer save.
+    function bindEditScopeHeartbeats(root) {
+        root.querySelectorAll('form[data-edit-heartbeat][data-edit-heartbeat-status]').forEach(function (form) {
+            if (form.dataset.editHeartbeatBound === 'true') {
+                return;
+            }
+            form.dataset.editHeartbeatBound = 'true';
+
+            var status = document.getElementById(form.getAttribute('data-edit-heartbeat-status'));
+            var stopped = false;
+            var timer = 0;
+            var stop = function (message) {
+                stopped = true;
+                window.clearInterval(timer);
+                if (status) {
+                    status.textContent = message;
+                    status.hidden = false;
+                }
+            };
+            var heartbeat = function () {
+                if (stopped || document.hidden || typeof window.fetch !== 'function') {
+                    return;
+                }
+
+                window.fetch(form.getAttribute('data-edit-heartbeat-url') || form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (response.ok) {
+                        return;
+                    }
+                    response.text().then(function (message) {
+                        stop(message.replace(/^"|"$/g, '').replace(/\\"/g, '"')
+                            || 'Editing this record has ended. Reload it before making further changes.');
+                    });
+                }).catch(function () {
+                    // A transient network failure does not prove the lease has
+                    // ended; retry on the next scheduled renewal.
+                });
+            };
+
+            timer = window.setInterval(heartbeat, 60000);
+            form.addEventListener('submit', function () {
+                stopped = true;
+                window.clearInterval(timer);
+            });
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) {
+                    heartbeat();
+                }
+            });
+        });
+    }
+    bindEditScopeHeartbeats(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEditScopeHeartbeats);
+
     // Global drop safety net. Without this, a file dropped anywhere off a
     // dropzone's own listeners below — the heading, a panel border, released
     // a beat early while still moving — is unhandled, and the browser's
@@ -1081,13 +1142,29 @@
                 }
             }
 
+            function cancel() {
+                var cancelFormId = dialog.getAttribute('data-dialog-cancel-form');
+                var cancelForm = cancelFormId && document.getElementById(cancelFormId);
+                if (!cancelForm) {
+                    return false;
+                }
+                if (typeof cancelForm.requestSubmit === 'function') {
+                    cancelForm.requestSubmit();
+                } else {
+                    cancelForm.submit();
+                }
+                return true;
+            }
+
             dialog.pegasusClose = close;
             dialog.pegasusOpen = open;
 
             function onKeydown(event) {
                 if (event.key === 'Escape') {
-                    // Safe: closing abandons an unsent reason and changes nothing.
                     event.preventDefault();
+                    if (cancel()) {
+                        return;
+                    }
                     close();
                     return;
                 }
@@ -1115,6 +1192,9 @@
 
             dialog.addEventListener('click', function (event) {
                 if (event.target === dialog) {
+                    if (cancel()) {
+                        return;
+                    }
                     close();
                 }
             });
@@ -1149,7 +1229,8 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindBackdropDialogs);
 
     // Evidence viewer ([data-evidence-viewer], DOCS-011): preview an evidence
-    // image or PDF over the page instead of navigating away from the case.
+    // image, PDF or admitted video over the page instead of navigating away
+    // from the case.
     // Modelled on the reason-dialog block above and sharing its contract --
     // initial focus, focus containment, Escape, focus return -- with paging
     // added. Every trigger is a real link, so with no script a click still
@@ -1163,9 +1244,11 @@
         var stage = viewer.querySelector('[data-evidence-stage]');
         var image = viewer.querySelector('[data-evidence-image]');
         var frame = viewer.querySelector('[data-evidence-document]');
+        var video = viewer.querySelector('[data-evidence-video]');
         var caption = viewer.querySelector('[data-evidence-name]');
         var position = viewer.querySelector('[data-evidence-position]');
         var download = viewer.querySelector('[data-evidence-download]');
+        var crop = viewer.querySelector('[data-evidence-crop]');
         var previous = viewer.querySelector('[data-evidence-previous]');
         var following = viewer.querySelector('[data-evidence-next]');
 
@@ -1185,7 +1268,10 @@
             if (type.indexOf('image/') === 0 && type !== 'image/svg+xml') {
                 return 'image';
             }
-            return type === 'application/pdf' ? 'document' : '';
+            if (type === 'application/pdf') {
+                return 'document';
+            }
+            return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
         }
 
         function focusable() {
@@ -1217,20 +1303,31 @@
 
             image.hidden = kind !== 'image';
             frame.hidden = kind !== 'document';
+            video.hidden = kind !== 'video';
             if (kind === 'image') {
                 frame.removeAttribute('src');
+                video.removeAttribute('src');
                 image.alt = fileName;
                 image.src = href;
-            } else {
+            } else if (kind === 'document') {
                 image.removeAttribute('src');
+                video.removeAttribute('src');
                 frame.title = fileName;
                 frame.src = href;
+            } else {
+                image.removeAttribute('src');
+                frame.removeAttribute('src');
+                video.src = href;
+                video.load();
             }
 
             caption.textContent = fileName;
             position.textContent = (index + 1) + ' / ' + items.length;
             download.href = item.getAttribute('data-download-href') || href;
             download.setAttribute('download', fileName);
+            crop.hidden = kind !== 'image'
+                || !item.hasAttribute('data-evidence-preparation-occurrence')
+                || typeof window.pegasusOpenCaseCrop !== 'function';
             previous.disabled = index === 0;
             following.disabled = index === items.length - 1;
         }
@@ -1271,6 +1368,8 @@
             // screen; the next open sets it again.
             image.removeAttribute('src');
             frame.removeAttribute('src');
+            video.removeAttribute('src');
+            video.load();
             stage.classList.remove('rot-90', 'rot-180', 'rot-270');
             settle();
             if (invoker) {
@@ -1324,8 +1423,19 @@
         image.addEventListener('error', settle);
         frame.addEventListener('load', settle);
         frame.addEventListener('error', settle);
+        video.addEventListener('loadedmetadata', settle);
+        video.addEventListener('error', settle);
         previous.addEventListener('click', function () { step(-1); });
         following.addEventListener('click', function () { step(1); });
+        crop.addEventListener('click', function () {
+            var item = items[index];
+            var occurrenceId = item && item.getAttribute('data-evidence-preparation-occurrence');
+            if (!occurrenceId || typeof window.pegasusOpenCaseCrop !== 'function') {
+                return;
+            }
+            close();
+            window.pegasusOpenCaseCrop(occurrenceId);
+        });
         viewer.querySelectorAll('[data-evidence-close]').forEach(function (control) {
             control.addEventListener('click', close);
         });

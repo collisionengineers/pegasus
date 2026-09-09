@@ -329,12 +329,13 @@ public sealed class DocumentCustodyDurabilityTests
                 await context.SaveChangesAsync();
             }
 
+            var uploadContent = "request upload evidence"u8.ToArray();
             var command = new UploadToRequestCommand(
                 token.Secret.Token,
                 new(
                     "evidence.txt",
                     "text/plain",
-                    "request upload evidence"u8.ToArray(),
+                    uploadContent,
                     $"request-file:{Guid.NewGuid():N}"),
                 AttemptsInCurrentRateWindow: 1);
             interceptor.FailNextRequestUploadSave();
@@ -396,7 +397,7 @@ public sealed class DocumentCustodyDurabilityTests
                     .Select(value => new { value.AcceptedFileCount, value.AcceptedByteCount })
                     .SingleAsync();
                 Assert.Equal(1, reservedTotals.AcceptedFileCount);
-                Assert.Equal((long)command.File.Content.Length, reservedTotals.AcceptedByteCount);
+                Assert.Equal((long)uploadContent.Length, reservedTotals.AcceptedByteCount);
                 Assert.Equal(
                     1,
                     await context.CaseWorkflows
@@ -433,7 +434,7 @@ public sealed class DocumentCustodyDurabilityTests
                 managedDirectory,
                 "content",
                 SearchOption.AllDirectories));
-            Assert.Equal(command.File.Content.ToArray(), await File.ReadAllBytesAsync(retainedFile));
+            Assert.Equal(uploadContent, await File.ReadAllBytesAsync(retainedFile));
             await using (var context = await database.CreateContextAsync())
             {
                 var document = await context.Set<CaseDocumentEntity>().SingleAsync();
@@ -447,7 +448,7 @@ public sealed class DocumentCustodyDurabilityTests
                 Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
                 Assert.Equal(command.File.FileName, version.FileName);
                 Assert.Equal(command.File.MediaType, version.MediaType);
-                Assert.Equal(command.File.Content.Length, version.ContentLength);
+                Assert.Equal(uploadContent.Length, version.ContentLength);
                 Assert.Equal(retainedVersionId, occurrence.VersionId);
                 Assert.Equal(retainedOccurrenceId, occurrence.Id);
                 Assert.Equal(DocumentSemanticRole.OriginalSource, occurrence.SemanticRole);
@@ -687,6 +688,22 @@ public sealed class DocumentCustodyDurabilityTests
             return await inner.StoreVersionAsync(
                 address,
                 content,
+                expectedSha256,
+                cancellationToken);
+        }
+
+        public async Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            Addresses.Add(address);
+            return await inner.StoreVersionAsync(
+                address,
+                content,
+                contentLength,
                 expectedSha256,
                 cancellationToken);
         }

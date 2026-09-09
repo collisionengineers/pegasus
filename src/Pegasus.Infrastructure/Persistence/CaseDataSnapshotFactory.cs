@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -9,6 +9,24 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal static class CaseDataSnapshotFactory
 {
+    public static CaseDataSnapshotEntity CreateManual(
+        CaseEntity caseEntity,
+        CaseCompletenessEvaluation completenessEvaluation,
+        DateTimeOffset createdAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(caseEntity);
+        ArgumentNullException.ThrowIfNull(completenessEvaluation);
+        return new()
+        {
+            CaseId = caseEntity.Id,
+            Case = caseEntity,
+            CompletenessPolicyKey = completenessEvaluation.PolicyKey,
+            CompletenessPolicyVersion = completenessEvaluation.PolicyVersion,
+            CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy,
+            AcceptedAtUtc = createdAtUtc
+        };
+    }
+
     public static CaseDataSnapshotEntity Create(
         CaseEntity caseEntity,
         IntakeReceiptEntity receipt,
@@ -89,7 +107,7 @@ internal static class CaseDataSnapshotFactory
             ValueType = CaseDataCodes.Text,
             Value = Ext18InspectionAddressPolicy.ImageBasedAssessment,
             SourceKind = CaseDataCodes.ProviderSetting,
-            SourceIdentity = snapshot.OriginIntakeReceiptId.ToString("D"),
+            SourceIdentity = (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
             SourceLabel = sourceLabel,
             PolicyKey = ProviderInspectionModePolicy.PolicyKey,
             PolicyVersion = ProviderInspectionModePolicy.PolicyVersion,
@@ -105,7 +123,7 @@ internal static class CaseDataSnapshotFactory
             ValueType = CaseDataCodes.InspectionMode,
             Value = ProviderInspectionModePolicy.ImageBasedAssessmentCode,
             SourceKind = CaseDataCodes.ProviderSetting,
-            SourceIdentity = snapshot.OriginIntakeReceiptId.ToString("D"),
+            SourceIdentity = (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
             SourceLabel = sourceLabel,
             PolicyKey = ProviderInspectionModePolicy.PolicyKey,
             PolicyVersion = ProviderInspectionModePolicy.PolicyVersion,
@@ -493,7 +511,7 @@ internal static class CaseDataSnapshotFactory
             ValueType = valueType,
             Value = value,
             SourceKind = underlying?.SourceKind ?? fallbackSourceKind,
-            SourceIdentity = underlying?.SourceIdentity ?? snapshot.OriginIntakeReceiptId.ToString("D"),
+            SourceIdentity = underlying?.SourceIdentity ?? (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
             SourceLabel = underlying?.SourceLabel ?? fallbackSourceLabel,
             PolicyKey = underlying?.PolicyKey ?? fallbackPolicyKey,
             PolicyVersion = underlying?.PolicyVersion ?? fallbackPolicyVersion,

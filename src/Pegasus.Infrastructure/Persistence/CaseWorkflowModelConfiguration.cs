@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -60,9 +61,10 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(AddCaseNote.MaximumLength).IsRequired();
             entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
-            entity.HasIndex(item => new { item.CaseId, item.AfterVersion }).IsUnique();
+            entity.HasIndex(item => new { item.CaseId, item.AfterVersion }).IsUnique()
+                .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied'");
             entity.HasOne(item => item.Workflow).WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 

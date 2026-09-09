@@ -292,23 +292,24 @@ public sealed class ValuationCalculationTests
     }
 
     /// <summary>
-    /// Adopting a value is confirming a professional finding, so it takes the
-    /// finding rule from its single owner: an Engineer, and an Administrator
-    /// who is not one never suffices.
+    /// Adopting a value is confirming a professional finding. An Administrator
+    /// inherits that Engineer capability while ordinary and non-staff actors do not.
     /// </summary>
     [Fact]
-    public async Task OnlyAnEngineerAdoptsAnEngineersValue()
+    public async Task AdministratorMayAdoptAnEngineersValueWhileUserAndNonStaffCannot()
     {
         var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
         var apply = new ApplyValuationCalculation(store);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            apply.ExecuteAsync(ApplyRequest(Administrator), CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             apply.ExecuteAsync(ApplyRequest(User), CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            apply.ExecuteAsync(
+                ApplyRequest(ActionActor.RequestLink(Guid.NewGuid())),
+                CancellationToken.None));
         Assert.Empty(store.Applied);
 
-        var applied = await apply.ExecuteAsync(ApplyRequest(Engineer), CancellationToken.None);
+        var applied = await apply.ExecuteAsync(ApplyRequest(Administrator), CancellationToken.None);
 
         Assert.Equal(3100m, applied.AcceptedEngineerValue);
         Assert.Equal(GuideId, Assert.Single(store.Applied).Selection.GuideValuationId);

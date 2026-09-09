@@ -8,6 +8,13 @@
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
     var files = CaseFiles.Live(details.Documents);
+    var mayPrepareImages = Model.CanEditEngineering
+        && details.Data is not null
+        && !string.IsNullOrWhiteSpace(leaseToken)
+        && workflow.Archive is null;
+    var preparableOccurrences = Model.AssetPreparations
+        .Select(preparation => preparation.OccurrenceId)
+        .ToHashSet();
     static bool MayConfirmThirdParty(DocumentOccurrence occurrence, DocumentVersion version) =>
         occurrence.SemanticRole == DocumentSemanticRole.Image
         && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
@@ -68,6 +75,11 @@
                             occurrenceId = occurrence.Id,
                             versionId = version.Id
                         })!;
+                    var mayCrop = mayPrepareImages
+                        && occurrence.SemanticRole == DocumentSemanticRole.Image
+                        && preparableOccurrences.Contains(occurrence.Id)
+                        && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+                            || version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase));
                     <div class="document-row">
                         <span class="document-icon">
                             <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
@@ -98,7 +110,8 @@
                                data-evidence-item
                                data-download-href="@downloadHref"
                                data-media-type="@version.MediaType"
-                               data-file-name="@version.FileName">
+                               data-file-name="@version.FileName"
+                               data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                                 <span>@OperatorLabels.CaseWorkspace.Preview</span>
                             </a>

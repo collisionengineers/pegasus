@@ -3,17 +3,14 @@
 
 ## EVA and external engineering handoff
 
-### Focused EVA manual handoff
+### EVA handoff routes
 
-There are two optional EVA handoff routes. Native Hand to Engineer is owned by FRD-01 and does not require either route. The export downloads one package for
-staff to import into EVA; that import is the operational handoff to
-engineering, although Pegasus cannot prove EVA receipt or a named-Engineer
-assignment. The API submission (EXT-04) sends the same case to EVA directly and
-does prove delivery. Both are reached from one **Send to EVA** control on the
-case, offered in `Review` and again in `With Engineer` as a re-send (D36,
-2026-09-02). Its dialog holds Engineer, Sign-off Engineer, Download ZIP and —
-when the Principal enables it — Send via API; it offers whichever routes that
-case and principal allow. There is no separate Download EVA package action.
+Native Hand to Engineer is owned by FRD-01 and does not require EVA. Each
+Principal selects exactly one report route: Pegasus, EVA ZIP export, manual EVA
+API submission, or automatic EVA API submission on entering `Review`. ZIP uses
+the established EVA package contract and is an export only: Pegasus does not
+claim EVA received it. Manual API submission and automatic Review submission
+use the same validated command and delivery ledger.
 
 Export is first available while the case is in `Review`, and again from
 `With Engineer` as a re-send (D36). `Review` is the single
@@ -85,15 +82,18 @@ export gate; the thirteen-field package remains unchanged.
 
 Vendor schema and recorded traffic establish contract evidence, not acceptance
 of an actual Pegasus submission. Dated deployment and external-call evidence
-belongs in operations. The per-Principal API setting remains off by default;
-credentials, enabling it and a live acceptance run are separately authorized.
+belongs in operations. The default Principal report route is Pegasus;
+credentials, an EVA API route and a live acceptance run are separately
+authorized.
 
-Each Principal carries one manual API-submission setting, off by default. When
-enabled, an operator may submit a case in `Review` from the Send to EVA dialog
-and re-send it from `With Engineer` (D36). A replacement Principal inherits
-this setting. A disabled Principal's setting is frozen as part of its
-historical record. Pegasus never submits a case to EVA merely because the case
-reaches `Review`.
+An automatic API policy creates one durable intent in the transaction that
+moves a Case into `Review`. The Worker may execute only that intent and uses
+the existing operation identity and delivery ledger. Repeated delivery and
+Review events cannot create another automatic intent. Unknown outcomes show
+check-EVA-and-retry advice and are not retried automatically. Changing a Principal setting
+does not send a Case that was already in `Review`. A replacement Principal
+inherits the selected route and recipient settings; a disabled Principal's
+settings remain historical.
 
 The consequence must be stated plainly: **once a case has been submitted,
 later changes to it reach EVA only through an explicit re-send.** The earlier
@@ -117,6 +117,13 @@ Every submission records its outcome, and the four outcomes stay distinct:
 An `Unknown` result may already have reached EVA and is never retried without
 operator action. It is terminal; staff review the retained attempt before an
 explicit re-send.
+Show a clear EVA failure message instructing staff to check EVA and retry if
+no Case was created. This applies to failed manual and automatic API sends.
+There is no attestation form, required confirmation record or persistent retry
+block. Uncertain automatic sends are not retried automatically; staff decide
+whether to retry after checking EVA. An exact completed operation replays its
+retained outcome after caller authorization without another provider call.
+
 Both EVA identifiers are retained: the response
 identifier and the File Reference EVA embeds in its message text, which is what
 an operator quotes.
@@ -124,11 +131,12 @@ an operator quotes.
 Submission is gated on `Review` — or on `With Engineer` for a re-send (D36) —
 and on at least one eligible image, exactly as the export is; it repeats no
 other readiness policy. It records replay-safe Case action history for every
-attempt, delivered or not. The first successful manual Send via API from
-`Review` — an outcome of `Succeeded` or `Partial`, meaning EVA accepted the
-instruction — atomically records the handoff and moves the Case to `With
-Engineer`, increasing its version; Send to EVA is the implicit review (D44,
-D47). A `Rejected` or `Unknown` outcome is not a handoff: EVA did not accept
+attempt, delivered or not. The first successful API submission from `Review`,
+whether manual or from its durable automatic Review intent — an outcome of
+`Succeeded` or `Partial`, meaning EVA accepted the instruction — atomically
+records the handoff and moves the Case to `With Engineer`, increasing its
+version; Send to EVA is the implicit review (D44, D47). A `Rejected` or
+`Unknown` outcome is not a handoff: EVA did not accept
 the instruction, or delivery could not be determined, so the Case remains in
 `Review`, unchanged in version and edit lease, with no state transition —
 the attempt is still recorded in Case action history (CASE-040 review). A
@@ -138,10 +146,10 @@ accepted the instruction — a state change or version conflict found on the
 post-delivery re-check — still records the submission and its action
 history, since the delivery already happened and must not be lost, but
 likewise leaves the Case in `Review`. A re-send from `With Engineer` does not
-change state or version. There is no automatic submission action. D47's first
-manual Send via API transition remains one route into report preparation;
-explicit Start Case Work or assignment is the other route, and neither requires
-EVA delivery.
+change state or version. The automatic intent is created only on the Review
+transition and is never reconstructed later. D47's first API submission from
+Review remains one route into report preparation; explicit Start Case Work or
+assignment is the other route, and neither requires EVA delivery.
 
 Values EVA's instruction model has no field for — the inspection date and the
 mileage — are sent as labelled lines in the instruction's note rather than

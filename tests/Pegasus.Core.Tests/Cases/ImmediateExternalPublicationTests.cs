@@ -92,7 +92,6 @@ public sealed class ImmediateExternalPublicationTests
             0,
             Staff(),
             "acceptance-1",
-            "Accept confirmed instruction.",
             CaseType.Inspection,
             "QDOS",
             new(true, true));

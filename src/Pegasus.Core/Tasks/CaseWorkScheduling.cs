@@ -77,16 +77,24 @@ public static class CaseChaseSchedule
     public const int PolicyVersion = 1;
     public const string PolicyIdentity = PolicyKey + "/v1";
 
-    public static DateTimeOffset FirstChaseAt(DateTimeOffset enteredNotReadyAtUtc)
+    public static DateTimeOffset FirstChaseAt(DateTimeOffset enteredNotReadyAtUtc, int intervalDays = 7)
     {
+        ValidateInterval(intervalDays);
         var local = LondonCalendar.TimeAt(enteredNotReadyAtUtc);
-        return LondonCalendar.ToUtc(local.Date.AddDays(7).Add(local.TimeOfDay));
+        return LondonCalendar.ToUtc(local.Date.AddDays(intervalDays).Add(local.TimeOfDay));
     }
 
-    public static DateTimeOffset NextChaseAt(DateTimeOffset previousChaseAtUtc)
+    public static DateTimeOffset NextChaseAt(DateTimeOffset previousChaseAtUtc, int intervalDays = 7)
     {
+        ValidateInterval(intervalDays);
         var local = LondonCalendar.TimeAt(previousChaseAtUtc);
-        return LondonCalendar.ToUtc(local.Date.AddDays(7).Add(local.TimeOfDay));
+        return LondonCalendar.ToUtc(local.Date.AddDays(intervalDays).Add(local.TimeOfDay));
+    }
+
+    private static void ValidateInterval(int intervalDays)
+    {
+        if (intervalDays is < 1 or > 365)
+            throw new ArgumentOutOfRangeException(nameof(intervalDays));
     }
 
     public static TimeSpan RemainingInterval(DateTimeOffset nextChaseAtUtc, DateTimeOffset heldAtUtc)

@@ -11,7 +11,7 @@ public sealed class CaseEditLeaseTests
     {
         var actor = ActionActor.Staff(
             Guid.NewGuid(),
-            [StaffRole.Administrator, StaffRole.Engineer]);
+            [StaffRole.Administrator]);
         var request = new ClaimCaseEditLeaseRequest(
             Guid.NewGuid(),
             7,

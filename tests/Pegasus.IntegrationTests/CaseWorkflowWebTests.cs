@@ -34,8 +34,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("reviewed", dialog, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("handler=StartWork", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Start report preparation", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=AssignEngineer",
-            Section(html, "eva-handoff-dialog-title"), StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"eva-handoff-dialog-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
 
         using var denied = await workspace.PostAsync("Workflow?handler=AssignEngineer",

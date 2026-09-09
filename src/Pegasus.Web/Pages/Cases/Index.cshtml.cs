@@ -46,6 +46,7 @@ public sealed class IndexModel(
     IGetIntake getIntake,
     IListIntake listIntake,
     IStaffAccountQueries staffAccounts,
+    ICaseWorkflowConfiguration workflowConfiguration,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private const int PageSize = 25;
@@ -73,6 +74,8 @@ public sealed class IndexModel(
         listIntake ?? throw new ArgumentNullException(nameof(listIntake));
     private readonly IStaffAccountQueries _staffAccounts =
         staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
+    private readonly ICaseWorkflowConfiguration _workflowConfiguration =
+        workflowConfiguration ?? throw new ArgumentNullException(nameof(workflowConfiguration));
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -485,9 +488,10 @@ public sealed class IndexModel(
     private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
     {
         var images = await _imageIntakeQueries.ListAsync(false, cancellationToken);
+        var configuration = await _workflowConfiguration.GetCurrentAsync(cancellationToken);
         return images
             .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
-            .Select(ImageRow)
+            .Select(item => ImageRow(item, configuration.ChaseIntervalDays))
             .ToArray();
     }
 
@@ -538,9 +542,9 @@ public sealed class IndexModel(
 
         var details = await _getCase.ExecuteAsync(new(row.Id, actor), cancellationToken)
             ?? throw new InvalidOperationException($"Case '{row.Id}' was listed but could not be read.");
-        var completeness = details.Data?.Completeness.Values;
-        var outstanding = details.Workflow.State == CaseLifecycleState.NotReady && completeness is not null
-            ? OperatorLabels.CaseRequirements(!completeness.InstructionComplete, !completeness.ImagesComplete)
+        var missingRequirements = details.Data?.Completeness.Evaluation.MissingRequirements;
+        var outstanding = details.Workflow.State == CaseLifecycleState.NotReady && missingRequirements is not null
+            ? OperatorLabels.CaseRequirements(missingRequirements)
             : [];
 
         var facts = new List<(string Label, string Value)>(3);
@@ -618,7 +622,7 @@ public sealed class IndexModel(
         $"/Cases/{item.CaseId:D}",
         []);
 
-    private QueueRow ImageRow(ImageIntakeSummary item)
+    private QueueRow ImageRow(ImageIntakeSummary item, int chaseIntervalDays)
     {
         var imageCountLabel = $"{item.ImageCount} retained image{(item.ImageCount == 1 ? string.Empty : "s")}";
         var facts = new List<(string Label, string Value)>
@@ -632,7 +636,10 @@ public sealed class IndexModel(
         facts.Add(("Received", OperatorLabels.OfficeDate(item.RegisteredAtUtc)));
         facts.Add(("Source", OperatorLabels.SourceChannel(item.Source)));
         facts.Add(("Chase", OperatorLabels.ImageChaseState(
-            ImageIntakeChaseSchedule.IsChaseDue(item.RegisteredAtUtc, _timeProvider.GetUtcNow()))));
+            ImageIntakeChaseSchedule.IsChaseDue(
+                item.RegisteredAtUtc,
+                _timeProvider.GetUtcNow(),
+                chaseIntervalDays))));
         return new QueueRow(
             RowKind.Image,
             item.Id,

@@ -163,6 +163,15 @@
                 </div>
             </section>
         }
+        @if (!Model.IsComposed)
+        {
+            <section class="panel unavailable-panel" aria-labelledby="automation-unavailable-title">
+                <div class="panel-head"><h2 id="automation-unavailable-title">Automation &amp; AI</h2></div>
+                <div class="panel-body">
+                    <p>This deployment does not have Automation or AI configuration available.</p>
+                </div>
+            </section>
+        }
     </div>
 </div>
 

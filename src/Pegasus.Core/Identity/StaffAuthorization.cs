@@ -9,7 +9,6 @@ public enum StaffAccessRight
     AccessStaffApplication,
     PerformCasework,
     ManageStaffAccounts,
-    AssignStaffRoles,
     ManageOrganizationsAndPrincipals,
     ManageWorkflowConfiguration,
     ManageApprovedMailboxes,
@@ -43,7 +42,6 @@ public static class StaffAuthorization
                 actor.Kind is ActorKind.Staff or ActorKind.Automation,
 
             StaffAccessRight.ManageStaffAccounts or
-            StaffAccessRight.AssignStaffRoles or
             StaffAccessRight.ManageOrganizationsAndPrincipals or
             StaffAccessRight.ManageWorkflowConfiguration or
             StaffAccessRight.ManageApprovedMailboxes or

@@ -891,7 +891,8 @@ public sealed class CaseReportGenerationPersistenceTests
         public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(CaseReportGenerationRecord generation) =>
             new EfCaseReportDeliveryPreparationStore(Factory, Clock).PrepareAsync(
                 new(new(StaffActor, CaseId, 1, Lease.Token, generation.Id, generation.Version, "prepare-report"),
-                    new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report")), default);
+                    new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
+                    new string('a', 64)), default);
 
         public Task RequireDeliveryReadyAsync(CaseReportDeliveryPreparationRecord record) =>
             new ReportSendReadiness(new EfCaseReportDeliveryPreparationStore(Factory, Clock)).RequireReadyAsync(
@@ -906,22 +907,31 @@ public sealed class CaseReportGenerationPersistenceTests
             var store = new EfStaffAccountAdministration(context,
                 scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(), Clock);
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+            var account = await context.Users.SingleAsync(
+                item => item.Id == FakeSnapshotSource.SignatoryId);
+            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.StaffAccount, account.Id, account.Version, actor, "change-signatory"),
+                default);
             if (change == "disabled")
             {
-                await store.DisableAsync(new(actor, FakeSnapshotSource.SignatoryId, "Unavailable", "change-signatory"), default);
+                await store.DisableAsync(new(
+                    actor, account.Id, "Unavailable", "change-signatory", account.Version, lease.Token), default);
             }
             else if (change == "role")
             {
-                await store.AssignAsync(new(actor, FakeSnapshotSource.SignatoryId, [StaffRole.User],
-                    "Duties changed", "change-signatory"), default);
+                await store.UpdateAsync(new(
+                    actor, account.Id, StaffRole.User, false, null, null, null, false,
+                    "Duties changed", "change-signatory", account.Version, lease.Token), default);
             }
             else
             {
-                await store.UpdateAsync(new(actor, FakeSnapshotSource.SignatoryId,
-                    change != "eligibility", change == "name" ? "Ed M" : "Ed Mawdsley",
+                await store.UpdateAsync(new(
+                    actor, account.Id, StaffRole.Engineer, change != "eligibility",
+                    change == "name" ? "Ed M" : "Ed Mawdsley",
                     change == "qualifications" ? "ATA VDA" : "ATA VDA AQP",
                     change == "signature" ? EvidenceBytesOf(7) : SignatureBytes,
-                    change != "eligibility", "Updated signatory", "change-signatory"), default);
+                    change != "eligibility", "Updated signatory", "change-signatory",
+                    account.Version, lease.Token), default);
             }
         }
 

@@ -20,6 +20,7 @@ public sealed partial class DetailsModel(
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
     IAcquireCaseEditLease acquireCaseEditLease,
+    IReleaseCaseEditLease releaseCaseEditLease,
     IIntakeAssociationDestinationQueries associationDestinations,
     IGetCase getCase,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
@@ -368,6 +369,23 @@ public sealed partial class DetailsModel(
         return RedirectToPage("/Intake/Details", new { id, targetCaseId = caseId, caseQuery = AssociationCaseQuery });
     }
 
+    public async Task<IActionResult> OnPostCancelCaseLinkAsync(
+        Guid id, Guid caseId, string editLeaseToken, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        try
+        {
+            await releaseCaseEditLease.ExecuteAsync(new(caseId, actor,
+                NewOperationKey(), editLeaseToken), cancellationToken);
+        }
+        catch (Exception exception) when (exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException)
+        {
+            // Cancel never mutates Case data; an already-ended lease needs no further release.
+        }
+        ClearCaseLease();
+        return RedirectToPage(new { id });
+    }
+
     public async Task<IActionResult> OnPostLinkCaseAsync(
         Guid id,
         Guid caseId,
@@ -451,7 +469,8 @@ public sealed partial class DetailsModel(
     /// "Unidentified" is the same label/reality gap INTK-033 exists to close.
     /// </summary>
     public static string DecisionLabel(IntakeReceipt receipt) =>
-        receipt.MailClassificationDecision is { IsTriageRequest: true }
+        receipt.CurrentCaseId is not null ? "Linked to Case"
+        : receipt.MailClassificationDecision is { IsTriageRequest: true }
             ? "Triage"
             : DecisionLabel(receipt.Decision);
 

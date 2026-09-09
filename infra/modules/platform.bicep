@@ -516,7 +516,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             // services only when AcceptedLimitsVersion is non-empty, so before
             // this block production had no /Uploads surface at all.
             //
-            // All FIFTEEN entries are required together, the seven media-type
+            // All SEVENTEEN entries are required together, the nine media-type
             // entries no less than the eight scalars: Program.cs:266-268 throws
             // when the array binds to null. Note the failure is NOT a startup
             // crash-loop -- RequestUploadLimits is a lazily resolved factory
@@ -527,19 +527,15 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             // net behind this block; the values were verified by binding them
             // directly (INTK-051 scratch).
             //
-            // These are the interim limits accepted 2026-08-29 (INTK-051);
-            // INT-31 itself stays open on one-time-vs-reuse and the
-            // revocation/expiry error contract.
-            { name: 'DocumentRequests__LimitsVersion', value: 'int-31-interim-v1' }
-            { name: 'DocumentRequests__AcceptedLimitsVersion', value: 'int-31-interim-v1' }
-            // The recorded interim bound is the existing aggregate 10 MB intake
-            // limit, which is IntakeEnvelopeLimits.MaximumContentLength exactly
-            // (IntakeContracts.cs:13). DurableIntake bounds the ManualUpload
-            // channel by that same constant, so raising these two alone would
-            // accept a larger file and then lose it downstream -- see INTK-052.
-            { name: 'DocumentRequests__MaximumRequestBytes', value: '10485760' }
-            { name: 'DocumentRequests__MaximumFileBytes', value: '10485760' }
-            { name: 'DocumentRequests__MaximumFileCount', value: '10' }
+            // U7 aligns public links with IntakeEnvelopeLimits: 100 MiB per
+            // file, 20 files, and a 200 MiB retained aggregate. The version
+            // changes with these accepted limits so links issued under the old
+            // 10 MiB policy fail closed and staff can issue a current link.
+            { name: 'DocumentRequests__LimitsVersion', value: 'u7-media-v1' }
+            { name: 'DocumentRequests__AcceptedLimitsVersion', value: 'u7-media-v1' }
+            { name: 'DocumentRequests__MaximumRequestBytes', value: '209715200' }
+            { name: 'DocumentRequests__MaximumFileBytes', value: '104857600' }
+            { name: 'DocumentRequests__MaximumFileCount', value: '20' }
             // 7 days, matching the existing chase cadence (CASE-17/18, MAIL-18).
             { name: 'DocumentRequests__LifetimeHours', value: '168' }
             // Bounds a caller who HOLDS a token. A caller who holds none is
@@ -548,9 +544,9 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             // never reached for an unknown token.
             { name: 'DocumentRequests__RateLimit', value: '20' }
             { name: 'DocumentRequests__RateLimitWindowMinutes', value: '10' }
-            // Exactly the seven media types MimeKitPdfPigOpenXmlIntakeSourceReader
-            // resolves to a SourceFormat (DetectFormat, :971-1014), so an upload link
-            // admits nothing the estate cannot read and refuses nothing it can.
+            // The seven document/image types resolve to a SourceFormat and
+            // MP4/MOV are retained as video without OCR or crop processing.
+            // The upload link admits only material the intake boundary handles.
             // text/plain is deliberately absent: the reader has no handler for it
             // and would classify it Unsupported.
             { name: 'DocumentRequests__AllowedMediaTypes__0', value: 'application/pdf' }
@@ -560,6 +556,8 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'DocumentRequests__AllowedMediaTypes__4', value: 'application/msword' }
             { name: 'DocumentRequests__AllowedMediaTypes__5', value: 'message/rfc822' }
             { name: 'DocumentRequests__AllowedMediaTypes__6', value: 'application/vnd.ms-outlook' }
+            { name: 'DocumentRequests__AllowedMediaTypes__7', value: 'video/mp4' }
+            { name: 'DocumentRequests__AllowedMediaTypes__8', value: 'video/quicktime' }
           ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
           // ADR-0028: the report renderer runs in process in this container,
           // so headless Chromium shares the app's CPU and memory. Container

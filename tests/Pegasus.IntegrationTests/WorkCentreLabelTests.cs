@@ -72,6 +72,8 @@ public sealed class WorkCentreLabelTests
     [Theory]
     [InlineData(NeedsAttentionKind.Case, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.HeldDecision, "/Cases/Details")]
+    [InlineData(NeedsAttentionKind.ReviewCase, "/Cases/Details")]
+    [InlineData(NeedsAttentionKind.UnassignedEngineer, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.Mail, "/Unidentified/Details")]
     [InlineData(NeedsAttentionKind.Triage, "/Triage/Details")]
     public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)

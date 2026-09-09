@@ -33,6 +33,12 @@ public sealed record GroupedIntakeFile(
     int Ordinal,
     IntakeSource Source);
 
+public sealed record StreamedGroupedIntakeFile(int Ordinal, StreamedIntakeSource Source);
+
+public sealed record StreamedGroupedIntakeSubmissionRequest(string SubmissionToken, string Actor,
+    DateTimeOffset ReceivedAtUtc, IReadOnlyList<StreamedGroupedIntakeFile> Files,
+    IntakeSourceChannel Channel, Guid? ParentReceiptId = null);
+
 public sealed record GroupedIntakeSubmissionRequest(
     string SubmissionToken,
     string Actor,
@@ -109,6 +115,10 @@ public interface IGroupedIntakeSubmission
 {
     Task<GroupedIntakeSubmissionResult> ExecuteAsync(
         GroupedIntakeSubmissionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<GroupedIntakeSubmissionResult> ExecuteStreamedAsync(
+        StreamedGroupedIntakeSubmissionRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -230,6 +240,108 @@ public sealed class SubmitGroupedIntake(
             .Select(member => member with { IsDuplicate = isDuplicateByOrdinal[member.Ordinal] })
             .ToArray();
 
+        return new(group with { Members = members }, members);
+    }
+
+    public async Task<GroupedIntakeSubmissionResult> ExecuteStreamedAsync(StreamedGroupedIntakeSubmissionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.SubmissionToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Actor);
+        if (request.Channel != IntakeSourceChannel.ManualUpload)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "Streamed grouped intake is only supported for manual upload.");
+        }
+
+        if (request.Files is null || request.Files.Count == 0)
+        {
+            throw new ArgumentException("At least one file is required.", nameof(request));
+        }
+
+        var files = request.Files.OrderBy(file => file.Ordinal).ToArray();
+        if (files.Length > IntakeEnvelopeLimits.MaximumBatchFileCount)
+        {
+            throw new InvalidDataException("The upload batch exceeds its limit.");
+        }
+
+        if (files.Select(file => file.Ordinal).Distinct().Count() != files.Length
+            || files[0].Ordinal != 0
+            || files.Select((file, index) => file.Ordinal != index).Any(value => value))
+        {
+            throw new ArgumentException("Group file ordinals must be contiguous from zero.", nameof(request));
+        }
+
+        long aggregateLength = 0;
+        foreach (var file in files)
+        {
+            ArgumentNullException.ThrowIfNull(file.Source);
+            var childToken = GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal);
+            var childOperation = $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}";
+            var childSource = file.Source with
+            {
+                SourceIdentity = new IntakeSourceIdentity(request.Channel, childToken)
+            };
+            ReceiveIntake.ValidateStreamedSource(childSource, childOperation);
+            ReceiveIntake.ValidateStreamedSource(
+                childSource with { Actor = request.Actor },
+                childOperation);
+            aggregateLength = checked(aggregateLength + childSource.ContentLength);
+            if (aggregateLength > IntakeEnvelopeLimits.MaximumBatchContentLength
+                - IntakeEnvelopeLimits.MultipartOverhead)
+            {
+                throw new InvalidDataException("The upload batch exceeds its limit.");
+            }
+        }
+
+        var group = await groupStore.GetOrCreateAsync(
+            Guid.NewGuid(),
+            request.Channel,
+            request.SubmissionToken,
+            files.Length,
+            request.Actor,
+            request.ReceivedAtUtc == default ? timeProvider.GetUtcNow() : request.ReceivedAtUtc,
+            request.ParentReceiptId,
+            cancellationToken);
+        var duplicates = new Dictionary<int, bool>(files.Length);
+        foreach (var file in files)
+        {
+            var existing = await groupStore.FindMemberAsync(group.Id, file.Ordinal, cancellationToken);
+            if (existing is not null)
+            {
+                var hash = await ReceiveIntake.StreamHashAsync(file.Source, cancellationToken);
+                if (!string.Equals(existing.SourceHash, hash, StringComparison.Ordinal))
+                {
+                    throw new IntakeSourceIdentityConflictException(existing.SourceHash, hash);
+                }
+
+                duplicates[file.Ordinal] = true;
+                continue;
+            }
+
+            var source = file.Source with
+            {
+                SourceIdentity = new(
+                    request.Channel,
+                    GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal))
+            };
+            var received = await submission.ExecuteStreamedAsync(
+                source,
+                $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}",
+                cancellationToken);
+            await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
+            duplicates[file.Ordinal] = received.IsDuplicate;
+        }
+
+        var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
+        if (members.Count != files.Length)
+        {
+            throw new InvalidDataException("The submission group is missing a file member.");
+        }
+
+        members = members.Select(member => member with { IsDuplicate = duplicates[member.Ordinal] }).ToArray();
         return new(group with { Members = members }, members);
     }
 

@@ -29,6 +29,7 @@ public sealed class DetailsModel(
     IReopenTriage reopen,
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
+    IEditScopeLeases editScopes,
     IGetIntake getIntake,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     ICaseEngineerChoices engineerChoices,
@@ -40,6 +41,10 @@ public sealed class DetailsModel(
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
+
+    public EditScopeLease? EditLease { get; private set; }
+
+    public bool IsEditing => EditLease is not null;
     private readonly IGetCase _getCase =
         getCase ?? throw new ArgumentNullException(nameof(getCase));
     private readonly IGetIntake _getIntake =
@@ -151,11 +156,18 @@ public sealed class DetailsModel(
         Guid? caseId,
         Guid? assigneeId,
         string? note,
+        string? editLeaseToken,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var staffId, out var actionActor))
         {
             return Forbid();
+        }
+
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            Message = "Select Edit Triage before changing this record.";
+            return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
         }
 
         OperationKey = operationKey;
@@ -166,7 +178,10 @@ public sealed class DetailsModel(
                 expectedVersion,
                 actionActor,
                 operationKey,
-                reason);
+                reason)
+            {
+                EditLeaseToken = editLeaseToken ?? string.Empty
+            };
             switch (actionName)
             {
                 case "assign":
@@ -186,12 +201,18 @@ public sealed class DetailsModel(
                             chosenEngineer,
                             actionActor,
                             operationKey,
-                            reason),
+                            reason)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
                         cancellationToken);
                     break;
                 case "note":
                     await addNote.ExecuteAsync(
-                        new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty),
+                        new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
                         cancellationToken);
                     break;
                 case "unassign":
@@ -210,7 +231,10 @@ public sealed class DetailsModel(
                             reason,
                             roadworthiness,
                             assessment,
-                            null),
+                            null)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
                         cancellationToken);
                     break;
                 case "supersede_finding":
@@ -223,7 +247,10 @@ public sealed class DetailsModel(
                             reason,
                             roadworthiness,
                             assessment,
-                            supersedesFindingId),
+                            supersedesFindingId)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
                         cancellationToken);
                     break;
                 case "link_response":
@@ -237,7 +264,10 @@ public sealed class DetailsModel(
                             expectedVersion,
                             actionActor,
                             operationKey,
-                            reason),
+                            reason)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
                         cancellationToken);
                     break;
                 }
@@ -249,7 +279,10 @@ public sealed class DetailsModel(
                             expectedVersion,
                             actionActor,
                             operationKey,
-                            reason),
+                            reason)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
                         cancellationToken);
                     break;
                 case "complete":
@@ -270,6 +303,7 @@ public sealed class DetailsModel(
                         actionActor,
                         operationKey,
                         reason,
+                        editLeaseToken ?? string.Empty,
                         cancellationToken);
                 case "unlink_case":
                     return await ExecuteCaseAssociationAsync(
@@ -280,6 +314,7 @@ public sealed class DetailsModel(
                         actionActor,
                         operationKey,
                         reason,
+                        editLeaseToken ?? string.Empty,
                         cancellationToken);
                 default:
                     throw new ArgumentException("The requested Triage action is not supported.");
@@ -288,8 +323,22 @@ public sealed class DetailsModel(
             Message = "Triage workflow updated.";
             OperationKey = NewOperationKey();
         }
+        catch (EditScopeConflictException)
+        {
+            Message = await DescribeTriageHeldAsync(id, actionActor, cancellationToken);
+        }
+        catch (EditScopeExpiredException)
+        {
+            Message = "Editing expired before this change was saved. Reload and try again.";
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            await ReleaseRefusedEditAsync(id, actionActor, editLeaseToken, cancellationToken);
+            Message = "This Triage record changed while you were working. Reload and try again.";
+        }
         catch (Exception exception) when (IsExpected(exception))
         {
+            await ReleaseRefusedEditAsync(id, actionActor, editLeaseToken, cancellationToken);
             Message = exception.Message;
         }
 
@@ -297,6 +346,81 @@ public sealed class DetailsModel(
     }
 
     public static string StateLabel(TriageState state) => Presentation.OperatorLabels.TriageState(state);
+
+    public async Task<IActionResult> OnPostEditAsync(
+        Guid id,
+        long expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            EditLease = await editScopes.ClaimAsync(
+                new(EditScopeKind.Triage, id, expectedVersion, actor, $"triage-edit:{Guid.NewGuid():N}"),
+                cancellationToken);
+        }
+        catch (EditScopeConflictException)
+        {
+            ModelState.AddModelError(string.Empty,
+                await DescribeTriageHeldAsync(id, actor, cancellationToken));
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            ModelState.AddModelError(string.Empty,
+                "This Triage record changed while you were working. Reload and try again.");
+        }
+
+        return await LoadAsync(id, actor, cancellationToken) ? Page() : NotFound();
+    }
+
+    public async Task<IActionResult> OnPostCancelEditAsync(
+        Guid id,
+        string editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.Triage, id, actor, $"triage-edit-release:{Guid.NewGuid():N}", editLeaseToken),
+                cancellationToken);
+        }
+        catch (EditScopeExpiredException)
+        {
+            // The already-expired scope protects no mutation and is treated as cancelled.
+        }
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostHeartbeatEditAsync(
+        Guid id,
+        string editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await editScopes.HeartbeatAsync(
+                new(EditScopeKind.Triage, id, actor, editLeaseToken), cancellationToken);
+            return new OkResult();
+        }
+        catch (EditScopeExpiredException)
+        {
+            return new ConflictObjectResult("Editing this Triage record has ended. Reload it before making further changes.");
+        }
+    }
 
     public static string SourceChannelLabel(IntakeSourceChannel channel) =>
         Presentation.OperatorLabels.SourceChannel(channel);
@@ -441,11 +565,13 @@ public sealed class DetailsModel(
         ActionActor actor,
         string operationKey,
         string reason,
+        string editLeaseToken,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty
             || !Guid.TryParseExact(operationKey, "N", out var operationId))
         {
+            await ReleaseRefusedEditAsync(triageId, actor, editLeaseToken, cancellationToken);
             TempData["TriageStatus"] =
                 "A valid case and operation identity are required.";
             return RedirectToPage(new { id = triageId });
@@ -461,6 +587,7 @@ public sealed class DetailsModel(
                 ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
             if (targetCase.ActiveEditLease is { } activeLease)
             {
+                await ReleaseRefusedEditAsync(triageId, actor, editLeaseToken, cancellationToken);
                 var unavailableReason = await DescribeCaseHeldAsync(
                     activeLease,
                     actor,
@@ -486,7 +613,10 @@ public sealed class DetailsModel(
                 actor,
                 operationId.ToString("N"),
                 reason,
-                lease.Token);
+                lease.Token)
+            {
+                EditLeaseToken = editLeaseToken
+            };
             if (linking)
             {
                 await linkCase.ExecuteAsync(request, cancellationToken);
@@ -507,6 +637,7 @@ public sealed class DetailsModel(
         }
         catch (Exception exception) when (IsExpected(exception))
         {
+            await ReleaseRefusedEditAsync(triageId, actor, editLeaseToken, cancellationToken);
             var unavailableReason = RefusalMessage(exception);
             TempData["TriageStatus"] = unavailableReason;
             if (exception is CaseEditLeaseConflictException)
@@ -594,6 +725,55 @@ public sealed class DetailsModel(
                 actor,
                 cancellationToken);
         return EditModeDisplay.CaseHeldBy(holder, isSelf);
+    }
+
+    private async Task<string> DescribeTriageHeldAsync(
+        Guid triageId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var active = await editScopes.GetActiveAsync(
+            EditScopeKind.Triage, triageId, actor, cancellationToken);
+        if (active is null)
+        {
+            return "Another member of staff is editing this Triage record. Reload to try again.";
+        }
+
+        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+        var holder = isSelf
+            ? CaseEditAuthorityHolder.Unnamed
+            : await _describeEditAuthorityHolder.ExecuteAsync(
+                active.HolderKind,
+                active.Holder,
+                actor,
+                cancellationToken);
+        return isSelf
+            ? "You are already editing this Triage record elsewhere."
+            : $"Triage editing is unavailable because {EditModeDisplay.HolderName(holder)} is editing it.";
+    }
+
+    private async Task ReleaseRefusedEditAsync(
+        Guid triageId,
+        ActionActor actor,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return;
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.Triage, triageId, actor,
+                    $"triage-refused-edit-release:{Guid.NewGuid():N}", editLeaseToken),
+                cancellationToken);
+        }
+        catch (EditScopeExpiredException)
+        {
+            // A refused action has no record mutation left to protect.
+        }
     }
 
     /// <summary>

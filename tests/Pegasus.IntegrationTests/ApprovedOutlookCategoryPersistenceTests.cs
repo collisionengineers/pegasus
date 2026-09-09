@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
 
@@ -42,7 +43,8 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var disabled = await update.ExecuteAsync(request with
         {
             State = ApprovedOutlookCategoryState.Disabled, ExpectedVersion = created.Version,
-            Reason = "Retire the approved display name", OperationKey = Guid.NewGuid().ToString("N")
+            Reason = "Retire the approved display name", OperationKey = Guid.NewGuid().ToString("N"),
+            EditLeaseToken = await ClaimEditAsync(scope.ServiceProvider, id, created.Version, actor)
         }, default);
         Assert.Equal(ApprovedOutlookCategoryState.Disabled, disabled.State);
         Assert.Null(await resolver.ResolveActiveAsync(id, default));
@@ -77,7 +79,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
     }
 
     [Fact]
-    public async Task ConcurrentReplayIsIdempotentAndCompetingUpdateCommitsOnce()
+    public async Task ConcurrentReplayIsIdempotentAndStaleUpdateIsRefused()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -94,18 +96,17 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var first = create with
         {
             DisplayName = "Awaiting allocation", ExpectedVersion = 1,
-            Reason = "Choose the first competing update", OperationKey = Guid.NewGuid().ToString("N")
+            Reason = "Choose the first competing update", OperationKey = Guid.NewGuid().ToString("N"),
+            EditLeaseToken = await ClaimEditAsync(database, id, 1, actor)
         };
         var second = create with
         {
             DisplayName = "Awaiting review", ExpectedVersion = 1,
             Reason = "Choose the second competing update", OperationKey = Guid.NewGuid().ToString("N")
         };
-        var outcomes = await Task.WhenAll(CaptureAsync(database, first), CaptureAsync(database, second));
-
-        Assert.Single(outcomes, outcome => outcome.Result is not null);
-        var loser = Assert.Single(outcomes, outcome => outcome.Error is not null).Error!;
-        var conflict = Assert.IsType<ApprovedOutlookCategoryUpdateException>(loser);
+        _ = await ExecuteAsync(database, first);
+        var conflict = await Assert.ThrowsAsync<ApprovedOutlookCategoryUpdateException>(
+            () => ExecuteAsync(database, second));
         Assert.Equal(ApprovedOutlookCategoryUpdateError.VersionConflict, conflict.Error);
         Assert.Equal(2, conflict.CurrentVersion);
 
@@ -125,17 +126,23 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
             .ExecuteAsync(request, default);
     }
 
-    private static async Task<(ApprovedOutlookCategory? Result, Exception? Error)> CaptureAsync(
+    private static async Task<string> ClaimEditAsync(
         LocalDbTestDatabase database,
-        UpdateApprovedOutlookCategoryRequest request)
+        Guid categoryId,
+        int expectedVersion,
+        ActionActor actor)
     {
-        try
-        {
-            return (await ExecuteAsync(database, request), null);
-        }
-        catch (Exception exception)
-        {
-            return (null, exception);
-        }
+        await using var scope = database.CreateAsyncScope();
+        return await ClaimEditAsync(scope.ServiceProvider, categoryId, expectedVersion, actor);
     }
+
+    private static async Task<string> ClaimEditAsync(
+        IServiceProvider services,
+        Guid categoryId,
+        int expectedVersion,
+        ActionActor actor) =>
+        (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.ApprovedOutlookCategory, categoryId, expectedVersion, actor,
+                Guid.NewGuid().ToString("N")),
+            CancellationToken.None)).Token;
 }

@@ -504,6 +504,7 @@ public sealed class EfImageIntakeStore(
             request.OperationKey,
             request.Actor,
             request.Reason,
+            request.EditLeaseToken,
             "merged_into_instruction_case",
             ImageInitiatedCaseState.MergedIntoInstructionCase,
             request.CaseId,
@@ -522,6 +523,7 @@ public sealed class EfImageIntakeStore(
             request.OperationKey,
             request.Actor,
             request.Reason,
+            request.EditLeaseToken,
             "staff_closed",
             ImageInitiatedCaseState.StaffClosed,
             null,
@@ -565,9 +567,22 @@ public sealed class EfImageIntakeStore(
             throw new DbUpdateConcurrencyException(
                 "This Image Intake changed before the principal assignment.");
         }
+        await EfEditScopeStore.RequireAsync(
+            context,
+            EditScopeKind.ImageIntake,
+            entity.Id,
+            entity.LifecycleVersion,
+            request.ExpectedVersion,
+            request.Actor,
+            request.EditLeaseToken,
+            timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow(),
+            cancellationToken);
 
         if (entity.PrincipalId == request.PrincipalId)
         {
+            EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return Map(entity);
         }
 
@@ -581,6 +596,7 @@ public sealed class EfImageIntakeStore(
 
         entity.PrincipalId = request.PrincipalId;
         entity.LifecycleVersion++;
+        EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -616,6 +632,7 @@ public sealed class EfImageIntakeStore(
         string operationKey,
         ActionActor actor,
         string reason,
+        string editLeaseToken,
         string eventType,
         ImageInitiatedCaseState targetState,
         Guid? caseId,
@@ -649,6 +666,19 @@ public sealed class EfImageIntakeStore(
         if (entity.LifecycleVersion != expectedVersion)
         {
             throw new DbUpdateConcurrencyException("The Image-initiated Case changed before this transition.");
+        }
+        if (actor.Kind == ActorKind.Staff)
+        {
+            await EfEditScopeStore.RequireAsync(
+                context,
+                EditScopeKind.ImageIntake,
+                entity.Id,
+                entity.LifecycleVersion,
+                expectedVersion,
+                actor,
+                editLeaseToken,
+                timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow(),
+                cancellationToken);
         }
         ImageIntakeLifecycleRules.RequireTransitionable(ParseState(entity.LifecycleState));
 
@@ -714,6 +744,10 @@ public sealed class EfImageIntakeStore(
         entity.MergedIntoCaseReference = caseReference;
         entity.ClosureReason = targetState == ImageInitiatedCaseState.StaffClosed ? reason.Trim() : null;
         entity.ClosedAtUtc = targetState == ImageInitiatedCaseState.StaffClosed ? now : null;
+        if (actor.Kind == ActorKind.Staff)
+        {
+            EfEditScopeStore.Complete(context, EditScopeKind.ImageIntake, entity.Id);
+        }
         context.ImageIntakeLifecycleEvents.Add(new ImageIntakeLifecycleEventEntity
         {
             Id = Guid.NewGuid(),

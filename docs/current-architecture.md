@@ -1,12 +1,12 @@
 # Source architecture
 
-Reviewed source baseline: `af1625fae8ac8018054c95e988907f6c44fa4639`. This is a source-structure snapshot,
-not a claim that this revision is deployed or externally accepted. Refresh it
+Source structure updated for the 9 September 2026 pre-v1 rectification. This
+is not a claim that these changes are deployed or externally accepted. Refresh it
 when the source structure changes. [Operations](operations.md) owns dated
 deployed observations and exact runtime identities.
 
-The 9 September 2026 corrective change updates the intake OCR and estimate
-import boundaries described below; it does not change the dependency direction.
+The corrective change updates intake OCR, estimate import, Contacts, edit
+ownership and Case/report workflows; it retains the dependency direction below.
 
 ## Components and dependency direction
 
@@ -25,9 +25,26 @@ flowchart LR
 
 ## Flows and data ownership
 
+- Contacts uses Organization identities with explicit roles and Principal
+  associations. Principal policy remains on Principal records; Contacts owns
+  the administration routes. Staff accounts have exactly one role.
+- Non-Case mutable records use typed, versioned edit scopes. Case editing retains
+  its existing workflow lease and one atomic workspace save for data, assessment,
+  damage and image preparation.
+- Direct manual Case creation shares the permanent reference allocator with
+  receipt acceptance. It creates no intake receipt or invented source provenance.
+- Notes and immutable applied guidance share the Case workflow timeline.
+  Configured completeness and chase intervals are read by the owning transactions.
+- Principal report policy selects Pegasus, EVA ZIP, manual EVA API or automatic
+  EVA on Review. A durable automatic intent prevents repeated automatic
+  submission; retained outcomes support staff review and an explicit retry.
 - Receipt persists original bytes, source identity and durable work before
   publication. Worker owns queued processing and recovery; notification and
   recovery scheduling use the accepted unified queue boundary.
+- Staff and public uploads use bounded streams for validation, hashing and
+  retention. Custody verifies a temporary file before writing managed content;
+  local storage and Box accept streamed writes with explicit length and hash.
+  Existing in-memory callers retain their own entry points into the same policy.
 - Core route/classification/matching policy determines formal Case, Triage,
   image-origin and Unidentified outcomes. Their identities remain distinct.
 - SQL owns application state and provenance. Box owns durable file custody;

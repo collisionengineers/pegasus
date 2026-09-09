@@ -1015,7 +1015,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new EfAiJobStore(harness.Factory, harness.Clock),
             harness.Clock);
 
-        var rateCardId = Guid.NewGuid();
+        var rateCardAdministrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var rateCard = await rateCards.SaveAsync(
+            new(Guid.NewGuid(), "Panel and paint", 52.50m, true, 0, rateCardAdministrator,
+                "Create rate", "estimate-canonical-rate-create", ""),
+            CancellationToken.None);
         var documentVersionId = Guid.NewGuid();
         var documentSha = new string('c', 64);
         var amendedAtUtc = StartUtc.AddHours(2);
@@ -1027,38 +1032,81 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new EstimateVatPolicy(
                 RepairerVatStatus.NotRegistered,
                 EstimateVatCategories.Parts | EstimateVatCategories.Materials,
-                false),
-            new EstimateRateSnapshot(rateCardId, 7L, 52.50m));
+                false));
+        var lines = new[]
+        {
+            new EstimateLineInput("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
+                "confirmed", "official", null, Quantity: 1, Materials: 12.50m,
+                Origin: origin,
+                SourceDocumentIdentity: "estimate-import:estimate-canonical-save",
+                SourceDocumentVersionId: documentVersionId,
+                SourceDocumentSha256: documentSha,
+                SourceRowIdentity: "parts:1",
+                AmendedBy: engineer.SubjectId,
+                AmendedAtUtc: amendedAtUtc),
+            new EstimateLineInput("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
+                "confirmed", "judgement", null),
+        };
+        var source = new RepairSpecificationSource(RepairSpecificationSourceRoute.Manual, null, null, null);
 
         var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "estimate-canonical-lease");
         var saved = await save.ExecuteAsync(
             new(caseId, lease.Version, engineer, "estimate-canonical-save",
                 "Recorded the repairer's estimate.", lease.Token, null, details,
-                [
-                    new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                        "confirmed", "official", null, Quantity: 1, Materials: 12.50m,
-                        Origin: origin,
-                        SourceDocumentIdentity: "estimate-import:estimate-canonical-save",
-                        SourceDocumentVersionId: documentVersionId,
-                        SourceDocumentSha256: documentSha,
-                        SourceRowIdentity: "parts:1",
-                        AmendedBy: engineer.SubjectId,
-                        AmendedAtUtc: amendedAtUtc),
-                    new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
-                        "confirmed", "judgement", null),
-                ],
-                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+                lines, source)
+            {
+                SelectedRateCardId = rateCard.Id,
+                SelectedRateCardVersion = rateCard.Version,
+            },
             CancellationToken.None);
 
         var read = (await harness.RepairSpecifications.GetVersionAsync(
             caseId, saved.SpecificationId, CancellationToken.None))!;
+        var initialRateSnapshot = new EstimateRateSnapshot(
+            rateCard.Id, rateCard.Version, rateCard.HourlyRate);
         Assert.Equal(details.Discounts, read.Details.Discounts);
         Assert.Equal(details.Vat, read.Details.Vat);
-        Assert.Equal(details.Rate, read.Details.Rate);
+        Assert.Equal(initialRateSnapshot, read.Details.Rate);
         // One rate column: the snapshot's rate is the estimate's labour rate,
         // never a second stored figure that could disagree with it.
         Assert.Equal(52.50m, read.Details.LabourRate);
         Assert.Equal(52.50m, read.Details.HourlyRate);
+
+        var editLease = await harness.AcquireLeaseAsync(
+            caseId, 1, engineer, "estimate-canonical-edit-lease");
+        await Assert.ThrowsAsync<ArgumentException>(() => save.ExecuteAsync(
+            new(caseId, editLease.Version, engineer, "estimate-canonical-forged-rate",
+                "Attempt a forged rate snapshot.", editLease.Token, saved.SpecificationId,
+                read.Details with
+                {
+                    Rate = new EstimateRateSnapshot(Guid.NewGuid(), 1, read.Details.LabourRate ?? 0m)
+                },
+                lines, source,
+                ExistingLineIds: read.Lines.Select(line => (Guid?)line.Id).ToArray()),
+            CancellationToken.None));
+
+        var rateScopes = new EfEditScopeStore(harness.Factory, harness.Clock);
+        var rateLease = await rateScopes.ClaimAsync(
+            new(EditScopeKind.LabourRateCard, rateCard.Id, rateCard.Version,
+                rateCardAdministrator, "estimate-canonical-rate-retire"),
+            CancellationToken.None);
+        var retiredRateCard = await rateCards.SaveAsync(
+            new(rateCard.Id, rateCard.Name, 80m, false, rateCard.Version, rateCardAdministrator,
+                "Retire and revise rate", "estimate-canonical-rate-retire", rateLease.Token),
+            CancellationToken.None);
+        Assert.False(retiredRateCard.Enabled);
+        Assert.Equal(80m, retiredRateCard.HourlyRate);
+
+        var resaved = await save.ExecuteAsync(
+            new(caseId, editLease.Version, engineer, "estimate-canonical-edit",
+                "Retain the estimate's recorded rate.", editLease.Token, saved.SpecificationId,
+                read.Details with { Notes = "Confirmed after the rate card changed." }, lines, source,
+                ExistingLineIds: read.Lines.Select(line => (Guid?)line.Id).ToArray()),
+            CancellationToken.None);
+        Assert.Equal(initialRateSnapshot, resaved.Details.Rate);
+        Assert.Equal(52.50m, resaved.Details.LabourRate);
+        Assert.Equal(52.50m, resaved.Details.HourlyRate);
+
         Assert.Equal(
             "NotRegistered",
             await harness.Database.ScalarAsync<string>(
@@ -2385,7 +2433,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
                     operationKey,
-                    "Accepted assessment fixture case",
                     CaseType.Inspection,
                     "QDOS",
                     new(true, true),
@@ -2571,6 +2618,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             string expectedSha256, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task DeleteAsync(
             Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -2592,6 +2647,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         {
             StoreCount++;
             return Task.CompletedTask;
+        }
+
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            StoreCount++;
+            return Task.FromResult(new DocumentContentWriteResult(
+                DocumentContentWriteDisposition.Created,
+                null));
         }
 
         public Task<Stream> OpenReadAsync(

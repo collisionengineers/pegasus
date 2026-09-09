@@ -32,6 +32,181 @@ public sealed class MailboxIntakeIntegrationTests
     private const long TestMailboxContentLength = 256 * 1024;
 
     [Fact]
+    public async Task StreamStageReplayForTheSameReceiptPreservesExistingMetadata()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.StreamedArtifactReplayIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        var artifactRoot = Path.Combine(workingRoot, "artifacts");
+        var content = new byte[] { 0x10, 0x20, 0x30, 0x40 };
+        var contentHash = Convert.ToHexString(SHA256.HashData(content));
+        var receiptId = Guid.NewGuid();
+        var firstSeenAtUtc = RecordedAtUtc;
+
+        try
+        {
+            using var artifactStore = new FileSystemIntakeArtifactStore(artifactRoot);
+            using var initialContent = new MemoryStream(content, writable: false);
+            var initial = await artifactStore.StageAsync(
+                receiptId,
+                contentHash,
+                initialContent,
+                content.Length,
+                firstSeenAtUtc,
+                CancellationToken.None);
+            var failed = Assert.IsType<StagedArtifactInventoryItem>(
+                await artifactStore.TrySetStagedDispositionAsync(
+                    initial.StorageKey,
+                    initial.ConcurrencyToken,
+                    StagedArtifactDisposition.Failed,
+                    CancellationToken.None));
+
+            using var replayContent = new MemoryStream(content, writable: false);
+            var replay = await artifactStore.StageAsync(
+                receiptId,
+                contentHash,
+                replayContent,
+                content.Length,
+                firstSeenAtUtc.AddMinutes(1),
+                CancellationToken.None);
+
+            Assert.Equal(failed.StorageKey, replay.StorageKey);
+            Assert.Equal(StagedArtifactDisposition.Failed, replay.Disposition);
+            Assert.Equal(failed.ConcurrencyToken, replay.ConcurrencyToken);
+            Assert.Equal(firstSeenAtUtc, replay.FirstSeenAtUtc);
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task StreamStageRefusesAReplayWhenStoredBytesWereTamperedWithoutChangingLength()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.StreamedArtifactTamperIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        var artifactRoot = Path.Combine(workingRoot, "artifacts");
+        var content = new byte[] { 0x10, 0x20, 0x30, 0x40 };
+        var contentHash = Convert.ToHexString(SHA256.HashData(content));
+        var receiptId = Guid.NewGuid();
+
+        try
+        {
+            using var artifactStore = new FileSystemIntakeArtifactStore(artifactRoot);
+            using var initialContent = new MemoryStream(content, writable: false);
+            var initial = await artifactStore.StageAsync(
+                receiptId,
+                contentHash,
+                initialContent,
+                content.Length,
+                RecordedAtUtc,
+                CancellationToken.None);
+            var storedPath = Path.Combine(
+                artifactRoot,
+                initial.StorageKey.Replace('/', Path.DirectorySeparatorChar));
+            var tampered = content.ToArray();
+            tampered[^1] ^= 0x01;
+            await File.WriteAllBytesAsync(storedPath, tampered);
+            Assert.Equal(content.Length, new FileInfo(storedPath).Length);
+
+            using var replayContent = new MemoryStream(content, writable: false);
+            await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(() => artifactStore.StageAsync(
+                receiptId,
+                contentHash,
+                replayContent,
+                content.Length,
+                RecordedAtUtc,
+                CancellationToken.None));
+
+            await Assert.ThrowsAsync<IntakeArtifactIntegrityException>(() =>
+                artifactStore.ReadAsync(initial.StorageKey, CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task StreamedSourceMismatchOrDeclaredLengthMismatchCreatesNeitherReceiptNorStagingArtifact()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.StreamedArtifactIngressIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        var artifactRoot = Path.Combine(workingRoot, "artifacts");
+        var original = new byte[] { 0x10, 0x20, 0x30, 0x40 };
+        var changed = original.ToArray();
+        changed[^1] ^= 0x01;
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => artifactRoot,
+                configureServices: services =>
+                {
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                });
+            await using var scope = database.CreateAsyncScope();
+            var submission = scope.ServiceProvider.GetRequiredService<ReceiveIntake>();
+            var opens = 0;
+            var changingSource = new StreamedIntakeSource(
+                "evidence.pdf",
+                "application/pdf",
+                original.Length,
+                _ => ValueTask.FromResult<Stream>(new MemoryStream(
+                    ++opens == 1 ? original : changed,
+                    writable: false)),
+                RecordedAtUtc,
+                "staff:integration-test",
+                new(IntakeSourceChannel.ManualUpload, "changed-stream-source"));
+
+            var retentionException = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(() =>
+                submission.ExecuteStreamedAsync(
+                    changingSource,
+                    "streamed-artifact-changing-source",
+                    CancellationToken.None));
+            Assert.IsType<IntakeArtifactIntegrityException>(retentionException.InnerException);
+
+            var lengthMismatchSource = new StreamedIntakeSource(
+                "evidence.pdf",
+                "application/pdf",
+                original.Length + 1L,
+                _ => ValueTask.FromResult<Stream>(new MemoryStream(original, writable: false)),
+                RecordedAtUtc,
+                "staff:integration-test",
+                new(IntakeSourceChannel.ManualUpload, "declared-length-mismatch"));
+            await Assert.ThrowsAsync<InvalidDataException>(() => submission.ExecuteStreamedAsync(
+                lengthMismatchSource,
+                "streamed-artifact-declared-length-mismatch",
+                CancellationToken.None));
+
+            Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
+            var artifactStore = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
+            Assert.Empty(await artifactStore.ListStagedAsync(10, CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ReevaluationPreservesThePriorDecisionRecordsInPermanentHistory()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -1301,6 +1476,29 @@ public sealed class MailboxIntakeIntegrationTests
             }
 
             return inner.StoreAsync(contentHash, content, cancellationToken);
+        }
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken)
+        {
+            if (string.Equals(contentHash, failureHash, StringComparison.Ordinal)
+                && Interlocked.Exchange(ref remainingFailures, 0) == 1)
+            {
+                throw new IOException("Injected artifact retention failure.");
+            }
+
+            return inner.StageAsync(
+                stagedReceiptId,
+                contentHash,
+                content,
+                contentLength,
+                firstSeenAtUtc,
+                cancellationToken);
         }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(

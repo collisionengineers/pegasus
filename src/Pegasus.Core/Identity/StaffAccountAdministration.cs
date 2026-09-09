@@ -1,3 +1,5 @@
+using Pegasus.Core.Workflow;
+
 namespace Pegasus.Core.Identity;
 
 public sealed record StaffAccountSummary(
@@ -5,8 +7,10 @@ public sealed record StaffAccountSummary(
     string UserName,
     bool IsEnabled,
     bool MustChangePassword,
-    IReadOnlyList<StaffRole> Roles)
+    StaffRole Role)
 {
+    public long Version { get; init; }
+
     public StaffAccountSignOffState SignOff { get; init; } =
         StaffAccountSignOffState.NotConfigured;
 }
@@ -62,20 +66,6 @@ public sealed record GetStaffHeldCaseEditLeasesResult(
     Guid StaffId,
     IReadOnlyList<StaffHeldCaseEditLease> Leases);
 
-public sealed record StaffRoleAssignmentProjection(
-    Guid StaffId,
-    string UserName,
-    bool IsEnabled,
-    IReadOnlyList<StaffRole> CurrentRoles);
-
-public sealed record GetRoleAssignmentsRequest(
-    ActionActor Actor,
-    int MaximumResults = 100);
-
-public sealed record GetRoleAssignmentsResult(
-    IReadOnlyList<StaffRoleAssignmentProjection> Accounts,
-    bool HasMoreAccounts);
-
 public sealed record CreateStaffAccountRequest(
     ActionActor Actor,
     string UserName,
@@ -91,7 +81,9 @@ public sealed record DisableStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
     string Reason,
-    string OperationKey);
+    string OperationKey,
+    long ExpectedVersion = 0,
+    string EditLeaseToken = "");
 
 public sealed record DisableStaffAccountResult(
     StaffAccountSummary Account,
@@ -99,14 +91,21 @@ public sealed record DisableStaffAccountResult(
     long RevokedTokens,
     bool WasReplay);
 
-public sealed record AssignStaffRolesRequest(
+public sealed record UpdateStaffAccountSettingsRequest(
     ActionActor Actor,
     Guid StaffId,
-    IReadOnlyCollection<StaffRole> Roles,
+    StaffRole Role,
+    bool IsSignOffEngineer,
+    string? PrintedName,
+    string? Qualifications,
+    byte[]? Signature,
+    bool IsDefaultSignOffEngineer,
     string Reason,
-    string OperationKey);
+    string OperationKey,
+    long ExpectedVersion,
+    string EditLeaseToken);
 
-public sealed record AssignStaffRolesResult(
+public sealed record UpdateStaffAccountSettingsResult(
     StaffAccountSummary Account,
     long RevokedAuthorizations,
     long RevokedTokens,
@@ -116,7 +115,9 @@ public sealed record EnableStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
     string Reason,
-    string OperationKey);
+    string OperationKey,
+    long ExpectedVersion = 0,
+    string EditLeaseToken = "");
 
 public sealed record EnableStaffAccountResult(
     StaffAccountSummary Account,
@@ -126,7 +127,9 @@ public sealed record ForceStaffLogoutRequest(
     ActionActor Actor,
     Guid StaffId,
     string Reason,
-    string OperationKey);
+    string OperationKey,
+    long ExpectedVersion = 0,
+    string EditLeaseToken = "");
 
 public sealed record ForceStaffLogoutResult(
     Guid StaffId,
@@ -138,7 +141,9 @@ public sealed record ResetStaffPasswordRequest(
     ActionActor Actor,
     Guid StaffId,
     string Reason,
-    string OperationKey);
+    string OperationKey,
+    long ExpectedVersion = 0,
+    string EditLeaseToken = "");
 
 public sealed class ResetStaffPasswordResult(
     Guid staffId,
@@ -159,28 +164,15 @@ public sealed record DeleteStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
     string Reason,
-    string OperationKey);
+    string OperationKey,
+    long ExpectedVersion = 0,
+    string EditLeaseToken = "");
 
 public sealed record DeleteStaffAccountResult(
     Guid StaffId,
     long RevokedAuthorizations,
     long RevokedTokens,
     bool CredentialsCleared,
-    bool WasReplay);
-
-public sealed record UpdateStaffAccountSignOffRequest(
-    ActionActor Actor,
-    Guid StaffId,
-    bool IsSignOffEngineer,
-    string? PrintedName,
-    string? Qualifications,
-    byte[]? Signature,
-    bool IsDefault,
-    string Reason,
-    string OperationKey);
-
-public sealed record UpdateStaffAccountSignOffResult(
-    StaffAccountSummary Account,
     bool WasReplay);
 
 public sealed record StaffAccountQuerySlice(
@@ -220,10 +212,10 @@ public interface IDisableStaffAccountStore
         CancellationToken cancellationToken);
 }
 
-public interface IAssignStaffRolesStore
+public interface IUpdateStaffAccountSettingsStore
 {
-    Task<AssignStaffRolesResult> AssignAsync(
-        AssignStaffRolesRequest request,
+    Task<UpdateStaffAccountSettingsResult> UpdateAsync(
+        UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -262,13 +254,6 @@ public interface IDeleteStaffAccountStore
         CancellationToken cancellationToken);
 }
 
-public interface IUpdateStaffAccountSignOffStore
-{
-    Task<UpdateStaffAccountSignOffResult> UpdateAsync(
-        UpdateStaffAccountSignOffRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IListStaffAccounts
 {
     Task<ListStaffAccountsResult> ExecuteAsync(
@@ -280,13 +265,6 @@ public interface IGetStaffAccount
 {
     Task<GetStaffAccountResult?> ExecuteAsync(
         GetStaffAccountRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IGetRoleAssignments
-{
-    Task<GetRoleAssignmentsResult> ExecuteAsync(
-        GetRoleAssignmentsRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -304,10 +282,10 @@ public interface IDisableStaffAccount
         CancellationToken cancellationToken);
 }
 
-public interface IAssignStaffRoles
+public interface IUpdateStaffAccountSettings
 {
-    Task<AssignStaffRolesResult> ExecuteAsync(
-        AssignStaffRolesRequest request,
+    Task<UpdateStaffAccountSettingsResult> ExecuteAsync(
+        UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -343,13 +321,6 @@ public interface IDeleteStaffAccount
 {
     Task<DeleteStaffAccountResult> ExecuteAsync(
         DeleteStaffAccountRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IUpdateStaffAccountSignOff
-{
-    Task<UpdateStaffAccountSignOffResult> ExecuteAsync(
-        UpdateStaffAccountSignOffRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -433,36 +404,6 @@ public sealed class GetStaffAccount(IStaffAccountQueries queries)
     }
 }
 
-public sealed class GetRoleAssignments(IStaffAccountQueries queries)
-    : IGetRoleAssignments
-{
-    private readonly IStaffAccountQueries _queries =
-        queries ?? throw new ArgumentNullException(nameof(queries));
-
-    public async Task<GetRoleAssignmentsResult> ExecuteAsync(
-        GetRoleAssignmentsRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.AssignStaffRoles);
-        ListStaffAccounts.ValidateMaximumResults(
-            request.MaximumResults,
-            nameof(request.MaximumResults));
-
-        var slice = await _queries.ListAsync(0, request.MaximumResults, cancellationToken);
-        return new(
-            slice.Accounts
-                .Select(account => new StaffRoleAssignmentProjection(
-                    account.Id,
-                    account.UserName,
-                    account.IsEnabled,
-                    account.Roles))
-                .ToArray(),
-            slice.HasMoreAccounts);
-    }
-}
-
 public sealed class CreateStaffAccount(ICreateStaffAccountStore store)
     : ICreateStaffAccount
 {
@@ -491,16 +432,16 @@ public sealed class DisableStaffAccount(IDisableStaffAccountStore store)
             cancellationToken);
 }
 
-public sealed class AssignStaffRoles(IAssignStaffRolesStore store)
-    : IAssignStaffRoles
+public sealed class UpdateStaffAccountSettings(IUpdateStaffAccountSettingsStore store)
+    : IUpdateStaffAccountSettings
 {
-    private readonly IAssignStaffRolesStore _store =
+    private readonly IUpdateStaffAccountSettingsStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
-    public Task<AssignStaffRolesResult> ExecuteAsync(
-        AssignStaffRolesRequest request,
+    public Task<UpdateStaffAccountSettingsResult> ExecuteAsync(
+        UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken) =>
-        _store.AssignAsync(
+        _store.UpdateAsync(
             StaffAccountAdministrationPolicy.Normalize(request),
             cancellationToken);
 }
@@ -572,20 +513,6 @@ public sealed class DeleteStaffAccount(IDeleteStaffAccountStore store) : IDelete
         _store.DeleteAsync(StaffAccountAdministrationPolicy.Normalize(request), cancellationToken);
 }
 
-public sealed class UpdateStaffAccountSignOff(IUpdateStaffAccountSignOffStore store)
-    : IUpdateStaffAccountSignOff
-{
-    private readonly IUpdateStaffAccountSignOffStore _store =
-        store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<UpdateStaffAccountSignOffResult> ExecuteAsync(
-        UpdateStaffAccountSignOffRequest request,
-        CancellationToken cancellationToken) =>
-        _store.UpdateAsync(
-            StaffAccountAdministrationPolicy.Normalize(request),
-            cancellationToken);
-}
-
 public static class SignOffSignaturePolicy
 {
     public const string MediaType = "image/png";
@@ -618,11 +545,11 @@ public static class SignOffEngineerEligibility
 {
     public static bool IsEligible(
         bool isEnabled,
-        IReadOnlyCollection<StaffRole> roles,
+        StaffRole role,
         bool isSignOffEngineer,
         byte[]? signature) =>
         isEnabled
-        && roles.Contains(StaffRole.Engineer)
+        && StaffRoleCapabilities.MeetsRequirement(role, StaffRole.Engineer)
         && isSignOffEngineer
         && signature is { Length: > 0 };
 }
@@ -666,7 +593,7 @@ public static class StaffAccountAdministrationPolicy
         RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
         RequireDifferentStaffAccount(request.Actor, request.StaffId);
-        return request with
+        var normalized = request with
         {
             Reason = NormalizeRequiredText(
                 request.Reason,
@@ -677,25 +604,61 @@ public static class StaffAccountAdministrationPolicy
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey))
         };
+        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
+            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
     }
 
-    public static AssignStaffRolesRequest Normalize(AssignStaffRolesRequest request)
+    public static UpdateStaffAccountSettingsRequest Normalize(UpdateStaffAccountSettingsRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireAdministrator(request.Actor, StaffAccessRight.AssignStaffRoles);
+        RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
-        ArgumentNullException.ThrowIfNull(request.Roles);
-        var roles = request.Roles.Distinct().OrderBy(role => role).ToArray();
-        if (roles.Length == 0 || roles.Any(role => !Enum.IsDefined(role)))
+        if (!Enum.IsDefined(request.Role))
         {
             throw new ArgumentException(
-                "An enabled staff account requires at least one recognized current role.",
+                "A staff account requires one recognized current role.",
                 nameof(request));
         }
-
-        return request with
+        if (request.ExpectedVersion < 0)
         {
-            Roles = roles,
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "The account version cannot be negative.");
+        }
+
+        // Selecting the ordinary User role is authoritative: it clears every
+        // sign-off setting in the same command rather than leaving an invalid
+        // partial configuration behind.
+        var isSignOffEngineer = request.Role != StaffRole.User
+            && request.IsSignOffEngineer;
+        var isDefaultSignOffEngineer = isSignOffEngineer
+            && request.IsDefaultSignOffEngineer;
+        var printedName = isSignOffEngineer
+            ? NormalizeOptionalText(
+                request.PrintedName,
+                MaximumSignOffPrintedNameLength,
+                nameof(request.PrintedName))
+            : null;
+        if (isSignOffEngineer && printedName is null)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.SignOffPrintedNameRequired);
+        }
+
+        var normalized = request with
+        {
+            PrintedName = printedName,
+            Qualifications = isSignOffEngineer
+                ? NormalizeOptionalText(
+                    request.Qualifications,
+                    MaximumSignOffQualificationsLength,
+                    nameof(request.Qualifications))
+                : null,
+            Signature = isSignOffEngineer
+                ? SignOffSignaturePolicy.Validate(request.Signature, nameof(request.Signature))
+                : null,
+            IsSignOffEngineer = isSignOffEngineer,
+            IsDefaultSignOffEngineer = isDefaultSignOffEngineer,
             Reason = NormalizeRequiredText(
                 request.Reason,
                 MaximumReasonLength,
@@ -703,8 +666,14 @@ public static class StaffAccountAdministrationPolicy
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
-                nameof(request.OperationKey))
+                nameof(request.OperationKey)),
+            EditLeaseToken = NormalizeRequiredText(
+                request.EditLeaseToken,
+                CaseEditAuthority.LeaseTokenLength,
+                nameof(request.EditLeaseToken))
         };
+        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
+            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
     }
 
     public static EnableStaffAccountRequest Normalize(EnableStaffAccountRequest request)
@@ -712,7 +681,7 @@ public static class StaffAccountAdministrationPolicy
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
-        return request with
+        var normalized = request with
         {
             Reason = NormalizeRequiredText(
                 request.Reason,
@@ -723,90 +692,79 @@ public static class StaffAccountAdministrationPolicy
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey))
         };
+        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
+            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
     }
 
-    public static ForceStaffLogoutRequest Normalize(ForceStaffLogoutRequest request) =>
-        NormalizeAdministrativeAction(
-            request,
-            request.Actor,
-            request.StaffId,
-            request.Reason,
-            request.OperationKey,
-            (reason, operationKey) => request with
-        {
-            Reason = reason,
-            OperationKey = operationKey
-        });
-
-    public static ResetStaffPasswordRequest Normalize(ResetStaffPasswordRequest request) =>
-        NormalizeAdministrativeAction(
-            request,
-            request.Actor,
-            request.StaffId,
-            request.Reason,
-            request.OperationKey,
-            (reason, operationKey) => request with
-        {
-            Reason = reason,
-            OperationKey = operationKey
-        });
-
-    public static DeleteStaffAccountRequest Normalize(DeleteStaffAccountRequest request) =>
-        NormalizeAdministrativeAction(
-            request,
-            request.Actor,
-            request.StaffId,
-            request.Reason,
-            request.OperationKey,
-            (reason, operationKey) => request with
-        {
-            Reason = reason,
-            OperationKey = operationKey
-        });
-
-    public static UpdateStaffAccountSignOffRequest Normalize(
-        UpdateStaffAccountSignOffRequest request)
+    public static ForceStaffLogoutRequest Normalize(ForceStaffLogoutRequest request)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
-        RequireStaffId(request.StaffId);
-
-        var printedName = NormalizeOptionalText(
-            request.PrintedName,
-            MaximumSignOffPrintedNameLength,
-            nameof(request.PrintedName));
-        if (request.IsSignOffEngineer && printedName is null)
+        var normalized = NormalizeAdministrativeAction(
+            request,
+            request.Actor,
+            request.StaffId,
+            request.Reason,
+            request.OperationKey,
+            (reason, operationKey) => request with
         {
-            throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.SignOffPrintedNameRequired);
+            Reason = reason,
+            OperationKey = operationKey
+        });
+        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
+            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+    }
+
+    public static ResetStaffPasswordRequest Normalize(ResetStaffPasswordRequest request)
+    {
+        var normalized = NormalizeAdministrativeAction(
+            request,
+            request.Actor,
+            request.StaffId,
+            request.Reason,
+            request.OperationKey,
+            (reason, operationKey) => request with
+        {
+            Reason = reason,
+            OperationKey = operationKey
+        });
+        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
+            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+    }
+
+    public static DeleteStaffAccountRequest Normalize(DeleteStaffAccountRequest request)
+    {
+        var normalized = NormalizeAdministrativeAction(
+            request,
+            request.Actor,
+            request.StaffId,
+            request.Reason,
+            request.OperationKey,
+            (reason, operationKey) => request with
+        {
+            Reason = reason,
+            OperationKey = operationKey
+        });
+        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
+            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+    }
+
+
+    private static T NormalizeEditScope<T>(
+        T request,
+        long expectedVersion,
+        string? leaseToken,
+        Func<long, string, T> apply)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
+        var token = NormalizeRequiredText(
+            leaseToken ?? string.Empty,
+            CaseEditAuthority.LeaseTokenLength,
+            nameof(leaseToken));
+        if (token.Length != CaseEditAuthority.LeaseTokenLength)
+        {
+            throw new ArgumentException("The account edit session is invalid.", nameof(leaseToken));
         }
 
-        if (request.IsDefault && !request.IsSignOffEngineer)
-        {
-            throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.IneligibleSignOffEngineer);
-        }
-
-        var signature = SignOffSignaturePolicy.Validate(
-            request.Signature,
-            nameof(request.Signature));
-        return request with
-        {
-            PrintedName = printedName,
-            Qualifications = NormalizeOptionalText(
-                request.Qualifications,
-                MaximumSignOffQualificationsLength,
-                nameof(request.Qualifications)),
-            Signature = signature,
-            Reason = NormalizeRequiredText(
-                request.Reason,
-                MaximumReasonLength,
-                nameof(request.Reason)),
-            OperationKey = NormalizeRequiredText(
-                request.OperationKey,
-                MaximumOperationKeyLength,
-                nameof(request.OperationKey))
-        };
+        return apply(expectedVersion, token);
     }
 
     internal static void ValidateTemporaryPassword(string value, string parameterName)

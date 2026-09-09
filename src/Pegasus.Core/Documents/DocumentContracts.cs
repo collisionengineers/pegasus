@@ -353,6 +353,20 @@ public interface IDocumentContentStore
         return new(DocumentContentWriteDisposition.Created, null);
     }
 
+    /// <summary>
+    /// Stores one managed version from a caller-owned stream. The stream has
+    /// exactly <paramref name="contentLength"/> bytes and remains owned by the
+    /// caller; an implementation verifies that length and
+    /// <paramref name="expectedSha256"/> without retaining the document in
+    /// process memory.
+    /// </summary>
+    Task<DocumentContentWriteResult> StoreVersionAsync(
+        ManagedDocumentContentAddress address,
+        Stream content,
+        long contentLength,
+        string expectedSha256,
+        CancellationToken cancellationToken);
+
     Task<Stream> OpenReadVersionAsync(
         ManagedDocumentContentAddress address,
         string expectedSha256,

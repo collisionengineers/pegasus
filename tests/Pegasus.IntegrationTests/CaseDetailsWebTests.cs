@@ -14,9 +14,11 @@ using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -71,8 +73,15 @@ public sealed partial class CaseDetailsWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore { State = state };
+        var evaStores = new StubEvaSubmissionStores(
+            new EvaSubmissionModes(PrincipalReportGenerationPolicy.EvaZip));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IEvaSubmissionQueries>(services, evaStores);
+                Substitute<IEvaSubmissionModeStore>(services, evaStores);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -173,11 +182,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
 
-        // The five sections that have a body below the fold are served as
+        // The four sections that have a body below the fold are served as
         // fragments; every other host, including the Engineer shells,
         // renders with the page.
         Assert.Equal(
-            ["engineer-notes", "vehicle", "valuation", "files", "notes"],
+            ["vehicle", "valuation", "files", "notes"],
             DeferredSections(html));
     }
 
@@ -191,7 +200,7 @@ public sealed partial class CaseDetailsWebTests
     [Theory]
     [InlineData("", "overview")]
     [InlineData("?section=overview", "overview")]
-    [InlineData("?section=engineer-notes", "engineer-notes")]
+    [InlineData("?section=engineer-notes", "overview")]
     [InlineData("?section=vehicle", "vehicle")]
     [InlineData("?section=estimate", "estimate")]
     [InlineData("?section=files", "files")]
@@ -465,7 +474,6 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     [Theory]
     [InlineData("files")]
-    [InlineData("engineer-notes")]
     [InlineData("notes")]
     [InlineData("vehicle")]
     [InlineData("valuation")]
@@ -500,6 +508,7 @@ public sealed partial class CaseDetailsWebTests
     [InlineData("overview")]
     [InlineData("inspection")]
     [InlineData("case-files")]
+    [InlineData("engineer-notes")]
     [InlineData("nonsense")]
     public async Task TheSectionFragmentRefusesKeysItDoesNotServe(string key)
     {
@@ -754,114 +763,6 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task EngineerNotesRenderAttributedAndSeparateWithoutEditOrDeleteAffordances()
-    {
-        var staffId = Guid.NewGuid();
-        var store = new RecordingCaseDetailsStore();
-        store.EngineerNoteEntries =
-        [
-            new(
-                Guid.NewGuid(),
-                store.CaseId,
-                staffId,
-                "Check the nearside sill.",
-                new DateTimeOffset(2031, 5, 6, 9, 15, 0, TimeSpan.Zero))
-        ];
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCase>(services, store);
-                Substitute<IEngineerNoteQueries>(services, store);
-                Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(staffId, "alex"));
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=engineer-notes");
-        var section = Section(html, "case-engineer-notes-title");
-        var visible = VisibleText(section);
-
-        Assert.Contains("Engineer notes", visible, StringComparison.Ordinal);
-        Assert.Contains("alex", visible, StringComparison.Ordinal);
-        Assert.Contains("Check the nearside sill.", visible, StringComparison.Ordinal);
-        Assert.DoesNotContain(staffId.ToString("D"), section, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("No notes", visible, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<form", section, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("edit", visible, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("delete", visible, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(1, Occurrences(html, "Check the nearside sill."));
-    }
-
-    [Fact]
-    public async Task EngineerNotesEmptyReadOnlySectionExplainsThatNoNotesWereRecorded()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCase>(services, store);
-                Substitute<IEngineerNoteQueries>(services, store);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=engineer-notes");
-        var section = Section(html, "case-engineer-notes-title");
-
-        Assert.Contains("No engineer notes recorded.", VisibleText(section), StringComparison.Ordinal);
-        Assert.DoesNotContain("<form", section, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task EngineerNotePostCarriesTheLeasedStaffMutationEnvelope()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            State = CaseLifecycleState.PostReportComplete
-        };
-        using var workspace = await EnterEditModeAsync(store, services =>
-        {
-            Substitute<IEngineerNoteQueries>(services, store);
-            Substitute<IAddEngineerNote>(services, store);
-        });
-        var html = await workspace.GetWorkspaceAsync();
-        var section = Section(html, "case-engineer-notes-title");
-        var operationKey = InputValue(section, "operationKey");
-
-        Assert.Contains("handler=AddEngineerNote", section, StringComparison.Ordinal);
-        Assert.Contains("name=\"expectedVersion\"", section, StringComparison.Ordinal);
-        Assert.Contains("name=\"editLeaseToken\"", section, StringComparison.Ordinal);
-        Assert.DoesNotContain("disabled", section, StringComparison.OrdinalIgnoreCase);
-
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=AddEngineerNote",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", operationKey),
-                ("note", "  Check the chassis leg.  "),
-                ("editLeaseToken", store.LeaseToken)));
-
-        AssertPrg(response, store.CaseId);
-        var command = Assert.Single(store.EngineerNoteAdds);
-        AssertClaimant(workspace, command.Actor);
-        Assert.Equal(store.CaseId, command.CaseId);
-        Assert.Equal(store.CaseVersion, command.ExpectedVersion);
-        Assert.Equal(operationKey, command.OperationKey);
-        Assert.Equal("  Check the chassis leg.  ", command.Note);
-        Assert.Equal(store.LeaseToken, command.EditLeaseToken);
-    }
-
-    [Fact]
     public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -872,6 +773,8 @@ public sealed partial class CaseDetailsWebTests
             ExposeCustody = true,
             State = CaseLifecycleState.Review
         };
+        var evaStores = new StubEvaSubmissionStores(
+            new EvaSubmissionModes(PrincipalReportGenerationPolicy.EvaZip));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -881,6 +784,8 @@ public sealed partial class CaseDetailsWebTests
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 Substitute<IStaffAccountQueries>(services,
                     new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
+                Substitute<IEvaSubmissionQueries>(services, evaStores);
+                Substitute<IEvaSubmissionModeStore>(services, evaStores);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -957,13 +862,19 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.Review)]
-    [InlineData(CaseLifecycleState.ReportPreparation)]
-    public async Task SendPageRendersItsChoiceInReviewAndWithEngineer(CaseLifecycleState state)
+    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
+    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
+    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
+    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
+    public async Task SendPageRendersItsChoiceInReviewAndWithEngineer(
+        CaseLifecycleState state,
+        PrincipalReportGenerationPolicy policy,
+        string expectedAction)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
-        var evaStores = new StubEvaSubmissionStores(new EvaSubmissionModes(Manual: true));
+        var evaStores = new StubEvaSubmissionStores(
+            new EvaSubmissionModes(policy));
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -971,8 +882,7 @@ public sealed partial class CaseDetailsWebTests
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IEvaSubmissionQueries>(services, evaStores);
                 Substitute<IEvaSubmissionModeStore>(services, evaStores);
-                // The page treats an uncomposed transport as "no API route":
-                // a non-null submitter is what makes the manual toggle apply.
+                // A composed transport is required for the manual API policy.
                 Substitute<ISubmitCaseToEva>(services, new StubSubmitCaseToEva());
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -982,19 +892,27 @@ public sealed partial class CaseDetailsWebTests
         });
 
         // EXT-04: the send page for a case still in Review — the one place the
-        // operator chooses between the API submission and the export.
+        // operator gets the principal's configured EVA route.
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
 
         // The page's own copy, as EPIC-011 restyled it: the handoff heading,
-        // the case it is for, and both routes out.
+        // the case it is for, and its configured route out.
         Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
         Assert.Contains(
             "<h2 id=\"eva-handoff-title\">QDOS3100042</h2>",
             html,
             StringComparison.Ordinal);
-        Assert.Contains("<span>Send via API</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Download ZIP</span>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Download EVA package", html, StringComparison.Ordinal);
+        Assert.Contains($"<span>{expectedAction}</span>", html, StringComparison.Ordinal);
+        if (policy == PrincipalReportGenerationPolicy.EvaManualApi)
+        {
+            Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Send", html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Export EVA ZIP", html, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains($"/Cases/{store.CaseId:D}/Documents/Export", html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -1382,6 +1300,59 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Fact]
+    public async Task ASaveCarriesTheDamageWorkbenchFieldsThroughToTheWorkspaceCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCaseWorkspace>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Recorded damage observations"),
+                ("damageImpacts", "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Scuffed\"}]"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageTyreRightFront), "damaged"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageBeltLeftRear), "deployed"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction), "125.50"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageMaterialTransfer), "White paint transfer")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var damage = Assert.Single(store.Saves).Damage;
+        Assert.NotNull(damage);
+        Assert.Equal(new AssessmentImpact("front", "light", "Scuffed"), Assert.Single(damage.Impacts!));
+        Assert.Equal("damaged", damage.AssessmentFields![AssessmentVocabulary.DamageTyreRightFront]);
+        Assert.Equal("deployed", damage.AssessmentFields[AssessmentVocabulary.DamageBeltLeftRear]);
+        Assert.Equal("Old rear bumper scrape", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelated]);
+        Assert.Equal("125.50", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelatedDeduction]);
+        Assert.Equal("White paint transfer", damage.AssessmentFields[AssessmentVocabulary.DamageMaterialTransfer]);
+    }
+
+    [Fact]
     public async Task ARefusedSaveKeepsTheProposedValuesForComparisonAndOffersNoApplyControl()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -1441,26 +1412,22 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("Your change was not applied", clearedHtml, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// An unchecked box is absent from the post unless the form carries a hidden false, so without
-    /// one a proposed "no" silently disappears from the comparison — the very defect the retention
-    /// work exists to remove. The current column must be populated too, or there is nothing to
-    /// compare against.
-    /// </summary>
     [Fact]
-    public async Task ARefusedCompletenessChangeKeepsUncheckedProposalsBesideTheCurrentValues()
+    public async Task AutomaticReadinessRendersWithoutManualCompletenessControls()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.Review,
+            CaseState = CaseLifecycleState.Review
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<IConfirmCompleteness>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<IConfirmCompleteness>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1468,40 +1435,13 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
-        // Exactly what the browser posts: a checked box sends "true" then its hidden "false"; an
-        // unchecked box sends the hidden "false" alone.
-        using var response = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ConfirmCompleteness",
-            RepeatableForm(
-                AntiforgeryValue(initialHtml),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", DetailsModelOperationKey),
-                ("editLeaseToken", store.LeaseToken),
-                ("reason", "Images turned out to be incomplete"),
-                ("instructionComplete", "true"),
-                ("instructionComplete", "false"),
-                ("imagesComplete", "false")));
-        AssertPrg(response, store.CaseId);
-
-        // The command really did receive false, so the panel must not claim otherwise.
-        var confirmation = Assert.Single(store.CompletenessConfirmations);
-        Assert.True(confirmation.Completeness.InstructionComplete);
-        Assert.False(confirmation.Completeness.ImagesComplete);
-
-        var panel = ProposedValuesPanel(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}"));
-
-        Assert.Contains("Images complete", panel, StringComparison.Ordinal);
-        Assert.Contains("Instructions complete", panel, StringComparison.Ordinal);
-        Assert.Contains(">No<", panel, StringComparison.Ordinal);
-        Assert.Contains(">Yes<", panel, StringComparison.Ordinal);
-
-        // Raw booleans never reach operator copy, and the current column is not the em-dash blank.
-        Assert.DoesNotContain(">true<", panel, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">false<", panel, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("true, false", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Case workflow", html, StringComparison.Ordinal);
+        Assert.Contains("Review", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ConfirmCompleteness", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Confirm completeness", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("name=\"instructionComplete\"", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -2134,7 +2074,7 @@ public sealed partial class CaseDetailsWebTests
         : IStaffAccountQueries, IStaffHeldCaseEditLeaseQueries
     {
         private readonly StaffAccountSummary account =
-            new(staffId, userName, true, false, [role]);
+            new(staffId, userName, true, false, role);
 
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
@@ -2184,10 +2124,7 @@ public sealed partial class CaseDetailsWebTests
         IReleaseCase,
         ITransitionCase,
         ICaseWorkflowQueries,
-        IConfirmCompleteness,
-        ISaveCaseWorkspace,
-        IEngineerNoteQueries,
-        IAddEngineerNote
+        ISaveCaseWorkspace
     {
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private CaseDueWork _dueWork;
@@ -2239,8 +2176,6 @@ public sealed partial class CaseDetailsWebTests
 
         public IReadOnlyList<CaseQueryEmail> QueryEmails { get; init; } = [];
 
-        public IReadOnlyList<EngineerNote> EngineerNoteEntries { get; set; } = [];
-
         public string LeaseToken { get; } = "opaque-live-case-lease";
 
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
@@ -2258,13 +2193,10 @@ public sealed partial class CaseDetailsWebTests
 
         public List<SaveCaseWorkspaceRequest> Saves { get; } = [];
         public CaseDataProjection? DataOverride { get; set; }
-        public List<ConfirmCompletenessRequest> CompletenessConfirmations { get; } = [];
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
         public List<TransitionCaseRequest> Transitions { get; } = [];
-        public List<AddEngineerNoteRequest> EngineerNoteAdds { get; } = [];
-
         public InspectionAddressChoicesData InspectionChoices { get; init; } = new(
             "8 Claimant Street",
             RepairerAddress: null,
@@ -2334,33 +2266,6 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken) =>
             Task.FromResult<InspectionAddressChoicesData?>(
                 caseId == CaseId ? InspectionChoices : null);
-
-        Task<IReadOnlyList<EngineerNote>> IEngineerNoteQueries.ListNewestFirstAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<EngineerNote>>(
-                caseId == CaseId ? EngineerNoteEntries : []);
-
-        Task IAddEngineerNote.ExecuteAsync(
-            AddEngineerNoteRequest request,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            EngineerNoteAdds.Add(request);
-            _leaseHolder = null;
-            _leaseHolderKind = null;
-            _leaseOperationKey = null;
-            return Task.CompletedTask;
-        }
-
-        Task<CaseDataProjection> IConfirmCompleteness.ExecuteAsync(
-            ConfirmCompletenessRequest request,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            CompletenessConfirmations.Add(request);
-            throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
-        }
 
         /// <summary>
         /// The case as it currently stands, so a refused editor's proposed values have something to

@@ -16,6 +16,17 @@ Configuration ownership is:
 
 Tool availability does not authorize external action.
 
+## Public upload links
+
+`infra/modules/platform.bicep` is the production source for the
+`DocumentRequests` environment settings. Its limits version and accepted limits
+version must match. The configured public boundary is 100 MiB per file, 20
+files and 200 MiB retained aggregate bytes per link; multipart framing remains
+bounded separately by the Web host. The configured `AllowedMediaTypes` includes
+the document and image formats in FRD-02 plus `video/mp4` and `video/quicktime`.
+MP4/MOV support depends on that deployed allowlist as well as the application
+validation; changing code alone does not enable public video uploads.
+
 The optional Production Worker OCR adapter reads `DocumentIntelligence:Endpoint`
 as an absolute HTTPS URI and reuses the credential selected by
 `AzureIdentity:WorkerClientId`. It adds no API-key setting. An absent endpoint

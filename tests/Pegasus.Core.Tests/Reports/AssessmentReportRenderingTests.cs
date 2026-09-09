@@ -11,10 +11,10 @@ public sealed class AssessmentReportRenderingTests
     private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void ExpandedSnapshotUsesVersionThreeAndImpactHasOnlyD45Members()
+    public void ExpandedSnapshotUsesVersionFourAndImpactRetainsItsCanonicalZone()
     {
-        Assert.Equal("rendererref1-v3", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
-        Assert.Equal(["Zone", "Severity", "Note"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
+        Assert.Equal("rendererref1-v4", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal(["Zone", "Severity", "Note", "Code"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
     }
 
     [Theory]

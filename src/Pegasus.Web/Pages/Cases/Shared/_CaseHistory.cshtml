@@ -42,6 +42,13 @@
                             }
                         </div>
                     </article>
+                    @foreach (var guidance in entry.Guidance)
+                    {
+                        <article class="note-entry">
+                            <div class="note-meta"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span><span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span><span>System</span></div>
+                            <div class="note-content"><strong>@OperatorLabels.HistoryEvent(guidance.EventType) · @guidance.OrganizationName</strong><p>@guidance.Text</p></div>
+                        </article>
+                    }
                 }
             </div>
         }

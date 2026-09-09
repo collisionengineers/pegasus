@@ -41,6 +41,7 @@ public sealed class EvaSubmissionStore(
     EvaInstructionSettings instructionSettings,
     TimeProvider timeProvider) : ISubmitCaseToEva
 {
+
     public async Task<SubmitCaseToEvaResult?> ExecuteAsync(
         SubmitCaseToEvaRequest request,
         CancellationToken cancellationToken = default)
@@ -55,23 +56,43 @@ public sealed class EvaSubmissionStore(
             throw new ArgumentException("The operation key is invalid.", nameof(request));
         }
 
-        StaffAuthorization.Require(
-            request.Actor,
-            EvaSubmissionPolicy.RequiredRight);
         var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
         if (caseData is null)
         {
             return null;
         }
+        EvaSubmissionPolicy.RequireAuthorizedActor(request.Actor, request.Initiator);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // A completed operation is a replay before any mutable first-send
+        // prerequisite is read. A completed handoff remains the answer even
+        // if the case, claimant, images or staff assignment have since moved.
+        var replay = await FindReplayAsync(context, request, cancellationToken);
+        if (replay is not null)
+        {
+            return new(replay, [], []);
+        }
+
         var modes = await modeStore.GetForPrincipalAsync(
             caseData.Identity.PrincipalCode,
             cancellationToken);
-        if (!EvaSubmissionPolicy.Allows(modes))
+        var automaticFailureRetry = request.Initiator == EvaSubmissionInitiator.Manual
+            && EvaSubmissionPolicy.AllowsAutomaticSubmission(modes)
+            && (await context.EvaSubmissions.AnyAsync(item => item.CaseId == request.CaseId
+                    && !item.IsDelivered, cancellationToken)
+                || await context.Set<AutomaticEvaReviewSubmissionEntity>().AnyAsync(item =>
+                    item.CaseId == request.CaseId
+                    && item.State == nameof(AutomaticEvaReviewSubmissionState.ReconciliationRequired),
+                    cancellationToken));
+        if (request.Initiator == EvaSubmissionInitiator.Manual
+            && !EvaSubmissionPolicy.AllowsManualSubmission(modes)
+            && !automaticFailureRetry)
         {
             throw new EvaSubmissionNotEnabledException(request.CaseId);
         }
+        EvaSubmissionPolicy.RequireAuthorizedInitiator(modes, request.Actor, request.Initiator);
 
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var workflow = await context.CaseWorkflows
             .AsNoTracking()
             .Where(item => item.CaseId == request.CaseId)
@@ -97,15 +118,6 @@ public sealed class EvaSubmissionStore(
                 initialState,
                 workflow.AssignedEngineerId,
                 cancellationToken);
-        }
-
-        // Replay first: the same operation key must answer the same way rather
-        // than submit a second time. This is what makes a double-clicked
-        // button, or a queue message delivered twice, harmless.
-        var replay = await FindReplayAsync(context, request, cancellationToken);
-        if (replay is not null)
-        {
-            return new(replay, [], []);
         }
 
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
@@ -151,6 +163,7 @@ public sealed class EvaSubmissionStore(
             instructionSettings,
             images.Select(ToInstructionFile).ToArray());
 
+
         var result = await transport.SubmitInstructionAsync(payload, cancellationToken);
         await RecordSubmissionAsync(
             context,
@@ -190,43 +203,21 @@ public sealed class EvaSubmissionStore(
     private static string MediaTypeExtension(string mediaType) =>
         mediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
 
-    /// <summary>
-    /// A previous attempt under this exact operation key, returned as its own
-    /// result. The action-history record is the replay authority — the same
-    /// convention the export uses — and the row carries what to say.
-    /// </summary>
+    /// <summary>A completed operation's exact retained provider result.</summary>
     private static async Task<EvaSubmissionResult?> FindReplayAsync(
         PegasusDbContext context,
         SubmitCaseToEvaRequest request,
         CancellationToken cancellationToken)
     {
-        var aggregateId = request.CaseId.ToString("D");
-        var history = await context.ActionHistory
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.AggregateType == "Case"
-                    && item.AggregateId == aggregateId
-                    && item.EventKind == EventKind
-                    && item.CorrelationId == request.OperationKey,
-                cancellationToken);
-        if (history is null)
-        {
-            return null;
-        }
-
-        // Keyed on the operation, not on recency. Each explicit manual send
-        // has its own key and row; answering a replay with another operation's
-        // outcome would report a result that never belonged to it.
         var row = await context.EvaSubmissions
             .AsNoTracking()
             .Where(item => item.CaseId == request.CaseId
                 && item.OperationKey == request.OperationKey)
-            .OrderByDescending(item => item.SubmittedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
         return row is null
             ? null
             : new(
-                Enum.Parse<EvaSubmissionOutcome>(row.Outcome),
+                Enum.Parse<EvaSubmissionOutcome>(row.Outcome!),
                 row.EvaId,
                 row.FileReference,
                 row.FailureCode,
@@ -234,10 +225,12 @@ public sealed class EvaSubmissionStore(
                 row.ImagesSent);
     }
 
+
     private const string EventKind = "eva_api_submitted";
 
     /// <summary>
-    /// The attempt and its outcome, recorded together.
+    /// The completed operation becomes a retained handoff with its outcome
+    /// and action history in one transaction.
     ///
     /// Deliberately unconditional. The export re-checks Review under a row
     /// lock before it writes, because it can still decline to produce the

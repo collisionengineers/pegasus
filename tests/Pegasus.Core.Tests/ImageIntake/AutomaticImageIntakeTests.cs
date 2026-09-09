@@ -666,6 +666,15 @@ public sealed class AutomaticImageIntakeTests
             CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(
                 Content.TryGetValue(storageKey, out var bytes) ? bytes : null);
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeOriginResolver : IImageIntakeOriginResolver

@@ -511,6 +511,97 @@ internal sealed class BoxContentClient(
         return result;
     }
 
+    /// <summary>
+    /// Streams a complete, predeclared file body without taking ownership of
+    /// <paramref name="content"/>. The seekable input is verified before Box
+    /// receives a byte, then reset and wrapped so the multipart request cannot
+    /// read beyond its declared length.
+    /// </summary>
+    public async Task<BoxItem> UploadAsync(
+        string parentId,
+        string name,
+        Stream content,
+        long contentLength,
+        string mediaType,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentOutOfRangeException.ThrowIfNegative(contentLength);
+        if (!content.CanRead || !content.CanSeek)
+        {
+            throw new ArgumentException(
+                "A readable, seekable stream is required for verified Box upload.",
+                nameof(content));
+        }
+
+        var normalizedHash = NormalizeSha256(expectedSha256);
+        var startPosition = content.Position;
+        await VerifyAndResetAsync(content, startPosition, contentLength, normalizedHash, cancellationToken);
+        try
+        {
+            await EnsureDescendantAsync(parentId, cancellationToken);
+            using var multipart = new MultipartFormDataContent();
+            multipart.Add(JsonContent.Create(new { name, parent = new { id = parentId } }), "attributes");
+            var fileContent = new StreamContent(new BoundedReadStream(content, contentLength));
+            fileContent.Headers.ContentLength = contentLength;
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
+            multipart.Add(fileContent, "file", name);
+            using var response = await SendAsync(
+                HttpMethod.Post,
+                new Uri(options.UploadUri, "files/content"),
+                multipart,
+                cancellationToken);
+            if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                var errorCode = await ReadBoxErrorCodeAsync(response, cancellationToken);
+                if (string.Equals(errorCode, "item_name_in_use", StringComparison.Ordinal))
+                {
+                    var existing = await FindChildAsync(parentId, name, "file", cancellationToken)
+                        ?? throw new HttpRequestException(
+                            "Box reported an occupied file name but the exact existing file could not be resolved.",
+                            null,
+                            HttpStatusCode.Conflict);
+                    if (string.IsNullOrWhiteSpace(existing.VersionId))
+                    {
+                        throw new InvalidDataException("Box omitted the existing file version identity.");
+                    }
+                    if (existing.Size is { } size && size != contentLength)
+                    {
+                        throw new InvalidDataException(
+                            "The occupied Box file name contains different content.");
+                    }
+                    await using var retained = await OpenVersionReadAsync(
+                        existing.Id,
+                        existing.VersionId,
+                        contentLength,
+                        cancellationToken);
+                    await VerifyExactContentAsync(retained, contentLength, normalizedHash, cancellationToken);
+                    return existing;
+                }
+                throw new HttpRequestException(
+                    string.Equals(errorCode, "name_temporarily_reserved", StringComparison.Ordinal)
+                        ? "Box temporarily reserved the deterministic custody file name; retry reconciliation later."
+                        : "Box rejected the deterministic custody file name.",
+                    null,
+                    HttpStatusCode.Conflict);
+            }
+            using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+            var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
+            if (entries.Length != 1)
+            {
+                throw new InvalidDataException("Box upload returned an unexpected file count.");
+            }
+            var result = ParseItem(entries[0]);
+            await EnsureDescendantAsync(result.Id, cancellationToken, isFile: true);
+            return result;
+        }
+        finally
+        {
+            content.Position = startPosition;
+        }
+    }
+
     public async Task<byte[]> DownloadAsync(string fileId, CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
@@ -831,6 +922,108 @@ internal sealed class BoxContentClient(
         {
             return null;
         }
+    }
+
+    private static async Task VerifyAndResetAsync(
+        Stream content,
+        long startPosition,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await VerifyExactContentAsync(content, expectedLength, expectedSha256, cancellationToken);
+        }
+        finally
+        {
+            content.Position = startPosition;
+        }
+    }
+
+    private static async Task VerifyExactContentAsync(
+        Stream content,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        long copied = 0;
+        while (true)
+        {
+            var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+            copied = checked(copied + read);
+            if (copied > expectedLength)
+            {
+                throw new InvalidDataException("Box upload content length verification failed.");
+            }
+            hash.AppendData(buffer, 0, read);
+        }
+        var actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        if (copied != expectedLength
+            || !string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Box upload content hash verification failed.");
+        }
+    }
+
+    private static string NormalizeSha256(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        if (value.Length != SHA256.HashSizeInBytes * 2
+            || value.Any(character => !Uri.IsHexDigit(character)))
+        {
+            throw new ArgumentException("A SHA-256 hash is required.", nameof(value));
+        }
+        return value.ToLowerInvariant();
+    }
+
+    private sealed class BoundedReadStream(Stream source, long remaining) : Stream
+    {
+        public override bool CanRead => source.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            Task.FromException(new NotSupportedException());
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            ReadAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (remaining == 0)
+            {
+                return 0;
+            }
+            var read = await source.ReadAsync(
+                buffer[..(int)Math.Min(buffer.Length, remaining)], cancellationToken);
+            if (read == 0)
+            {
+                throw new EndOfStreamException("Box upload content ended before its declared length.");
+            }
+            remaining -= read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private static BoxItem ParseItem(JsonElement value) => new(

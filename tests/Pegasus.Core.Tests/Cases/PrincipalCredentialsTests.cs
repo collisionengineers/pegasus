@@ -15,7 +15,7 @@ public sealed class PrincipalCredentialsTests
         new(PrincipalId, Guid.NewGuid(), "QDOS", Guid.NewGuid(), null, null, true, 0);
 
     private static PrincipalCredentialCommandRequest Request(long expectedVersion, ActionActor? actor = null) =>
-        new(PrincipalId, expectedVersion, actor ?? Administrator, " issue-1 ", " first key ");
+        new(PrincipalId, expectedVersion, actor ?? Administrator, " issue-1 ", " first key ", 0, "edit-token");
 
     [Fact]
     public void GeneratedSecretsCarryTheKeyIdAndAreWellFormed()

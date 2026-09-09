@@ -1,4 +1,5 @@
 using Pegasus.Core.Workflow;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -14,9 +15,12 @@ public sealed record EvaHandoffViewModel(
     IReadOnlyList<EvaHandoffEngineerOption> SignOffEngineerOptions,
     bool InstructionsComplete,
     bool ImagesComplete,
+    PrincipalReportGenerationPolicy ReportGenerationPolicy,
     bool ApiComposed,
     bool ApiEnabled,
     string ExportOperationKey,
-    string SubmitOperationKey);
+    string SubmitOperationKey,
+    bool CanRetryAutomaticFailure = false,
+    bool ShowAutomaticFailureNotice = false);
 
 public sealed record EvaHandoffEngineerOption(Guid Id, string Name);

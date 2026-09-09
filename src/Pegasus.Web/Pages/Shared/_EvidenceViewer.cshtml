@@ -7,7 +7,8 @@
     [data-evidence-item] links inside a [data-evidence-set]. site.js owns the
     paging, the loading state, Escape, focus containment and focus return.
 
-    PDFs use an <iframe> because the deployed CSP sets object-src 'none'.
+    PDFs use an <iframe> because the deployed CSP sets object-src 'none'; the
+    admitted MP4/MOV files use the browser's native video control.
 *@
 <div id="evidence-viewer"
      class="dialog-backdrop evidence-viewer"
@@ -21,6 +22,9 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                 <span>Save as</span>
             </a>
+            <button type="button" class="btn btn--small" data-evidence-crop hidden>
+                <span>Crop</span>
+            </button>
             <button type="button" class="btn btn--small" data-rotate aria-label="Rotate view">
                 <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
             </button>
@@ -33,6 +37,7 @@
             <div class="viewer-stage" data-evidence-stage data-rotate-target>
                 <img data-evidence-image alt="" hidden />
                 <iframe data-evidence-document title="" hidden></iframe>
+                <video data-evidence-video controls preload="metadata" hidden></video>
             </div>
         </div>
         <div class="dialog-foot cluster--between">

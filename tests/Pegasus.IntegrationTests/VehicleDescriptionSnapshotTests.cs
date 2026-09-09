@@ -156,7 +156,6 @@ public sealed class VehicleDescriptionSnapshotTests
                 1,
                 ActionActor.SystemWorker("system-worker:intake-processing"),
                 "vehicle-description-probe",
-                "vehicle-description-probe",
                 CaseType.Inspection,
                 "QDOS",
                 new(true, false),

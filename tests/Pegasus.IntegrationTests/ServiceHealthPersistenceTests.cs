@@ -211,7 +211,7 @@ public sealed class ServiceHealthPersistenceTests
                 SequenceLineageId = lineageId,
                 Code = "EVA",
                 IsActive = true,
-                EvaManualSubmission = true,
+                ReportGenerationPolicy = "EvaManualApi",
                 Version = 0
             },
             new IntakeReceiptEntity

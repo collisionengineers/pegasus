@@ -10,46 +10,26 @@
     {
         <section class="panel">
             <div class="panel-head"><h2>Service health</h2></div>
-            <div class="table-wrap no-border">
+            <div class="table-wrap no-border service-health-table">
                 <table>
-                    <thead><tr><th scope="col">Area</th><th scope="col">Service</th><th scope="col">State</th><th scope="col">Recorded time</th><th scope="col">Failure code</th><th scope="col">Dependency</th></tr></thead>
+                    <thead><tr><th scope="col">Service</th><th scope="col">State</th><th scope="col">Last recorded</th><th scope="col">Dependency</th></tr></thead>
                     <tbody>
                     @foreach (var row in snapshot.Rows)
                     {
                         <tr>
-                            <td>@OperatorLabels.ServiceHealthAreaName(row.Area)</td><td>@OperatorLabels.ServiceHealthServiceName(row.Service)</td>
-                            <td>@OperatorLabels.ServiceHealthStateName(row.State)</td>
-                            <td>@if (row.Area == Pegasus.Core.Operations.ServiceHealthArea.Mail) { <span>Last successful poll: </span> }@OperatorLabels.OfficeTime(row.LatestEvidenceAtUtc, "")</td>
-                            <td>@row.FailureCode</td><td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td>
+                            <td>
+                                <strong>@OperatorLabels.ServiceHealthServiceName(row.Service)</strong>
+                                <span class="secondary">@OperatorLabels.ServiceHealthAreaName(row.Area)</span>
+                            </td>
+                            <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ServiceHealthStateName(row.State)" /></td>
+                            <td>@OperatorLabels.OfficeTime(row.LatestEvidenceAtUtc, "Not recorded")</td>
+                            <td>@OperatorLabels.ServiceHealthDependencyName(row.Dependency)</td>
                         </tr>
                     }
                     </tbody>
                 </table>
             </div>
         </section>
-        @if (Model.Metrics is { } metrics)
-        {
-            <details class="panel">
-                <summary class="panel-head">Recorded counts and processing times</summary>
-                <div class="panel-body grid grid-3">
-                    <dl><dt class="muted">Mailbox failures</dt><dd>@metrics.MailboxFailures</dd></dl>
-                    <dl><dt class="muted">Mailbox freshness</dt><dd>@metrics.MailboxFreshness.State (@OperatorLabels.OfficeTime(metrics.MailboxFreshness.LastSuccessfulUpdateAtUtc, ""))</dd></dl>
-                    <dl><dt class="muted">Failed intake</dt><dd>@metrics.IntakeFailed</dd></dl>
-                    <dl><dt class="muted">Oldest pending intake due</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingIntakeDueAtUtc, "")</dd></dl>
-                    <dl><dt class="muted">Oldest pending custody</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingCustodyCreatedAtUtc, "")</dd></dl>
-                    <dl><dt class="muted">Poisoned inbox messages</dt><dd>@metrics.PoisonedInboxMessages</dd></dl>
-                    <dl><dt class="muted">Unknown sends</dt><dd>@metrics.UnknownSends</dd></dl>
-                    <dl><dt class="muted">Oldest pending AI job</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingAiJobCreatedAtUtc, "")</dd></dl>
-                    <dl><dt class="muted">Cache entries</dt><dd>@metrics.CacheEntries</dd></dl>
-                    <dl><dt class="muted">Cache bytes</dt><dd>@metrics.CacheBytes</dd></dl>
-                    <dl><dt class="muted">Next cache expiry</dt><dd>@OperatorLabels.OfficeTime(metrics.NextCacheExpiryAtUtc, "")</dd></dl>
-                    <dl><dt class="muted">Active cache reads</dt><dd>@metrics.ActiveCacheReadLeases</dd></dl>
-                    <dl><dt class="muted">Cache cleanup failures</dt><dd>@metrics.CacheCleanupFailures</dd></dl>
-                    <dl><dt class="muted">Cache hits since Web start</dt><dd>@metrics.CacheHitsSinceStart</dd></dl>
-                    <dl><dt class="muted">Cache misses since Web start</dt><dd>@metrics.CacheMissesSinceStart</dd></dl>
-                </div>
-            </details>
-        }
     }
     else
     {

@@ -48,7 +48,6 @@ public sealed class ConcurrencyTokenPersistenceTests
                 0,
                 Pegasus.Core.Identity.ActionActor.SystemWorker("concurrency-test"),
                 "accept-case-concurrency-test",
-                "Concurrency token persistence fixture",
                 CaseType.Inspection,
                 "QDOS",
                 new(true, true),

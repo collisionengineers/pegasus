@@ -2,8 +2,9 @@
 
 Stable capability identities link to their durable requirements. The owning
 PRD/FRD/ADR defines scope and behavior; this registry does not allocate a release,
-record delivery status or supply an independent acceptance roster. Kanmer owns
-work ordering. A listed identity does not imply current activation or acceptance.
+record delivery status or supply an independent acceptance roster. The current
+operator task and linked PR/CI records own work ordering and delivery evidence.
+A listed identity does not imply current activation or acceptance.
 
 | ID | Durable outcome | Canonical owner |
 | --- | --- | --- |
@@ -21,7 +22,7 @@ work ordering. A listed identity does not imply current activation or acceptance
 | ACC-02 | Administrator superuser, Engineer, and User roles; Andrew and Alex are initial Administrator assignments held as data/configuration, never hard-coded authorization | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-03 | Staff account creation, disable/delete access, password reset, force logout, targeted lease clearance, and role assignment | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-04 | Role-based protection for every non-public page and action | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
-| ACC-05 | Principal/provider administration | [Principal and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
+| ACC-05 | Contacts and Principal policy administration | [Contacts administration](frd/frd-04-parties-accounts-and-access.md#contacts-administration) |
 | ACC-06 | Principal-code replacement with linked predecessor and sequence continuity | [Principal and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | ACC-07 | Application and workflow configuration managed by Administrators | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-08 | Approved Outlook mailbox allowlist managed by Administrators | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
@@ -91,7 +92,6 @@ work ordering. A listed identity does not imply current activation or acceptance
 | CASE-29 | Provider-determined inspection mode: the Principal's persisted setting autofills exact `Image Based Assessment` at Case creation or requires an operator-confirmed physical address, with reasoned per-Case staff override | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | CASE-30 | Track native inspection/report work with optional EVA handoff | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
 | CASE-32 | Sign-off Engineer as a Case field beside Engineer, offered from flagged staff accounts, defaulting to the assigned Engineer when flagged and otherwise A Patterson; the account setting carries the flag, qualifications and signature image; reports render the sign-off tuple | [Sign-off Engineer](frd/frd-01-case-identity-and-lifecycle.md#sign-off-engineer); [Staff accounts](frd/frd-04-parties-accounts-and-access.md#staff-accounts) |
-| CASE-33 | Engineer notes: append-only, attributed staff notes to the Engineer as a Case section separate from the Notes history | [Engineer notes](frd/frd-01-case-identity-and-lifecycle.md#engineer-notes) |
 | CASE-34 | Inspect at as a fast-update choice (Image Based Assessment, Claimant address, Repairer location, Storage location, previous addresses used for this Principal, Manual entry) and a storage location on the Case | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-01 | Operations dashboard/cockpit | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
@@ -102,10 +102,10 @@ work ordering. A listed identity does not imply current activation or acceptance
 | UI-07 | Search/filter by reference (Case/PO or Image Intake Reference), registration, claimant, claim, principal, state, Engineer, dates, and origin | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-08 | Three-column intake review workbench | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-09 | Full case workspace | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
-| UI-11 | Accounts, principals, mailbox allowlist, and configuration workspace | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
+| UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-16 | Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts, Work Centre needs-attention work, Cases queue groups, workspace tabs, command palette and breakpoints | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Single-scroll Case record: sticky identity ribbon, action bar and section jump-nav with scroll-spy, lazily rendered sections, `?section=` jumps, and the eleven sections Overview, Engineer notes, Inspection, Vehicle, Damage, Valuation, Estimate, Settlement, Report, Files, Notes; the Engineer workbench lives in the Damage, Valuation, Estimate, Settlement and Report sections, always viewable and read-only once Complete; `/Cases/{id}/Assessment` is a 301 | [Case workspace](frd/frd-12-operator-experience.md#case-workspace) |
+| UI-17 | Single-scroll Case record: sticky identity ribbon, action bar and section jump-nav with scroll-spy, lazily rendered sections, `?section=` jumps, and the ten sections Overview, Inspection, Vehicle, Damage, Valuation, Estimate, Settlement, Report, Files, Notes; the Engineer workbench lives in the Damage, Valuation, Estimate, Settlement and Report sections, always viewable and read-only once Complete; `/Cases/{id}/Assessment` is a 301 | [Case workspace](frd/frd-12-operator-experience.md#case-workspace) |
 | UI-18 | Awaiting instruction (the Image-initiated Cases still awaiting an instruction) as a Pre-Case queue on Cases beside Triage | [Cases: queues and filters](frd/frd-12-operator-experience.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only; Operations shows a one-line partial-data notice linking to it and carries no service health table | [Operations](frd/frd-12-operator-experience.md#operations) |
 | ENG-03 | Damage record: zones (front, left/right front, left/right side, left/right rear, rear, roof, four wheels, underside, interior, mechanical) each with severity, type and note; tyres and seat belts per corner, spare tyre, centre belt; unrelated damage with deduction; paint or material transfer; derived impact location and severity; the marked diagram printed on the report | [Damage record](frd/frd-06-vehicle-and-engineering-evidence.md#damage-record) |

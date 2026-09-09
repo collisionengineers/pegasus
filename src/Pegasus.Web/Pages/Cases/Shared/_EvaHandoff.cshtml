@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.EvaHandoffViewModel
 @using Pegasus.Core.Workflow
+@using Pegasus.Core.Reports
 @using Pegasus.Web.Presentation
 @{
     var editing = !string.IsNullOrWhiteSpace(Model.EditLeaseToken);
@@ -47,15 +48,23 @@ else
 }
 
 <div class="cluster">
-    <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@Model.CaseId"
-          asp-page-handler="Bundle">
-        <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
-        <button type="submit" class="btn">
-            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-            <span>@OperatorLabels.CaseWorkspace.DownloadZip</span>
-        </button>
-    </form>
-    @if (Model.ApiComposed)
+    @if (Model.ShowAutomaticFailureNotice)
+    {
+        <p>EVA delivery did not complete. Check EVA; if no case was created, retry.</p>
+    }
+    @if (Model.ReportGenerationPolicy == PrincipalReportGenerationPolicy.EvaZip)
+    {
+        <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@Model.CaseId"
+              asp-page-handler="Bundle">
+            <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
+            <button type="submit" class="btn">
+                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                <span>Export EVA ZIP</span>
+            </button>
+        </form>
+    }
+    @if ((Model.ReportGenerationPolicy == PrincipalReportGenerationPolicy.EvaManualApi
+        || Model.CanRetryAutomaticFailure) && Model.ApiComposed)
     {
         <form method="post" asp-page="/Cases/Eva/Send" asp-route-caseId="@Model.CaseId"
               asp-page-handler="Submit">

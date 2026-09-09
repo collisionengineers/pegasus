@@ -5,6 +5,29 @@ namespace Pegasus.Core.Tests.Cases;
 
 public sealed class AutomaticCaseReadinessTests
 {
+    [Fact]
+    public void ReadinessEvaluationHasValueEqualityAcrossIndependentReads()
+    {
+        var first = new CaseCompletenessEvaluation(false, "case-workflow", 1)
+        {
+            MissingRequirements = new List<string> { "Images" }
+        };
+        var second = first with { MissingRequirements = new List<string> { "Images" } };
+        Assert.Equal(first, second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.NotEqual(first, second with { MissingRequirements = ["Instructions"] });
+    }
+
+    [Fact]
+    public void ConfiguredRequirementsChangeReadinessWithoutChangingEvidence()
+    {
+        var facts = new CaseCompleteness(true, false);
+        var configuration = new CaseWorkflowConfiguration("case-workflow", 2) { RequireImages = false };
+        Assert.True(CaseCompletenessPolicy.Evaluate(facts, configuration).SatisfiesPolicy);
+        Assert.False(facts.ImagesComplete);
+        Assert.Empty(configuration.MissingRequirements(facts));
+        Assert.Equal(["Images"], (configuration with { RequireImages = true }).MissingRequirements(facts));
+    }
     private static readonly CaseWorkflowConfiguration Configuration =
         new("case-workflow", 1);
 
