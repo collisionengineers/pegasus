@@ -45,6 +45,12 @@ public sealed class ComposeModel(
     [BindProperty(SupportsGet = true, Name = "caseQuery")]
     public string? CaseQuery { get; set; }
 
+    [BindProperty]
+    public long ExpectedContextVersion { get; set; }
+
+    [BindProperty]
+    public string? SelectedCaseReference { get; set; }
+
     [BindProperty(SupportsGet = true)]
     public Guid? OperationId { get; set; }
 
@@ -167,6 +173,13 @@ public sealed class ComposeModel(
             {
                 ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
             }
+
+            if (ExpectedContextVersion < 0 || details.Workflow.Version != ExpectedContextVersion)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    "The Case changed after this correspondence was selected. Select it again before sending.");
+            }
         }
 
         if (!ModelState.IsValid || DefaultMailbox is null || details is null)
@@ -211,6 +224,56 @@ public sealed class ComposeModel(
         return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id });
     }
 
+    public async Task<IActionResult> OnPostSearchCaseAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!StaffMailAvailable)
+        {
+            return NotFound();
+        }
+
+        await LoadDefaultMailboxAsync(cancellationToken);
+        await LoadSelectedCaseAsync(actor, cancellationToken);
+        if (!TryNormalizeCaseQuery(out var query))
+        {
+            return Page();
+        }
+
+        CaseQuery = query;
+        CaseResults = await SearchCasesAsync(actor, query, cancellationToken);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostSelectCaseAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!StaffMailAvailable)
+        {
+            return NotFound();
+        }
+
+        await LoadDefaultMailboxAsync(cancellationToken);
+        var details = await ResolveCaseAsync(actor, SelectedCaseReference, cancellationToken);
+        if (details is null)
+        {
+            ModelState.AddModelError(nameof(CaseReference), "Choose one Case by its Case / PO reference.");
+            return Page();
+        }
+
+        Case = details.Summary;
+        CaseReference = details.Summary.Reference;
+        ExpectedContextVersion = details.Workflow.Version;
+        AvailableAttachments = await attachmentResolver.ListCaseAsync(
+            actor, details.Summary.CaseId, cancellationToken);
+        return Page();
+    }
+
     public async Task<IActionResult> OnPostReconcileAsync(
         Guid operationId,
         long expectedOperationVersion,
@@ -226,14 +289,35 @@ public sealed class ComposeModel(
             return NotFound();
         }
 
+        if (operationId == Guid.Empty || expectedOperationVersion < 0)
+        {
+            SendNotice = "The send status request was incomplete. Reload the correspondence and try again.";
+            return RedirectToPage();
+        }
+
         try
         {
-            Operation = await staffMailSend.ReconcileAsync(
-                actor, operationId, expectedOperationVersion, cancellationToken);
+            Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
+            if (Operation is null)
+            {
+                SendNotice = "That send status is no longer available. Reload the correspondence and try again.";
+                return RedirectToPage();
+            }
+            Operation = await staffMailSend.ReconcileAsync(actor, operationId, expectedOperationVersion, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            SendNotice = "The send status request was invalid. Reload the correspondence and try again.";
+            return RedirectToPage();
+        }
+        catch (InvalidOperationException)
+        {
+            SendNotice = "The send status could not be reconciled. Reload the correspondence and try again.";
+            return RedirectToPage();
         }
 
         var context = await getCase.ExecuteAsync(new(Operation.ContextId, actor), cancellationToken);
@@ -265,11 +349,27 @@ public sealed class ComposeModel(
 
     private async Task LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(CaseQuery))
+        if (TryNormalizeCaseQuery(out var query) && query is not null)
         {
-            CaseResults = await SearchCasesAsync(actor, CaseQuery, cancellationToken);
+            CaseQuery = query;
+            CaseResults = await SearchCasesAsync(actor, query, cancellationToken);
         }
 
+        var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
+        if (details is null)
+        {
+            return;
+        }
+
+        Case = details.Summary;
+        CaseReference = details.Summary.Reference;
+        ExpectedContextVersion = details.Workflow.Version;
+        AvailableAttachments = await attachmentResolver.ListCaseAsync(
+            actor, details.Summary.CaseId, cancellationToken);
+    }
+
+    private async Task LoadSelectedCaseAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
         var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
         if (details is null)
         {
@@ -287,8 +387,7 @@ public sealed class ComposeModel(
         string? reference,
         CancellationToken cancellationToken)
     {
-        var value = reference?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
+        if (!TryNormalizeCaseReference(reference, out var value))
         {
             return null;
         }
@@ -307,13 +406,38 @@ public sealed class ComposeModel(
         string? query,
         CancellationToken cancellationToken)
     {
-        var value = query?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
+        if (!TryNormalizeCaseQueryValue(query, out var value))
         {
             return [];
         }
 
         return (await searchCases.ExecuteAsync(
             new(actor, new(CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
+    }
+
+    private bool TryNormalizeCaseQuery(out string? query)
+    {
+        if (TryNormalizeCaseQueryValue(CaseQuery, out query))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(CaseQuery))
+        {
+            ModelState.AddModelError(nameof(CaseQuery), "Case searches must be 300 characters or fewer.");
+        }
+        return false;
+    }
+
+    private static bool TryNormalizeCaseQueryValue(string? value, out string? normalized)
+    {
+        normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) || normalized.Length <= 300;
+    }
+
+    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
+    {
+        normalized = value?.Trim();
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;
     }
 }

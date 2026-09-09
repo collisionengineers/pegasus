@@ -170,7 +170,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task ComposeUsesTheFreshServerCaseVersion()
+    public async Task ComposeRejectsAStaleReviewedCaseVersion()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -197,9 +197,8 @@ public sealed class StaffCorrespondenceWebTests
                 ["Body"] = "Test body."
             }));
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var command = Assert.Single(send.Commands);
-        Assert.Equal(await CaseVersionAsync(factory, caseId), command.ExpectedContextVersion);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(send.Commands);
     }
 
     [Fact]
@@ -256,6 +255,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -312,6 +312,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below."
@@ -347,6 +348,63 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(1, send.ReconcileCalls);
     }
 
+    [Fact]
+    public async Task InvalidComposeReconcileUsesPrgWithoutCallingThePort()
+    {
+        var send = new RecordingStaffMailSend();
+        using var factory = Configure(new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true), send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync("/Inbox/Compose");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=Reconcile",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["operationId"] = Guid.Empty.ToString("D"),
+                ["expectedOperationVersion"] = "-1"
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(0, send.ReconcileCalls);
+    }
+
+    [Fact]
+    public async Task OversizedComposeCaseSearchRetainsTheDraftWithoutSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        using var get = await client.GetAsync("/Inbox/Compose");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            "/Inbox/Compose?handler=SearchCase",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["OperationKey"] = InputValue(html, "OperationKey"),
+                ["ExpectedContextVersion"] = "0",
+                ["CaseQuery"] = new string('x', 301),
+                ["To"] = "claimant@example.invalid",
+                ["Cc"] = "copy@example.invalid",
+                ["Subject"] = "Draft subject",
+                ["Body"] = "Draft message body."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var responseHtml = await response.Content.ReadAsStringAsync();
+        Assert.Contains("300 characters or fewer", responseHtml, StringComparison.Ordinal);
+        Assert.Contains("claimant@example.invalid", responseHtml, StringComparison.Ordinal);
+        Assert.Contains("copy@example.invalid", responseHtml, StringComparison.Ordinal);
+        Assert.Contains("Draft subject", responseHtml, StringComparison.Ordinal);
+        Assert.Contains("Draft message body.", responseHtml, StringComparison.Ordinal);
+        Assert.Empty(send.Commands);
+    }
+
     /// <summary>
     /// C08-R-4: a second POST carrying the same <c>OperationKey</c> as an
     /// already-recorded send must not send again — it shows the operation
@@ -371,6 +429,7 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = token,
             ["OperationKey"] = operationKey,
             ["CaseReference"] = caseReference,
+            ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
             ["To"] = "claimant@example.invalid",
             ["Subject"] = "Following up",
             ["Body"] = "Please find the update below."
@@ -422,6 +481,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = caseReference,
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Following up",
                 ["Body"] = "Please find the update below.",
@@ -472,6 +532,7 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = token,
             ["CorrespondenceOperationKey"] = operationKey,
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -516,7 +577,7 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Fact]
-    public async Task RetainedReplyCanChangeTheAssociatedCaseByBusinessReference()
+    public async Task RetainedForwardSelectionPreservesTheDraftAndRefreshesTheCaseVersion()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -526,22 +587,54 @@ public sealed class StaffCorrespondenceWebTests
         var selectedCaseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 SELECTED", "SC08-MSG-SELECTED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
-        using var factory = Configure(baseFactory, send);
+        using var factory = Configure(
+            baseFactory,
+            send,
+            new(seeded.MailboxId, seeded.MailboxGeneration),
+            new StableAttachmentResolver());
         using var client = CreateClient(factory);
-        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
         var html = await get.Content.ReadAsStringAsync();
-        var form = RetainedReplyForm(
-            html,
-            InputValue(html, "CorrespondenceOperationKey"),
-            "Reply for the selected Case.");
-        form["CorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
+        var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
+        var selection = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["SelectedCorrespondenceCaseReference"] = selectedReference,
+            ["CorrespondenceTo"] = "selected@example.invalid",
+            ["CorrespondenceCc"] = "copy@example.invalid",
+            ["CorrespondenceSubject"] = "Fwd: Source subject",
+            ["CorrespondenceBody"] = "Forward for the selected Case.",
+            ["SelectedAttachments"] = StableAttachmentResolver.Selection
+        };
+
+        using var selectionResponse = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=SelectCorrespondenceCase&compose=forward",
+            new FormUrlEncodedContent(selection));
+        Assert.Equal(HttpStatusCode.OK, selectionResponse.StatusCode);
+        var selectedHtml = await selectionResponse.Content.ReadAsStringAsync();
+        Assert.Contains("selected@example.invalid", selectedHtml, StringComparison.Ordinal);
+        Assert.Contains("copy@example.invalid", selectedHtml, StringComparison.Ordinal);
+        Assert.Contains("Forward for the selected Case.", selectedHtml, StringComparison.Ordinal);
+        Assert.Contains(StableAttachmentResolver.Selection, selectedHtml, StringComparison.Ordinal);
+        Assert.Contains("checked", selectedHtml, StringComparison.OrdinalIgnoreCase);
+
+        selection["__RequestVerificationToken"] = InputValue(selectedHtml, "__RequestVerificationToken");
+        selection["CorrespondenceOperationKey"] = InputValue(selectedHtml, "CorrespondenceOperationKey");
+        selection["ExpectedCorrespondenceCaseVersion"] = InputValue(
+            selectedHtml, "ExpectedCorrespondenceCaseVersion");
+        selection.Remove("SelectedCorrespondenceCaseReference");
 
         using var post = await client.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
-            new FormUrlEncodedContent(form));
-
+            $"/Inbox/{seeded.MessageId:D}?handler=Forward&compose=forward",
+            new FormUrlEncodedContent(selection));
         Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
-        Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(selectedCaseId, command.ContextId);
+        Assert.Equal(["selected@example.invalid"], command.To.Select(item => item.Address));
+        Assert.Equal(["copy@example.invalid"], command.Cc.Select(item => item.Address));
+        Assert.Single(command.Attachments);
     }
 
     [Fact]
@@ -568,10 +661,19 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
         Assert.Empty(send.Commands);
 
-        form["CorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
-        using var sent = await client.PostAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+        form["SelectedCorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
+        using var selection = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=SelectCorrespondenceCase&compose=reply",
             new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.OK, selection.StatusCode);
+        var selectedHtml = await selection.Content.ReadAsStringAsync();
+        var selectedForm = RetainedReplyForm(
+            selectedHtml,
+            InputValue(selectedHtml, "CorrespondenceOperationKey"),
+            "Reply for an unassociated message.");
+        using var sent = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply&compose=reply",
+            new FormUrlEncodedContent(selectedForm));
         Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
         Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
     }
@@ -593,6 +695,7 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -663,6 +766,7 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -761,6 +865,7 @@ public sealed class StaffCorrespondenceWebTests
             {
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
                 ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
                 ["CorrespondenceSubject"] = "Re: Source subject",
                 ["CorrespondenceBody"] = "Reviewed response."
             }));
@@ -1003,6 +1108,7 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+            ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1152,6 +1258,7 @@ public sealed class StaffCorrespondenceWebTests
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["CorrespondenceOperationKey"] = operationKey,
+        ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
         ["CorrespondenceSubject"] = "Re: Source subject",
         ["CorrespondenceBody"] = body
     };
@@ -1391,6 +1498,43 @@ public sealed class StaffCorrespondenceWebTests
             [StaffRole.Administrator]);
         var details = await getCase.ExecuteAsync(new(caseId, actor), CancellationToken.None);
         return details!.Workflow.Version;
+    }
+
+    private sealed class StableAttachmentResolver : IStaffMailAttachmentResolver
+    {
+        public const string Selection = "stable-attachment";
+
+        private static readonly StaffMailAttachment Attachment = new(
+            Guid.Parse("5a1f0586-9a5f-4a90-866a-99552f7e6b2"),
+            Guid.Parse("8c2bc8f2-d8c5-4cce-8602-17e6b27464e9"),
+            new string('A', 64), 1, "instruction.pdf", "application/pdf");
+
+        public Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
+            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>(
+                [new(Selection, Attachment.FileName, Attachment.MediaType, Attachment.ContentLength)]);
+
+        public Task<IReadOnlyList<StaffMailAttachment>> ResolveCaseAsync(
+            ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
+            CancellationToken cancellationToken)
+        {
+            if (selections.Count != 1 || selections[0] != Selection)
+            {
+                throw new StaffMailAttachmentSelectionException(
+                    "One or more selected attachments changed or are no longer available. Review the attachments and try again.");
+            }
+
+            return Task.FromResult<IReadOnlyList<StaffMailAttachment>>([Attachment]);
+        }
+
+        public Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
+            ActionActor actor, Guid receiptId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>([]);
+
+        public Task<IReadOnlyList<StaffMailAttachment>> ResolveIntakeAsync(
+            ActionActor actor, Guid receiptId, IReadOnlyList<string> selections,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffMailAttachment>>([]);
     }
 
     private static async Task<string> CaseReferenceAsync(

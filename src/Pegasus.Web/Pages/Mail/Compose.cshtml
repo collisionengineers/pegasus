@@ -52,30 +52,6 @@
 
 @if (Model.StaffMailAvailable)
 {
-    <form method="get" class="panel section-gap">
-        <div class="panel-body">
-            <div class="field">
-                <label asp-for="CaseQuery">Find a Case</label>
-                <input asp-for="CaseQuery" type="search" maxlength="300" />
-                <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
-            </div>
-            <button type="submit" class="btn">Search Cases</button>
-            @if (Model.CaseResults.Count > 0)
-            {
-                <ul class="search-results">
-                    @foreach (var candidate in Model.CaseResults)
-                    {
-                        <li>
-                            <a asp-page="/Mail/Compose" asp-route-caseReference="@candidate.Reference">
-                                @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
-                            </a>
-                        </li>
-                    }
-                </ul>
-            }
-        </div>
-    </form>
-
     @if (Model.DefaultMailbox is null)
     {
         <div class="notice" role="status">No default approved mailbox is configured for correspondence.</div>
@@ -85,16 +61,38 @@
     <form method="post" asp-page-handler="Send" class="panel">
         <div class="panel-body">
             <input type="hidden" asp-for="OperationKey" />
-        <div class="field">
-            <label asp-for="CaseReference">Case / PO</label>
-            <input asp-for="CaseReference" type="text" maxlength="100" />
-            <span class="field-hint">Enter the Case / PO reference, or find it above.</span>
-            <span asp-validation-for="CaseReference"></span>
-        </div>
-        <div class="field">
-            <label>From</label>
-            <input value="@Model.DefaultMailbox.Address" readonly aria-label="From" />
-        </div>
+            <input type="hidden" asp-for="ExpectedContextVersion" />
+            <div class="field">
+                <label asp-for="CaseQuery">Find a Case</label>
+                <input asp-for="CaseQuery" type="search" maxlength="300" />
+                <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
+                <span asp-validation-for="CaseQuery"></span>
+            </div>
+            <button type="submit" asp-page-handler="SearchCase" class="btn">Search Cases</button>
+            @if (Model.CaseResults.Count > 0)
+            {
+                <ul class="search-results">
+                    @foreach (var candidate in Model.CaseResults)
+                    {
+                        <li>
+                            <button type="submit" asp-page-handler="SelectCase"
+                                    name="SelectedCaseReference" value="@candidate.Reference" class="btn">
+                                @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+            <div class="field">
+                <label asp-for="CaseReference">Case / PO</label>
+                <input asp-for="CaseReference" type="text" maxlength="100" />
+                <span class="field-hint">Enter the Case / PO reference, or choose it from the search results.</span>
+                <span asp-validation-for="CaseReference"></span>
+            </div>
+            <div class="field">
+                <label>From</label>
+                <input value="@Model.DefaultMailbox.Address" readonly aria-label="From" />
+            </div>
         <div class="field">
             <label asp-for="To">To</label>
             <input asp-for="To" type="text" />

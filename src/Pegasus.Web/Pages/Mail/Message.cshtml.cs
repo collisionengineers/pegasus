@@ -128,6 +128,12 @@ public sealed class MessageModel(
     public string? CorrespondenceCaseReference { get; set; }
 
     [BindProperty]
+    public string? SelectedCorrespondenceCaseReference { get; set; }
+
+    [BindProperty]
+    public long ExpectedCorrespondenceCaseVersion { get; set; }
+
+    [BindProperty]
     public string? CorrespondenceTo { get; set; }
 
     [BindProperty]
@@ -309,6 +315,35 @@ public sealed class MessageModel(
     public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
 
+    public async Task<IActionResult> OnPostSearchCorrespondenceCaseAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!StaffMailAvailable || !TryParseListContext(out _)) return NotFound();
+        if (!TryNormalizeCorrespondenceCaseQuery(out var query)) return await ReloadAsync(actor, id, cancellationToken);
+        CorrespondenceCaseQuery = query;
+        CorrespondenceCaseResults = await SearchCasesAsync(actor, query, cancellationToken);
+        return await ReloadAsync(actor, id, cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostSelectCorrespondenceCaseAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!StaffMailAvailable || !TryParseListContext(out _)) return NotFound();
+        CorrespondenceCaseReference = SelectedCorrespondenceCaseReference;
+        var result = await ReloadAsync(actor, id, cancellationToken);
+        if (CorrespondenceCase is null)
+        {
+            ModelState.AddModelError(nameof(CorrespondenceCaseReference), "Choose one Case by its Case / PO reference.");
+            return result;
+        }
+        ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
+        return result;
+    }
+
     public async Task<IActionResult> OnPostReconcileCorrespondenceAsync(
         Guid id,
         Guid mailOperationId,
@@ -319,14 +354,33 @@ public sealed class MessageModel(
             return Forbid();
         if (!StaffMailAvailable)
             return NotFound();
+        if (mailOperationId == Guid.Empty || expectedOperationVersion < 0)
+        {
+            CorrespondenceNotice = "The send status request was incomplete. Reload the correspondence and try again.";
+            return RedirectToMessage(id);
+        }
         try
         {
-            await staffMailSend.ReconcileAsync(
-                actor, mailOperationId, expectedOperationVersion, cancellationToken);
+            if (await staffMailSend.GetAsync(actor, mailOperationId, cancellationToken) is null)
+            {
+                CorrespondenceNotice = "That send status is no longer available. Reload the correspondence and try again.";
+                return RedirectToMessage(id);
+            }
+            await staffMailSend.ReconcileAsync(actor, mailOperationId, expectedOperationVersion, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            CorrespondenceNotice = "The send status request was invalid. Reload the correspondence and try again.";
+            return RedirectToMessage(id);
+        }
+        catch (InvalidOperationException)
+        {
+            CorrespondenceNotice = "The send status could not be reconciled. Reload the correspondence and try again.";
+            return RedirectToMessage(id);
         }
         return RedirectToPage(new
         {
@@ -861,6 +915,13 @@ public sealed class MessageModel(
                 nameof(CorrespondenceCaseReference),
                 "Choose one Case by its Case / PO reference.");
         }
+        else if (ExpectedCorrespondenceCaseVersion < 0
+            || CorrespondenceCase.Workflow.Version != ExpectedCorrespondenceCaseVersion)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The Case changed after this correspondence was selected. Select it again before sending.");
+        }
         if (string.IsNullOrWhiteSpace(CorrespondenceSubject))
             ModelState.AddModelError(nameof(CorrespondenceSubject), "A subject is required.");
         if (string.IsNullOrWhiteSpace(CorrespondenceBody))
@@ -991,7 +1052,6 @@ public sealed class MessageModel(
         {
             return false;
         }
-
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
         CorrespondenceMailbox = mailboxes.SingleOrDefault(item =>
             item.Id == Detail.Summary.MailboxId
@@ -1017,16 +1077,20 @@ public sealed class MessageModel(
         {
             CorrespondenceCaseReference = Detail.Summary.CaseReference;
         }
-        if (!string.IsNullOrWhiteSpace(CorrespondenceCaseQuery))
+        if (TryNormalizeCorrespondenceCaseQuery(out var query) && query is not null)
         {
             CorrespondenceCaseResults = await SearchCasesAsync(
-                actor, CorrespondenceCaseQuery, cancellationToken);
+                actor, query, cancellationToken);
         }
         CorrespondenceCase = await ResolveCaseAsync(
             actor, CorrespondenceCaseReference, cancellationToken);
         if (CorrespondenceCase is not null)
         {
             CorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
+            if (initializeForm)
+            {
+                ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
+            }
             AvailableAttachments = await attachmentResolver.ListCaseAsync(
                 actor, CorrespondenceCase.Summary.CaseId, cancellationToken);
         }
@@ -1052,8 +1116,7 @@ public sealed class MessageModel(
         string? reference,
         CancellationToken cancellationToken)
     {
-        var value = reference?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
+        if (!TryNormalizeCaseReference(reference, out var value))
         {
             return null;
         }
@@ -1072,14 +1135,32 @@ public sealed class MessageModel(
         string? query,
         CancellationToken cancellationToken)
     {
-        var value = query?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
+        if (!TryNormalizeCaseQueryValue(query, out var value))
         {
             return [];
         }
 
         return (await searchCases.ExecuteAsync(
             new(actor, new CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
+    }
+
+    private bool TryNormalizeCorrespondenceCaseQuery(out string? query)
+    {
+        if (TryNormalizeCaseQueryValue(CorrespondenceCaseQuery, out query)) return true;
+        ModelState.AddModelError(nameof(CorrespondenceCaseQuery), "Case searches must be 300 characters or fewer.");
+        return false;
+    }
+
+    private static bool TryNormalizeCaseQueryValue(string? value, out string? normalized)
+    {
+        normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) || normalized.Length <= 300;
+    }
+
+    private static bool TryNormalizeCaseReference(string? value, out string? normalized)
+    {
+        normalized = value?.Trim();
+        return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 100;
     }
 
     private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(

@@ -235,43 +235,40 @@
             };
             if (handler is not null)
             {
-                <form method="get" class="panel section-gap">
-                    <input type="hidden" name="compose" value="@correspondenceMode" />
-                    <div class="panel-body">
+                <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id"
+                      asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                      asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                      asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                      asp-route-compose="@correspondenceMode" class="panel section-gap">
+                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? "Forward" : correspondenceMode == "reply-all" ? "Reply all" : "Reply")</h2></div>
+                    <div class="panel-body stack">
+                        <input type="hidden" asp-for="CorrespondenceOperationKey" />
+                        <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
+                        <div class="definition-list">
+                            <dl class="definition"><dt>From</dt><dd>@Model.CorrespondenceMailbox!.Address</dd></dl>
+                        </div>
                         <div class="field">
                             <label asp-for="CorrespondenceCaseQuery">Find a Case</label>
                             <input asp-for="CorrespondenceCaseQuery" type="search" maxlength="300" />
                             <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
+                            <span asp-validation-for="CorrespondenceCaseQuery"></span>
                         </div>
-                        <button type="submit" class="btn">Search Cases</button>
+                        <button type="submit" asp-page-handler="SearchCorrespondenceCase" class="btn">Search Cases</button>
                         @if (Model.CorrespondenceCaseResults.Count > 0)
                         {
                             <ul class="search-results">
                                 @foreach (var candidate in Model.CorrespondenceCaseResults)
                                 {
                                     <li>
-                                        <a asp-page="/Mail/Message" asp-route-id="@summary.Id"
-                                           asp-route-compose="@correspondenceMode"
-                                           asp-route-correspondenceCaseReference="@candidate.Reference">
+                                        <button type="submit" asp-page-handler="SelectCorrespondenceCase"
+                                                name="SelectedCorrespondenceCaseReference" value="@candidate.Reference" class="btn">
                                             @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
-                                        </a>
+                                        </button>
                                     </li>
                                 }
                             </ul>
                         }
-                    </div>
-                </form>
-                <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id"
-                      asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-                      asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                      asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" class="panel section-gap">
-                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? "Forward" : correspondenceMode == "reply-all" ? "Reply all" : "Reply")</h2></div>
-                    <div class="panel-body stack">
-                        <input type="hidden" asp-for="CorrespondenceOperationKey" />
-                        <div class="definition-list">
-                            <dl class="definition"><dt>From</dt><dd>@Model.CorrespondenceMailbox!.Address</dd></dl>
-                        </div>
                         <div class="field">
                             <label asp-for="CorrespondenceCaseReference">Case / PO</label>
                             <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" />
