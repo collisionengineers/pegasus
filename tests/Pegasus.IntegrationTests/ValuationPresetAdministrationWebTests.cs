@@ -64,21 +64,25 @@ public sealed partial class ValuationPresetAdministrationWebTests
         using var client = CreateClient(factory);
 
         var body = await GetPageAsync(client);
+        var match = PresetListSectionRegex().Match(body);
+        Assert.True(match.Success, "The valuation preset list section must render.");
+        var presetList = match.Value;
 
         // Razor's default encoder writes the pound sign as a numeric entity,
         // so the printed £#,##0.00 arrives as &#xA3; followed by the figure.
-        Assert.Contains("Tow bar", body, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;300.00", body, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;1,500.00", body, StringComparison.Ordinal);
-        Assert.Contains("&#xA3;0.00", body, StringComparison.Ordinal);
-        Assert.Contains(">Enabled<", body, StringComparison.Ordinal);
+        Assert.Contains("Tow bar", presetList, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;300.00", presetList, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;1,500.00", presetList, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;0.00", presetList, StringComparison.Ordinal);
+        Assert.Contains(">Enabled<", presetList, StringComparison.Ordinal);
         Assert.Contains("Create preset", body, StringComparison.Ordinal);
-        Assert.Contains("<details", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("<th scope=\"col\">Change</th>", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("<th scope=\"col\">Save</th>", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("<p>", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("<aside", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("empty-state", body, StringComparison.Ordinal);
+        Assert.Contains("<details", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("<details open=", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Change</th>", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Save</th>", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("<p>", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("<aside", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("empty-state", presetList, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -313,4 +317,5 @@ public sealed partial class ValuationPresetAdministrationWebTests
     [GeneratedRegex("<input[^>]*name=\"operationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();
+    [GeneratedRegex("<section[^>]*aria-labelledby=\"valuation-presets-title\"[^>]*>[\\s\\S]*?</section>", RegexOptions.IgnoreCase)] private static partial Regex PresetListSectionRegex();
 }
