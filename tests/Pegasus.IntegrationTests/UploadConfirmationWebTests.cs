@@ -684,7 +684,8 @@ public sealed class UploadConfirmationWebTests
                 : caseId;
             var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
             var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
-                new(priorCaseId, await CaseVersionAsync(factory, priorCaseId), actor, "group-prior-decision-lease"));
+                new(priorCaseId, await CaseVersionAsync(factory, priorCaseId), actor, "group-prior-decision-lease"),
+                CancellationToken.None);
             await scope.ServiceProvider.GetRequiredService<ILinkIntake>().ExecuteAsync(
                 new(before[1].Id, priorCaseId, before[1].Version, lease.Version, lease.Token, actor,
                     "group-prior-decision", "Staff previously associated this separate instruction."));
