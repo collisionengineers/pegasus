@@ -105,6 +105,7 @@ public sealed class UploadGroupStatusModel(
     public bool OfferGroupRegistration { get; private set; }
 
     private Guid _firstOpenImageReceiptId;
+    private bool _groupReadyForAttachment;
 
     // This surface owns the group-only handler below. Refusing the inherited
     // single-file handler prevents a forged post from treating a group id as a
@@ -127,7 +128,7 @@ public sealed class UploadGroupStatusModel(
         {
             return [];
         }
-        return OpenMemberReceiptIds;
+        return OpenGroupDecision ? OpenMemberReceiptIds : [];
     }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -227,10 +228,11 @@ public sealed class UploadGroupStatusModel(
         try
         {
             if (operationId == Guid.Empty
+                || !_groupReadyForAttachment
                 || receiptVersions is null
                 || !TryGetPostedRoster(receiptVersions, out var roster))
             {
-                TempData["UploadConfirmationError"] = "This confirmation is incomplete. Refresh and try again.";
+                TempData["UploadConfirmationError"] = "This submission is incomplete or a file is not ready. No further files were added. Refresh and review every file before trying again.";
                 PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
                 return await RenderSurfaceAsync(id, cancellationToken);
             }
@@ -336,8 +338,17 @@ public sealed class UploadGroupStatusModel(
         var open = memberResults
             .Where(result => result.outcome is { IsOpenDecision: true, Attach: not null })
             .ToArray();
-        OpenGroupDecision = !RefreshAutomatically
-            && open.Length > 0;
+        _groupReadyForAttachment = group.Channel == IntakeSourceChannel.ManualUpload
+            && group.Members.Count == group.ExpectedMemberCount
+            && group.Members.Count > 0
+            && memberResults.All(result => result.status is { Status: QueuedIntakeStatusKind.Complete }
+                && result.outcome is not null
+                && (result.outcome.Attach is not null
+                    || result.outcome.Kind is UploadOutcomeKind.Attached or UploadOutcomeKind.Resolved)
+                && !result.outcome.IsStillWorking);
+        OpenGroupDecision = _groupReadyForAttachment
+            && (open.Length == group.Members.Count
+                || (GroupConfirmationReceiptVersions is not null && UploadCaseConfirmation is not null));
         OpenMemberReceiptIds = open
             .Select(result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId)
             .ToArray();
@@ -349,7 +360,7 @@ public sealed class UploadGroupStatusModel(
         OpenMemberReceiptVersions = open.ToDictionary(
             result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId,
             result => result.outcome!.Attach!.ReceiptVersion);
-        if (haveActor && OpenMemberReceiptIds.Count > 0)
+        if (haveActor && OpenGroupDecision)
         {
             GroupSuggestedDestinations = await _caseDecision.GetSuggestionsForUploadsAsync(
                 OpenMemberReceiptIds, actor!, cancellationToken);
@@ -384,13 +395,13 @@ public sealed class UploadGroupStatusModel(
 
         // Form keys can be reordered by the binder.  The group is the only
         // source of execution order, and it also prevents a post from naming
-        // a receipt outside this submission.  The roster must include every
-        // member that remains open now; completed members from an unchanged
-        // retry are allowed in addition, never as a replacement.
+        // a receipt outside this submission. Include every member, including
+        // completed members whose identical decision the attachment owner must
+        // prove before continuing a partial retry.
         var ordered = GroupMemberReceiptIds
             .Where(receiptVersions.ContainsKey)
             .ToArray();
-        if (ordered.Length != receiptVersions.Count)
+        if (ordered.Length != receiptVersions.Count || ordered.Length != GroupMemberReceiptIds.Count)
         {
             return false;
         }

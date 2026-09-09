@@ -4,12 +4,9 @@
     ViewData["Title"] = "Upload received";
     var groupConfirmation = Model.UploadCaseConfirmation;
     var groupReceiptVersions = Model.GroupConfirmationReceiptVersions ?? Model.OpenMemberReceiptVersions;
-    if (Model.OpenGroupDecision || Model.RefreshAutomatically)
-    {
-        // The submission owns the decision, including while a sibling is
-        // still processing; per-file outcomes render as reports only.
-        ViewData["UploadOutcomeCompact"] = true;
-    }
+    // The submission always owns the decision. An unavailable sibling or a
+    // completed member never opens a separate per-file confirmation path.
+    ViewData["UploadOutcomeCompact"] = true;
 }
 
 <header class="page-header">

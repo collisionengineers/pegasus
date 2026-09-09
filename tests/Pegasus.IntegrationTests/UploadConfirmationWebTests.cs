@@ -1,12 +1,14 @@
 ﻿using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
@@ -441,8 +443,10 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, replay);
     }
 
-    [Fact]
-    public async Task AttachGroupAddsEveryOpenMemberToTheChosenCase()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AttachGroupAddsEveryOpenMemberToTheChosenCase(bool interruptAfterFirstMember)
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -469,10 +473,26 @@ public sealed class UploadConfirmationWebTests
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
         }
 
+        await using var linkScope = factory.Services.CreateAsyncScope();
+        using var attachmentFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ILinkIntake>();
+                services.AddSingleton<ILinkIntake>(new InterruptSecondLink(
+                    linkScope.ServiceProvider.GetRequiredService<ILinkIntake>(), interruptAfterFirstMember));
+            }));
+        using var attachmentClient = attachmentFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var confirmation = await ConfirmGroupAttachAsync(
-            factory, client, groupId, caseId, caseReference,
+            factory, attachmentClient, groupId, caseId, caseReference,
             "Staff matched the whole submission to the instructed case.");
-        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
+        Assert.Equal(interruptAfterFirstMember ? HttpStatusCode.OK : HttpStatusCode.Redirect, confirmation.StatusCode);
+        if (interruptAfterFirstMember)
+        {
+            Assert.Contains("1 file was completed before this stopped", confirmation.Body, StringComparison.Ordinal);
+            Assert.Contains("Confirm and add the submission", confirmation.Body, StringComparison.Ordinal);
+            Assert.Equal(2, SplitOccurrences(confirmation.Body, "name=\"receiptVersions[").Count());
+        }
         var confirmationPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("could not be added", confirmationPage, StringComparison.Ordinal);
         Assert.DoesNotContain("No single case matched", confirmationPage, StringComparison.Ordinal);
@@ -487,6 +507,7 @@ public sealed class UploadConfirmationWebTests
             Assert.NotNull(group);
             var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
             var statuses = scope.ServiceProvider.GetRequiredService<IQueuedIntakeStatusQueries>();
+            var linked = 0;
             foreach (var member in group!.Members)
             {
                 var status = await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None);
@@ -494,8 +515,12 @@ public sealed class UploadConfirmationWebTests
                 var receipt = await receipts.GetAsync(
                     status!.ProcessedReceiptId ?? status.StagedReceiptId, CancellationToken.None);
                 Assert.NotNull(receipt);
-                Assert.Equal(caseId, receipt!.CurrentCaseId);
+                if (receipt!.CurrentCaseId == caseId)
+                {
+                    linked++;
+                }
             }
+            Assert.Equal(interruptAfterFirstMember ? 1 : 2, linked);
         }
 
         // Replay the original HTTP form after every member is complete.  The
@@ -514,10 +539,22 @@ public sealed class UploadConfirmationWebTests
             replayFields[$"receiptVersions[{receiptVersion.Key:D}]"] = receiptVersion.Value.ToString(CultureInfo.InvariantCulture);
         }
         var replay = await PostGroupHandlerAsync(
-            client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", replayFields);
+            attachmentClient, $"/Upload/Group/{groupId:D}?handler=AttachGroup", replayFields);
         Assert.Equal(HttpStatusCode.Redirect, replay);
+        foreach (var receiptId in confirmation.ReceiptVersions.Keys)
+        {
+            await AssertLinkedAsync(factory, receiptId, caseId);
+        }
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
+        await using var db = await linkScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var historyCount = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM IntakeMutationHistory").SingleAsync();
+        Assert.Equal(HttpStatusCode.Redirect, await PostGroupHandlerAsync(
+            attachmentClient, $"/Upload/Group/{groupId:D}?handler=AttachGroup", replayFields));
+        Assert.Equal(historyCount, await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM IntakeMutationHistory").SingleAsync());
     }
 
     [Theory]
@@ -568,6 +605,91 @@ public sealed class UploadConfirmationWebTests
         Assert.DoesNotContain("data-case-search", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add to an existing case", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create a new case", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("processing")]
+    [InlineData("failed")]
+    [InlineData("missing-receipt")]
+    [InlineData("missing-member")]
+    [InlineData("omitted-ready-member")]
+    public async Task IncompleteGroupPostChangesNoAssociationOrHistory(string condition)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY34 ZZZ", "GROUP-READINESS-01");
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(client,
+            form.AntiforgeryToken, form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using var scope = factory.Services.CreateAsyncScope();
+        await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+        var group = (await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .GetAsync(groupId, CancellationToken.None))!;
+        var statuses = scope.ServiceProvider.GetRequiredService<IQueuedIntakeStatusQueries>();
+        var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        var before = new List<IntakeReceipt>();
+        foreach (var member in group.Members)
+        {
+            var status = (await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None))!;
+            before.Add((await receipts.GetAsync(status.ProcessedReceiptId!.Value, CancellationToken.None))!);
+        }
+        var caseVersion = await CaseVersionAsync(factory, caseId);
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var sibling = group.Members[1].StagedReceiptId;
+        if (condition is "processing" or "failed")
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeWorkItems SET State = {condition} WHERE StagedReceiptId = {sibling}");
+        }
+        else if (condition == "missing-receipt")
+        {
+            var unavailableReceipt = Guid.NewGuid();
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeWorkItems SET ProcessedReceiptId = {unavailableReceipt} WHERE StagedReceiptId = {sibling}");
+        }
+        else if (condition == "missing-member")
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeSubmissionGroups SET ExpectedMemberCount = ExpectedMemberCount + 1 WHERE Id = {groupId}");
+        }
+        var historyBefore = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM IntakeMutationHistory").SingleAsync();
+        var fields = new Dictionary<string, string>
+        {
+            ["caseId"] = caseId.ToString("D"),
+            ["reference"] = await CaseReferenceAsync(factory, caseId),
+            ["reason"] = "Staff reviewed the complete submission.",
+            ["operationId"] = Guid.NewGuid().ToString("D"),
+            ["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture),
+            [$"receiptVersions[{before[0].Id:D}]"] = before[0].Version.ToString(CultureInfo.InvariantCulture)
+        };
+        Assert.Equal(HttpStatusCode.OK, await PostGroupHandlerAsync(
+            client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields));
+        if (condition != "omitted-ready-member")
+        {
+            fields[$"receiptVersions[{before[1].Id:D}]"] = before[1].Version.ToString(CultureInfo.InvariantCulture);
+            Assert.Equal(HttpStatusCode.OK, await PostGroupHandlerAsync(
+                client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields));
+        }
+        foreach (var original in before)
+        {
+            var after = (await receipts.GetAsync(original.Id, CancellationToken.None))!;
+            Assert.Null(after.CurrentCaseId);
+            Assert.Equal(original.Version, after.Version);
+            Assert.Equal(original.ManualAssociationOperationKey, after.ManualAssociationOperationKey);
+        }
+        Assert.Equal(caseVersion, await CaseVersionAsync(factory, caseId));
+        Assert.Equal(historyBefore, await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM IntakeMutationHistory").SingleAsync());
     }
 
     private static IEnumerable<int> SplitOccurrences(string haystack, string needle)
@@ -702,9 +824,12 @@ public sealed class UploadConfirmationWebTests
         var caseVersion = await CaseVersionAsync(factory, caseId);
         fields["caseId"] = caseId.ToString("D");
         fields["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture);
-        var statusCode = await PostGroupHandlerAsync(
-            client, $"/Upload/Group/{groupId:D}?handler=AttachGroup", fields);
-        return new(statusCode, operationId, receiptVersions, caseVersion);
+        fields["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var response = await client.PostAsync(
+            $"/Upload/Group/{groupId:D}?handler=AttachGroup", new FormUrlEncodedContent(fields));
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
+        return new(response.StatusCode, operationId, receiptVersions, caseVersion, body);
     }
 
     private static async Task<long> CaseVersionAsync(
@@ -723,7 +848,8 @@ public sealed class UploadConfirmationWebTests
         HttpStatusCode StatusCode,
         Guid OperationId,
         IReadOnlyDictionary<Guid, long> ReceiptVersions,
-        long CaseVersion);
+        long CaseVersion,
+        string Body);
 
     private static async Task AssertLinkedAsync(
         IntakeWebApplicationFactory factory,
@@ -737,6 +863,20 @@ public sealed class UploadConfirmationWebTests
         Assert.NotNull(receipt);
         Assert.Equal(caseId, receipt!.CurrentCaseId);
         Assert.NotNull(receipt.ManualAssociationVersion);
+    }
+
+    private sealed class InterruptSecondLink(ILinkIntake inner, bool interrupt) : ILinkIntake
+    {
+        private int _calls;
+
+        public Task ExecuteAsync(LinkIntakeRequest request, CancellationToken cancellationToken = default)
+        {
+            if (interrupt && Interlocked.Increment(ref _calls) == 2)
+            {
+                throw new InvalidOperationException("Injected interruption after the first committed member.");
+            }
+            return inner.ExecuteAsync(request, cancellationToken);
+        }
     }
 
     private sealed class WorkingAndOpenGroupOutcomes(Guid workingStagedReceiptId, bool offerCreation) : IUploadOutcomeQueries
