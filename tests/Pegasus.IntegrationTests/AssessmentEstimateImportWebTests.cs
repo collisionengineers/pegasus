@@ -227,63 +227,6 @@ public sealed partial class AssessmentEstimateImportWebTests
             StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task PendingSourceReloadPostsExactRetainedIdentityAndFreshAuthorityWithoutAnotherUpload()
-    {
-        var caseId = Guid.NewGuid();
-        var store = new RecordingStores(caseId);
-        var pending = new PendingImport();
-        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var composed = Compose(baseFactory, store);
-        using var factory = composed.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.RemoveAll<IImportRawEstimate>();
-            services.AddSingleton<IImportRawEstimate>(pending);
-        }));
-        using var client = CreateEngineerClient(factory);
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        using var uploaded = await client.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
-            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
-        Assert.Equal(HttpStatusCode.Redirect, uploaded.StatusCode);
-        var retained = Assert.IsType<CaseFile>(store.RetainedDocument);
-        var reloaded = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.Contains("CompleteEstimateImport", reloaded, StringComparison.Ordinal);
-        Assert.Contains(retained.Occurrence.Id.ToString("D"), reloaded, StringComparison.Ordinal);
-        Assert.Contains(retained.Version.Sha256, reloaded, StringComparison.Ordinal);
-        using var completed = await client.PostAsync($"/Cases/{caseId:D}?handler=CompleteEstimateImport&section=estimate", Form(
-            AntiforgeryValue(reloaded), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey()),
-            ("expectedVersion", (RecordingStores.CaseVersion + 1).ToString(CultureInfo.InvariantCulture)),
-            ("editLeaseToken", "lease-1"), ("occurrenceId", retained.Occurrence.Id.ToString("D")),
-            ("documentVersionId", retained.Version.Id.ToString("D")), ("sha256", retained.Version.Sha256)));
-        Assert.Equal(HttpStatusCode.Redirect, completed.StatusCode);
-        Assert.Single(store.AddedDocuments);
-        Assert.Single(store.LeaseClaims);
-        Assert.Equal(2, pending.Requests.Count);
-        Assert.All(pending.Requests, request =>
-        {
-            Assert.Equal(retained.Occurrence.Id, request.OccurrenceId);
-            Assert.Equal(retained.Version.Id, request.DocumentVersionId);
-            Assert.Equal(retained.Version.Sha256, request.Sha256);
-            Assert.Equal(RecordingStores.CaseVersion + 1, request.ExpectedVersion);
-            Assert.Equal("lease-1", request.EditLeaseToken);
-        });
-        Assert.Empty(store.SavedEstimates);
-        Assert.Null(store.CurrentAccepted);
-    }
-
-    // Web transport only; canonical OCR identity/replay is proved in Core and SQL.
-    private sealed class PendingImport : IImportRawEstimate
-    {
-        public List<ImportRawEstimateRequest> Requests { get; } = [];
-        private readonly Guid operationId = Guid.NewGuid();
-
-        public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            return Task.FromResult(new EstimateImportResult(null, operationId, IntakeOcrState.Unknown));
-        }
-    }
-
     /// <summary>
     /// An imported line with no value arrives <c>Unpriced</c> — "To be
     /// confirmed". Pricing it is the point of the editor, and

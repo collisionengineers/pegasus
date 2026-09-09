@@ -132,7 +132,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260907093000_PublicUploadOccurrenceReplacementLineage",
                 "20260907100000_RemoveAutomaticEvaSubmission",
                 "20260907210000_ReportInputInvalidationPermissions",
-                "20260907221500_RemoveCaseStaffConfirmation"
+                "20260907221500_RemoveCaseStaffConfirmation",
+                "20260909091500_RemoveCaseDocumentOcrOperations"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

@@ -290,8 +290,8 @@ auto-detected from the registered types and an ambiguous artifact is refused,
 never guessed.
 
 The command proves the typed actor and current persisted Case version, edit
-lease holder/token and expiry before reading a source-hash replay or starting
-OCR. Both that check and the final save require the existing assessment-editable
+lease holder/token and expiry before reading a source-hash replay or parsing
+the retained source. Both that check and the final save require the existing assessment-editable
 state (Report preparation or Post report); accepted Review alone is insufficient.
 An occurrence must name the exact confirmed, nonremoved document version;
 a correctly paired historical version remains valid retained evidence. A new
@@ -310,12 +310,11 @@ section and document reconciliation is required; missing or ambiguous required
 evidence refuses the whole import. Source rates and VAT do not select a Pegasus
 rate card or determine a repairer's VAT status.
 
-Only positively qualified unusable-text-map pages use the retained OCR path
-in ADR-0040. Pending or unknown work returns its durable operation identity and
-state, not a partial Draft. Completing a retained source reuses that operation
-and freshly submitted Case authority, without uploading or submitting it again.
-Required page/word attribution, coordinates and complete arithmetic must agree;
-confidence alone neither accepts evidence nor supplies a numeric cutoff.
+Estimate PDFs require readable embedded text. Unreadable, scan-like or
+otherwise unsupported estimates are refused without OCR or a partial Draft.
+Completing an interrupted ordinary import reuses the retained source with fresh
+Case authority, without uploading it again. Source attribution and complete
+arithmetic must agree before an import succeeds.
 The Estimate section offers **Complete import** for confirmed retained import
 sources not yet represented by an estimate. Pending custody becomes selectable
 only when its existing confirmation completes. A replay of the original upload
@@ -405,14 +404,11 @@ the same Case and source hash replay the same import. Printed totals, rates,
 line structure and provider identity must agree. PDF net labour is not reduced
 again by an XML-specific overlap rule.
 
-Embedded text is the first source. A positively established unusable font map
-or a qualified scan-like page may use the existing page-restricted OCR path
-under [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) and
-[FRD-05](frd-05-documents-extraction-and-custody.md#qualified-ocr). Mere parser
-failure is not qualification. A pending or uncertain OCR operation is not an
-imported estimate. Retained output may be consumed later by the same command
-under the current Case version and edit lease; no background OCR completion
-can overwrite the Engineer's current work or select a Current estimate.
+Readable embedded text is required. An unusable font map, scan-like page or
+parser failure produces an explicit refusal, never an OCR request. This follows
+[ADR-0047](../adr/0047-scanned-instruction-ocr-only.md). Retained sources from an
+interrupted ordinary import may be completed later by the same command under
+the current Case version and edit lease. Import never selects a Current estimate.
 
 ## Market Research requests
 

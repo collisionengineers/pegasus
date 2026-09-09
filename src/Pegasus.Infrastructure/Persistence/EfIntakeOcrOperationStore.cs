@@ -72,11 +72,8 @@ public sealed class EfIntakeOcrOperationStore(
             var source = Envelope(existing.QualifiedPagesJson);
             if (existing.Id != operationId
                 || !string.Equals(existing.SourceSha256.TrimEnd(), request.SourceSha256, StringComparison.OrdinalIgnoreCase)
-                || existing.DocumentVersionId != request.DocumentVersionId
                 || existing.IntakeAssetId != request.IntakeAssetId
                 || source.IntakeReceiptId != request.IntakeReceiptId
-                || source.CaseId != request.CaseId
-                || source.OccurrenceId != request.OccurrenceId
                 || source.SourceContentLength != request.SourceContentLength
                 || !Pages(existing.QualifiedPagesJson).SequenceEqual(pages))
             {
@@ -98,12 +95,11 @@ public sealed class EfIntakeOcrOperationStore(
         var entity = new IntakeOcrOperationEntity
         {
             Id = operationId,
-            DocumentVersionId = request.DocumentVersionId,
             IntakeAssetId = request.IntakeAssetId,
             SourceSha256 = request.SourceSha256,
             QualifiedPagesJson = JsonSerializer.Serialize(
-                new OperationEnvelope(3, request.IntakeReceiptId, pages, 0, null, null,
-                    request.SourceContentLength, request.CaseId, request.OccurrenceId),
+                new OperationEnvelope(4, request.IntakeReceiptId, pages, 0, null, null,
+                    request.SourceContentLength),
                 SerializerOptions),
             OperationKey = key,
             State = nameof(IntakeOcrState.Pending),
@@ -360,7 +356,6 @@ public sealed class EfIntakeOcrOperationStore(
         return new(
             entity.Id,
             envelope.IntakeReceiptId,
-            entity.DocumentVersionId,
             entity.IntakeAssetId,
             entity.SourceSha256.TrimEnd(),
             envelope.SourceContentLength,
@@ -377,9 +372,7 @@ public sealed class EfIntakeOcrOperationStore(
             envelope.SubmitAttemptedAtUtc,
             envelope.SubmittedAtUtc,
             typedResult,
-            result?.AnalysisCompleted ?? false,
-            envelope.CaseId,
-            envelope.OccurrenceId);
+            result?.AnalysisCompleted ?? false);
     }
 
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
@@ -395,14 +388,12 @@ public sealed class EfIntakeOcrOperationStore(
     /// </param>
     private sealed record OperationEnvelope(
         int Version,
-        Guid? IntakeReceiptId,
+        Guid IntakeReceiptId,
         int[] Pages,
         int AttemptCount,
         DateTimeOffset? SubmitAttemptedAtUtc,
         DateTimeOffset? SubmittedAtUtc,
-        long SourceContentLength,
-        Guid? CaseId,
-        Guid? OccurrenceId);
+        long SourceContentLength);
 
     private sealed record ResultEnvelope(
         int Version,

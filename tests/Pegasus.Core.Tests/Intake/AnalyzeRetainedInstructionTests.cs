@@ -369,6 +369,7 @@ public sealed class AnalyzeRetainedInstructionTests
                         IsDefaulted: false, HasConflict: false)
                 ]
             });
+        harness.SourceReader.OcrCandidates = [new("uploaded instruction.pdf", 2)];
         var actor = ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId);
         var first = await harness.Command.ExecuteAsync(
             new(actor, harness.Receipt.Id, harness.Receipt.Version, "ocr-analysis", harness.SourceAssetId, evidence));
@@ -430,11 +431,190 @@ public sealed class AnalyzeRetainedInstructionTests
         Assert.Equal(begun.Request.OperationKey, harness.OcrOperations.Begins[1].Request.OperationKey);
         Assert.Equal(harness.Receipt.Id, begun.Request.IntakeReceiptId);
         Assert.Equal(harness.SourceAssetId, begun.Request.IntakeAssetId);
-        Assert.Null(begun.Request.DocumentVersionId);
         Assert.Equal(SourceHash, begun.Request.SourceSha256);
         Assert.Equal(SourceBytes.LongLength, begun.Request.SourceContentLength);
         Assert.Equal([1, 3], begun.Request.QualifiedPages);
         Assert.Single(harness.OcrOperations.Operations);
+    }
+
+    [Fact]
+    public async Task AutomationIntakeDoesNotQueueOcr()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        harness.SetReceipt(harness.Receipt with
+        {
+            SourceIdentity = new(IntakeSourceChannel.Automation, "automation-scan")
+        });
+        harness.SourceReader.RequiresOcr = true;
+        harness.SourceReader.OcrCandidates = [new("uploaded instruction.pdf", 2)];
+
+        var result = await harness.ExecuteAsync(operationKey: "automation-ocr");
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        Assert.Equal("OCR is available only for incoming mailbox or manual-upload instructions.", result.Reason);
+        Assert.Empty(harness.OcrOperations.Begins);
+    }
+
+    [Fact]
+    public async Task AutomationIntakeDoesNotAcceptCompletedOcrEvidence()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        harness.SetReceipt(harness.Receipt with
+        {
+            SourceIdentity = new(IntakeSourceChannel.Automation, "automation-completed-ocr")
+        });
+
+        var result = await harness.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            harness.Receipt.Id,
+            harness.Receipt.Version,
+            "automation-completed-ocr",
+            harness.SourceAssetId,
+            OcrEvidence(SourceHash)));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        Assert.Equal("OCR is available only for incoming mailbox or manual-upload instructions.", result.Reason);
+        Assert.Empty(harness.Store.Records);
+        Assert.Equal(0, harness.Documents.Opens);
+    }
+
+    [Fact]
+    public async Task ScannedAttachmentOcrBindsTheAttachmentAndReanalysisReadsTheIncomingSource()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        var attachmentId = Guid.NewGuid();
+        var attachmentHash = new string('b', 64);
+        var attachment = new IntakeAssetRecord(
+            attachmentId,
+            "mail attachment.pdf",
+            "instruction.pdf",
+            "application/pdf",
+            IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.Attachment,
+            12,
+            attachmentHash,
+            "storage/attachment",
+            null,
+            null,
+            null,
+            null);
+        harness.SetReceipt(harness.Receipt with { Assets = [.. harness.Receipt.AssetRecords, attachment] });
+        harness.SourceReader.RequiresOcr = true;
+        harness.SourceReader.OcrCandidates = [new(attachment.SourceLabel, 2)];
+
+        var queued = await harness.ExecuteAsync(operationKey: "attachment-ocr-queued");
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, queued.Outcome);
+        var begun = Assert.Single(harness.OcrOperations.Begins);
+        Assert.Equal(attachmentId, begun.Request.IntakeAssetId);
+        Assert.Equal(attachmentHash, begun.Request.SourceSha256);
+        Assert.Equal([2], begun.Request.QualifiedPages);
+
+        harness.SourceReader.RequiresOcr = false;
+        var completed = await harness.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            harness.Receipt.Id,
+            harness.Receipt.Version,
+            "attachment-ocr-completed",
+            attachmentId,
+            OcrEvidence(attachmentHash)));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, completed.Outcome);
+        Assert.Equal(harness.SourceAssetId, harness.Documents.LastRequest?.IntakeAssetId);
+    }
+
+    [Fact]
+    public async Task MultipleScannedSourcesAreRefusedBeforeAnyOcrOperationStarts()
+    {
+        var harness = new Harness(InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]));
+        var attachment = new IntakeAssetRecord(
+            Guid.NewGuid(), "mail attachment.pdf", "instruction.pdf", "application/pdf",
+            IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, 12,
+            new string('b', 64), "storage/attachment", null, null, null, null);
+        harness.SetReceipt(harness.Receipt with { Assets = [.. harness.Receipt.AssetRecords, attachment] });
+        harness.SourceReader.RequiresOcr = true;
+        harness.SourceReader.OcrCandidates =
+        [
+            new("uploaded instruction.pdf", 1),
+            new(attachment.SourceLabel, 1)
+        ];
+
+        var result = await harness.ExecuteAsync(operationKey: "multiple-scans");
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.SourceUnavailable, result.Outcome);
+        Assert.Equal("Instructions with more than one scanned source require staff review.", result.Reason);
+        Assert.Empty(harness.OcrOperations.Begins);
+    }
+
+    [Fact]
+    public void OcrReanalysisKeepsReadableFragmentsOutsideTheQualifiedAttachmentPages()
+    {
+        var evidence = OcrEvidence(SourceHash);
+        var ordinary = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.EmailBody, "message body", "Please see the instruction."),
+                new(IntakeEvidenceSource.PdfContent, "mail attachment.pdf, page 1", "Readable page", IntakeSourceLocator.ForPage(1)),
+                new(IntakeEvidenceSource.PdfContent, "mail attachment.pdf, page 2", "Stale embedded text", IntakeSourceLocator.ForPage(2))
+            ],
+            [], [], true,
+            OcrCandidates: [new("mail attachment.pdf", 2)],
+            ReaderKey: "mimekit/pdfpig",
+            ReaderVersion: "1");
+
+        var merged = AnalyzeRetainedInstruction.MergeOcrReadResult(
+            ordinary,
+            evidence,
+            new HashSet<string>(StringComparer.Ordinal) { "mail attachment.pdf" });
+
+        Assert.Contains(merged.Content, fragment => fragment.Text == "Please see the instruction.");
+        Assert.Contains(merged.Content, fragment => fragment.Text == "Readable page");
+        Assert.DoesNotContain(merged.Content, fragment => fragment.Text == "Stale embedded text");
+        Assert.Contains(merged.Content, fragment => fragment.Text == "QDOS Jane Smith");
+        Assert.False(merged.RequiresOcr);
+        Assert.Empty(merged.ScannedPdfPages);
+    }
+
+    [Fact]
+    public async Task MixedOcrEvidenceKeepsOrdinaryReaderProvenanceAndDoesNotLookupItsRegistration()
+    {
+        var evidence = OcrEvidence(SourceHash);
+        var ocrFragment = Assert.Single(AnalyzeRetainedInstruction.CreateOcrReadResult(evidence).Content);
+        var ordinaryLocator = IntakeSourceLocator.ForPage(1);
+        var harness = new Harness(
+            InstructionExtractionPolicySelectorTests.Profile("QDOS", ["QDOS"]) with
+            {
+                Fields =
+                [
+                    new("Claimant name", "Jane Ordinary",
+                    [
+                        new("Jane Ordinary", IntakeEvidenceSource.EmailBody, "message body", ordinaryLocator),
+                        new("Jane Ocr", IntakeEvidenceSource.DocumentContent, ocrFragment.SourceLabel, ocrFragment.Locator)
+                    ],
+                    IsDefaulted: false, HasConflict: true),
+                    new("Vehicle registration", "AB12CDE",
+                        [new("AB12CDE", IntakeEvidenceSource.EmailBody, "message body", ordinaryLocator)],
+                        IsDefaulted: false, HasConflict: false)
+                ]
+            });
+        harness.SourceReader.OcrCandidates = [new("uploaded instruction.pdf", 2)];
+
+        var result = await harness.Command.ExecuteAsync(new(
+            ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId),
+            harness.Receipt.Id,
+            harness.Receipt.Version,
+            "mixed-ocr",
+            harness.SourceAssetId,
+            evidence));
+
+        Assert.Equal(RetainedInstructionAnalysisOutcome.Analyzed, result.Outcome);
+        var ordinary = Assert.Single(result.Analysis!.Candidates, candidate => candidate.RawValue == "Jane Ordinary");
+        Assert.Equal("fake_reader", ordinary.ReaderKey);
+        Assert.Equal("9", ordinary.ReaderVersion);
+        var ocr = Assert.Single(result.Analysis.Candidates, candidate => candidate.RawValue == "Jane Ocr");
+        Assert.Equal($"{IntakeOcrProviderIdentity.Provider}/{IntakeOcrProviderIdentity.ModelId}", ocr.ReaderKey);
+        Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, ocr.ReaderVersion);
+        Assert.Empty(harness.VehicleLookup.Requests);
     }
 
     [Fact]
@@ -748,7 +928,7 @@ public sealed class AnalyzeRetainedInstructionTests
             [
                 new IntakeAssetRecord(
                     sourceAssetId,
-                    "uploaded instruction.pdf",
+                    "uploaded source",
                     "instruction.pdf",
                     "application/pdf",
                     IntakeAssetKind.Source,
@@ -779,11 +959,14 @@ public sealed class AnalyzeRetainedInstructionTests
 
         public int Opens { get; private set; }
 
+        public ReadLogicalDocumentVersionRequest? LastRequest { get; private set; }
+
         public Task<LogicalDocumentContent> OpenAsync(
             ReadLogicalDocumentVersionRequest request,
             CancellationToken cancellationToken)
         {
             Opens++;
+            LastRequest = request;
             if (FailToOpen)
             {
                 throw new InvalidOperationException("The retained asset is not available.");
@@ -893,7 +1076,6 @@ public sealed class AnalyzeRetainedInstructionTests
             var operation = new IntakeOcrOperation(
                 operationId,
                 request.IntakeReceiptId,
-                request.DocumentVersionId,
                 request.IntakeAssetId,
                 request.SourceSha256,
                 request.SourceContentLength,

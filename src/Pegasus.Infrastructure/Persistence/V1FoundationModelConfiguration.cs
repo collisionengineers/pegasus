@@ -97,8 +97,8 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<IntakeOcrOperationEntity>(e =>
         {
-            e.ToTable("IntakeOcrOperations", t => t.HasCheckConstraint("CK_IntakeOcrOperations_Source", "([DocumentVersionId] IS NULL AND [IntakeAssetId] IS NOT NULL) OR ([DocumentVersionId] IS NOT NULL AND [IntakeAssetId] IS NULL)")); e.HasKey(x => x.Id); e.HasIndex(x => x.OperationKey).IsUnique();
-            e.HasIndex(x => new { x.DocumentVersionId, x.SourceSha256 }); e.Property(x => x.SourceSha256).HasMaxLength(64).IsFixedLength();
+            e.ToTable("IntakeOcrOperations"); e.HasKey(x => x.Id); e.HasIndex(x => x.OperationKey).IsUnique();
+            e.Property(x => x.SourceSha256).HasMaxLength(64).IsFixedLength();
             e.Property(x => x.ResponseSha256).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
             e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
@@ -145,8 +145,7 @@ internal static class V1FoundationModelConfiguration
         builder.Entity<IntakeSourceCandidateEntity>().HasOne<RetainedInstructionAnalysisEntity>().WithMany().HasForeignKey(x => x.AnalysisId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeSourceCandidateEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.DocumentVersionId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<IntakeSourceCandidateEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<IntakeOcrOperationEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.DocumentVersionId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<IntakeOcrOperationEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<IntakeOcrOperationEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict).IsRequired();
         builder.Entity<DocumentContentCacheEntryEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.DocumentVersionId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<DocumentContentCacheEntryEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<PublicUploadSessionEntity>().HasOne<RequestUploadLinkEntity>().WithMany().HasForeignKey(x => x.RequestUploadLinkId).OnDelete(DeleteBehavior.Restrict);

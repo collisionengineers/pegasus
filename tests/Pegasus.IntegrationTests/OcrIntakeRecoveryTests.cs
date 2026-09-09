@@ -312,136 +312,6 @@ public sealed class OcrIntakeRecoveryTests
         Assert.Equal(IntakeOcrState.Completed, (await harness.ReadAsync()).State);
     }
 
-    [Fact]
-    [Trait("Category", "Corpus")]
-    public async Task RetainedCaseOcrBindsItsExactSourceAndRefusesChangedReplayIntent()
-    {
-        await using var harness = await Harness.CreateDocumentAsync();
-        var source = Assert.IsType<CaseDocumentMetadata>(harness.CaseSource);
-        var operation = await harness.ReadAsync();
-        Assert.Null(operation.IntakeReceiptId);
-        Assert.Null(operation.IntakeAssetId);
-        Assert.Equal(source.CaseId, operation.CaseId);
-        Assert.Equal(source.OccurrenceId, operation.OccurrenceId);
-        Assert.Equal(source.VersionId, operation.DocumentVersionId);
-        Assert.Equal(source.Sha256, operation.SourceSha256);
-        Assert.Equal(source.ContentLength, operation.SourceContentLength);
-        Assert.Equal([1, 3], operation.QualifiedPages);
-
-        var recreatedStore = new EfIntakeOcrOperationStore(harness.ContextFactory);
-        var replay = await IntakeOcrOperations.BeginDocumentAsync(recreatedStore, source, [3, 1, 3], default);
-        Assert.Equal(operation.Id, replay.Id);
-        Assert.Equal(operation.OperationKey, replay.OperationKey);
-        await Assert.ThrowsAsync<IntakeOcrOperationConflictException>(() =>
-            IntakeOcrOperations.BeginDocumentAsync(recreatedStore,
-                source with { ContentLength = source.ContentLength + 1 }, [1, 3], default));
-
-        IntakeOcrRequest[] changedRequests =
-        [
-            harness.Request with { CaseId = Guid.NewGuid() },
-            harness.Request with { OccurrenceId = Guid.NewGuid() },
-            harness.Request with { DocumentVersionId = Guid.NewGuid() },
-            harness.Request with { SourceSha256 = new string('A', 64) },
-            harness.Request with { SourceContentLength = source.ContentLength + 1 },
-            harness.Request with { QualifiedPages = [1] }
-        ];
-        foreach (var changed in changedRequests)
-            await Assert.ThrowsAsync<IntakeOcrOperationConflictException>(() =>
-                recreatedStore.BeginAsync(operation.Id, changed, default));
-
-        Assert.Equal(1, await harness.CountOperationsAsync());
-        Assert.Equal(operation.Version, (await harness.ReadAsync()).Version);
-        Assert.Equal(0, harness.Provider.Analyses);
-        Assert.Equal(ExternalWorkStatePersistence.Pending, (await harness.ReadWorkItemAsync())!.State);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Category", "Corpus")]
-    public async Task RetainedCaseOcrCompletesWithoutInstructionAnalysisAndReusesOutputAfterRestart(bool outputAlreadyRetained)
-    {
-        await using var harness = await Harness.CreateDocumentAsync();
-        harness.Provider.OnAnalyze = () => Harness.Completed([1, 3]);
-        if (outputAlreadyRetained)
-        {
-            var pending = await harness.ReadAsync();
-            await harness.Store.CompleteAsync(pending.Id, pending.Version, Harness.Completed([1, 3]), default);
-            Assert.False((await harness.ReadAsync()).AnalysisCompleted);
-            Assert.Equal(ExternalWorkStatePersistence.Pending, (await harness.ReadWorkItemAsync())!.State);
-        }
-
-        await harness.ExecuteAfterRestartAsync();
-        var completed = await harness.ReadAsync();
-        Assert.Equal(IntakeOcrState.Completed, completed.State);
-        Assert.True(completed.AnalysisCompleted);
-        Assert.Equal([1, 3], completed.PageResults.Select(page => page.Number));
-        Assert.Equal("response-hash-1", completed.ResponseSha256);
-        Assert.NotNull(completed.Result);
-        Assert.Equal(IntakeOcrProviderIdentity.ModelId, completed.Result.ModelId);
-        Assert.Equal(IntakeOcrProviderIdentity.ApiVersion, completed.Result.ApiVersion);
-        var work = await harness.ReadWorkItemAsync();
-        Assert.Equal(ExternalWorkStatePersistence.Completed, work!.State);
-        Assert.NotNull(work.CompletedAtUtc);
-
-        await harness.ExecuteAfterRestartAsync();
-        Assert.Equal(completed.Version, (await harness.ReadAsync()).Version);
-        Assert.Equal(outputAlreadyRetained ? 0 : 1, harness.Provider.Analyses);
-        Assert.Equal(0, harness.Provider.Reconciliations);
-        Assert.Empty(harness.Analysis.Requests);
-        Assert.Equal(1, await harness.CountOperationsAsync());
-        if (!outputAlreadyRetained)
-        {
-            var submitted = Assert.IsType<IntakeOcrRequest>(harness.Provider.SubmittedRequest);
-            Assert.Equal(harness.Request.CaseId, submitted.CaseId);
-            Assert.Equal(harness.Request.OccurrenceId, submitted.OccurrenceId);
-            Assert.Equal(harness.Request.DocumentVersionId, submitted.DocumentVersionId);
-            Assert.Null(submitted.IntakeReceiptId);
-            Assert.Null(submitted.IntakeAssetId);
-            Assert.Equal(harness.Request.OperationKey, submitted.OperationKey);
-            Assert.Equal(harness.Request.QualifiedPages, submitted.QualifiedPages);
-            Assert.Equal(harness.Request.SourceSha256, submitted.SourceSha256);
-            Assert.Equal(harness.Request.SourceContentLength, submitted.SourceContentLength);
-            Assert.Equal(harness.Request.SourceSha256, harness.Provider.SubmittedContentHash);
-            Assert.Equal(harness.Request.SourceContentLength, harness.Provider.SubmittedContentLength);
-        }
-        await using var db = await harness.ContextFactory.CreateDbContextAsync();
-        Assert.Equal(0, (await db.CaseWorkflows.SingleAsync(value => value.CaseId == harness.CaseSource!.CaseId)).Version);
-        Assert.Empty(await db.Set<CaseRepairSpecificationEntity>().ToListAsync());
-    }
-
-    [Theory]
-    [InlineData("removed")]
-    [InlineData("wrong-case")]
-    [InlineData("unconfirmed")]
-    [Trait("Category", "Corpus")]
-    public async Task RetainedCaseOcrRefusesUnavailableSourceBeforeProviderSubmission(string invalidation)
-    {
-        await using var harness = await Harness.CreateDocumentAsync(wrongCase: invalidation == "wrong-case");
-        if (invalidation != "wrong-case")
-        {
-            await using var db = await harness.ContextFactory.CreateDbContextAsync();
-            var version = await db.Set<DocumentVersionEntity>().SingleAsync(value => value.Id == harness.CaseSource!.VersionId);
-            if (invalidation == "removed")
-                version.IsLogicallyRemoved = true;
-            else
-                version.CustodyStatus = DocumentCustodyStatus.Pending;
-            await db.SaveChangesAsync();
-        }
-
-        await harness.ExecuteAfterRestartAsync();
-        var failed = await harness.ReadAsync();
-        Assert.Equal(IntakeOcrState.Failed, failed.State);
-        Assert.Contains("ocr_source_unavailable", failed.LastError, StringComparison.Ordinal);
-        Assert.Null(failed.SubmitAttemptedAtUtc);
-        Assert.Null(failed.ProviderOperationId);
-        Assert.Empty(failed.PageResults);
-        Assert.Equal(ExternalWorkStatePersistence.Failed, (await harness.ReadWorkItemAsync())!.State);
-        Assert.Equal(0, harness.Provider.Analyses);
-        Assert.Equal(0, harness.Provider.Reconciliations);
-        Assert.Empty(harness.Analysis.Requests);
-    }
-
     private sealed class Harness : IAsyncDisposable
     {
         private readonly IntakeWebApplicationFactory factory;
@@ -451,8 +321,7 @@ public sealed class OcrIntakeRecoveryTests
             IntakeWebApplicationFactory factory,
             IServiceScope scope,
             Guid workItemId,
-            IntakeOcrRequest request,
-            CaseDocumentMetadata? caseSource = null)
+            IntakeOcrRequest request)
         {
             this.factory = factory;
             this.scope = scope;
@@ -461,22 +330,18 @@ public sealed class OcrIntakeRecoveryTests
             Store = new EfIntakeOcrOperationStore(ContextFactory);
             WorkItemId = workItemId;
             Request = request;
-            CaseSource = caseSource;
             Command = new ProcessIntakeOcr(
                 Store,
                 Provider,
                 services.GetRequiredService<IReadLogicalDocumentVersion>(),
                 Analysis,
                 services.GetRequiredService<IIntakeReceiptQueries>(),
-                services.GetRequiredService<IGetCaseDocumentMetadata>(),
                 TimeProvider.System);
         }
 
         public Guid WorkItemId { get; }
 
         public IntakeOcrRequest Request { get; }
-
-        public CaseDocumentMetadata? CaseSource { get; }
 
         public IDbContextFactory<PegasusDbContext> ContextFactory { get; }
 
@@ -503,7 +368,7 @@ public sealed class OcrIntakeRecoveryTests
                 factory,
                 scope,
                 Guid.NewGuid(),
-                new(receipt.Id, null, asset.Id, asset.ContentHash, asset.ContentLength,
+                new(receipt.Id, asset.Id, asset.ContentHash, asset.ContentLength,
                     [1], $"ocr:{receipt.Id:N}:1"));
             await harness.Store.BeginAsync(harness.WorkItemId, harness.Request, CancellationToken.None);
             return harness;
@@ -521,85 +386,8 @@ public sealed class OcrIntakeRecoveryTests
                 services.GetRequiredService<IReadLogicalDocumentVersion>(),
                 Analysis,
                 services.GetRequiredService<IIntakeReceiptQueries>(),
-                services.GetRequiredService<IGetCaseDocumentMetadata>(),
                 services.GetRequiredService<TimeProvider>());
             await command.ExecuteAsync(WorkItemId, default);
-        }
-
-        public static async Task<Harness> CreateDocumentAsync(bool wrongCase = false)
-        {
-            const string fileName = "1952640666665__YL69YFO CALCULATION SHEET.pdf";
-            var directory = new DirectoryInfo(CorpusPackage.RepositoryRoot);
-            string? sourcePath = null;
-            while (directory is not null)
-            {
-                var candidate = Path.Combine(directory.FullName, "pegasus_pack", "glasses-integration", "glass_ref_docs", fileName);
-                if (File.Exists(candidate))
-                {
-                    sourcePath = candidate;
-                    break;
-                }
-                directory = directory.Parent;
-            }
-            Assert.NotNull(sourcePath);
-            var content = await File.ReadAllBytesAsync(sourcePath);
-            var hash = Convert.ToHexStringLower(SHA256.HashData(content));
-            Assert.Equal("6918c91fce058b5365446681045056158336b90e1de89ba1bdc5a1d7394f728c", hash);
-
-            var factory = new IntakeWebApplicationFactory();
-            var receiptId = await RetainAsync(factory);
-            var scope = factory.Services.CreateScope();
-            var services = scope.ServiceProvider;
-            var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            var caseId = Guid.NewGuid();
-            var documentId = Guid.NewGuid();
-            var versionId = Guid.NewGuid();
-            var occurrenceId = Guid.NewGuid();
-            const string reference = "QDOS31001";
-            var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
-            await using (var db = await contextFactory.CreateDbContextAsync())
-            {
-                var principal = await SeededPrincipals.QdosAsync(db);
-                db.AddRange(
-                    new CaseEntity
-                    {
-                        Id = caseId, PrincipalId = principal.Id, SequenceLineageId = principal.SequenceLineageId,
-                        Year = 2031, Sequence = 1, Reference = reference, Type = "Inspection", InitialState = "NotReady",
-                        CustodyState = "confirmed", OriginIntakeReceiptId = receiptId, CreatedAtUtc = now,
-                        ConcurrencyToken = Guid.NewGuid()
-                    },
-                    new CaseWorkflowEntity { CaseId = caseId, State = "NotReady", Version = 0, ConcurrencyToken = Guid.NewGuid() },
-                    new CaseDocumentEntity
-                    {
-                        Id = documentId, CaseId = caseId, Ordinal = 1,
-                        SourceOccurrenceIdentity = $"ocr-source:{occurrenceId:N}"
-                    },
-                    new DocumentVersionEntity
-                    {
-                        Id = versionId, DocumentId = documentId, Version = 1, FileName = fileName, MediaType = "application/pdf",
-                        ContentLength = content.LongLength, Sha256 = hash, CustodyStatus = DocumentCustodyStatus.Confirmed,
-                        CreatedAtUtc = now, CreatedBy = "test", IsCurrent = true
-                    },
-                    new DocumentOccurrenceEntity
-                    {
-                        Id = occurrenceId, CaseId = caseId, DocumentId = documentId, VersionId = versionId, Ordinal = 1,
-                        SemanticRole = DocumentSemanticRole.OriginalSource, Source = DocumentSource.StaffUpload,
-                        SourceOccurrenceIdentity = $"ocr-source:{occurrenceId:N}", RecordedAtUtc = now,
-                        OperationKey = $"ocr-source:{occurrenceId:N}"
-                    });
-                await db.SaveChangesAsync();
-            }
-            await services.GetRequiredService<IDocumentContentStore>().StoreAsync(
-                caseId, reference, versionId, content, hash, default);
-            var source = await services.GetRequiredService<IGetCaseDocumentMetadata>().ExecuteAsync(
-                new(caseId, occurrenceId, versionId, ActionActor.Automation(ReconcileUnidentifiedDestinations.AutomationActorId)), default);
-            Assert.NotNull(source);
-            var operation = await IntakeOcrOperations.BeginDocumentAsync(
-                new EfIntakeOcrOperationStore(contextFactory),
-                wrongCase ? source with { CaseId = Guid.NewGuid() } : source, [3, 1, 3], default);
-            return new(factory, scope, operation.Id,
-                new(null, versionId, null, hash, content.LongLength, operation.QualifiedPages,
-                    operation.OperationKey, operation.CaseId, occurrenceId), source);
         }
 
         public async Task<IntakeOcrOperation> ReadAsync() =>

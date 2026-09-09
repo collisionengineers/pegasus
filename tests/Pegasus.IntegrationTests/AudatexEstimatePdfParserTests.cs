@@ -23,9 +23,7 @@ public sealed class AudatexEstimatePdfParserTests
 
     private ParsedEstimate Parse(ReadOnlyMemory<byte> content)
     {
-        var read = parser.Parse(content);
-        Assert.Empty(read.QualifiedOcrPages);
-        var parsed = Assert.IsType<ParsedEstimate>(read.Estimate);
+        var parsed = parser.Parse(content);
         Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, parsed.Route);
         return parsed;
     }

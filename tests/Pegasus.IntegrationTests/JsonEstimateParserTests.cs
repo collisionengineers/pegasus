@@ -15,9 +15,7 @@ public sealed class JsonEstimateParserTests
 
     private ParsedEstimate Parse(ReadOnlyMemory<byte> content)
     {
-        var read = parser.Parse(content);
-        Assert.Empty(read.QualifiedOcrPages);
-        var parsed = Assert.IsType<ParsedEstimate>(read.Estimate);
+        var parsed = parser.Parse(content);
         Assert.Equal(RepairSpecificationSourceRoute.Json, parsed.Route);
         return parsed;
     }

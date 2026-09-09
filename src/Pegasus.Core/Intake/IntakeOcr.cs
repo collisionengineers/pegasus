@@ -7,6 +7,12 @@ namespace Pegasus.Core.Intake;
 
 public static class IntakeOcrOperations
 {
+    public static bool IsEligibleIncomingInstruction(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return receipt.SourceIdentity.Channel is IntakeSourceChannel.Mailbox or IntakeSourceChannel.ManualUpload;
+    }
+
     public static Task<IntakeOcrOperation> BeginAsync(
         IIntakeOcrOperationStore store,
         Guid receiptId,
@@ -24,13 +30,28 @@ public static class IntakeOcrOperations
             operationId,
             new(
                 receiptId,
-                DocumentVersionId: null,
                 asset.Id,
                 asset.ContentHash,
                 asset.ContentLength,
                 pages,
                 $"intake-ocr:{operationId:N}"),
             cancellationToken);
+    }
+
+    internal static IntakeAssetRecord? ResolveQualifiedAsset(
+        IntakeReceipt receipt,
+        string sourceLabel)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceLabel);
+        var isUploadedPdf = string.Equals(
+            sourceLabel,
+            $"uploaded {Path.GetFileName(receipt.SourceFileName)}",
+            StringComparison.Ordinal);
+        return receipt.AssetRecords.SingleOrDefault(asset =>
+            isUploadedPdf
+                ? asset.Kind == IntakeAssetKind.Source && asset.Disposition == IntakeAssetDisposition.Source
+                : string.Equals(asset.SourceLabel, sourceLabel, StringComparison.Ordinal));
     }
 
     private static Guid OperationId(
@@ -42,24 +63,6 @@ public static class IntakeOcrOperations
         var identity = FormattableString.Invariant(
             $"intake-ocr/v1|{receiptId:D}|{assetId:D}|{sourceSha256.ToUpperInvariant()}|{string.Join(',', pages)}");
         return HashIdentity(identity);
-    }
-
-    public static Task<IntakeOcrOperation> BeginDocumentAsync(
-        IIntakeOcrOperationStore store,
-        CaseDocumentMetadata source,
-        IReadOnlyList<int> qualifiedPages,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(store);
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(qualifiedPages);
-        var pages = qualifiedPages.Distinct().Order().ToArray();
-        var operationId = HashIdentity(FormattableString.Invariant(
-            $"document-ocr/v1|{source.CaseId:D}|{source.OccurrenceId:D}|{source.VersionId:D}|{source.Sha256.ToUpperInvariant()}|{string.Join(',', pages)}"));
-        return store.BeginAsync(operationId,
-            new(null, source.VersionId, null, source.Sha256, source.ContentLength,
-                pages, $"document-ocr:{operationId:N}", source.CaseId, source.OccurrenceId),
-            cancellationToken);
     }
 
     private static Guid HashIdentity(string identity)
@@ -92,8 +95,7 @@ public enum IntakeOcrState
 
 /// <summary>
 /// One page-restricted OCR request, named by the exact immutable source it
-/// reads. Either a logical document version or a retained intake asset — never
-/// both, and never a storage key.
+/// reads. It names one retained intake asset and never a storage key.
 /// </summary>
 /// <param name="QualifiedPages">
 /// The pages the reader proved need OCR, in ascending order. Never "the whole
@@ -105,30 +107,20 @@ public enum IntakeOcrState
 /// key: a replay finds the recorded operation rather than starting a second.
 /// </param>
 public sealed record IntakeOcrRequest(
-    Guid? IntakeReceiptId,
-    Guid? DocumentVersionId,
-    Guid? IntakeAssetId,
+    Guid IntakeReceiptId,
+    Guid IntakeAssetId,
     string SourceSha256,
     long SourceContentLength,
     IReadOnlyList<int> QualifiedPages,
-    string OperationKey,
-    Guid? CaseId = null,
-    Guid? OccurrenceId = null)
+    string OperationKey)
 {
     public static void Validate(IntakeOcrRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var intakeSource = request.IntakeReceiptId is { } receiptId && receiptId != Guid.Empty
-            && request.IntakeAssetId is { } assetId && assetId != Guid.Empty
-            && request.DocumentVersionId is null && request.CaseId is null && request.OccurrenceId is null;
-        var caseSource = request.IntakeReceiptId is null && request.IntakeAssetId is null
-            && request.DocumentVersionId is { } versionId && versionId != Guid.Empty
-            && request.CaseId is { } caseId && caseId != Guid.Empty
-            && request.OccurrenceId is { } occurrenceId && occurrenceId != Guid.Empty;
-        if (!intakeSource && !caseSource)
+        if (request.IntakeReceiptId == Guid.Empty || request.IntakeAssetId == Guid.Empty)
         {
             throw new ArgumentException(
-                "An OCR request names an intake receipt and asset, or a Case, occurrence and document version.",
+                "An OCR request names one incoming intake receipt and asset.",
                 nameof(request));
         }
 
@@ -272,9 +264,8 @@ public interface IIntakeOcrProvider
 /// </summary>
 public sealed record IntakeOcrOperation(
     Guid Id,
-    Guid? IntakeReceiptId,
-    Guid? DocumentVersionId,
-    Guid? IntakeAssetId,
+    Guid IntakeReceiptId,
+    Guid IntakeAssetId,
     string SourceSha256,
     long SourceContentLength,
     IReadOnlyList<int> QualifiedPages,
@@ -290,9 +281,7 @@ public sealed record IntakeOcrOperation(
     DateTimeOffset? SubmitAttemptedAtUtc = null,
     DateTimeOffset? SubmittedAtUtc = null,
     IntakeOcrResult? Result = null,
-    bool AnalysisCompleted = false,
-    Guid? CaseId = null,
-    Guid? OccurrenceId = null)
+    bool AnalysisCompleted = false)
 {
     public IReadOnlyList<IntakeOcrPage> PageResults => Pages ?? [];
 
@@ -526,7 +515,6 @@ public sealed class ProcessIntakeOcr(
     IReadLogicalDocumentVersion documentReader,
     IAnalyzeRetainedInstruction analyzeRetainedInstruction,
     IIntakeReceiptQueries receiptQueries,
-    IGetCaseDocumentMetadata caseDocuments,
     TimeProvider timeProvider) : IProcessIntakeOcr
 {
     /// <summary>
@@ -552,19 +540,25 @@ public sealed class ProcessIntakeOcr(
             return;
         }
 
-        var receipt = operation.IntakeReceiptId is { } receiptId
-            ? await receiptQueries.GetAsync(receiptId, cancellationToken)
-            : null;
-        var asset = receipt is null || operation.IntakeAssetId is not { } assetId
-            ? null
-            : receipt.AssetRecords.SingleOrDefault(record => record.Id == assetId);
-        var document = operation.CaseId is { } caseId
-            && operation.OccurrenceId is { } occurrenceId
-            && operation.DocumentVersionId is { } versionId
-            ? await caseDocuments.ExecuteAsync(new(caseId, occurrenceId, versionId, OcrActor), cancellationToken)
-            : null;
-        var sourceHash = asset?.ContentHash ?? document?.Sha256;
-        var sourceLength = asset?.ContentLength ?? document?.ContentLength;
+        var receipt = await receiptQueries.GetAsync(operation.IntakeReceiptId, cancellationToken);
+        if (receipt is not null && !IntakeOcrOperations.IsEligibleIncomingInstruction(receipt))
+        {
+            await store.RecordOutcomeAsync(
+                operation.Id,
+                operation.Version,
+                IntakeOcrState.Failed,
+                new(
+                    "ocr_source_ineligible",
+                    "OCR is available only for incoming mailbox or manual-upload instructions.",
+                    Retryable: false),
+                retryAtUtc: null,
+                cancellationToken);
+            return;
+        }
+
+        var asset = receipt?.AssetRecords.SingleOrDefault(record => record.Id == operation.IntakeAssetId);
+        var sourceHash = asset?.ContentHash;
+        var sourceLength = asset?.ContentLength;
         if (sourceLength != operation.SourceContentLength
             || !string.Equals(sourceHash, operation.SourceSha256, StringComparison.OrdinalIgnoreCase))
         {
@@ -583,14 +577,11 @@ public sealed class ProcessIntakeOcr(
 
         var request = new IntakeOcrRequest(
             operation.IntakeReceiptId,
-            operation.DocumentVersionId,
             operation.IntakeAssetId,
             operation.SourceSha256,
             operation.SourceContentLength,
             operation.QualifiedPages,
-            operation.OperationKey,
-            operation.CaseId,
-            operation.OccurrenceId);
+            operation.OperationKey);
         IntakeOcrRequest.Validate(request);
 
         if (operation.Result is { } retainedResult)
@@ -641,7 +632,7 @@ public sealed class ProcessIntakeOcr(
         // attempt, then the provider's identity for it - and what it advanced
         // to is what the outcome is written against.
         var attempt = new Attempt(operation);
-        var result = await SubmitAsync(attempt, request, document?.DocumentId, cancellationToken);
+        var result = await SubmitAsync(attempt, request, cancellationToken);
         await ApplyAsync(attempt.Current, receipt, request, result, cancellationToken);
     }
 
@@ -666,7 +657,6 @@ public sealed class ProcessIntakeOcr(
     private async Task<IntakeOcrResult> SubmitAsync(
         Attempt attempt,
         IntakeOcrRequest request,
-        Guid? documentId,
         CancellationToken cancellationToken)
     {
         LogicalDocumentContent content;
@@ -675,13 +665,13 @@ public sealed class ProcessIntakeOcr(
             content = await documentReader.OpenAsync(
                 new(
                     OcrActor,
-                    documentId,
-                    request.DocumentVersionId,
-                    request.IntakeAssetId,
-                    request.CaseId,
-                    request.IntakeReceiptId,
-                    request.SourceSha256,
-                    request.SourceContentLength),
+                    DocumentId: null,
+                    VersionId: null,
+                    IntakeAssetId: request.IntakeAssetId,
+                    CaseId: null,
+                    IntakeReceiptId: request.IntakeReceiptId,
+                    ExpectedSha256: request.SourceSha256,
+                    ExpectedContentLength: request.SourceContentLength),
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -906,14 +896,6 @@ public sealed class ProcessIntakeOcr(
         IntakeOcrResult ocrResult,
         CancellationToken cancellationToken)
     {
-        if (operation.DocumentVersionId is not null)
-        {
-            // A retained estimate is consumed later through its authorized
-            // import command. OCR never mutates an Engineer's Case or lease.
-            await store.CompleteAnalysisAsync(operation.Id, operation.Version, CancellationToken.None);
-            return;
-        }
-
         ArgumentNullException.ThrowIfNull(receipt);
         var key = $"ocr:{operation.Id:N}:{receipt.Version}";
         IntakeOcrFailure? failure = null;
