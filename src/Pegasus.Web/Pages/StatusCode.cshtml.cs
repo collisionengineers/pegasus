@@ -28,6 +28,9 @@ public sealed class StatusCodeModel : PageModel
 
     public bool IsFault { get; private set; }
 
+    /// <summary>Whether the originating request was the public upload link.</summary>
+    public bool IsExternalSurface { get; private set; }
+
     /// <summary>
     /// The external upload link is the one screen whose audience is not staff.
     /// Offering it a link into the internal dashboard would both fail (the
@@ -37,12 +40,12 @@ public sealed class StatusCodeModel : PageModel
 
     public void OnGet(int code)
     {
-        var isExternalSurface = IsExternalSurface();
-        ShowReturnToDashboard = !isExternalSurface;
+        IsExternalSurface = IsPublicUploadSurface();
+        ShowReturnToDashboard = !IsExternalSurface;
 
         switch (code)
         {
-            case StatusCodes.Status404NotFound when isExternalSurface:
+            case StatusCodes.Status404NotFound when IsExternalSurface:
                 Heading = "This link is no longer active";
                 Explanation =
                     "The link may have expired, already been used, or been withdrawn. "
@@ -55,7 +58,6 @@ public sealed class StatusCodeModel : PageModel
                 break;
 
             case StatusCodes.Status413PayloadTooLarge:
-            case StatusCodes.Status400BadRequest:
                 Heading = "That file is too large";
                 Explanation = "Files must be 10 MB or smaller. Choose a smaller file and try again.";
                 break;
@@ -76,7 +78,7 @@ public sealed class StatusCodeModel : PageModel
         }
     }
 
-    private bool IsExternalSurface()
+    private bool IsPublicUploadSurface()
     {
         var originalPath = HttpContext
             .Features

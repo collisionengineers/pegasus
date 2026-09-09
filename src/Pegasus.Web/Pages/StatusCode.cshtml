@@ -2,7 +2,7 @@
 @model Pegasus.Web.Pages.StatusCodeModel
 @{
     ViewData["Title"] = Model.Heading;
-    Layout = "Shared/_LayoutAuth";
+    Layout = Model.IsExternalSurface ? "Shared/_LayoutExternal" : "Shared/_LayoutAuth";
 }
 
 @* The designed answer to a status code. Before this page existed, an unknown
