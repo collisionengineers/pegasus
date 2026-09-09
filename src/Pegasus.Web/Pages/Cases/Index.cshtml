@@ -74,7 +74,7 @@
     </form>
 }
 
-<section class="pane-layout pane-layout--3 queue-layout">
+<section class="pane-layout pane-layout--3 queue-layout @(Model.Rows.Count == 0 ? "pane-layout--empty" : null)">
     <aside class="pane">
         <div class="pane-head">
             <h2>Case workflow</h2>
@@ -126,7 +126,15 @@
                token a link may legally carry). Blocked intake rows sit in
                the Unidentified scope with their own chip and no count of
                their own (D14). *@
-            @foreach (var row in Model.Rows)
+            @if (Model.Rows.Count == 0)
+            {
+                <div class="empty pane-empty">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <h3>Nothing is listed in this workflow view.</h3>
+                    <p>Choose another workflow scope to review its recorded items.</p>
+                </div>
+            }
+            else foreach (var row in Model.Rows)
             {
                 <a class="row-button" href="@(row.Kind == IndexModel.RowKind.Image ? Model.Href(selected: row.Id) : row.DetailHref)" aria-current="@(Model.SelectedId == row.Id ? "true" : null)">
                     <span class="row-top">
@@ -293,6 +301,14 @@
                             }
                         }
                     }
+                </div>
+            }
+            else
+            {
+                <div class="empty pane-empty">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <h2>No item selected</h2>
+                    <p>Choose an item when one is listed.</p>
                 </div>
             }
         </div>

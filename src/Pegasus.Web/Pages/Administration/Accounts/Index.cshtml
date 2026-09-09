@@ -143,9 +143,9 @@
     var settingsAutoOpen = reopenSettings ? "true" : "false";
     var roleReasonValue = Model.RolePostStaffId == account.Id ? Model.RoleReason : string.Empty;
     <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="@settingsAutoOpen" hidden="@(!reopenSettings)">
-        <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
+        <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
             <div class="dialog-head">
-                <h2 id="@settingsId-title" tabindex="-1">@account.UserName</h2>
+                <h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus="@(!reopenSettings ? "true" : null)">@account.UserName</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@OperatorLabels.StaffAccounts.CloseDialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
             <div class="dialog-body stack">
@@ -155,7 +155,7 @@
                         <partial name="Shared/_ErrorSummary" />
                     </div>
                 }
-                <dl class="fact-grid">
+                <dl class="fact-grid account-settings-facts">
                     <div class="fact"><dt>Username</dt><dd class="mono">@account.UserName</dd></div>
                     <div class="fact"><dt>State</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.State(account.IsEnabled)" /></dd></div>
                     <div class="fact"><dt>Password</dt><dd>@(account.MustChangePassword ? OperatorLabels.StaffAccounts.PasswordChangeRequired : OperatorLabels.StaffAccounts.PasswordChangeComplete)</dd></div>
@@ -196,41 +196,48 @@
                     var printedName = usePostedValues ? Model.SignOffPostPrintedName : account.SignOff.PrintedName;
                     var qualifications = usePostedValues ? Model.SignOffPostQualifications : account.SignOff.Qualifications;
                     var isDefault = usePostedValues ? Model.SignOffPostIsDefault : account.SignOff.IsDefault;
-                    <form method="post" asp-page-handler="SignOff" enctype="multipart/form-data" class="stack section-gap">
-                        <input type="hidden" name="staffId" value="@staffId" />
-                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                        <h3>Sign-off Engineer</h3>
-                        <div class="field">
-                            <label for="@settingsId-sign-off-enabled">@OperatorLabels.StaffAccounts.SignOffEngineer</label>
-                            <select id="@settingsId-sign-off-enabled" name="isSignOffEngineer" data-dialog-initial-focus>
-                                <option value="false" selected="@(!isSignOffEngineer)">@OperatorLabels.StaffAccounts.No</option>
-                                <option value="true" selected="@isSignOffEngineer">@OperatorLabels.StaffAccounts.Yes</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="@settingsId-sign-off-name">@OperatorLabels.StaffAccounts.PrintedName</label>
-                            <input id="@settingsId-sign-off-name" name="printedName" value="@printedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" />
-                        </div>
-                        <div class="field">
-                            <label for="@settingsId-sign-off-qualifications">@OperatorLabels.StaffAccounts.Qualifications</label>
-                            <input id="@settingsId-sign-off-qualifications" name="qualifications" value="@qualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" />
-                        </div>
-                        <div class="field">
-                            <span class="label">@OperatorLabels.StaffAccounts.SignatureImage</span>
-                            <span class="value">@(account.SignOff.HasSignature ? OperatorLabels.StaffAccounts.OnFile : OperatorLabels.StaffAccounts.NotOnFile)</span>
-                            <label for="@settingsId-sign-off-signature">@(account.SignOff.HasSignature ? OperatorLabels.StaffAccounts.ReplaceSignature : OperatorLabels.StaffAccounts.UploadSignature)</label>
-                            <input id="@settingsId-sign-off-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" />
-                        </div>
-                        <label class="choice" for="@settingsId-sign-off-default">
-                            <input id="@settingsId-sign-off-default" name="isDefault" type="checkbox" value="true" checked="@isDefault" />
-                            <span>@OperatorLabels.StaffAccounts.DefaultSignOffEngineer</span>
-                        </label>
-                        <div class="field">
-                            <label class="req" for="@settingsId-sign-off-reason">@OperatorLabels.StaffAccounts.Reason</label>
-                            <textarea id="@settingsId-sign-off-reason" name="reason" rows="3" required maxlength="@reasonLimit">@(usePostedValues ? Model.SignOffPostReason : string.Empty)</textarea>
-                        </div>
-                        <div class="button-row"><button type="submit" class="btn btn--primary">@OperatorLabels.StaffAccounts.Save</button></div>
-                    </form>
+                    <details class="account-settings-section" open="@(usePostedValues ? "open" : null)">
+                        <summary>
+                            <span>Sign-off Engineer</span>
+                            <span class="muted">@OperatorLabels.StaffAccounts.SignOffState(account)</span>
+                        </summary>
+                        <form method="post" asp-page-handler="SignOff" enctype="multipart/form-data" class="account-settings-form">
+                            <input type="hidden" name="staffId" value="@staffId" />
+                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                            <div class="account-signoff-fields">
+                                <div class="field">
+                                    <label for="@settingsId-sign-off-enabled">@OperatorLabels.StaffAccounts.SignOffEngineer</label>
+                                    <select id="@settingsId-sign-off-enabled" name="isSignOffEngineer">
+                                        <option value="false" selected="@(!isSignOffEngineer)">@OperatorLabels.StaffAccounts.No</option>
+                                        <option value="true" selected="@isSignOffEngineer">@OperatorLabels.StaffAccounts.Yes</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label for="@settingsId-sign-off-name">@OperatorLabels.StaffAccounts.PrintedName</label>
+                                    <input id="@settingsId-sign-off-name" name="printedName" value="@printedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" />
+                                </div>
+                                <div class="field">
+                                    <label for="@settingsId-sign-off-qualifications">@OperatorLabels.StaffAccounts.Qualifications</label>
+                                    <input id="@settingsId-sign-off-qualifications" name="qualifications" value="@qualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" />
+                                </div>
+                            </div>
+                            <div class="field">
+                                <span class="label">@OperatorLabels.StaffAccounts.SignatureImage</span>
+                                <span class="value">@(account.SignOff.HasSignature ? OperatorLabels.StaffAccounts.OnFile : OperatorLabels.StaffAccounts.NotOnFile)</span>
+                                <label for="@settingsId-sign-off-signature">@(account.SignOff.HasSignature ? OperatorLabels.StaffAccounts.ReplaceSignature : OperatorLabels.StaffAccounts.UploadSignature)</label>
+                                <input id="@settingsId-sign-off-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" />
+                            </div>
+                            <label class="choice" for="@settingsId-sign-off-default">
+                                <input id="@settingsId-sign-off-default" name="isDefault" type="checkbox" value="true" checked="@isDefault" />
+                                <span>@OperatorLabels.StaffAccounts.DefaultSignOffEngineer</span>
+                            </label>
+                            <div class="field">
+                                <label class="req" for="@settingsId-sign-off-reason">@OperatorLabels.StaffAccounts.Reason</label>
+                                <textarea id="@settingsId-sign-off-reason" name="reason" rows="3" required maxlength="@reasonLimit">@(usePostedValues ? Model.SignOffPostReason : string.Empty)</textarea>
+                            </div>
+                            <div class="button-row"><button type="submit" class="btn btn--primary">@OperatorLabels.StaffAccounts.Save</button></div>
+                        </form>
+                    </details>
                 }
 
                 @if (!row.IsCurrentOperator)
