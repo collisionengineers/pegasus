@@ -1,6 +1,7 @@
 @page "/Unidentified/{id:guid}"
 @model Pegasus.Web.Pages.Unidentified.DetailsModel
 @using Pegasus.Core.ImageIntake
+@using Pegasus.Core.Intake
 @using Pegasus.Core.Intake.Unidentified
 @using Pegasus.Web.Presentation
 @{
@@ -174,9 +175,9 @@
                 }
                 else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction)
                 {
-                    @if (Model.CanRegisterImage && Model.SourceReceipt is { } imageReceipt)
+                    @if (Model.CanRegisterImage && Model.SourceReceipt is { } registrationReceipt)
                     {
-                        <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@imageReceipt.Id">Open image registration</a>
+                        <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@registrationReceipt.Id">Open image registration</a>
                     }
                     else if (Model.CanReviewGroupRegistration && Model.SourceSubmissionGroup is { } registrationGroup)
                     {
