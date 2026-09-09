@@ -54,7 +54,8 @@ public sealed partial class ValuationPresetAdministrationWebTests
     }
 
     /// <summary>
-    /// Labels, values and controls, and nothing that explains them.
+    /// Labels and values stay compact; the edit form appears only when the
+    /// Administrator opens its preset row.
     /// </summary>
     [Fact]
     public async Task ThePresetListShowsLabelsAmountsStatesAndVersionsWithoutExplanatoryCopy()
@@ -72,6 +73,9 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("&#xA3;0.00", body, StringComparison.Ordinal);
         Assert.Contains(">Enabled<", body, StringComparison.Ordinal);
         Assert.Contains("Create preset", body, StringComparison.Ordinal);
+        Assert.Contains("<details", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Change</th>", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\">Save</th>", body, StringComparison.Ordinal);
         Assert.DoesNotContain("<p>", body, StringComparison.Ordinal);
         Assert.DoesNotContain("<aside", body, StringComparison.Ordinal);
         Assert.DoesNotContain("empty-state", body, StringComparison.Ordinal);
@@ -122,10 +126,13 @@ public sealed partial class ValuationPresetAdministrationWebTests
         using (var refused = await PostSaveAsync(client, stale))
         {
             Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            var refusedPage = await refused.Content.ReadAsStringAsync();
             Assert.Contains(
                 "The preset changed after this page was loaded.",
-                await refused.Content.ReadAsStringAsync(),
+                refusedPage,
                 StringComparison.Ordinal);
+            Assert.Contains("<details open=\"open\">", refusedPage, StringComparison.Ordinal);
+            Assert.Contains("value=\"The allowance rose.\"", refusedPage, StringComparison.Ordinal);
         }
 
         using (var disabled = await PostSaveAsync(
