@@ -166,36 +166,10 @@ public sealed class PasswordChangeModel(
         NewPassword = string.Empty;
         ConfirmPassword = string.Empty;
         OperationKey = NewOperationKey();
-        ClearPasswordModelState(nameof(CurrentPassword));
-        ClearPasswordModelState(nameof(NewPassword));
-        ClearPasswordModelState(nameof(ConfirmPassword));
+        ModelState.SetModelValue(nameof(CurrentPassword), rawValue: null, attemptedValue: null);
+        ModelState.SetModelValue(nameof(NewPassword), rawValue: null, attemptedValue: null);
+        ModelState.SetModelValue(nameof(ConfirmPassword), rawValue: null, attemptedValue: null);
         ModelState.Remove(nameof(OperationKey));
-    }
-
-    private void ClearPasswordModelState(string key)
-    {
-        if (!ModelState.TryGetValue(key, out var entry))
-        {
-            return;
-        }
-
-        // The raw value must not reach the next response, but its validation
-        // error still tells the operator what to correct.
-        var errors = entry.Errors
-            .Select(error => (error.ErrorMessage, error.Exception))
-            .ToArray();
-        ModelState.Remove(key);
-        foreach (var (message, exception) in errors)
-        {
-            if (exception is not null)
-            {
-                ModelState.AddModelError(key, exception);
-            }
-            else
-            {
-                ModelState.AddModelError(key, message);
-            }
-        }
     }
 
     private bool TryGetActor(out ActionActor actor, out Guid staffId)
