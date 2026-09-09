@@ -237,8 +237,12 @@ public sealed class ComposeModel(
 
         await LoadDefaultMailboxAsync(cancellationToken);
         await LoadSelectedCaseAsync(actor, cancellationToken);
-        if (!TryNormalizeCaseQuery(out var query))
+        if (!TryNormalizeCaseQuery(out var query) || string.IsNullOrWhiteSpace(query))
         {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                ModelState.AddModelError(nameof(CaseQuery), "Enter a Case search term.");
+            }
             return Page();
         }
 
@@ -267,6 +271,8 @@ public sealed class ComposeModel(
         }
 
         Case = details.Summary;
+        ModelState.Remove(nameof(CaseReference));
+        ModelState.Remove(nameof(ExpectedContextVersion));
         CaseReference = details.Summary.Reference;
         ExpectedContextVersion = details.Workflow.Version;
         AvailableAttachments = await attachmentResolver.ListCaseAsync(

@@ -321,7 +321,15 @@ public sealed class MessageModel(
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (!StaffMailAvailable || !TryParseListContext(out _)) return NotFound();
-        if (!TryNormalizeCorrespondenceCaseQuery(out var query)) return await ReloadAsync(actor, id, cancellationToken);
+        if (!TryNormalizeCorrespondenceCaseQuery(out var query) || string.IsNullOrWhiteSpace(query))
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                ModelState.AddModelError(
+                    nameof(CorrespondenceCaseQuery), "Enter a Case search term.");
+            }
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
         CorrespondenceCaseQuery = query;
         CorrespondenceCaseResults = await SearchCasesAsync(actor, query, cancellationToken);
         return await ReloadAsync(actor, id, cancellationToken);
@@ -340,6 +348,8 @@ public sealed class MessageModel(
             ModelState.AddModelError(nameof(CorrespondenceCaseReference), "Choose one Case by its Case / PO reference.");
             return result;
         }
+        ModelState.Remove(nameof(CorrespondenceCaseReference));
+        ModelState.Remove(nameof(ExpectedCorrespondenceCaseVersion));
         ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
         return result;
     }
@@ -1095,18 +1105,24 @@ public sealed class MessageModel(
                 actor, CorrespondenceCase.Summary.CaseId, cancellationToken);
         }
 
-        if (initializeForm && CorrespondenceMode is not null)
+        if (CorrespondenceMode is not null)
         {
-            CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
-            CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
             var recipients = mode switch
             {
                 StaffMailComposeMode.Reply => ReplyRecipients(Detail),
                 StaffMailComposeMode.ReplyAll => ReplyAllRecipients(Detail, CorrespondenceMailbox.Address),
                 _ => ([], [])
             };
-            CorrespondenceTo = string.Join("; ", recipients.Item1.Select(item => item.Address));
-            CorrespondenceCc = string.Join("; ", recipients.Item2.Select(item => item.Address));
+            if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
+            {
+                CorrespondenceTo = string.Join("; ", recipients.Item1.Select(item => item.Address));
+                CorrespondenceCc = string.Join("; ", recipients.Item2.Select(item => item.Address));
+            }
+            if (initializeForm)
+            {
+                CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
+                CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
+            }
         }
         return true;
     }
