@@ -19,6 +19,76 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class CaseDetailsWebTests
 {
     [Fact]
+    public async Task CaseOverviewUsesAcceptedFactsAndExcludesVehicleSuggestions()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        var make = data.Vehicle.Make.Confirmed
+            ?? throw new InvalidOperationException("The vehicle fixture has no confirmed make.");
+        var model = data.Vehicle.Model.Confirmed
+            ?? throw new InvalidOperationException("The vehicle fixture has no confirmed model.");
+        var registration = data.Vehicle.Registration.Confirmed
+            ?? throw new InvalidOperationException("The vehicle fixture has no confirmed registration.");
+        var circumstances = data.Accident.Circumstances.Confirmed
+            ?? throw new InvalidOperationException("The vehicle fixture has no confirmed circumstances.");
+
+        CaseField<string> Values(CaseDataValue<string> source, string fact, string suggestion, string? confirmed = null) =>
+            new(
+                source with
+                {
+                    Value = fact,
+                    Kind = CaseDataValueKind.Fact,
+                    ConfirmedByActor = null,
+                    ConfirmedAtUtc = null
+                },
+                source with
+                {
+                    Value = suggestion,
+                    Kind = CaseDataValueKind.Suggestion,
+                    ConfirmedByActor = null,
+                    ConfirmedAtUtc = null
+                },
+                confirmed is null ? null : source with { Value = confirmed });
+
+        store.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with
+            {
+                Registration = new(
+                    null,
+                    registration with
+                    {
+                        Value = "Suggested registration",
+                        Kind = CaseDataValueKind.Suggestion,
+                        ConfirmedByActor = null,
+                        ConfirmedAtUtc = null
+                    },
+                    null),
+                Make = Values(make, "Fact make", "Suggested make", "Confirmed make"),
+                Model = Values(model, "Fact model", "Suggested model")
+            },
+            Accident = data.Accident with
+            {
+                Circumstances = Values(circumstances, "Fact circumstances", "Suggested circumstances")
+            }
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}");
+        var overview = OverviewPanel(html);
+
+        Assert.Contains("Confirmed make Fact model", overview, StringComparison.Ordinal);
+        Assert.Contains("Fact circumstances", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("AB12CDE", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fact make", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested registration", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested make", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested model", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested circumstances", overview, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task VehicleSectionRendersTheSourceDescriptionWithExtractedProvenance()
     {
         var store = new RecordingCaseDetailsStore();
@@ -336,6 +406,36 @@ public sealed partial class CaseDetailsWebTests
         var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The vehicle lookup form must close.");
         return html[start..(end + "</form>".Length)];
+    }
+
+    private static string OverviewPanel(string html)
+    {
+        const string marker = "<section class=\"panel case-overview-panel\"";
+        var start = html.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Case overview panel must render.");
+
+        var depth = 0;
+        var index = start;
+        while (true)
+        {
+            var open = html.IndexOf("<section", index, StringComparison.Ordinal);
+            var close = html.IndexOf("</section>", index, StringComparison.Ordinal);
+            Assert.True(close >= 0, "The Case overview panel must close.");
+
+            if (open >= 0 && open < close)
+            {
+                depth++;
+                index = open + "<section".Length;
+                continue;
+            }
+
+            if (--depth == 0)
+            {
+                return html[start..(close + "</section>".Length)];
+            }
+
+            index = close + "</section>".Length;
+        }
     }
 
     private static int CountOccurrences(string html, string value)
