@@ -118,7 +118,6 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<EfIntakeWorkStore>());
         services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
             serviceProvider.GetRequiredService<EfIntakeWorkStore>());
-        services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
         services.AddSingleton<IIntakeWorkEnqueuer>(serviceProvider =>
         {
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
