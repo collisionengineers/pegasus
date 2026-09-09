@@ -106,6 +106,7 @@ main [id]{scroll-margin-top:92px}
 .icon-button{min-width:32px;min-height:32px;padding:5px;border:0;background:transparent;color:inherit;display:grid;place-items:center;border-radius:var(--radius)}
 .icon-button:hover{background:rgba(255,255,255,.08)}
 .icon-button .icon{width:18px;height:18px}
+.utility-account{display:none}
 .app-column{min-width:0;min-height:100vh;display:flex;flex-direction:column}
 .utility-bar{min-height:50px;padding:7px var(--page-pad);background:linear-gradient(180deg,#272c2f,#22272a);color:#eef3f6;border-bottom:1px solid #101820;box-shadow:0 3px 12px rgba(20,27,31,.15);display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:24}
 .utility-search{position:relative;flex:1;max-width:540px}
@@ -809,6 +810,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .nav-link:hover{transform:none}.nav-link .icon{width:26px;height:26px}
   .nav-link[aria-current="page"]{border-left:0;border-bottom-color:var(--red)}
   .utility-bar{top:0}
+  .utility-account{display:grid}
   .admin-nav{position:static;display:flex;flex-wrap:wrap;gap:2px;overflow:visible;margin-bottom:9px}
   .admin-nav__group{display:flex;flex-wrap:wrap;align-items:center;gap:2px;width:100%}
   .admin-nav__group + .admin-nav__group{margin-top:2px;padding-top:2px}

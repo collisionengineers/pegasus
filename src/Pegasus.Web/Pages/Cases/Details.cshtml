@@ -57,6 +57,7 @@
     var canConfirmReportSent = editing
         && state == CaseLifecycleState.ReportPreparation
         && details.AvailableReportSentEvidence.Count > 0;
+    ViewData["WorkspaceRecord"] = (Href: $"/Cases/{summary.CaseId:D}", Label: workflow.Identity.Reference);
 }
 
 <header class="page-header">
