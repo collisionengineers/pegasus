@@ -91,10 +91,14 @@ public sealed partial class GlassCredentialAdministrationWebTests
         // reason nor an operation key, so neither is asked for.
         Assert.DoesNotContain("name=\"Reason\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("OperationKey", html, StringComparison.Ordinal);
-        // No hint sentence, no how-it-works copy, no empty-state panel.
-        Assert.DoesNotContain("<p>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("field-hint", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("empty-state", html, StringComparison.Ordinal);
+        // The credential page has no hint sentence or empty-state panel.
+        // The shared Add dialog can explain the instruction-upload route.
+        var main = Regex.Match(html, @"<main\b[^>]*>(?<content>[\s\S]*?)</main>");
+        Assert.True(main.Success, "The credential page must render its main content.");
+        var content = main.Groups["content"].Value;
+        Assert.DoesNotContain("<p>", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("field-hint", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("empty-state", content, StringComparison.Ordinal);
     }
 
     /// <summary>
