@@ -341,6 +341,73 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     }
 
     [Fact]
+    public async Task StaleDefaultSelectionRequiresExplicitReselectionAndRetainsTheChoiceAndReason()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var mailboxId = TestMailboxId.From("instructions");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+            mailbox.AllowStaffSend = true;
+            mailbox.IsDefaultStaffSend = true;
+            mailbox.ActivatedAtUtc = new DateTimeOffset(2026, 9, 9, 9, 0, 0, TimeSpan.Zero);
+            mailbox.MailboxIdentity = "default-compose-mailbox";
+            mailbox.VerifiedEncodedMessageSizeLimit = 10485760;
+            await context.SaveChangesAsync();
+        }
+
+        var page = await GetPageAsync(client);
+        var staleSelection = Value(DefaultMailboxSelectionTagRegex().Match(page).Value);
+        var staleVersion = staleSelection.Split('|')[1];
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+            mailbox.Version++;
+            await context.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsync(
+            "/Administration/Mailboxes?handler=SetDefault",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["DefaultMailboxForm.SelectedMailbox"] = staleSelection,
+                ["DefaultMailboxForm.ExpectedPreviousDefaultMailboxId"] = mailboxId.ToString("D"),
+                ["DefaultMailboxForm.ExpectedPreviousDefaultMailboxVersion"] = staleVersion,
+                ["DefaultMailboxForm.OperationKey"] = Value(DefaultMailboxOperationKeyTagRegex().Match(page).Value),
+                ["DefaultMailboxForm.Reason"] = "Keep this Compose sender for the current correspondence",
+                ["__RequestVerificationToken"] = AntiforgeryToken(page)
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<option value=\"\" selected>Select an eligible staff-send mailbox</option>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{staleSelection}\" selected", html, StringComparison.Ordinal);
+        Assert.Contains("Your previous selection of instructions@collisionengineers.co.uk changed.", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "value=\"Keep this Compose sender for the current correspondence\"",
+            html,
+            StringComparison.Ordinal);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+            Assert.True(mailbox.IsDefaultStaffSend);
+            Assert.Equal(int.Parse(staleVersion, System.Globalization.CultureInfo.InvariantCulture) + 1, mailbox.Version);
+            Assert.Equal(
+                0,
+                await context.ActionHistory.CountAsync(item =>
+                    item.EventKind == "approved_mailbox_default_staff_send_selected"));
+        }
+    }
+
+    [Fact]
     public async Task ThePageShowsActivationAndSubscriptionHealthPerMailbox()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -582,6 +649,12 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex OperationKeyTagRegex();
+
+    [GeneratedRegex("<input[^>]*name=\"DefaultMailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex DefaultMailboxOperationKeyTagRegex();
+
+    [GeneratedRegex("<option[^>]*value=\"[0-9a-f-]+\\|[0-9]+\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex DefaultMailboxSelectionTagRegex();
 
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex ValueRegex();

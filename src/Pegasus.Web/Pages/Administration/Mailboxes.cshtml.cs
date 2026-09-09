@@ -416,6 +416,30 @@ public sealed class MailboxesModel(
                 StringComparison.Ordinal)
             : mailbox.IsDefaultStaffSend;
 
+    public bool DefaultMailboxPromptIsSelected =>
+        DefaultMailboxForm is { } input
+            ? !EligibleDefaultStaffSendMailboxes.Any(mailbox =>
+                string.Equals(
+                    input.SelectedMailbox,
+                    DefaultMailboxSelectionFor(mailbox),
+                    StringComparison.Ordinal))
+            : !Mailboxes.Any(mailbox => mailbox.IsDefaultStaffSend);
+
+    public string? StaleDefaultMailboxSelectionAddress
+    {
+        get
+        {
+            if (DefaultMailboxForm is not { } input
+                || !DefaultMailboxPromptIsSelected
+                || !TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out _))
+            {
+                return null;
+            }
+
+            return Mailboxes.SingleOrDefault(mailbox => mailbox.Id == mailboxId)?.Address;
+        }
+    }
+
     public string DefaultMailboxReason => DefaultMailboxForm?.Reason ?? string.Empty;
 
     public string DefaultMailboxOperationKey =>

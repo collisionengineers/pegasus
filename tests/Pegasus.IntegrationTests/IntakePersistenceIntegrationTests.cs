@@ -130,7 +130,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260907100000_RemoveAutomaticEvaSubmission",
                 "20260907210000_ReportInputInvalidationPermissions",
                 "20260907221500_RemoveCaseStaffConfirmation",
-                "20260909091500_RemoveCaseDocumentOcrOperations"
+                "20260909091500_RemoveCaseDocumentOcrOperations",
+                "20260909120000_ApprovedMailboxDefaultStaffSend"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

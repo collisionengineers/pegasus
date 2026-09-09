@@ -67,6 +67,7 @@
                         <div class="field">
                             <label for="default-staff-send-mailbox">Default Compose sender</label>
                             <select id="default-staff-send-mailbox" name="DefaultMailboxForm.SelectedMailbox" required>
+                                <option value="" selected="@Model.DefaultMailboxPromptIsSelected">Select an eligible staff-send mailbox</option>
                                 @foreach (var mailbox in Model.EligibleDefaultStaffSendMailboxes)
                                 {
                                     <option value="@Model.DefaultMailboxSelectionFor(mailbox)" selected="@Model.IsDefaultMailboxSelection(mailbox)">
@@ -74,6 +75,10 @@
                                     </option>
                                 }
                             </select>
+                            @if (Model.StaleDefaultMailboxSelectionAddress is { } staleSelection)
+                            {
+                                <p>Your previous selection of @staleSelection changed. Select it again before saving.</p>
+                            }
                         </div>
                     }
                     <div class="field">
