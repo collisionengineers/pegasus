@@ -158,10 +158,17 @@ public interface IEvaApiTransport
 /// Like the export it takes an operation key for replay-safe action history.
 /// A first manual send is also the atomic Review-to-With-Engineer transition.
 /// </summary>
+public enum EvaSubmissionInitiator
+{
+    Manual,
+    AutomaticReview
+}
+
 public sealed record SubmitCaseToEvaRequest(
     Guid CaseId,
     ActionActor Actor,
-    string OperationKey);
+    string OperationKey,
+    EvaSubmissionInitiator Initiator = EvaSubmissionInitiator.Manual);
 
 public sealed record SubmitCaseToEvaResult(
     EvaSubmissionResult? Submission,
@@ -177,6 +184,7 @@ public interface ISubmitCaseToEva
         SubmitCaseToEvaRequest request,
         CancellationToken cancellationToken = default);
 }
+
 
 /// <summary>
 /// What a case's last EVA submission attempt achieved, for the case surface
@@ -227,6 +235,15 @@ public interface IEvaSubmissionQueries
     /// When EVA was last spoken to, without probing the provider.
     /// </summary>
     Task<EvaSubmissionActivity> GetActivityAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether a staff retry may be offered for a failed automatic Review
+    /// delivery. This is read-only: it never retries the worker intent.
+    /// </summary>
+    Task<bool> CanRetryAutomaticFailureAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default) => Task.FromResult(false);
+
 }
 
 public sealed record EvaSubmissionFailure(

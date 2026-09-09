@@ -421,9 +421,10 @@ public static class EstimatePolicy
     public static SaveEstimateRequest ApplyEditorEvidence(
         SaveEstimateRequest request, RepairSpecificationVersion? existing, DateTimeOffset savedAtUtc)
     {
+        var details = RetainEditorRate(request.Details, existing?.Details);
         if (request.ExistingLineIds is not { } identities)
         {
-            return request;
+            return request with { Details = details };
         }
         var previousLines = existing?.Lines.ToDictionary(line => line.Id)
             ?? new Dictionary<Guid, CaseEstimateLineRecord>();
@@ -459,17 +460,33 @@ public static class EstimatePolicy
         return request with
         {
             Lines = AssessmentPolicy.NormalizeRepairSpecificationLines(lines),
-            Details = RetainEditorRate(request.Details, existing?.Details),
+            Details = details,
             Source = existing?.Source ?? request.Source,
             AiJobId = existing?.AiJobId ?? request.AiJobId,
         };
     }
 
-    public static EstimateDetails RetainEditorRate(EstimateDetails submitted, EstimateDetails? existing) =>
-        submitted with
+    /// <summary>
+    /// A rate-card snapshot is server evidence. An editor may carry the exact
+    /// persisted snapshot through an unchanged rate, but cannot manufacture or
+    /// alter it. A new card selection is resolved by the persistence store.
+    /// </summary>
+    public static EstimateDetails RetainEditorRate(EstimateDetails submitted, EstimateDetails? existing)
+    {
+        var persisted = existing?.Rate;
+        if (submitted.Rate is not null && submitted.Rate != persisted)
         {
-            Rate = existing?.Rate is { } card && card.HourlyRate == submitted.LabourRate ? card : null,
+            throw new ArgumentException(
+                "The labour-rate card snapshot changed. Reload the estimate before saving.");
+        }
+
+        return submitted with
+        {
+            Rate = persisted is { } card && submitted.LabourRate == card.HourlyRate
+                ? card
+                : null,
         };
+    }
 
     /// <summary>
     /// Amendment attribution for one saved estimate line. An editor replaces
@@ -869,7 +886,11 @@ public sealed record SaveEstimateRequest(
     RepairSpecificationSource Source,
     Guid? AiJobId = null,
     IReadOnlyList<Guid?>? ExistingLineIds = null)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+{
+    public Guid? SelectedRateCardId { get; init; }
+    public long? SelectedRateCardVersion { get; init; }
+}
 
 public sealed record DuplicateEstimateRequest(
     Guid CaseId,

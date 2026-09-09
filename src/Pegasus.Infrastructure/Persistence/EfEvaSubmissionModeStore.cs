@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -19,10 +20,10 @@ public sealed class EfEvaSubmissionModeStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
         var normalized = principalCode.Trim().ToUpperInvariant();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var modes = await context.Principals
+        var policy = await context.Principals
             .AsNoTracking()
             .Where(item => item.Code == normalized && item.IsActive)
-            .Select(item => new EvaSubmissionModes(item.EvaManualSubmission))
+            .Select(item => item.ReportGenerationPolicy)
             .SingleOrDefaultAsync(cancellationToken);
 
         // A code naming no active principal has enabled nothing. Returning
@@ -30,6 +31,8 @@ public sealed class EfEvaSubmissionModeStore(
         // no difference between "switched off" and "no such principal" that a
         // submission decision needs to act on, and inventing one would give a
         // replaced principal a route its successor controls.
-        return modes ?? EvaSubmissionModes.Disabled;
+        return policy is null
+            ? EvaSubmissionModes.Disabled
+            : new(Enum.Parse<PrincipalReportGenerationPolicy>(policy));
     }
 }

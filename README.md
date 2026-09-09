@@ -1,7 +1,9 @@
 # Pegasus
 
 Pegasus is Collision Engineers' case-management and reporting application,
-built with .NET 10. Product requirements and observed deployment are separate:
+built with .NET 10, ASP.NET Core Razor Pages and SQL Server. It is under active
+pre-v1 development; a deployed build does not establish release acceptance.
+Product requirements and observed deployment are separate:
 [the PRD](docs/prd/pegasus-product.md) owns intent;
 [operations](docs/operations.md) records the last qualified runtime observation.
 
@@ -25,7 +27,8 @@ by the actual change. A documentation edit alone does not require a .NET build.
 - [Domain vocabulary](CONTEXT.md): reserved business meanings.
 - [Architecture](docs/current-architecture.md): source structure and callers.
 - [Runbook](docs/runbook.md): human-readable operational procedures.
-- Kanmer: current work, ordering and delivery evidence.
+- Current operator task and its linked PR/CI records: work, ordering and
+  delivery evidence. Kanmer is disabled.
 
 `workspaces/` records retired source-import provenance; those imports are not
 active application projects. `corpus/` is local, ignored and immutable.

@@ -13,6 +13,7 @@ public sealed class DetailsModel(
     IUnidentifiedStore store,
     IResolveUnidentified resolve,
     IGetIntake getIntake,
+    IIntakeAssociationDestinationQueries associationDestinations,
     IIntakeSubmissionGroupStore submissionGroups,
     IImageIntakeQueries imageIntakes) : StaffPageModel
 {
@@ -44,6 +45,14 @@ public sealed class DetailsModel(
         UnidentifiedMediaKindPolicy.Classify(SourceReceipt?.SourceIdentity.Channel, SourceReceipt?.MediaType);
 
     public string MediaKindLabel => OperatorLabels.UnidentifiedMediaKind(MediaKind);
+
+    public string SourceSectionTitle => MediaKind == UnidentifiedMediaKind.Email
+        ? "Unidentified email"
+        : "Unidentified file";
+
+    public string ViewSourceLabel => MediaKind == UnidentifiedMediaKind.Email
+        ? "View email"
+        : "View file";
 
     /// <summary>
     /// The operator-meaningful handle for the retained file or message this
@@ -90,6 +99,8 @@ public sealed class DetailsModel(
     [BindProperty(SupportsGet = true, Name = "action")]
     public string? ResolutionAction { get; set; }
     public bool OpenResolutionDialog { get; private set; }
+    [BindProperty(SupportsGet = true)] public string? CaseQuery { get; set; }
+    public IReadOnlyList<IntakeAssociationDestination> CaseResults { get; private set; } = [];
 
     public bool CanCreateCase => SourceReceipt is { } receipt
         && receipt.AcceptedCaseId is null
@@ -204,6 +215,13 @@ public sealed class DetailsModel(
                 // itself is still fully visible and resolvable.
                 SourceReceipt = null;
             }
+        }
+        if (SourceReceipt is { } source && item.State == UnidentifiedState.Open
+            && TryGetActor(out var currentActor) && IntakeAssociationDestinationPolicy.CanOffer(source))
+        {
+            CaseResults = string.IsNullOrWhiteSpace(CaseQuery)
+                ? await associationDestinations.GetSuggestedAsync(source, currentActor, cancellationToken)
+                : await associationDestinations.SearchAsync(source, CaseQuery.Trim(), currentActor, cancellationToken);
         }
         OpenResolutionDialog |= !string.IsNullOrWhiteSpace(ResolutionAction) || !ModelState.IsValid;
 

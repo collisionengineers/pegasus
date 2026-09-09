@@ -26,7 +26,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
         {
             receiptId = await db.Cases.Where(value => value.Id == caseId)
                 .Select(value => value.OriginIntakeReceiptId)
-                .SingleAsync();
+                .SingleAsync()
+                ?? throw new InvalidOperationException("The seeded Case has no origin receipt.");
             db.Add(new IntakeAssetEntity
             {
                 Id = assetId,
@@ -99,11 +100,12 @@ public sealed class CaseArtifactCustodyRecoveryTests
             await using var scope = database.CreateAsyncScope();
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             var intake = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
+            var quarantine = scope.ServiceProvider.GetRequiredService<IIntakeQuarantineArtifactStore>();
             var content = "generated report bytes"u8.ToArray();
             var hash = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
             var store = new FailFirstContentStore();
             var custody = new EfCaseArtifactCustody(
-                factory, store, intake, TimeProvider.System);
+                factory, store, quarantine, TimeProvider.System);
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
             var request = new CaseArtifactCustodyRequest(
                 actor,
@@ -786,6 +788,22 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 DocumentContentWriteDisposition.Created, null, null));
         }
 
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            Addresses.Add(address);
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                throw new IOException("Injected pre-write dependency failure.");
+            }
+            return Task.FromResult(new DocumentContentWriteResult(
+                DocumentContentWriteDisposition.Created, null, null));
+        }
+
         public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) =>
@@ -794,16 +812,25 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new InvalidOperationException("A failed save must not delete remote content.");
     }
 
-    private sealed class CountingArtifactStore(ReadOnlyMemory<byte>? content = null) : IIntakeArtifactStore
+    private sealed class CountingArtifactStore(ReadOnlyMemory<byte>? content = null)
+        : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
         public int ReadCount { get; private set; }
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+        public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash,
+            Stream content, long contentLength, DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken)
         {
             ReadCount++;
             return Task.FromResult(content);
         }
+        public Task<IntakeQuarantineArtifact> StoreStreamAsync(
+            Stream content, long contentLength, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task VerifyAsync(IntakeQuarantineArtifact artifact, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class SuccessfulContentStore : IDocumentContentStore
@@ -811,6 +838,14 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public int WriteCount { get; private set; }
         public Task<DocumentContentWriteResult> StoreVersionAsync(
             ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
+            string expectedSha256, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            return Task.FromResult(new DocumentContentWriteResult(
+                DocumentContentWriteDisposition.Created, null, null));
+        }
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, Stream content, long contentLength,
             string expectedSha256, CancellationToken cancellationToken)
         {
             WriteCount++;
@@ -840,6 +875,16 @@ public sealed class CaseArtifactCustodyRecoveryTests
             return new(DocumentContentWriteDisposition.Created, "box-file", "box-version");
         }
 
+        public async Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, Stream content, long contentLength,
+            string expectedSha256, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            WriteEntered.SetResult();
+            await ReleaseWrite.Task.WaitAsync(cancellationToken);
+            return new(DocumentContentWriteDisposition.Created, "box-file", "box-version");
+        }
+
         public Task StoreAsync(Guid caseId, string caseReference, Guid versionId,
             ReadOnlyMemory<byte> content, string expectedSha256,
             CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -850,7 +895,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class MemoryArtifactStore : IIntakeArtifactStore
+    private sealed class MemoryArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
         private readonly Dictionary<string, ReadOnlyMemory<byte>> values = [];
         public int StoreCount { get; private set; }
@@ -861,10 +906,49 @@ public sealed class CaseArtifactCustodyRecoveryTests
             values[key] = content;
             return Task.FromResult(key);
         }
+        public async Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash,
+            Stream content, long contentLength, DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            var storageKey = await StoreAsync(contentHash, buffer.ToArray(), cancellationToken);
+            return new(storageKey, contentHash, contentLength, firstSeenAtUtc,
+                StagedArtifactDisposition.Pending, string.Empty);
+        }
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult(values.TryGetValue(storageKey, out var content)
                 ? (ReadOnlyMemory<byte>?)content
                 : null);
+
+        public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
+            Stream content, long contentLength, CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            if (buffer.Length != contentLength)
+            {
+                throw new InvalidDataException("Test artifact length mismatch.");
+            }
+            var value = buffer.ToArray();
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(value));
+            var key = await StoreAsync(hash, value, cancellationToken);
+            return new IntakeQuarantineArtifact(key, hash, contentLength);
+        }
+
+        public Task VerifyAsync(IntakeQuarantineArtifact artifact, CancellationToken cancellationToken)
+        {
+            if (!values.TryGetValue(artifact.StorageKey, out var value)
+                || value.Length != artifact.ContentLength
+                || !string.Equals(
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(value.Span)),
+                    artifact.ContentHash,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Test artifact verification failed.");
+            }
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class BlockingReadStream(byte[] content) : Stream
@@ -902,7 +986,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private sealed class CallbackArtifactStore(Func<Task> onStore) : IIntakeArtifactStore
+    private sealed class CallbackArtifactStore(Func<Task> onStore)
+        : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
         public int StoreCount { get; private set; }
         public async Task<string> StoreAsync(
@@ -913,8 +998,36 @@ public sealed class CaseArtifactCustodyRecoveryTests
             await onStore();
             return $"test/{contentHash}";
         }
+        public async Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId,
+            string contentHash, Stream content, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            var storageKey = await StoreAsync(contentHash, buffer.ToArray(), cancellationToken);
+            return new(storageKey, contentHash, contentLength, firstSeenAtUtc,
+                StagedArtifactDisposition.Pending, string.Empty);
+        }
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
+        public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
+            Stream content, long contentLength, CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            if (buffer.Length != contentLength)
+            {
+                throw new InvalidDataException("Test artifact length mismatch.");
+            }
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(buffer.ToArray()));
+            await onStore();
+            StoreCount++;
+            return new IntakeQuarantineArtifact($"test/{hash}", hash, contentLength);
+        }
+
+        public Task VerifyAsync(IntakeQuarantineArtifact artifact, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }

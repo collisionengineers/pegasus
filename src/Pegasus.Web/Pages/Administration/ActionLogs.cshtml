@@ -8,20 +8,32 @@
     <div class="stack">
         <section class="panel">
             <div class="panel-head"><h2>Action logs</h2></div>
-            <div class="panel-body">
-                <form method="get" class="stack">
-                    <div class="grid grid-2">
-                        <div class="field"><label for="search">Search</label><input id="search" asp-for="Search" /></div>
-                        <div class="field"><label for="area">Area</label><input id="area" asp-for="Area" /></div>
-                        <div class="field"><label for="from">From</label><input id="from" asp-for="From" type="datetime-local" /></div>
-                        <div class="field"><label for="to">To</label><input id="to" asp-for="To" type="datetime-local" /></div>
-                        <div class="field"><label for="actor">Actor</label><input id="actor" name="Actor" value="@Model.Actor" /></div>
-                        <div class="field"><label for="operation">Operation</label><input id="operation" asp-for="Operation" /></div>
-                        <div class="field"><label for="record">Record</label><input id="record" asp-for="Record" /></div>
-                        <div class="field"><label for="result">Result</label><input id="result" name="Result" value="@Model.ResultFilter" /></div>
-                        <div class="field"><label for="correlation">Correlation</label><input id="correlation" name="CorrelationId" value="@Model.CorrelationId" /></div>
+            <div class="panel-body panel-body--compact">
+                <form method="get" class="compact-log-filter">
+                    <div class="field"><label for="search">Keywords</label><input id="search" asp-for="Search" /></div>
+                    <div class="field"><label for="operation">Activity</label><input id="operation" asp-for="Operation" /></div>
+                    <div class="field">
+                        <label for="actor">Person</label>
+                        <select id="actor" asp-for="Actor">
+                            <option value="">All people</option>
+                            @foreach (var person in Model.People)
+                            {
+                                <option value="@person.Id">@person.UserName</option>
+                            }
+                            @if (Model.AutomationActorSubjectId is { Length: > 0 } automationActor)
+                            {
+                                <option value="@automationActor">@Model.AutomationActorLabel</option>
+                            }
+                        </select>
                     </div>
-                    <div class="button-row"><button class="btn btn--primary" type="submit">Filter</button></div>
+                    <div class="field"><label for="record">Case/reference</label><input id="record" asp-for="Record" /></div>
+                    <div class="field"><label for="result">Outcome</label><input id="result" name="Result" value="@Model.ResultFilter" /></div>
+                    <div class="field"><label for="from">From</label><input id="from" asp-for="From" type="datetime-local" /></div>
+                    <div class="field"><label for="to">To</label><input id="to" asp-for="To" type="datetime-local" /></div>
+                    <div class="button-row">
+                        <button class="btn btn--primary" type="submit">Apply</button>
+                        <a class="btn" asp-page="/Administration/ActionLogs">Clear</a>
+                    </div>
                 </form>
                 @if (Model.Result.Rows.Count > 0)
                 {
@@ -57,5 +69,28 @@
                 }
             </div>
         </section>
+        @if (Model.Metrics is { } metrics)
+        {
+            <details class="panel">
+                <summary class="panel-head">Recorded counts and processing times</summary>
+                <div class="panel-body grid grid-3">
+                    <dl><dt class="muted">Mailbox failures</dt><dd>@metrics.MailboxFailures</dd></dl>
+                    <dl><dt class="muted">Mailbox freshness</dt><dd>@metrics.MailboxFreshness.State (@OperatorLabels.OfficeTime(metrics.MailboxFreshness.LastSuccessfulUpdateAtUtc, ""))</dd></dl>
+                    <dl><dt class="muted">Failed intake</dt><dd>@metrics.IntakeFailed</dd></dl>
+                    <dl><dt class="muted">Oldest pending intake due</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingIntakeDueAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Oldest pending custody</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingCustodyCreatedAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Poisoned inbox messages</dt><dd>@metrics.PoisonedInboxMessages</dd></dl>
+                    <dl><dt class="muted">Unknown sends</dt><dd>@metrics.UnknownSends</dd></dl>
+                    <dl><dt class="muted">Oldest pending AI job</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingAiJobCreatedAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Cache entries</dt><dd>@metrics.CacheEntries</dd></dl>
+                    <dl><dt class="muted">Cache bytes</dt><dd>@metrics.CacheBytes</dd></dl>
+                    <dl><dt class="muted">Next cache expiry</dt><dd>@OperatorLabels.OfficeTime(metrics.NextCacheExpiryAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Active cache reads</dt><dd>@metrics.ActiveCacheReadLeases</dd></dl>
+                    <dl><dt class="muted">Cache cleanup failures</dt><dd>@metrics.CacheCleanupFailures</dd></dl>
+                    <dl><dt class="muted">Cache hits since Web start</dt><dd>@metrics.CacheHitsSinceStart</dd></dl>
+                    <dl><dt class="muted">Cache misses since Web start</dt><dd>@metrics.CacheMissesSinceStart</dd></dl>
+                </div>
+            </details>
+        }
     </div>
 </div>

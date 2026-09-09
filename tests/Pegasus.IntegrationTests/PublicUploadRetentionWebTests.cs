@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -141,6 +142,46 @@ public sealed partial class PublicUploadRetentionWebTests
         Assert.False(await database.Set<PublicUploadOccurrenceEntity>().AnyAsync());
     }
 
+    [Fact]
+    public async Task PublicTransportRaisesAMutableHostLimitToTheAcceptedPolicyBeforeFormRead()
+    {
+        const long acceptedFileBytes = 100L * 1024 * 1024;
+        using var baseFactory = new IntakeWebApplicationFactory()
+            .WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["DocumentRequests:MaximumFileBytes"] = acceptedFileBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["DocumentRequests:MaximumRequestBytes"] = acceptedFileBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                })));
+        using var factory = WithRetention(baseFactory);
+        var link = await SeedLinkAsync(factory.Services, "PUBHOSTLIMIT");
+        var hostLimit = new MutableRequestBodySizeFeature
+        {
+            MaxRequestBodySize = 30L * 1024 * 1024
+        };
+
+        var response = await factory.Server.SendAsync(context =>
+        {
+            context.Features.Set<IHttpMaxRequestBodySizeFeature>(hostLimit);
+            context.Request.Scheme = "https";
+            context.Request.Host = new("localhost");
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = $"/Uploads/{link.Token}";
+            context.Request.QueryString = new("?handler=Upload");
+            // The missing antiforgery form value deliberately stops after the
+            // authorization filter. No hundred-megabyte body is needed to
+            // prove the filter raises a mutable host's initial cap first.
+            context.Request.ContentType = "multipart/form-data; boundary=unread";
+            context.Request.ContentLength = 0;
+            context.Request.Body = Stream.Null;
+        });
+
+        Assert.Equal(StatusCodes.Status400BadRequest, response.Response.StatusCode);
+        Assert.Equal(
+            acceptedFileBytes + RequestUploadTransportFilter.MaximumMultipartOverheadBytes,
+            hostLimit.MaxRequestBodySize);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -232,6 +273,13 @@ public sealed partial class PublicUploadRetentionWebTests
         // own bounded buffer, rather than treating this test array as buffered.
         public override bool CanSeek => false;
         public long BytesRead => Position;
+    }
+
+    private sealed class MutableRequestBodySizeFeature : IHttpMaxRequestBodySizeFeature
+    {
+        public bool IsReadOnly => false;
+
+        public long? MaxRequestBodySize { get; set; }
     }
 
     [Fact]

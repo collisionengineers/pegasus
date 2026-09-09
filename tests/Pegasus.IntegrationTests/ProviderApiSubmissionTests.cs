@@ -602,12 +602,13 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(CaseDataSourceKind.ProviderApi, workProviderCode.Source.Kind);
         Assert.Equal(ProviderInstructionPolicy.PolicyKey, workProviderCode.Source.PolicyKey);
         Assert.Equal(ProviderInstructionPolicy.PolicyVersion, workProviderCode.Source.PolicyVersion);
-        Assert.Equal(IntakeSourceChannel.ProviderApi, projection.Origin.Channel);
+        var originChannel = Assert.IsType<IntakeSourceChannel>(projection.Origin.Channel);
+        Assert.Equal(IntakeSourceChannel.ProviderApi, originChannel);
         Assert.Equal(ProviderInstructionPolicy.ReaderKey, projection.Origin.SourceReaderKey);
         Assert.Equal(ProviderInstructionPolicy.ReaderVersion, projection.Origin.SourceReaderVersion);
         Assert.Equal(
             OperatorLabels.ProviderSubmissionApi.Source,
-            OperatorLabels.SourceChannel(projection.Origin.Channel));
+            OperatorLabels.SourceChannel(originChannel));
         Assert.Equal(
             OperatorLabels.ProviderSubmissionApi.Source,
             OperatorLabels.SourceChannel("provider_api"));
@@ -937,7 +938,12 @@ public sealed class ProviderApiSubmissionTests
         await using var scope = api.Services.CreateAsyncScope();
         var principalId = await QdosPrincipalIdAsync(scope.ServiceProvider);
         var issued = await scope.ServiceProvider.GetRequiredService<IIssuePrincipalCredential>().ExecuteAsync(
-            new(principalId, 0, Administrator, $"issue:{Guid.NewGuid():N}", "provider api test"),
+            await CredentialRequestAsync(
+                scope.ServiceProvider,
+                principalId,
+                0,
+                $"issue:{Guid.NewGuid():N}",
+                "provider api test"),
             default);
         return issued.Secret ?? throw new InvalidOperationException("The issued secret was not returned.");
     }
@@ -950,7 +956,12 @@ public sealed class ProviderApiSubmissionTests
             .ExecuteAsync(Administrator, principalId, default)
             ?? throw new InvalidOperationException("The credential was not issued.");
         await scope.ServiceProvider.GetRequiredService<IPausePrincipalCredential>().ExecuteAsync(
-            new(principalId, current.Version, Administrator, $"pause:{Guid.NewGuid():N}", "provider api test"),
+            await CredentialRequestAsync(
+                scope.ServiceProvider,
+                principalId,
+                current.Version,
+                $"pause:{Guid.NewGuid():N}",
+                "provider api test"),
             default);
     }
 
@@ -962,9 +973,45 @@ public sealed class ProviderApiSubmissionTests
             new("Other Provider", "OTHER", Administrator, "provider-api:principal:other"),
             default);
         var issued = await services.GetRequiredService<IIssuePrincipalCredential>().ExecuteAsync(
-            new(principal.Id, 0, Administrator, "provider-api:issue:other", "provider api test"),
+            await CredentialRequestAsync(
+                services,
+                principal.Id,
+                0,
+                "provider-api:issue:other",
+                "provider api test"),
             default);
         return issued.Secret ?? throw new InvalidOperationException("The issued secret was not returned.");
+    }
+
+    private static async Task<PrincipalCredentialCommandRequest> CredentialRequestAsync(
+        IServiceProvider services,
+        Guid principalId,
+        long expectedCredentialVersion,
+        string operationKey,
+        string reason)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var contact = await context.Principals.AsNoTracking()
+            .Where(item => item.Id == principalId)
+            .Select(item => new { item.OrganizationId, ContactVersion = item.Organization.Version })
+            .SingleAsync();
+        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.Contact,
+                contact.OrganizationId,
+                contact.ContactVersion,
+                Administrator,
+                operationKey + ":scope"),
+            default);
+        return new(
+            principalId,
+            expectedCredentialVersion,
+            Administrator,
+            operationKey,
+            reason,
+            contact.ContactVersion,
+            lease.Token);
     }
 
     /// <summary>

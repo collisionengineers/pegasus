@@ -34,16 +34,13 @@
     </div>
 </header>
 
-@* The advanced grid: every UI-07 input in one panel. Search is the form's
-   one submit; Clear is the page itself. The State select is the lifecycle
-   enum through the one display mapping (D3), so a terminal outcome is a
-   choice here and a result here — the work views exclude those cases, this
-   page is where they stay findable. *@
-<form method="get" class="panel section-gap" aria-label="Filter cases">
+@* The filters used in normal case finding remain visible. Less frequent
+   criteria are still available without turning the first screen into a form. *@
+<form method="get" class="panel section-gap compact-search" aria-label="Filter cases">
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
-    <div class="panel-body advanced-search-grid">
+    <div class="panel-body compact-search__main">
         <div class="field">
-            <label for="search-query">Case/PO or image reference</label>
+            <label for="search-query">Case or reference</label>
             <input id="search-query" name="query" value="@Model.Query" maxlength="300" />
         </div>
         <div class="field">
@@ -55,7 +52,7 @@
             <input id="search-claimant" name="claimant" value="@Model.Claimant" maxlength="300" />
         </div>
         <div class="field">
-            <label for="search-claim-number">Claim/provider reference</label>
+            <label for="search-claim-number">Claim reference</label>
             <input id="search-claim-number" name="claimNumber" value="@Model.ClaimNumber" maxlength="100" />
         </div>
         <div class="field">
@@ -72,27 +69,6 @@
                 }
             </select>
         </div>
-        <div class="field">
-            <label for="search-engineer">Engineer</label>
-            <input id="search-engineer" name="engineerId" value="@Model.EngineerId?.ToString("D")" />
-            <span asp-validation-for="EngineerId" class="field-validation-error"></span>
-        </div>
-        <div class="field">
-            <label for="search-from-date">Received from</label>
-            <input id="search-from-date" name="fromDate" type="date"
-                   value="@Model.FromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
-            <span asp-validation-for="FromDate" class="field-validation-error"></span>
-        </div>
-        <div class="field">
-            <label for="search-to-date">Received to</label>
-            <input id="search-to-date" name="toDate" type="date"
-                   value="@Model.ToDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
-            <span asp-validation-for="ToDate" class="field-validation-error"></span>
-        </div>
-        <div class="field">
-            <label for="search-origin">Origin</label>
-            <input id="search-origin" name="origin" value="@Model.Origin" maxlength="100" />
-        </div>
         <div class="button-row">
             <button type="submit" class="btn btn--dark">
                 <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
@@ -104,6 +80,32 @@
             </a>
         </div>
     </div>
+    <details class="compact-search__more">
+        <summary>More filters</summary>
+        <div class="compact-search__more-fields">
+            <div class="field">
+                <label for="search-engineer">Engineer</label>
+                <input id="search-engineer" name="engineerId" value="@Model.EngineerId?.ToString("D")" />
+                <span asp-validation-for="EngineerId" class="field-validation-error"></span>
+            </div>
+            <div class="field">
+                <label for="search-from-date">Received from</label>
+                <input id="search-from-date" name="fromDate" type="date"
+                       value="@Model.FromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                <span asp-validation-for="FromDate" class="field-validation-error"></span>
+            </div>
+            <div class="field">
+                <label for="search-to-date">Received to</label>
+                <input id="search-to-date" name="toDate" type="date"
+                       value="@Model.ToDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                <span asp-validation-for="ToDate" class="field-validation-error"></span>
+            </div>
+            <div class="field">
+                <label for="search-origin">Origin</label>
+                <input id="search-origin" name="origin" value="@Model.Origin" maxlength="100" />
+            </div>
+        </div>
+    </details>
 </form>
 
 @* One failure, one notice. Both reads on this page run inside the same
@@ -182,16 +184,13 @@ else if (listingImages)
                                     <th scope="col">Vehicle</th>
                                     <th scope="col">Claimant</th>
                                     <th scope="col">Principal</th>
-                                    <th scope="col">Type</th>
                                     <th scope="col">State</th>
-                                    <th scope="col">Due</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var row in Model.Rows)
                                 {
                                     <tr data-select-href="@row.SelectHref" data-select-id="@row.Item.CaseId"
-                                        data-copy-reference="@row.Item.Reference"
                                         aria-selected="@(Model.SelectedId == row.Item.CaseId ? "true" : "false")">
                                         <td>
                                             <a class="table-row-link" href="@row.DetailHref">@row.Item.Reference</a>
@@ -209,9 +208,7 @@ else if (listingImages)
                                         </td>
                                         <td>@(row.Item.Claimant ?? "Not recorded")</td>
                                         <td>@row.Item.Principal</td>
-                                        <td>@OperatorLabels.CaseTypeName(row.Item.CaseType)</td>
                                         <td><partial name="Shared/_StatusChip" model="@row.Chip" /></td>
-                                        <td>@row.Due</td>
                                         <template>
                                             <partial name="_CasePreview" model="row" />
                                         </template>
@@ -248,71 +245,7 @@ else if (listingImages)
                         <partial name="_CasePreview" model="selected" />
                     }
                 </div>
-                @if (Model.Selected is { } copySource)
-                {
-                    @* Copy Case/PO sits outside the swapped preview because
-                       the shell's copy control binds once at load; a control
-                       swapped into the preview would lose that binding. Its
-                       value is the selected row's reference — server-rendered
-                       here, and kept in step with a script-side selection by
-                       the Scripts section below. *@
-                    <div class="button-row">
-                        <span class="sr-only" id="search-copy-reference">@copySource.Item.Reference</span>
-                        <button type="button" class="btn btn--small" data-copy-target="search-copy-reference" hidden>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
-                            <span>Copy Case/PO</span>
-                        </button>
-                    </div>
-                }
             </div>
         </div>
     </section>
-}
-
-@section Scripts {
-    <script>
-        // The shell's row-selection module swaps the preview target and
-        // rewrites the address; two controls this page owns live outside that
-        // region because they cannot survive being replaced — the Copy
-        // Case/PO source (the shell's clipboard binding resolves it once, at
-        // load) and the refresh form's hidden `selected` field. Without this
-        // they keep the row the server selected: Copy pasted the previous
-        // Case/PO and Refresh reopened the previous row. The clipboard and
-        // the selection stay the shell's; this only keeps the two values on
-        // the row the operator is reading.
-        (function () {
-            'use strict';
-            var reference = document.getElementById('search-copy-reference');
-            var refreshField = document.querySelector('[data-refresh-form] input[name="selected"]');
-            if (!reference && !refreshField) {
-                return;
-            }
-
-            document.querySelectorAll('tr[data-copy-reference][data-select-id]').forEach(function (row) {
-                function follow() {
-                    if (reference) {
-                        reference.textContent = row.getAttribute('data-copy-reference');
-                    }
-                    if (refreshField) {
-                        refreshField.value = row.getAttribute('data-select-id');
-                    }
-                }
-
-                // The same three openings the shell selects on, with the same
-                // guard: a click on the row's own link or button is that
-                // control's, not a selection.
-                row.addEventListener('click', function (event) {
-                    if (!event.target.closest('a, button')) {
-                        follow();
-                    }
-                });
-                row.addEventListener('keydown', function (event) {
-                    if (event.key === 'Enter' && !event.target.closest('a, button')) {
-                        follow();
-                    }
-                });
-                row.addEventListener('focus', follow);
-            });
-        })();
-    </script>
 }

@@ -181,14 +181,20 @@ public sealed record MergeImageInitiatedCaseRequest(
     string OperationKey,
     string Reason,
     long ExpectedVersion,
-    long? ExpectedStaffOriginAssociationVersion = null);
+    long? ExpectedStaffOriginAssociationVersion = null)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public sealed record CloseImageInitiatedCaseRequest(
     Guid ImageIntakeId,
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    long ExpectedVersion);
+    long ExpectedVersion)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Records, replaces or clears the optional known principal on an Image
@@ -202,7 +208,10 @@ public sealed record SetImageIntakePrincipalRequest(
     Guid ImageIntakeId,
     Guid? PrincipalId,
     ActionActor Actor,
-    long ExpectedVersion);
+    long ExpectedVersion)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// One retained image of an Image-initiated Case, in stored group order. The

@@ -421,13 +421,14 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
-    public async Task OnlyAnEngineerCanImport()
+    public async Task AnAdministratorCanImport()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
-        // The default test identity is an Administrator, not an Engineer.
+        // The default test identity is an Administrator, who has the same
+        // estimate-import capability as an Engineer.
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -436,11 +437,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Empty(store.AddedDocuments);
-        Assert.Empty(store.SavedEstimates);
-
-        var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.Contains("Only an Engineer can change an estimate.", afterHtml, StringComparison.Ordinal);
+        Assert.Single(store.AddedDocuments);
+        Assert.Single(store.SavedEstimates);
     }
 
     [Fact]

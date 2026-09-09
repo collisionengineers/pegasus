@@ -379,7 +379,8 @@ public sealed class EfTriageStore(
 
     public async Task<TriageRecord> AssignAsync(AssignTriageRequest request, CancellationToken cancellationToken)
     {
-        ValidateMutation(request.TriageId, request.ExpectedVersion, request.Actor, request.OperationKey, request.Reason);
+        const string assignmentReason = "Engineer assignment updated.";
+        ValidateMutation(request.TriageId, request.ExpectedVersion, request.Actor, request.OperationKey, assignmentReason);
         if (request.AssigneeId == Guid.Empty)
         {
             throw new ArgumentException("A valid assignee is required.", nameof(request));
@@ -390,9 +391,10 @@ public sealed class EfTriageStore(
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
-            request.Reason,
+            assignmentReason,
+            request.EditLeaseToken,
             "triage_assigned",
-            Hash($"assign|{request.TriageId:N}|{request.ExpectedVersion}|{request.AssigneeId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}"),
+            Hash($"assign|{request.TriageId:N}|{request.ExpectedVersion}|{request.AssigneeId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}"),
             item =>
             {
                 if (item.AssigneeId == request.AssigneeId)
@@ -509,6 +511,7 @@ public sealed class EfTriageStore(
             request.Actor,
             request.OperationKey,
             request.Note,
+            request.EditLeaseToken,
             TriageNotes.EventType,
             NoteRequestHash(request),
             static _ => { },
@@ -541,6 +544,8 @@ public sealed class EfTriageStore(
             request.TriageId,
             request.ExpectedVersion,
             cancellationToken);
+        await RequireEditScopeAsync(context, triage, request.ExpectedVersion, request.Actor,
+            request.EditLeaseToken, cancellationToken);
         var sent = await context.SentEmailEvidence
             .Include(item => item.Response)
             .SingleOrDefaultAsync(item => item.Id == request.SentEvidenceId, cancellationToken)
@@ -639,6 +644,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -699,6 +705,8 @@ public sealed class EfTriageStore(
             request.TriageId,
             request.ExpectedVersion,
             cancellationToken);
+        await RequireEditScopeAsync(context, triage, request.ExpectedVersion, request.Actor,
+            request.EditLeaseToken, cancellationToken);
         var link = await context.TriageResponseEvidenceLinks.SingleOrDefaultAsync(
             item => item.TriageId == triage.Id && item.SentEvidenceId == request.SentEvidenceId,
             cancellationToken) ?? throw new InvalidOperationException("The response evidence is not linked.");
@@ -711,6 +719,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -727,6 +736,7 @@ public sealed class EfTriageStore(
             request.Actor,
             request.OperationKey,
             request.Reason,
+            request.EditLeaseToken,
             StateEventType(targetState),
             StateRequestHash(request, targetState),
             item => item.State = ToCode(targetState),
@@ -1011,6 +1021,8 @@ public sealed class EfTriageStore(
             request.TriageId,
             request.ExpectedVersion,
             cancellationToken);
+        await RequireEditScopeAsync(context, triage, request.ExpectedVersion, request.Actor,
+            request.EditLeaseToken, cancellationToken);
         if (superseding)
         {
             var priorExists = await context.TriageFindings.AnyAsync(
@@ -1047,6 +1059,7 @@ public sealed class EfTriageStore(
         });
         triage.State = ToCode(TriageState.FindingRecorded);
         AppendHistory(context, triage, eventType, request.Actor, request.OperationKey.Trim(), request.Reason.Trim(), requestHash);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -1065,6 +1078,7 @@ public sealed class EfTriageStore(
             request.Actor,
             request.OperationKey,
             request.Reason,
+            request.EditLeaseToken,
             eventType,
             Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}"),
             mutation,
@@ -1077,6 +1091,7 @@ public sealed class EfTriageStore(
         ActionActor actor,
         string operationKey,
         string reason,
+        string editLeaseToken,
         string eventType,
         string requestHash,
         Action<TriageEntity> mutation,
@@ -1098,6 +1113,7 @@ public sealed class EfTriageStore(
             triageId,
             expectedVersion,
             cancellationToken);
+        await RequireEditScopeAsync(context, triage, expectedVersion, actor, editLeaseToken, cancellationToken);
         if (eventType == "triage_unassigned" && triage.AssigneeId is null)
         {
             throw new InvalidOperationException("The Triage record is not assigned.");
@@ -1112,6 +1128,7 @@ public sealed class EfTriageStore(
         }
         mutation(triage);
         AppendHistory(context, triage, eventType, actor, operationKey, reason.Trim(), requestHash);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -1169,6 +1186,8 @@ public sealed class EfTriageStore(
             request.TriageId,
             request.ExpectedTriageVersion,
             cancellationToken);
+        await RequireEditScopeAsync(context, triage, request.ExpectedTriageVersion, request.Actor,
+            request.EditLeaseToken, cancellationToken);
         var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
             item => item.CaseId == request.CaseId,
             cancellationToken)
@@ -1227,6 +1246,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -1242,6 +1262,24 @@ public sealed class EfTriageStore(
         EnsureVersion(triage, expectedVersion);
         return triage;
     }
+
+    private async Task RequireEditScopeAsync(
+        PegasusDbContext context,
+        TriageEntity triage,
+        long expectedVersion,
+        ActionActor actor,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        await EfEditScopeStore.RequireAsync(
+            context,
+            EditScopeKind.Triage,
+            triage.Id,
+            triage.Version,
+            expectedVersion,
+            actor,
+            editLeaseToken,
+            UtcNow(),
+            cancellationToken);
 
     private async Task<TriageOperationReplay?> ProbeReplayAsync(
         Guid triageId,

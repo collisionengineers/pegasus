@@ -13,6 +13,15 @@ public sealed class EfWorkflowConfigurationStore(
     private const string AggregateType = "workflow_configuration";
     private const string EventKind = "workflow_configuration_updated";
 
+    internal static async Task<CaseWorkflowConfiguration> ReadAsync(
+        PegasusDbContext context, CancellationToken cancellationToken)
+    {
+        var entity = await context.Set<WorkflowConfigurationEntity>().AsNoTracking()
+            .SingleAsync(item => item.Id == AdministrationPolicyModelConfiguration.WorkflowPolicyKey,
+                cancellationToken);
+        return Map(entity);
+    }
+
     public async Task<CaseWorkflowConfiguration> GetCurrentAsync(
         CancellationToken cancellationToken)
     {
@@ -32,6 +41,9 @@ public sealed class EfWorkflowConfigurationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageWorkflowConfiguration);
+        if (request.ChaseIntervalDays is < 1 or > 365)
+            throw new ArgumentOutOfRangeException(nameof(request));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
@@ -64,6 +76,12 @@ public sealed class EfWorkflowConfigurationStore(
         }
 
         var before = Snapshot(entity);
+        await EfEditScopeStore.RequireAsync(context, EditScopeKind.NamedConfiguration,
+            GetWorkflowConfiguration.RecordId, entity.Version, request.ExpectedVersion,
+            request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow(), cancellationToken);
+        entity.RequireInstructions = request.RequireInstructions;
+        entity.RequireImages = request.RequireImages;
+        entity.ChaseIntervalDays = request.ChaseIntervalDays;
         entity.Version = checked(entity.Version + 1);
         var after = Snapshot(entity);
 
@@ -86,6 +104,7 @@ public sealed class EfWorkflowConfigurationStore(
             PolicyVersion = $"{entity.Id}/v{entity.Version}"
         });
 
+        EfEditScopeStore.Complete(context, EditScopeKind.NamedConfiguration, GetWorkflowConfiguration.RecordId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -107,7 +126,10 @@ public sealed class EfWorkflowConfigurationStore(
 
         var snapshot = JsonSerializer.Deserialize<WorkflowConfigurationSnapshot>(history.AfterJson)
             ?? throw new WorkflowConfigurationOperationConflictException();
-        if (snapshot.PolicyVersion != checked(request.ExpectedVersion + 1))
+        if (snapshot.PolicyVersion != checked(request.ExpectedVersion + 1)
+            || snapshot.RequireInstructions != request.RequireInstructions
+            || snapshot.RequireImages != request.RequireImages
+            || snapshot.ChaseIntervalDays != request.ChaseIntervalDays)
         {
             throw new WorkflowConfigurationOperationConflictException();
         }
@@ -117,16 +139,27 @@ public sealed class EfWorkflowConfigurationStore(
 
     private static WorkflowConfigurationSnapshot Snapshot(WorkflowConfigurationEntity entity) => new(
         entity.Id,
-        entity.Version);
+        entity.Version,
+        entity.RequireInstructions,
+        entity.RequireImages,
+        entity.ChaseIntervalDays);
 
     private static CaseWorkflowConfiguration Map(WorkflowConfigurationEntity entity) =>
         Map(Snapshot(entity));
 
     private static CaseWorkflowConfiguration Map(WorkflowConfigurationSnapshot snapshot) => new(
         snapshot.PolicyKey,
-        snapshot.PolicyVersion);
+        snapshot.PolicyVersion)
+    {
+        RequireInstructions = snapshot.RequireInstructions,
+        RequireImages = snapshot.RequireImages,
+        ChaseIntervalDays = snapshot.ChaseIntervalDays
+    };
 
     private sealed record WorkflowConfigurationSnapshot(
         string PolicyKey,
-        int PolicyVersion);
+        int PolicyVersion,
+        bool RequireInstructions,
+        bool RequireImages,
+        int ChaseIntervalDays);
 }

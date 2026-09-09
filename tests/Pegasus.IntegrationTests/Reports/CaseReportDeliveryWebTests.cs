@@ -76,7 +76,9 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("operationKey", operationKey),
                 ("editLeaseToken", "held-report-lease"),
                 ("generationId", generationId.ToString("D")),
-                ("expectedGenerationVersion", "13")));
+                ("expectedGenerationVersion", "13"),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("ccRecipients", "copy@recipient.example")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(prepare.Requests);
@@ -87,6 +89,8 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(13, request.ExpectedGenerationVersion);
         Assert.Equal(operationKey, request.OperationKey);
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
+        Assert.Equal("reviewed@recipient.example", Assert.Single(request.ReviewedRecipients!.To));
+        Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
         Assert.Empty(send.Requests);
     }
 
@@ -175,7 +179,7 @@ public sealed partial class AssessmentReportDraftWebTests
             Requests.Add(request);
             return Task.FromResult(new CaseReportDeliveryPreparation(
                 Guid.NewGuid(), caseId, generationId, request.ExpectedGenerationVersion,
-                1, [], request.Actor, ReportFixtureAtUtc));
+                1, [], request.Actor, ReportFixtureAtUtc, new string('a', 64)));
         }
     }
 

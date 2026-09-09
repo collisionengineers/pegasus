@@ -69,7 +69,8 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             artifacts,
             command.Addressing.To,
             command.Addressing.Cc,
-            command.Addressing.Subject);
+            command.Addressing.Subject,
+            command.RecipientSuggestionFingerprint);
         var payloadJson = JsonSerializer.Serialize(payload, PayloadJsonOptions);
         var payloadHash = HashOf(payloadJson);
 
@@ -209,7 +210,8 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                 entity.Version,
                 payload.Artifacts,
                 payload.PreparedBy.ToActor(),
-                entity.PreparedAtUtc),
+                entity.PreparedAtUtc,
+                payload.RecipientSuggestionFingerprint),
             new CaseReportDeliveryAddressing(payload.To, payload.Cc, payload.Subject),
             // The frozen Case version travels in the payload; the live one is
             // the row this read just joined. The send boundary compares them.
@@ -308,5 +310,6 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         IReadOnlyList<StaffMailAttachment> Artifacts,
         IReadOnlyList<StaffMailRecipient> To,
         IReadOnlyList<StaffMailRecipient> Cc,
-        string Subject);
+        string Subject,
+        string RecipientSuggestionFingerprint);
 }

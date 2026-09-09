@@ -271,16 +271,19 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     private const string FoundationTableSpec = """
         AppliedValuationSnapshots
+        AutomaticEvaReviewSubmissions
         CaseReportDeliveryIntents
         CaseReportGenerations
-        ClaimSources
+        ContactPrincipalLinks
+        ContactRoles
         DocumentContentCacheEntries
+        EditScopes
+        EvaSubmissions
         GeneratedCaseArtifacts
         GlassRepairEstimateSessions
         IntakeOcrOperations
         IntakeSourceCandidates
         LabourRateCards
-        OrganizationDirectoryEntries
         PublicUploadOccurrences
         PublicUploadSessions
         RetainedInstructionAnalyses
@@ -292,16 +295,19 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
     private const string FoundationWebGrantSpec = """
         AppliedValuationSnapshots:SELECT,INSERT
+        AutomaticEvaReviewSubmissions:SELECT,INSERT
         CaseReportDeliveryIntents:SELECT,INSERT,UPDATE
         CaseReportGenerations:SELECT,INSERT,UPDATE
-        ClaimSources:SELECT,INSERT,UPDATE
+        ContactPrincipalLinks:SELECT,INSERT,DELETE
+        ContactRoles:SELECT,INSERT,DELETE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE
+        EditScopes:SELECT,INSERT,UPDATE,DELETE
+        EvaSubmissions:SELECT,INSERT
         GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
         GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
         IntakeOcrOperations:SELECT,INSERT
         IntakeSourceCandidates:SELECT
         LabourRateCards:SELECT,INSERT,UPDATE
-        OrganizationDirectoryEntries:SELECT,INSERT,UPDATE
         PublicUploadOccurrences:SELECT,INSERT,UPDATE
         PublicUploadSessions:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
@@ -312,6 +318,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         """;
 
     private const string FoundationWorkerGrantSpec = """
+        AutomaticEvaReviewSubmissions:SELECT,INSERT,UPDATE
+        EvaSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
         GeneratedCaseArtifacts:SELECT
@@ -681,8 +689,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         foreach (var role in new[] { WebRole, WorkerRole })
         {
             var expectedDeniedTables = role == WorkerRole
-                ? tables.Where(table => table != "DocumentContentCacheEntries").ToArray()
-                : tables;
+                ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions")).ToArray()
+                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions")).ToArray();
             Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
                 .Where(tables.Contains)
                 .ToArray());
@@ -708,40 +716,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     CASE WHEN indexDefinition.[type] = 1 THEN 900 ELSE 1700 END
             ) AS oversizedIndex
             """));
-    }
-
-    [Fact]
-    public async Task EngineerNotesMigrationCreatesTheTableWithExactWebAppendPermissions()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
-
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.tables WHERE name = N'EngineerNotes'"));
-        Assert.Equal(
-            [
-                $"{WebRole}:G:INSERT",
-                $"{WebRole}:G:SELECT"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[EngineerNotes]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
     }
 
     [Fact]
@@ -959,8 +933,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_worker_runtime];
             """);
 
-        var claimSourceId = Guid.NewGuid();
-        var webConcurrencyToken = Guid.NewGuid();
+        var contactOrganizationId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"INSERT INTO [dbo].[Organizations] ([Id], [Name], [Version], [Active]) VALUES ('{contactOrganizationId:D}', N'restricted-role-fixture', 0, 1);");
 
         await database.ExecuteAsync(
             $"""
@@ -975,17 +950,23 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             IF @StaffMailLockResult < 0
                 THROW 51000, 'Web runtime could not acquire the staff-mail transaction lock.', 1;
             ROLLBACK TRANSACTION;
-            INSERT INTO [dbo].[ClaimSources] (
-                [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
+            INSERT INTO [dbo].[ContactRoles] (
+                [OrganizationId], [Role])
             VALUES (
-                '{claimSourceId:D}', N'restricted-role-fixture', 1, N'test',
-                '2031-05-06T10:30:00+00:00', 0, '{webConcurrencyToken:D}');
+                '{contactOrganizationId:D}', N'repairer');
+            INSERT INTO dbo.EditScopes (ScopeKind, RecordId, HolderKind, Holder, TokenHash, ExpectedVersion, Generation, ExpiresAtUtc)
+            VALUES (N'Contact', '{contactOrganizationId:D}', N'Staff', N'permission-fixture', REPLICATE('a', 64), 0, 1, SYSDATETIMEOFFSET());
+            UPDATE dbo.EditScopes SET Generation = 2 WHERE RecordId = '{contactOrganizationId:D}';
+            DELETE FROM dbo.EditScopes WHERE RecordId = '{contactOrganizationId:D}';
+            INSERT INTO dbo.AutomaticEvaReviewSubmissions (Id, CaseId, WorkflowVersion, OperationKey, State, CreatedAtUtc, DueAtUtc)
+            SELECT TOP (0) NEWID(), Id, 1, N'permission-fixture', N'Pending', SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET() FROM dbo.Cases;
             UPDATE [dbo].[PublicUploadOccurrences]
             SET [CustodyState] = [CustodyState]
             WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
+            UPDATE dbo.AutomaticEvaReviewSubmissions SET State = N'Completed' WHERE Id = '00000000-0000-0000-0000-000000000000';
             UPDATE [dbo].[TriageSequences]
             SET [LastAllocatedSequence] = 1
             WHERE [Id] = 1;
@@ -995,7 +976,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             """);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM [dbo].[ClaimSources] WHERE [Id] = '{claimSourceId:D}'"));
+            $"SELECT COUNT(*) FROM [dbo].[ContactRoles] WHERE [OrganizationId] = '{contactOrganizationId:D}'"));
         Assert.Equal(1L, await database.ScalarAsync<long>(
             "SELECT [LastAllocatedSequence] FROM [dbo].[TriageSequences] WHERE [Id] = 1"));
 
@@ -1003,8 +984,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             $"""
             EXECUTE AS USER = N'pegasus_test_web_runtime';
             BEGIN TRY
-                DELETE FROM [dbo].[ClaimSources] WHERE [Id] = '{claimSourceId:D}';
-                THROW 51000, 'Web runtime unexpectedly deleted a ClaimSource.', 1;
+                UPDATE [dbo].[ContactRoles] SET [Role] = N'storage' WHERE [OrganizationId] = '{contactOrganizationId:D}';
+                THROW 51000, 'Web runtime unexpectedly updated a Contact role.', 1;
             END TRY
             BEGIN CATCH
                 IF ERROR_NUMBER() <> 229 THROW;
@@ -1013,12 +994,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
             BEGIN TRY
-                INSERT INTO [dbo].[ClaimSources] (
-                    [Id], [Name], [Active], [UpdatedBy], [UpdatedAtUtc], [Version], [ConcurrencyToken])
-                VALUES (
-                    '{Guid.NewGuid():D}', N'forbidden', 1, N'test',
-                    '2031-05-06T10:30:00+00:00', 0, '{Guid.NewGuid():D}');
-                THROW 51000, 'Worker runtime unexpectedly inserted a ClaimSource.', 1;
+                DELETE FROM [dbo].[ContactRoles] WHERE [OrganizationId] = '{contactOrganizationId:D}';
+                THROW 51000, 'Worker runtime unexpectedly deleted a Contact role.', 1;
             END TRY
             BEGIN CATCH
                 IF ERROR_NUMBER() <> 229 THROW;

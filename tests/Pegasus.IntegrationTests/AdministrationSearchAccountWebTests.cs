@@ -196,6 +196,61 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
+    public async Task ActionLogsSelectPeopleByDisplayNameAndKeepAdministrationDiagnostics()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(
+                new ActionHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    AggregateType = "Administration",
+                    AggregateId = "selected-person",
+                    EventKind = "selected_person_action",
+                    ActorKind = "Staff",
+                    ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+                    ActorRolesJson = "[]",
+                    OccurredAtUtc = now,
+                    Outcome = "Succeeded",
+                    CorrelationId = "selected-person"
+                },
+                new ActionHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    AggregateType = "Administration",
+                    AggregateId = "other-person",
+                    EventKind = "other_person_action",
+                    ActorKind = "Staff",
+                    ActorSubjectId = Guid.NewGuid().ToString("D"),
+                    ActorRolesJson = "[]",
+                    OccurredAtUtc = now,
+                    Outcome = "Succeeded",
+                    CorrelationId = "other-person"
+                });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+        var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
+
+        var html = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}");
+
+        Assert.Contains($"value=\"{actor}\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(DevelopmentOfflineIdentity.UserName, html, StringComparison.Ordinal);
+        Assert.Contains("selected_person_action", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("other_person_action", html, StringComparison.Ordinal);
+        Assert.Contains("Recorded counts and processing times", html, StringComparison.Ordinal);
+        Assert.Contains("Mailbox failures", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ActionLogPagerTraversesOneHundredAndOneFilteredRows()
     {
         const string actor = "pager-actor";

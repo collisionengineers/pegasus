@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
@@ -21,6 +22,88 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseWorkspacePersistenceTests
 {
+    [Fact]
+    public async Task ClaimSourceGuidanceIsAnImmutableTimelineSnapshotAppliedOncePerTemplate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var sourceId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            context.Organizations.Add(new()
+            {
+                Id = sourceId, Name = "Guidance source", Version = 1, Active = true,
+                GuidanceTemplate = "Contact the repairer before finalising.", GuidanceTemplateVersion = 1,
+                ContactRoles = [new() { Role = "claim_source" }]
+            });
+            await context.SaveChangesAsync();
+        }
+        var overview = Overview("Jane Example") with { ClaimSource = new(sourceId, 1, "Guidance source", null, null, null) };
+        for (var index = 0; index < 3; index++)
+        {
+            var current = await harness.GetRequiredDataAsync();
+            var lease = await harness.AcquireLeaseAsync(current.Version, harness.StaffActor, $"guidance-edit-{index}");
+            await harness.WorkspaceStore.SaveAsync(Request(harness, current.Version, lease.Token, $"guidance-save-{index}") with
+            {
+                Overview = index == 1 ? overview with { ClaimSource = null } : overview
+            }, default);
+        }
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var source = await context.Organizations.SingleAsync(item => item.Id == sourceId);
+            source.GuidanceTemplate = "Replacement template must not rewrite history.";
+            source.GuidanceTemplateVersion = 2;
+            await context.SaveChangesAsync();
+        }
+        var history = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
+            .ListHistoryByCursorAsync(harness.CaseId, null, null, 20, default);
+        var guidance = Assert.Single(history.SelectMany(entry => entry.Guidance));
+        Assert.Equal("Contact the repairer before finalising.", guidance.Text);
+        Assert.Equal("claim_source_guidance_applied", guidance.EventType);
+        Assert.Equal(1, guidance.TemplateVersion);
+        Assert.Equal(history.Count, history.Select(entry => entry.EntryId).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task ImageCropAndDamageCommitTogetherAndAStaleImageRollsBackBoth()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        var hash = new string('a', 64);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            context.AddRange(
+                new CaseDocumentEntity { Id = documentId, CaseId = harness.CaseId, Ordinal = 99, SourceOccurrenceIdentity = "workspace-crop-fixture" },
+                new DocumentVersionEntity { Id = versionId, DocumentId = documentId, Version = 1, FileName = "damage.jpg", MediaType = "image/jpeg", ContentLength = 1, Sha256 = hash, CustodyStatus = DocumentCustodyStatus.Confirmed, CreatedAtUtc = harness.TimeProvider.GetUtcNow(), CreatedBy = "Staff:fixture", IsCurrent = true },
+                new DocumentOccurrenceEntity { Id = occurrenceId, CaseId = harness.CaseId, DocumentId = documentId, VersionId = versionId, SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload, SourceOccurrenceIdentity = "workspace-crop-fixture", RecordedAtUtc = harness.TimeProvider.GetUtcNow(), OperationKey = "seed-workspace-crop", PreparationRole = nameof(CaseAssetReportRole.NotUsed) });
+            await context.SaveChangesAsync();
+        }
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-workspace-crop");
+        var crop = new CaseAssetCrop(.1m, .2m, .5m, .6m);
+        var request = Request(harness, initial.Version, lease.Token, "save-workspace-crop") with
+        {
+            Damage = new([new("left_front_wing", "light", "Scuffed")], null),
+            ImagePreparation = new([new(occurrenceId, 99, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
+        };
+        await Assert.ThrowsAsync<CaseAssetPreparationVersionConflictException>(() => harness.WorkspaceStore.SaveAsync(request, default));
+        Assert.Equal(initial.Version, (await harness.GetRequiredDataAsync()).Version);
+        Assert.Equal(0, await AssessmentFieldCountAsync(harness));
+        var saved = await harness.WorkspaceStore.SaveAsync(request with
+        {
+            ImagePreparation = new([new(occurrenceId, 0, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
+        }, default);
+        Assert.Equal(initial.Version + 1, saved.Version);
+        Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+        var preparation = Assert.Single(await new EfCaseAssetPreparationStore(harness.Factory, harness.TimeProvider).ListForCaseAsync(harness.CaseId, default));
+        Assert.Equal(crop, preparation.Crop);
+        Assert.Equal(CaseAssetRotation.Clockwise90, preparation.Rotation);
+        await using var check = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(hash, (await check.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == versionId)).Sha256);
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+    }
+
     [Fact]
     public async Task OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce()
     {
@@ -49,7 +132,14 @@ public sealed class CaseWorkspacePersistenceTests
                         [AssessmentVocabulary.VehicleCondition] = "good",
                         [AssessmentVocabulary.HistoryCheck] = "History clear"
                     }),
-                Damage = new([new("left_front_wing", "light", "Scuffed")], null),
+                Damage = new([new("left_front_wing", "light", "Scuffed")], new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.DamageTyreRightFront] = "damaged",
+                    [AssessmentVocabulary.DamageBeltLeftRear] = "deployed",
+                    [AssessmentVocabulary.DamageUnrelated] = "Old rear bumper scrape",
+                    [AssessmentVocabulary.DamageUnrelatedDeduction] = "125.50",
+                    [AssessmentVocabulary.DamageMaterialTransfer] = "White paint transfer"
+                }),
                 Completeness = new(true, true)
             },
             CancellationToken.None);
@@ -86,6 +176,11 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(
             "left_front",
             result.Assessment.Fields.Single(field => field.Path == AssessmentVocabulary.ImpactLocation).Value);
+        Assert.Equal("damaged", result.Assessment.Field(AssessmentVocabulary.DamageTyreRightFront)?.Value);
+        Assert.Equal("deployed", result.Assessment.Field(AssessmentVocabulary.DamageBeltLeftRear)?.Value);
+        Assert.Equal("Old rear bumper scrape", result.Assessment.Field(AssessmentVocabulary.DamageUnrelated)?.Value);
+        Assert.Equal("125.50", result.Assessment.Field(AssessmentVocabulary.DamageUnrelatedDeduction)?.Value);
+        Assert.Equal("White paint transfer", result.Assessment.Field(AssessmentVocabulary.DamageMaterialTransfer)?.Value);
     }
 
     [Fact]

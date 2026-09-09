@@ -232,44 +232,6 @@ internal sealed class DocumentContentCacheEntryEntity : IApplicationManagedConcu
     public Guid ConcurrencyToken { get; set; }
 }
 
-internal sealed class ClaimSourceEntity : IApplicationManagedConcurrencyToken
-{
-    public Guid Id { get; set; }
-    public required string Name { get; set; }
-    public string? Contact { get; set; }
-    public string? Telephone { get; set; }
-    public string? Email { get; set; }
-    public string? Notes { get; set; }
-    public bool Active { get; set; }
-    public required string UpdatedBy { get; set; }
-    public DateTimeOffset UpdatedAtUtc { get; set; }
-    public long Version { get; set; }
-    public Guid ConcurrencyToken { get; set; }
-}
-
-internal sealed class OrganizationDirectoryEntryEntity : IApplicationManagedConcurrencyToken
-{
-    public Guid Id { get; set; }
-    public Guid? OrganizationId { get; set; }
-    public required string Role { get; set; }
-    public required string Name { get; set; }
-    public required string NormalizedName { get; set; }
-    public string? Contact { get; set; }
-    public required string Address { get; set; }
-    public string? Postcode { get; set; }
-    public string? NormalizedPostcode { get; set; }
-    public required string SourceKind { get; set; }
-    public Guid? SourceRecordId { get; set; }
-    public string? Telephone { get; set; }
-    public string? Email { get; set; }
-    public long SourceVersion { get; set; }
-    public required string UpdatedBy { get; set; }
-    public DateTimeOffset UpdatedAtUtc { get; set; }
-    public bool Active { get; set; }
-    public long Version { get; set; }
-    public Guid ConcurrencyToken { get; set; }
-}
-
 internal sealed class PublicUploadSessionEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }

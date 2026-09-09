@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -28,6 +29,14 @@ public sealed class PrincipalCredentialPersistenceTests
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
 
         var principalId = (await SeededPrincipals.QdosAsync(services)).Id;
+        long initialContactVersion;
+        await using (var initialContext = await contextFactory.CreateDbContextAsync())
+        {
+            initialContactVersion = await initialContext.Principals.AsNoTracking()
+                .Where(item => item.Id == principalId)
+                .Select(item => item.Organization.Version)
+                .SingleAsync();
+        }
         var other = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
             new("Alpha Provider", "OTHER", Administrator, "credential:principal:other"),
             default);
@@ -36,7 +45,7 @@ public sealed class PrincipalCredentialPersistenceTests
 
         // Issue: the secret comes back once; the replay of the same operation
         // key returns the record and no secret.
-        var issueRequest = Request(principalId, 0, "credential:issue:1", "first key");
+        var issueRequest = await RequestAsync(services, principalId, 0, "credential:issue:1", "first key");
         var issued = await issue.ExecuteAsync(issueRequest, default);
         var issuedReplay = await issue.ExecuteAsync(issueRequest, default);
         Assert.NotNull(issued.Secret);
@@ -86,7 +95,9 @@ public sealed class PrincipalCredentialPersistenceTests
         }
 
         // Reset: the previous secret stops verifying the moment the new one exists.
-        var reset = await issue.ExecuteAsync(Request(principalId, 1, "credential:issue:2", "rotate"), default);
+        var reset = await issue.ExecuteAsync(
+            await RequestAsync(services, principalId, 1, "credential:issue:2", "rotate"),
+            default);
         Assert.NotNull(reset.Secret);
         Assert.NotEqual(firstKeyId, reset.Credential.KeyId);
         Assert.NotNull(reset.Credential.RotatedAtUtc);
@@ -95,29 +106,47 @@ public sealed class PrincipalCredentialPersistenceTests
         Assert.NotNull(await authenticate.ExecuteAsync(reset.Credential.KeyId, reset.Secret!, default));
 
         // Pause: authenticated, submissions blocked. Resume restores them.
-        var paused = await pause.ExecuteAsync(Request(principalId, 2, "credential:pause:1", "provider on hold"), default);
+        var pauseRequest = await RequestAsync(
+            services, principalId, 2, "credential:pause:1", "provider on hold");
+        var paused = await pause.ExecuteAsync(pauseRequest, default);
         Assert.Equal(PrincipalCredentialState.Paused, paused.State);
         var blocked = await authenticate.ExecuteAsync(reset.Credential.KeyId, reset.Secret!, default);
         Assert.NotNull(blocked);
         Assert.False(blocked.MaySubmit);
+        var resumeScopeRequest = await RequestAsync(
+            services, principalId, 2, "credential:resume:stale", "stale");
         Assert.Equal(
             PrincipalCredentialError.StaleVersion,
             (await Assert.ThrowsAsync<PrincipalCredentialException>(
-                () => resume.ExecuteAsync(Request(principalId, 2, "credential:resume:stale", "stale"), default))).Error);
-        var resumed = await resume.ExecuteAsync(Request(principalId, 3, "credential:resume:1", "provider back"), default);
+                () => resume.ExecuteAsync(resumeScopeRequest, default))).Error);
+        var resumed = await resume.ExecuteAsync(resumeScopeRequest with
+        {
+            ExpectedVersion = 3,
+            OperationKey = "credential:resume:1",
+            Reason = "provider back"
+        }, default);
         Assert.Equal(PrincipalCredentialState.Active, resumed.State);
         Assert.Null(resumed.PausedAtUtc);
         Assert.True((await authenticate.ExecuteAsync(reset.Credential.KeyId, reset.Secret!, default))!.MaySubmit);
 
         // Revoke: authentication refused; the lifecycle stops until a reissue.
-        var revoked = await revoke.ExecuteAsync(Request(principalId, 4, "credential:revoke:1", "compromised"), default);
+        var revokeRequest = await RequestAsync(
+            services, principalId, 4, "credential:revoke:1", "compromised");
+        var revoked = await revoke.ExecuteAsync(revokeRequest, default);
         Assert.Equal(PrincipalCredentialState.Revoked, revoked.State);
         Assert.Null(await authenticate.ExecuteAsync(reset.Credential.KeyId, reset.Secret!, default));
+        var revokedPauseRequest = await RequestAsync(
+            services, principalId, 5, "credential:pause:revoked", "no");
         Assert.Equal(
             PrincipalCredentialError.CredentialRevoked,
             (await Assert.ThrowsAsync<PrincipalCredentialException>(
-                () => pause.ExecuteAsync(Request(principalId, 5, "credential:pause:revoked", "no"), default))).Error);
-        var reissued = await issue.ExecuteAsync(Request(principalId, 5, "credential:issue:3", "new key"), default);
+                () => pause.ExecuteAsync(revokedPauseRequest, default))).Error);
+        var reissued = await issue.ExecuteAsync(revokedPauseRequest with
+        {
+            ExpectedVersion = 5,
+            OperationKey = "credential:issue:3",
+            Reason = "new key"
+        }, default);
         Assert.Equal(PrincipalCredentialState.Active, reissued.Credential.State);
         Assert.NotNull(await authenticate.ExecuteAsync(reissued.Credential.KeyId, reissued.Secret!, default));
 
@@ -126,10 +155,12 @@ public sealed class PrincipalCredentialPersistenceTests
         Assert.Null(await get.ExecuteAsync(Administrator, other.Id, default));
         var status = await get.ExecuteAsync(Administrator, principalId, default);
         Assert.Equal(reissued.Credential, status);
+        var absentCredentialRequest = await RequestAsync(
+            services, other.Id, 0, "credential:revoke:other", "none");
         Assert.Equal(
             PrincipalCredentialError.CredentialNotFound,
             (await Assert.ThrowsAsync<PrincipalCredentialException>(
-                () => revoke.ExecuteAsync(Request(other.Id, 0, "credential:revoke:other", "none"), default))).Error);
+                () => revoke.ExecuteAsync(absentCredentialRequest, default))).Error);
 
         await using (var context = await contextFactory.CreateDbContextAsync(default))
         {
@@ -148,13 +179,42 @@ public sealed class PrincipalCredentialPersistenceTests
                 ],
                 events.Order(StringComparer.Ordinal));
             Assert.Equal(1, await context.PrincipalApiCredentials.CountAsync());
+            var currentContactVersion = await context.Principals.AsNoTracking()
+                .Where(item => item.Id == principalId)
+                .Select(item => item.Organization.Version)
+                .SingleAsync();
+            Assert.Equal(initialContactVersion + 6, currentContactVersion);
         }
     }
 
-    private static PrincipalCredentialCommandRequest Request(
+    private static async Task<PrincipalCredentialCommandRequest> RequestAsync(
+        IServiceProvider services,
         Guid principalId,
         long expectedVersion,
         string operationKey,
-        string reason) =>
-        new(principalId, expectedVersion, Administrator, operationKey, reason);
+        string reason)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var contact = await context.Principals.AsNoTracking()
+            .Where(item => item.Id == principalId)
+            .Select(item => new { item.OrganizationId, item.Organization.Version })
+            .SingleAsync();
+        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.Contact,
+                contact.OrganizationId,
+                contact.Version,
+                Administrator,
+                operationKey + ":scope"),
+            default);
+        return new(
+            principalId,
+            expectedVersion,
+            Administrator,
+            operationKey,
+            reason,
+            contact.Version,
+            lease.Token);
+    }
 }

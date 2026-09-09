@@ -49,7 +49,7 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
         var temporaryDirectory = Path.Combine(rootPath, "quarantine-staging");
         Directory.CreateDirectory(temporaryDirectory);
         var temporary = Path.Combine(temporaryDirectory, $".{Guid.NewGuid():N}.tmp");
-        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
         string contentHash;
         long retainedLength = 0;
         try
@@ -60,7 +60,7 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
                              FileMode.CreateNew,
                              FileAccess.Write,
                              FileShare.None,
-                             bufferSize: 81920,
+                             bufferSize: 64 * 1024,
                              FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 while (true)
@@ -205,18 +205,82 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
         await stagingGate.WaitAsync(cancellationToken);
         try
         {
+            if (File.Exists(path) || File.Exists(MetadataPath(path)))
+            {
+                var existing = await ReadStagedMetadataAsync(path, cancellationToken);
+                if (IsValidMetadata(path, existing))
+                {
+                    await VerifyFileAsync(path, hash, content.Length, cancellationToken);
+                    return MapStaged(storageKey, path, existing!);
+                }
+
+                throw new IntakeArtifactIntegrityException();
+            }
+
             await StoreImmutableAsync(path, hash, content, cancellationToken);
-            var existing = await ReadStagedMetadataAsync(path, cancellationToken);
-            var metadata = IsValidMetadata(path, existing)
-                ? existing!
-                : new StagedArtifactMetadata(
-                    hash,
-                    content.Length,
-                    firstSeenAtUtc,
-                    StagedArtifactDisposition.Pending.ToString(),
-                    Guid.NewGuid().ToString("N"));
+            var metadata = new StagedArtifactMetadata(
+                hash,
+                content.Length,
+                firstSeenAtUtc,
+                StagedArtifactDisposition.Pending.ToString(),
+                Guid.NewGuid().ToString("N"));
             await WriteStagedMetadataAsync(path, metadata, cancellationToken);
             return MapStaged(storageKey, path, metadata);
+        }
+        finally
+        {
+            stagingGate.Release();
+        }
+    }
+
+    public async Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash,
+        Stream content, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken)
+    {
+        if (stagedReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException("A staged receipt identifier is required.", nameof(stagedReceiptId));
+        }
+
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentOutOfRangeException.ThrowIfNegative(contentLength);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException("The staged source stream must be readable.", nameof(content));
+        }
+
+        var hash = NormaliseHash(contentHash);
+        var key = $"staging/{stagedReceiptId:D}/{hash}";
+        var path = ResolveStaged(key);
+        await stagingGate.WaitAsync(cancellationToken);
+        try
+        {
+            var existing = await ReadStagedMetadataAsync(path, cancellationToken);
+            if (File.Exists(path) || File.Exists(MetadataPath(path)))
+            {
+                if (!IsValidMetadata(path, existing))
+                {
+                    throw new IntakeArtifactIntegrityException();
+                }
+
+                await VerifyFileAsync(path, hash, contentLength, cancellationToken);
+                await VerifyStreamAsync(content, hash, contentLength, cancellationToken);
+                return MapStaged(key, path, existing!);
+            }
+
+            await StoreStagedStreamImmutableAsync(
+                path,
+                hash,
+                content,
+                contentLength,
+                cancellationToken);
+            var metadata = new StagedArtifactMetadata(
+                hash,
+                contentLength,
+                firstSeenAtUtc,
+                StagedArtifactDisposition.Pending.ToString(),
+                Guid.NewGuid().ToString("N"));
+            await WriteStagedMetadataAsync(path, metadata, cancellationToken);
+            return MapStaged(key, path, metadata);
         }
         finally
         {
@@ -435,6 +499,127 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             {
                 File.Delete(temporary);
             }
+        }
+    }
+
+    private static async Task StoreStagedStreamImmutableAsync(
+        string destination,
+        string expectedHash,
+        Stream content,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        var temporary = Path.Combine(
+            Path.GetDirectoryName(destination)!,
+            $".{expectedHash}.{Guid.NewGuid():N}.tmp");
+        var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
+        {
+            long actualLength = 0;
+            string actualHash;
+            using (var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
+            {
+                await using (var destinationStream = new FileStream(
+                                 temporary,
+                                 FileMode.CreateNew,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 bufferSize: 64 * 1024,
+                                 FileOptions.Asynchronous | FileOptions.WriteThrough))
+                {
+                    while (true)
+                    {
+                        var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
+                        if (read == 0)
+                        {
+                            break;
+                        }
+
+                        actualLength = checked(actualLength + read);
+                        if (actualLength > expectedLength)
+                        {
+                            throw new IntakeArtifactIntegrityException();
+                        }
+
+                        hasher.AppendData(buffer, 0, read);
+                        await destinationStream.WriteAsync(
+                            buffer.AsMemory(0, read),
+                            cancellationToken);
+                    }
+
+                    await destinationStream.FlushAsync(cancellationToken);
+                }
+
+                actualHash = Convert.ToHexString(hasher.GetHashAndReset());
+            }
+
+            if (actualLength != expectedLength
+                || !string.Equals(actualHash, expectedHash, StringComparison.Ordinal))
+            {
+                throw new IntakeArtifactIntegrityException();
+            }
+
+            try
+            {
+                File.Move(temporary, destination, overwrite: false);
+            }
+            catch (IOException) when (File.Exists(destination))
+            {
+                await VerifyFileAsync(destination, expectedHash, expectedLength, cancellationToken);
+                throw new IntakeArtifactIntegrityException();
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
+
+    private static async Task VerifyStreamAsync(
+        Stream content,
+        string expectedHash,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
+        {
+            long actualLength = 0;
+            while (true)
+            {
+                var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                actualLength = checked(actualLength + read);
+                if (actualLength > expectedLength)
+                {
+                    throw new IntakeArtifactIntegrityException();
+                }
+
+                hasher.AppendData(buffer, 0, read);
+            }
+
+            if (actualLength != expectedLength
+                || !string.Equals(
+                    Convert.ToHexString(hasher.GetHashAndReset()),
+                    expectedHash,
+                    StringComparison.Ordinal))
+            {
+                throw new IntakeArtifactIntegrityException();
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
         }
     }
 

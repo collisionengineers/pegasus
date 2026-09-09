@@ -1,5 +1,6 @@
 ﻿using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Cases;
 
@@ -33,7 +34,8 @@ public sealed record PrincipalAdministrationSummary(
     long Version,
     int AllocatedCaseCount,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false,
+    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
+    PrincipalReportRecipientSettings? ReportRecipients = null,
     string? DefaultInspectionLocationLabel = null,
     string? DefaultInspectionAddress = null,
     string? DefaultInspectionPostcode = null,
@@ -87,8 +89,8 @@ public interface IOrganizationAdministrationStore
     /// a replacement this creates no new principal and moves no reference — it
     /// is the one principal attribute that may change in place.
     /// </summary>
-    Task<Principal> UpdatePrincipalEvaSubmissionAsync(
-        UpdatePrincipalEvaSubmissionRequest request,
+    Task<Principal> UpdatePrincipalReportSettingsAsync(
+        UpdatePrincipalReportSettingsRequest request,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -120,7 +122,9 @@ public sealed record UpdatePrincipalDefaultInspectionLocationRequest(
     string? Postcode,
     string? SourceKind,
     Guid? SourceRecordId,
-    long? SourceVersion);
+    long? SourceVersion,
+    long ExpectedContactVersion,
+    string EditLeaseToken);
 
 public interface IUpdatePrincipalDefaultInspectionLocation
 {
@@ -203,16 +207,16 @@ public sealed class ReplacePrincipal(IOrganizationAdministrationStore store)
             cancellationToken);
 }
 
-public sealed class UpdatePrincipalEvaSubmission(IOrganizationAdministrationStore store)
-    : IUpdatePrincipalEvaSubmission
+public sealed class UpdatePrincipalReportSettings(IOrganizationAdministrationStore store)
+    : IUpdatePrincipalReportSettings
 {
     private readonly IOrganizationAdministrationStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
     public Task<Principal> ExecuteAsync(
-        UpdatePrincipalEvaSubmissionRequest request,
+        UpdatePrincipalReportSettingsRequest request,
         CancellationToken cancellationToken) =>
-        _store.UpdatePrincipalEvaSubmissionAsync(
+        _store.UpdatePrincipalReportSettingsAsync(
             OrganizationAdministrationPolicy.Normalize(request),
             cancellationToken);
 }
@@ -244,7 +248,8 @@ public static class OrganizationAdministrationPolicy
         string code,
         bool codeAlreadyExists,
         CaseInspectionMode inspectionMode = CaseInspectionMode.PhysicalAddress,
-        bool evaManualSubmission = false)
+        PrincipalReportGenerationPolicy reportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
+        PrincipalReportRecipientSettings? reportRecipients = null)
     {
         RequireIdentifier(principalId, nameof(principalId));
         RequireIdentifier(sequenceLineageId, nameof(sequenceLineageId));
@@ -262,7 +267,10 @@ public static class OrganizationAdministrationPolicy
             true,
             0,
             inspectionMode,
-            evaManualSubmission);
+            reportGenerationPolicy,
+            PrincipalReportRecipientSettings.Normalize(
+                reportRecipients?.IncludeOriginalInstructionSender ?? false,
+                reportRecipients?.AdditionalAddresses));
     }
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
@@ -310,7 +318,8 @@ public static class OrganizationAdministrationPolicy
                 true,
                 0,
                 predecessor.InspectionMode,
-                predecessor.EvaManualSubmission));
+                predecessor.ReportGenerationPolicy,
+                predecessor.ReportRecipients));
     }
 
     public static void RequireOrganizationCanOwnPrincipals(Organization organization)
@@ -332,12 +341,13 @@ public static class OrganizationAdministrationPolicy
         }
     }
 
-    public static UpdatePrincipalEvaSubmissionRequest Normalize(
-        UpdatePrincipalEvaSubmissionRequest request)
+    public static UpdatePrincipalReportSettingsRequest Normalize(
+        UpdatePrincipalReportSettingsRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor);
         RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
+        RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
         return request with
         {
             OperationKey = NormalizeRequiredText(
@@ -347,7 +357,8 @@ public static class OrganizationAdministrationPolicy
             Reason = NormalizeRequiredText(
                 request.Reason,
                 MaximumReasonLength,
-                nameof(request.Reason))
+                nameof(request.Reason)),
+            EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
         };
     }
 
@@ -363,6 +374,7 @@ public static class OrganizationAdministrationPolicy
         RequireAdministrator(request.Actor);
         RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
         RequireExpectedVersion(request.ExpectedVersion, nameof(request.ExpectedVersion));
+        RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
         if (!Enum.IsDefined(request.Kind))
         {
             throw new ArgumentOutOfRangeException(
@@ -379,7 +391,8 @@ public static class OrganizationAdministrationPolicy
             Reason = NormalizeRequiredText(
                 request.Reason,
                 MaximumReasonLength,
-                nameof(request.Reason))
+                nameof(request.Reason)),
+            EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
         };
 
         if (normalized.Kind == InspectionAddressEvidenceKind.ImageBasedAssessment)
@@ -412,14 +425,15 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// EXT-04/EXT-18 item 7: the manual EVA setting changes, and nothing else
+    /// The report route and suggested recipients change, and nothing else
     /// does. The code, the organization, the lineage and the allocation
     /// history are untouched.
     /// </summary>
-    public static Principal PlanPrincipalEvaSubmissionUpdate(
+    public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
-        bool evaManualSubmission)
+        PrincipalReportGenerationPolicy reportGenerationPolicy,
+        PrincipalReportRecipientSettings reportRecipients)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -438,10 +452,20 @@ public static class OrganizationAdministrationPolicy
                 OrganizationAdministrationError.PrincipalInactive);
         }
 
-        var changed = current.EvaManualSubmission != evaManualSubmission;
+        ArgumentNullException.ThrowIfNull(reportRecipients);
+        if (!Enum.IsDefined(reportGenerationPolicy))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reportGenerationPolicy));
+        }
+        var normalizedRecipients = PrincipalReportRecipientSettings.Normalize(
+            reportRecipients.IncludeOriginalInstructionSender,
+            reportRecipients.AdditionalAddresses);
+        var changed = current.ReportGenerationPolicy != reportGenerationPolicy
+            || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients);
         return current with
         {
-            EvaManualSubmission = evaManualSubmission,
+            ReportGenerationPolicy = reportGenerationPolicy,
+            ReportRecipients = normalizedRecipients,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }
@@ -451,10 +475,17 @@ public static class OrganizationAdministrationPolicy
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor);
         RequireDefinedInspectionMode(request.InspectionMode);
+        if (!Enum.IsDefined(request.ReportGenerationPolicy))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "The report generation policy is invalid.");
+        }
         return request with
         {
             Name = NormalizeOrganizationName(request.Name),
             Code = NormalizePrincipalCode(request.Code),
+            ReportRecipients = PrincipalReportRecipientSettings.Normalize(
+                request.ReportRecipients?.IncludeOriginalInstructionSender ?? false,
+                request.ReportRecipients?.AdditionalAddresses),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -468,6 +499,7 @@ public static class OrganizationAdministrationPolicy
         RequireAdministrator(request.Actor);
         RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
         RequireExpectedVersion(request.ExpectedVersion, nameof(request.ExpectedVersion));
+        RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
         return request with
         {
             SuccessorCode = NormalizePrincipalCode(request.SuccessorCode),
@@ -478,7 +510,8 @@ public static class OrganizationAdministrationPolicy
             Reason = NormalizeRequiredText(
                 request.Reason,
                 MaximumReasonLength,
-                nameof(request.Reason))
+                nameof(request.Reason)),
+            EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
         };
     }
 
@@ -572,4 +605,7 @@ public static class OrganizationAdministrationPolicy
 
         return normalized;
     }
+
+    private static string NormalizeEditLeaseToken(string? value) =>
+        NormalizeRequiredText(value ?? string.Empty, 200, nameof(value));
 }

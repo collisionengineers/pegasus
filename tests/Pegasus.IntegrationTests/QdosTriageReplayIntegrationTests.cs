@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -34,6 +35,11 @@ public sealed partial class QdosTriageIntegrationTests
         var reopen = services.GetRequiredService<IReopenTriage>();
         var complete = services.GetRequiredService<ICompleteTriage>();
 
+        async Task<string> ClaimEditAsync(long expectedVersion, string operationKey) =>
+            (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.Triage, triageId, expectedVersion, staffActor, operationKey),
+                CancellationToken.None)).Token;
+
         var recordRequest = new RecordTriageFindingRequest(
             triageId,
             0,
@@ -42,7 +48,10 @@ public sealed partial class QdosTriageIntegrationTests
             "Initial retained assessment",
             RoadworthinessFinding.Unroadworthy,
             AssessmentFinding.TotalLoss,
-            null);
+            null)
+        {
+            EditLeaseToken = await ClaimEditAsync(0, "replay-record-finding-edit")
+        };
         var recorded = await recordFinding.ExecuteAsync(recordRequest, CancellationToken.None);
         Assert.Equal(1, recorded.Version);
         var firstFinding = Assert.Single(
@@ -56,7 +65,10 @@ public sealed partial class QdosTriageIntegrationTests
             "Corrected retained assessment",
             RoadworthinessFinding.Roadworthy,
             AssessmentFinding.Repairable,
-            firstFinding.Id);
+            firstFinding.Id)
+        {
+            EditLeaseToken = await ClaimEditAsync(1, "replay-supersede-finding-edit")
+        };
         var superseded = await supersedeFinding.ExecuteAsync(
             supersedeRequest,
             CancellationToken.None);
@@ -70,7 +82,10 @@ public sealed partial class QdosTriageIntegrationTests
             2,
             staffActor,
             "replay-await-information",
-            "Further retained information is required");
+            "Further retained information is required")
+        {
+            EditLeaseToken = await ClaimEditAsync(2, "replay-await-information-edit")
+        };
         var awaiting = await awaitInformation.ExecuteAsync(awaitRequest, CancellationToken.None);
         Assert.Equal(3, awaiting.Version);
         Assert.Equal(TriageState.AwaitingInformation, awaiting.State);
@@ -91,7 +106,10 @@ public sealed partial class QdosTriageIntegrationTests
             3,
             staffActor,
             "replay-cancel",
-            "The instruction was withdrawn");
+            "The instruction was withdrawn")
+        {
+            EditLeaseToken = await ClaimEditAsync(3, "replay-cancel-edit")
+        };
         var cancelled = await cancel.ExecuteAsync(cancelRequest, CancellationToken.None);
         Assert.Equal(4, cancelled.Version);
         Assert.Equal(TriageState.Cancelled, cancelled.State);
@@ -101,7 +119,10 @@ public sealed partial class QdosTriageIntegrationTests
             4,
             staffActor,
             "replay-reopen",
-            "Further retained evidence requires review");
+            "Further retained evidence requires review")
+        {
+            EditLeaseToken = await ClaimEditAsync(4, "replay-reopen-edit")
+        };
         var reopened = await reopen.ExecuteAsync(reopenRequest, CancellationToken.None);
         Assert.Equal(5, reopened.Version);
         Assert.Equal(TriageState.Open, reopened.State);
@@ -124,7 +145,10 @@ public sealed partial class QdosTriageIntegrationTests
             "Final retained assessment before completion",
             RoadworthinessFinding.Unroadworthy,
             AssessmentFinding.Repairable,
-            secondFinding.Id);
+            secondFinding.Id)
+        {
+            EditLeaseToken = await ClaimEditAsync(5, "post-reopen-finding-correction-edit")
+        };
         var corrected = await supersedeFinding.ExecuteAsync(
             postReopenCorrection,
             CancellationToken.None);
@@ -164,19 +188,26 @@ public sealed partial class QdosTriageIntegrationTests
             6,
             staffActor,
             "link-response-triage-replay",
-            "Exact reply-chain evidence retained");
+            "Exact reply-chain evidence retained")
+        {
+            EditLeaseToken = await ClaimEditAsync(6, "link-response-triage-replay-edit")
+        };
         await linkResponse.ExecuteAsync(linkRequest, CancellationToken.None);
         await linkResponse.ExecuteAsync(linkRequest, CancellationToken.None);
         await AssertReplayConflictAsync(
             () => linkResponse.ExecuteAsync(
                 linkRequest with { SentEvidenceId = Guid.NewGuid() },
                 CancellationToken.None));
+        var completeEditLeaseToken = await ClaimEditAsync(
+            7,
+            "link-response-triage-second-selection-edit");
         var secondSelection = await Assert.ThrowsAsync<TriageResponseEvidenceAlreadyLinkedException>(
             () => linkResponse.ExecuteAsync(
                 linkRequest with
                 {
                     ExpectedVersion = 7,
-                    OperationKey = "link-response-triage-second-selection"
+                    OperationKey = "link-response-triage-second-selection",
+                    EditLeaseToken = completeEditLeaseToken
                 },
                 CancellationToken.None));
         Assert.Equal(triageId, secondSelection.TriageId);
@@ -202,7 +233,10 @@ public sealed partial class QdosTriageIntegrationTests
             7,
             staffActor,
             "replay-complete",
-            "Finding and exact response evidence confirmed");
+            "Finding and exact response evidence confirmed")
+        {
+            EditLeaseToken = completeEditLeaseToken
+        };
         var completed = await complete.ExecuteAsync(completeRequest, CancellationToken.None);
         Assert.Equal(8, completed.Version);
         Assert.Equal(TriageState.Completed, completed.State);

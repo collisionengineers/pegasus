@@ -62,40 +62,35 @@ public sealed class AzureBlobIntakeArtifactStore
                 nameof(content));
         }
 
-        if (contentLength > int.MaxValue)
+        await using var buffered = await BufferAndHashAsync(
+            content,
+            contentLength,
+            cancellationToken);
+        var storageKey = $"sha256/{buffered.ContentHash[..2]}/{buffered.ContentHash}";
+        try
         {
-            throw new IntakeArtifactIntegrityException();
+            await EnsureContainerExistsAsync(cancellationToken);
+            await UploadStreamOrVerifyAsync(
+                container.GetBlobClient(storageKey),
+                buffered.ContentHash,
+                buffered.ContentLength,
+                buffered.Stream,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [HashMetadataName] = buffered.ContentHash
+                },
+                tags: null,
+                cancellationToken);
+        }
+        catch (RequestFailedException exception)
+        {
+            throw DependencyUnavailable(exception);
         }
 
-        using var retained = new MemoryStream((int)contentLength);
-        var buffer = new byte[81920];
-        long retainedLength = 0;
-        while (true)
-        {
-            var read = await content.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
-            {
-                break;
-            }
-
-            retainedLength = checked(retainedLength + read);
-            if (retainedLength > contentLength)
-            {
-                throw new IntakeArtifactIntegrityException();
-            }
-
-            await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-        }
-
-        if (retainedLength != contentLength)
-        {
-            throw new IntakeArtifactIntegrityException();
-        }
-
-        var bytes = retained.ToArray();
-        var contentHash = Convert.ToHexString(SHA256.HashData(bytes));
-        var storageKey = await StoreAsync(contentHash, bytes, cancellationToken);
-        return new IntakeQuarantineArtifact(storageKey, contentHash, retainedLength);
+        return new IntakeQuarantineArtifact(
+            storageKey,
+            buffered.ContentHash,
+            buffered.ContentLength);
     }
 
     public async Task VerifyAsync(
@@ -193,6 +188,90 @@ public sealed class AzureBlobIntakeArtifactStore
             cancellationToken);
         return await GetStagedAsync(storageKey, cancellationToken)
             ?? throw new IntakeArtifactIntegrityException();
+    }
+
+    public async Task<StagedArtifactInventoryItem> StageAsync(
+        Guid stagedReceiptId,
+        string contentHash,
+        Stream content,
+        long contentLength,
+        DateTimeOffset firstSeenAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (stagedReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A staged receipt identifier is required.",
+                nameof(stagedReceiptId));
+        }
+
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentOutOfRangeException.ThrowIfNegative(contentLength);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException("The staged source stream must be readable.", nameof(content));
+        }
+
+        await using var buffered = await BufferAndHashAsync(
+            content,
+            contentLength,
+            cancellationToken);
+        var hash = NormalizeHash(contentHash);
+        if (!string.Equals(buffered.ContentHash, hash, StringComparison.Ordinal))
+        {
+            throw new IntakeArtifactIntegrityException();
+        }
+
+        var key = $"staging/{stagedReceiptId:D}/{hash}";
+        var wroteBlob = false;
+        BlobClient? blob = null;
+        try
+        {
+            await EnsureContainerExistsAsync(cancellationToken);
+            blob = container.GetBlobClient(key);
+            wroteBlob = await UploadStreamOrVerifyAsync(
+                blob,
+                hash,
+                contentLength,
+                buffered.Stream,
+                CreateStagedMetadata(
+                    hash,
+                    contentLength,
+                    firstSeenAtUtc,
+                    StagedArtifactDisposition.Pending),
+                CreateDispositionTags(StagedArtifactDisposition.Pending),
+                cancellationToken);
+
+            var staged = await GetStagedAsync(key, cancellationToken)
+                ?? throw new IntakeArtifactIntegrityException();
+            if (staged.ContentLength != contentLength
+                || !string.Equals(staged.ContentHash, hash, StringComparison.Ordinal)
+                || staged.Disposition != StagedArtifactDisposition.Pending)
+            {
+                throw new IntakeArtifactIntegrityException();
+            }
+
+            return staged;
+        }
+        catch (IntakeArtifactIntegrityException) when (wroteBlob && blob is not null)
+        {
+            try
+            {
+                await blob.DeleteIfExistsAsync(
+                    DeleteSnapshotsOption.IncludeSnapshots,
+                    cancellationToken: CancellationToken.None);
+            }
+            catch (RequestFailedException exception)
+            {
+                throw DependencyUnavailable(exception);
+            }
+
+            throw;
+        }
+        catch (RequestFailedException exception)
+        {
+            throw DependencyUnavailable(exception);
+        }
     }
 
     public async Task<StagedArtifactInventoryItem?> GetStagedAsync(
@@ -444,6 +523,38 @@ public sealed class AzureBlobIntakeArtifactStore
         }
     }
 
+    private static async Task<bool> UploadStreamOrVerifyAsync(
+        BlobClient blob,
+        string expectedHash,
+        long expectedLength,
+        Stream content,
+        IDictionary<string, string> metadata,
+        IDictionary<string, string>? tags,
+        CancellationToken cancellationToken)
+    {
+        content.Position = 0;
+        try
+        {
+            await blob.UploadAsync(
+                content,
+                new BlobUploadOptions
+                {
+                    Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All },
+                    Metadata = metadata,
+                    Tags = tags
+                },
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
+        {
+            await VerifyBlobAsync(blob, expectedHash, expectedLength, cancellationToken);
+            return false;
+        }
+
+        await VerifyBlobAsync(blob, expectedHash, expectedLength, cancellationToken);
+        return true;
+    }
+
     /// <summary>
     /// The named fault Core retries on. Azure's own exception type stays in the
     /// adapter; Core matches only intake faults.
@@ -646,6 +757,75 @@ public sealed class AzureBlobIntakeArtifactStore
         }
 
         return contentHash.ToUpperInvariant();
+    }
+
+    private static async Task<BufferedStream> BufferAndHashAsync(
+        Stream source,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pegasus-intake-{Guid.NewGuid():N}.tmp");
+        var stream = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose | FileOptions.SequentialScan);
+        var buffer = new byte[64 * 1024];
+        try
+        {
+            long actualLength = 0;
+            using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            while (true)
+            {
+                var read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                actualLength = checked(actualLength + read);
+                if (actualLength > expectedLength)
+                {
+                    throw new IntakeArtifactIntegrityException();
+                }
+
+                hasher.AppendData(buffer, 0, read);
+                await stream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+
+            if (actualLength != expectedLength)
+            {
+                throw new IntakeArtifactIntegrityException();
+            }
+
+            await stream.FlushAsync(cancellationToken);
+            stream.Position = 0;
+            return new BufferedStream(
+                stream,
+                Convert.ToHexString(hasher.GetHashAndReset()),
+                actualLength);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+    }
+
+    private sealed class BufferedStream(
+        FileStream stream,
+        string contentHash,
+        long contentLength) : IAsyncDisposable
+    {
+        public FileStream Stream { get; } = stream;
+
+        public string ContentHash { get; } = contentHash;
+
+        public long ContentLength { get; } = contentLength;
+
+        public ValueTask DisposeAsync() => Stream.DisposeAsync();
     }
 
     private async ValueTask EnsureContainerExistsAsync(CancellationToken cancellationToken)

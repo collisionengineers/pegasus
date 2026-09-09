@@ -14,9 +14,9 @@ namespace Pegasus.Web.Pages.Administration.Automation;
 /// </summary>
 /// <remarks>
 /// The Automation client registration is gated composition, so when this
-/// deployment does not carry it the whole panel is absent rather than
-/// explained; the same holds for Send to AI. The AI settings panel has one
-/// Save, as the design authority specifies, and it drives the three Core
+/// deployment does not carry either capability, the direct route reports that
+/// Automation and AI configuration are unavailable. The AI settings panel has
+/// one Save, as the design authority specifies, and it drives the three Core
 /// operations behind it — connector bounds, channel token, and the outbound
 /// switch — each of which still writes its own attributed history.
 /// </remarks>
@@ -250,15 +250,18 @@ public sealed class IndexModel : AdministrationPageModel
                 .GetCountsAsync(cancellationToken);
         }
 
-        SendToAiEnabledNow = await HttpContext.RequestServices
-            .GetRequiredService<ISendToAiControl>()
-            .IsEnabledAsync(cancellationToken);
+        var connectorStore = ConnectorStore();
+        ConnectorSettings = connectorStore is null
+            ? null
+            : await connectorStore.GetAsync(cancellationToken);
+        SendToAiEnabledNow = ConnectorSettings is null
+            ? false
+            : await HttpContext.RequestServices
+                .GetRequiredService<ISendToAiControl>()
+                .IsEnabledAsync(cancellationToken);
         // Reason-dialog forms do not post this checkbox. Seed it from the
         // stored state; ModelState still wins for a redisplayed AI settings form.
         SendToAiEnabled = SendToAiEnabledNow;
-        ConnectorSettings = ConnectorStore() is { } connectorStore
-            ? await connectorStore.GetAsync(cancellationToken)
-            : null;
     }
 
     private IAiChannelConnectorStore? ConnectorStore() =>

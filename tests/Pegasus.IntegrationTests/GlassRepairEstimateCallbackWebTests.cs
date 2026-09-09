@@ -744,7 +744,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 .RequireEditAuthorityAsync(
                     ActionActor.Staff(
                         DevelopmentOfflineIdentity.AdministratorId,
-                        [StaffRole.Administrator, StaffRole.Engineer]),
+                        [StaffRole.Administrator]),
                     CaseId,
                     expectedVersion,
                     leaseToken,
@@ -937,13 +937,27 @@ public sealed class GlassRepairEstimateCallbackWebTests
         private static async Task SeedCredentialAsync(IServiceProvider services)
         {
             await using var scope = services.CreateAsyncScope();
+            var administrator = ActionActor.Staff(
+                DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+            var account = await scope.ServiceProvider.GetRequiredService<IGetStaffAccount>().ExecuteAsync(
+                new(administrator, DevelopmentOfflineIdentity.AdministratorId), CancellationToken.None);
+            var staffAccount = account?.Account ?? throw new InvalidOperationException("The seeded staff account was not found.");
+            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(
+                    EditScopeKind.StaffAccount,
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    staffAccount.Version,
+                    administrator,
+                    "seed-glass-credential"),
+                CancellationToken.None);
             await scope.ServiceProvider.GetRequiredService<IPerUserExternalCredentialAdministration>()
                 .ReplaceAsync(
-                    ActionActor.Staff(
-                        DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    administrator,
                     DevelopmentOfflineIdentity.AdministratorId,
                     ExternalCredentialProvider.GlassRepairEstimate,
-                    expectedVersion: 0,
+                    expectedCredentialVersion: 0,
+                    expectedStaffAccountVersion: staffAccount.Version,
+                    editLeaseToken: lease.Token,
                     FixtureAccount,
                     FixtureSecret,
                     enabled: true,

@@ -6,6 +6,18 @@ namespace Pegasus.Core.Tests.Identity;
 
 public sealed class AdministrationPolicyTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(366)]
+    public async Task WorkflowRejectsInvalidChaseIntervalsBeforeStore(int interval)
+    {
+        var store = new WorkflowStore();
+        var command = new UpdateWorkflowConfiguration(store);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => command.ExecuteAsync(
+            new(1, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), "Change schedule", "schedule")
+            { ChaseIntervalDays = interval }, default));
+        Assert.Null(store.UpdateRequest);
+    }
     [Fact]
     public async Task WorkflowConfigurationQueryRequiresAdministrator()
     {

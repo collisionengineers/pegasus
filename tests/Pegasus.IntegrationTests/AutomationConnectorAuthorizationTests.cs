@@ -55,7 +55,12 @@ public sealed partial class AutomationConnectorAuthorizationTests
             using var response = await browser.GetAsync("/Administration/Health");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var html = await response.Content.ReadAsStringAsync();
-            Assert.Contains("Automation clients", html, StringComparison.Ordinal);
+            var automationStart = html.IndexOf("Automation clients", StringComparison.Ordinal);
+            Assert.True(automationStart >= 0, "Service health must include Automation clients.");
+            var automationEnd = html.IndexOf("</tr>", automationStart, StringComparison.Ordinal);
+            Assert.True(automationEnd > automationStart, "The Automation clients health row must close.");
+            var automationRow = html[automationStart..automationEnd];
+            Assert.Contains(enabled ? "Working" : "No recorded activity", automationRow, StringComparison.Ordinal);
             Assert.DoesNotContain("Automation ingress", html, StringComparison.Ordinal);
         }
     }

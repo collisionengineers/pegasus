@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Eva;
 using Pegasus.Infrastructure.Persistence;
 
@@ -167,6 +168,122 @@ public sealed class EvaSubmissionPersistenceTests
         }
     }
 
+    [Fact]
+    public async Task LatestSubmissionIsTheChronologicallyLatestAttempt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var succeeded = Submission(caseId, EvaSubmissionOutcome.Succeeded);
+            succeeded.SubmittedAtUtc = FixedUtcNow;
+            var rejected = Submission(caseId, EvaSubmissionOutcome.Rejected);
+            rejected.SubmittedAtUtc = FixedUtcNow.AddMinutes(1);
+            context.EvaSubmissions.AddRange(succeeded, rejected);
+            await context.SaveChangesAsync();
+        }
+
+        var factory = new PooledDbContextFactory<PegasusDbContext>(
+            new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(database.ConnectionString)
+                .Options);
+
+        var latest = await new EfEvaSubmissionQueries(factory).GetLatestAsync(caseId);
+
+        Assert.NotNull(latest);
+        Assert.Equal(EvaSubmissionOutcome.Rejected, latest.Outcome);
+    }
+
+    [Fact]
+    public async Task AnExpiredAutomaticDispatchIsReconciliationRequiredAndIsNeverClaimedAgain()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var nowUtc = FixedUtcNow;
+        var expiredCaseId = await SeedCaseAsync(database, "expired");
+        var pendingCaseId = await SeedCaseAsync(database, "pending");
+        var expiredIntentId = Guid.NewGuid();
+        var pendingIntentId = Guid.NewGuid();
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.Set<AutomaticEvaReviewSubmissionEntity>().AddRange(
+                new()
+                {
+                    Id = expiredIntentId,
+                    CaseId = expiredCaseId,
+                    WorkflowVersion = 1,
+                    OperationKey = Guid.NewGuid().ToString("N"),
+                    State = nameof(AutomaticEvaReviewSubmissionState.Dispatching),
+                    CreatedAtUtc = nowUtc.AddMinutes(-2),
+                    DueAtUtc = nowUtc.AddMinutes(-2),
+                    LeaseToken = "expired-lease",
+                    LeaseExpiresAtUtc = nowUtc.AddMinutes(-1)
+                },
+                new()
+                {
+                    Id = pendingIntentId,
+                    CaseId = pendingCaseId,
+                    WorkflowVersion = 1,
+                    OperationKey = Guid.NewGuid().ToString("N"),
+                    State = nameof(AutomaticEvaReviewSubmissionState.Pending),
+                    CreatedAtUtc = nowUtc.AddMinutes(-1),
+                    DueAtUtc = nowUtc
+                });
+            await context.SaveChangesAsync();
+        }
+
+        var factory = new PooledDbContextFactory<PegasusDbContext>(
+            new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(database.ConnectionString)
+                .Options);
+        var store = new EfAutomaticEvaReviewSubmissionStore(factory, TimeProvider.System);
+
+        var claim = await store.ClaimAsync(nowUtc, TimeSpan.FromMinutes(1), default);
+
+        Assert.NotNull(claim);
+        Assert.Equal(pendingIntentId, claim.Intent.Id);
+        await using var verification = await database.CreateContextAsync();
+        var expired = await verification.Set<AutomaticEvaReviewSubmissionEntity>()
+            .SingleAsync(item => item.Id == expiredIntentId);
+        Assert.Equal(nameof(AutomaticEvaReviewSubmissionState.ReconciliationRequired), expired.State);
+        Assert.Equal(nowUtc, expired.CompletedAtUtc);
+        Assert.Null(expired.LeaseToken);
+        Assert.Null(expired.LeaseExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task AutomaticFailureRetryQueryIncludesUndeliveredAttemptsAndOuterFailures()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var outerFailureCaseId = await SeedCaseAsync(database, "outer");
+        var retainedFailureCaseId = await SeedCaseAsync(database, "retained");
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.Set<AutomaticEvaReviewSubmissionEntity>().Add(new()
+            {
+                Id = Guid.NewGuid(),
+                CaseId = outerFailureCaseId,
+                WorkflowVersion = 1,
+                OperationKey = Guid.NewGuid().ToString("N"),
+                State = nameof(AutomaticEvaReviewSubmissionState.ReconciliationRequired),
+                CreatedAtUtc = FixedUtcNow,
+                DueAtUtc = FixedUtcNow,
+                CompletedAtUtc = FixedUtcNow
+            });
+            context.EvaSubmissions.Add(Submission(retainedFailureCaseId, EvaSubmissionOutcome.Unknown));
+            await context.SaveChangesAsync();
+        }
+
+        var factory = new PooledDbContextFactory<PegasusDbContext>(
+            new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(database.ConnectionString)
+                .Options);
+        var queries = new EfEvaSubmissionQueries(factory);
+
+        Assert.True(await queries.CanRetryAutomaticFailureAsync(outerFailureCaseId));
+        Assert.True(await queries.CanRetryAutomaticFailureAsync(retainedFailureCaseId));
+    }
+
     private static EvaSubmissionEntity Submission(Guid caseId, EvaSubmissionOutcome outcome) => new()
     {
         Id = Guid.CreateVersion7(),
@@ -185,7 +302,9 @@ public sealed class EvaSubmissionPersistenceTests
         SubmittedAtUtc = FixedUtcNow
     };
 
-    private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
+    private static async Task<Guid> SeedCaseAsync(
+        LocalDbTestDatabase database,
+        string fixture = "default")
     {
         await using var context = await database.CreateContextAsync();
         var organizationId = Guid.NewGuid();
@@ -193,17 +312,20 @@ public sealed class EvaSubmissionPersistenceTests
         var principalId = Guid.NewGuid();
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
+        var reference = fixture == "default"
+            ? "EVA31003"
+            : $"EVA{fixture.ToUpperInvariant()}31003";
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "EVA test", Version = 0 },
+            new OrganizationEntity { Id = organizationId, Name = $"EVA test {fixture}", Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedUtcNow },
             new PrincipalEntity
             {
                 Id = principalId,
                 OrganizationId = organizationId,
                 SequenceLineageId = lineageId,
-                Code = "EVA",
+                Code = $"EVA{fixture}".ToUpperInvariant(),
                 IsActive = true,
-                EvaManualSubmission = true,
+                ReportGenerationPolicy = "EvaManualApi",
                 Version = 0
             },
             new IntakeReceiptEntity
@@ -233,7 +355,7 @@ public sealed class EvaSubmissionPersistenceTests
                 SequenceLineageId = lineageId,
                 Year = 2031,
                 Sequence = 3,
-                Reference = "EVA31003",
+                Reference = reference,
                 Type = "Inspection",
                 InitialState = "Review",
                 CustodyState = "Confirmed",

@@ -50,6 +50,8 @@ public sealed partial class CreateModel(
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IInspectionAddressResolutionStore addressResolutionStore,
     IProviderInspectionModeStore providerInspectionModeStore,
+    ICreateManualCase createManualCase,
+    IContactDirectoryQueries contacts,
     ILogger<CreateModel> logger) : StaffPageModel
 {
     /// <summary>
@@ -71,6 +73,11 @@ public sealed partial class CreateModel(
     public InspectionAddressResolutionSnapshot AddressResolution { get; private set; } = null!;
 
     public bool ProviderIsImageBased { get; private set; }
+
+    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
+
+    [BindProperty]
+    public bool IsManual { get; set; }
 
     /// <summary>
     /// Set when the item cannot become a case at all, so the page states why
@@ -105,10 +112,10 @@ public sealed partial class CreateModel(
     public bool RequiresAddressResolution { get; set; }
 
     [BindProperty]
-    public string? Reason { get; set; }
+    public string? PrincipalCode { get; set; }
 
     [BindProperty]
-    public string? PrincipalCode { get; set; }
+    public Guid? ClaimSourceId { get; set; }
 
     [BindProperty]
     public CaseType CaseType { get; set; } = CaseType.Inspection;
@@ -135,6 +142,9 @@ public sealed partial class CreateModel(
     public long? VehicleMileage { get; set; }
 
     [BindProperty]
+    public string? VehicleMileageUnit { get; set; }
+
+    [BindProperty]
     public string? AccidentCircumstances { get; set; }
 
     [BindProperty]
@@ -151,12 +161,6 @@ public sealed partial class CreateModel(
 
     [BindProperty]
     public string? InspectionAddress { get; set; }
-
-    [BindProperty]
-    public bool InstructionComplete { get; set; }
-
-    [BindProperty]
-    public bool ImagesComplete { get; set; }
 
     /// <summary>
     /// The address extraction proposed, when it proposed exactly one.
@@ -215,12 +219,19 @@ public sealed partial class CreateModel(
         Guid receiptId,
         CancellationToken cancellationToken = default)
     {
-        // Add and Ctrl+N start without a receipt. Begin the existing
-        // instruction-upload journey; a concrete receipt returns here for
-        // review before any Case or reference is created.
+        // Add and Ctrl+N are a distinct staff path. They allocate a Case with
+        // entered facts and no fictional received item or source document.
         if (receiptId == Guid.Empty)
         {
-            return RedirectToPage("/Upload");
+            if (!TryGetActor(out var actor))
+            {
+                return Forbid();
+            }
+            IsManual = true;
+            OperationId = NewOperationKey();
+            CaseType = CaseType.Inspection;
+            await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
+            return Page();
         }
 
         var loadResult = await LoadAsync(receiptId, cancellationToken);
@@ -269,6 +280,11 @@ public sealed partial class CreateModel(
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken = default)
     {
+        if (IsManual)
+        {
+            return await OnPostCreateManualAsync(cancellationToken);
+        }
+
         var loadResult = await LoadAsync(ReceiptId, cancellationToken);
         if (loadResult is not null)
         {
@@ -314,10 +330,13 @@ public sealed partial class CreateModel(
             return Page();
         }
 
-        // Validation above trimmed and normalised these, and refused the post
-        // if any required one was empty, so they are non-null from here.
-        var reason = Reason!;
+        // Creation provenance is derived from the reviewed receipt. It is not
+        // a staff reason field: the action itself is the attributable event.
+        var reason = "Case created from reviewed intake.";
         var principalCode = PrincipalCode!;
+        var completeness = new CaseCompleteness(
+            InstructionComplete: true,
+            ImagesComplete: InstructionEvidenceImages.Select(Receipt.AssetRecords).Count > 0);
 
         var allocationStarted = false;
         try
@@ -378,12 +397,9 @@ public sealed partial class CreateModel(
                     version,
                     actor,
                     $"intake-accept:{operationId:N}",
-                    reason,
                     CaseType,
                     principalCode,
-                    new(
-                        InstructionComplete,
-                        ImagesComplete),
+                    completeness,
                     StandaloneAuditEvidenceId,
                     postedDraft.InspectionDate),
                 cancellationToken);
@@ -465,6 +481,148 @@ public sealed partial class CreateModel(
         return Page();
     }
 
+    private async Task<IActionResult> OnPostCreateManualAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        if (!Guid.TryParseExact(OperationId, "N", out var operationId))
+        {
+            ModelState.AddModelError(string.Empty, "This request is no longer valid. Reload the page and try again.");
+        }
+        PrincipalCode = (PrincipalCode ?? string.Empty).Trim().ToUpperInvariant();
+        if (PrincipalCode.Length == 0)
+        {
+            ModelState.AddModelError(nameof(PrincipalCode), "Enter the principal code.");
+        }
+        else if (PrincipalCode.Length > CasePrincipalCode.MaximumLength)
+        {
+            ModelState.AddModelError(nameof(PrincipalCode), $"The principal code must be {CasePrincipalCode.MaximumLength} characters or fewer.");
+        }
+        if (!Enum.IsDefined(CaseType))
+        {
+            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
+        }
+        else if (CaseType == CaseType.Audit)
+        {
+            ModelState.AddModelError(nameof(CaseType), "Audits need their retained original report and cannot be created here.");
+        }
+
+        var mileageUnit = VehicleMileage.HasValue ? VehicleMileageUnit : null;
+        await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
+        var claimSource = ResolveClaimSource();
+        var data = new CaseEditableData(
+            ClaimantName,
+            ClaimNumber,
+            VehicleRegistration,
+            VehicleMake,
+            VehicleModel,
+            VehicleMileage,
+            mileageUnit,
+            AccidentCircumstances,
+            DateOfIncident,
+            InstructionDate: InstructionDate,
+            InspectionDate: InspectionDate,
+            InspectionDeadline: InspectionDate,
+            InspectionAddress: InspectionAddress,
+            InspectionMode: CaseDataPolicy.InferInspectionMode(InspectionAddress),
+            ClaimSourceId: claimSource?.OrganizationId,
+            ClaimSourceVersion: claimSource?.Version,
+            ClaimSourceName: claimSource?.Name,
+            ClaimSourceContactName: claimSource?.ContactPerson,
+            ClaimSourceContactTelephone: claimSource?.Telephone,
+            ClaimSourceContactEmailAddress: claimSource?.Email);
+        var draft = new InstructionDraft(
+            PrincipalCode,
+            data.ClaimantName,
+            data.ClaimNumber,
+            data.VehicleRegistration,
+            data.VehicleMake,
+            data.VehicleModel,
+            data.VehicleMileage,
+            data.AccidentCircumstances,
+            data.IncidentDate,
+            data.InstructionDate,
+            data.InspectionAddress,
+            data.InspectionDate);
+        foreach (var missing in InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft))
+        {
+            ModelState.AddModelError(string.Empty, $"{missing} is needed before a case can be created.");
+        }
+        try
+        {
+            data = CaseDataPolicy.Normalize(data);
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+        }
+        if (!ModelState.IsValid)
+        {
+            return Page();
+        }
+
+        try
+        {
+            var identity = await createManualCase.ExecuteAsync(
+                new(actor, $"manual-case:{operationId:N}", PrincipalCode, CaseType, data),
+                cancellationToken);
+            TempData["CaseDetailsStatus"] = $"Case {identity.AuditReference ?? identity.Reference} was created.";
+            return RedirectToPage("/Cases/Details", new { id = identity.CaseId });
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (CaseIdentitySequenceExhaustedException exception)
+        {
+            LogIdentitySequenceExhausted(logger, Guid.Empty, exception);
+            ModelState.AddModelError(string.Empty, "The case reference sequence is exhausted. No case was created.");
+        }
+        catch (PrincipalUnavailableException)
+        {
+            ModelState.AddModelError(nameof(PrincipalCode), "This principal is unavailable.");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+        }
+
+        return Page();
+    }
+
+    private async Task PopulateClaimSourceChoicesAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        ClaimSourceChoices = await contacts.ListClaimSourcesAsync(actor, cancellationToken);
+    }
+
+    private ContactDirectoryRecord? ResolveClaimSource()
+    {
+        if (ClaimSourceId is not { } claimSourceId)
+        {
+            return null;
+        }
+
+        var claimSource = ClaimSourceChoices.SingleOrDefault(item => item.OrganizationId == claimSourceId);
+        if (claimSource is null)
+        {
+            ModelState.AddModelError(
+                nameof(ClaimSourceId),
+                "Select an active Claim Source from the directory.");
+            return null;
+        }
+
+        return claimSource;
+    }
+
     /// <summary>
     /// Validates every posted value and returns the draft the correction will
     /// write. Errors accumulate in <see cref="PageModel.ModelState"/>; the
@@ -472,18 +630,6 @@ public sealed partial class CreateModel(
     /// </summary>
     private InstructionDraft ValidateAndBuildDraft()
     {
-        Reason = (Reason ?? string.Empty).Trim();
-        if (Reason.Length == 0)
-        {
-            ModelState.AddModelError(nameof(Reason), "Record why this case is being created.");
-        }
-        else if (Reason.Length > 500)
-        {
-            ModelState.AddModelError(
-                nameof(Reason),
-                "The reason must be 500 characters or fewer.");
-        }
-
         PrincipalCode = (PrincipalCode ?? string.Empty).Trim().ToUpperInvariant();
         if (PrincipalCode.Length == 0)
         {

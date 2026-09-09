@@ -4,6 +4,9 @@ internal sealed class WorkflowConfigurationEntity
 {
     public required string Id { get; set; }
     public int Version { get; set; }
+    public bool RequireInstructions { get; set; } = true;
+    public bool RequireImages { get; set; } = true;
+    public int ChaseIntervalDays { get; set; } = 7;
 }
 
 internal sealed class ApprovedMailboxEntity

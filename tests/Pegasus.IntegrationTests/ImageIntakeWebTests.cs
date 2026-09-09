@@ -32,7 +32,7 @@ public sealed class ImageIntakeWebTests
         var receiptId = IntakeWebDriver.ReceiptId(upload);
 
         var detailsBefore = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
-        Assert.Contains("Register Image intake", detailsBefore);
+        Assert.Contains("Register images", detailsBefore);
         Assert.Contains("No readable registration", detailsBefore);
 
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
@@ -50,7 +50,7 @@ public sealed class ImageIntakeWebTests
         var detailsAfter = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Vehicle images registered", detailsAfter);
         Assert.Contains("AB12CDE-01", detailsAfter);
-        Assert.DoesNotContain("Register Image intake</h2>", detailsAfter);
+        Assert.DoesNotContain("Register images</h2>", detailsAfter);
 
         await using var receiptScope = factory.Services.CreateAsyncScope();
         var receipt = await receiptScope.ServiceProvider
@@ -78,6 +78,15 @@ public sealed class ImageIntakeWebTests
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
         Assert.Equal($"/Cases?tab=awaiting&selected={detail.Record.Id:D}", BackToCasesHref(imageIntakePage));
+        Assert.Equal($"/Received/{receiptId:D}", ActionHref(imageIntakePage, "Merge Case"));
+        Assert.Equal($"/Received/{receiptId:D}", ActionHref(imageIntakePage, "View received item"));
+        Assert.DoesNotContain("Open the origin receipt", imageIntakePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);
+
+        using var associationResponse = await client.GetAsync($"/Received/{receiptId:D}");
+        var associationPage = await associationResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, associationResponse.StatusCode);
+        Assert.Contains("Case link", associationPage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -157,13 +166,17 @@ public sealed class ImageIntakeWebTests
 
         var initial = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}");
         AssertPrincipalFact(initial, "Not known");
-        Assert.Contains($"value=\"{alpha:D}\"", initial, StringComparison.Ordinal);
-        Assert.Contains($"value=\"{beta:D}\"", initial, StringComparison.Ordinal);
-        Assert.DoesNotContain($"value=\"{retired:D}\"", initial, StringComparison.Ordinal);
-        // The empty option is a real selectable state, not a disabled prompt.
-        Assert.Contains("<option value=\"\"", initial, StringComparison.Ordinal);
+        Assert.Contains("Edit record", initial, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{alpha:D}\"", initial, StringComparison.Ordinal);
 
-        await PostPrincipalAsync(factory, client, imageIntakeId, alpha);
+        var edit = await ClaimEditAsync(factory, client, imageIntakeId);
+        Assert.Contains($"value=\"{alpha:D}\"", edit.Html, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{beta:D}\"", edit.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{retired:D}\"", edit.Html, StringComparison.Ordinal);
+        // The empty option is a real selectable state, not a disabled prompt.
+        Assert.Contains("<option value=\"\"", edit.Html, StringComparison.Ordinal);
+
+        await PostPrincipalAsync(factory, client, imageIntakeId, alpha, edit);
         AssertPrincipalFact(
             await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{imageIntakeId:D}"),
             "ALPHA");
@@ -214,13 +227,10 @@ public sealed class ImageIntakeWebTests
         IntakeWebApplicationFactory factory,
         HttpClient client,
         Guid imageIntakeId,
-        Guid? principalId)
+        Guid? principalId,
+        (long ExpectedVersion, string EditLeaseToken, string Html)? edit = null)
     {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var detail = await scope.ServiceProvider
-            .GetRequiredService<IImageIntakeQueries>()
-            .GetAsync(imageIntakeId, CancellationToken.None);
-        var expectedVersion = Assert.IsType<ImageIntakeDetail>(detail).LifecycleVersion;
+        var currentEdit = edit ?? await ClaimEditAsync(factory, client, imageIntakeId);
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var response = await client.PostAsync(
             $"/VehicleImages/{imageIntakeId:D}?handler=Principal",
@@ -228,10 +238,42 @@ public sealed class ImageIntakeWebTests
             {
                 ["__RequestVerificationToken"] = token,
                 ["principalId"] = principalId is { } id ? id.ToString("D") : string.Empty,
-                ["expectedVersion"] = expectedVersion.ToString(
-                    System.Globalization.CultureInfo.InvariantCulture)
+                ["expectedVersion"] = currentEdit.ExpectedVersion.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture),
+                ["editLeaseToken"] = currentEdit.EditLeaseToken
             }));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    private static async Task<(long ExpectedVersion, string EditLeaseToken, string Html)> ClaimEditAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        Guid imageIntakeId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var detail = Assert.IsType<ImageIntakeDetail>(await scope.ServiceProvider
+            .GetRequiredService<IImageIntakeQueries>()
+            .GetAsync(imageIntakeId, CancellationToken.None));
+        var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var response = await client.PostAsync(
+            $"/VehicleImages/{imageIntakeId:D}?handler=Edit",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["expectedVersion"] = detail.LifecycleVersion.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture)
+            }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        var token = Regex.Match(
+            html,
+            "<input\\b(?=[^>]*\\bname=\"editLeaseToken\")[^>]*\\bvalue=\"(?<value>[^\"]*)\"[^>]*>",
+            RegexOptions.CultureInvariant);
+        Assert.True(token.Success, "The edit form must render its edit lease token.");
+        return (
+            detail.LifecycleVersion,
+            WebUtility.HtmlDecode(token.Groups["value"].Value),
+            html);
     }
 
     /// <summary>
@@ -270,6 +312,24 @@ public sealed class ImageIntakeWebTests
         }
 
         Assert.Fail("The Back to Cases link must be rendered.");
+        return string.Empty;
+    }
+
+    private static string ActionHref(string html, string action)
+    {
+        foreach (Match link in Regex.Matches(
+            html,
+            "<a\\b[^>]*href=\"(?<href>[^\"]*)\"[^>]*>(?<body>.*?)</a>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1)))
+        {
+            if (link.Groups["body"].Value.Contains($"<span>{action}</span>", StringComparison.Ordinal))
+            {
+                return WebUtility.HtmlDecode(link.Groups["href"].Value);
+            }
+        }
+
+        Assert.Fail($"The {action} link must be rendered.");
         return string.Empty;
     }
 }
@@ -353,7 +413,6 @@ internal static class ImageIntakeTestData
                             DevelopmentOfflineIdentity.AdministratorId,
                             [StaffRole.Administrator]),
                         $"image-intake-test-seed:{receipt.Id:N}",
-                        "Fixture explicitly accepted the processed instruction.",
                         receipt.MailClassificationDecision?.CaseType ?? CaseType.Inspection,
                         receipt.InstructionDraft?.SuggestedPrincipalCode ?? QdosPrincipal.Code,
                         new(InstructionComplete: true, ImagesComplete: true),

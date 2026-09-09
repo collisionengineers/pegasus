@@ -148,6 +148,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 ["DocumentRequests:AllowedMediaTypes:3"] = "image/png",
                 ["DocumentRequests:AllowedMediaTypes:4"] =
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ["DocumentRequests:AllowedMediaTypes:5"] = "video/mp4",
+                ["DocumentRequests:AllowedMediaTypes:6"] = "video/quicktime",
             };
 
             configuration.AddInMemoryCollection(values);

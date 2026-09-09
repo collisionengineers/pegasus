@@ -1,5 +1,6 @@
 ﻿using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
@@ -14,7 +15,14 @@ public sealed record Organization(
     Guid Id,
     string Name,
     IReadOnlyList<OrganizationRole> Roles,
-    long Version);
+    long Version,
+    string? ContactPerson = null,
+    string? Email = null,
+    string? Telephone = null,
+    string? Address = null,
+    bool Active = true,
+    string? GuidanceTemplate = null,
+    long GuidanceTemplateVersion = 0);
 
 public sealed record Principal(
     Guid Id,
@@ -26,7 +34,8 @@ public sealed record Principal(
     bool IsActive,
     long Version,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false);
+    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
+    PrincipalReportRecipientSettings? ReportRecipients = null);
 
 public enum CaseType
 {
@@ -178,7 +187,6 @@ public sealed record CaseAcceptanceRequest(
     long ExpectedIntakeVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
     CaseType CaseType,
     string PrincipalCode,
     CaseCompleteness Completeness,
@@ -256,7 +264,8 @@ public sealed record CreatePrincipalRequest(
     ActionActor Actor,
     string OperationKey,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    bool EvaManualSubmission = false);
+    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
+    PrincipalReportRecipientSettings? ReportRecipients = null);
 
 /// <summary>
 /// EXT-04: change an existing principal's EVA submission settings.
@@ -266,13 +275,16 @@ public sealed record CreatePrincipalRequest(
 /// route that can only be switched on while creating a principal cannot be
 /// switched on for the principals that already exist — and QDOS already does.
 /// </summary>
-public sealed record UpdatePrincipalEvaSubmissionRequest(
+public sealed record UpdatePrincipalReportSettingsRequest(
     Guid PrincipalId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    bool EvaManualSubmission);
+    PrincipalReportGenerationPolicy ReportGenerationPolicy,
+    PrincipalReportRecipientSettings ReportRecipients,
+    long ExpectedContactVersion,
+    string EditLeaseToken);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,
@@ -280,7 +292,9 @@ public sealed record ReplacePrincipalRequest(
     string SuccessorCode,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason,
+    long ExpectedContactVersion,
+    string EditLeaseToken);
 
 public sealed record RecordEngineerFindingRequest(
     Guid CaseId,
@@ -352,10 +366,10 @@ public interface IReplacePrincipal
 /// <summary>
 /// EXT-04: switch a principal's EVA submission settings without replacing it.
 /// </summary>
-public interface IUpdatePrincipalEvaSubmission
+public interface IUpdatePrincipalReportSettings
 {
     Task<Principal> ExecuteAsync(
-        UpdatePrincipalEvaSubmissionRequest request,
+        UpdatePrincipalReportSettingsRequest request,
         CancellationToken cancellationToken);
 }
 

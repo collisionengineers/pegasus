@@ -1,4 +1,5 @@
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Identity;
 
@@ -48,7 +49,11 @@ public sealed record UpdateApprovedMailboxRequest(
     string? InboxFolderIdentity = null,
     string? SentFolderIdentity = null,
     IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null,
-    long? VerifiedEncodedMessageSizeLimit = null);
+    long? VerifiedEncodedMessageSizeLimit = null)
+{
+    /// <summary>Required when changing an existing mailbox; creation has no scope.</summary>
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public sealed record SetDefaultApprovedMailboxRequest(
     Guid MailboxId,
@@ -57,7 +62,11 @@ public sealed record SetDefaultApprovedMailboxRequest(
     int? ExpectedPreviousDefaultMailboxVersion,
     ActionActor Actor,
     string Reason,
-    string OperationKey);
+    string OperationKey)
+{
+    /// <summary>Ownership of the selected mailbox, required for this change.</summary>
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// One mailbox the approved estate says inbound-intake polling may read, with the

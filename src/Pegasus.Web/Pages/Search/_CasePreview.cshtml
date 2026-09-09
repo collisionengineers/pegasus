@@ -6,11 +6,9 @@
         : Model.Item.AccidentCircumstances!;
 }
 
-@* The Selected Case preview, drawn once for the server-selected row and
+@* The Selected Case preview is drawn once for the server-selected row and
    once per results row as that row's swap-in template. Open Case travels
-   with the preview — an anchor stays live after the script swaps it in;
-   Copy Case/PO is rendered by the page outside the swapped region, where
-   the shell's load-time copy binding can reach it. *@
+   with the preview, so the anchor remains live after the script swaps it in. *@
 <div class="detail-canvas">
     <p class="eyebrow">@OperatorLabels.CaseTypeName(Model.Item.CaseType)</p>
     <h2>@Model.Heading</h2>

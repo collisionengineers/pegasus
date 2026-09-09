@@ -604,12 +604,16 @@ public sealed class ProductionBoxCustodyTests
     private sealed class EmptyArtifactStore : IIntakeArtifactStore
     {
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash, Stream content, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) => Task.FromResult<ReadOnlyMemory<byte>?>(null);
     }
 
     private sealed class MemoryArtifactStore(ReadOnlyMemory<byte> content) : IIntakeArtifactStore
     {
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> value, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash, Stream value, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>

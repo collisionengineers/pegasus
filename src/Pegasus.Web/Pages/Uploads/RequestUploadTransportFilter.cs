@@ -44,8 +44,7 @@ public sealed class RequestUploadTransportFilter(IGetRequestUpload getRequestUpl
         }
         if (serverLimit is not null)
         {
-            serverLimit.MaxRequestBodySize = Math.Min(
-                serverLimit.MaxRequestBodySize ?? maximumBodyBytes, maximumBodyBytes);
+            serverLimit.MaxRequestBodySize = maximumBodyBytes;
         }
 
         // Buffer the bounded body once: FormFeature uses offsets into it for
@@ -56,7 +55,8 @@ public sealed class RequestUploadTransportFilter(IGetRequestUpload getRequestUpl
         {
             BufferBody = true,
             BufferBodyLengthLimit = maximumBodyBytes,
-            MultipartBodyLengthLimit = policy.MaximumFileBytes
+            MultipartBodyLengthLimit = policy.MaximumFileBytes,
+            MemoryBufferThreshold = 64 * 1024
         }));
         context.HttpContext.Features.Set(policy);
     }

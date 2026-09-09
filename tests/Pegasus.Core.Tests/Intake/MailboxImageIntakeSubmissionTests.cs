@@ -274,6 +274,15 @@ public sealed class MailboxImageIntakeSubmissionTests
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(content.GetValueOrDefault(storageKey));
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RecordingGroupedSubmission(Exception? exception = null) : IGroupedIntakeSubmission
@@ -301,6 +310,43 @@ public sealed class MailboxImageIntakeSubmissionTests
                     [],
                     request.ParentReceiptId),
                 []));
+        }
+
+        public async Task<GroupedIntakeSubmissionResult> ExecuteStreamedAsync(
+            StreamedGroupedIntakeSubmissionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (exception is not null)
+            {
+                throw exception;
+            }
+
+            var files = new List<GroupedIntakeFile>(request.Files.Count);
+            foreach (var file in request.Files)
+            {
+                using var content = await file.Source.OpenContentAsync(cancellationToken);
+                using var buffer = new MemoryStream();
+                await content.CopyToAsync(buffer, cancellationToken);
+                files.Add(new(
+                    file.Ordinal,
+                    new(
+                        file.Source.FileName,
+                        file.Source.MediaType,
+                        buffer.ToArray(),
+                        file.Source.ReceivedAtUtc,
+                        file.Source.Actor,
+                        file.Source.SourceIdentity)));
+            }
+
+            return await ExecuteAsync(
+                new(
+                    request.SubmissionToken,
+                    request.Actor,
+                    request.ReceivedAtUtc,
+                    files,
+                    request.Channel,
+                    request.ParentReceiptId),
+                cancellationToken);
         }
     }
 

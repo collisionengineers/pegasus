@@ -501,7 +501,7 @@ overhead. The Provider API keeps its separate 30 MiB decoded envelope and
 | Submission session | Fixed, non-sliding 15 minutes |
 | Rate, per token | 20 per 10 minutes |
 | Rate, per address | 30 per minute |
-| Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook` |
+| Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook`, `video/mp4`, `video/quicktime` |
 
 `IntakeEnvelopeLimits` is the single Core owner of the manual/public
 per-file, file-count and aggregate ceilings. `RequestUploadLimits` may
@@ -515,6 +515,11 @@ The per-address limiter remains necessary because an unknown token is
 refused before the token-partitioned limiter runs, while Razor's antiforgery
 handling may otherwise buffer the multipart request first. It runs after
 routing and before endpoint execution.
+
+MP4 and MOV uploads are retained immutable as video evidence. Their extension,
+declared media type and ISO base-media header must agree. They are available by
+safe browser preview where the browser supports the encoding and always by
+download; Pegasus does not submit video to document OCR or image cropping.
 
 The repository's deployment configuration and dated live evidence are
 separate from this accepted source policy and remain owned by

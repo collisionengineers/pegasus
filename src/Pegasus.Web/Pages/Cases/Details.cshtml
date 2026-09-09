@@ -5,6 +5,7 @@
    states and every other handler keeps the query-string form. *@
 @using System.Globalization
 @using Pegasus.Core.Lifecycle
+@using Pegasus.Core.Reports
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.DetailsModel
@@ -49,8 +50,9 @@
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
-    var canSendToEva = state is CaseLifecycleState.Review
-        or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+    var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
+        || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
+        && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     // The confirmation is a lease-carrying Core action, so it is offered in
     // edit context only; without detected evidence there is nothing to
     // confirm (D10: a send is never asserted here).
@@ -340,10 +342,6 @@
                         <partial name="Cases/Shared/_CaseWorkflow" model="Model" />
                         <partial name="Cases/Shared/_CaseSummary" model="Model" />
                     }
-                    else if (entry.Key == "engineer-notes")
-                    {
-                        <partial name="Cases/Shared/_CaseEngineerNotes" model="Model" />
-                    }
                     else if (entry.Key == "inspection")
                     {
                         <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
@@ -438,6 +436,7 @@
 </article>
 
 <partial name="Shared/_EvidenceViewer" />
+<partial name="Cases/Shared/_CaseCropDialog" />
 <partial name="Shared/_EditFinishConfirm" />
 
 @if (editing && !isClosed)

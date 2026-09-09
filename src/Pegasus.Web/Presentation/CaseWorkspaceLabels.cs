@@ -52,12 +52,29 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.ReportDateOverride] = "Override report date"
         };
 
+        public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.DamageTyreRightFront] = "Right-front tyre",
+            [AssessmentVocabulary.DamageTyreLeftFront] = "Left-front tyre",
+            [AssessmentVocabulary.DamageTyreRightRear] = "Right-rear tyre",
+            [AssessmentVocabulary.DamageTyreLeftRear] = "Left-rear tyre",
+            [AssessmentVocabulary.DamageBeltRightFront] = "Right-front belt",
+            [AssessmentVocabulary.DamageBeltLeftFront] = "Left-front belt",
+            [AssessmentVocabulary.DamageBeltRightRear] = "Right-rear belt",
+            [AssessmentVocabulary.DamageBeltLeftRear] = "Left-rear belt",
+            [AssessmentVocabulary.DamageSpareTyre] = "Spare tyre",
+            [AssessmentVocabulary.DamageCentreBelt] = "Centre belt",
+            [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
+            [AssessmentVocabulary.DamageUnrelatedDeduction] = "Unrelated-damage deduction",
+            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer"
+        };
+
         public static string FormName(string path) => $"assessmentFields[{path}]";
 
         public static string? Label(string field)
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
-            foreach (var entry in Settlement.Concat(Report))
+            foreach (var entry in Settlement.Concat(Report).Concat(Damage))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
             }
@@ -72,7 +89,8 @@ public static class CaseWorkspaceLabels
         }
 
         public static bool IsAssessmentField(string path) =>
-            Settlement.ContainsKey(path) || Report.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck;
+            Settlement.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
+            || path == AssessmentVocabulary.HistoryCheck;
     }
 
     public static class EstimateImport

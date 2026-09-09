@@ -135,6 +135,56 @@ public sealed class DashboardBoundaryTests
             snapshot.NeedsAttention.Select(item => item.Kind).ToArray());
     }
 
+    [Fact]
+    public async Task NeedsAttentionPartitionsReviewCasesUsingTheCurrentCompletenessConfiguration()
+    {
+        var reviewId = Guid.NewGuid();
+        var unassignedId = Guid.NewGuid();
+        var searchCases = new StubSearchCases
+        {
+            Items =
+            [
+                NewHeldCase(reviewId, "C/2026/REVIEW") with
+                {
+                    State = CaseLifecycleState.Review,
+                    InstructionComplete = true,
+                    ImagesComplete = false,
+                },
+                NewHeldCase(unassignedId, "C/2026/ASSIGN") with
+                {
+                    State = CaseLifecycleState.Review,
+                    InstructionComplete = false,
+                    ImagesComplete = true,
+                }
+            ]
+        };
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries(),
+            NowUtc,
+            workflowConfiguration: new("case-workflow", 1)
+            {
+                RequireInstructions = false,
+                RequireImages = true,
+            },
+            searchCases: searchCases);
+
+        Assert.Contains(snapshot.NeedsAttention, item =>
+            item.Kind == NeedsAttentionKind.ReviewCase
+            && item.Id == reviewId
+            && item.Title == "KP68 ABC"
+            && item.Detail == "QDOS");
+        Assert.Contains(snapshot.NeedsAttention, item =>
+            item.Kind == NeedsAttentionKind.UnassignedEngineer && item.Id == unassignedId);
+        Assert.DoesNotContain(snapshot.NeedsAttention, item =>
+            item.Kind == NeedsAttentionKind.ReviewCase && item.Id == unassignedId);
+        Assert.Equal(
+            1,
+            searchCases.RequestedStates.Count(state => state == CaseLifecycleState.Review));
+        Assert.DoesNotContain(
+            searchCases.RequestedStates,
+            state => state == CaseLifecycleState.ReportPreparation);
+    }
+
     /// <summary>
     /// The Triage kind is work without a finding, and the External work kind
     /// is failure that can still be retried: rows past those boundaries stay
@@ -275,10 +325,11 @@ public sealed class DashboardBoundaryTests
         StubUnidentifiedQueue? unidentified = null,
         StubListTriage? triage = null,
         StubDueWorkQueries? dueWork = null,
-        StubRequestOperationStore? requestStore = null)
+        StubRequestOperationStore? requestStore = null,
+        CaseWorkflowConfiguration? workflowConfiguration = null)
     {
         var snapshot = BuildSnapshot(
-            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore);
+            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration);
         return await snapshot.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
     }
 
@@ -295,10 +346,11 @@ public sealed class DashboardBoundaryTests
         StubUnidentifiedQueue? unidentified = null,
         StubListTriage? triage = null,
         StubDueWorkQueries? dueWork = null,
-        StubRequestOperationStore? requestStore = null)
+        StubRequestOperationStore? requestStore = null,
+        CaseWorkflowConfiguration? workflowConfiguration = null)
     {
         IGetAttentionRows attentionRows = BuildSnapshot(
-            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore);
+            recorder, nowUtc, searchCases, unidentified, triage, dueWork, requestStore, workflowConfiguration);
         return await attentionRows.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]));
     }
 
@@ -309,7 +361,8 @@ public sealed class DashboardBoundaryTests
         StubUnidentifiedQueue? unidentified,
         StubListTriage? triage,
         StubDueWorkQueries? dueWork,
-        StubRequestOperationStore? requestStore)
+        StubRequestOperationStore? requestStore,
+        CaseWorkflowConfiguration? workflowConfiguration)
     {
         var timeProvider = new FixedTimeProvider(nowUtc);
         return new GetOperationsSnapshot(
@@ -321,6 +374,7 @@ public sealed class DashboardBoundaryTests
             unidentified ?? new StubUnidentifiedQueue(),
             new GetRequestOperations(requestStore ?? new StubRequestOperationStore(), timeProvider),
             new NoStaffAccounts(),
+            new FixedWorkflowConfiguration(workflowConfiguration ?? new("case-workflow", 1)),
             timeProvider);
     }
 
@@ -411,6 +465,13 @@ public sealed class DashboardBoundaryTests
         public override DateTimeOffset GetUtcNow() => nowUtc;
     }
 
+    private sealed class FixedWorkflowConfiguration(CaseWorkflowConfiguration configuration)
+        : ICaseWorkflowConfiguration
+    {
+        public Task<CaseWorkflowConfiguration> GetCurrentAsync(
+            CancellationToken cancellationToken) => Task.FromResult(configuration);
+    }
+
     private sealed class StubIntakeReceiptQueries : IIntakeReceiptQueries
     {
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
@@ -476,11 +537,22 @@ public sealed class DashboardBoundaryTests
     private sealed class StubSearchCases : ISearchCases
     {
         public IReadOnlyList<CaseSearchItem> Items { get; init; } = [];
+        public List<CaseLifecycleState?> RequestedStates { get; } = [];
 
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new SearchCasesResult(Items, query.Page, query.PageSize, false, false));
+            CancellationToken cancellationToken)
+        {
+            RequestedStates.Add(query.Filters.State);
+            return Task.FromResult(new SearchCasesResult(
+                Items.Where(item => query.Filters.State is null || item.State == query.Filters.State)
+                    .Take(query.PageSize)
+                    .ToArray(),
+                query.Page,
+                query.PageSize,
+                false,
+                false));
+        }
     }
 
     private sealed class StubUnidentifiedQueue : IUnidentifiedStore

@@ -1,6 +1,4 @@
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
@@ -26,52 +24,61 @@ public sealed class CaseReportDeliveryPreparationTests
         Guid.NewGuid(), Guid.NewGuid(), new string('b', 64), 60, "fee-note.pdf", "application/pdf");
 
     [Fact]
-    public void AddressingResolvesTheContactAndCopiesADifferentClaimSourceAddress()
+    public void AddressingUsesConfiguredRecipientsAndTheOriginalInstructionSender()
     {
-        var addressing = CaseReportDeliveryPolicy.Address(Projection(
-            contactEmail: "handler@principal.example",
-            contactName: "Principal Handler",
-            claimSourceEmail: "instructor@insurer.example",
-            claimSourceName: "Insurer Instructor"));
+        var addressing = CaseReportDeliveryPolicy.Address(Suggestions(
+            ["handler@principal.example"],
+            includeOriginalInstructionSender: true,
+            originalInstructionSender: "instructor@insurer.example"));
 
-        var to = Assert.Single(addressing.To);
-        Assert.Equal("handler@principal.example", to.Address);
-        Assert.Equal("Principal Handler", to.DisplayName);
-        var cc = Assert.Single(addressing.Cc);
-        Assert.Equal("instructor@insurer.example", cc.Address);
-        Assert.Equal("Insurer Instructor", cc.DisplayName);
+        Assert.Equal(["instructor@insurer.example", "handler@principal.example"],
+            addressing.To.Select(item => item.Address));
+        Assert.Empty(addressing.Cc);
         Assert.Equal("DVR-31001", addressing.Subject);
     }
 
     [Fact]
-    public void AddressingCopiesNoClaimSourceWhenItsAddressMatchesOrIsAbsent()
+    public void AddressingDeduplicatesTheOriginalInstructionSender()
     {
-        var same = CaseReportDeliveryPolicy.Address(Projection(
-            contactEmail: "handler@principal.example",
-            claimSourceEmail: "Handler@Principal.Example"));
-        Assert.Empty(same.Cc);
+        var addressing = CaseReportDeliveryPolicy.Address(Suggestions(
+            ["handler@principal.example"],
+            includeOriginalInstructionSender: true,
+            originalInstructionSender: "Handler@Principal.Example"));
 
-        var absent = CaseReportDeliveryPolicy.Address(Projection(contactEmail: "handler@principal.example"));
-        Assert.Empty(absent.Cc);
+        Assert.Equal("Handler@Principal.Example", Assert.Single(addressing.To).Address);
+        Assert.Empty(addressing.Cc);
     }
 
     [Fact]
-    public void AddressingRefusesACaseWithNoContactEmailAddress()
+    public void AddressingRefusesACaseWithNoConfiguredRecipient()
     {
         Assert.Throws<InvalidOperationException>(
-            () => CaseReportDeliveryPolicy.Address(Projection(contactEmail: " ")));
+            () => CaseReportDeliveryPolicy.Address(Suggestions([])));
         Assert.Throws<InvalidOperationException>(
-            () => CaseReportDeliveryPolicy.Address(Projection(contactEmail: null)));
+            () => CaseReportDeliveryPolicy.Address(Suggestions(
+                [], includeOriginalInstructionSender: true)));
     }
 
     [Fact]
     public void AddressingIsRefusedWhenTheContactsChangedSincePreparation()
     {
-        var prepared = CaseReportDeliveryPolicy.Address(Projection(contactEmail: "handler@principal.example"));
-        var current = CaseReportDeliveryPolicy.Address(Projection(contactEmail: "reassigned@principal.example"));
+        var prepared = Suggestions(["handler@principal.example"]);
+        var current = Suggestions(["reassigned@principal.example"]);
 
         Assert.Throws<InvalidOperationException>(
-            () => CaseReportDeliveryPolicy.RequireAddressingCurrent(prepared, current));
+            () => CaseReportDeliveryPolicy.RequireSuggestionCurrent(
+                prepared.Fingerprint, current.Fingerprint));
+    }
+
+    [Fact]
+    public void ReviewedAddressingFreezesStaffChosenRecipients()
+    {
+        var addressing = CaseReportDeliveryPolicy.ReviewedAddress(
+            Suggestions(["suggested@principal.example"]),
+            new(["reviewed@recipient.example"], ["copy@recipient.example"]));
+
+        Assert.Equal("reviewed@recipient.example", Assert.Single(addressing.To).Address);
+        Assert.Equal("copy@recipient.example", Assert.Single(addressing.Cc).Address);
     }
 
     [Theory]
@@ -190,7 +197,7 @@ public sealed class CaseReportDeliveryPreparationTests
     public async Task DeliveryIsAStaffActAndRefusesOtherActors()
     {
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => new PrepareCaseReportDelivery(
-                new RefusingStore(), new RefusingCaseData())
+                new RefusingStore(), new RefusingSuggestions())
             .ExecuteAsync(
                 new(ActionActor.SystemWorker("delivery-test"), Guid.NewGuid(), 1, "lease", Guid.NewGuid(), 1,
                     "prepare-1"),
@@ -204,7 +211,7 @@ public sealed class CaseReportDeliveryPreparationTests
     public async Task PreparationRequiresItsIdentifiersAndFailsClosedOnAMissingCase()
     {
         var prepare = new PrepareCaseReportDelivery(
-            new RefusingStore(), new FixedCaseData(Projection(contactEmail: "handler@principal.example")));
+            new RefusingStore(), new FixedSuggestions(Suggestions(["handler@principal.example"])));
         var actor = Staff();
 
         await Assert.ThrowsAsync<ArgumentException>(() => prepare.ExecuteAsync(
@@ -223,7 +230,7 @@ public sealed class CaseReportDeliveryPreparationTests
         var send = new RecordingSend { Result = operation };
         var sendPrepared = new SendPreparedCaseReport(
             new FixedStore(Record()),
-            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
             new FixedMailboxes(Mailbox()),
             new ReportSendReadiness(new FixedStore(Record())),
             send);
@@ -246,6 +253,29 @@ public sealed class CaseReportDeliveryPreparationTests
         Assert.Equal(1, command.Report.ExpectedCaseVersion);
     }
 
+    [Fact]
+    public async Task SendUsesTheFrozenReviewedRecipientInsteadOfReplacingItWithSuggestions()
+    {
+        var send = new RecordingSend();
+        var reviewed = new CaseReportDeliveryAddressing(
+            [new("reviewed@recipient.example", null)],
+            [new("copy@recipient.example", null)],
+            "DVR-31001");
+        var sendPrepared = new SendPreparedCaseReport(
+            new FixedStore(Record(addressing: reviewed)),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
+            new FixedMailboxes(Mailbox()),
+            new ReportSendReadiness(new FixedStore(Record(addressing: reviewed))),
+            send);
+
+        await sendPrepared.ExecuteAsync(
+            new(Staff(), CaseId, PreparationId, 1, "send-reviewed"), CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal("reviewed@recipient.example", Assert.Single(command.Mail.To).Address);
+        Assert.Equal("copy@recipient.example", Assert.Single(command.Mail.Cc).Address);
+    }
+
     /// <summary>
     /// Stream A review (blocker 2): the transport's mailbox guard is the
     /// G14 Generation, never the administration row's concurrency Version —
@@ -257,7 +287,7 @@ public sealed class CaseReportDeliveryPreparationTests
         var send = new RecordingSend();
         var sendPrepared = new SendPreparedCaseReport(
             new FixedStore(Record()),
-            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
             new FixedMailboxes(Mailbox(version: 5, generation: 3)),
             new ReportSendReadiness(new FixedStore(Record())),
             send);
@@ -280,7 +310,7 @@ public sealed class CaseReportDeliveryPreparationTests
         var send = new RecordingSend();
         var sendPrepared = new SendPreparedCaseReport(
             new FixedStore(Record()),
-            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
             new FixedMailboxes(Mailbox(scopes: [ApprovedMailboxRouteScope.SentEvidence])),
             new ReportSendReadiness(new FixedStore(Record())),
             send);
@@ -302,7 +332,7 @@ public sealed class CaseReportDeliveryPreparationTests
         var send = new RecordingSend();
         var sendPrepared = new SendPreparedCaseReport(
             new FixedStore(Record(frozenCaseVersion: 1, currentCaseVersion: 2)),
-            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
             new FixedMailboxes(Mailbox()),
             new ReportSendReadiness(new FixedStore(Record(frozenCaseVersion: 1, currentCaseVersion: 2))),
             send);
@@ -318,7 +348,7 @@ public sealed class CaseReportDeliveryPreparationTests
         var send = new RecordingSend();
         var sendPrepared = new SendPreparedCaseReport(
             new FixedStore(Record()),
-            new FixedCaseData(Projection(contactEmail: "handler@principal.example")),
+            new FixedSuggestions(Suggestions(["handler@principal.example"])),
             new FixedMailboxes(),
             new ReportSendReadiness(new FixedStore(Record())),
             send);
@@ -334,10 +364,10 @@ public sealed class CaseReportDeliveryPreparationTests
         var send = new RecordingSend();
         var sendPrepared = new SendPreparedCaseReport(
             new FixedStore(Record()),
-            // The contact was edited after the preparation pinned its
-            // addressing: the intent changed, so the send is refused rather
-            // than delivered to the address it no longer names.
-            new FixedCaseData(Projection(contactEmail: "reassigned@principal.example")),
+            // Principal recipient suggestions changed after preparation, so
+            // the stale intent is refused even though its reviewed recipients
+            // stay immutable.
+            new FixedSuggestions(Suggestions(["reassigned@principal.example"])),
             new FixedMailboxes(Mailbox()),
             new ReportSendReadiness(new FixedStore(Record())),
             send);
@@ -364,11 +394,13 @@ public sealed class CaseReportDeliveryPreparationTests
         IReadOnlyList<StaffMailAttachment>? pinned = null,
         IReadOnlyList<StaffMailAttachment>? confirmed = null,
         long frozenCaseVersion = 1,
-        long currentCaseVersion = 1) => new(
+        long currentCaseVersion = 1,
+        CaseReportDeliveryAddressing? addressing = null) => new(
         new CaseReportDeliveryPreparation(
             PreparationId, CaseId, GenerationId, 1, 1,
-            pinned ?? [ReportAttachment], Staff(), PreparedAtUtc),
-        new CaseReportDeliveryAddressing(
+            pinned ?? [ReportAttachment], Staff(), PreparedAtUtc,
+            Suggestions(["handler@principal.example"]).Fingerprint),
+        addressing ?? new CaseReportDeliveryAddressing(
             [new("handler@principal.example", null)], [], "DVR-31001"),
         frozenCaseVersion,
         currentCaseVersion,
@@ -404,56 +436,14 @@ public sealed class CaseReportDeliveryPreparationTests
         "identity", "inbox", "sent", IdentityIsBound: true, ActivatedAtUtc: PreparedAtUtc, version, [],
         Generation: generation);
 
-    private static CaseDataProjection Projection(
-        string? contactEmail,
-        string? contactName = null,
-        string? claimSourceEmail = null,
-        string? claimSourceName = null)
-    {
-        var emptyString = new CaseField<string>(null, null, null);
-        var emptyDate = new CaseField<DateOnly>(null, null, null);
-        return new(
-            new CaseIdentity(CaseId, "QDOS", 2031, 1, "DVR-31001"),
-            new CaseOriginIdentity(
-                Guid.NewGuid(), IntakeSourceChannel.Mailbox, "test", new string('a', 64),
-                PreparedAtUtc, "test", "1", null, null),
-            PreparedAtUtc,
-            1,
-            CaseLifecycleState.ReportPreparation,
-            new CaseCompletenessProjection(
-                new CaseCompleteness(false, false),
-                new CaseCompletenessEvaluation(false, "test", 1)),
-            new CaseProviderData(emptyString),
-            new CaseClaimantData(emptyString, emptyString, emptyString),
-            new CaseClaimData(emptyString),
-            new CaseVehicleData(
-                emptyString, emptyString, emptyString,
-                new CaseField<long>(null, null, null), emptyString),
-            new CaseAccidentData(emptyDate, emptyString),
-            new CaseContactData(
-                Field(contactName), Field(contactEmail), emptyString),
-            new CaseInstructionData(emptyDate, emptyString),
-            new CaseInspectionData(
-                emptyDate, emptyDate, emptyString,
-                new CaseField<CaseInspectionMode>(null, null, null),
-                emptyString, emptyString),
-            Workspace: new CaseWorkspaceData(
-                claimSourceEmail is null && claimSourceName is null
-                    ? null
-                    : new CaseWorkspaceClaimSource(
-                        Guid.NewGuid(), 1, "Instructing insurer", claimSourceName, null,
-                        claimSourceEmail, null),
-                null, null, null, null, null, null, null, null, null, null));
-    }
-
-    private static CaseField<string> Field(string? value) => value is null
-        ? new CaseField<string>(null, null, null)
-        : new CaseField<string>(
-            new CaseDataValue<string>(
-                value, CaseDataValueKind.Confirmed,
-                new CaseDataSource(
-                    CaseDataSourceKind.CaseAcceptance, "test", "Test", "test", 1)),
-            null, null);
+    private static ReportRecipientSuggestions Suggestions(
+        IReadOnlyList<string> additionalAddresses,
+        bool includeOriginalInstructionSender = false,
+        string? originalInstructionSender = null) => new(
+        "DVR-31001",
+        PrincipalReportRecipientSettings.Normalize(
+            includeOriginalInstructionSender, additionalAddresses),
+        originalInstructionSender);
 
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid GenerationId = Guid.NewGuid();
@@ -474,9 +464,9 @@ public sealed class CaseReportDeliveryPreparationTests
             throw new NotSupportedException();
     }
 
-    private sealed class RefusingCaseData : ICaseDataQueries
+    private sealed class RefusingSuggestions : IReportRecipientSuggestionQueries
     {
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 
@@ -498,10 +488,11 @@ public sealed class CaseReportDeliveryPreparationTests
             Task.FromResult(record);
     }
 
-    private sealed class FixedCaseData(CaseDataProjection projection) : ICaseDataQueries
+    private sealed class FixedSuggestions(ReportRecipientSuggestions suggestions)
+        : IReportRecipientSuggestionQueries
     {
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult(caseId == CaseId ? projection : null);
+        public Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<ReportRecipientSuggestions?>(caseId == CaseId ? suggestions : null);
     }
 
     private sealed class FixedMailboxes(params ApprovedMailbox[] mailboxes) : IApprovedMailboxStore

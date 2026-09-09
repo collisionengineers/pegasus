@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
 
@@ -17,7 +18,11 @@ public sealed record UpdateApprovedOutlookCategoryRequest(
     int ExpectedVersion,
     ActionActor Actor,
     string Reason,
-    string OperationKey);
+    string OperationKey)
+{
+    /// <summary>Required when changing an existing category; creation has no scope.</summary>
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public interface IApprovedOutlookCategoryStore
 {

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -163,15 +164,23 @@ public sealed class TriageReferenceAllocationTests
         var services = scope.ServiceProvider;
         var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-ALLOC-IMMUTABLE");
 
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, created.Id, created.Version, actor,
+                $"alloc-immutable-await-edit:{Guid.NewGuid():N}"),
+            CancellationToken.None);
         var awaited = await services.GetRequiredService<IAwaitTriageInformation>().ExecuteAsync(
             new TriageMutationRequest(
                 created.Id,
                 created.Version,
-                ActionActor.Staff(
-                    DevelopmentOfflineIdentity.AdministratorId,
-                    [StaffRole.Administrator]),
+                actor,
                 $"alloc-immutable-await:{Guid.NewGuid():N}",
-                "Further retained information is required"),
+                "Further retained information is required")
+            {
+                EditLeaseToken = lease.Token
+            },
             CancellationToken.None);
 
         Assert.Equal("T-00001", created.Reference);

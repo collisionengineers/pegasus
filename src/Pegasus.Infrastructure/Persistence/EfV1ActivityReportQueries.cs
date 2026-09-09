@@ -113,6 +113,8 @@ internal sealed class EfV1ActivityReportQueries(
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
             .Concat(sent.Select(x => x.OriginIntakeReceiptId))
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
             .Distinct()
             .ToArray();
         var received = receiptIds.Length == 0
@@ -185,26 +187,26 @@ internal sealed class EfV1ActivityReportQueries(
     {
         var confirmed = artifacts.Where(IsConfirmed).ToList();
         var generatedArtifactDurations = confirmed
-            .Where(x => received.ContainsKey(x.OriginIntakeReceiptId))
-            .Select(x => x.GeneratedAtUtc - received[x.OriginIntakeReceiptId])
+            .Where(x => x.OriginIntakeReceiptId is { } receiptId && received.ContainsKey(receiptId))
+            .Select(x => x.GeneratedAtUtc - received[x.OriginIntakeReceiptId!.Value])
             .ToList();
         var generationDurations = confirmed
             .GroupBy(x => x.GenerationId)
             .Select(group => group.First())
-            .Where(x => received.ContainsKey(x.OriginIntakeReceiptId))
-            .Select(x => x.GeneratedAtUtc - received[x.OriginIntakeReceiptId])
+            .Where(x => x.OriginIntakeReceiptId is { } receiptId && received.ContainsKey(receiptId))
+            .Select(x => x.GeneratedAtUtc - received[x.OriginIntakeReceiptId!.Value])
             .ToList();
         var readyTransitions = allReadyTransitions
             .Where(transition => transition.PrincipalId == key.PrincipalId)
             .ToList();
         var readyDurations = readyTransitions
-            .Where(transition => received.ContainsKey(transition.OriginIntakeReceiptId))
+            .Where(transition => transition.OriginIntakeReceiptId is { } receiptId && received.ContainsKey(receiptId))
             .Select(transition => transition.OccurredAtUtc
-                - received[transition.OriginIntakeReceiptId])
+                - received[transition.OriginIntakeReceiptId!.Value])
             .ToList();
         var sentDurations = sent
-            .Where(x => received.ContainsKey(x.OriginIntakeReceiptId))
-            .Select(x => x.ObservedSentAtUtc - received[x.OriginIntakeReceiptId])
+            .Where(x => x.OriginIntakeReceiptId is { } receiptId && received.ContainsKey(receiptId))
+            .Select(x => x.ObservedSentAtUtc - received[x.OriginIntakeReceiptId!.Value])
             .ToList();
         var types = artifacts.GroupBy(x => x.Kind, StringComparer.Ordinal)
             .OrderBy(x => x.Key, StringComparer.Ordinal)
@@ -276,7 +278,7 @@ internal sealed class EfV1ActivityReportQueries(
         Guid PrincipalId,
         string Code,
         Guid CaseId,
-        Guid OriginIntakeReceiptId,
+        Guid? OriginIntakeReceiptId,
         Guid GenerationId,
         DateTimeOffset GeneratedAtUtc,
         string Kind,
@@ -293,7 +295,7 @@ internal sealed class EfV1ActivityReportQueries(
         Guid CaseId,
         Guid PrincipalId,
         string Code,
-        Guid OriginIntakeReceiptId);
+        Guid? OriginIntakeReceiptId);
     private sealed record ReadyAction(
         Guid CaseId,
         Guid GenerationId,
@@ -301,12 +303,12 @@ internal sealed class EfV1ActivityReportQueries(
     private sealed record ReadyTransition(
         Guid PrincipalId,
         string Code,
-        Guid OriginIntakeReceiptId,
+        Guid? OriginIntakeReceiptId,
         DateTimeOffset OccurredAtUtc);
     private sealed record SentRow(
         Guid PrincipalId,
         string Code,
-        Guid OriginIntakeReceiptId,
+        Guid? OriginIntakeReceiptId,
         DateTimeOffset ObservedSentAtUtc,
         string ActorSubjectId);
     private sealed record TriageRow(Guid PrincipalId, DateTimeOffset CreatedAtUtc);

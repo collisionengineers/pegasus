@@ -140,7 +140,7 @@ public sealed class EngineerActivityReportTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             Task.FromResult(staffId == knownId
-                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.Engineer])
+                ? new StaffAccountSummary(staffId, userName, true, false, StaffRole.Engineer)
                 : null);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

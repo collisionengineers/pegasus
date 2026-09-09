@@ -342,9 +342,8 @@ function Get-MigrationPermissionMatrix {
     # 20260827143200_GrantEvaSubmissions: EXT-04 gave a case a second route to
     # EVA. Web writes an attempt when an operator sends by hand, the Worker
     # when a principal's automatic setting submits a case that reached Review,
-    # and both read prior attempts for the once-per-case and replay checks. An
-    # attempt is a fact about a moment and is never edited, so neither role is
-    # granted UPDATE or DELETE.
+    # and both read prior attempts for the once-per-case and replay checks.
+    # Observed attempts are retained without update or deletion permissions.
     foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
         foreach ($permission in @('SELECT', 'INSERT')) {
             $expected.Add("$role|G|$permission|EvaSubmissions")
@@ -401,13 +400,23 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|CaseValuations")
     }
-    # 20260904210022_EngineerNotes: the Web Case workspace appends and reads
-    # Engineer notes. Worker has no caller; UPDATE and DELETE are absent.
-    foreach ($permission in @('SELECT', 'INSERT')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|EngineerNotes")
+    # 20260909140000_EditScopeOwnership: record ownership is transient and
+    # released by Web/account administration.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|EditScopes")
     }
+    # 20260909144000_PrincipalReportGenerationPolicies: Review transitions
+    # persist an automatic EVA intent in either host; only
+    # Worker dispatches and records its outcome.
+    # 20260904210022_EngineerNotes grants are absent because
+    # 20260909145000_GuidanceAndRemoveEngineerNotes retires and drops that table.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|AutomaticEvaReviewSubmissions")
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|AutomaticEvaReviewSubmissions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
-    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries','ClaimSources','OrganizationDirectoryEntries','PublicUploadSessions','PublicUploadOccurrences')
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries','PublicUploadSessions','PublicUploadOccurrences')
     foreach ($table in $v1Tables) {
         $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
         if ($table -ne 'DocumentContentCacheEntries') {
@@ -416,9 +425,19 @@ function Get-MigrationPermissionMatrix {
     }
     $v1Migration = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) '20260906054658_V1PlatformFoundation.cs')
     foreach ($grant in [regex]::Matches($v1Migration, 'GRANT (?<permissions>[A-Z,]+) ON OBJECT::\[dbo\]\.\[(?<table>[A-Za-z0-9]+)\] TO \[(?<role>pegasus_(?:web|worker)_runtime_role)\]')) {
+        if ($grant.Groups['table'].Value -in @('OrganizationDirectoryEntries', 'ClaimSources')) { continue }
         foreach ($permission in $grant.Groups['permissions'].Value.Split(',')) {
             $expected.Add("$($grant.Groups['role'].Value)|G|$permission|$($grant.Groups['table'].Value)")
         }
+    }
+    # 20260909141000_Contacts: the Web directory writer replaces role/link
+    # rows atomically. The Worker has no Contact caller.
+    foreach ($table in @('ContactRoles','ContactPrincipalLinks')) {
+        foreach ($permission in @('SELECT','INSERT','DELETE')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+        $expected.Add("pegasus_web_runtime_role|D|UPDATE|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
     }
     # 20260907210000_ReportInputInvalidationPermissions: report freeze/confirmation
     # and custody-driven invalidation callers.

@@ -1,4 +1,5 @@
 using System.Net;
+using Pegasus.Core.Workflow;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
@@ -38,21 +39,23 @@ public sealed partial class StaffSignInSecurityTests
             await context.Database.MigrateAsync();
             var userManager = scope.ServiceProvider
                 .GetRequiredService<UserManager<PegasusIdentityUser>>();
+            var user = new PegasusIdentityUser
+            {
+                Id = subjectId,
+                UserName = UserName,
+                IsEnabled = true,
+                MustChangePassword = false,
+                LockoutEnabled = false,
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            };
             var result = await userManager.CreateAsync(
-                new PegasusIdentityUser
-                {
-                    Id = subjectId,
-                    UserName = UserName,
-                    IsEnabled = true,
-                    MustChangePassword = false,
-                    LockoutEnabled = false,
-                    SecurityStamp = Guid.NewGuid().ToString("N"),
-                    ConcurrencyStamp = Guid.NewGuid().ToString("N")
-                },
+                user,
                 Password);
             Assert.True(
                 result.Succeeded,
                 string.Join(", ", result.Errors.Select(error => error.Description)));
+            Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.User)).Succeeded);
         }
 
         using var client = factory.CreateClient(
@@ -112,12 +115,22 @@ public sealed partial class StaffSignInSecurityTests
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
+            var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+            var user = await scope.ServiceProvider.GetRequiredService<PegasusDbContext>().Users
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == subjectId);
+            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.StaffAccount, subjectId, user.Version, administrator,
+                    "force-logout-next-request"),
+                default);
             await scope.ServiceProvider.GetRequiredService<IForceStaffLogout>().ExecuteAsync(
                 new(
-                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    administrator,
                     subjectId,
                     "Security recovery",
-                    "force-logout-next-request"),
+                    "force-logout-next-request",
+                    user.Version,
+                    lease.Token),
                 default);
         }
 

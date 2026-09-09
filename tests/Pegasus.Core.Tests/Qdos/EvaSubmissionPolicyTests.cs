@@ -1,6 +1,8 @@
 using System.Net;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Qdos;
@@ -100,14 +102,41 @@ public sealed class EvaSubmissionPolicyTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ManualSettingControlsSubmission(bool enabled)
+    [InlineData(PrincipalReportGenerationPolicy.Pegasus, false, false)]
+    [InlineData(PrincipalReportGenerationPolicy.EvaZip, false, true)]
+    [InlineData(PrincipalReportGenerationPolicy.EvaManualApi, true, true)]
+    [InlineData(PrincipalReportGenerationPolicy.EvaAutomaticApiOnReview, false, true)]
+    public void ReportGenerationPolicyControlsManualSubmission(
+        PrincipalReportGenerationPolicy policy,
+        bool allowsManualApi,
+        bool isEva)
     {
-        var modes = new EvaSubmissionModes(enabled);
+        var modes = new EvaSubmissionModes(policy);
 
-        Assert.Equal(enabled, EvaSubmissionPolicy.Allows(modes));
-        Assert.Equal(enabled, modes.IsEnabled);
+        Assert.Equal(allowsManualApi, EvaSubmissionPolicy.Allows(modes));
+        Assert.Equal(isEva, modes.IsEnabled);
+    }
+
+    [Fact]
+    public void AutomaticReviewSubmissionRequiresTheAutomaticPolicyAndWorkerActor()
+    {
+        var automatic = new EvaSubmissionModes(
+            PrincipalReportGenerationPolicy.EvaAutomaticApiOnReview);
+
+        EvaSubmissionPolicy.RequireAuthorizedInitiator(
+            automatic,
+            ActionActor.SystemWorker("automatic-eva-test"),
+            EvaSubmissionInitiator.AutomaticReview);
+        Assert.Throws<InvalidOperationException>(() =>
+            EvaSubmissionPolicy.RequireAuthorizedInitiator(
+                automatic,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                EvaSubmissionInitiator.AutomaticReview));
+        Assert.Throws<InvalidOperationException>(() =>
+            EvaSubmissionPolicy.RequireAuthorizedInitiator(
+                new EvaSubmissionModes(PrincipalReportGenerationPolicy.EvaManualApi),
+                ActionActor.SystemWorker("automatic-eva-test"),
+                EvaSubmissionInitiator.AutomaticReview));
     }
 
     [Fact]

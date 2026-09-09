@@ -158,6 +158,14 @@ public sealed class ImageCaseCustodyIntegrationTests
                 DateTimeOffset.UtcNow, CancellationToken.None);
         }
         var detail = await store.GetAsync(record.Id, CancellationToken.None);
+        var imageIntakeLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.ImageIntake,
+                record.Id,
+                detail!.LifecycleVersion,
+                StaffActor(),
+                $"image-intake-merge-lease:{record.Origin.ReceiptId:N}"),
+            CancellationToken.None);
         await store.MergeAsync(
             new(
                 record.Id,
@@ -166,7 +174,10 @@ public sealed class ImageCaseCustodyIntegrationTests
                 $"image-intake-merge:{record.Origin.ReceiptId:N}",
                 "The Image-initiated case was merged into the linked formal Case.",
                 detail!.LifecycleVersion,
-                ExpectedStaffOriginAssociationVersion: 0),
+                ExpectedStaffOriginAssociationVersion: 0)
+            {
+                EditLeaseToken = imageIntakeLease.Token
+            },
             CancellationToken.None);
 
         Guid mergeWorkId;

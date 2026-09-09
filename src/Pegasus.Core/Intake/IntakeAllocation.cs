@@ -211,6 +211,7 @@ public sealed class AllocateIntake(
     IAddCaseNote? caseNotes = null) : IAllocateIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
+    private const string StaffCreationReason = "Case created from reviewed received item.";
 
     /// <summary>
     /// What the automatic route actually knows when it allocates. The
@@ -370,7 +371,7 @@ public sealed class AllocateIntake(
             command,
             request.Actor,
             request.OperationKey,
-            request.Reason,
+            StaffCreationReason,
             expectedCurrentAttemptId: null,
             cancellationToken);
     }
@@ -507,7 +508,6 @@ public sealed class AllocateIntake(
                     command.ExpectedReceiptVersion,
                     actor,
                     normalizedOperationKey,
-                    normalizedReason,
                     command.CaseType.Value,
                     command.PrincipalCode,
                     command.Completeness,

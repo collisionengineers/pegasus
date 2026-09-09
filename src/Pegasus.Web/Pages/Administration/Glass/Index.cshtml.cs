@@ -3,13 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Glass;
 
 /// <summary>
-/// One Engineer's Glass repair-estimate credential. The page states whether a
+/// One staff account's Glass repair-estimate credential. The page states whether a
 /// credential is held and under whose external account name; the secret itself
 /// is write-only, so no handler, TempData entry or rendered field ever carries
 /// a password back to the browser.
@@ -21,22 +22,20 @@ namespace Pegasus.Web.Pages.Administration.Glass;
 /// submitted password is dropped from <see cref="Microsoft.AspNetCore.Mvc.RazorPages.PageModel.ModelState"/>
 /// as soon as it has been read for the same reason.
 ///
-/// The post carries only what
-/// <see cref="IPerUserExternalCredentialAdministration"/> takes — the expected
-/// version, the account name and the secret — plus the antiforgery token the
-/// form tag helper writes. A reason or an operation key would be an inert
-/// required control: the contract carries neither, and the store already
-/// records the actor, the moment and the credential generation itself.
+/// An existing staff-account scope owns credential changes. The credential
+/// keeps its own version as well, so both the account and credential cannot
+/// change beneath an edit.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IGetStaffAccount getStaffAccount,
-    IPerUserExternalCredentialAdministration credentials) : AdministrationPageModel
+    IPerUserExternalCredentialAdministration credentials,
+    IEditScopeLeases editScopes) : AdministrationPageModel
 {
     private const ExternalCredentialProvider Provider =
         ExternalCredentialProvider.GlassRepairEstimate;
 
-    /// <summary>The Engineer whose credential this page administers.</summary>
+    /// <summary>The staff account whose credential this page administers.</summary>
     public StaffAccountSummary? Account { get; private set; }
 
     /// <summary>What the store holds for that Engineer. Never the secret.</summary>
@@ -50,6 +49,14 @@ public sealed class IndexModel(
 
     [BindProperty]
     public long ExpectedVersion { get; set; }
+
+    [BindProperty]
+    public long ExpectedStaffAccountVersion { get; set; }
+
+    [BindProperty]
+    public string EditLeaseToken { get; set; } = string.Empty;
+
+    public bool IsEditing => !string.IsNullOrWhiteSpace(EditLeaseToken);
 
     /// <summary>The chip's word for the stored credential's state.</summary>
     public string StateName => Status is not { Configured: true }
@@ -85,6 +92,8 @@ public sealed class IndexModel(
                     staffId,
                     Provider,
                     ExpectedVersion,
+                    ExpectedStaffAccountVersion,
+                    EditLeaseToken,
                     Username,
                     password!,
                     enabled: true,
@@ -101,18 +110,106 @@ public sealed class IndexModel(
             staffId,
             async (actor, token) =>
             {
-                await credentials.ClearAsync(actor, staffId, Provider, ExpectedVersion, token);
+                await credentials.ClearAsync(
+                    actor,
+                    staffId,
+                    Provider,
+                    ExpectedVersion,
+                    ExpectedStaffAccountVersion,
+                    EditLeaseToken,
+                    token);
                 return CaseWorkspaceLabels.GlassCredential.Cleared;
             },
             cancellationToken);
 
+    public async Task<IActionResult> OnPostEditAsync(
+        Guid staffId,
+        long expectedStaffAccountVersion,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (staffId == Guid.Empty || !IsOperationKeyValid(operationKey)) return BadRequest();
+
+        var result = await getStaffAccount.ExecuteAsync(new(actor, staffId), cancellationToken);
+        if (result is null) return NotFound();
+        if (result.Account.Version != expectedStaffAccountVersion)
+        {
+            ModelState.AddModelError(string.Empty, "The staff account changed. Reload it before editing this credential.");
+            return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
+        }
+
+        try
+        {
+            var lease = await editScopes.ClaimAsync(
+                new(EditScopeKind.StaffAccount, staffId, result.Account.Version, actor, operationKey!),
+                cancellationToken);
+            EditLeaseToken = lease.Token;
+            ExpectedStaffAccountVersion = result.Account.Version;
+        }
+        catch (EditScopeConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "Another user is editing this staff account.");
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "The staff account changed. Reload it before editing this credential.");
+        }
+
+        return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
+    }
+
+    public async Task<IActionResult> OnPostCancelEditAsync(
+        Guid staffId,
+        string? editLeaseToken,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken)
+            || !IsOperationKeyValid(operationKey)) return RedirectToPage(new { staffId });
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.StaffAccount, staffId, actor, operationKey!, editLeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+        }
+
+        return RedirectToPage(new { staffId });
+    }
+
+    public async Task<IActionResult> OnPostHeartbeatEditAsync(
+        Guid staffId,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
+        }
+
+        try
+        {
+            await editScopes.HeartbeatAsync(
+                new(EditScopeKind.StaffAccount, staffId, actor, editLeaseToken), cancellationToken);
+            return new OkResult();
+        }
+        catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
+        }
+    }
+
     /// <summary>
     /// The one place an operation is authorised, run, turned into an operator
-    /// message and followed by a reload. Only the store's two named refusals
-    /// are turned into a message: a stale expected version, which the store
-    /// raises as EF Core's concurrency exception, and material it will not
-    /// accept. Anything else propagates, because a page that swallowed it
-    /// would report a failure as a refusal the operator could retry.
+    /// message and followed by a reload. Expected version and edit-scope
+    /// refusals are actionable; other failures propagate instead of being
+    /// reported as something the operator could simply retry.
     /// </summary>
     private async Task<IActionResult> RunAsync(
         Guid staffId,
@@ -148,6 +245,18 @@ public sealed class IndexModel(
             ModelState.AddModelError(
                 string.Empty,
                 CaseWorkspaceLabels.GlassCredential.StaleVersion);
+        }
+        catch (EditScopeConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "Another user is editing this staff account.");
+        }
+        catch (EditScopeExpiredException)
+        {
+            ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the credential before making further changes.");
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            ModelState.AddModelError(string.Empty, "The staff account changed. Reload the credential before making further changes.");
         }
 
         return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
@@ -190,6 +299,7 @@ public sealed class IndexModel(
 
         Status = await credentials.GetAsync(actor, staffId, Provider, cancellationToken);
         ExpectedVersion = Status.Version;
+        ExpectedStaffAccountVersion = Account.Version;
         if (Username.Length == 0)
         {
             Username = Status.Username ?? string.Empty;

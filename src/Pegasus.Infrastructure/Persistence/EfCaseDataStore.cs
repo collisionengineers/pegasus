@@ -41,7 +41,12 @@ public sealed class EfCaseDataStore(
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case data snapshot has no workflow record.");
-        return Map(snapshot, workflow);
+        var data = Map(snapshot, workflow);
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
+        return data with { Completeness = data.Completeness with
+        {
+            Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
+        } };
     }
 
     public async Task<CaseDataProjection> ConfirmCompletenessAsync(
@@ -63,7 +68,7 @@ public sealed class EfCaseDataStore(
             "confirm_completeness",
             request,
             request.Completeness,
-            evaluation);
+            policy: null);
         var replay = await CaseOperationReplay.FindAsync(
             context,
             request.CaseId,
@@ -98,6 +103,8 @@ public sealed class EfCaseDataStore(
         var before = new CaseCompleteness(
             snapshot.Case.InstructionComplete,
             snapshot.Case.ImagesComplete);
+        evaluation = CaseCompletenessPolicy.Evaluate(request.Completeness,
+            await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
         var beforeJson = JsonSerializer.Serialize(before, JsonOptions);
         snapshot.Case.InstructionComplete = request.Completeness.InstructionComplete;
         snapshot.Case.ImagesComplete = request.Completeness.ImagesComplete;
@@ -108,13 +115,19 @@ public sealed class EfCaseDataStore(
         var now = UtcNow();
         if (evaluation.SatisfiesPolicy)
         {
+            var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
             workflow.State = nameof(CaseLifecycleState.Review);
             CaseChaseState.Stop(workflow);
+            if (enteringReview)
+            {
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    context, workflow, checked(workflow.Version + 1), now);
+            }
         }
         else
         {
             workflow.State = nameof(CaseLifecycleState.NotReady);
-            CaseDueWorkScheduler.Schedule(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now);
+            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now, cancellationToken);
         }
 
         var beforeVersion = workflow.Version;
@@ -148,7 +161,7 @@ public sealed class EfCaseDataStore(
                 request.ExpectedVersion + 1);
         }
 
-        return Map(snapshot, workflow);
+        return ApplyConfiguration(Map(snapshot, workflow), await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
     }
 
     public async Task<CaseDataProjection> SaveAsync(
@@ -220,7 +233,7 @@ public sealed class EfCaseDataStore(
         snapshot.Case.InstructionComplete = false;
         snapshot.CompletenessPolicySatisfied = false;
         workflow.State = nameof(CaseLifecycleState.NotReady);
-        CaseDueWorkScheduler.Schedule(context, workflow, data.InspectionDeadline, now);
+        await CaseDueWorkScheduler.ScheduleAsync(context, workflow, data.InspectionDeadline, now, cancellationToken);
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
@@ -260,7 +273,7 @@ public sealed class EfCaseDataStore(
                 request.ExpectedVersion + 1);
         }
 
-        return Map(snapshot, workflow);
+        return ApplyConfiguration(Map(snapshot, workflow), await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
     }
 
     private static async Task<(CaseDataSnapshotEntity Snapshot, CaseWorkflowEntity Workflow)>
@@ -273,6 +286,7 @@ public sealed class EfCaseDataStore(
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
         var workflow = await context.CaseWorkflows
+            .Include(item => item.Case).ThenInclude(item => item.Principal)
             .Include(item => item.DueWork)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
             ?? throw new InvalidDataException(
@@ -294,8 +308,14 @@ public sealed class EfCaseDataStore(
             : context.CaseWorkflows.AsNoTracking();
         var workflow = await workflowQuery
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
-        return Map(snapshot, workflow);
+        return ApplyConfiguration(Map(snapshot, workflow), await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
     }
+
+    internal static CaseDataProjection ApplyConfiguration(CaseDataProjection data, CaseWorkflowConfiguration configuration) =>
+        data with { Completeness = data.Completeness with
+        {
+            Evaluation = CaseCompletenessPolicy.Evaluate(data.Completeness.Values, configuration)
+        } };
 
     internal static IQueryable<CaseDataSnapshotEntity> SnapshotQuery(
         PegasusDbContext context,
@@ -334,7 +354,9 @@ public sealed class EfCaseDataStore(
             snapshot.Case.AuditReference),
         new(
             snapshot.OriginIntakeReceiptId,
-            EfIntakeReceiptStore.ParseSourceChannel(snapshot.OriginSourceChannel),
+            snapshot.OriginSourceChannel is null
+                ? null
+                : EfIntakeReceiptStore.ParseSourceChannel(snapshot.OriginSourceChannel),
             snapshot.OriginExternalReceiptToken,
             snapshot.OriginSourceHash,
             snapshot.OriginReceivedAtUtc,
@@ -402,8 +424,7 @@ public sealed class EfCaseDataStore(
                 data.ClaimSourceName,
                 data.ClaimSourceContactName,
                 data.ClaimSourceContactTelephone,
-                data.ClaimSourceContactEmailAddress,
-                data.ClaimSourceCaseNote),
+                data.ClaimSourceContactEmailAddress),
             new(
                 data.StorageBusinessId,
                 data.StorageBusinessVersion,
@@ -616,7 +637,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.ClaimSourceContactName, data.ClaimSourceContactName);
         Text(CaseDataFieldNames.ClaimSourceContactTelephone, data.ClaimSourceContactTelephone);
         Text(CaseDataFieldNames.ClaimSourceContactEmailAddress, data.ClaimSourceContactEmailAddress);
-        Text(CaseDataFieldNames.ClaimSourceCaseNote, data.ClaimSourceCaseNote);
         Text(CaseDataFieldNames.StorageBusinessId, Identifier(data.StorageBusinessId));
         Whole(CaseDataFieldNames.StorageBusinessVersion, data.StorageBusinessVersion);
         Text(CaseDataFieldNames.StorageBusinessName, data.StorageBusinessName);
@@ -669,7 +689,6 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactName),
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactTelephone),
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactEmailAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceCaseNote),
         ConfirmedGuid(snapshot, CaseDataFieldNames.StorageBusinessId),
         ConfirmedLong(snapshot, CaseDataFieldNames.StorageBusinessVersion),
         ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessName),
@@ -853,11 +872,11 @@ internal static class CaseDueWorkScheduler
 {
     private const string MissingMaterialReason = "Case completeness is not confirmed";
 
-    public static void Schedule(
+    public static async Task ScheduleAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
         DateOnly? dueBy,
-        DateTimeOffset now)
+        DateTimeOffset now, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(workflow);
@@ -870,7 +889,7 @@ internal static class CaseDueWorkScheduler
                 MissingMaterialReason = MissingMaterialReason,
                 DueBy = dueBy,
                 State = nameof(CaseDueWorkState.Scheduled),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now),
+                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                 Version = 0
             };
             workflow.DueWork = due;
@@ -880,8 +899,14 @@ internal static class CaseDueWorkScheduler
 
         due.MissingMaterialReason = MissingMaterialReason;
         due.DueBy = dueBy;
+        if (due.State == nameof(CaseDueWorkState.Held)
+            || (due.State == nameof(CaseDueWorkState.Scheduled) && due.NextChaseAtUtc is not null))
+        {
+            due.Version++;
+            return;
+        }
         due.State = nameof(CaseDueWorkState.Scheduled);
-        due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now);
+        due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
         due.HeldAtUtc = null;
         due.RemainingChaseIntervalTicks = null;
         due.Version++;

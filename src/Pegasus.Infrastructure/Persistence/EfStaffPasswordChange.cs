@@ -55,6 +55,7 @@ public sealed class EfStaffPasswordChange(
         }
 
         user.MustChangePassword = false;
+        user.Version++;
         var update = await userManager.UpdateAsync(user);
         if (!update.Succeeded)
         {

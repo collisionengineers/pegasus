@@ -131,7 +131,16 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260907210000_ReportInputInvalidationPermissions",
                 "20260907221500_RemoveCaseStaffConfirmation",
                 "20260909091500_RemoveCaseDocumentOcrOperations",
-                "20260909120000_ApprovedMailboxDefaultStaffSend"
+                "20260909120000_ApprovedMailboxDefaultStaffSend",
+                "20260909140000_EditScopeOwnership",
+                "20260909141000_Contacts",
+                "20260909142000_StaffAccountSingleRoleAndVersion",
+                "20260909143000_EditableWorkflowConfiguration",
+                "20260909144000_PrincipalReportGenerationPolicies",
+                "20260909145000_GuidanceAndRemoveEngineerNotes",
+                "20260909146000_ManualCaseCreation",
+                "20260909147000_RemoveClaimSourceCaseNote",
+                "20260909148000_CanonicalContactLocations"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -259,6 +268,59 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseDueWork'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
+        Assert.Equal(4, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.tables
+            WHERE name IN (
+                N'EditScopes',
+                N'ContactRoles',
+                N'ContactPrincipalLinks',
+                N'AutomaticEvaReviewSubmissions')
+            """));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.tables
+            WHERE name IN (
+                N'ClaimSources',
+                N'EngineerNotes',
+                N'OrganizationDirectoryEntries')
+            """));
+        Assert.Equal(8, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'Organizations')
+              AND name IN (
+                  N'ContactPerson', N'Email', N'Telephone', N'Address',
+                  N'Active', N'GuidanceTemplate', N'GuidanceTemplateVersion', N'Postcode')
+            """));
+        Assert.Equal(3, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'WorkflowConfigurations')
+              AND name IN (N'RequireInstructions', N'RequireImages', N'ChaseIntervalDays')
+            """));
+        Assert.Equal(3, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'Principals')
+              AND name IN (
+                  N'ReportGenerationPolicy', N'IncludeOriginalInstructionSender',
+                  N'ReportRecipientAddressesJson')
+            """));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Principals') AND name = N'EvaManualSubmission'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'Cases') AND name = N'OriginIntakeReceiptId' AND is_nullable = 1"));
+        Assert.Equal(7, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM sys.columns
+            WHERE object_id = OBJECT_ID(N'CaseDataSnapshots')
+              AND is_nullable = 1
+              AND name IN (
+                  N'OriginIntakeReceiptId', N'OriginSourceChannel',
+                  N'OriginExternalReceiptToken', N'OriginSourceHash',
+                  N'OriginReceivedAtUtc', N'SourceReaderKey', N'SourceReaderVersion')
+            """));
     }
 
     [Fact]

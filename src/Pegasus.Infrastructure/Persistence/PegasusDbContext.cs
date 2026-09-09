@@ -73,7 +73,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseRepairSpecificationEntity> CaseRepairSpecifications =>
         Set<CaseRepairSpecificationEntity>();
     internal DbSet<CaseValuationEntity> CaseValuations => Set<CaseValuationEntity>();
-    internal DbSet<EngineerNoteEntity> EngineerNotes => Set<EngineerNoteEntity>();
     internal DbSet<AiWorkRequestEntity> AiWorkRequests => Set<AiWorkRequestEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
     internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
@@ -176,21 +175,31 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         MailboxModelConfiguration.Configure(builder);
         AuditIdentityModelConfiguration.Configure(builder);
         AdministrationPolicyModelConfiguration.Configure(builder);
+        EditScopeModelConfiguration.Configure(builder);
+        ContactDirectoryModelConfiguration.Configure(builder);
         CaseDataModelConfiguration.Configure(builder);
         CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
         EvaHandoffModelConfiguration.Configure(builder);
         EvaSubmissionModelConfiguration.Configure(builder);
+        AutomaticEvaReviewSubmissionModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
-        EngineerNotesModelConfiguration.Configure(builder);
         PrincipalCredentialModelConfiguration.Configure(builder);
         ProviderSubmissionModelConfiguration.Configure(builder);
         IntakeAllocationModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
         {
+            entity.ToTable("AspNetUsers", table =>
+            {
+                table.HasCheckConstraint("CK_AspNetUsers_Version", "[Version] >= 0");
+                table.HasCheckConstraint(
+                    "CK_AspNetUsers_DefaultSignOffEligibility",
+                    "[IsDefaultSignOffEngineer] = 0 OR [IsSignOffEngineer] = 1");
+            });
             entity.Property(item => item.IsEnabled).HasDefaultValue(true);
             entity.Property(item => item.MustChangePassword).HasDefaultValue(true);
+            entity.Property(item => item.Version).HasDefaultValue(0).IsConcurrencyToken();
             entity.Property(item => item.IsSignOffEngineer).HasDefaultValue(false);
             entity.Property(item => item.SignOffPrintedName)
                 .HasMaxLength(StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength);
@@ -202,6 +211,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .IsUnique()
                 .HasFilter("[IsDefaultSignOffEngineer] = 1");
         });
+        builder.Entity<IdentityUserRole<Guid>>()
+            .HasIndex(item => item.UserId)
+            .IsUnique();
 
         builder.Entity<IntakeReceiptEntity>(entity =>
         {
@@ -441,6 +453,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             {
                 table.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
                 table.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
+                table.HasCheckConstraint("CK_Principals_ReportGenerationPolicy",
+                    "[ReportGenerationPolicy] IN ('Pegasus', 'EvaZip', 'EvaManualApi', 'EvaAutomaticApiOnReview')");
                 table.HasCheckConstraint(
                     "CK_Principals_InspectionMode",
                     "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
@@ -456,10 +470,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DefaultInspectionPostcode).HasMaxLength(20);
             entity.Property(item => item.DefaultInspectionSourceKind).HasMaxLength(40);
             entity.Property(item => item.DefaultInspectionSourceRecordId).HasMaxLength(200);
-            // Manual EVA submission is opt-in for each principal.
-            entity.Property(item => item.EvaManualSubmission)
-                .IsRequired()
-                .HasDefaultValue(false);
+            entity.Property(item => item.ReportGenerationPolicy).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ReportRecipientAddressesJson).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -1054,6 +1066,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
 public sealed class PegasusIdentityUser : IdentityUser<Guid>
 {
+    public long Version { get; set; }
+
     public bool IsEnabled { get; set; } = true;
 
     public bool MustChangePassword { get; set; } = true;
@@ -1076,8 +1090,18 @@ internal sealed class OrganizationEntity
     public Guid Id { get; set; }
     public required string Name { get; set; }
     public string NormalizedName { get; private set; } = string.Empty;
+    public string? ContactPerson { get; set; }
+    public string? Email { get; set; }
+    public string? Telephone { get; set; }
+    public string? Address { get; set; }
+    public string? Postcode { get; set; }
+    public string? GuidanceTemplate { get; set; }
+    public long GuidanceTemplateVersion { get; set; }
+    public bool Active { get; set; } = true;
     public long Version { get; set; }
     public List<OrganizationRoleEntity> Roles { get; set; } = [];
+    public List<ContactRoleEntity> ContactRoles { get; set; } = [];
+    public List<ContactPrincipalLinkEntity> PrincipalLinks { get; set; } = [];
     public List<PrincipalEntity> Principals { get; set; } = [];
 }
 internal sealed class OrganizationAdministrationOperationEntity
@@ -1125,8 +1149,11 @@ internal sealed class PrincipalEntity
     public string? DefaultInspectionSourceKind { get; set; }
     public string? DefaultInspectionSourceRecordId { get; set; }
     public long? DefaultInspectionSourceVersion { get; set; }
-    public bool EvaManualSubmission { get; set; }
+    public string ReportGenerationPolicy { get; set; } = "Pegasus";
+    public bool IncludeOriginalInstructionSender { get; set; }
+    public string ReportRecipientAddressesJson { get; set; } = "[]";
     public long Version { get; set; }
+    public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];
 }
 
@@ -1156,7 +1183,7 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public required string Type { get; set; }
     public required string InitialState { get; set; }
     public required string CustodyState { get; set; }
-    public Guid OriginIntakeReceiptId { get; set; }
+    public Guid? OriginIntakeReceiptId { get; set; }
     public string? StandaloneAuditAssessment { get; set; }
     public Guid? StandaloneAuditEvidenceId { get; set; }
     public DateOnly? AcceptedInspectionDeadline { get; set; }
@@ -1195,6 +1222,7 @@ internal sealed class CaseIntakeLinkEntity
     public string? AcceptanceCommandMaterialJson { get; set; }
     public string? AcceptanceCommandFingerprint { get; set; }
 }
+
 internal sealed class IntakeManualAssociationEntity
 {
     public Guid IntakeReceiptId { get; set; }

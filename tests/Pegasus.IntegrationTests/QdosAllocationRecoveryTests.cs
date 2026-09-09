@@ -142,9 +142,11 @@ public sealed class QdosAllocationRecoveryTests
             {
                 var snapshot = await context.CaseDataSnapshots.Include(item => item.Fields)
                     .SingleAsync(item => item.CaseId == caseId);
+                var originSourceHash = snapshot.OriginSourceHash
+                    ?? throw new InvalidOperationException("The receipt-backed Case has no source hash.");
                 Assert.Equal(receipt.Id, snapshot.OriginIntakeReceiptId);
-                Assert.Equal(Convert.FromHexString(original.Hash), Convert.FromHexString(snapshot.OriginSourceHash));
-                Assert.Equal(receipt.SourceHash, snapshot.OriginSourceHash);
+                Assert.Equal(Convert.FromHexString(original.Hash), Convert.FromHexString(originSourceHash));
+                Assert.Equal(receipt.SourceHash, originSourceHash);
                 Assert.Equal(receipt.ExtractionPolicyKey, snapshot.ExtractionPolicyKey);
                 Assert.Equal(receipt.ExtractionPolicyVersion, snapshot.ExtractionPolicyVersion);
                 AssertExtractedFact(CaseDataFieldNames.ClaimantName, expectedIdentity.ClaimantName);

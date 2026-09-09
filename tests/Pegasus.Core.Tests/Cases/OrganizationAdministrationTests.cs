@@ -1,6 +1,7 @@
 ﻿using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Tests.Cases;
 
@@ -27,7 +28,9 @@ public sealed class OrganizationAdministrationTests
                 " qdos3 ",
                 Administrator,
                 " replace-principal ",
-                " successor required "),
+                " successor required ",
+                4,
+                "edit-token"),
             default);
 
         Assert.Equal("QDOS2", Assert.Single(store.PrincipalCreates).Code);
@@ -35,6 +38,8 @@ public sealed class OrganizationAdministrationTests
         var replacement = Assert.Single(store.PrincipalReplacements);
         Assert.Equal("QDOS3", replacement.SuccessorCode);
         Assert.Equal("successor required", replacement.Reason);
+        Assert.Equal(4, replacement.ExpectedContactVersion);
+        Assert.Equal("edit-token", replacement.EditLeaseToken);
     }
 
     [Fact]
@@ -100,7 +105,9 @@ public sealed class OrganizationAdministrationTests
             "NEXT",
             Administrator,
             "replace",
-            "reason");
+            "reason",
+            0,
+            "edit-token");
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => command.ExecuteAsync(request, default));
@@ -130,7 +137,9 @@ public sealed class OrganizationAdministrationTests
             Postcode: "Should be cleared",
             SourceKind: "directory",
             SourceRecordId: Guid.NewGuid(),
-            SourceVersion: 5);
+            SourceVersion: 5,
+            ExpectedContactVersion: 3,
+            EditLeaseToken: "edit-token");
 
         var normalized = OrganizationAdministrationPolicy.Normalize(request);
 
@@ -159,7 +168,9 @@ public sealed class OrganizationAdministrationTests
             Postcode: "  TE1 1ST  ",
             SourceKind: "manual",
             SourceRecordId: null,
-            SourceVersion: null);
+            SourceVersion: null,
+            ExpectedContactVersion: 0,
+            EditLeaseToken: "edit-token");
 
         var normalized = OrganizationAdministrationPolicy.Normalize(request);
 
@@ -182,7 +193,9 @@ public sealed class OrganizationAdministrationTests
             Postcode: null,
             SourceKind: null,
             SourceRecordId: null,
-            SourceVersion: null);
+            SourceVersion: null,
+            ExpectedContactVersion: 0,
+            EditLeaseToken: "edit-token");
 
         Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
     }
@@ -197,7 +210,8 @@ public sealed class OrganizationAdministrationTests
             "op-key",
             "   ",
             InspectionAddressEvidenceKind.ImageBasedAssessment,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null,
+            0, "edit-token");
 
         Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
     }
@@ -212,7 +226,8 @@ public sealed class OrganizationAdministrationTests
             "op-key",
             "reason",
             (InspectionAddressEvidenceKind)99,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null,
+            0, "edit-token");
 
         Assert.Throws<ArgumentOutOfRangeException>(() => OrganizationAdministrationPolicy.Normalize(request));
     }
@@ -233,7 +248,8 @@ public sealed class OrganizationAdministrationTests
                     "op-key",
                     "reason",
                     InspectionAddressEvidenceKind.ImageBasedAssessment,
-                    null, null, null, null, null, null),
+                    null, null, null, null, null, null,
+                    0, "edit-token"),
                 default));
 
         Assert.Empty(store.DefaultInspectionLocationUpdates);
@@ -259,7 +275,9 @@ public sealed class OrganizationAdministrationTests
                 "  TE1 1ST  ",
                 "manual",
                 null,
-                null),
+                null,
+                2,
+                "edit-token"),
             default);
 
         var request = Assert.Single(store.DefaultInspectionLocationUpdates);
@@ -306,20 +324,21 @@ public sealed class OrganizationAdministrationTests
     }
 
     /// <summary>
-    /// EXT-04. The manual setting changes in place and nothing else does — the
+    /// EXT-04. The report policy changes in place and nothing else does — the
     /// code, the organization and the lineage are what a replacement is for.
     /// </summary>
     [Fact]
-    public void EvaSubmissionSettingsChangeInPlaceAndMoveTheVersion()
+    public void ReportSettingsChangeInPlaceAndMoveTheVersion()
     {
         var current = Principal(version: 3);
 
-        var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            evaManualSubmission: true);
+            reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
+            reportRecipients: PrincipalReportRecipientSettings.None);
 
-        Assert.True(updated.EvaManualSubmission);
+        Assert.Equal(PrincipalReportGenerationPolicy.EvaManualApi, updated.ReportGenerationPolicy);
         Assert.Equal(4, updated.Version);
         Assert.Equal(current.Id, updated.Id);
         Assert.Equal(current.Code, updated.Code);
@@ -332,26 +351,28 @@ public sealed class OrganizationAdministrationTests
     /// version and cannot invalidate another administrator's open form.
     /// </summary>
     [Fact]
-    public void SavingUnchangedEvaSubmissionSettingsLeavesTheVersionAlone()
+    public void SavingUnchangedReportSettingsLeavesTheVersionAlone()
     {
-        var current = Principal(version: 3) with { EvaManualSubmission = true };
+        var current = Principal(version: 3) with { ReportGenerationPolicy = PrincipalReportGenerationPolicy.EvaManualApi, ReportRecipients = PrincipalReportRecipientSettings.None };
 
-        var updated = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            evaManualSubmission: true);
+            reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
+            reportRecipients: PrincipalReportRecipientSettings.None);
 
         Assert.Equal(3, updated.Version);
     }
 
     [Fact]
-    public void EvaSubmissionSettingsRefuseAStaleVersion()
+    public void ReportSettingsRefuseAStaleVersion()
     {
         var error = Assert.Throws<OrganizationAdministrationException>(() =>
-            OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 4),
                 expectedVersion: 3,
-                evaManualSubmission: true));
+                reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
+                reportRecipients: PrincipalReportRecipientSettings.None));
 
         Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
     }
@@ -361,13 +382,14 @@ public sealed class OrganizationAdministrationTests
     /// Its successor is the one that decides what happens next.
     /// </summary>
     [Fact]
-    public void ADisabledPrincipalsEvaSubmissionSettingsCannotBeChanged()
+    public void ADisabledPrincipalsReportSettingsCannotBeChanged()
     {
         var error = Assert.Throws<OrganizationAdministrationException>(() =>
-            OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
-                evaManualSubmission: true));
+                reportGenerationPolicy: PrincipalReportGenerationPolicy.EvaManualApi,
+                reportRecipients: PrincipalReportRecipientSettings.None));
 
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
@@ -386,13 +408,13 @@ public sealed class OrganizationAdministrationTests
     {
         public List<CreatePrincipalRequest> PrincipalCreates { get; } = [];
         public List<ReplacePrincipalRequest> PrincipalReplacements { get; } = [];
-        public List<UpdatePrincipalEvaSubmissionRequest> EvaSubmissionUpdates { get; } = [];
+        public List<UpdatePrincipalReportSettingsRequest> ReportSettingsUpdates { get; } = [];
 
-        public Task<Principal> UpdatePrincipalEvaSubmissionAsync(
-            UpdatePrincipalEvaSubmissionRequest request,
+        public Task<Principal> UpdatePrincipalReportSettingsAsync(
+            UpdatePrincipalReportSettingsRequest request,
             CancellationToken cancellationToken)
         {
-            EvaSubmissionUpdates.Add(request);
+            ReportSettingsUpdates.Add(request);
             return Task.FromResult(new Principal(
                 request.PrincipalId,
                 Guid.NewGuid(),
@@ -403,7 +425,8 @@ public sealed class OrganizationAdministrationTests
                 true,
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
-                request.EvaManualSubmission));
+                request.ReportGenerationPolicy,
+                request.ReportRecipients));
         }
 
         public List<UpdatePrincipalDefaultInspectionLocationRequest> DefaultInspectionLocationUpdates
@@ -425,7 +448,8 @@ public sealed class OrganizationAdministrationTests
                 request.ExpectedVersion + 1,
                 0,
                 CaseInspectionMode.PhysicalAddress,
-                EvaManualSubmission: false,
+                ReportGenerationPolicy: PrincipalReportGenerationPolicy.Pegasus,
+                ReportRecipients: PrincipalReportRecipientSettings.None,
                 request.Label,
                 request.Address,
                 request.Postcode,

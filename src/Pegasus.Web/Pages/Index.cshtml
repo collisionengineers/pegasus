@@ -28,6 +28,15 @@
     </div>
 </header>
 
+@if (Model.IsUnavailable)
+{
+    <div class="notice notice--warning" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>Work Centre is unavailable. Refresh to run the live queues again.</span>
+    </div>
+}
+else
+{
 <section class="metric-section work-centre-metrics" aria-labelledby="work-metrics-title">
     <h2 id="work-metrics-title" class="section-label">Work requiring attention</h2>
     <div class="metric-strip metric-strip--5">
@@ -60,7 +69,7 @@
 <section class="pane-layout integrated-home integrated-home--expanded @(Model.NeedsAttention.Count == 0 ? "pane-layout--empty" : null)" aria-label="Integrated work centre">
     <div class="pane">
         <div class="pane-head">
-            <div><h2>Needs attention</h2></div>
+            <div><h2>Needs attention</h2><span class="muted">@Model.NeedsAttention.Count</span></div>
         </div>
         @* Selection is a link to this page with ?selected=, so the detail
            pane's controls are live server-rendered controls, not clones the
@@ -97,6 +106,10 @@
                         @if (item.Due is { } due)
                         {
                             <span><time datetime="@due.ToString("O")">@OperatorLabels.OfficeDate(due)</time></span>
+                        }
+                        else if (item.Received is { } received)
+                        {
+                            <span>Received <time datetime="@received.ToString("O")">@OperatorLabels.OfficeDate(received)</time></span>
                         }
                     </span>
                 </a>
@@ -181,3 +194,4 @@
         </div>
     </div>
 </section>
+}

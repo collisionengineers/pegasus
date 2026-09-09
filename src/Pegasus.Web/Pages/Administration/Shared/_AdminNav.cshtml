@@ -14,7 +14,7 @@
             "reports" => "/Administration/Reports",
             "health" => "/Administration/Health",
             "valuation-presets" => "/Administration/ValuationPresets/Index",
-            "claim-sources" => "/Administration/ClaimSources/Index",
+            "contacts" => "/Administration/Contacts/Index",
             _ => string.Empty
         })
         ? "page"
@@ -27,9 +27,9 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
             <span>@OperatorLabels.Admin.Accounts</span>
         </a>
-        <a asp-page="/Administration/Principals/Index" aria-current="@Current("principals")">
+        <a asp-page="/Administration/Contacts/Index" aria-current="@Current("contacts")">
             <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
-            <span>@OperatorLabels.Admin.Principals</span>
+            <span>Contacts</span>
         </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-configuration">
@@ -45,10 +45,6 @@
         <a asp-page="/Administration/ValuationPresets/Index" aria-current="@Current("valuation-presets")">
             <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
             <span>@OperatorLabels.Admin.ValuationPresets</span>
-        </a>
-        <a asp-page="/Administration/ClaimSources/Index" aria-current="@Current("claim-sources")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
-            <span>@OperatorLabels.Admin.ClaimSources</span>
         </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">

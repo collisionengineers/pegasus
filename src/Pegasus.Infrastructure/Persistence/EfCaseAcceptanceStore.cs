@@ -20,7 +20,7 @@ public sealed class EfCaseAcceptanceStore(
     IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
     : ICaseAcceptanceStore
 {
-    private static readonly TimeZoneInfo LondonTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+    private const string CreationReason = "Case created from received item.";
 
     public async Task<CaseAcceptanceOutcome> AcceptAsync(
         CaseAcceptanceRequest request,
@@ -29,7 +29,6 @@ public sealed class EfCaseAcceptanceStore(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
         if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
         {
@@ -83,12 +82,6 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new ArgumentException("The case acceptance actor subject cannot exceed 200 characters.", nameof(request));
         }
-        var reason = request.Reason.Trim();
-        if (reason.Length > 500)
-        {
-            throw new ArgumentException("The case acceptance reason cannot exceed 500 characters.", nameof(request));
-        }
-
         if (request.OperationKey.Length > 100)
         {
             throw new ArgumentException("The case acceptance operation key cannot exceed 100 characters.", nameof(request));
@@ -101,8 +94,7 @@ public sealed class EfCaseAcceptanceStore(
 
         request = request with
         {
-            OperationKey = request.OperationKey.Trim(),
-            Reason = reason
+            OperationKey = request.OperationKey.Trim()
         };
         // Shape only. Whether this principal may hold a case is settled below,
         // inside the transaction, by whether the principal record exists and is
@@ -211,6 +203,7 @@ public sealed class EfCaseAcceptanceStore(
             : ParseAuditAssessment(standaloneAuditEvidence.Assessment);
 
         var principal = await context.Principals
+            .Include(item => item.Organization)
             .SingleOrDefaultAsync(
                 item => item.Code == principalCode && item.IsActive,
                 cancellationToken)
@@ -224,34 +217,15 @@ public sealed class EfCaseAcceptanceStore(
         }
 
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        var year = TimeZoneInfo.ConvertTime(acceptedAtUtc, LondonTimeZone).Year;
-        var sequence = await context.CaseSequences.SingleOrDefaultAsync(
-            item => item.SequenceLineageId == principal.SequenceLineageId && item.Year == year,
-            cancellationToken);
-        if (sequence is null)
-        {
-            sequence = new CaseSequenceEntity
-            {
-                SequenceLineageId = principal.SequenceLineageId,
-                Year = year,
-                LastAllocatedSequence = 0
-            };
-            context.CaseSequences.Add(sequence);
-        }
-
-        if (sequence.LastAllocatedSequence >= 999)
-        {
-            throw new CaseIdentitySequenceExhaustedException(principal.Code, year);
-        }
-
-        var allocatedSequence = ++sequence.LastAllocatedSequence;
+        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
+            context, principal, acceptedAtUtc, cancellationToken);
         // CASE-014, operator direction: "There is no Case/PO AND audit
         // identity. They are all just Case/PO." An audit's prefix belongs on
         // the case's own reference — a. when the original report says
         // Repairable, ap. when it says Total Loss — and the outcome is known
         // here because the report is extracted before allocation, which is why
         // a standalone Audit refuses to allocate without it.
-        var allocated = $"{principal.Code}{year % 100:00}{allocatedSequence:000}";
+        var allocated = allocatedIdentity.Reference;
         var reference = standaloneAuditAssessment is { } assessment
             ? AuditIdentity.Create(allocated, assessment)
             : allocated;
@@ -259,7 +233,9 @@ public sealed class EfCaseAcceptanceStore(
         string? auditReference = null;
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
-        var initialState = request.CompletenessEvaluation.SatisfiesPolicy
+        var workflowConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
+        var completenessEvaluation = CaseCompletenessPolicy.Evaluate(request.Completeness, workflowConfiguration);
+        var initialState = completenessEvaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;
 
@@ -269,8 +245,8 @@ public sealed class EfCaseAcceptanceStore(
             PrincipalId = principal.Id,
             Principal = principal,
             SequenceLineageId = principal.SequenceLineageId,
-            Year = year,
-            Sequence = allocatedSequence,
+            Year = allocatedIdentity.Year,
+            Sequence = allocatedIdentity.Sequence,
             Reference = reference,
             AuditReference = auditReference,
             Type = ToCode(request.CaseType),
@@ -289,6 +265,9 @@ public sealed class EfCaseAcceptanceStore(
         };
         context.Cases.Add(caseEntity);
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
+        dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
+        dataSnapshot.CompletenessPolicyKey = completenessEvaluation.PolicyKey;
+        dataSnapshot.CompletenessPolicyVersion = completenessEvaluation.PolicyVersion;
         context.CaseDataSnapshots.Add(dataSnapshot);
         CaseMatchIndexProjector.Apply(
             context,
@@ -306,6 +285,12 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.CaseWorkflows.Add(workflowEntity);
+        if (initialState == CaseInitialState.Review)
+        {
+            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                context, workflowEntity, workflowEntity.Version, acceptedAtUtc);
+        }
+        await CaseGuidance.ApplyCreationAsync(context, workflowEntity, null, acceptedAtUtc, request.OperationKey, cancellationToken);
         if (initialState == CaseInitialState.NotReady)
         {
             context.CaseDueWork.Add(new()
@@ -315,7 +300,7 @@ public sealed class EfCaseAcceptanceStore(
                 MissingMaterialReason = "Details are incomplete",
                 DueBy = request.AcceptedInspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc),
+                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc, workflowConfiguration.ChaseIntervalDays),
                 Version = 0
             });
         }
@@ -329,7 +314,7 @@ public sealed class EfCaseAcceptanceStore(
             ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = RolesJson(request.Actor),
-            Reason = request.Reason,
+            Reason = CreationReason,
             OperationKey = request.OperationKey,
             ExpectedIntakeVersion = request.ExpectedIntakeVersion,
             AcceptanceCommandMaterialJson = command.MaterialJson,
@@ -347,7 +332,7 @@ public sealed class EfCaseAcceptanceStore(
             ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = RolesJson(request.Actor),
-            Reason = request.Reason,
+            Reason = CreationReason,
             LastOperationKey = request.OperationKey
         };
         context.CaseHistory.Add(new()
@@ -357,7 +342,7 @@ public sealed class EfCaseAcceptanceStore(
             CaseId = caseId,
             EventType = "case_accepted",
             Actor = request.Actor.SubjectId,
-            Reason = request.Reason,
+            Reason = CreationReason,
             OccurredAtUtc = acceptedAtUtc,
             OperationKey = request.OperationKey,
             BeforeVersion = null,
@@ -405,7 +390,7 @@ public sealed class EfCaseAcceptanceStore(
             ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = RolesJson(request.Actor),
-            Reason = request.Reason,
+            Reason = CreationReason,
             OperationKey = request.OperationKey,
             RequestFingerprint = command.Fingerprint,
             OccurredAtUtc = acceptedAtUtc,
@@ -535,7 +520,6 @@ public sealed class EfCaseAcceptanceStore(
             || link.ActorKind != request.Actor.Kind.ToString()
             || link.ActorSubjectId != request.Actor.SubjectId
             || link.ActorRolesJson != RolesJson(request.Actor)
-            || link.Reason != request.Reason
             || !string.Equals(link.Case.Type, ToCode(request.CaseType), StringComparison.Ordinal)
             || !string.Equals(link.Case.Principal.Code, principalCode, StringComparison.Ordinal)
             || link.Case.StandaloneAuditEvidenceId != request.StandaloneAuditEvidenceId)
@@ -610,7 +594,7 @@ public sealed class EfCaseAcceptanceStore(
         string principalCode)
     {
         var materialJson = JsonSerializer.Serialize(new AcceptanceCommandMaterial(
-            5,
+            6,
             request.IntakeReceiptId,
             request.ExpectedIntakeVersion,
             request.Actor.Kind.ToString(),
@@ -619,7 +603,6 @@ public sealed class EfCaseAcceptanceStore(
                 .OrderBy(role => role)
                 .Select(role => role.ToString())
                 .ToArray(),
-            request.Reason,
             ToCode(request.CaseType),
             principalCode,
             request.Completeness.InstructionComplete,
@@ -644,7 +627,6 @@ public sealed class EfCaseAcceptanceStore(
         string ActorKind,
         string ActorSubjectId,
         IReadOnlyList<string> ActorRoles,
-        string Reason,
         string CaseType,
         string PrincipalCode,
         bool InstructionComplete,

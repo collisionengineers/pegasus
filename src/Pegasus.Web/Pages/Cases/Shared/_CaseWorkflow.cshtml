@@ -119,30 +119,11 @@
                                 {
                                     <br /><b>Why:</b> @requirement.Why
                                 }
-                                <br /><b>Resolve:</b> Confirm completeness
+                                <br /><b>Resolve:</b> Add the missing case evidence or details
                             </small>
                         </li>
                     }
                 </ul>
-                @if (mayEdit && data is not null)
-                {
-                    <form method="post" asp-page="/Cases/Details" asp-page-handler="ConfirmCompleteness"
-                          asp-route-id="@workflow.CaseId" class="stack blocker-actions">
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <div class="grid grid-2">
-                            @* Each checkbox carries a trailing hidden false so an unchecked box still submits its value. *@
-                            <label class="choice"><input type="checkbox" name="instructionComplete" value="true" checked="@data.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionComplete" value="false" />
-                            <label class="choice"><input type="checkbox" name="imagesComplete" value="true" checked="@data.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" />
-                            <div class="field"><label class="req" for="completeness-reason">Reason</label><input id="completeness-reason" name="reason" required maxlength="500" /></div>
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" class="btn btn--primary">Confirm completeness</button>
-                        </div>
-                    </form>
-                }
             </div>
         </section>
     }

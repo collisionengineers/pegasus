@@ -50,15 +50,44 @@
     <div class="record-bar">
         <a class="btn" asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">
             <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
-            <span>Open the origin receipt</span>
+            <span>View received item</span>
         </a>
         @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
         {
+            @* The received-item Case-link journey owns searching, selection,
+               target Case edit ownership, and the reasoned association. This
+               image record only enters that existing workflow. *@
+            <a class="btn btn--primary" asp-page="/Intake/Details"
+               asp-route-id="@Model.Detail.Record.Origin.ReceiptId">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Merge Case</span>
+            </a>
+        }
+        @if (!Model.IsEditing)
+        {
+            <form method="post" asp-page-handler="Edit" asp-route-id="@Model.Detail.Record.Id" class="record-bar-end">
+                <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
+                <button type="submit" class="btn btn--primary">Edit record</button>
+            </form>
+        }
+        else
+        {
             <span class="record-bar-end">
-                <button type="button" class="btn btn--danger" data-dialog-open="image-intake-close-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
-                    <span>Close with reason</span>
-                </button>
+                <form method="post" asp-page-handler="CancelEdit" asp-route-id="@Model.Detail.Record.Id">
+                    <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
+                    <button type="submit" class="btn">Cancel</button>
+                </form>
+                <form method="post" asp-page-handler="HeartbeatEdit" asp-route-id="@Model.Detail.Record.Id" data-edit-heartbeat data-edit-heartbeat-status="image-intake-edit-heartbeat-status" hidden>
+                    <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
+                </form>
+                <p id="image-intake-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
+                @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
+                {
+                    <button type="button" class="btn btn--danger" data-dialog-open="image-intake-close-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                        <span>Close with reason</span>
+                    </button>
+                }
             </span>
         }
     </div>
@@ -116,26 +145,34 @@
             <section class="panel" aria-labelledby="image-intake-principal-title">
                 <div class="panel-head"><h2 id="image-intake-principal-title">@OperatorLabels.Principal</h2></div>
                 <div class="panel-body">
-                    <form method="post" asp-page-handler="Principal" asp-route-id="@Model.Detail.Record.Id">
-                        <div class="form-grid">
-                            <div class="field">
-                                <label for="image-intake-principal">@OperatorLabels.Principal</label>
-                                @* The empty option is a real, selectable state
-                                   (`Not known`), not a disabled placeholder:
-                                   clearing a recorded principal is a legitimate
-                                   staff decision. *@
-                                <select id="image-intake-principal" name="principalId">
-                                    <option value="" selected="@(Model.Detail.Record.PrincipalId is null ? "selected" : null)">@OperatorLabels.PrincipalNotKnown</option>
-                                    @foreach (var principal in Model.PrincipalOptions)
-                                    {
-                                        <option value="@principal.Id" selected="@(Model.Detail.Record.PrincipalId == principal.Id ? "selected" : null)">@principal.Code</option>
-                                    }
-                                </select>
+                    @if (Model.IsEditing)
+                    {
+                        <form method="post" asp-page-handler="Principal" asp-route-id="@Model.Detail.Record.Id">
+                            <div class="form-grid">
+                                <div class="field">
+                                    <label for="image-intake-principal">@OperatorLabels.Principal</label>
+                                    @* The empty option is a real, selectable state
+                                       (`Not known`), not a disabled placeholder:
+                                       clearing a recorded principal is a legitimate
+                                       staff decision. *@
+                                    <select id="image-intake-principal" name="principalId">
+                                        <option value="" selected="@(Model.Detail.Record.PrincipalId is null ? "selected" : null)">@OperatorLabels.PrincipalNotKnown</option>
+                                        @foreach (var principal in Model.PrincipalOptions)
+                                        {
+                                            <option value="@principal.Id" selected="@(Model.Detail.Record.PrincipalId == principal.Id ? "selected" : null)">@principal.Code</option>
+                                        }
+                                    </select>
+                                </div>
                             </div>
-                        </div>
-                        <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
-                        <button type="submit" class="btn btn--primary">Save</button>
-                    </form>
+                            <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
+                            <button type="submit" class="btn btn--primary">Save</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <p>@(Model.Detail.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</p>
+                    }
                 </div>
             </section>
 
@@ -236,7 +273,7 @@
     </div>
 </article>
 
-@if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
+@if (Model.IsEditing && Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
 {
     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
     {
@@ -246,7 +283,8 @@
         ["DialogActionUrl"] = Url.Page("/ImageIntake/Details", "Close", new { id = Model.Detail.Record.Id }),
         ["DialogHiddenFields"] = new Dictionary<string, string?>
         {
-            ["expectedVersion"] = Model.Detail.LifecycleVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ["expectedVersion"] = Model.Detail.LifecycleVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["editLeaseToken"] = Model.EditLease!.Token
         }
     })" />
 }

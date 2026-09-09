@@ -328,11 +328,84 @@ public sealed class DocumentRequestUnavailableException()
     : InvalidOperationException(
         "Document request links are unavailable until an accepted limits version is configured.");
 
-public sealed record RequestUploadFile(
-    string FileName,
-    string MediaType,
-    ReadOnlyMemory<byte> Content,
-    string OperationKey);
+/// <summary>
+/// One public-upload file. The stream factory must return a new readable
+/// stream each time: policy reads it to establish the immutable content
+/// identity, then custody receives a fresh stream after the arrival is
+/// durable. The memory constructor remains for callers that already own their
+/// bytes; the public transport uses the streaming constructor.
+/// </summary>
+public sealed class RequestUploadFile
+{
+    private readonly ReadOnlyMemory<byte>? inMemoryContent;
+
+    public RequestUploadFile(
+        string fileName,
+        string mediaType,
+        ReadOnlyMemory<byte> content,
+        string operationKey)
+        : this(
+            fileName,
+            mediaType,
+            content.Length,
+            _ => ValueTask.FromResult<Stream>(OpenInMemoryContent(content)),
+            operationKey)
+    {
+        inMemoryContent = content;
+    }
+
+    public RequestUploadFile(
+        string fileName,
+        string mediaType,
+        long contentLength,
+        Func<CancellationToken, ValueTask<Stream>> openContentAsync,
+        string operationKey)
+    {
+        ArgumentNullException.ThrowIfNull(openContentAsync);
+        FileName = fileName;
+        MediaType = mediaType;
+        ContentLength = contentLength;
+        OpenContentAsync = openContentAsync;
+        OperationKey = operationKey;
+    }
+
+    public string FileName { get; }
+
+    public string MediaType { get; }
+
+    public long ContentLength { get; }
+
+    public Func<CancellationToken, ValueTask<Stream>> OpenContentAsync { get; }
+
+    public string OperationKey { get; }
+
+    internal bool TryGetInMemoryContent(out ReadOnlyMemory<byte> content)
+    {
+        if (inMemoryContent is { } value)
+        {
+            content = value;
+            return true;
+        }
+
+        content = default;
+        return false;
+    }
+
+    private static MemoryStream OpenInMemoryContent(ReadOnlyMemory<byte> content)
+    {
+        if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
+            && segment.Array is not null)
+        {
+            return new MemoryStream(
+                segment.Array,
+                segment.Offset,
+                segment.Count,
+                writable: false);
+        }
+
+        return new MemoryStream(content.ToArray(), writable: false);
+    }
+}
 
 public sealed record RequestUploadAttempt(
     string Token,
@@ -758,6 +831,13 @@ public interface IGetRequestUpload
 
 public sealed class RequestUploadPolicy
 {
+    // IntakeUploadFilePolicy currently examines no more than the ISO base
+    // media header's first forty bytes. Keep a modest, explicit ceiling here
+    // so this contract remains safe when that policy grows without retaining
+    // a public upload's whole body in memory.
+    private const int MaximumValidationPrefixBytes = 64 * 1024;
+    private const int StreamBufferBytes = 64 * 1024;
+
     private readonly RequestUploadLimits limits;
     private readonly TimeProvider timeProvider;
 
@@ -808,6 +888,126 @@ public sealed class RequestUploadPolicy
         ArgumentNullException.ThrowIfNull(attempt);
         ArgumentNullException.ThrowIfNull(attempt.File);
 
+        if (RefuseBeforeContent(
+                link,
+                attempt,
+                existingOperationContentHash,
+                isReplacement) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (!attempt.File.TryGetInMemoryContent(out var content))
+        {
+            throw new InvalidOperationException(
+                "A streamed public-upload file must be authorized asynchronously.");
+        }
+
+        return Authorize(
+            link,
+            attempt,
+            Inspect(content),
+            existingOperationContentHash,
+            isReplacement);
+    }
+
+    /// <summary>
+    /// Establishes an exact public-upload content identity without materialising
+    /// the file. Only a bounded prefix is retained for file-type validation;
+    /// the full stream is fed directly into SHA-256 and then discarded. The
+    /// supplied factory is opened again by the persistence path only after the
+    /// authorized arrival has been committed.
+    /// </summary>
+    public async Task<RequestUploadAuthorization> AuthorizeAsync(
+        RequestUploadLink link,
+        RequestUploadAttempt attempt,
+        string? existingOperationContentHash = null,
+        bool isReplacement = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentNullException.ThrowIfNull(attempt);
+        ArgumentNullException.ThrowIfNull(attempt.File);
+
+        if (RefuseBeforeContent(
+                link,
+                attempt,
+                existingOperationContentHash,
+                isReplacement) is { } refusal)
+        {
+            return refusal;
+        }
+
+        return Authorize(
+            link,
+            attempt,
+            await InspectAsync(attempt.File, cancellationToken),
+            existingOperationContentHash,
+            isReplacement);
+    }
+
+    private RequestUploadAuthorization Authorize(
+        RequestUploadLink link,
+        RequestUploadAttempt attempt,
+        RequestUploadContentInspection content,
+        string? existingOperationContentHash,
+        bool isReplacement)
+    {
+        if (!content.HasExactLength)
+        {
+            return new(RequestUploadDecision.InvalidFile, null, null, false);
+        }
+
+        var contentHash = content.Sha256!;
+        if (existingOperationContentHash is not null)
+        {
+            return string.Equals(existingOperationContentHash, contentHash, StringComparison.Ordinal)
+                ? new(RequestUploadDecision.Replay, contentHash, null, true)
+                : new(RequestUploadDecision.OperationConflict, null, null, false);
+        }
+
+        if (!(isReplacement ? AcceptsAReplacement(link) : AcceptsMoreFiles(link)))
+        {
+            return new(RequestUploadDecision.LimitExceeded, null, null, false);
+        }
+
+        if (content.ContentLength == 0
+            || !limits.AllowsMediaType(attempt.File.MediaType)
+            || !IntakeUploadFilePolicy.IsAccepted(
+                attempt.File.FileName,
+                attempt.File.MediaType,
+                content.ValidationPrefix.Span))
+        {
+            return new(RequestUploadDecision.InvalidFile, null, null, false);
+        }
+
+        // The file count is not re-checked here: the questions above own it,
+        // and a second copy of the bound is how one of them comes to disagree
+        // with the other. The byte bound is checked against these exact bytes,
+        // and it applies to a replacement as much as to an addition, because
+        // custody keeps the superseded set as well as this one.
+        var contentLength = content.ContentLength;
+        if (contentLength > limits.MaximumFileBytes
+            || contentLength > limits.MaximumRequestBytes - link.AcceptedByteCount)
+        {
+            return new(RequestUploadDecision.LimitExceeded, null, null, false);
+        }
+
+        var safeFileName = GetSafeFileName(attempt.File.FileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return new(RequestUploadDecision.InvalidFile, null, null, false);
+        }
+
+        return new(RequestUploadDecision.Accepted, contentHash, safeFileName, false);
+    }
+
+    private RequestUploadAuthorization? RefuseBeforeContent(
+        RequestUploadLink link,
+        RequestUploadAttempt attempt,
+        string? existingOperationContentHash,
+        bool isReplacement)
+    {
         if (RefuseLink(link) is { } refusal)
         {
             return refusal == RequestUploadDecision.LimitsVersionMismatch
@@ -826,50 +1026,100 @@ public sealed class RequestUploadPolicy
             return new(RequestUploadDecision.RateLimited, null, null, false);
         }
 
-        if (string.IsNullOrWhiteSpace(attempt.File.OperationKey))
+        if (string.IsNullOrWhiteSpace(attempt.File.OperationKey)
+            || attempt.File.ContentLength < 0)
         {
             return new(RequestUploadDecision.InvalidFile, null, null, false);
         }
 
-        var contentHash = RequestUploadToken.ComputeLowercaseSha256(attempt.File.Content.Span);
-        if (existingOperationContentHash is not null)
-        {
-            return string.Equals(existingOperationContentHash, contentHash, StringComparison.Ordinal)
-                ? new(RequestUploadDecision.Replay, contentHash, null, true)
-                : new(RequestUploadDecision.OperationConflict, null, null, false);
-        }
-
-        if (!(isReplacement ? AcceptsAReplacement(link) : AcceptsMoreFiles(link)))
+        // A receipt has already fixed the operation's content identity. Its
+        // replay/conflict decision still requires the hash below, but an
+        // unreceipted arrival can be refused from its declared length and the
+        // current link totals before a large public body is opened.
+        if (attempt.File.ContentLength > limits.MaximumFileBytes)
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
         }
 
-        if (attempt.File.Content.IsEmpty
-            || !limits.AllowsMediaType(attempt.File.MediaType)
-            || string.IsNullOrWhiteSpace(attempt.File.FileName))
-        {
-            return new(RequestUploadDecision.InvalidFile, null, null, false);
-        }
-
-        // The file count is not re-checked here: the questions above own it,
-        // and a second copy of the bound is how one of them comes to disagree
-        // with the other. The byte bound is checked against these exact bytes,
-        // and it applies to a replacement as much as to an addition, because
-        // custody keeps the superseded set as well as this one.
-        var contentLength = attempt.File.Content.Length;
-        if (contentLength > limits.MaximumFileBytes
-            || contentLength > limits.MaximumRequestBytes - link.AcceptedByteCount)
+        if (existingOperationContentHash is null
+            && (!(isReplacement ? AcceptsAReplacement(link) : AcceptsMoreFiles(link))
+                || attempt.File.ContentLength
+                    > limits.MaximumRequestBytes - link.AcceptedByteCount))
         {
             return new(RequestUploadDecision.LimitExceeded, null, null, false);
         }
 
-        var safeFileName = GetSafeFileName(attempt.File.FileName);
-        if (string.IsNullOrWhiteSpace(safeFileName))
+        return null;
+    }
+
+    private static RequestUploadContentInspection Inspect(ReadOnlyMemory<byte> content) =>
+        new(
+            ContentLength: content.Length,
+            HasExactLength: true,
+            Sha256: RequestUploadToken.ComputeLowercaseSha256(content.Span),
+            ValidationPrefix: content[..Math.Min(content.Length, MaximumValidationPrefixBytes)]);
+
+    private static async Task<RequestUploadContentInspection> InspectAsync(
+        RequestUploadFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file.ContentLength < 0)
         {
-            return new(RequestUploadDecision.InvalidFile, null, null, false);
+            return RequestUploadContentInspection.Invalid;
         }
 
-        return new(RequestUploadDecision.Accepted, contentHash, safeFileName, false);
+        var prefix = new byte[(int)Math.Min(file.ContentLength, MaximumValidationPrefixBytes)];
+        var buffer = new byte[StreamBufferBytes];
+        long copied = 0;
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        await using var content = await file.OpenContentAsync(cancellationToken);
+        if (content is null || !content.CanRead)
+        {
+            return RequestUploadContentInspection.Invalid;
+        }
+
+        while (copied < file.ContentLength)
+        {
+            var remaining = file.ContentLength - copied;
+            var requested = (int)Math.Min(buffer.Length, remaining);
+            var read = await content.ReadAsync(buffer.AsMemory(0, requested), cancellationToken);
+            if (read == 0)
+            {
+                return RequestUploadContentInspection.Invalid;
+            }
+
+            if (copied < prefix.Length)
+            {
+                var prefixCount = Math.Min(read, prefix.Length - (int)copied);
+                buffer.AsSpan(0, prefixCount).CopyTo(prefix.AsSpan((int)copied));
+            }
+            hash.AppendData(buffer, 0, read);
+            copied += read;
+        }
+
+        if (await content.ReadAsync(buffer.AsMemory(0, 1), cancellationToken) != 0)
+        {
+            return RequestUploadContentInspection.Invalid;
+        }
+
+        return new(
+            ContentLength: file.ContentLength,
+            HasExactLength: true,
+            Sha256: Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(),
+            ValidationPrefix: prefix);
+    }
+
+    private sealed record RequestUploadContentInspection(
+        long ContentLength,
+        bool HasExactLength,
+        string? Sha256,
+        ReadOnlyMemory<byte> ValidationPrefix)
+    {
+        public static readonly RequestUploadContentInspection Invalid = new(
+            0,
+            HasExactLength: false,
+            Sha256: null,
+            ValidationPrefix: ReadOnlyMemory<byte>.Empty);
     }
 
     /// <summary>

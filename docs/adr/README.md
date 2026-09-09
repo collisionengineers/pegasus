@@ -55,7 +55,7 @@ never renumbered or reused.
 | [ADR-0035](0035-ai-job-ledger.md) | AI job ledger | accepted | — | AI-10, AI-09, MCP-06, MCP-01 |
 | [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | accepted | ADR-0042 | — |
 | [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
-| [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | accepted | — | EXT-04 |
+| [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | superseded | ADR-0048 | EXT-04 |
 | [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
 | [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0047 (source qualification only) | INT-16, EXT-12 |
 | [ADR-0041](0041-persistent-automation-keys-and-grant-attribution.md) | Persistent Automation keys and grant attribution | accepted | — | — |
@@ -65,6 +65,7 @@ never renumbered or reused.
 | [ADR-0045](0045-document-custody-and-derived-caches.md) | Document custody and derived caches | accepted | — | — |
 | [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
 | [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | accepted | — | INT-16 |
+| [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | — | EXT-04 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

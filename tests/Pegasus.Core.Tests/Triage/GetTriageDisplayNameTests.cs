@@ -171,7 +171,7 @@ public sealed class GetTriageDisplayNameTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == staffId
-                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.User])
+                ? new StaffAccountSummary(staffId, userName, true, false, StaffRole.User)
                 : null);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

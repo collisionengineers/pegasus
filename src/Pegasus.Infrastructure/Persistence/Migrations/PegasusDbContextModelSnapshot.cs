@@ -131,6 +131,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RoleId");
 
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
                     b.ToTable("AspNetUserRoles", (string)null);
                 });
 
@@ -906,14 +909,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AllowStaffSend")
                         .HasColumnType("bit");
 
+                    b.Property<string>("InboxFolderIdentity")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<bool>("IsDefaultStaffSend")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
-
-                    b.Property<string>("InboxFolderIdentity")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<long>("MailboxGeneration")
                         .HasColumnType("bigint");
@@ -959,9 +962,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ApprovedMailboxes", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
-
                             t.HasCheckConstraint("CK_ApprovedMailboxes_DefaultStaffSendEligibility", "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [AllowSentEvidence] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [SentFolderIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
+
+                            t.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
 
                             t.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                         });
@@ -974,6 +977,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             AllowInboundIntake = true,
                             AllowSentEvidence = false,
                             AllowStaffSend = false,
+                            IsDefaultStaffSend = false,
                             MailboxGeneration = 1L,
                             State = "Approved",
                             Version = 1
@@ -1265,6 +1269,56 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AutomaticEvaReviewSubmissionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("DueAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LeaseToken")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<long>("WorkflowVersion")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId")
+                        .IsUnique();
+
+                    b.HasIndex("State", "DueAtUtc");
+
+                    b.ToTable("AutomaticEvaReviewSubmissions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutomaticEvaReviewSubmissions_State", "[State] IN ('Pending', 'Dispatching', 'Completed', 'ReconciliationRequired')");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseAssessmentFieldEntity", b =>
                 {
                     b.Property<Guid>("CaseId")
@@ -1413,34 +1467,29 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("OriginExternalReceiptToken")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("OriginIntakeReceiptId")
+                    b.Property<Guid?>("OriginIntakeReceiptId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTimeOffset>("OriginReceivedAtUtc")
+                    b.Property<DateTimeOffset?>("OriginReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("OriginSourceChannel")
-                        .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("OriginSourceHash")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nchar(64)")
                         .IsFixedLength();
 
                     b.Property<string>("SourceReaderKey")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("SourceReaderVersion")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -1790,7 +1839,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("InstructionComplete")
                         .HasColumnType("bit");
 
-                    b.Property<Guid>("OriginIntakeReceiptId")
+                    b.Property<Guid?>("OriginIntakeReceiptId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("PrincipalId")
@@ -3018,8 +3067,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Reason")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("RequestHash")
                         .IsRequired()
@@ -3033,7 +3082,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseId", "AfterVersion")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied'");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
@@ -3041,51 +3091,43 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseWorkflowEvents", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ClaimSourceEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ContactPrincipalLinkEntity", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("PrincipalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("Active")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ConcurrencyToken")
-                        .IsConcurrencyToken()
+                    b.Property<Guid>("OrganizationId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Contact")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("Role")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
-                    b.Property<string>("Email")
-                        .HasColumnType("nvarchar(max)");
+                    b.HasKey("PrincipalId", "OrganizationId", "Role");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                    b.HasIndex("OrganizationId", "Role");
 
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                    b.ToTable("ContactPrincipalLinks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContactPrincipalLinks_Role", "[Role] IN ('claim_source', 'repairer', 'storage', 'third_party_engineer')");
+                        });
+                });
 
-                    b.Property<string>("Telephone")
-                        .HasColumnType("nvarchar(max)");
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ContactRoleEntity", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
+                    b.Property<string>("Role")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.HasKey("OrganizationId", "Role");
 
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name");
-
-                    b.ToTable("ClaimSources", (string)null);
+                    b.ToTable("ContactRoles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContactRoles_Role", "[Role] IN ('principal', 'claim_source', 'repairer', 'storage', 'third_party_engineer')");
+                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentContentCacheEntryEntity", b =>
@@ -3341,6 +3383,54 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EditScopeEntity", b =>
+                {
+                    b.Property<string>("ScopeKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("ExpectedVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Holder")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("HolderKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.HasKey("ScopeKind", "RecordId");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("HolderKind", "Holder");
+
+                    b.ToTable("EditScopes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EditScopes_ExpectedVersion", "[ExpectedVersion] >= 0");
+
+                            t.HasCheckConstraint("CK_EditScopes_Generation", "[Generation] > 0");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EmailResponseEvidenceEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3449,59 +3539,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsDescending(true, false);
 
                     b.ToTable("EmailResponseEvidence", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EngineerNoteEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Note")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset>("RecordedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("RecordedByKind")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("RecordedByRolesJson")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("RecordedBySubjectId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("RequestHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaseId", "OperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("CaseId", "RecordedAtUtc", "Id")
-                        .IsDescending(false, true, true);
-
-                    b.ToTable("EngineerNotes", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>
@@ -5458,96 +5495,37 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("OrganizationAdministrationOperations", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationDirectoryEntryEntity", b =>
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("Active")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Address")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
-                    b.Property<Guid>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Contact")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("ContactPerson")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Email")
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                    b.Property<string>("GuidanceTemplate")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
-                    b.Property<string>("NormalizedName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("NormalizedPostcode")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<Guid?>("OrganizationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Postcode")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("SourceKind")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("SourceRecordId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("SourceVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Telephone")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Role", "NormalizedName", "Id");
-
-                    b.HasIndex("Role", "NormalizedPostcode", "Id");
-
-                    b.ToTable("OrganizationDirectoryEntries", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationEntity", b =>
-                {
-                    b.Property<Guid>("Id")
+                    b.Property<long>("GuidanceTemplateVersion")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -5560,6 +5538,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)")
                         .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", true);
+
+                    b.Property<string>("Postcode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Telephone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
@@ -5685,6 +5671,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.HasKey("Id");
 
                     b.HasIndex("IsDefaultSignOffEngineer")
@@ -5699,7 +5691,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("AspNetUsers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AspNetUsers_DefaultSignOffEligibility", "[IsDefaultSignOffEngineer] = 0 OR [IsSignOffEngineer] = 1");
+
+                            t.HasCheckConstraint("CK_AspNetUsers_Version", "[Version] >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalApiCredentialEntity", b =>
@@ -5786,10 +5783,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DefaultInspectionSourceVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<bool>("EvaManualSubmission")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                    b.Property<bool>("IncludeOriginalInstructionSender")
+                        .HasColumnType("bit");
 
                     b.Property<string>("InspectionMode")
                         .IsRequired()
@@ -5806,6 +5801,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("PredecessorId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReportGenerationPolicy")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ReportRecipientAddressesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("SequenceLineageId")
                         .HasColumnType("uniqueidentifier");
@@ -5839,6 +5843,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
 
                             t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
+
+                            t.HasCheckConstraint("CK_Principals_ReportGenerationPolicy", "[ReportGenerationPolicy] IN ('Pegasus', 'EvaZip', 'EvaManualApi', 'EvaAutomaticApiOnReview')");
 
                             t.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
                         });
@@ -6027,8 +6033,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("SessionId", "Id");
 
                     b.HasIndex("SessionId", "OperationKey")
                         .IsUnique();
@@ -7796,17 +7800,39 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("ChaseIntervalDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(7);
+
+                    b.Property<bool>("RequireImages")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("RequireInstructions")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<int>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.ToTable("WorkflowConfigurations", (string)null);
+                    b.ToTable("WorkflowConfigurations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkflowConfigurations_ChaseIntervalDays", "[ChaseIntervalDays] BETWEEN 1 AND 365");
+                        });
 
                     b.HasData(
                         new
                         {
                             Id = "case-workflow",
+                            ChaseIntervalDays = 7,
+                            RequireImages = true,
+                            RequireInstructions = true,
                             Version = 1
                         });
                 });
@@ -7981,8 +8007,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", null)
                         .WithMany()
                         .HasForeignKey("OriginIntakeReceiptId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Case");
                 });
@@ -8059,8 +8084,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", null)
                         .WithMany()
                         .HasForeignKey("OriginIntakeReceiptId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
                         .WithMany("Cases")
@@ -8286,6 +8310,36 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Workflow");
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ContactPrincipalLinkEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", "Organization")
+                        .WithMany("PrincipalLinks")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
+                        .WithMany("ContactLinks")
+                        .HasForeignKey("PrincipalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+
+                    b.Navigation("Principal");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ContactRoleEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", "Organization")
+                        .WithMany("ContactRoles")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentContentCacheEntryEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", null)
@@ -8344,17 +8398,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("SentEvidence");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EngineerNoteEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
-                        .WithMany()
-                        .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Case");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>
@@ -8771,17 +8814,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", b =>
                 {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", null)
-                        .WithMany()
-                        .HasForeignKey("SessionId", "ReplacesOccurrenceId")
-                        .HasPrincipalKey("SessionId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadSessionEntity", null)
                         .WithMany()
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId", "ReplacesOccurrenceId")
+                        .HasPrincipalKey("SessionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadSessionEntity", b =>
@@ -9108,6 +9151,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationEntity", b =>
                 {
+                    b.Navigation("ContactRoles");
+
+                    b.Navigation("PrincipalLinks");
+
                     b.Navigation("Principals");
 
                     b.Navigation("Roles");
@@ -9116,6 +9163,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalEntity", b =>
                 {
                     b.Navigation("Cases");
+
+                    b.Navigation("ContactLinks");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalSequenceLineageEntity", b =>

@@ -239,16 +239,15 @@ public sealed class EfRepairSpecificationStore(
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
 
         CaseRepairSpecificationEntity entity;
+        RepairSpecificationVersion? existing = null;
         string eventType;
         var editingCurrent = false;
         if (request.EstimateId is { } estimateId)
         {
             entity = await RequiredEstimateAsync(context, request.CaseId, estimateId, cancellationToken);
             editingCurrent = entity.IsCurrent;
-            EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
-            request = EstimatePolicy.ApplyEditorEvidence(request, Map(entity), now);
-            context.CaseEstimateLines.RemoveRange(entity.Lines);
-            entity.Lines.Clear();
+            existing = Map(entity);
+            EstimatePolicy.ValidateEditable(existing, request.Actor);
             eventType = "estimate_updated";
         }
         else
@@ -270,12 +269,32 @@ public sealed class EfRepairSpecificationStore(
             context.CaseRepairSpecifications.Add(entity);
             eventType = "estimate_created";
         }
+        request = EstimatePolicy.ApplyEditorEvidence(request, existing, now);
+        if (existing is not null)
+        {
+            context.CaseEstimateLines.RemoveRange(entity.Lines);
+            entity.Lines.Clear();
+        }
         entity.SourceRoute = request.Source.Route.ToString();
         entity.SourceArtifactReference = request.Source.ArtifactReference;
         entity.SourceVersion = request.Source.SourceVersion;
         entity.SourceSha256 = request.Source.Sha256;
         entity.AiJobId = request.AiJobId ?? entity.AiJobId;
         entity.LastOperationKey = request.OperationKey;
+        if (request.SelectedRateCardId is { } rateCardId)
+        {
+            var card = await context.LabourRateCards.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == rateCardId, cancellationToken);
+            if (card is null || !card.Active || card.Version != request.SelectedRateCardVersion)
+                throw new InvalidOperationException("The selected labour-rate card changed or is disabled. Select a current card.");
+            request = request with { Details = request.Details with
+            {
+                LabourRate = card.PanelRate,
+                Rate = new EstimateRateSnapshot(card.Id, card.Version, card.PanelRate)
+            } };
+        }
+        else if (request.SelectedRateCardVersion is not null)
+            throw new ArgumentException("Select a labour-rate card for the specified version.");
         ApplyDetails(entity, request.Details);
         AddLines(context, entity, request.Lines, request.Actor, now);
         if (importedDocument)

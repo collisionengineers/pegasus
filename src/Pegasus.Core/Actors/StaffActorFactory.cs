@@ -17,7 +17,7 @@ public static class StaffActorFactory
             return false;
         }
 
-        var roles = new HashSet<StaffRole>();
+        StaffRole? assignedRole = null;
         foreach (var roleName in roleNames)
         {
             if (!Enum.TryParse<StaffRole>(roleName, ignoreCase: false, out var role)
@@ -26,15 +26,20 @@ public static class StaffActorFactory
                 return false;
             }
 
-            roles.Add(role);
+            if (assignedRole is not null)
+            {
+                return false;
+            }
+
+            assignedRole = role;
         }
 
-        if (roles.Count == 0)
+        if (assignedRole is null)
         {
             return false;
         }
 
-        actor = ActionActor.Staff(staffId, roles);
+        actor = ActionActor.Staff(staffId, [assignedRole.Value]);
         return true;
     }
 }

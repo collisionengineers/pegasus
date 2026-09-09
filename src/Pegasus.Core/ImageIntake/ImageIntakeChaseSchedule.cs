@@ -20,6 +20,6 @@ namespace Pegasus.Core.ImageIntake;
 /// </remarks>
 public static class ImageIntakeChaseSchedule
 {
-    public static bool IsChaseDue(DateTimeOffset registeredAtUtc, DateTimeOffset asOfUtc) =>
-        asOfUtc >= CaseChaseSchedule.FirstChaseAt(registeredAtUtc);
+    public static bool IsChaseDue(DateTimeOffset registeredAtUtc, DateTimeOffset asOfUtc, int intervalDays = 7) =>
+        asOfUtc >= CaseChaseSchedule.FirstChaseAt(registeredAtUtc, intervalDays);
 }

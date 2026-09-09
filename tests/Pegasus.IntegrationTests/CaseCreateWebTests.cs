@@ -40,21 +40,118 @@ public sealed partial class CaseCreateWebTests
         [StaffRole.Administrator]);
 
     /// <summary>
-    /// Add, Work Centre and Ctrl+N start without a receipt. They must begin
-    /// the working upload journey, not turn a normal action into a 404.
+    /// Add, Work Centre and Ctrl+N start a direct staff entry without creating
+    /// a fictional received item.
     /// </summary>
     [Fact]
-    public async Task CreateWithNoReceiptIdStartsTheInstructionUploadJourney()
+    public async Task CreateWithNoReceiptIdShowsTheManualCaseForm()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync("/Cases/Create");
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/Upload", response.Headers.Location?.OriginalString);
-        using var upload = await client.GetAsync(response.Headers.Location);
-        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Create case", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"IsManual\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"ReceiptId\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"ExpectedReceiptVersion\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"AddressSuggestionFingerprint\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open the received item", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManualCreateMakesAReceiptlessCaseWithStaffConfirmedFacts()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        var fields = KeyedFields();
+        fields["VehicleMileage"] = string.Empty;
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases.SingleAsync(item => item.Id == caseId);
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.CaseId == caseId);
+
+        Assert.Null(created.OriginIntakeReceiptId);
+        Assert.Null(snapshot.OriginIntakeReceiptId);
+        Assert.Null(snapshot.OriginSourceHash);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimantName
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.SourceKind == CaseDataCodes.StaffCorrection);
+        Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
+    }
+
+    [Fact]
+    public async Task ManualCreateSnapshotsTheSelectedClaimSourceAndAppliesItsGuidance()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        var claimSourceId = await SeedClaimSourceAsync(factory.Services);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains("Claim Source", form.Html, StringComparison.Ordinal);
+        Assert.Contains("Manual guidance Claim Source", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["ClaimSourceId"] = claimSourceId.ToString("D");
+        fields["VehicleMileageUnit"] = "miles";
+
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.CaseId == caseId);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
+            && item.Value == claimSourceId.ToString("D"));
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceVersion
+            && item.Value == "1");
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceName
+            && item.Value == "Manual guidance Claim Source");
+
+        var guidance = await context.CaseWorkflowEvents.SingleAsync(item =>
+            item.CaseId == caseId && item.EventType == "case_guidance_applied");
+        Assert.Contains("claim_source_guidance_applied", guidance.ResultJson, StringComparison.Ordinal);
+        Assert.Contains("Call the Claim Source before finalising the report.", guidance.ResultJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EngineerCanCreateAManualCaseWithTheSelectedClaimSource()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        var claimSourceId = await SeedClaimSourceAsync(factory.Services);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains("Manual guidance Claim Source", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["ClaimSourceId"] = claimSourceId.ToString("D");
+        fields["VehicleMileageUnit"] = "miles";
+
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.CaseId == caseId);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
+            && item.Value == claimSourceId.ToString("D"));
     }
 
     [Fact]
@@ -123,8 +220,8 @@ public sealed partial class CaseCreateWebTests
         // Nothing was extracted, so every box is empty and there is no address
         // suggestion to fingerprint.
         Assert.Equal(string.Empty, form.Values["AddressSuggestionFingerprint"]);
-        Assert.Contains("name=\"InstructionComplete\"", form.Html, StringComparison.Ordinal);
-        Assert.Contains("name=\"ImagesComplete\"", form.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"InstructionComplete\"", form.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"ImagesComplete\"", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("InstructionConfirmedByStaff", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("ImagesConfirmedByStaff", form.Html, StringComparison.Ordinal);
         Assert.Contains("Nothing in this file said where the vehicle is", form.Html, StringComparison.Ordinal);
@@ -293,7 +390,6 @@ public sealed partial class CaseCreateWebTests
 
         var changed = KeyedFields();
         changed["CaseType"] = CaseType.InspectionAndAudit.ToString();
-        changed["InstructionComplete"] = bool.FalseString;
         using var replay = await PostCreateAsync(client, form, changed);
         var html = await replay.Content.ReadAsStringAsync();
 
@@ -654,7 +750,6 @@ public sealed partial class CaseCreateWebTests
 
     private static Dictionary<string, string> KeyedFields() => new()
     {
-        ["Reason"] = "Keyed the instruction detail from the retained document.",
         ["PrincipalCode"] = PrincipalCode,
         ["CaseType"] = CaseType.Inspection.ToString(),
         ["ClaimantName"] = "Hand Keyed Claimant",
@@ -668,9 +763,7 @@ public sealed partial class CaseCreateWebTests
         ["InstructionDate"] = "2031-03-05",
         ["InspectionDate"] = "2031-03-20",
         ["InspectionAddress"] = "1 Example Street, Exampleton EX1 1EX",
-        ["AddressChoice"] = nameof(Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress),
-        ["InstructionComplete"] = bool.TrueString,
-        ["ImagesComplete"] = bool.TrueString
+        ["AddressChoice"] = nameof(Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress)
     };
 
     private static async Task<CreateForm> OpenCreateScreenAsync(HttpClient client, Guid receiptId)
@@ -688,6 +781,21 @@ public sealed partial class CaseCreateWebTests
                 ["ExpectedReceiptVersion"] = InputValue(html, "ExpectedReceiptVersion"),
                 ["AddressSuggestionFingerprint"] = InputValue(html, "AddressSuggestionFingerprint"),
                 ["RequiresAddressResolution"] = InputValue(html, "RequiresAddressResolution")
+            });
+    }
+
+    private static async Task<CreateForm> OpenManualCaseScreenAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync("/Cases/Create");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        return new(
+            html,
+            new()
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(html),
+                ["IsManual"] = InputValue(html, "IsManual"),
+                ["OperationId"] = InputValue(html, "OperationId")
             });
     }
 
@@ -839,6 +947,34 @@ public sealed partial class CaseCreateWebTests
             VALUES
                 ({principalId}, {organizationId}, {principalCode}, {lineageId}, NULL, NULL, {true}, {0L})
             """);
+    }
+
+    private static async Task<Guid> SeedClaimSourceAsync(IServiceProvider services)
+    {
+        var claimSourceId = Guid.NewGuid();
+        await using var scope = services.CreateAsyncScope();
+        var contacts = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+        _ = await contacts.SaveAsync(
+            new(
+                StaffActor,
+                claimSourceId,
+                0,
+                "Manual guidance Claim Source",
+                "Case source contact",
+                "source@example.test",
+                "01234 567890",
+                null,
+                null,
+                true,
+                [ContactRole.ClaimSource],
+                null,
+                CaseInspectionMode.PhysicalAddress,
+                [],
+                "seed-manual-claim-source",
+                string.Empty,
+                "Call the Claim Source before finalising the report."),
+            CancellationToken.None);
+        return claimSourceId;
     }
 
     /// <summary>

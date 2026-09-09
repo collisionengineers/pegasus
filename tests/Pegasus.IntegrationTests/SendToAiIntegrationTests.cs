@@ -82,7 +82,6 @@ public sealed partial class SendToAiIntegrationTests
                     0,
                     ActionActor.SystemWorker("send-to-ai-integration"),
                     $"case-accept:{Guid.NewGuid():N}",
-                    "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
                     new(true, true)),

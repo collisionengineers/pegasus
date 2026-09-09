@@ -13,7 +13,10 @@ public sealed record DueCaseChaser(
     string CaseReference,
     string MissingMaterialReason,
     DateTimeOffset ScheduledAtUtc,
-    Guid? RequestLinkReference);
+    Guid? RequestLinkReference)
+{
+    public int ChaseIntervalDays { get; init; } = 7;
+}
 
 /// <summary>
 /// A locally persisted chaser draft. It is not evidence that correspondence was sent,
@@ -41,7 +44,10 @@ public sealed record DueChaserTransition(
     Guid? RequestLinkReference,
     string? RequestLinkPurpose,
     string OperationKey,
-    ActionActor Actor);
+    ActionActor Actor)
+{
+    public int ChaseIntervalDays { get; init; } = 7;
+}
 
 public enum DueChaserClaimOutcome
 {
@@ -136,7 +142,7 @@ public sealed class RunDueChasers(
         foreach (var candidate in candidates)
         {
             ValidateCandidate(candidate, asOfUtc);
-            var nextChaseAtUtc = CaseChaseSchedule.NextChaseAt(candidate.ScheduledAtUtc);
+            var nextChaseAtUtc = CaseChaseSchedule.NextChaseAt(candidate.ScheduledAtUtc, candidate.ChaseIntervalDays);
             var transition = new DueChaserTransition(
                 Guid.NewGuid(),
                 candidate.CaseId,
@@ -150,7 +156,7 @@ public sealed class RunDueChasers(
                     ? null
                     : MissingMaterialRequestLinkPurpose,
                 CreateOperationKey(candidate),
-                actor);
+                actor) { ChaseIntervalDays = candidate.ChaseIntervalDays };
 
             var result = await _store.TryClaimAndRecordAsync(
                 transition,

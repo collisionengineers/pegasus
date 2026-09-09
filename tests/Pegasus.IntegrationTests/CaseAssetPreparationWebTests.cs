@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
 namespace Pegasus.IntegrationTests;
@@ -71,83 +72,53 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("<button", panel, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<select", panel, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<input", panel, StringComparison.OrdinalIgnoreCase);
-        // B08: the drag enhancement reorders through the same command the
-        // controls post, so a card that offers no control is not draggable
-        // and carries none of the shape the drag would submit.
-        Assert.DoesNotContain("draggable", panel, StringComparison.OrdinalIgnoreCase);
+        // Preparation metadata only exists while it can be staged into the
+        // one workspace save.
         Assert.DoesNotContain("data-preparation-version", panel, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Edit mode renders the controls, and a save posts exactly what the
-    /// editor chose — the claimant, the case and its version, the lease
-    /// token, the form's operation key, and the one edit its card carries.
+    /// U5: preparation is staged with the record and the one global Case Save
+    /// carries the resulting edit under the Case lease and version.
     /// </summary>
     [Fact]
-    public async Task SavingAnImagesPreparationPostsTheBoundEditAndItsEnvelope()
+    public async Task SavingTheCaseCarriesTheStagedImagePreparationEdit()
     {
         var fixture = new PreparedImages();
-        var store = fixture.Store();
+        var store = fixture.Store(CaseLifecycleState.ReportPreparation);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
             Substitute<ICaseEvidenceImageQueries>(services, store);
+            Substitute<ISaveCaseWorkspace>(services, store);
         });
         const string operationKey = "0a0b0c0d0e0f01020304050607080900";
 
         var leased = await workspace.GetWorkspaceAsync();
-        var panel = Section(
-            await GetFilesFragmentAsync(workspace, leased),
-            "report-images-title");
-        foreach (var field in new[]
-        {
-            "edits[0].occurrenceId",
-            "edits[0].expectedPreparationVersion",
-            "edits[0].role",
-            "edits[0].order",
-            "edits[0].rotation",
-            "edits[0].cropLeft",
-            "edits[0].cropTop",
-            "edits[0].cropWidth",
-            "edits[0].cropHeight",
-            "edits[1].occurrenceId",
-            "occurrenceIds"
-        })
-        {
-            Assert.Contains($"name=\"{field}\"", panel, StringComparison.Ordinal);
-        }
-        foreach (var control in new[]
-        {
-            ReportImageLabels.Save,
-            ReportImageLabels.Reset,
-            ReportImageLabels.RotateLeft,
-            ReportImageLabels.RotateRight,
-            ReportImageLabels.MoveUp,
-            ReportImageLabels.MoveDown
-        })
-        {
-            Assert.Contains(control, panel, StringComparison.Ordinal);
-        }
+        Assert.Equal(1, Occurrences(leased, "id=\"case-edit-form\""));
+        Assert.DoesNotContain("handler=SaveAssetPreparation", leased, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResetAssetPreparation", leased, StringComparison.Ordinal);
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=SaveAssetPreparation",
+            $"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(
                 operationKey,
-                "ignored: the handler names its own reason",
-                ("edits[0].occurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
-                ("edits[0].expectedPreparationVersion", "4"),
-                ("edits[0].role", nameof(CaseAssetReportRole.Supporting)),
-                ("edits[0].order", "3"),
-                ("edits[0].rotation", "180"),
-                ("edits[0].cropLeft", "0.05"),
-                ("edits[0].cropTop", "0.1"),
-                ("edits[0].cropWidth", "0.5"),
-                ("edits[0].cropHeight", "0.6")));
+                "Prepared report image.",
+                ("preparationEdits[0].occurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
+                ("preparationEdits[0].expectedPreparationVersion", "4"),
+                ("preparationEdits[0].role", nameof(CaseAssetReportRole.Supporting)),
+                ("preparationEdits[0].order", "3"),
+                ("preparationEdits[0].rotation", "180"),
+                ("preparationEdits[0].cropLeft", "0.05"),
+                ("preparationEdits[0].cropTop", "0.1"),
+                ("preparationEdits[0].cropWidth", "0.5"),
+                ("preparationEdits[0].cropHeight", "0.6")));
 
-        AssertFilesPrg(response, store.CaseId);
-        var save = Assert.Single(store.PreparationSaves);
-        AssertLeasedMutation(workspace, save, operationKey, ReportImageLabels.SaveReason);
+        AssertPrg(response, store.CaseId);
+        var preparation = Assert.Single(store.Saves).ImagePreparation;
+        Assert.NotNull(preparation);
+        Assert.NotNull(preparation.Edits);
+        var edit = Assert.Single(preparation.Edits);
         Assert.Equal(
             new CaseAssetPreparationEdit(
                 fixture.OverviewOccurrenceId,
@@ -156,123 +127,7 @@ public sealed partial class CaseDetailsWebTests
                 3,
                 CaseAssetRotation.Half,
                 new(0.05m, 0.1m, 0.5m, 0.6m)),
-            Assert.Single(save.Edits));
-    }
-
-    /// <summary>
-    /// Reordering exchanges the two neighbours' orders in one command, so the
-    /// sequence the operator sees is the one they asked for rather than one a
-    /// tie-break settled.
-    /// </summary>
-    [Fact]
-    public async Task MovingASupportingImageUpPostsBothNeighboursWithExchangedOrders()
-    {
-        var fixture = new PreparedImages();
-        var store = fixture.Store();
-        using var workspace = await EnterEngineerEditModeAsync(store, services =>
-        {
-            Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
-        });
-        const string operationKey = "1a1b1c1d1e1f11121314151617181910";
-
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=SaveAssetPreparation",
-            workspace.MutationForm(
-                operationKey,
-                "ignored: the handler names its own reason",
-                ("edits[0].occurrenceId", fixture.SecondSupportingOccurrenceId.ToString("D")),
-                ("edits[0].expectedPreparationVersion", "1"),
-                ("edits[0].role", nameof(CaseAssetReportRole.Supporting)),
-                ("edits[0].order", "1"),
-                ("edits[0].rotation", "0"),
-                ("edits[0].cropLeft", "0"),
-                ("edits[0].cropTop", "0"),
-                ("edits[0].cropWidth", "1"),
-                ("edits[0].cropHeight", "1"),
-                ("edits[1].occurrenceId", fixture.FirstSupportingOccurrenceId.ToString("D")),
-                ("edits[1].expectedPreparationVersion", "1"),
-                ("edits[1].role", nameof(CaseAssetReportRole.Supporting)),
-                ("edits[1].order", "2"),
-                ("edits[1].rotation", "0"),
-                ("edits[1].cropLeft", "0"),
-                ("edits[1].cropTop", "0"),
-                ("edits[1].cropWidth", "1"),
-                ("edits[1].cropHeight", "1")));
-
-        AssertFilesPrg(response, store.CaseId);
-        var save = Assert.Single(store.PreparationSaves);
-        Assert.Equal(2, save.Edits.Count);
-        Assert.Equal(fixture.SecondSupportingOccurrenceId, save.Edits[0].OccurrenceId);
-        Assert.Equal(1, save.Edits[0].Order);
-        Assert.Equal(fixture.FirstSupportingOccurrenceId, save.Edits[1].OccurrenceId);
-        Assert.Equal(2, save.Edits[1].Order);
-    }
-
-    /// <summary>A reset names the occurrences to restore and nothing else.</summary>
-    [Fact]
-    public async Task ResettingAnImagesPreparationPostsItsOccurrenceId()
-    {
-        var fixture = new PreparedImages();
-        var store = fixture.Store();
-        using var workspace = await EnterEngineerEditModeAsync(store, services =>
-        {
-            Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
-        });
-        const string operationKey = "2a2b2c2d2e2f21222324252627282920";
-
-        using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ResetAssetPreparation",
-            workspace.MutationForm(
-                operationKey,
-                "ignored: the handler names its own reason",
-                ("occurrenceIds", fixture.CloseUpOccurrenceId.ToString("D"))));
-
-        AssertFilesPrg(response, store.CaseId);
-        var reset = Assert.Single(store.PreparationResets);
-        AssertLeasedMutation(workspace, reset, operationKey, ReportImageLabels.ResetReason);
-        Assert.Equal(fixture.CloseUpOccurrenceId, Assert.Single(reset.OccurrenceIds));
-    }
-
-    /// <summary>
-    /// A refused save reports the refusal on the section the editor acted on
-    /// and keeps this browser in edit mode, so they can correct and resubmit.
-    /// </summary>
-    [Fact]
-    public async Task ARefusedPreparationSaveReportsTheRefusalAndKeepsEditMode()
-    {
-        var fixture = new PreparedImages();
-        var store = fixture.Store();
-        using var workspace = await EnterEngineerEditModeAsync(store, services =>
-        {
-            Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
-        });
-        store.NextFailure = new InvalidOperationException("At most one Close-up image is permitted.");
-
-        using var refused = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=SaveAssetPreparation",
-            workspace.MutationForm(
-                "3a3b3c3d3e3f31323334353637383930",
-                "ignored: the handler names its own reason",
-                ("edits[0].occurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
-                ("edits[0].expectedPreparationVersion", "4"),
-                ("edits[0].role", nameof(CaseAssetReportRole.CloseUp)),
-                ("edits[0].rotation", "0"),
-                ("edits[0].cropLeft", "0"),
-                ("edits[0].cropTop", "0"),
-                ("edits[0].cropWidth", "1"),
-                ("edits[0].cropHeight", "1")));
-
-        AssertFilesPrg(refused, store.CaseId);
-        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
-        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
-        Assert.Contains("At most one Close-up image is permitted.", html, StringComparison.Ordinal);
-        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+            edit);
     }
 
     /// <summary>
@@ -320,119 +175,6 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// B08: the Report cards offer the same preparation the Files cards do.
-    /// One partial renders both from one loaded set, so a card in either
-    /// section binds exactly the same fields and offers exactly the same
-    /// controls; only the section its forms post back to differs.
-    /// </summary>
-    [Fact]
-    public async Task TheReportCardsOfferTheSameControlsAndBoundFieldsAsTheFilesCards()
-    {
-        var fixture = new PreparedImages();
-        var store = fixture.Store();
-        using var workspace = await EnterEngineerEditModeAsync(store, services =>
-        {
-            Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
-        });
-
-        var leased = await workspace.GetWorkspaceAsync();
-        var files = Section(
-            await GetFilesFragmentAsync(workspace, leased),
-            "report-images-title");
-        var report = Section(leased, "section-report-title");
-
-        foreach (var occurrenceId in new[]
-        {
-            fixture.CloseUpOccurrenceId,
-            fixture.OverviewOccurrenceId,
-            fixture.FirstSupportingOccurrenceId,
-            fixture.SecondSupportingOccurrenceId
-        })
-        {
-            var filesCard = Card(files, occurrenceId);
-            var reportCard = Card(report, occurrenceId);
-            Assert.NotEmpty(BoundFieldNames(reportCard));
-            Assert.Equal(BoundFieldNames(filesCard), BoundFieldNames(reportCard));
-            Assert.Contains("section=files", filesCard, StringComparison.Ordinal);
-            Assert.DoesNotContain("section=report", filesCard, StringComparison.Ordinal);
-            Assert.Contains("section=report", reportCard, StringComparison.Ordinal);
-            Assert.DoesNotContain("section=files", reportCard, StringComparison.Ordinal);
-        }
-
-        foreach (var control in new[]
-        {
-            ReportImageLabels.Save,
-            ReportImageLabels.Reset,
-            ReportImageLabels.RotateLeft,
-            ReportImageLabels.RotateRight,
-            ReportImageLabels.MoveUp,
-            ReportImageLabels.MoveDown
-        })
-        {
-            Assert.Contains(control, ReportImageCards(report), StringComparison.Ordinal);
-        }
-
-        // The move each end of the sequence does not offer is the same in
-        // both sections, because both read one Supporting sequence.
-        Assert.DoesNotContain(ReportImageLabels.MoveUp, Card(report, fixture.FirstSupportingOccurrenceId), StringComparison.Ordinal);
-        Assert.DoesNotContain(ReportImageLabels.MoveUp, Card(files, fixture.FirstSupportingOccurrenceId), StringComparison.Ordinal);
-        Assert.DoesNotContain(ReportImageLabels.MoveDown, Card(report, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
-        Assert.DoesNotContain(ReportImageLabels.MoveDown, Card(files, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// B08: a preparation command posted from the Report section returns to
-    /// the Report section, so the editor reads the outcome where they acted
-    /// rather than being moved to Files.
-    /// </summary>
-    [Fact]
-    public async Task APreparationCommandFromTheReportSectionReturnsToTheReportSection()
-    {
-        var fixture = new PreparedImages();
-        var store = fixture.Store();
-        using var workspace = await EnterEngineerEditModeAsync(store, services =>
-        {
-            Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
-        });
-
-        using var saved = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=SaveAssetPreparation&section=report",
-            workspace.MutationForm(
-                "4a4b4c4d4e4f41424344454647484940",
-                "ignored: the handler names its own reason",
-                ("edits[0].occurrenceId", fixture.FirstSupportingOccurrenceId.ToString("D")),
-                ("edits[0].expectedPreparationVersion", "1"),
-                ("edits[0].role", nameof(CaseAssetReportRole.Supporting)),
-                ("edits[0].order", "2"),
-                ("edits[0].rotation", "0"),
-                ("edits[0].cropLeft", "0"),
-                ("edits[0].cropTop", "0"),
-                ("edits[0].cropWidth", "1"),
-                ("edits[0].cropHeight", "1")));
-
-        AssertPreparationPrg(saved, store.CaseId, "report");
-        Assert.Equal(
-            fixture.FirstSupportingOccurrenceId,
-            Assert.Single(Assert.Single(store.PreparationSaves).Edits).OccurrenceId);
-
-        using var reset = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ResetAssetPreparation&section=report",
-            workspace.MutationForm(
-                "5a5b5c5d5e5f51525354555657585950",
-                "ignored: the handler names its own reason",
-                ("occurrenceIds", fixture.CloseUpOccurrenceId.ToString("D"))));
-
-        AssertPreparationPrg(reset, store.CaseId, "report");
-        Assert.Equal(
-            fixture.CloseUpOccurrenceId,
-            Assert.Single(Assert.Single(store.PreparationResets).OccurrenceIds));
-    }
-
-    /// <summary>
     /// B08: the read-only Report cards state the prepared values and nothing
     /// that could change one — no control and no drag hook — while this
     /// browser holds no edit lease.
@@ -470,22 +212,19 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// B08: in edit mode the record carries its own enhancement script and
-    /// each Supporting card carries the shape of the edit a drop submits, so
-    /// dragging posts the same SaveAssetPreparation command Move up and Move
-    /// down post. A card the sequence does not order is not draggable. The
-    /// drop itself is a browser gesture and there is no browser harness in
-    /// this suite, so what is proved here is the markup the script binds to.
+    /// U5: each editable card supplies the state the workspace script stages
+    /// into the one Case Save form. The cards deliberately contain no local
+    /// post shape or command because crop, reset, rotation and role changes
+    /// are all saved with the Case.
     /// </summary>
     [Fact]
-    public async Task TheSupportingCardsCarryTheDragHooksInEditMode()
+    public async Task TheEditableCardsStagePreparationForTheSingleCaseSave()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseAssetPreparationStore>(services, store);
             Substitute<ICaseEvidenceImageQueries>(services, store);
         });
 
@@ -502,42 +241,48 @@ public sealed partial class CaseDetailsWebTests
         })
         {
             Assert.Contains("data-report-images=", panel, StringComparison.Ordinal);
-            Assert.Contains("data-preparation-command=\"save\"", panel, StringComparison.Ordinal);
             foreach (var occurrenceId in new[]
             {
+                fixture.CloseUpOccurrenceId,
+                fixture.OverviewOccurrenceId,
                 fixture.FirstSupportingOccurrenceId, fixture.SecondSupportingOccurrenceId
             })
             {
                 var card = Card(panel, occurrenceId);
                 foreach (var hook in new[]
                 {
-                    "draggable=\"true\"",
+                    "data-preparation-card",
+                    "data-preparation-occurrence=",
                     "data-preparation-version=",
-                    "data-report-role=",
-                    "data-report-order=",
-                    "data-report-rotation=",
-                    "data-crop-left=",
-                    "data-crop-top=",
-                    "data-crop-width=",
-                    "data-crop-height="
+                    "data-preparation-role=",
+                    "data-preparation-rotation=",
+                    "data-preparation-crop-left=",
+                    "data-preparation-crop-top=",
+                    "data-preparation-crop-width=",
+                    "data-preparation-crop-height=",
+                    "data-preparation-role-select",
+                    "data-preparation-rotate",
+                    "data-preparation-reset",
+                    "data-preparation-crop"
                 })
                 {
                     Assert.Contains(hook, card, StringComparison.Ordinal);
                 }
+                Assert.DoesNotContain("handler=SaveAssetPreparation", card, StringComparison.Ordinal);
+                Assert.DoesNotContain("handler=ResetAssetPreparation", card, StringComparison.Ordinal);
+                Assert.DoesNotContain("name=\"edits[", card, StringComparison.Ordinal);
             }
 
-            // Only the Supporting sequence is ordered, so only it is dragged.
-            Assert.DoesNotContain("draggable", Card(panel, fixture.CloseUpOccurrenceId), StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("draggable", Card(panel, fixture.OverviewOccurrenceId), StringComparison.OrdinalIgnoreCase);
+            foreach (var occurrenceId in new[]
+            {
+                fixture.FirstSupportingOccurrenceId,
+                fixture.SecondSupportingOccurrenceId
+            })
+            {
+                Assert.Contains("data-preparation-order=", Card(panel, occurrenceId), StringComparison.Ordinal);
+            }
         }
     }
-
-    /// <summary>
-    /// The preparation redirect lands on the Files section, not the record's
-    /// top, so the editor reads the outcome where they acted.
-    /// </summary>
-    private static void AssertFilesPrg(HttpResponseMessage response, Guid caseId) =>
-        AssertPreparationPrg(response, caseId, "files");
 
     /// <summary>
     /// The Files body mounts after the page's first response. Match the
@@ -558,17 +303,6 @@ public sealed partial class CaseDetailsWebTests
         using var response = await workspace.Client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
-    }
-
-    /// <summary>
-    /// B08: the redirect lands on the section the command was posted from —
-    /// the same controls are offered in Files and in Report, and each
-    /// section's forms carry their own section.
-    /// </summary>
-    private static void AssertPreparationPrg(HttpResponseMessage response, Guid caseId, string section)
-    {
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}?section={section}", response.Headers.Location?.OriginalString);
     }
 
     /// <summary>
@@ -598,36 +332,12 @@ public sealed partial class CaseDetailsWebTests
     /// <summary>One occurrence's card within a section.</summary>
     private static string Card(string panel, Guid occurrenceId)
     {
-        var marker = panel.IndexOf($"data-report-image=\"{occurrenceId:D}\"", StringComparison.Ordinal);
+        var marker = panel.IndexOf($"data-preparation-occurrence=\"{occurrenceId:D}\"", StringComparison.Ordinal);
         Assert.True(marker >= 0, $"The card for '{occurrenceId:D}' is not rendered.");
         var start = panel.LastIndexOf("<article", marker, StringComparison.Ordinal);
         var end = panel.IndexOf("</article>", marker, StringComparison.Ordinal);
         Assert.True(end > start, $"The card for '{occurrenceId:D}' is not closed.");
         return panel[start..(end + "</article>".Length)];
-    }
-
-    /// <summary>
-    /// The names a card's controls bind, sorted and without duplicates, so
-    /// two cards can be compared for the exact posted shape rather than for
-    /// the operation keys and tokens that are fresh on every render.
-    /// </summary>
-    private static IReadOnlyList<string> BoundFieldNames(string card)
-    {
-        var names = new SortedSet<string>(StringComparer.Ordinal);
-        var index = 0;
-        while (true)
-        {
-            var start = card.IndexOf("name=\"", index, StringComparison.Ordinal);
-            if (start < 0)
-            {
-                return [.. names];
-            }
-            start += "name=\"".Length;
-            var end = card.IndexOf('"', start);
-            Assert.True(end > start, "A bound control's name is not closed.");
-            names.Add(card[start..end]);
-            index = end;
-        }
     }
 
     /// <summary>
@@ -649,10 +359,13 @@ public sealed partial class CaseDetailsWebTests
 
         public CaseAssetCrop OverviewCrop { get; } = new(0.1m, 0.1m, 0.8m, 0.8m);
 
-        public RecordingCaseDetailsStore Store()
+        public RecordingCaseDetailsStore Store(
+            CaseLifecycleState state = CaseLifecycleState.NotReady)
         {
             var store = new RecordingCaseDetailsStore
             {
+                State = state,
+                CaseState = state,
                 CaseDocuments =
                 [
                     Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg"),
@@ -722,14 +435,12 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The report-preparation ports the workspace calls, recording what the
-    /// page bound. The query answers in the order the persisted store answers
-    /// in — role, then supporting order — so the page is exercised against the
-    /// shape it really receives.
+    /// The report-preparation queries the workspace reads. The query answers
+    /// in the order the persisted store answers — role, then supporting order
+    /// — so the page is exercised against the shape it really receives.
     /// </summary>
     private sealed partial class RecordingCaseDetailsStore :
         ICaseAssetPreparationQueries,
-        ICaseAssetPreparationStore,
         ICaseEvidenceImageQueries
     {
         /// <summary>The case's image preparations, when a test supplies them.</summary>
@@ -738,32 +449,10 @@ public sealed partial class CaseDetailsWebTests
         /// <summary>The instruction evidence photographs, when a test supplies them.</summary>
         public IReadOnlyList<CaseEvidenceImage> CaseEvidenceImages { get; set; } = [];
 
-        public List<SaveCaseAssetPreparationRequest> PreparationSaves { get; } = [];
-
-        public List<ResetCaseAssetPreparationRequest> PreparationResets { get; } = [];
-
         Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationQueries.ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Current());
-
-        Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationStore.SaveAsync(
-            SaveCaseAssetPreparationRequest request,
-            CancellationToken cancellationToken)
-        {
-            PreparationSaves.Add(request);
-            ThrowNextFailure();
-            return Task.FromResult(Current());
-        }
-
-        Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationStore.ResetAsync(
-            ResetCaseAssetPreparationRequest request,
-            CancellationToken cancellationToken)
-        {
-            PreparationResets.Add(request);
-            ThrowNextFailure();
-            return Task.FromResult(Current());
-        }
 
         Task<IReadOnlyList<CaseEvidenceImage>> ICaseEvidenceImageQueries.ListForCaseAsync(
             Guid caseId,

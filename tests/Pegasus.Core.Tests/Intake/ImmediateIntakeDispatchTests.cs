@@ -57,6 +57,105 @@ public sealed class ImmediateIntakeDispatchTests
     }
 
     [Fact]
+    public async Task StreamingManualUploadReplaysMatchingBytesWithoutRestaging()
+    {
+        var artifacts = new MemoryArtifactStore();
+        var store = new RecordingStore(Guid.NewGuid(), []);
+        var publisher = new RecordingCommittedPublisher();
+        var receiver = new ReceiveIntake(
+            artifacts,
+            store,
+            new FixedTimeProvider(FixedUtcNow),
+            publisher);
+        var source = StreamedSource([0x01, 0x02]);
+
+        var first = await receiver.ExecuteStreamedAsync(source, "manual-upload-stream", CancellationToken.None);
+        var replay = await receiver.ExecuteStreamedAsync(source, "manual-upload-stream", CancellationToken.None);
+
+        Assert.False(first.IsDuplicate);
+        Assert.True(replay.IsDuplicate);
+        Assert.Equal(first.StagedReceiptId, replay.StagedReceiptId);
+        Assert.Equal(1, artifacts.StreamStageCalls);
+        Assert.Equal([first.StagedReceiptId, first.StagedReceiptId], publisher.StagedReceiptIds);
+    }
+
+    [Fact]
+    public async Task StreamingManualUploadRejectsAChangedSecondOpenBeforeReceiptPersistence()
+    {
+        var artifacts = new MemoryArtifactStore();
+        var store = new RecordingStore(Guid.NewGuid(), []);
+        var publisher = new RecordingCommittedPublisher();
+        var opens = 0;
+        var source = new StreamedIntakeSource(
+            "manual.pdf",
+            "application/pdf",
+            2,
+            _ => ValueTask.FromResult<Stream>(new MemoryStream(++opens == 1 ? [0x01, 0x02] : [0x03, 0x04])),
+            FixedUtcNow,
+            "staff:test",
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "manual-upload-stream"));
+
+        var exception = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(() =>
+            new ReceiveIntake(
+                artifacts,
+                store,
+                new FixedTimeProvider(FixedUtcNow),
+                publisher).ExecuteStreamedAsync(
+                source,
+                "manual-upload-stream",
+                CancellationToken.None));
+
+        Assert.IsType<IntakeArtifactIntegrityException>(exception.InnerException);
+        Assert.Equal(1, artifacts.StreamStageCalls);
+        Assert.Empty(store.ReceivedReceiptIds);
+        Assert.Empty(publisher.StagedReceiptIds);
+    }
+
+    [Fact]
+    public async Task StreamingManualUploadDoesNotReclassifyReceiptPersistenceFailures()
+    {
+        var artifacts = new MemoryArtifactStore();
+        var receiver = new ReceiveIntake(
+            artifacts,
+            new RecordingStore(
+                Guid.NewGuid(),
+                [],
+                receiveFailure: new IOException("controlled receipt failure")),
+            new FixedTimeProvider(FixedUtcNow),
+            new RecordingCommittedPublisher());
+
+        await Assert.ThrowsAsync<IOException>(() => receiver.ExecuteStreamedAsync(
+            StreamedSource([0x01, 0x02]),
+            "manual-upload-stream",
+            CancellationToken.None));
+
+        Assert.Equal(1, artifacts.StreamStageCalls);
+    }
+
+    [Theory]
+    [InlineData(1, new byte[] { 0x01, 0x02 })]
+    [InlineData(3, new byte[] { 0x01, 0x02 })]
+    public async Task StreamingManualUploadRejectsDeclaredLengthMismatchBeforeStaging(
+        long declaredLength,
+        byte[] bytes)
+    {
+        var artifacts = new MemoryArtifactStore();
+        var receiver = new ReceiveIntake(
+            artifacts,
+            new RecordingStore(Guid.NewGuid(), []),
+            new FixedTimeProvider(FixedUtcNow),
+            new RecordingCommittedPublisher());
+        var source = StreamedSource(bytes, declaredLength);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => receiver.ExecuteStreamedAsync(
+            source,
+            "manual-upload-stream",
+            CancellationToken.None));
+
+        Assert.Equal(0, artifacts.StreamStageCalls);
+    }
+
+    [Fact]
     public async Task QueueFailureLeavesCommittedReceiptDueForRecoveryWithoutThrowing()
     {
         var receiptId = Guid.NewGuid();
@@ -169,13 +268,55 @@ public sealed class ImmediateIntakeDispatchTests
         }
     }
 
+    private static StreamedIntakeSource StreamedSource(byte[] content, long? declaredLength = null) =>
+        new(
+            "manual.pdf",
+            "application/pdf",
+            declaredLength ?? content.Length,
+            _ => ValueTask.FromResult<Stream>(new MemoryStream(content, writable: false)),
+            FixedUtcNow,
+            "staff:test",
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "manual-upload-stream"));
+
     private sealed class MemoryArtifactStore : IIntakeArtifactStore
     {
+        public int StreamStageCalls { get; private set; }
+
         public Task<string> StoreAsync(
             string contentHash,
             ReadOnlyMemory<byte> content,
             CancellationToken cancellationToken) =>
             Task.FromResult($"source/{contentHash}");
+
+        public async Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken)
+        {
+            StreamStageCalls++;
+            using var retained = new MemoryStream();
+            await content.CopyToAsync(retained, cancellationToken);
+            var bytes = retained.ToArray();
+            if (bytes.LongLength != contentLength
+                || !string.Equals(
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+                    contentHash,
+                    StringComparison.Ordinal))
+            {
+                throw new IntakeArtifactIntegrityException();
+            }
+
+            return new(
+                $"staging/{stagedReceiptId:D}/{contentHash}",
+                contentHash,
+                contentLength,
+                firstSeenAtUtc,
+                StagedArtifactDisposition.Pending,
+                "test");
+        }
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
@@ -186,8 +327,10 @@ public sealed class ImmediateIntakeDispatchTests
     private sealed class RecordingStore(
         Guid receiptId,
         List<string> events,
-        Exception? releaseFailure = null) : IIntakeWorkStore
+        Exception? releaseFailure = null,
+        Exception? receiveFailure = null) : IIntakeWorkStore
     {
+        private readonly Dictionary<string, IntakeStagedReceipt> receiptsBySourceIdentity = [];
         public Guid WorkItemId { get; } = Guid.NewGuid();
         public List<Guid> ClaimedReceiptIds { get; } = [];
         public List<Guid> MarkedWorkItemIds { get; } = [];
@@ -237,9 +380,28 @@ public sealed class ImmediateIntakeDispatchTests
             return releaseFailure is null ? Task.CompletedTask : Task.FromException(releaseFailure);
         }
 
-        public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(IntakeSourceIdentity sourceIdentity, CancellationToken cancellationToken) => Task.FromResult<IntakeStagedReceipt?>(null);
+        public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeStagedReceipt?>(
+                receiptsBySourceIdentity.GetValueOrDefault(
+                    sourceIdentity.ExternalReceiptToken));
         public Task<ReceivedIntake> ReceiveAsync(IntakeStagedReceipt receipt, string operationKey, CancellationToken cancellationToken)
         {
+            if (receiveFailure is not null)
+            {
+                return Task.FromException<ReceivedIntake>(receiveFailure);
+            }
+
+            if (!receiptsBySourceIdentity.TryAdd(
+                    receipt.SourceIdentity.ExternalReceiptToken,
+                    receipt))
+            {
+                return Task.FromResult(new ReceivedIntake(
+                    receiptsBySourceIdentity[receipt.SourceIdentity.ExternalReceiptToken].Id,
+                    IsDuplicate: true));
+            }
+
             ReceivedReceiptIds.Add(receipt.Id);
             return Task.FromResult(new ReceivedIntake(receipt.Id, false));
         }

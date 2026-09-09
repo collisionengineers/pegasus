@@ -117,6 +117,8 @@ public sealed record CaseRequestUploadSummary(
     string? Recipient = null,
     string? Reason = null);
 
+public sealed record CaseGuidanceEntry(string EventType, string OrganizationName, long TemplateVersion, string Text);
+
 public sealed record CaseHistoryEntry(
     string EventType,
     string Actor,
@@ -142,6 +144,7 @@ public sealed record CaseHistoryEntry(
     /// <see cref="Guid.Empty"/>.
     /// </summary>
     public Guid EntryId { get; init; }
+    public IReadOnlyList<CaseGuidanceEntry> Guidance { get; init; } = [];
 }
 
 public sealed record CaseQueryEmail(

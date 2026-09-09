@@ -29,7 +29,10 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
     /// </summary>
     public NeedsAttentionItem? Selected { get; private set; }
 
-    public DateTimeOffset LoadedAtUtc { get; private set; }
+    public DateTimeOffset? LoadedAtUtc { get; private set; }
+
+    /// <summary>True only when the live Work Centre query could not be read.</summary>
+    public bool IsUnavailable { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(string? selected, CancellationToken cancellationToken)
     {
@@ -38,7 +41,22 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
             return Forbid();
         }
 
-        var snapshot = await getOperationsSnapshot.ExecuteAsync(actor, cancellationToken);
+        OperationsSnapshot snapshot;
+        try
+        {
+            snapshot = await getOperationsSnapshot.ExecuteAsync(actor, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // A failed live read is not an empty queue. Do not render the
+            // default zero values as facts the office can act on.
+            IsUnavailable = true;
+            return Page();
+        }
         LoadedAtUtc = snapshot.AsOfUtc;
         Counts = snapshot.Intake;
         CaseStages = snapshot.CaseStages;

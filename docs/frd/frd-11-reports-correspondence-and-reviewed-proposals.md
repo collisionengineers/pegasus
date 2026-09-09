@@ -117,7 +117,14 @@ not report inputs and do not invalidate their own generation. Other retained
 artifacts remain source evidence regardless of their transport's source label.
 Stale generations cannot be prepared or sent; notes and recipient edits alone
 do not require regeneration. A delivery preparation still requires current
-addressing. Default report dates and displayed report times use Europe/London.
+addressing. Principal recipient settings can include the actual original
+instruction sender and any number of additional addresses. The original sender
+is resolved from the originating instruction, never the latest reply; an
+unresolved sender contributes no invented address. Claim Source is never copied
+implicitly. The resolved recipients are frozen in the immutable preparation,
+but the Engineer reviews and may edit To and Cc before that freeze; every
+delivery still requires a staff-controlled send. Default report dates
+and displayed report times use Europe/London.
 
 ### Report generation entry point
 
@@ -201,7 +208,8 @@ lease, operation-key replay, and version guards as a staff save, attributed
 and permanently recorded with the same rigor as any human action. Values the
 automation records are unconfirmed working data reviewed by the engineer the
 case is manually assigned to. Confirming a professional finding is
-staff-Engineer-only, and report approval and outward dispatch remain human
+restricted to staff with Engineer capabilities, including Administrator, and
+report approval and outward dispatch remain human
 acts, so no model, skill, prompt, or external source ever issues an accepted
 case, engineering, economic, legal, or report outcome.
 

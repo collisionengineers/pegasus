@@ -157,6 +157,11 @@ public interface IIntakeSubmission
         IntakeSource source,
         string operationKey,
         CancellationToken cancellationToken = default);
+
+    Task<ReceivedIntake> ExecuteStreamedAsync(
+        StreamedIntakeSource source,
+        string operationKey,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IIntakeWorkStore
@@ -393,6 +398,139 @@ public sealed class ReceiveIntake(
         await PublishCommittedAsync(receivedIntake, cancellationToken);
         return receivedIntake;
     }
+
+    public async Task<ReceivedIntake> ExecuteStreamedAsync(StreamedIntakeSource source, string operationKey,
+        CancellationToken cancellationToken = default)
+    {
+        var safeFileName = ValidateStreamedSource(source, operationKey);
+        var hash = await StreamHashAsync(source, cancellationToken);
+        var existing = await workStore.FindBySourceIdentityAsync(
+            source.SourceIdentity,
+            cancellationToken);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.SourceHash, hash, StringComparison.Ordinal))
+            {
+                throw new IntakeSourceIdentityConflictException(existing.SourceHash, hash);
+            }
+
+            var replay = await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
+            await PublishCommittedAsync(replay, cancellationToken);
+            return replay;
+        }
+
+        var id = Guid.NewGuid();
+        var now = timeProvider.GetUtcNow();
+        StagedArtifactInventoryItem staged;
+        try
+        {
+            await using var content = await OpenReadableContentAsync(source, cancellationToken);
+            staged = await artifactStore.StageAsync(
+                id,
+                hash,
+                content,
+                source.ContentLength,
+                now,
+                cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            throw new IntakeArtifactRetentionException(exception);
+        }
+
+        var receipt = new IntakeStagedReceipt(
+            id,
+            safeFileName,
+            source.MediaType,
+            source.ContentLength,
+            hash,
+            source.SourceIdentity,
+            source.ReceivedAtUtc,
+            source.Actor,
+            staged.StorageKey,
+            now);
+        var received = await workStore.ReceiveAsync(receipt, operationKey, cancellationToken);
+        await PublishCommittedAsync(received, cancellationToken);
+        return received;
+    }
+
+    internal static async Task<string> StreamHashAsync(StreamedIntakeSource source, CancellationToken cancellationToken)
+    {
+        await using var stream = await OpenReadableContentAsync(source, cancellationToken);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[64 * 1024];
+        long total = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            total = checked(total + read);
+            if (total > source.ContentLength)
+            {
+                throw new InvalidDataException("The uploaded length is invalid.");
+            }
+
+            hash.AppendData(buffer, 0, read);
+        }
+
+        if (total != source.ContentLength)
+        {
+            throw new InvalidDataException("The uploaded length is invalid.");
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    internal static string ValidateStreamedSource(
+        StreamedIntakeSource source,
+        string operationKey)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source.OpenContentAsync);
+        ArgumentNullException.ThrowIfNull(source.SourceIdentity);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.MediaType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceIdentity.ExternalReceiptToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+
+        var safeFileName = Path.GetFileName(source.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(safeFileName);
+        ValidateLength(safeFileName, MaximumFileNameLength, nameof(source.FileName));
+        ValidateLength(source.MediaType, MaximumMediaTypeLength, nameof(source.MediaType));
+        ValidateLength(source.Actor, MaximumActorLength, nameof(source.Actor));
+        ValidateLength(
+            source.SourceIdentity.ExternalReceiptToken,
+            MaximumExternalReceiptTokenLength,
+            nameof(source.SourceIdentity.ExternalReceiptToken));
+        ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
+        if (source.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(source),
+                "Streamed intake is only supported for manual upload.");
+        }
+
+        if (source.ContentLength is <= 0 or > IntakeEnvelopeLimits.MaximumContentLength)
+        {
+            throw new InvalidDataException("The intake source exceeds its channel's size limit.");
+        }
+
+        return safeFileName;
+    }
+
+    private static async ValueTask<Stream> OpenReadableContentAsync(
+        StreamedIntakeSource source,
+        CancellationToken cancellationToken)
+    {
+        var stream = await source.OpenContentAsync(cancellationToken);
+        if (stream is null || !stream.CanRead)
+        {
+            throw new InvalidDataException("The uploaded content stream is unavailable.");
+        }
+
+        return stream;
+    }
+
 
     private Task PublishCommittedAsync(
         ReceivedIntake received,

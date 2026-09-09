@@ -24,7 +24,7 @@
                     <h2 id="glass-credential-title">@CaseWorkspaceLabels.GlassCredential.Title</h2>
                     <partial name="Shared/_StatusChip" model="@Model.StateName" />
                 </div>
-                <dl class="detail-list">
+                <dl class="detail-list panel-body--compact">
                     <div>
                         <dt>@CaseWorkspaceLabels.GlassCredential.Account</dt>
                         <dd>@account.UserName</dd>
@@ -63,22 +63,32 @@
                 <div class="panel-head">
                     <h2 id="glass-credential-save-title">@CaseWorkspaceLabels.GlassCredential.Save</h2>
                 </div>
-                <form method="post" asp-page-handler="Save" class="field">
+                <form method="post" asp-page-handler="Save" class="panel-body compact-credential-form">
                     @* Plain, not asp-for: a redisplay must carry the version the
                        store holds now, never the stale one the refused post sent. *@
                     <input type="hidden" name="ExpectedVersion" value="@status.Version" />
-                    <label class="req" for="glass-username">@CaseWorkspaceLabels.GlassCredential.Username</label>
-                    <input id="glass-username" name="username" required maxlength="256"
-                           autocomplete="off" value="@Model.Username" />
-                    <label class="req" for="glass-password">@CaseWorkspaceLabels.GlassCredential.Password</label>
+                    <input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" />
+                    <input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" />
+                    <fieldset class="stack" disabled="@(!Model.IsEditing)">
+                    <div class="field">
+                        <label class="req" for="glass-username">@CaseWorkspaceLabels.GlassCredential.Username</label>
+                        <input id="glass-username" name="username" required maxlength="256"
+                               autocomplete="off" value="@Model.Username" />
+                    </div>
                     @* No tag helper and no value attribute: the submitted secret
                        is never written back into this field. *@
-                    <input id="glass-password" name="password" type="password" required
-                           maxlength="256" autocomplete="new-password" />
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                        <span>@CaseWorkspaceLabels.GlassCredential.Save</span>
-                    </button>
+                    <div class="field">
+                        <label class="req" for="glass-password">@CaseWorkspaceLabels.GlassCredential.Password</label>
+                        <input id="glass-password" name="password" type="password" required
+                               maxlength="256" autocomplete="new-password" />
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                            <span>@CaseWorkspaceLabels.GlassCredential.Save</span>
+                        </button>
+                    </div>
+                    </fieldset>
                 </form>
             </section>
 
@@ -88,13 +98,45 @@
                     <div class="panel-head">
                         <h2 id="glass-credential-clear-title">@CaseWorkspaceLabels.GlassCredential.Clear</h2>
                     </div>
-                    <form method="post" asp-page-handler="Clear" class="field">
+                    <form method="post" asp-page-handler="Clear" class="panel-body panel-body--compact">
                         <input type="hidden" name="ExpectedVersion" value="@status.Version" />
+                        <input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" />
+                        <input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" />
+                        <fieldset class="stack" disabled="@(!Model.IsEditing)">
                         <button type="submit" class="btn btn--danger">
                             <span>@CaseWorkspaceLabels.GlassCredential.Clear</span>
                         </button>
+                        </fieldset>
                     </form>
                 </section>
+            }
+            <div class="button-row">
+                @if (Model.IsEditing)
+                {
+                    <form method="post" asp-page-handler="CancelEdit">
+                        <input type="hidden" name="staffId" value="@account.Id" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
+                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                        <button type="submit" class="btn">Cancel</button>
+                    </form>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="Edit">
+                        <input type="hidden" name="staffId" value="@account.Id" />
+                        <input type="hidden" name="expectedStaffAccountVersion" value="@account.Version" />
+                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                        <button type="submit" class="btn btn--primary">Edit credential</button>
+                    </form>
+                }
+            </div>
+            @if (Model.IsEditing)
+            {
+                <form method="post" asp-page-handler="HeartbeatEdit" data-edit-heartbeat data-edit-heartbeat-status="glass-credential-edit-heartbeat-status" hidden>
+                    <input type="hidden" name="staffId" value="@account.Id" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
+                </form>
+                <p id="glass-credential-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
             }
         </div>
     </div>

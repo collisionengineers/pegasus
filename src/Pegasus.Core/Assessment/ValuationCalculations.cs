@@ -34,7 +34,11 @@ public sealed record SaveValuationPresetRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string Reason,
-    string OperationKey);
+    string OperationKey)
+{
+    /// <summary>Required for an update; a newly minted preset has no existing scope.</summary>
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public enum ValuationPresetError
 {

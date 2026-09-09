@@ -147,7 +147,10 @@ public sealed record TriageMutationRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public sealed record AssignTriageRequest(
     Guid TriageId,
@@ -155,7 +158,10 @@ public sealed record AssignTriageRequest(
     Guid AssigneeId,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Adds one operator note to the Triage's permanent history.
@@ -171,7 +177,10 @@ public sealed record AddTriageNoteRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Note);
+    string Note)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public static class TriageNotes
 {
@@ -208,7 +217,10 @@ public sealed record RecordTriageFindingRequest(
     string Reason,
     RoadworthinessFinding? Roadworthiness,
     AssessmentFinding? Assessment,
-    Guid? SupersedesFindingId);
+    Guid? SupersedesFindingId)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public sealed record TriageCaseLinkRequest(
     Guid TriageId,
@@ -218,7 +230,10 @@ public sealed record TriageCaseLinkRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    string CaseEditLeaseToken);
+    string CaseEditLeaseToken)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public sealed record TriageResponseEvidenceLinkRequest(
     Guid TriageId,
@@ -227,7 +242,10 @@ public sealed record TriageResponseEvidenceLinkRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public sealed record TriageResponseEvidenceUnlinkRequest(
     Guid TriageId,
@@ -235,7 +253,10 @@ public sealed record TriageResponseEvidenceUnlinkRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
 
 public interface ICreateTriageFromIntake
 {

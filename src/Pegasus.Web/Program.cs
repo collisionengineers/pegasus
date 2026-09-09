@@ -1257,15 +1257,37 @@ static async Task ReconcileVerificationAccountAsync(
 
     // Converge an existing account on the configured password and role, so a
     // rotated password in configuration is enough to restore access.
+    var context = services.GetRequiredService<PegasusDbContext>();
+    await using var transaction = await context.Database.BeginTransactionAsync();
     existing.IsEnabled = true;
     existing.MustChangePassword = false;
-    await userManager.UpdateAsync(existing);
-    var resetToken = await userManager.GeneratePasswordResetTokenAsync(existing);
-    await userManager.ResetPasswordAsync(existing, resetToken, password);
-    if (!await userManager.IsInRoleAsync(existing, StaffRoleNames.Administrator))
+    existing.Version++;
+    var updateResult = await userManager.UpdateAsync(existing);
+    if (!updateResult.Succeeded)
     {
-        await userManager.AddToRoleAsync(existing, StaffRoleNames.Administrator);
+        throw new InvalidOperationException("Verification account update failed.");
     }
+    var resetToken = await userManager.GeneratePasswordResetTokenAsync(existing);
+    var resetResult = await userManager.ResetPasswordAsync(existing, resetToken, password);
+    if (!resetResult.Succeeded)
+    {
+        throw new InvalidOperationException("Verification account password reset failed.");
+    }
+    var existingRoles = await userManager.GetRolesAsync(existing);
+    if (existingRoles.Count > 0)
+    {
+        var removeResult = await userManager.RemoveFromRolesAsync(existing, existingRoles);
+        if (!removeResult.Succeeded)
+        {
+            throw new InvalidOperationException("Verification account role removal failed.");
+        }
+    }
+    var addResult = await userManager.AddToRoleAsync(existing, StaffRoleNames.Administrator);
+    if (!addResult.Succeeded)
+    {
+        throw new InvalidOperationException("Verification account Administrator assignment failed.");
+    }
+    await transaction.CommitAsync();
 }
 
 static async Task BootstrapProductionAdministratorAsync(IServiceProvider services)

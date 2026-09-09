@@ -19,6 +19,16 @@ public static class StaffRoleNames
         [Administrator, Engineer, User];
 }
 
+/// <summary>
+/// Defines the application role hierarchy. An Administrator holds every staff
+/// capability while retaining a single stored role.
+/// </summary>
+public static class StaffRoleCapabilities
+{
+    public static bool MeetsRequirement(StaffRole grantedRole, StaffRole requiredRole) =>
+        grantedRole == StaffRole.Administrator || grantedRole == requiredRole;
+}
+
 public enum ActorKind
 {
     Staff,
@@ -48,7 +58,8 @@ public sealed class ActionActor
 
     public IReadOnlySet<StaffRole> Roles { get; }
 
-    public bool IsInRole(StaffRole role) => Roles.Contains(role);
+    public bool IsInRole(StaffRole role) =>
+        Roles.Any(grantedRole => StaffRoleCapabilities.MeetsRequirement(grantedRole, role));
 
     public static ActionActor Staff(Guid staffId, IEnumerable<StaffRole> roles)
     {
@@ -58,19 +69,24 @@ public sealed class ActionActor
         }
 
         ArgumentNullException.ThrowIfNull(roles);
-        var roleSet = roles.ToFrozenSet();
-        if (roleSet.Any(role => !Enum.IsDefined(role)))
+        var assignedRoles = roles.ToArray();
+        if (assignedRoles.Length != 1)
+        {
+            throw new ArgumentException(
+                "An enabled staff actor requires exactly one current role.",
+                nameof(roles));
+        }
+        if (!Enum.IsDefined(assignedRoles[0]))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(roles),
                 "A staff actor requires recognized current roles.");
         }
-        if (roleSet.Count == 0)
-        {
-            throw new ArgumentException("An enabled staff actor requires at least one current role.", nameof(roles));
-        }
 
-        return new ActionActor(ActorKind.Staff, staffId.ToString("D"), roleSet);
+        return new ActionActor(
+            ActorKind.Staff,
+            staffId.ToString("D"),
+            new[] { assignedRoles[0] }.ToFrozenSet());
     }
 
     public static ActionActor SystemWorker(string workerId) =>

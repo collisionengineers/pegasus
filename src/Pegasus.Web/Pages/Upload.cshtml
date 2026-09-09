@@ -30,7 +30,7 @@
                     <h2><label asp-for="Upload">@OperatorLabels.Upload.Dropzone</label></h2>
                     <p>@Model.AcceptedFiles</p>
                     <button type="button" class="btn btn--dark" hidden data-dropzone-browse>@OperatorLabels.Upload.Choose</button>
-                    <input asp-for="Upload" type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
+                    <input asp-for="Upload" type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,.mp4,.mov,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png,video/mp4,video/quicktime" />
                 </div>
             </div>
             @* One row per chosen file, filled in by site.js from the input's

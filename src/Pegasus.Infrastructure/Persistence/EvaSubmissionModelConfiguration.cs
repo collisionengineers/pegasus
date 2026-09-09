@@ -16,10 +16,6 @@ internal static class EvaSubmissionModelConfiguration
                     "CK_EvaSubmissions_Outcome",
                     "[Outcome] IN ('Succeeded', 'Rejected', 'Partial', 'Unknown')");
 
-                // IsDelivered records whether the instruction reached EVA.
-                // A Partial did: EVA accepted it and returned no identifier.
-                // Keep the stored flag consistent with the outcome while
-                // allowing explicit manual re-sends to create new handoffs.
                 table.HasCheckConstraint(
                     "CK_EvaSubmissions_DeliveredAgreesWithOutcome",
                     "([IsDelivered] = 1 AND [Outcome] IN ('Succeeded', 'Partial')) "

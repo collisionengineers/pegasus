@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
@@ -242,15 +243,23 @@ public sealed class GlassRepairEstimatePersistenceTests
         var reader = scope.ServiceProvider.GetRequiredService<IPerUserExternalCredentialReader>();
         var userId = DevelopmentOfflineIdentity.AdministratorId;
         var administrator = ActionActor.Staff(userId, [StaffRole.Administrator]);
-        var engineer = ActionActor.Staff(userId, [StaffRole.Administrator, StaffRole.Engineer]);
+        var engineer = ActionActor.Staff(userId, [StaffRole.Administrator]);
 
         var before = await administration.GetAsync(
             administrator, userId, ExternalCredentialProvider.GlassRepairEstimate, CancellationToken.None);
+        var account = await scope.ServiceProvider.GetRequiredService<IGetStaffAccount>().ExecuteAsync(
+            new(administrator, userId), CancellationToken.None);
+        var staffAccount = account?.Account ?? throw new InvalidOperationException("The seeded staff account was not found.");
+        var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.StaffAccount, userId, staffAccount.Version, administrator, "set-glass-credential"),
+            CancellationToken.None);
         await administration.ReplaceAsync(
             administrator,
             userId,
             ExternalCredentialProvider.GlassRepairEstimate,
             before.Version,
+            staffAccount.Version,
+            lease.Token,
             "Glass.Engineer",
             "glass-fixture-value-not-a-secret",
             enabled: true,

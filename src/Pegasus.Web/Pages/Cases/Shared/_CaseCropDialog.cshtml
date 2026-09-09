@@ -1,0 +1,18 @@
+<div class="dialog-backdrop case-crop-dialog" data-case-crop-dialog hidden>
+    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="case-crop-title">
+        <div class="dialog-head"><h2 id="case-crop-title">Crop image</h2><button type="button" class="dialog-close" data-case-crop-cancel aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+        <div class="dialog-body crop-dialog-body">
+            <div class="crop-stage" data-case-crop-stage>
+                <canvas aria-hidden="true" data-case-crop-stage-canvas></canvas>
+                <div class="crop-selection" data-case-crop-selection><span class="crop-handle crop-handle--nw" data-crop-handle="nw"></span><span class="crop-handle crop-handle--ne" data-crop-handle="ne"></span><span class="crop-handle crop-handle--sw" data-crop-handle="sw"></span><span class="crop-handle crop-handle--se" data-crop-handle="se"></span></div>
+            </div>
+            <aside class="crop-controls stack">
+                <div class="field"><label for="case-crop-aspect">Aspect</label><select id="case-crop-aspect" data-case-crop-aspect><option value="free">Free</option><option value="1">Square</option><option value="1.3333333">4:3</option><option value="1.7777778">16:9</option></select></div>
+                <div class="crop-preview"><canvas aria-label="Crop preview" data-case-crop-preview></canvas></div>
+                <div class="button-row"><button type="button" class="btn" data-case-crop-rotate="-90">Rotate left</button><button type="button" class="btn" data-case-crop-rotate="90">Rotate right</button></div>
+                <div class="button-row"><button type="button" class="btn" data-case-crop-full>Full frame</button><button type="button" class="btn" data-case-crop-reset>Reset</button></div>
+            </aside>
+        </div>
+        <div class="dialog-foot"><button type="button" class="btn" data-case-crop-cancel>Cancel</button><button type="button" class="btn btn--primary" data-case-crop-save>Save crop</button></div>
+    </section>
+</div>

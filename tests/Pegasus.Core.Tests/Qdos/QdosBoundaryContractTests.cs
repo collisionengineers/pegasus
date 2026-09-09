@@ -86,7 +86,7 @@ public sealed class QdosBoundaryContractTests
         var issue = RequestUploadToken.Create();
         var authorization = CreateRequestUploadPolicy().Authorize(
             Link(issue, RequestUploadStatus.Revoked, revokedAtUtc: Now),
-            new(issue.Secret.Token, File("case-notes.pdf", "application/pdf", "document"u8.ToArray(), "upload-1"), 0));
+            new(issue.Secret.Token, File("case-notes.pdf", "application/pdf", "%PDF-1.7\n"u8.ToArray(), "upload-1"), 0));
 
         Assert.Equal(RequestUploadDecision.Unavailable, authorization.Decision);
         Assert.Null(authorization.ContentHash);
@@ -99,7 +99,7 @@ public sealed class QdosBoundaryContractTests
     {
         var issue = RequestUploadToken.Create();
         var link = Link(issue, RequestUploadStatus.Active);
-        var first = File("case-notes.pdf", "application/pdf", "document"u8.ToArray(), "upload-1");
+        var first = File("case-notes.pdf", "application/pdf", "%PDF-1.7\n"u8.ToArray(), "upload-1");
         var firstAuthorization = CreateRequestUploadPolicy().Authorize(link, new(issue.Secret.Token, first, 0));
         var replay = CreateRequestUploadPolicy().Authorize(
             link,
@@ -107,7 +107,7 @@ public sealed class QdosBoundaryContractTests
             firstAuthorization.ContentHash);
         var conflict = CreateRequestUploadPolicy().Authorize(
             link,
-            new(issue.Secret.Token, File("case-notes.pdf", "application/pdf", "changed"u8.ToArray(), "upload-1"), 0),
+            new(issue.Secret.Token, File("case-notes.pdf", "application/pdf", "%PDF-1.8\n"u8.ToArray(), "upload-1"), 0),
             firstAuthorization.ContentHash);
 
         Assert.Equal(RequestUploadDecision.Accepted, firstAuthorization.Decision);

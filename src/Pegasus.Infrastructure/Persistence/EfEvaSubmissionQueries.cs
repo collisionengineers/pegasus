@@ -21,19 +21,17 @@ public sealed class EfEvaSubmissionQueries(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // A succeeded attempt wins over a later failure, because the once-per-
-        // case rule means a success is final: a case that reached EVA has
-        // reached it, and showing a subsequent refused retry as the current
-        // state would say otherwise. Failures order by recency among
-        // themselves.
+        // The case surface reports the latest attempt, regardless of whether
+        // an earlier one reached EVA. Staff need the outcome of the action
+        // they most recently took.
         // Projected to a tuple first: the outcome is stored as text and
         // Enum.Parse has no SQL translation, so the parse belongs after the
         // row has been read rather than inside the query.
         var row = await context.EvaSubmissions
             .AsNoTracking()
             .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.IsDelivered)
-            .ThenByDescending(item => item.SubmittedAtUtc)
+            .OrderByDescending(item => item.SubmittedAtUtc)
+            .ThenByDescending(item => item.Id)
             .Select(item => new
             {
                 item.Outcome,
@@ -47,7 +45,7 @@ public sealed class EfEvaSubmissionQueries(
         return row is null
             ? null
             : new(
-                Enum.Parse<EvaSubmissionOutcome>(row.Outcome),
+                Enum.Parse<EvaSubmissionOutcome>(row.Outcome!),
                 row.EvaId,
                 row.FileReference,
                 row.FailureCode,
@@ -78,7 +76,7 @@ public sealed class EfEvaSubmissionQueries(
         return rows
             .Select(row => new EvaSubmissionFailure(
                 row.CaseId,
-                Enum.Parse<EvaSubmissionOutcome>(row.Outcome),
+                Enum.Parse<EvaSubmissionOutcome>(row.Outcome!),
                 row.FailureCode,
                 row.SubmittedAtUtc))
             .ToList();
@@ -93,5 +91,27 @@ public sealed class EfEvaSubmissionQueries(
             .AsNoTracking()
             .MaxAsync(item => (DateTimeOffset?)item.SubmittedAtUtc, cancellationToken);
         return new(latest);
+    }
+
+    public async Task<bool> CanRetryAutomaticFailureAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default)
+    {
+        if (caseId == Guid.Empty)
+        {
+            return false;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        if (await context.EvaSubmissions.AnyAsync(item => item.CaseId == caseId
+            && !item.IsDelivered, cancellationToken))
+        {
+            return true;
+        }
+
+        return await context.Set<AutomaticEvaReviewSubmissionEntity>()
+            .AnyAsync(item => item.CaseId == caseId
+                && item.State == nameof(AutomaticEvaReviewSubmissionState.ReconciliationRequired),
+                cancellationToken);
     }
 }

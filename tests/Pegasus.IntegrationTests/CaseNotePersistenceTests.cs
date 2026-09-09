@@ -85,6 +85,90 @@ public sealed class CaseNotePersistenceTests
             .ToArrayAsync());
     }
 
+    [Fact]
+    public async Task DifferentNotesAtTheSameWorkflowVersionBothRemainOnTheTimeline()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<ICaseNoteStore>();
+            await store.AddAsync(new(caseId, actor, "operation-one", "First note."), FixedUtcNow, CancellationToken.None);
+            await store.AddAsync(new(caseId, actor, "operation-two", "Second note."), FixedUtcNow.AddMinutes(1), CancellationToken.None);
+        }
+
+        await using var context = await database.CreateContextAsync();
+        Assert.Equal(2, await context.CaseWorkflowEvents
+            .AsNoTracking()
+            .CountAsync(item => item.CaseId == caseId && item.EventType == AddCaseNote.EventType));
+    }
+
+    [Fact]
+    public async Task ConcurrentResubmissionWithTheSameOperationKeyLeavesOneEntry()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var request = new AddCaseNoteRequest(
+            caseId,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            "concurrent-operation",
+            "The repairer confirmed collection.");
+
+        await using var firstScope = database.CreateAsyncScope();
+        await using var secondScope = database.CreateAsyncScope();
+        var first = firstScope.ServiceProvider.GetRequiredService<ICaseNoteStore>();
+        var second = secondScope.ServiceProvider.GetRequiredService<ICaseNoteStore>();
+        await Task.WhenAll(
+            first.AddAsync(request, FixedUtcNow, CancellationToken.None),
+            second.AddAsync(request, FixedUtcNow, CancellationToken.None));
+
+        await using var context = await database.CreateContextAsync();
+        Assert.Single(await context.CaseWorkflowEvents
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == request.OperationKey)
+            .ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task ReusingAnOperationKeyForDifferentNoteContentIsRefused()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ICaseNoteStore>();
+        await store.AddAsync(new(caseId, actor, "reused-operation", "Original note."), FixedUtcNow, CancellationToken.None);
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddAsync(
+            new(caseId, actor, "reused-operation", "Changed note."), FixedUtcNow, CancellationToken.None));
+
+        Assert.Contains("operation key", failure.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TheStoreRejectsAnOversizedNoteWithoutTruncatingIt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ICaseNoteStore>();
+
+        var failure = await Assert.ThrowsAsync<ArgumentException>(() => store.AddAsync(
+            new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "oversized-operation",
+                new string('n', AddCaseNote.MaximumLength + 1)),
+            FixedUtcNow,
+            CancellationToken.None));
+
+        Assert.Contains(AddCaseNote.MaximumLength.ToString(System.Globalization.CultureInfo.InvariantCulture), failure.Message, StringComparison.Ordinal);
+        await using var context = await database.CreateContextAsync();
+        Assert.Empty(await context.CaseWorkflowEvents
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OperationKey == "oversized-operation")
+            .ToArrayAsync());
+    }
+
     private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();

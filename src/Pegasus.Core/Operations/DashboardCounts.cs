@@ -44,9 +44,8 @@ public interface IDashboardQueries
 }
 
 /// <summary>
-/// The five kinds of work the Work Centre lists as needing attention
-/// (FRD-12 § Work Centre). Each is derived from one existing Core query;
-/// there is no sixth kind and no placeholder row.
+/// The Work Centre's actionable kinds (FRD-12 § Work Centre). Each is
+/// derived from one existing Core query; there is no placeholder row.
 /// </summary>
 public enum NeedsAttentionKind
 {
@@ -63,7 +62,13 @@ public enum NeedsAttentionKind
     Triage,
 
     /// <summary>External work that failed and can be retried.</summary>
-    ExternalWork
+    ExternalWork,
+
+    /// <summary>A Case that is ready for the required Review decision.</summary>
+    ReviewCase,
+
+    /// <summary>A ready Case that has no Engineer assigned.</summary>
+    UnassignedEngineer
 }
 
 /// <summary>
@@ -100,4 +105,5 @@ public sealed record NeedsAttentionItem(
     DateTimeOffset? Due,
     string? LastOutcome,
     string? Source,
-    int? Attempts);
+    int? Attempts,
+    DateTimeOffset? Received = null);

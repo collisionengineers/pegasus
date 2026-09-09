@@ -8,7 +8,7 @@ namespace Pegasus.Core.Reports;
 
 public static class AssessmentReportContract
 {
-    public const string TemplateVersion = "rendererref1-v3";
+    public const string TemplateVersion = "rendererref1-v4";
     public const string VatNumber = "262 0937 10";
     public const string AccountName = "Collision Engineers Ltd";
     public const string BankName = "Lloyds Bank";
@@ -97,7 +97,12 @@ public sealed record ReportVehicle(
     string? TemporaryRepairMethod,
     decimal? TemporaryRepairCost);
 
-public sealed record ReportImpact(string Zone, string Severity, string Note);
+/// <summary>
+/// A printed impact retains its canonical zone alongside the operator-facing
+/// label. The code lets the report draw the same selected regions as the Case
+/// workspace without reverse-mapping display text.
+/// </summary>
+public sealed record ReportImpact(string Zone, string Severity, string Note, string Code = "");
 
 public sealed record ReportDamage(
     IReadOnlyList<ReportImpact> Impacts,

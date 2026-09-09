@@ -44,7 +44,7 @@ A case owns immutable identity, principal, internal reference, type, accepted
 source links, snapshotted parties/addresses, vehicle identity, work state,
 due work, documents, correspondence, findings, decisions, action history, and
 closure history. It also owns its assigned Engineer and Sign-off Engineer
-(D31), its Engineer notes (D32), and its storage location and inspect-at
+(D31), its one Case Notes history, and its storage location and inspect-at
 choice (D33).
 
 ### Lifecycle closure and correspondence
@@ -101,6 +101,14 @@ Its immutable VRM reference remains visible when the record is merged into one
 eligible Instruction-initiated Case. Merge and staff closure are named,
 reasoned history events; the formal Case history shows the merged reference and
 the original image record shows its formal Case target.
+
+An existing Image-initiated Case is read-only until an authorised staff member
+selects Edit. The resulting record-scoped edit lease has the same five-minute
+duration and one-minute heartbeat convention as Case editing. Principal changes,
+staff closure and a staff-directed merge recheck the holder, token and current
+lifecycle version in their mutation transaction; Save releases the lease and
+Cancel changes nothing. Automatic image processing remains a SystemWorker path
+and does not impersonate a staff edit lease.
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
@@ -169,12 +177,6 @@ and signature image
 D31 supersedes D18 (2026-09-02): reports no longer render typed Engineer
 identity alone, and the Engineer who issues a report is not thereby its
 signatory.
-
-### Engineer notes
-
-Engineer notes are append-only, attributed staff notes addressed to the
-Engineer (D32). They are a separate section of the Case record from the Notes
-history; a correction is a new note, and there is no edit or delete.
 
 ### Case edit authority and recovery
 

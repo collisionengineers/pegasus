@@ -796,6 +796,26 @@ public sealed class PollApprovedInboxTests
             Task.FromResult<ReadOnlyMemory<byte>?>(
                 stored.TryGetValue(storageKey, out var content) ? content : null);
 
+        public async Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            var storageKey = await StoreAsync(contentHash, buffer.ToArray(), cancellationToken);
+            return new(
+                storageKey,
+                contentHash,
+                contentLength,
+                firstSeenAtUtc,
+                StagedArtifactDisposition.Pending,
+                string.Empty);
+        }
+
         public Task<IntakeQuarantineArtifact> StoreStreamAsync(
             Stream content,
             long contentLength,

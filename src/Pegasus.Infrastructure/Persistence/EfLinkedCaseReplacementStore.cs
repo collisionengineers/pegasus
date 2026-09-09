@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -197,7 +198,7 @@ public sealed class EfLinkedCaseReplacementStore(
                     ?? "Corrected replacement awaits required material",
                 DueBy = original.DueWork?.DueBy ?? original.Case.AcceptedInspectionDeadline,
                 State = nameof(CaseDueWorkState.Scheduled),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now),
+                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                 Version = 0
             });
         }
@@ -211,7 +212,8 @@ public sealed class EfLinkedCaseReplacementStore(
             OperationKey = $"case-custody:{replacementCaseId:N}",
             State = "pending",
             AttemptCount = 0,
-            DueAtUtc = now
+            DueAtUtc = now,
+            CaseRootCreationToken = CustodyCreationOwner.Create()
         });
 
         var beforeVersion = original.Version;

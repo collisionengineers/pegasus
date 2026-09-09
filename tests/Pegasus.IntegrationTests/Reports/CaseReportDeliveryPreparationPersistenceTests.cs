@@ -46,6 +46,23 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
     }
 
     [Fact]
+    public async Task PreparePersistsStaffReviewedRecipients()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var command = harness.PrepareCommand(addressing: new(
+            [new("reviewed@recipient.example", null)],
+            [new("copy@recipient.example", null)],
+            "DVR-31001"));
+
+        var prepared = await harness.Store.PrepareAsync(command, CancellationToken.None);
+        var reloaded = await harness.Store.GetAsync(
+            harness.Staff, harness.CaseId, prepared.Preparation.Id, CancellationToken.None);
+
+        Assert.Equal("reviewed@recipient.example", Assert.Single(reloaded!.Addressing.To).Address);
+        Assert.Equal("copy@recipient.example", Assert.Single(reloaded.Addressing.Cc).Address);
+    }
+
+    [Fact]
     public async Task TheSameOperationKeyReplaysAndADifferentPayloadConflicts()
     {
         await using var harness = await Harness.CreateAsync();
@@ -163,6 +180,19 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         Assert.Null(await harness.Store.GetCurrentAsync(harness.Staff, harness.CaseId, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task RecipientSuggestionsUseTheOriginReceiptRouteSender()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var suggestions = await new EfReportRecipientSuggestionQueries(harness.Factory)
+            .GetAsync(harness.CaseId, CancellationToken.None);
+
+        Assert.NotNull(suggestions);
+        Assert.True(suggestions!.Settings.IncludeOriginalInstructionSender);
+        Assert.Equal("origin-sender@principal.example", suggestions.OriginalInstructionSender);
+    }
+
     private static async Task AssertThrowsAsyncAny<T1, T2>(Func<Task> action)
         where T1 : Exception
         where T2 : Exception
@@ -257,7 +287,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
         public PrepareCaseReportDeliveryCommand PrepareCommand(
             long expectedCaseVersion = 1,
             long expectedGenerationVersion = 1,
-            string leaseToken = "lease") => new(
+            string leaseToken = "lease",
+            CaseReportDeliveryAddressing? addressing = null) => new(
             new(
                 Staff,
                 CaseId,
@@ -266,7 +297,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 GenerationId,
                 expectedGenerationVersion,
                 OperationKey),
-            new([new("handler@principal.example", "Principal Handler")], [], "DVR-31001"));
+            addressing ?? new([new("handler@principal.example", "Principal Handler")], [], "DVR-31001"),
+            new string('a', 64));
 
         public ReportSendReadinessRequest ReadyRequest(CaseReportDeliveryPreparationRecord record) => new(
             Staff,
@@ -341,6 +373,9 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     SequenceLineageId = lineageId,
                     Code = "DVRP",
                     IsActive = true,
+                    ReportGenerationPolicy = "Pegasus",
+                    IncludeOriginalInstructionSender = true,
+                    ReportRecipientAddressesJson = "[]",
                     Version = 0
                 },
                 new IntakeReceiptEntity
@@ -362,6 +397,19 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     EvidenceJson = "[]",
                     FieldsJson = "[]",
                     OcrCandidatesJson = "[]"
+                },
+                new IntakeMailRouteDecisionEntity
+                {
+                    IntakeReceiptId = receiptId,
+                    Disposition = "accepted",
+                    PredicatesJson = "[]",
+                    Reason = "Delivery preparation origin sender",
+                    PolicyKey = "prepare-test",
+                    PolicyVersion = 1,
+                    TransportIdentitiesJson = "[]",
+                    OriginalIdentitiesJson = "[]",
+                    EffectiveSenderAddress = "origin-sender@principal.example",
+                    EffectiveSenderSourceLabel = "original-header"
                 },
                 new CaseEntity
                 {

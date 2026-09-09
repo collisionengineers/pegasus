@@ -9,29 +9,21 @@ namespace Pegasus.Web.Pages.Administration;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class ReportsModel(
-    GetV1ActivityReport report,
     GetEngineerActivityReport engineerReport,
+    IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider) : AdministrationPageModel
 {
     [BindProperty(SupportsGet = true, Name = "from")] public DateTime? From { get; set; }
     [BindProperty(SupportsGet = true, Name = "to")] public DateTime? To { get; set; }
+    [BindProperty(SupportsGet = true, Name = "engineerId")] public Guid? EngineerId { get; set; }
 
-    public PrincipalReportActivityReport Result { get; private set; } = new(default, default, []);
     public EngineerActivityReport EngineerResult { get; private set; } = new(default, default, []);
+    public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         await LoadAsync(cancellationToken) ? Page() : Forbid();
 
     public async Task<IActionResult> OnGetCsvAsync(CancellationToken cancellationToken)
-    {
-        if (!await LoadAsync(cancellationToken)) return Forbid();
-        return File(
-            Encoding.UTF8.GetBytes(PrincipalReportActivityCsv.ToCsv(Result.Rows)),
-            "text/csv; charset=utf-8",
-            "principal-report-activity.csv");
-    }
-
-    public async Task<IActionResult> OnGetEngineerCsvAsync(CancellationToken cancellationToken)
     {
         if (!await LoadAsync(cancellationToken)) return Forbid();
         return File(
@@ -47,10 +39,15 @@ public sealed class ReportsModel(
         var from = From is { } localFrom ? LondonCalendar.ToUtc(localFrom) : to.AddDays(-31);
         try
         {
-            Result = await report.ExecuteAsync(actor, from, to, cancellationToken);
-            EngineerResult = await engineerReport.ExecuteAsync(actor, from, to, null, cancellationToken);
-            From ??= LondonCalendar.TimeAt(Result.FromUtc);
-            To ??= LondonCalendar.TimeAt(Result.ToUtc);
+            var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
+            People = people.Accounts
+                .Where(account => account.IsEnabled)
+                .OrderBy(account => account.UserName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(account => account.Id)
+                .ToArray();
+            EngineerResult = await engineerReport.ExecuteAsync(actor, from, to, EngineerId, cancellationToken);
+            From ??= LondonCalendar.TimeAt(EngineerResult.FromUtc);
+            To ??= LondonCalendar.TimeAt(EngineerResult.ToUtc);
         }
         catch (ArgumentOutOfRangeException)
         {

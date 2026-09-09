@@ -296,6 +296,13 @@ public sealed record IntakeSource(
     string Actor,
     IntakeSourceIdentity SourceIdentity);
 
+public sealed record StreamedIntakeSource(
+    string FileName, string MediaType, long ContentLength,
+    Func<CancellationToken, ValueTask<Stream>> OpenContentAsync,
+    DateTimeOffset ReceivedAtUtc, string Actor, IntakeSourceIdentity SourceIdentity);
+
+/// <summary>One uploaded source whose immutable bytes can be reopened without materialising them in Web memory.</summary>
+
 /// <summary>
 /// What kind of place in a source a locator names. One enumeration, because a
 /// candidate is read from exactly one kind of place: a whole document, a page,
@@ -874,6 +881,10 @@ public interface IIntakeArtifactStore
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken);
 
+    Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash,
+        Stream content, long contentLength, DateTimeOffset firstSeenAtUtc,
+        CancellationToken cancellationToken);
+
     Task<ReadOnlyMemory<byte>?> ReadAsync(
         string storageKey,
         CancellationToken cancellationToken);
@@ -1069,7 +1080,6 @@ public sealed record AcceptIntakeRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
     CaseType CaseType,
     string PrincipalCode,
     CaseCompleteness Completeness,

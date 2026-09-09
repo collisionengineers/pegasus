@@ -1498,8 +1498,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var originIds = await context.Cases
             .AsNoTracking()
-            .Where(item => item.Id == caseId)
-            .Select(item => item.OriginIntakeReceiptId)
+            .Where(item => item.Id == caseId && item.OriginIntakeReceiptId.HasValue)
+            .Select(item => item.OriginIntakeReceiptId!.Value)
             .ToListAsync(cancellationToken);
         var linkedIds = await context.CaseIntakeLinks
             .AsNoTracking()

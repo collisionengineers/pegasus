@@ -5,6 +5,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Pages.Cases;
 using Pegasus.Web.Presentation;
@@ -90,11 +91,12 @@ public sealed partial class SendModel(
         var engineer = workflow.AssignedEngineerId is { } engineerId
             ? await staffAccountQueries.GetAsync(engineerId, cancellationToken)
             : null;
-        var modes = submitCaseToEva is null
-            ? EvaSubmissionModes.Disabled
-            : await modeStore.GetForPrincipalAsync(
-                caseData.Identity.PrincipalCode,
-                cancellationToken);
+        var modes = await modeStore.GetForPrincipalAsync(
+            caseData.Identity.PrincipalCode,
+            cancellationToken);
+        var canRetryAutomaticFailure = modes.Policy
+            == PrincipalReportGenerationPolicy.EvaAutomaticApiOnReview
+            && await submissionQueries.CanRetryAutomaticFailureAsync(caseId, cancellationToken);
         Handoff = new(
             caseId,
             workflow.Version,
@@ -107,10 +109,13 @@ public sealed partial class SendModel(
             SignOffEngineerOptions: [],
             caseData.Completeness.Values.InstructionComplete,
             caseData.Completeness.Values.ImagesComplete,
+            modes.Policy,
             submitCaseToEva is not null,
-            EvaSubmissionPolicy.AllowsManualSubmission(modes),
+            EvaSubmissionPolicy.AllowsManualSubmission(modes) || canRetryAutomaticFailure,
             NewOperationKey(),
-            NewOperationKey());
+            NewOperationKey(),
+            canRetryAutomaticFailure,
+            canRetryAutomaticFailure && LastSubmission is not { IsDelivered: true });
         return Page();
     }
 
@@ -153,8 +158,7 @@ public sealed partial class SendModel(
             // requires they stay distinct and an operator's next move differs
             // for each: nothing after a success, re-send after a rejection
             // once the cause is fixed, nothing after a partial because the
-            // case did reach EVA, and wait after an unknown because a retry is
-            // already scheduled.
+            // case did reach EVA, and check EVA before retrying an unknown.
             if (submission.Outcome == EvaSubmissionOutcome.Succeeded)
             {
                 TempData["CaseStatus"] = submission.FileReference is { } reference
@@ -177,6 +181,12 @@ public sealed partial class SendModel(
             TempData["CaseError"] = OperatorLabels.CaseWorkspace.EvaApiNotEnabled;
             return RedirectToDetails(caseId);
         }
+        catch (HttpRequestException exception)
+        {
+            LogEvaSubmissionFailed(logger, caseId, exception);
+            TempData["CaseError"] = "EVA could not be reached. Check EVA; if no case was created, retry the submission.";
+            return RedirectToDetails(caseId);
+        }
         // A submission reads every photograph out of Box before it reaches
         // EVA, so a custody transport failure is an ordinary way for it to
         // fail; without HttpRequestException here the operator would get the
@@ -186,7 +196,6 @@ public sealed partial class SendModel(
             or InvalidOperationException
             or InvalidDataException
             or IOException
-            or HttpRequestException
             or UnauthorizedAccessException)
         {
             LogEvaSubmissionFailed(logger, caseId, exception);
@@ -207,7 +216,7 @@ public sealed partial class SendModel(
             $"Sent to EVA, which returned no reference. {submission.FailureDetail}".TrimEnd(),
         EvaSubmissionOutcome.Rejected =>
             $"EVA refused the case. {submission.FailureDetail}".TrimEnd(),
-        _ => $"EVA could not be reached. {submission.FailureDetail}".TrimEnd()
+        _ => $"EVA could not be reached. Check EVA; if no case was created, retry the submission. {submission.FailureDetail}".TrimEnd()
     };
 
     [LoggerMessage(

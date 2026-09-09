@@ -865,10 +865,12 @@ public sealed class CustodyOutboxIntegrationTests
             (await upload.ExecuteAsync(
                 uploadCommand with
                 {
-                    File = uploadCommand.File with
-                    {
-                        OperationKey = $"terminal-request-file-new:{Guid.NewGuid():N}"
-                    }
+                    File = new RequestUploadFile(
+                        uploadCommand.File.FileName,
+                        uploadCommand.File.MediaType,
+                        uploadCommand.File.ContentLength,
+                        uploadCommand.File.OpenContentAsync,
+                        $"terminal-request-file-new:{Guid.NewGuid():N}")
                 },
                 CancellationToken.None)).Decision);
     }
@@ -1474,7 +1476,7 @@ public sealed class CustodyOutboxIntegrationTests
         {
             var principal = await principalSettings.Principals.SingleAsync(
                 item => item.Code == QdosPrincipal.Code);
-            principal.EvaManualSubmission = true;
+            principal.ReportGenerationPolicy = "EvaManualApi";
             await principalSettings.SaveChangesAsync();
         }
         var evaTransport = new RecordingEvaTransport();
@@ -1523,7 +1525,7 @@ public sealed class CustodyOutboxIntegrationTests
         }
         var signOffEngineerId = await ConfigureDefaultSignOffEngineerAsync(services);
 
-        var assignedEngineerId = DevelopmentOfflineIdentity.AdministratorId;
+        var assignedEngineerId = signOffEngineerId;
         await using (var missingEngineer = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync())
@@ -2011,7 +2013,6 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(versionRaceReplay?.IsSubmitted);
         Assert.Equal("eva-1", versionRaceReplay!.Submission!.EvaId);
         Assert.Equal(1, versionRaceTransport.CallCount);
-
         // CASE-040 review, blocker 1: a Rejected or Unknown manual send never
         // reached EVA, so it is not a handoff. The case must stay in Review,
         // at its current version, with an in-progress edit lease untouched --
@@ -2143,13 +2144,20 @@ public sealed class CustodyOutboxIntegrationTests
     private static async Task<Guid> ConfigureDefaultSignOffEngineerAsync(IServiceProvider services)
     {
         var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
-        var user = await userManager.FindByIdAsync(
-            DevelopmentOfflineIdentity.AdministratorId.ToString("D"));
-        Assert.NotNull(user);
-        if (!await userManager.IsInRoleAsync(user, StaffRoleNames.Engineer))
+        var engineerId = Guid.NewGuid();
+        var user = new PegasusIdentityUser
         {
-            Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.Engineer)).Succeeded);
-        }
+            Id = engineerId,
+            UserName = $"eva-sign-off-engineer-{engineerId:N}",
+            NormalizedUserName = $"EVA-SIGN-OFF-ENGINEER-{engineerId:N}",
+            IsEnabled = true,
+            MustChangePassword = false,
+            LockoutEnabled = false,
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("N")
+        };
+        Assert.True((await userManager.CreateAsync(user)).Succeeded);
+        Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.Engineer)).Succeeded);
 
         var signature = new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
         user.IsSignOffEngineer = true;
@@ -2159,7 +2167,7 @@ public sealed class CustodyOutboxIntegrationTests
         user.SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(signature));
         user.IsDefaultSignOffEngineer = true;
         Assert.True((await userManager.UpdateAsync(user)).Succeeded);
-        return user.Id;
+        return engineerId;
     }
 
     private sealed class RecordingEvaTransport(Func<Task>? afterSubmit = null) : IEvaApiTransport
@@ -2201,6 +2209,14 @@ public sealed class CustodyOutboxIntegrationTests
         public Task StoreAsync(Guid caseId, string caseReference, Guid versionId,
             ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address,
+            Stream content,
+            long contentLength,
+            string expectedSha256,
+            CancellationToken cancellationToken) =>
+            inner.StoreVersionAsync(address, content, contentLength, expectedSha256, cancellationToken);
 
         public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId,
             string expectedSha256, long expectedLength, CancellationToken cancellationToken) =>
@@ -2684,7 +2700,6 @@ public sealed class CustodyOutboxIntegrationTests
                         DevelopmentOfflineIdentity.AdministratorId,
                         [StaffRole.Administrator]),
                     $"custody-accept:{Guid.NewGuid():N}",
-                    "Staff accepted the processed custody instruction.",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
                     new(InstructionComplete: true, ImagesComplete: false),
@@ -2748,7 +2763,6 @@ public sealed class CustodyOutboxIntegrationTests
                     expectedVersion,
                     ActionActor.SystemWorker("custody-outbox-integration"),
                     $"case-accept:{Guid.NewGuid():N}",
-                    "Integration fixture confirmed complete intake evidence.",
                     caseType,
                     principalCode,
                     completeness ?? new(true, true),

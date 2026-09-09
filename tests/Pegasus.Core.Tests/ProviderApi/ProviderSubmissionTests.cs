@@ -777,6 +777,26 @@ public sealed class ProviderSubmissionTests
             return Task.FromResult(new ReceivedIntake(id, IsDuplicate: false));
         }
 
+        public async Task<ReceivedIntake> ExecuteStreamedAsync(
+            StreamedIntakeSource source,
+            string operationKey,
+            CancellationToken cancellationToken = default)
+        {
+            using var content = await source.OpenContentAsync(cancellationToken);
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            return await ExecuteAsync(
+                new(
+                    source.FileName,
+                    source.MediaType,
+                    buffer.ToArray(),
+                    source.ReceivedAtUtc,
+                    source.Actor,
+                    source.SourceIdentity),
+                operationKey,
+                cancellationToken);
+        }
+
         /// <summary>
         /// The staged receipt the submission's source was retained as, which
         /// is what the store's candidate query joins on.

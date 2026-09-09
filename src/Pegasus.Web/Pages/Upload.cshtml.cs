@@ -24,6 +24,12 @@ namespace Pegasus.Web.Pages;
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
+[RequestSizeLimit(IntakeEnvelopeLimits.MaximumBatchContentLength)]
+[RequestFormLimits(
+    BufferBody = true,
+    BufferBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength,
+    MultipartBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength,
+    MemoryBufferThreshold = 64 * 1024)]
 public sealed partial class UploadModel(
     IGroupedIntakeSubmission groupedSubmission,
     TimeProvider timeProvider,
@@ -78,6 +84,10 @@ public sealed partial class UploadModel(
                 $"You selected {Upload.Length} files. Submit {IntakeEnvelopeLimits.MaximumBatchFileCount} "
                 + "or fewer at a time.");
         }
+        if (Upload.Sum(file => file.Length) > IntakeEnvelopeLimits.MaximumPublicAggregateContentLength)
+        {
+            ModelState.AddModelError(nameof(Upload), "The selected files exceed the 200 MiB total upload limit.");
+        }
         for (var index = 0; index < Upload.Length; index++)
         {
             var file = Upload[index];
@@ -108,12 +118,22 @@ public sealed partial class UploadModel(
 
         try
         {
-            var files = new List<GroupedIntakeFile>(Upload.Length);
+            var files = new List<StreamedGroupedIntakeFile>(Upload.Length);
             for (var index = 0; index < Upload.Length; index++)
             {
                 var file = Upload[index];
-                await using var memory = new MemoryStream((int)file.Length);
-                await file.CopyToAsync(memory, cancellationToken);
+                var header = new byte[Math.Min(file.Length, 40)];
+                await using (var stream = file.OpenReadStream())
+                {
+                    await stream.ReadExactlyAsync(header, cancellationToken);
+                }
+                if (!IntakeUploadFilePolicy.IsAccepted(file.FileName, file.ContentType, header))
+                {
+                    ModelState.AddModelError(
+                        nameof(Upload),
+                        $"File {index + 1} has an unsupported type or its contents do not match the selected file type.");
+                    continue;
+                }
                 files.Add(new(
                     index,
                     new(
@@ -121,14 +141,20 @@ public sealed partial class UploadModel(
                         string.IsNullOrWhiteSpace(file.ContentType)
                             ? "application/octet-stream"
                             : file.ContentType,
-                        memory.ToArray(),
+                        file.Length,
+                        _ => ValueTask.FromResult<Stream>(file.OpenReadStream()),
                         timeProvider.GetUtcNow(),
                         $"staff:{actor.SubjectId}",
                         new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken))));
             }
 
-            var result = await groupedSubmission.ExecuteAsync(
-                new(
+            if (!ModelState.IsValid)
+            {
+                return Page();
+            }
+
+            var result = await groupedSubmission.ExecuteStreamedAsync(
+                new StreamedGroupedIntakeSubmissionRequest(
                     ExternalReceiptToken,
                     $"staff:{actor.SubjectId}",
                     timeProvider.GetUtcNow(),

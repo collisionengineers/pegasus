@@ -496,10 +496,14 @@ public sealed class EfCaseWorkflowStore(
         CaseMutationRequest request,
         CaseLifecycleState targetState,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, $"state_{targetState}", (context, workflow, now) =>
+        MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
             workflow.State = targetState.ToString();
-            return Task.CompletedTask;
+            if (targetState == CaseLifecycleState.Review)
+            {
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    context, workflow, checked(workflow.Version + 1), now);
+            }
         }, cancellationToken, targetState.ToString());
 
     public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
@@ -575,12 +579,13 @@ public sealed class EfCaseWorkflowStore(
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_returned_to_review", (context, workflow, now) =>
+        MutateAsync(request, "case_returned_to_review", async (context, workflow, now) =>
         {
-            RequireReviewReadiness(workflow);
+            await RequireReviewReadinessAsync(context, workflow, cancellationToken);
             workflow.State = nameof(CaseLifecycleState.Review);
             CaseChaseState.Stop(workflow);
-            return Task.CompletedTask;
+            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                context, workflow, checked(workflow.Version + 1), now);
         }, cancellationToken);
 
     /// <summary>
@@ -588,24 +593,32 @@ public sealed class EfCaseWorkflowStore(
     /// facts inside this transaction. A caller cannot present its own answer,
     /// so a forged or merely stale posted boolean can no longer open Review.
     /// </summary>
-    private static void RequireReviewReadiness(CaseWorkflowEntity workflow) =>
+    private static async Task RequireReviewReadinessAsync(
+        PegasusDbContext context, CaseWorkflowEntity workflow, CancellationToken cancellationToken)
+    {
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
         CaseLifecycleRules.RequireReviewReadiness(
             workflow.CaseId,
-            workflow.Case.InstructionComplete,
-            workflow.Case.ImagesComplete);
+            !configuration.RequireInstructions || workflow.Case.InstructionComplete,
+            !configuration.RequireImages || workflow.Case.ImagesComplete);
+    }
 
     public Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
         Guid? signOffEngineerId,
         CaseLifecycleState targetState,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, $"state_{targetState}", (context, workflow, now) =>
+        MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
-            RequireReviewReadiness(workflow);
+            await RequireReviewReadinessAsync(context, workflow, cancellationToken);
             workflow.AssignedEngineerId = request.EngineerId;
             workflow.SignOffEngineerId = signOffEngineerId;
             workflow.State = targetState.ToString();
-            return Task.CompletedTask;
+            if (targetState == CaseLifecycleState.Review)
+            {
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    context, workflow, checked(workflow.Version + 1), now);
+            }
         }, cancellationToken, targetState.ToString());
 
     public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
@@ -758,14 +771,19 @@ public sealed class EfCaseWorkflowStore(
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
-        MutateAsync(request, $"case_reopened_{request.Destination}", (context, workflow, now) =>
+        MutateAsync(request, $"case_reopened_{request.Destination}", async (context, workflow, now) =>
         {
             if (request.Destination == CaseReopenDestination.Review)
             {
-                RequireReviewReadiness(workflow);
+                await RequireReviewReadinessAsync(context, workflow, cancellationToken);
             }
 
             workflow.State = request.Destination.ToString();
+            if (request.Destination == CaseReopenDestination.Review)
+            {
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    context, workflow, checked(workflow.Version + 1), now);
+            }
             workflow.ClosureOutcome = null;
             if (request.Destination == CaseReopenDestination.NotReady)
             {
@@ -778,14 +796,14 @@ public sealed class EfCaseWorkflowStore(
                         Workflow = workflow,
                         MissingMaterialReason = request.Reason,
                         State = nameof(CaseDueWorkState.Scheduled),
-                        NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now),
+                        NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                         Version = 0
                     });
                 }
                 else
                 {
                     due.State = nameof(CaseDueWorkState.Scheduled);
-                    due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now);
+                    due.NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
                     due.Version++;
                 }
             }
@@ -793,7 +811,7 @@ public sealed class EfCaseWorkflowStore(
             {
                 CaseChaseState.Stop(workflow);
             }
-            return Task.CompletedTask;
+
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ArchiveAsync(
@@ -887,7 +905,7 @@ public sealed class EfCaseWorkflowStore(
         due.MostRecentChannel = request.Channel;
         due.MostRecentOutcome = request.Outcome;
         due.MostRecentNote = request.Note;
-        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(request.AttemptedAtUtc);
+        due.NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(request.AttemptedAtUtc, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays);
         due.Version++;
         workflow.Version++;
         ClearLease(workflow);

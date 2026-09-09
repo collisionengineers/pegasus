@@ -201,8 +201,8 @@ public sealed class InspectionAddressChoicesQueries(
             entry.Postcode,
             entry.Role.ToString(),
             InspectionLocationSourceKind.Directory,
-            entry.SourceRecordId,
-            entry.SourceVersion)));
+            entry.Id,
+            entry.Version)));
 
         return candidates
             .DistinctBy(choice => choice.Id)

@@ -640,6 +640,21 @@ public sealed class RecoveryTests
             return Task.FromResult(storageKey);
         }
 
+        public async Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            var stagedStorageKey = await StoreAsync(contentHash, buffer.ToArray(), cancellationToken);
+            return new(stagedStorageKey, contentHash, contentLength, firstSeenAtUtc,
+                StagedArtifactDisposition.Pending, string.Empty);
+        }
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string key,
             CancellationToken cancellationToken) =>

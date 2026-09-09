@@ -58,6 +58,11 @@
                     <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxId" value="@currentDefault?.Id" />
                     <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxVersion" value="@currentDefault?.Version" />
                     <input type="hidden" name="DefaultMailboxForm.OperationKey" value="@Model.DefaultMailboxOperationKey" />
+                    <input type="hidden" name="DefaultMailboxForm.EditLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
+                    @if (Model.IsEditingDefaultMailbox)
+                    {
+                        <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" />
+                    }
                     @if (Model.EligibleDefaultStaffSendMailboxes.Count == 0)
                     {
                         <p>No eligible staff-send mailbox is available to select.</p>
@@ -87,11 +92,29 @@
                                value="@Model.DefaultMailboxReason" required maxlength="1000" />
                     </div>
                     <div class="button-row">
-                        <button type="submit" class="btn btn--dark" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">
-                            Set default Compose sender
-                        </button>
+                        @if (Model.IsEditingDefaultMailbox)
+                        {
+                            <button type="submit" class="btn btn--dark" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">
+                                Set default Compose sender
+                            </button>
+                            <button type="submit" class="btn" formaction="@Url.Page(null, "CancelDefaultEdit")">Cancel</button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn btn--dark" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">
+                                Edit default Compose sender
+                            </button>
+                        }
                     </div>
                 </form>
+                @if (Model.IsEditingDefaultMailbox)
+                {
+                    <form method="post" asp-page-handler="HeartbeatMailboxEdit" data-edit-heartbeat data-edit-heartbeat-status="default-mailbox-edit-heartbeat-status" hidden>
+                        <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
+                    </form>
+                    <p id="default-mailbox-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
+                }
                 <div class="table-wrap no-border">
                     <table>
                         <caption class="sr-only">@OperatorLabels.MailSettings.ApprovedMailboxes</caption>
@@ -169,6 +192,7 @@
                                                     <input type="hidden" name="MailboxForm.MailboxId" value="@mailbox.Id" />
                                                     <input type="hidden" name="MailboxForm.ExpectedVersion" value="@mailbox.Version" />
                                                     <input type="hidden" name="MailboxForm.OperationKey" value="@Model.OperationKeyFor(mailbox)" />
+                                                    <input type="hidden" name="MailboxForm.EditLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
                                                     <div class="field">
                                                         <label class="req" for="@addressId">@OperatorLabels.MailSettings.ApprovedAddress</label>
                                                         <input id="@addressId" name="MailboxForm.Address" value="@Model.AddressFor(mailbox)"
@@ -212,20 +236,42 @@
                                                         <input id="@reasonId" name="MailboxForm.Reason" value="@Model.ReasonFor(mailbox)"
                                                                required maxlength="1000" />
                                                     </div>
-                                                    <button type="submit" class="btn btn--dark">
+                                                    <button type="submit" class="btn btn--dark" disabled="@(!Model.IsEditingMailbox(mailbox))">
                                                         @OperatorLabels.MailSettings.SaveMailbox
                                                     </button>
                                                 </form>
+                                                @if (!Model.IsEditingMailbox(mailbox))
+                                                {
+                                                    <form method="post" asp-page-handler="EditMailbox">
+                                                        <input type="hidden" name="mailboxId" value="@mailbox.Id" />
+                                                        <input type="hidden" name="expectedVersion" value="@mailbox.Version" />
+                                                        <button type="submit" class="btn btn--small">Edit mailbox</button>
+                                                    </form>
+                                                }
+                                                else
+                                                {
+                                                    <form method="post" asp-page-handler="CancelMailboxEdit">
+                                                        <input type="hidden" name="mailboxId" value="@mailbox.Id" />
+                                                        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
+                                                        <button type="submit" class="btn btn--small">Cancel</button>
+                                                    </form>
+                                                    <form method="post" asp-page-handler="HeartbeatMailboxEdit" data-edit-heartbeat data-edit-heartbeat-status="mailbox-edit-heartbeat-@mailbox.Id" hidden>
+                                                        <input type="hidden" name="mailboxId" value="@mailbox.Id" />
+                                                        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
+                                                    </form>
+                                                    <p id="mailbox-edit-heartbeat-@mailbox.Id" class="notice notice--error" role="alert" hidden></p>
+                                                }
                                                 @if (mailbox.IdentityIsBound)
                                                 {
                                                     <form method="post" asp-page-handler="ResolveFolders">
                                                         <input type="hidden" name="MailboxForm.MailboxId" value="@mailbox.Id" />
                                                         <input type="hidden" name="MailboxForm.ExpectedVersion" value="@mailbox.Version" />
                                                         <input type="hidden" name="MailboxForm.OperationKey" value="@StaffPageModel.NewOperationKey()" />
+                                                        <input type="hidden" name="MailboxForm.EditLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
                                                         <input type="hidden" name="MailboxForm.Address" value="@mailbox.Address" />
                                                         <input type="hidden" name="MailboxForm.SelectedState" value="@mailbox.State" />
                                                         <input type="hidden" name="MailboxForm.Reason" value="Refresh approved logical folder bindings" />
-                                                        <button type="submit" class="btn btn--small">
+                                                        <button type="submit" class="btn btn--small" disabled="@(!Model.IsEditingMailbox(mailbox))">
                                                             <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
                                                             <span>@OperatorLabels.MailSettings.Refresh</span>
                                                         </button>
@@ -338,6 +384,7 @@
                                                 <input type="hidden" name="CategoryForm.CategoryId" value="@category.Id" />
                                                 <input type="hidden" name="CategoryForm.ExpectedVersion" value="@category.Version" />
                                                 <input type="hidden" name="CategoryForm.OperationKey" value="@Model.CategoryOperationKeyFor(category)" />
+                                                <input type="hidden" name="CategoryForm.EditLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" />
                                                 <div class="field">
                                                     <label class="req" for="@displayNameId">@OperatorLabels.MailSettings.DisplayName</label>
                                                     <input id="@displayNameId" name="CategoryForm.DisplayName"
@@ -355,10 +402,31 @@
                                                     <input id="@reasonId" name="CategoryForm.Reason"
                                                            value="@Model.CategoryReasonFor(category)" required maxlength="1000" />
                                                 </div>
-                                                <button type="submit" class="btn btn--dark">
+                                                <button type="submit" class="btn btn--dark" disabled="@(!Model.IsEditingCategory(category))">
                                                     @OperatorLabels.MailSettings.SaveCategory
                                                 </button>
                                             </form>
+                                            @if (!Model.IsEditingCategory(category))
+                                            {
+                                                <form method="post" asp-page-handler="EditCategory">
+                                                    <input type="hidden" name="categoryId" value="@category.Id" />
+                                                    <input type="hidden" name="expectedVersion" value="@category.Version" />
+                                                    <button type="submit" class="btn btn--small">Edit category</button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form method="post" asp-page-handler="CancelCategoryEdit">
+                                                    <input type="hidden" name="categoryId" value="@category.Id" />
+                                                    <input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" />
+                                                    <button type="submit" class="btn btn--small">Cancel</button>
+                                                </form>
+                                                <form method="post" asp-page-handler="HeartbeatCategoryEdit" data-edit-heartbeat data-edit-heartbeat-status="category-edit-heartbeat-@category.Id" hidden>
+                                                    <input type="hidden" name="categoryId" value="@category.Id" />
+                                                    <input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" />
+                                                </form>
+                                                <p id="category-edit-heartbeat-@category.Id" class="notice notice--error" role="alert" hidden></p>
+                                            }
                                         </details>
                                     </td>
                                 </tr>

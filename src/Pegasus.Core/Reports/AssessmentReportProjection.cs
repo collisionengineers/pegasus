@@ -264,7 +264,8 @@ public static class AssessmentReportProjection
             .Select(impact => new ReportImpact(
                 AssessmentReportPresentation.DamageZone(impact.Zone),
                 AssessmentReportPresentation.DamageSeverity(impact.Severity),
-                impact.Note))
+                impact.Note,
+                impact.Zone))
             .ToArray();
         return new(
             impacts,

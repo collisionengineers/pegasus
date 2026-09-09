@@ -1,6 +1,7 @@
 using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -111,9 +112,8 @@ public sealed record CaseWorkspaceStorageBusiness(
 
 /// <summary>
 /// The claim source recorded on this case: a copied snapshot of the selected
-/// maintained record plus the note that belongs to this case alone. The claim
-/// source is distinct from the principal, the sender, the insurer and any
-/// third-party engineer.
+/// maintained record. The claim source is distinct from the principal, the
+/// sender, the insurer and any third-party engineer.
 /// </summary>
 public sealed record CaseWorkspaceClaimSource(
     Guid? ClaimSourceId,
@@ -121,8 +121,7 @@ public sealed record CaseWorkspaceClaimSource(
     string? Name,
     string? ContactName,
     string? ContactTelephone,
-    string? ContactEmailAddress,
-    string? CaseNote);
+    string? ContactEmailAddress);
 
 public sealed record CaseWorkspaceOdometer(
     long? OriginalValue,
@@ -172,6 +171,14 @@ public sealed record CaseWorkspaceVehicle(
 public sealed record CaseWorkspaceDamage(
     IReadOnlyList<AssessmentImpact>? Impacts,
     IReadOnlyDictionary<string, string?>? AssessmentFields);
+
+/// <summary>
+/// A staged image preparation change. Image occurrence identity and its
+/// per-image optimistic version remain part of the edit, while the enclosing
+/// Case save owns the lease, Case version and one atomic history entry.
+/// </summary>
+public sealed record CaseWorkspaceImagePreparation(
+    IReadOnlyList<CaseAssetPreparationEdit>? Edits);
 
 /// <summary>
 /// The valuation working inputs the Case save may retain. Adopting a value is
@@ -226,6 +233,8 @@ public sealed record SaveCaseWorkspaceRequest(
 
     public CaseWorkspaceDamage? Damage { get; init; }
 
+    public CaseWorkspaceImagePreparation? ImagePreparation { get; init; }
+
     public CaseWorkspaceValuationDraft? Valuation { get; init; }
 
     public CaseWorkspaceEstimate? Estimate { get; init; }
@@ -238,6 +247,7 @@ public sealed record SaveCaseWorkspaceRequest(
 
     public bool IsEmpty =>
         Overview is null && Inspection is null && Vehicle is null && Damage is null
+        && ImagePreparation is null
         && Valuation is null && Estimate is null && Settlement is null && Report is null
         && Completeness is null;
 }
@@ -305,7 +315,8 @@ public sealed class SaveCaseWorkspace(
 /// for assessment paths and damage impacts, <see cref="EstimatePolicy"/> and
 /// <see cref="RepairSpecificationPolicy"/> for the draft estimate. What this
 /// policy adds is the shape of the payload, the union of the assessment paths
-/// it writes, and the refusals that only make sense across the whole payload.
+/// it writes, the staged image-preparation envelope, and the refusals that
+/// only make sense across the whole payload.
 /// </summary>
 public static class CaseWorkspacePolicy
 {
@@ -326,6 +337,13 @@ public static class CaseWorkspacePolicy
         {
             throw new ArgumentException(
                 "A Case save requires at least one submitted section.",
+                nameof(request));
+        }
+
+        if (request.ImagePreparation is { Edits.Count: 0 })
+        {
+            throw new ArgumentException(
+                "An image preparation section requires at least one image edit.",
                 nameof(request));
         }
 
@@ -485,8 +503,7 @@ public static class CaseWorkspacePolicy
                 ClaimSourceName = overview.ClaimSource?.Name,
                 ClaimSourceContactName = overview.ClaimSource?.ContactName,
                 ClaimSourceContactTelephone = overview.ClaimSource?.ContactTelephone,
-                ClaimSourceContactEmailAddress = overview.ClaimSource?.ContactEmailAddress,
-                ClaimSourceCaseNote = overview.ClaimSource?.CaseNote
+                ClaimSourceContactEmailAddress = overview.ClaimSource?.ContactEmailAddress
             };
         }
 

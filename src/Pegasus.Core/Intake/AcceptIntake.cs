@@ -30,7 +30,6 @@ public sealed class AcceptIntake(
         ArgumentNullException.ThrowIfNull(request.Completeness);
         ArgumentNullException.ThrowIfNull(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
         if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.SystemWorker))
         {
@@ -38,14 +37,6 @@ public sealed class AcceptIntake(
                 "Intake acceptance requires a staff or system-worker actor.",
                 nameof(request));
         }
-        var reason = request.Reason.Trim();
-        if (reason.Length > 500)
-        {
-            throw new ArgumentException(
-                "The intake acceptance reason must be 500 characters or fewer.",
-                nameof(request));
-        }
-
         if (request.ReceiptId == Guid.Empty)
         {
             throw new ArgumentException("An intake receipt is required for case acceptance.", nameof(request));
@@ -102,7 +93,6 @@ public sealed class AcceptIntake(
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey.Trim(),
-            reason,
             request.CaseType,
             principalCode,
             request.Completeness,

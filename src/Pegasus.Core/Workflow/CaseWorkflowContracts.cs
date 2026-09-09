@@ -41,7 +41,20 @@ public enum CaseReopenDestination
 
 public sealed record CaseWorkflowConfiguration(
     string PolicyKey,
-    int PolicyVersion);
+    int PolicyVersion)
+{
+    public bool RequireInstructions { get; init; } = true;
+    public bool RequireImages { get; init; } = true;
+    public int ChaseIntervalDays { get; init; } = 7;
+
+    public IReadOnlyList<string> MissingRequirements(CaseCompleteness facts)
+    {
+        List<string> missing = [];
+        if (RequireInstructions && !facts.InstructionComplete) missing.Add("Instructions");
+        if (RequireImages && !facts.ImagesComplete) missing.Add("Images");
+        return missing;
+    }
+}
 
 public interface ICaseWorkflowConfiguration
 {

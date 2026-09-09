@@ -27,37 +27,41 @@ public sealed partial class OrganizationAdministrationWebTests
         var landingHtml = await landingResponse.Content.ReadAsStringAsync();
         landingResponse.EnsureSuccessStatusCode();
         Assert.DoesNotContain("/Administration/Organizations", landingHtml, StringComparison.Ordinal);
-        Assert.Contains("/Administration/Principals", landingHtml, StringComparison.Ordinal);
+        Assert.Contains("/Administration/Contacts", landingHtml, StringComparison.Ordinal);
 
-        var claimSourcesHtml = await IntakeWebDriver.GetHtmlAsync(
+        var contactsHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
-            "/Administration/ClaimSources");
-        Assert.Contains("Create claim source", claimSourcesHtml, StringComparison.Ordinal);
-        Assert.Contains("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
-        var claimSourceForm = new Dictionary<string, string>
+            "/Administration/Contacts?createType=ClaimSource");
+        Assert.Contains("New Claim Source", contactsHtml, StringComparison.Ordinal);
+        Assert.Contains("Claim Source", contactsHtml, StringComparison.Ordinal);
+        var contactForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
-                claimSourcesHtml,
+                contactsHtml,
                 "__RequestVerificationToken"),
-            ["OperationKey"] = InputValue(claimSourcesHtml, "OperationKey"),
-            ["Name"] = "Web Caller Claim Source",
-            ["Reason"] = "Web caller claim source proof"
+            ["CreateType"] = "ClaimSource",
+            ["OperationKey"] = InputValue(contactsHtml, "OperationKey"),
+            ["ContactId"] = InputValue(contactsHtml, "ContactId"),
+            ["ExpectedVersion"] = InputValue(contactsHtml, "ExpectedVersion"),
+            ["Name"] = "Web Caller Claim Source"
         };
-        using var claimSourcePost = await client.PostAsync(
-            "/Administration/ClaimSources?handler=Create",
-            new FormUrlEncodedContent(claimSourceForm));
-        Assert.Equal(HttpStatusCode.Redirect, claimSourcePost.StatusCode);
-        var claimSourceId = await factory.Database.ScalarAsync<Guid>(
-            "SELECT Id FROM ClaimSources WHERE Name = 'Web Caller Claim Source';");
-        var claimSourceEditHtml = await IntakeWebDriver.GetHtmlAsync(
+        using var contactPost = await client.PostAsync(
+            "/Administration/Contacts?handler=Create",
+            new FormUrlEncodedContent(contactForm));
+        Assert.True(contactPost.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {contactPost.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(contactPost)}");
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Organizations WHERE Name = 'Web Caller Claim Source';");
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ContactRoles WHERE OrganizationId = '{contactId:D}' AND Role = 'claim_source';"));
+        var contactEditHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
-            $"/Administration/ClaimSources/Edit/{claimSourceId:D}");
-        Assert.Contains("Edit Web Caller Claim Source</h2>", claimSourceEditHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
+            $"/Administration/Contacts/Edit/{contactId:D}");
+        Assert.Contains("Web Caller Claim Source</h2>", contactEditHtml, StringComparison.Ordinal);
 
         using var retiredOrganizations = await client.GetAsync("/Administration/Organizations");
         Assert.Equal(HttpStatusCode.NotFound, retiredOrganizations.StatusCode);
-        var principalHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Principals/Create");
+        var principalHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?createType=Principal");
         Assert.Contains("Name", principalHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("OrganizationId", principalHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Select an organization", principalHtml, StringComparison.Ordinal);
@@ -66,41 +70,47 @@ public sealed partial class OrganizationAdministrationWebTests
             ["__RequestVerificationToken"] = InputValue(
                 principalHtml,
                 "__RequestVerificationToken"),
+            ["CreateType"] = "Principal",
             ["OperationKey"] = InputValue(principalHtml, "OperationKey"),
+            ["ContactId"] = InputValue(principalHtml, "ContactId"),
+            ["ExpectedVersion"] = InputValue(principalHtml, "ExpectedVersion"),
             ["Name"] = "pegasustest",
-            ["Code"] = "WEBP"
+            ["PrincipalCode"] = "WEBP",
+            ["PrincipalInspectionMode"] = "PhysicalAddress"
         };
         using var principalPost = await client.PostAsync(
-            "/Administration/Principals/Create?handler=Create",
+            "/Administration/Contacts?handler=Create",
             new FormUrlEncodedContent(principalForm));
         Assert.Equal(HttpStatusCode.Redirect, principalPost.StatusCode);
         var principalId = await factory.Database.ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'WEBP';");
+        var principalContactId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
 
-        var principalIndexHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Principals");
-        Assert.Contains("WEBP", principalIndexHtml, StringComparison.Ordinal);
+        var principalIndexHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts");
+        Assert.Contains($"/Administration/Contacts/Edit/{principalContactId:D}", principalIndexHtml, StringComparison.Ordinal);
         Assert.Contains("pegasustest", principalIndexHtml, StringComparison.Ordinal);
-        Assert.Contains("Settings", principalIndexHtml, StringComparison.Ordinal);
+        Assert.Contains("Open", principalIndexHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Work Provider", principalIndexHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Organization", principalIndexHtml, StringComparison.Ordinal);
 
         var evaSubmissionPath =
-            $"/Administration/Principals/Settings/{principalId:D}";
-        // GET the actual page and assert a successful response.
-        var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
+            $"/Administration/Contacts/Edit/{principalContactId:D}";
+        var evaSubmissionHtml = await EditContactAsync(client, evaSubmissionPath);
         Assert.Contains("pegasustest</h2>", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
                 evaSubmissionHtml,
                 "__RequestVerificationToken"),
-            ["EvaOperationKey"] = InputValue(evaSubmissionHtml, "EvaOperationKey"),
+            ["ReportSettingsOperationKey"] = InputValue(evaSubmissionHtml, "ReportSettingsOperationKey"),
+            ["PrincipalExpectedVersion"] = InputValue(evaSubmissionHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
-            ["EvaManualSubmission"] = bool.TrueString,
-            ["EvaReason"] = "Web caller EVA submission proof"
+            ["LeaseToken"] = InputValue(evaSubmissionHtml, "LeaseToken"),
+            ["ReportGenerationPolicy"] = "EvaManualApi"
         };
         using var evaSubmissionPost = await client.PostAsync(
-            $"{evaSubmissionPath}?handler=UpdateEva",
+            $"{evaSubmissionPath}?handler=UpdateReportSettings",
             new FormUrlEncodedContent(evaSubmissionForm));
         Assert.True(
             evaSubmissionPost.StatusCode == HttpStatusCode.Redirect,
@@ -110,16 +120,18 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT CASE WHEN EvaManualSubmission = 1 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+                $"SELECT CASE WHEN ReportGenerationPolicy = 'EvaManualApi' THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
-        var locationHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
+        var locationHtml = await EditContactAsync(client, evaSubmissionPath);
         using var locationPost = await client.PostAsync(
             $"{evaSubmissionPath}?handler=UpdateLocation",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = InputValue(locationHtml, "__RequestVerificationToken"),
                 ["LocationOperationKey"] = InputValue(locationHtml, "LocationOperationKey"),
+                ["PrincipalExpectedVersion"] = InputValue(locationHtml, "PrincipalExpectedVersion"),
                 ["ExpectedVersion"] = InputValue(locationHtml, "ExpectedVersion"),
+                ["LeaseToken"] = InputValue(locationHtml, "LeaseToken"),
                 ["LocationIsImageBasedAssessment"] = bool.TrueString,
                 ["LocationReason"] = "Image Based Assessment default"
             }));
@@ -130,20 +142,21 @@ public sealed partial class OrganizationAdministrationWebTests
 
         await AssertCredentialControlsAsync(factory, client, principalId, evaSubmissionPath);
 
-        var replacePath =
-            $"/Administration/Principals/Replace/{principalId:D}";
-        var replaceHtml = await IntakeWebDriver.GetHtmlAsync(client, replacePath);
-        Assert.Contains("existing cases and references stay unchanged", replaceHtml, StringComparison.Ordinal);
-        var replacementOperationKey = InputValue(replaceHtml, "OperationKey");
+        var replacePath = evaSubmissionPath;
+        var replaceHtml = await EditContactAsync(client, replacePath);
+        Assert.Contains("allocated cases remain with their existing references", replaceHtml, StringComparison.Ordinal);
+        var replacementOperationKey = InputValue(replaceHtml, "ReplacementOperationKey");
         var replaceForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
                 replaceHtml,
                 "__RequestVerificationToken"),
-            ["OperationKey"] = replacementOperationKey,
+            ["ReplacementOperationKey"] = replacementOperationKey,
+            ["ReplacementExpectedVersion"] = InputValue(replaceHtml, "ReplacementExpectedVersion"),
             ["ExpectedVersion"] = InputValue(replaceHtml, "ExpectedVersion"),
+            ["LeaseToken"] = InputValue(replaceHtml, "LeaseToken"),
             ["SuccessorCode"] = "WEBN",
-            ["Reason"] = "Web caller replacement proof"
+            ["ReplacementReason"] = "Web caller replacement proof"
         };
         using var replacePost = await client.PostAsync(
             $"{replacePath}?handler=Replace",
@@ -189,10 +202,9 @@ public sealed partial class OrganizationAdministrationWebTests
         var id = Guid.Parse("1eeea2b1-3e1d-4a0a-8205-0c25396206e8");
         string[] routes =
         [
-            "/Administration/Principals",
-            "/Administration/Principals/Create",
-            $"/Administration/Principals/Replace/{id:D}",
-            $"/Administration/Principals/Settings/{id:D}"
+            "/Administration/Contacts",
+            "/Administration/Contacts/Edit?role=Principal",
+            $"/Administration/Contacts/Edit/{id:D}"
         ];
         foreach (var route in routes)
         {
@@ -201,10 +213,31 @@ public sealed partial class OrganizationAdministrationWebTests
         }
     }
 
+    [Fact]
+    public async Task SupersededPrincipalRoutesAreNotPublicEndpoints()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = Guid.Parse("1eeea2b1-3e1d-4a0a-8205-0c25396206e8");
+        string[] routes =
+        [
+            "/Administration/Principals",
+            "/Administration/Principals/Create",
+            $"/Administration/Principals/Replace/{principalId:D}",
+            $"/Administration/Principals/Settings/{principalId:D}"
+        ];
+
+        foreach (var route in routes)
+        {
+            using var response = await client.GetAsync(route);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+    }
+
     private static async Task AssertCredentialControlsAsync(
         IntakeWebApplicationFactory factory, HttpClient client, Guid principalId, string settingsPath)
     {
-        var settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        var settings = await EditContactAsync(client, settingsPath);
         var issueForm = CredentialForm(settings);
         using var issued = await client.PostAsync(
             $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
@@ -221,7 +254,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
         replay.EnsureSuccessStatusCode();
         Assert.DoesNotContain(secret, await replay.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        settings = await EditContactAsync(client, settingsPath);
         Assert.DoesNotContain(secret, settings, StringComparison.Ordinal);
         Assert.DoesNotContain("issued-api-key", settings, StringComparison.Ordinal);
 
@@ -237,7 +270,7 @@ public sealed partial class OrganizationAdministrationWebTests
             var authentication = await authenticate.ExecuteAsync(keyId, secret, default);
             Assert.NotNull(authentication);
             Assert.Equal(handler == "ResumeCredential", authentication.MaySubmit);
-            settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+            settings = await EditContactAsync(client, settingsPath);
         }
 
         var stale = CredentialForm(settings);
@@ -259,7 +292,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Null(await authenticate.ExecuteAsync(keyId, secret, default));
         Assert.NotNull(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
 
-        settings = await IntakeWebDriver.GetHtmlAsync(client, settingsPath);
+        settings = await EditContactAsync(client, settingsPath);
         using var revoked = await client.PostAsync(
             $"{settingsPath}?handler=RevokeCredential", new FormUrlEncodedContent(CredentialForm(settings)));
         Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode);
@@ -271,10 +304,28 @@ public sealed partial class OrganizationAdministrationWebTests
     private static Dictionary<string, string> CredentialForm(string html) => new()
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+        ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
+        ["LeaseToken"] = InputValue(html, "LeaseToken"),
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
         ["CredentialVersion"] = InputValue(html, "CredentialVersion"),
         ["CredentialReason"] = "Provider access administration"
     };
+
+    private static async Task<string> EditContactAsync(HttpClient client, string path)
+    {
+        var readOnlyHtml = await IntakeWebDriver.GetHtmlAsync(client, path);
+        using var response = await client.PostAsync(
+            $"{path}?handler=Edit",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(readOnlyHtml, "__RequestVerificationToken"),
+                ["ContactId"] = InputValue(readOnlyHtml, "ContactId"),
+                ["ExpectedVersion"] = InputValue(readOnlyHtml, "ExpectedVersion"),
+                ["OperationKey"] = InputValue(readOnlyHtml, "OperationKey")
+            }));
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
+    }
 
     private static string InputValue(string html, string name)
     {

@@ -29,6 +29,7 @@ public sealed class EfCaseDueChaserStore(
         asOfUtc = asOfUtc.ToUniversalTime();
         var asOfUtcTicks = asOfUtc.UtcDateTime.Ticks;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
         return await context.CaseDueWork
             .AsNoTracking()
             .Where(item =>
@@ -56,7 +57,7 @@ public sealed class EfCaseDueChaserStore(
                     .OrderByDescending(link => link.CreatedAtUtc)
                     .ThenByDescending(link => link.Id)
                     .Select(link => (Guid?)link.Id)
-                    .FirstOrDefault()))
+                    .FirstOrDefault()) { ChaseIntervalDays = configuration.ChaseIntervalDays })
             .Take(maximumResults)
             .ToArrayAsync(cancellationToken);
     }
@@ -99,6 +100,10 @@ public sealed class EfCaseDueChaserStore(
         {
             return Replay(replay, transition, requestHash);
         }
+
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
+        if (configuration.ChaseIntervalDays != transition.ChaseIntervalDays)
+            return new(DueChaserClaimOutcome.Superseded, null);
 
         var dueWork = await context.CaseDueWork
             .Include(item => item.Workflow)
@@ -250,10 +255,10 @@ public sealed class EfCaseDueChaserStore(
                 "A chaser cannot be generated before its scheduled occurrence.",
                 nameof(transition));
         }
-        if (transition.NextChaseAtUtc != CaseChaseSchedule.NextChaseAt(transition.ScheduledAtUtc))
+        if (transition.NextChaseAtUtc != CaseChaseSchedule.NextChaseAt(transition.ScheduledAtUtc, transition.ChaseIntervalDays))
         {
             throw new ArgumentException(
-                "The next chaser must follow the Europe/London seven-calendar-day schedule.",
+                "The next chaser must follow the configured Europe/London calendar-day schedule.",
                 nameof(transition));
         }
         if (string.IsNullOrWhiteSpace(transition.CopyableText)

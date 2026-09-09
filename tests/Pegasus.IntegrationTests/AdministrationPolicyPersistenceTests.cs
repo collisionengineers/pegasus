@@ -38,21 +38,34 @@ public sealed class AdministrationPolicyPersistenceTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var query = scope.ServiceProvider.GetRequiredService<GetWorkflowConfiguration>();
         var command = scope.ServiceProvider.GetRequiredService<UpdateWorkflowConfiguration>();
+        var editScopes = scope.ServiceProvider.GetRequiredService<IEditScopeLeases>();
         var initial = await query.ExecuteAsync(actor, default);
         var request = new UpdateWorkflowConfigurationRequest(
             initial.PolicyVersion,
             actor,
             "Review the Engineer-assignment gates",
-            "workflow-policy-update-1");
+            "workflow-policy-update-1")
+        {
+            EditLeaseToken = (await editScopes.ClaimAsync(
+                new(EditScopeKind.NamedConfiguration, GetWorkflowConfiguration.RecordId,
+                    initial.PolicyVersion, actor, "workflow-policy-update-1-edit"), default)).Token
+        };
 
         var updated = await command.ExecuteAsync(request, default);
         var replay = await command.ExecuteAsync(request, default);
 
         Assert.Equal(initial.PolicyVersion + 1, updated.PolicyVersion);
         Assert.Equal(updated, replay);
+        var staleLeaseToken = (await editScopes.ClaimAsync(
+            new(EditScopeKind.NamedConfiguration, GetWorkflowConfiguration.RecordId,
+                updated.PolicyVersion, actor, "workflow-policy-stale-1-edit"), default)).Token;
         await Assert.ThrowsAsync<WorkflowConfigurationVersionConflictException>(
             () => command.ExecuteAsync(
-                request with { OperationKey = "workflow-policy-stale-1" },
+                request with
+                {
+                    OperationKey = "workflow-policy-stale-1",
+                    EditLeaseToken = staleLeaseToken
+                },
                 default));
 
         await using var context = await database.CreateContextAsync();
@@ -73,6 +86,10 @@ public sealed class AdministrationPolicyPersistenceTests
         var command = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
         var policy = scope.ServiceProvider.GetRequiredService<IApprovedMailboxPolicy>();
         var initial = Assert.Single(await list.ExecuteAsync(actor, default));
+        var editScopes = scope.ServiceProvider.GetRequiredService<IEditScopeLeases>();
+        async Task<string> ClaimMailboxEditAsync(Guid id, long version, string key) =>
+            (await editScopes.ClaimAsync(
+                new(EditScopeKind.ApprovedMailbox, id, version, actor, key), default)).Token;
         var request = new UpdateApprovedMailboxRequest(
             initial.Id,
             initial.Address,
@@ -90,7 +107,11 @@ public sealed class AdministrationPolicyPersistenceTests
                 new(MailLogicalFolderType.Instructions, "folder-instructions"),
                 new(MailLogicalFolderType.Audits, "folder-audits"),
                 new(MailLogicalFolderType.Billing, "folder-billing")
-            ]);
+            ])
+        {
+            EditLeaseToken = await ClaimMailboxEditAsync(
+                initial.Id, initial.Version, "approved-mailbox-update-1-edit")
+        };
 
         var updated = await command.ExecuteAsync(request, default);
         var replay = await command.ExecuteAsync(request, default);
@@ -135,7 +156,9 @@ public sealed class AdministrationPolicyPersistenceTests
                     new(MailLogicalFolderType.Other, "folder-other")
                 ],
                 Reason = "Refresh exact logical folder identities",
-                OperationKey = "approved-mailbox-refresh-1"
+                OperationKey = "approved-mailbox-refresh-1",
+                EditLeaseToken = await ClaimMailboxEditAsync(
+                    updated.Id, updated.Version, "approved-mailbox-refresh-1-edit")
             },
             default);
         Assert.Equal(updated.Version + 1, refreshed.Version);
@@ -154,7 +177,9 @@ public sealed class AdministrationPolicyPersistenceTests
                 ExpectedVersion = refreshed.Version,
                 FolderBindings = null,
                 Reason = "Disable both approved read routes",
-                OperationKey = "approved-mailbox-disable-1"
+                OperationKey = "approved-mailbox-disable-1",
+                EditLeaseToken = await ClaimMailboxEditAsync(
+                    refreshed.Id, refreshed.Version, "approved-mailbox-disable-1-edit")
             },
             default);
         Assert.Equal(ApprovedMailboxState.Disabled, disabled.State);
@@ -172,13 +197,15 @@ public sealed class AdministrationPolicyPersistenceTests
         // would orphan or alias this mailbox's cursor row.
         Assert.Equal("instructions-mailbox", disabled.MailboxIdentity);
         var rebind = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
-            () => command.ExecuteAsync(
+            async () => await command.ExecuteAsync(
                 request with
                 {
                     ExpectedVersion = disabled.Version,
                     MailboxIdentity = "a-different-mailbox",
                     Reason = "Attempt to rebind the mailbox identity",
-                    OperationKey = "approved-mailbox-rebind-1"
+                    OperationKey = "approved-mailbox-rebind-1",
+                    EditLeaseToken = await ClaimMailboxEditAsync(
+                        disabled.Id, disabled.Version, "approved-mailbox-rebind-1-edit")
                 },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.MailboxIdentityImmutable, rebind.Error);
@@ -205,6 +232,10 @@ public sealed class AdministrationPolicyPersistenceTests
         var mailboxCommand = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
         var defaultCommand = scope.ServiceProvider.GetRequiredService<SetDefaultApprovedMailbox>();
         var list = scope.ServiceProvider.GetRequiredService<ListApprovedMailboxes>();
+        var editScopes = scope.ServiceProvider.GetRequiredService<IEditScopeLeases>();
+        async Task<string> ClaimMailboxEditAsync(Guid id, long version, string key) =>
+            (await editScopes.ClaimAsync(
+                new(EditScopeKind.ApprovedMailbox, id, version, administrator, key), default)).Token;
         var first = await CreateApprovedStaffSendMailboxAsync(
             mailboxCommand, administrator, "default-first@collisionengineers.co.uk", "first");
         var second = await CreateApprovedStaffSendMailboxAsync(
@@ -217,7 +248,11 @@ public sealed class AdministrationPolicyPersistenceTests
             null,
             administrator,
             "Set the first verified mailbox as Compose sender",
-            "approved-mailbox-default-first");
+            "approved-mailbox-default-first")
+        {
+            EditLeaseToken = await ClaimMailboxEditAsync(
+                first.Id, first.Version, "approved-mailbox-default-first-edit")
+        };
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => defaultCommand.ExecuteAsync(
                 firstSelection with
@@ -246,7 +281,11 @@ public sealed class AdministrationPolicyPersistenceTests
             firstDefault.Version,
             administrator,
             "Move the Compose sender to the second verified mailbox",
-            "approved-mailbox-default-second");
+            "approved-mailbox-default-second")
+        {
+            EditLeaseToken = await ClaimMailboxEditAsync(
+                second.Id, second.Version, "approved-mailbox-default-second-edit")
+        };
         var secondDefault = await defaultCommand.ExecuteAsync(transfer, default);
         var mailboxes = await list.ExecuteAsync(administrator, default);
         var clearedFirst = Assert.Single(mailboxes, mailbox => mailbox.Id == first.Id);
@@ -255,8 +294,12 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.True(secondDefault.IsDefaultStaffSend);
         Assert.Single(mailboxes, mailbox => mailbox.IsDefaultStaffSend);
 
+        var secondEditLeaseToken = await ClaimMailboxEditAsync(
+            secondDefault.Id,
+            secondDefault.Version,
+            "approved-mailbox-default-remove-staff-send-edit");
         var removeStaffSendScope = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
-            () => mailboxCommand.ExecuteAsync(
+            async () => await mailboxCommand.ExecuteAsync(
                 new(
                     secondDefault.Id,
                     secondDefault.Address,
@@ -270,16 +313,24 @@ public sealed class AdministrationPolicyPersistenceTests
                     secondDefault.InboxFolderIdentity,
                     secondDefault.SentFolderIdentity,
                     secondDefault.FolderBindings,
-                    secondDefault.VerifiedEncodedMessageSizeLimit),
+                    secondDefault.VerifiedEncodedMessageSizeLimit)
+                {
+                    EditLeaseToken = secondEditLeaseToken
+                },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement, removeStaffSendScope.Error);
 
+        var staleLeaseToken = await ClaimMailboxEditAsync(
+            clearedFirst.Id,
+            clearedFirst.Version,
+            "approved-mailbox-default-stale-edit");
         var stale = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
                 firstSelection with
                 {
                     ExpectedVersion = clearedFirst.Version,
-                    OperationKey = "approved-mailbox-default-stale"
+                    OperationKey = "approved-mailbox-default-stale",
+                    EditLeaseToken = staleLeaseToken
                 },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.VersionConflict, stale.Error);
@@ -299,7 +350,12 @@ public sealed class AdministrationPolicyPersistenceTests
                     secondDefault.InboxFolderIdentity,
                     secondDefault.SentFolderIdentity,
                     secondDefault.FolderBindings,
-                    secondDefault.VerifiedEncodedMessageSizeLimit),
+                    secondDefault.VerifiedEncodedMessageSizeLimit)
+                {
+                // The failed route change above retains this valid edit scope.
+                // Its version remains current because that failure made no mutation.
+                    EditLeaseToken = secondEditLeaseToken
+                },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxRequiresReplacement, disableDefault.Error);
 
@@ -330,6 +386,7 @@ public sealed class AdministrationPolicyPersistenceTests
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var mailboxCommand = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
         var defaultCommand = scope.ServiceProvider.GetRequiredService<SetDefaultApprovedMailbox>();
+        var editScopes = scope.ServiceProvider.GetRequiredService<IEditScopeLeases>();
         var staged = await CreateApprovedStaffSendMailboxAsync(
             mailboxCommand,
             administrator,
@@ -337,13 +394,24 @@ public sealed class AdministrationPolicyPersistenceTests
             "staged",
             includeSentEvidence: false,
             includeSentFolder: false);
+        async Task<string> ClaimMailboxEditAsync(long version, string key) =>
+            (await editScopes.ClaimAsync(
+                new(EditScopeKind.ApprovedMailbox, staged.Id, version, administrator, key), default)).Token;
 
+        var withoutSentEvidenceToken = await ClaimMailboxEditAsync(
+            staged.Version, "default-without-sent-evidence-edit");
         var withoutSentEvidence = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
                 new(staged.Id, staged.Version, null, null, administrator,
-                    "Attempt to select an unpolled sender", "default-without-sent-evidence"),
+                    "Attempt to select an unpolled sender", "default-without-sent-evidence")
+                {
+                    EditLeaseToken = withoutSentEvidenceToken
+                },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxIneligible, withoutSentEvidence.Error);
+        await editScopes.ReleaseAsync(
+            new(EditScopeKind.ApprovedMailbox, staged.Id, administrator,
+                "default-without-sent-evidence-release", withoutSentEvidenceToken), default);
 
         await using (var context = await database.CreateContextAsync())
         {
@@ -352,12 +420,20 @@ public sealed class AdministrationPolicyPersistenceTests
             entity.Version++;
             await context.SaveChangesAsync();
         }
+        var withoutSentFolderToken = await ClaimMailboxEditAsync(
+            staged.Version + 1, "default-without-sent-folder-edit");
         var withoutSentFolder = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
                 new(staged.Id, staged.Version + 1, null, null, administrator,
-                    "Attempt to select a sender without its Sent folder", "default-without-sent-folder"),
+                    "Attempt to select a sender without its Sent folder", "default-without-sent-folder")
+                {
+                    EditLeaseToken = withoutSentFolderToken
+                },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.DefaultStaffSendMailboxIneligible, withoutSentFolder.Error);
+        await editScopes.ReleaseAsync(
+            new(EditScopeKind.ApprovedMailbox, staged.Id, administrator,
+                "default-without-sent-folder-release", withoutSentFolderToken), default);
 
         await using (var context = await database.CreateContextAsync())
         {
@@ -366,9 +442,14 @@ public sealed class AdministrationPolicyPersistenceTests
             entity.Version++;
             await context.SaveChangesAsync();
         }
+        var selectedToken = await ClaimMailboxEditAsync(
+            staged.Version + 2, "default-with-sent-evidence-edit");
         var selected = await defaultCommand.ExecuteAsync(
             new(staged.Id, staged.Version + 2, null, null, administrator,
-                "Select the configured Sent-evidence sender", "default-with-sent-evidence"),
+                "Select the configured Sent-evidence sender", "default-with-sent-evidence")
+            {
+                EditLeaseToken = selectedToken
+            },
             default);
         Assert.True(selected.IsDefaultStaffSend);
     }

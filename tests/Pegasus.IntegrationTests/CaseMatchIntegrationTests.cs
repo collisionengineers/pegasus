@@ -437,7 +437,6 @@ public sealed class CaseMatchIntegrationTests
                     0,
                     StaffActor,
                     operationKey,
-                    "Accepted case-match fixture case",
                     CaseType.Inspection,
                     "QDOS",
                     new(true, true),

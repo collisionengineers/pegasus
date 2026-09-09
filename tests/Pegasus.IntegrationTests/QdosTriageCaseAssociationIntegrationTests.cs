@@ -90,9 +90,16 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(triage.State, linked.Record.State);
         Assert.Equal(caseId, linked.Record.LinkedCaseId);
         var unlinkLease = await ClaimCaseLeaseAsync(factory.Services, caseId, 2, staff, "automatic-link-manual-unlink");
+        var unlinkTriageLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triage.Id, linked.Record.Version, staff,
+                "automatic-link-manual-unlink-edit"),
+            CancellationToken.None);
         await services.GetRequiredService<IUnlinkTriageCase>().ExecuteAsync(new(
             triage.Id, caseId, linked.Record.Version, 2, staff, "deliberate-unlink",
-            "Keep this Triage separate.", unlinkLease.Token), CancellationToken.None);
+            "Keep this Triage separate.", unlinkLease.Token)
+        {
+            EditLeaseToken = unlinkTriageLease.Token
+        }, CancellationToken.None);
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
         var unlinked = await GetTriageAsync(factory.Services, triage.Id);
         Assert.Null(unlinked.Record.LinkedCaseId);
@@ -166,6 +173,9 @@ public sealed partial class QdosTriageIntegrationTests
             "claim-first-case-association-lease");
         var link = services.GetRequiredService<ILinkTriageCase>();
         var unlink = services.GetRequiredService<IUnlinkTriageCase>();
+        var firstTriageLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triageId, 0, actor, "claim-first-triage-association-edit"),
+            CancellationToken.None);
 
         var hiddenVersionRequest = new TriageCaseLinkRequest(
             triageId,
@@ -175,7 +185,10 @@ public sealed partial class QdosTriageIntegrationTests
             actor,
             "link-case-with-hidden-version",
             "The hidden case-row version must not authorize association",
-            firstCaseLease.Token);
+            firstCaseLease.Token)
+        {
+            EditLeaseToken = firstTriageLease.Token
+        };
         var hiddenVersionConflict = await Assert.ThrowsAsync<CaseVersionConflictException>(
             () => link.ExecuteAsync(hiddenVersionRequest, CancellationToken.None));
         Assert.Equal(SeededCaseEntityVersion, hiddenVersionConflict.ExpectedVersion);
@@ -211,6 +224,9 @@ public sealed partial class QdosTriageIntegrationTests
                 Assert.Equal(1, item.AfterVersion);
             });
 
+        var consumedLeaseTriageLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triageId, 1, actor, "claim-consumed-case-lease-triage-edit"),
+            CancellationToken.None);
         var consumedLeaseRequest = new TriageCaseLinkRequest(
             triageId,
             caseId,
@@ -219,7 +235,10 @@ public sealed partial class QdosTriageIntegrationTests
             actor,
             "unlink-case-with-consumed-lease",
             "A consumed case lease must not authorize another mutation",
-            firstCaseLease.Token);
+            firstCaseLease.Token)
+        {
+            EditLeaseToken = consumedLeaseTriageLease.Token
+        };
         await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(
             () => unlink.ExecuteAsync(consumedLeaseRequest, CancellationToken.None));
 

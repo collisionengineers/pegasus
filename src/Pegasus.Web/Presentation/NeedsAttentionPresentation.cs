@@ -18,7 +18,8 @@ public static class NeedsAttentionPresentation
     /// </summary>
     public static string RecordPage(NeedsAttentionKind kind) => kind switch
     {
-        NeedsAttentionKind.Case or NeedsAttentionKind.HeldDecision => "/Cases/Details",
+        NeedsAttentionKind.Case or NeedsAttentionKind.HeldDecision
+            or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer => "/Cases/Details",
         NeedsAttentionKind.Mail => "/Unidentified/Details",
         NeedsAttentionKind.Triage => "/Triage/Details",
         _ => "/Operations/Index"
@@ -37,6 +38,8 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.Triage => "Open Triage",
         NeedsAttentionKind.Mail => "Review source",
         NeedsAttentionKind.ExternalWork => "Open Operations",
+        NeedsAttentionKind.ReviewCase => "Review Case",
+        NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         _ => "Open Case"
     };
 
@@ -66,6 +69,8 @@ public static class NeedsAttentionPresentation
     public static string ReasonLabel(NeedsAttentionItem item) => item.Kind switch
     {
         NeedsAttentionKind.Case => OperatorLabels.ChaseState(item.Reason),
+        NeedsAttentionKind.ReviewCase => "Case needs review",
+        NeedsAttentionKind.UnassignedEngineer => "Engineer assignment is required",
         NeedsAttentionKind.Mail => OperatorLabels.UnidentifiedReason(item.Reason),
         NeedsAttentionKind.Triage => OperatorLabels.Humanise(item.Reason),
         _ => item.Reason

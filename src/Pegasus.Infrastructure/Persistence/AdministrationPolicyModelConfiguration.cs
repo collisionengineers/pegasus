@@ -13,9 +13,14 @@ internal static class AdministrationPolicyModelConfiguration
     {
         builder.Entity<WorkflowConfigurationEntity>(entity =>
         {
-            entity.ToTable("WorkflowConfigurations");
+            entity.ToTable("WorkflowConfigurations", table => table.HasCheckConstraint(
+                "CK_WorkflowConfigurations_ChaseIntervalDays", "[ChaseIntervalDays] BETWEEN 1 AND 365"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).HasMaxLength(100);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Property(item => item.RequireInstructions).HasDefaultValue(true);
+            entity.Property(item => item.RequireImages).HasDefaultValue(true);
+            entity.Property(item => item.ChaseIntervalDays).HasDefaultValue(7);
             entity.HasData(new WorkflowConfigurationEntity
             {
                 Id = WorkflowPolicyKey,

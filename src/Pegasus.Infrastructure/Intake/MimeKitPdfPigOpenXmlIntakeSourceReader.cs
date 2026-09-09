@@ -111,6 +111,16 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 }
 
                 return ReadOutcome.Readable;
+            case SourceFormat.Video:
+                if (isRoot)
+                {
+                    result.Issues.Add(new(
+                        "video-review-required",
+                        "The video is retained for operator review; it is not extracted or sent to OCR.",
+                        IntakeEvidenceSource.FileName));
+                }
+
+                return ReadOutcome.Readable;
             case SourceFormat.Doc:
                 return ReadDoc(bytes, sourceLabel, result, cancellationToken);
             case SourceFormat.Msg:
@@ -1207,6 +1217,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return SourceFormat.Msg;
         }
 
+        if (extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("video/mp4", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("video/quicktime", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Video;
+        }
+
         return SourceFormat.Unsupported;
     }
 
@@ -1243,7 +1261,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         Docx,
         Image,
         Doc,
-        Msg
+        Msg,
+        Video
     }
 
     private enum ReadOutcome

@@ -96,9 +96,11 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         page = await GetPageAsync(client);
         var categoryId = Value(CategoryIdRegex().Match(page).Value);
         var originalVersion = Value(ExpectedVersionRegex().Match(page).Value);
-        var disableOperation = Value(OperationKeyRegex().Match(page).Value);
+        var editing = await OpenCategoryEditAsync(
+            client, categoryId, int.Parse(originalVersion, System.Globalization.CultureInfo.InvariantCulture), page);
+        var disableOperation = Value(OperationKeyRegex().Match(editing).Value);
         var disable = Form(
-            page, categoryId, originalVersion, disableOperation,
+            editing, categoryId, originalVersion, disableOperation,
             "Awaiting engineer", "Disabled", "Retire the exact display name");
         using (var disabled = await PostAsync(client, disable))
             Assert.Equal(HttpStatusCode.Found, disabled.StatusCode);
@@ -174,8 +176,10 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         string operationKey,
         string displayName,
         string state,
-        string reason) => new()
+        string reason)
     {
+        var form = new Dictionary<string, string>
+        {
         ["CategoryForm.CategoryId"] = categoryId,
         ["CategoryForm.ExpectedVersion"] = expectedVersion,
         ["CategoryForm.OperationKey"] = operationKey,
@@ -183,7 +187,17 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         ["CategoryForm.SelectedState"] = state,
         ["CategoryForm.Reason"] = reason,
         ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
-    };
+        };
+        var token = CategoryEditLeaseTokenRegex().Matches(page)
+            .Select(match => Value(match.Value))
+            .SingleOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            form["CategoryForm.EditLeaseToken"] = token;
+        }
+
+        return form;
+    }
 
     private static Task<HttpResponseMessage> PostAsync(
         HttpClient client,
@@ -192,9 +206,28 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
             "/Administration/Mailboxes?handler=SaveCategory",
             new FormUrlEncodedContent(form));
 
+    private static async Task<string> OpenCategoryEditAsync(
+        HttpClient client,
+        string categoryId,
+        int expectedVersion,
+        string page)
+    {
+        using var response = await client.PostAsync(
+            "/Administration/Mailboxes?handler=EditCategory",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["categoryId"] = categoryId,
+                ["expectedVersion"] = expectedVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
+            }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.CategoryId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryIdRegex();
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.ExpectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
+    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.EditLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryEditLeaseTokenRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();
 }

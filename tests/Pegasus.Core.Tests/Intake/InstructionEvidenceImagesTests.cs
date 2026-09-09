@@ -348,6 +348,15 @@ public sealed class InstructionEvidenceImagesTests
             return Task.FromResult<ReadOnlyMemory<byte>?>(
                 Corrupt ? Encoding.UTF8.GetBytes("tampered") : bytes);
         }
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 
     private sealed class FakeReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries

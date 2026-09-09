@@ -25,7 +25,6 @@ using Pegasus.Infrastructure.Email;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
-using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 using EditorLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -47,7 +46,9 @@ public sealed partial class DetailsModel(
     IPrepareCaseReportDelivery prepareReportDelivery,
     ISendPreparedCaseReport sendPreparedReport,
     ICaseReportDeliveryPreparationStore deliveryPreparations,
+    IReportRecipientSuggestionQueries reportRecipientSuggestions,
     IListCaseEstimates listEstimates,
+    LabourRateCardAdministration labourRateCards,
     ISaveEstimate saveEstimate,
     IDuplicateEstimate duplicateEstimate,
     IDiscardEstimate discardEstimate,
@@ -56,23 +57,20 @@ public sealed partial class DetailsModel(
     IImportRawEstimate importRawEstimate,
     IAddCaseDocument addCaseDocument,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
-    ICaseAssetPreparationStore caseAssetPreparations,
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IHeartbeatCaseEditLease heartbeatLease,
     IReleaseCaseEditLease releaseLease,
-    IConfirmCompleteness confirmCompleteness,
     ISaveCaseWorkspace saveCaseWorkspace,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
     IListCaseValuations listCaseValuations,
     ISaveValuation saveValuation,
-    IEngineerNoteQueries engineerNoteQueries,
-    IAddEngineerNote addEngineerNote,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
+    IEvaSubmissionQueries evaSubmissionQueries,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
     ILogger<DetailsModel> logger,
@@ -93,6 +91,7 @@ public sealed partial class DetailsModel(
     /// per source with its figures, loaded with the valuation section.
     /// </summary>
     public IReadOnlyList<CaseValuation> Valuations { get; private set; } = [];
+    public IReadOnlyList<LabourRateCard> LabourRateCards { get; private set; } = [];
 
     public IReadOnlyList<InspectionAddressChoice> InspectionAddressChoices { get; private set; } = [];
 
@@ -111,8 +110,6 @@ public sealed partial class DetailsModel(
     public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
-    public IReadOnlyList<EngineerNoteDisplay> EngineerNotes { get; private set; } = [];
-
     /// <summary>
     /// Every image occurrence's report preparation (B06), loaded once for the
     /// Files and Report sections so the two can never disagree about the
@@ -125,11 +122,6 @@ public sealed partial class DetailsModel(
     /// rule: Close-up, Overview, then Supporting by order; Not used omitted.
     /// </summary>
     public IReadOnlyList<PreparedReportImage> PreparedReportImages { get; private set; } = [];
-
-    public sealed record EngineerNoteDisplay(
-        string RecordedBy,
-        string Note,
-        DateTimeOffset RecordedAtUtc);
 
     /// <summary>
     /// Which section of the Case record the request addresses.
@@ -165,7 +157,6 @@ public sealed partial class DetailsModel(
     private static readonly Dictionary<string, string> LazySectionViews =
         new(StringComparer.Ordinal)
         {
-            ["engineer-notes"] = "/Pages/Cases/Shared/_CaseEngineerNotes.cshtml",
             ["vehicle"] = "/Pages/Cases/Shared/_CaseVehicle.cshtml",
             ["valuation"] = "/Pages/Cases/Shared/_CaseValuation.cshtml",
             ["files"] = "/Pages/Cases/Shared/_CaseFiles.cshtml",
@@ -204,10 +195,8 @@ public sealed partial class DetailsModel(
     public EvaHandoffViewModel? EvaHandoff { get; private set; }
 
     /// <summary>
-    /// One outstanding requirement on the case: the completeness flags the
-    /// case's own projection reports as unmet, each with the missing-material
-    /// reason the due-work schedule carries. The flags are Core's; this only
-    /// names the ones that are false.
+    /// The requirements the current configured policy reports as unmet,
+    /// accompanied by the Case's due-work reason where available.
     /// </summary>
     public IReadOnlyList<CaseRequirement> OutstandingRequirements
     {
@@ -221,34 +210,13 @@ public sealed partial class DetailsModel(
             var why = Case.Workflow.DueWork is { } dueWork
                 ? Pegasus.Web.Presentation.OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)
                 : null;
-            List<CaseRequirement> requirements = [];
-            AddRequirement(
-                requirements,
-                data.Completeness.Values.InstructionComplete,
-                "Instructions incomplete",
-                why);
-            AddRequirement(
-                requirements,
-                data.Completeness.Values.ImagesComplete,
-                "Images incomplete",
-                why);
-            return requirements;
+            return data.Completeness.Evaluation.MissingRequirements
+                .Select(requirement => new CaseRequirement($"{requirement} incomplete", "Case requirements", why))
+                .ToArray();
         }
     }
 
     public sealed record CaseRequirement(string Title, string Source, string? Why);
-
-    private static void AddRequirement(
-        List<CaseRequirement> requirements,
-        bool satisfied,
-        string title,
-        string? why)
-    {
-        if (!satisfied)
-        {
-            requirements.Add(new CaseRequirement(title, "Instruction completeness", why));
-        }
-    }
 
 
     public CaseDetails? Case { get; private set; }
@@ -402,7 +370,7 @@ public sealed partial class DetailsModel(
             : Labels.CaseWorkspace.AbsentValue;
 
     public bool CanEditEngineering => AssessmentCanOpen && !AssessmentIsReadOnly
-        && !string.IsNullOrWhiteSpace(LeaseToken) && Case?.Workflow.Archive is null;
+        && !string.IsNullOrWhiteSpace(RenderLeaseToken) && Case?.Workflow.Archive is null;
 
     public bool CanEditAssessmentField(string path) => CanEditEngineering
         && (!AssessmentVocabulary.Definitions[path].IsFinding || ActorIsEngineer);
@@ -448,10 +416,12 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The current generation's latest delivery preparation (B07), if one
-    /// exists. Recipient facts are read from the structured contacts; the
-    /// operator never types an address into the Report section.
+    /// exists.
     /// </summary>
     public CaseReportDeliveryPreparationRecord? CurrentDeliveryPreparation { get; private set; }
+
+    /// <summary>Principal suggestions offered for staff review before preparation.</summary>
+    public ReportRecipientSuggestions? DeliveryRecipientSuggestions { get; private set; }
 
     public string? OpenDialog { get; private set; }
 
@@ -606,10 +576,6 @@ public sealed partial class DetailsModel(
             {
                 Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
             }
-            if (!SectionIsDeferred("engineer-notes"))
-            {
-                await LoadEngineerNotesAsync(id, cancellationToken);
-            }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
@@ -642,6 +608,7 @@ public sealed partial class DetailsModel(
         Assessment = workspace.Assessment;
         AcceptedSpecification = workspace.AcceptedSpecification;
         Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
+        LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
         if (AssessmentCanOpen)
         {
@@ -658,6 +625,9 @@ public sealed partial class DetailsModel(
         CurrentDeliveryPreparation = CurrentReportGeneration is null
             ? null
             : await deliveryPreparations.GetCurrentAsync(actor, id, cancellationToken);
+        DeliveryRecipientSuggestions = CurrentReportGeneration is null
+            ? null
+            : await reportRecipientSuggestions.GetAsync(id, cancellationToken);
         await EvaluateEngineerSectionConditionsAsync(cancellationToken);
         await LoadGlassSessionAsync(id, actor, cancellationToken);
         OpenDialog = dialog switch
@@ -835,10 +805,6 @@ public sealed partial class DetailsModel(
             {
                 Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
             }
-            if (key == "engineer-notes")
-            {
-                await LoadEngineerNotesAsync(id, cancellationToken);
-            }
             return Partial(view, this);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -876,22 +842,6 @@ public sealed partial class DetailsModel(
                 cancellationToken);
         }
         ImagesByIntake = imagesByIntake;
-    }
-
-    private async Task LoadEngineerNotesAsync(Guid caseId, CancellationToken cancellationToken)
-    {
-        var notes = await engineerNoteQueries.ListNewestFirstAsync(caseId, cancellationToken);
-        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
-            staffAccountQueries,
-            notes.Select(note => note.RecordedByStaffId),
-            cancellationToken);
-        EngineerNotes = notes.Select(note => new EngineerNoteDisplay(
-            ActorDisplayNames.Resolve(
-                ActorKind.Staff,
-                note.RecordedByStaffId.ToString("D"),
-                names),
-            note.Note,
-            note.RecordedAtUtc)).ToArray();
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(
@@ -973,49 +923,6 @@ public sealed partial class DetailsModel(
             () => RedirectToDetails(id),
             cancellationToken);
 
-    public Task<IActionResult> OnPostConfirmCompletenessAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        bool instructionComplete,
-        bool imagesComplete,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "confirm_completeness",
-            actor => confirmCompleteness.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    new(
-                        instructionComplete,
-                        imagesComplete)),
-                cancellationToken),
-            "Case completeness was confirmed against the current policy.");
-
-    public Task<IActionResult> OnPostAddEngineerNoteAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string note,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "add_engineer_note",
-            actor => addEngineerNote.ExecuteAsync(
-                new(id, actor, expectedVersion, operationKey, note, editLeaseToken),
-                cancellationToken),
-            Labels.CaseWorkspace.EngineerNoteAdded);
-
     public Task<IActionResult> OnPostSaveAsync(
         Guid id,
         long expectedVersion,
@@ -1048,6 +955,8 @@ public sealed partial class DetailsModel(
         decimal? recoveryCharge,
         Guid? signOffEngineerId,
         DateOnly? reportDate,
+        AssetPreparationEditForm[]? preparationEdits,
+        string? damageImpacts,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -1065,9 +974,14 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("This field is not part of the Case editor.");
                 }
+                var preparationSubmitted = preparationEdits is { Length: > 0 };
+                var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
+                    .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
+                var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
                 var engineeringSubmitted = assessmentFields.Count > 0
                     || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
-                    || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
+                    || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
+                    || preparationSubmitted || damageSubmitted;
                 var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data
@@ -1116,6 +1030,9 @@ public sealed partial class DetailsModel(
                 var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
                     nameof(vehicleMileage), nameof(vehicleMileageUnit) }.Any(Posted)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck);
+                var impacts = !Posted(nameof(damageImpacts))
+                    ? null
+                    : AssessmentPolicy.ParseImpacts(damageImpacts);
                 var recordedDate = DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
                 await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
@@ -1151,6 +1068,9 @@ public sealed partial class DetailsModel(
                             originalUnit, Recorded(AssessmentVocabulary.VehicleMileageSource), persisted?.VehicleMileageDisplayUnit),
                         assessmentFields.TryGetValue(AssessmentVocabulary.HistoryCheck, out var history)
                             ? new Dictionary<string, string?> { [AssessmentVocabulary.HistoryCheck] = history } : null),
+                    Damage = !damageSubmitted ? null : new(impacts, damageFields),
+                    ImagePreparation = !preparationSubmitted ? null : new(
+                        [.. preparationEdits!.Select(edit => edit.ToRequest())]),
                     Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
                     Report = !reportSubmitted ? null : new(reportFields,
                         Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
@@ -1358,8 +1278,8 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// B07 delivery preparation: pins the current generation's confirmed
-    /// artifacts and the addressing resolved from the Case's structured
-    /// contacts. Nothing is sent and no Sent state is claimed here.
+    /// artifacts and the staff-reviewed recipient addressing. Nothing is
+    /// sent and no Sent state is claimed here.
     /// </summary>
     public async Task<IActionResult> OnPostPrepareReportDeliveryAsync(
         Guid id,
@@ -1367,6 +1287,8 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         Guid generationId,
         long expectedGenerationVersion,
+        string[]? toRecipients,
+        string[]? ccRecipients,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -1389,7 +1311,8 @@ public sealed partial class DetailsModel(
                     editLeaseToken!,
                     generationId,
                     expectedGenerationVersion,
-                    operationKey),
+                    operationKey,
+                    new(toRecipients ?? [], ccRecipients ?? [])),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -1680,120 +1603,6 @@ public sealed partial class DetailsModel(
         RedirectToPage("/Cases/Details", new { id, section = "valuation" });
 
     /// <summary>
-    /// B06: one image's report preparation, posted from the Files or the
-    /// Report section — both render the same cards from one partial.
-    /// A card's own controls post a single edit; Move up and Move down post
-    /// the moved image and its neighbour with their orders exchanged, so the
-    /// resulting sequence is the operator's and never a tie-break's.
-    /// </summary>
-    public async Task<IActionResult> OnPostSaveAssetPreparationAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string? editLeaseToken,
-        AssetPreparationEditForm[] edits,
-        CancellationToken cancellationToken)
-    {
-        var guard = await GuardAssetPreparationCommandAsync(
-            id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null)
-        {
-            return guard;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await caseAssetPreparations.SaveAsync(
-                new(
-                    id,
-                    // The submitted version travels unchanged, as every other
-                    // section command's does: the store enforces it against
-                    // the live case.
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    ReportImageLabels.SaveReason,
-                    editLeaseToken!,
-                    [.. (edits ?? []).Select(edit => edit.ToRequest())]),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException)
-        {
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, ReportImageLabels.SaveRefused);
-            return RedirectToPreparation(id);
-        }
-
-        ClearLeaseState();
-        TempData["CaseStatus"] = ReportImageLabels.WasSaved;
-        return RedirectToPreparation(id);
-    }
-
-    /// <summary>
-    /// B06: returns the named images to their original presentation. The
-    /// stored bytes and hashes are never touched — only the preparation.
-    /// </summary>
-    public async Task<IActionResult> OnPostResetAssetPreparationAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string? editLeaseToken,
-        Guid[] occurrenceIds,
-        CancellationToken cancellationToken)
-    {
-        var guard = await GuardAssetPreparationCommandAsync(
-            id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null)
-        {
-            return guard;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await caseAssetPreparations.ResetAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    ReportImageLabels.ResetReason,
-                    editLeaseToken!,
-                    occurrenceIds ?? []),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException)
-        {
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, ReportImageLabels.ResetRefused);
-            return RedirectToPreparation(id);
-        }
-
-        ClearLeaseState();
-        TempData["CaseStatus"] = ReportImageLabels.WasReset;
-        return RedirectToPreparation(id);
-    }
-
-    /// <summary>
     /// One posted image edit. The form carries what the operator chose; the
     /// order only reaches Core for the one role that owns one, so switching a
     /// supporting image to another role in the same submit clears its order
@@ -1828,38 +1637,6 @@ public sealed partial class DetailsModel(
                 (CaseAssetRotation)Rotation,
                 new(CropLeft, CropTop, CropWidth, CropHeight));
     }
-
-    private Task<IActionResult?> GuardAssetPreparationCommandAsync(
-        Guid id,
-        string operationKey,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        GuardSectionCommandAsync(
-            id,
-            operationKey,
-            editLeaseToken,
-            "Only an Engineer can prepare report images.",
-            () => RedirectToPreparation(id),
-            cancellationToken);
-
-    /// <summary>
-    /// B08: back to the section the preparation was acted on. The same cards
-    /// and the same controls are offered in Files and in Report, and each
-    /// section's forms carry their own <c>section</c>, so the editor reads the
-    /// outcome where they acted rather than being moved to the other section.
-    /// Any other value lands on Files, which is where the cards were first
-    /// offered.
-    /// </summary>
-    private RedirectToPageResult RedirectToPreparation(Guid id) =>
-        RedirectToPage(
-            "/Cases/Details",
-            new
-            {
-                id,
-                section = string.Equals(Section, "report", StringComparison.Ordinal)
-                    ? "report"
-                    : "files"
-            });
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(
         Guid id,
@@ -1955,9 +1732,13 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id, estimateId?.ToString("D"));
         }
 
-        var details = EditorDetailsFrom(editor, null);
         try
         {
+            var existing = estimateId is { } selected
+                ? await ResolveEstimateAsync(id, selected, cancellationToken)
+                : null;
+            var details = EditorDetailsFrom(editor, existing);
+            var selectedRateCard = ParseSelectedRateCard();
             var saved = await saveEstimate.ExecuteAsync(
                 new(
                     id,
@@ -1970,7 +1751,11 @@ public sealed partial class DetailsModel(
                     details,
                     editor.Lines,
                     new(RepairSpecificationSourceRoute.Manual, null, null, null),
-                    ExistingLineIds: editor.ExistingLineIds),
+                    ExistingLineIds: editor.ExistingLineIds)
+                {
+                    SelectedRateCardId = selectedRateCard.Id,
+                    SelectedRateCardVersion = selectedRateCard.Version
+                },
                 cancellationToken);
             ClearLeaseState();
             TempData["CaseStatus"] = "The estimate was saved.";
@@ -2491,6 +2276,17 @@ public sealed partial class DetailsModel(
     /// discounts and the VAT policy — is now posted, so nothing is carried
     /// forward unseen.
     /// </summary>
+    private (Guid? Id, long? Version) ParseSelectedRateCard()
+    {
+        var value = Request.Form["selectedRateCard"].ToString();
+        if (string.IsNullOrWhiteSpace(value)) return (null, null);
+        var parts = value.Split(':');
+        if (parts.Length != 2 || !Guid.TryParse(parts[0], out var id)
+            || !long.TryParse(parts[1], out var version) || version < 1)
+            throw new ArgumentException("Select a current labour-rate card.");
+        return (id, version);
+    }
+
     private static EstimateDetails EditorDetailsFrom(
         EstimateEditorPost editor, RepairSpecificationVersion? existing) => EstimatePolicy.RetainEditorRate(new(
         editor.Name ?? string.Empty,
@@ -2862,16 +2658,23 @@ public sealed partial class DetailsModel(
         {
             var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
             engineerOptions = accounts.Accounts
-                .Where(account => account.IsEnabled && account.Roles.Contains(StaffRole.Engineer))
+                .Where(account => account.IsEnabled
+                    && StaffRoleCapabilities.MeetsRequirement(account.Role, StaffRole.Engineer))
                 .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
                 .ToArray();
         }
 
-        var modes = submitCaseToEva is null
-            ? EvaSubmissionModes.Disabled
-            : await evaModeStore.GetForPrincipalAsync(
-                workflow.Identity.PrincipalCode,
+        var modes = await evaModeStore.GetForPrincipalAsync(
+            workflow.Identity.PrincipalCode,
+            cancellationToken);
+        var canRetryAutomaticFailure = modes.Policy
+            == PrincipalReportGenerationPolicy.EvaAutomaticApiOnReview
+            && await evaSubmissionQueries.CanRetryAutomaticFailureAsync(
+                workflow.CaseId,
                 cancellationToken);
+        var latestEvaSubmission = await evaSubmissionQueries.GetLatestAsync(
+            workflow.CaseId,
+            cancellationToken);
         EvaHandoff = new(
             workflow.CaseId,
             workflow.Version,
@@ -2886,10 +2689,13 @@ public sealed partial class DetailsModel(
                 profile.PrintedName)).ToArray(),
             details.Data?.Completeness.Values.InstructionComplete ?? false,
             details.Data?.Completeness.Values.ImagesComplete ?? false,
+            modes.Policy,
             submitCaseToEva is not null,
-            EvaSubmissionPolicy.AllowsManualSubmission(modes),
+            EvaSubmissionPolicy.AllowsManualSubmission(modes) || canRetryAutomaticFailure,
             NewOperationKey(),
-            NewOperationKey());
+            NewOperationKey(),
+            canRetryAutomaticFailure,
+            canRetryAutomaticFailure && latestEvaSubmission is not { IsDelivered: true });
     }
 
     /// <summary>

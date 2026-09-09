@@ -113,22 +113,15 @@ public sealed class OrganizationDirectoryPersistenceTests
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
-        context.Set<OrganizationDirectoryEntryEntity>().Add(new()
+        context.Set<OrganizationEntity>().Add(new()
         {
             Id = Guid.NewGuid(),
-            Role = role,
+            ContactRoles = [new() { Role = role }],
             Name = name,
-            NormalizedName = normalizedName,
             Address = "1 Test Way",
             Postcode = postcode,
-            NormalizedPostcode = normalizedPostcode,
-            SourceKind = "manual",
-            SourceRecordId = null,
-            SourceVersion = 1,
-            UpdatedBy = Staff.SubjectId,
-            UpdatedAtUtc = DateTimeOffset.UtcNow,
             Active = active,
-            Version = 0
+            Version = 1
         });
         await context.SaveChangesAsync();
     }

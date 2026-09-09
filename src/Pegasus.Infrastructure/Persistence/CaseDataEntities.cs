@@ -4,13 +4,13 @@ internal sealed class CaseDataSnapshotEntity
 {
     public Guid CaseId { get; set; }
     public CaseEntity Case { get; set; } = null!;
-    public Guid OriginIntakeReceiptId { get; set; }
-    public required string OriginSourceChannel { get; set; }
-    public required string OriginExternalReceiptToken { get; set; }
-    public required string OriginSourceHash { get; set; }
-    public DateTimeOffset OriginReceivedAtUtc { get; set; }
-    public required string SourceReaderKey { get; set; }
-    public required string SourceReaderVersion { get; set; }
+    public Guid? OriginIntakeReceiptId { get; set; }
+    public string? OriginSourceChannel { get; set; }
+    public string? OriginExternalReceiptToken { get; set; }
+    public string? OriginSourceHash { get; set; }
+    public DateTimeOffset? OriginReceivedAtUtc { get; set; }
+    public string? SourceReaderKey { get; set; }
+    public string? SourceReaderVersion { get; set; }
     public string? ExtractionPolicyKey { get; set; }
     public int? ExtractionPolicyVersion { get; set; }
     public required string CompletenessPolicyKey { get; set; }

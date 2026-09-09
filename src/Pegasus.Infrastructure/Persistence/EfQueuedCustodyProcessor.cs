@@ -183,15 +183,25 @@ internal sealed class EfQueuedCustodyProcessor(
             }
             else
             {
+                if (casePayload.IntakeReceiptId is null)
+                {
+                    await CompleteManualCaseCustodyAsync(
+                        workId,
+                        leaseToken,
+                        root,
+                        cancellationToken);
+                    return;
+                }
+
                 var version = await caseCustody.RetainAcceptedIntakeSourceAsync(
                     root,
                     new(
-                        casePayload.IntakeReceiptId,
-                        casePayload.SourceFileName,
-                        casePayload.MediaType,
-                        casePayload.SourceHash,
-                        casePayload.SourceObjectKey,
-                        casePayload.SourceLength),
+                        casePayload.IntakeReceiptId.Value,
+                        casePayload.SourceFileName!,
+                        casePayload.MediaType!,
+                        casePayload.SourceHash!,
+                        casePayload.SourceObjectKey!,
+                        casePayload.SourceLength!.Value),
                     $"{casePayload.OperationKey}:source",
                     leaseGuard,
                     cancellationToken);
@@ -200,10 +210,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 {
                     new(
                         1,
-                        casePayload.SourceFileName,
-                        casePayload.MediaType,
-                        casePayload.SourceLength,
-                        casePayload.SourceHash,
+                        casePayload.SourceFileName!,
+                        casePayload.MediaType!,
+                        casePayload.SourceLength!.Value,
+                        casePayload.SourceHash!,
                         DocumentSemanticRole.OriginalSource,
                         $"{casePayload.OperationKey}:source",
                         version.RemoteId,
@@ -271,11 +281,13 @@ internal sealed class EfQueuedCustodyProcessor(
         CustodyEffectLeaseGuard leaseGuard,
         CancellationToken cancellationToken)
     {
+        var receiptId = casePayload.IntakeReceiptId ?? throw new InvalidDataException(
+            "Receipt-backed custody has no receipt identity.");
         var retained = new List<RetainedCaseFile>();
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var candidates = await context.Set<IntakeAssetEntity>()
             .AsNoTracking()
-            .Where(asset => asset.IntakeReceiptId == casePayload.IntakeReceiptId
+            .Where(asset => asset.IntakeReceiptId == receiptId
                 && (asset.Kind == "attachment" || asset.Kind == "embedded_image"))
             .ToListAsync(cancellationToken);
         var attachments = candidates
@@ -289,7 +301,7 @@ internal sealed class EfQueuedCustodyProcessor(
             var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
                 root,
                 new(
-                    casePayload.IntakeReceiptId,
+                    receiptId,
                     attachment.FileName,
                     attachment.MediaType,
                     attachment.ContentHash,
@@ -334,7 +346,7 @@ internal sealed class EfQueuedCustodyProcessor(
             var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
                 root,
                 new(
-                    casePayload.IntakeReceiptId,
+                    receiptId,
                     photograph.FileName,
                     photograph.MediaType,
                     photograph.ContentHash,
@@ -488,9 +500,28 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == caseId, cancellationToken);
+        if (caseEntity.OriginIntakeReceiptId is null)
+        {
+            return new(
+                workKind,
+                caseEntity.Id,
+                caseEntity.Type,
+                caseEntity.Reference,
+                caseEntity.AuditReference,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                operationKey,
+                caseRootCreationToken,
+                auditFolderCreationToken);
+        }
         var receipt = await context.IntakeReceipts
             .AsNoTracking()
-            .SingleAsync(value => value.Id == caseEntity.OriginIntakeReceiptId, cancellationToken);
+            .SingleAsync(value => value.Id == caseEntity.OriginIntakeReceiptId.Value, cancellationToken);
 
         var source = await context.IntakeAssets
             .AsNoTracking()
@@ -597,6 +628,7 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
         var workflow = await context.CaseWorkflows
+            .Include(value => value.Case).ThenInclude(value => value.Principal)
             .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
         ArchivedCaseGuard.RequireMutable(workflow);
 
@@ -620,6 +652,8 @@ internal sealed class EfQueuedCustodyProcessor(
             && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
+            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                context, workflow, checked(workflow.Version + 1), now);
         }
         await RecordRetainedCaseFilesAsync(context, caseEntity.Id, retainedFiles, now, cancellationToken);
         CaseMutationGuard.Complete(workflow);
@@ -631,6 +665,54 @@ internal sealed class EfQueuedCustodyProcessor(
             EventType = "custody_confirmed",
             Actor = "system",
             Reason = "Accepted source custody confirmed.",
+            OccurredAtUtc = now,
+            OperationKey = $"{work.OperationKey}:confirmed",
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task CompleteManualCaseCustodyAsync(
+        Guid workId,
+        string leaseToken,
+        CaseCustodyRoot root,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
+        if (work is null)
+        {
+            return;
+        }
+
+        var caseEntity = await context.Cases
+            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
+        if (caseEntity.OriginIntakeReceiptId is not null)
+        {
+            throw new InvalidDataException("Manual custody completion requires a receiptless Case.");
+        }
+        var workflow = await context.CaseWorkflows
+            .Include(value => value.Case).ThenInclude(value => value.Principal)
+            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
+        ArchivedCaseGuard.RequireMutable(workflow);
+
+        var beforeVersion = workflow.Version;
+        caseEntity.CustodyRootRemoteId = root.RemoteId;
+        caseEntity.CustodyConfirmedAtUtc = now;
+        caseEntity.CustodyState = "confirmed";
+        CaseMutationGuard.Complete(workflow);
+        CompleteWork(work, now, root.RemoteId);
+        context.CaseHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseEntity.Id,
+            EventType = "manual_case_folder_created",
+            Actor = "system",
+            Reason = "Case folder created for a directly entered case.",
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
             BeforeVersion = beforeVersion,
@@ -1142,13 +1224,13 @@ internal sealed class EfQueuedCustodyProcessor(
         string CaseType,
         string CaseReference,
         string? AuditReference,
-        Guid IntakeReceiptId,
-        string SourceFileName,
-        string MediaType,
-        string SourceHash,
-        string SourceObjectKey,
-        long SourceLength,
-        Guid SourceAssetId,
+        Guid? IntakeReceiptId,
+        string? SourceFileName,
+        string? MediaType,
+        string? SourceHash,
+        string? SourceObjectKey,
+        long? SourceLength,
+        Guid? SourceAssetId,
         string OperationKey,
         string? CaseRootCreationToken,
         string? AuditFolderCreationToken) : CustodyWorkPayload;

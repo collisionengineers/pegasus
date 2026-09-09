@@ -76,7 +76,7 @@ bar, the workspace-tab strip and the page content. The rail carries, in
 order, **Work Centre** (`/`), **Inbox** (`/Inbox`), **Upload** (`/Upload`),
 **Cases** (`/Cases`), **Search** (`/Search`), **Operations**
 (`/Operations`) and — for administrators only — **Administration**
-(`/Admin`). Inbox, Cases and Operations carry a count; the Cases count is the
+(`/Administration`). Inbox, Cases and Operations carry a count; the Cases count is the
 sum of Not ready, Review, With Engineer, Query, Held, Triage and Unidentified. A
 count is a page-queried figure: an absent count renders nothing, never `0`.
 The current route is marked by more than colour. The rail foot shows the
@@ -102,12 +102,12 @@ dialog traps focus and inerts the page behind it.
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md)) | — |
 | `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); first successful file acceptance starts a fixed non-sliding 15-minute add/replace session, closed by explicit finalisation or expiry (D20) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions | Queues (`/Triage`) |
-| `/Cases/{id}` | Case record — one scrolling page of eleven sections; `?section=` jumps (D29, D30) | Case workspace side-nav sections; the Assessment page |
+| `/Cases/{id}` | Case record — one scrolling page of ten sections; `?section=` jumps (D29, D30) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` (D30) | Engineer assessment page |
 | `/Search` | Advanced search (`UI-07`) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}` | Triage and Unidentified detail | — |
 | `/Operations` | AI jobs, attention, upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
-| `/Admin`, `/Admin/{area}` | Administration areas | Administration index, Organisations, Staff accounts, Roles, Automation Activity |
+| `/Administration`, `/Administration/...` | Administration areas, including Contacts and Principal settings | Separate Principal and Claim Source areas |
 
 `/Triage` and `/Unidentified` are permanent redirects to `/Cases?tab=triage`
 and `/Cases?tab=unidentified`, kept for existing links and bookmarks rather
@@ -234,8 +234,8 @@ Sign-off Engineer beside it — D31), the presence strip, a sticky action bar
 and a sticky section jump-nav whose current entry follows the scroll
 position. `?section=` jumps to a section; sections below the fold render
 lazily; there is no layout switch. The sections, in order, are **Overview**,
-**Engineer notes**, **Inspection**, **Vehicle**, **Damage**, **Valuation**,
-**Estimate**, **Settlement**, **Report**, **Files**, **Notes** (D30). Every
+**Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
+**Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
 Estimate, Settlement, Report — are editable in With Engineer and read-only
 in every other state (D30; the former D11 access rule is now this read-only
@@ -273,9 +273,6 @@ non-destructive conflict.
   each with title, source, reason and resolve action, and never a percentage
   (D23) — the edit form (claimant, provider reference, registration, make,
   model, accident circumstances) and the work, party and accident facts.
-- Engineer notes: append-only, attributed staff notes to the Engineer, a
-  separate section from the Notes history (D32,
-  [FRD-01](frd-01-case-identity-and-lifecycle.md#engineer-notes)).
 - Inspection: the recorded inspect-at value with its fast-update choice —
   Image Based Assessment, Claimant address, Repairer location, Storage
   location, previous addresses used for this principal, Manual entry; an
@@ -385,14 +382,13 @@ one-line partial-data notice links to Administration Service health (D37).
 
 ### Administration
 
-`/Admin/{area}` carries eight areas for authorised accounts
-([FRD-04](frd-04-parties-accounts-and-access.md)): **Staff accounts &
-roles**, **Principals** (one area; an organisation is created inline by
-Create Principal and is never a separate area), **Workflow configuration**,
-**Mail settings**, **Automation & AI**, **Service health** (the only
-service health table — D37), **Action Logs** (the permanent action history
-with search, area, actor, result and date filters) and **Reports** (the Engineer Report,
-`MI-01`: per Engineer and period, queries received and reports). Every
+`/Administration` carries **Accounts**, **Contacts**, **Workflow
+configuration**, **Mail settings**, **Valuation presets**, **Service health**,
+**Action Logs**, **Reports** and **AI jobs**; Automation appears only when its
+capability is composed. Contacts is the one directory for Principals, Claim
+Sources, Repairers, Storage and Third Party Engineers. Principal-specific
+settings are part of that Contact record; there are no separate Principal or
+Claim Source areas. Every
 consequential change — role, account state, principal credential, automation
 stop/start — takes a reason and enters permanent history. The **Staff accounts
 & roles** area carries a **Reset password** action beside the other account actions:
@@ -407,9 +403,9 @@ for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
 image-completeness rules as required/not-required items with exact blockers,
 and the chase interval as one global whole-calendar-day value (1 to 365,
 default 7, Europe/London), where `Held` preserves the remaining time (D23).
-It has no staff instruction-review or image-review settings; where only the
-workflow policy identity applies, the page shows its current version read-only
-(D44, 2026-09-03). It also holds labour-rate-card administration: the
+It has no staff instruction-review or image-review settings. The default view
+shows current values; Edit claims the configuration, Save confirms a concise
+reason, and Cancel discards changes. It also holds labour-rate-card administration: the
 global versioned cards (name, panel-and-paint hourly rate, enabled state) that
 every estimate version selects from, with disabling blocking future selection
 without changing history (D17). It stays inside that area; no ninth area is
@@ -465,9 +461,10 @@ reversible work states; no terminal Closed presentation is permitted. `Audit`, `
 
 ### Upload
 
-Manual upload currently remains bounded at 100 MiB per file. Future intake
-bounds require `INTK-052` research and an operator decision; the Provider API
-envelope stays 30 MB and is owned by
+Manual and public-link uploads follow the accepted 100 MiB-per-file, 20-file
+and 200 MiB aggregate limits in
+[FRD-02](frd-02-intake-and-source-identity.md#source-upload-limits). The
+Provider API envelope stays 30 MB and is owned by
 [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
 The authenticated staff `/Upload` route is available only where durable
 production intake and case custody exist; a production-local-only store is not
@@ -538,6 +535,24 @@ the UI offers a transition only where its Core use case permits it for the
 current state and account.
 
 ## Edge cases and fail-closed behaviour
+
+### Record edit ownership
+
+An existing mutable Triage item, Image Intake record, Contact, staff account,
+valuation preset, approved mailbox, approved Outlook category, labour-rate card, or named configuration
+opens read-only. Its explicit Edit action claims a five-minute, record-scoped
+staff edit scope. The holder is named through the staff account where it can
+be resolved, never by its internal subject identifier. Cancel releases the
+scope without saving; Save checks the holder token and expected version inside
+the mutation transaction, applies the requested change and removes the scope
+in that same transaction. A stale, expired, revoked or other-holder request
+does not change the record. New unsaved records have no persistent scope.
+
+Disabling an account or revoking its sessions clears that account's non-Case
+edit scopes, so a token from the revoked session cannot later save an existing
+record. The Case edit authority remains owned by its existing Case workflow;
+commands that affect both a Triage item and a Case validate both scoped
+authorities.
 
 - A count whose query has not run renders nothing; a failed query renders
   its failure, never `0`.
