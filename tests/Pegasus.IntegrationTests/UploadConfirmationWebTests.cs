@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -493,6 +494,11 @@ public sealed class UploadConfirmationWebTests
             Assert.Contains("1 file was completed before this stopped", confirmation.Body, StringComparison.Ordinal);
             Assert.Contains("Confirm and add the submission", confirmation.Body, StringComparison.Ordinal);
             Assert.Equal(2, SplitOccurrences(confirmation.Body, "name=\"receiptVersions[").Count());
+            var refreshedPage = await IntakeWebDriver.GetHtmlAsync(
+                attachmentClient, $"/Upload/Group/{groupId:D}");
+            Assert.DoesNotContain("Confirm and add the submission", refreshedPage, StringComparison.Ordinal);
+            Assert.Contains("Review this file", refreshedPage, StringComparison.Ordinal);
+            Assert.Contains("/Received/", refreshedPage, StringComparison.Ordinal);
         }
         var confirmationPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("could not be added", confirmationPage, StringComparison.Ordinal);
@@ -546,6 +552,12 @@ public sealed class UploadConfirmationWebTests
         {
             await AssertLinkedAsync(factory, receiptId, caseId);
         }
+        var groupItem = await linkScope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+            .GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId), CancellationToken.None);
+        Assert.NotNull(groupItem);
+        Assert.Equal(UnidentifiedState.Resolved, groupItem!.State);
+        Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, groupItem.ResolutionTargetKind);
+        Assert.Equal(caseId.ToString("N"), groupItem.ResolutionTargetId);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
         Assert.Contains("Open case", afterPage, StringComparison.Ordinal);

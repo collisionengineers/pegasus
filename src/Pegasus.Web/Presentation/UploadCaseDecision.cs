@@ -141,7 +141,8 @@ public sealed class UploadCaseDecision(
     IGetIntake getIntake,
     IAcquireCaseEditLease acquireCaseEditLease,
     ILinkIntake linkIntake,
-    IIntakeAssociationDestinationQueries destinations) : IUploadCaseDecision
+    IIntakeAssociationDestinationQueries destinations,
+    ReconcileUnidentifiedDestinations unidentifiedDestinations) : IUploadCaseDecision
 {
     public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadAsync(
         Guid receiptId,
@@ -566,6 +567,21 @@ public sealed class UploadCaseDecision(
         if (added == 0 && alreadyThere == 0)
         {
             return new(false, "Nothing from this submission could be added to that case.");
+        }
+
+        // The last link can commit before the request completes. Resolve the
+        // group-owned Unidentified item now when the complete durable roster
+        // reaches one Case; its worker sweep repeats this safely if this
+        // request is interrupted here.
+        try
+        {
+            await unidentifiedDestinations.SynchronizeForSubmissionGroupAsync(
+                groupId, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // The links are already committed and the reconciliation
+            // sweep owns recovery of a transient resolution failure.
         }
 
         var message = OperatorLabels.AssociatedWithCase(

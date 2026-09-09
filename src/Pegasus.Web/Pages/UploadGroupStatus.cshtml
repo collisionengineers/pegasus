@@ -195,6 +195,28 @@
                                         <a class="btn btn--small" href="@createAction.Url">@createAction.Label</a>
                                     </div>
                                 }
+                                @* A group-level association needs every file
+                                   ready for the one reviewed roster. Once a
+                                   sibling has settled independently, keep the
+                                   remaining file actionable through the
+                                   existing receipt surface rather than
+                                   offering a partial group decision. *@
+                                @if (!Model.OpenGroupDecision && !Model.RefreshAutomatically)
+                                {
+                                    <div class="button-row">
+                                        @if (memberOutcome.PrimaryAction is { } primaryAction
+                                            && memberOutcome.Kind != UploadOutcomeKind.ImageCaseRegistered)
+                                        {
+                                            <a class="btn btn--small" href="@primaryAction.Url">@primaryAction.Label</a>
+                                        }
+                                        @if (memberOutcome.Attach is { } attach)
+                                        {
+                                            var receiptId = Model.Statuses[member.StagedReceiptId]?.ProcessedReceiptId
+                                                ?? member.StagedReceiptId;
+                                            <a class="btn btn--small" href="/Received/@receiptId">Review this file</a>
+                                        }
+                                    </div>
+                                }
                             }
                         </span>
                         <span>
