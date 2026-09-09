@@ -2716,15 +2716,11 @@ public sealed partial class DetailsModel(
         try
         {
             var result = await importRawEstimate.ExecuteAsync(request, cancellationToken);
-            if (result.EstimateId is { } estimateId)
-            {
-                // A source-hash replay consumes no edit authority. The redirected
-                // GET clears this only when the persisted lease was consumed.
-                StoreLeaseAuthority(request.CaseId, request.EditLeaseToken);
-                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
-                return RedirectToEstimate(request.CaseId, estimateId.ToString("D"));
-            }
-            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.OcrStatus(result.OcrState);
+            // A source-hash replay consumes no edit authority. The redirected
+            // GET clears this only when the persisted lease was consumed.
+            StoreLeaseAuthority(request.CaseId, request.EditLeaseToken);
+            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+            return RedirectToEstimate(request.CaseId, result.EstimateId.ToString("D"));
         }
         catch (EstimateParseRejectedException exception)
         {

@@ -158,8 +158,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         || string.Equals(mediaType, "application/xml", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mediaType, "text/xml", StringComparison.OrdinalIgnoreCase);
 
-    public EstimateDocumentReadResult Parse(ReadOnlyMemory<byte> content, IReadOnlyList<IntakeOcrPage>? ocrPages = null) =>
-        new(Read(content).Estimate, []);
+    public ParsedEstimate Parse(ReadOnlyMemory<byte> content) => Read(content).Estimate;
 
     /// <summary>
     /// The whole export: the estimate <see cref="Parse"/> returns, the

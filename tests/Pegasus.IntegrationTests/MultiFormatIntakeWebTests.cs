@@ -299,6 +299,28 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Fact]
+    public async Task MultipleScannedAttachmentsAreRetainedForReviewWithoutQueuingOcr()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var scan = CreateImagePdf(new PdfImagePlacement(0, 0, 612, 792, 0xff, 0xff, 0xff));
+        var message = CreateMessage(
+            "Two scanned instruction attachments",
+            "Please review both attached instructions.",
+            ("first-scan.pdf", "application/pdf", scan),
+            ("second-scan.pdf", "application/pdf", scan));
+
+        var result = await UploadAsync(factory, client, "two-scanned-attachments.eml", "message/rfc822", Serialize(message));
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Equal(IntakeDecision.OcrRequired, receipt.Decision);
+        Assert.Equal(2, receipt.ScannedPdfPages.Select(candidate => candidate.SourceLabel).Distinct().Count());
+        Assert.Equal(2, receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.Attachment));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
+    }
+
+    [Fact]
     public async Task LowTextPdfWithoutDominantRasterDoesNotSelectOcr()
     {
         using var factory = new IntakeWebApplicationFactory();

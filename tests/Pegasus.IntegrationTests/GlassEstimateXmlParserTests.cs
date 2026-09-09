@@ -339,7 +339,7 @@ public sealed class GlassEstimateXmlParserTests
             content.AddRange(mark);
         }
 
-        Assert.Equal(14, parser.Parse(content.ToArray()).Estimate!.Lines.Count);
+        Assert.Equal(14, parser.Parse(content.ToArray()).Lines.Count);
     }
 
     [Theory]
@@ -402,7 +402,7 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Throws<EstimateParseRejectedException>(
             () => Parse("<Estimation><GlobalSetting><XMLDocVers>2.2.1</XMLDocVers></GlobalSetting></Estimation>"));
 
-    private ParsedEstimate Parse(string xml) => Assert.IsType<ParsedEstimate>(parser.Parse(Encoding.UTF8.GetBytes(xml)).Estimate);
+    private ParsedEstimate Parse(string xml) => parser.Parse(Encoding.UTF8.GetBytes(xml));
 
     private static GlassEstimateExport Read(string xml) =>
         GlassEstimateXmlParser.Read(Encoding.UTF8.GetBytes(xml));

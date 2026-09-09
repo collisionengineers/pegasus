@@ -70,9 +70,7 @@ public sealed class GlassEstimatePdfParserTests
         var expected = tables.Where(cells => cells.Length == 11 && cells[0].Length == 3
             && "BAP".Contains(cells[0][0]) && char.IsAsciiDigit(cells[0][1])).ToArray();
 
-        var read = new PdfEstimateDocumentParser().Parse(bytes);
-        Assert.Empty(read.QualifiedOcrPages);
-        var parsed = Assert.IsType<ParsedEstimate>(read.Estimate);
+        var parsed = new PdfEstimateDocumentParser().Parse(bytes);
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, parsed.Route);
         Assert.Equal("Glass's", parsed.ProviderName);
         Assert.Contains(identity, parsed.SourceVersion.Replace(" ", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
@@ -148,19 +146,6 @@ public sealed class GlassEstimatePdfParserTests
         }
         if (identity == "LG73ZCJ")
             Assert.Equal("Panel repair sundries (including body fi", bySource["A40"].Description);
-    }
-
-    [ReferencePackFact]
-    public async Task TheFifthOriginalPositivelyQualifiesItsSixPagesWithoutFabricatedOcrCompletion()
-    {
-        var bytes = await File.ReadAllBytesAsync(Path.Combine(Top15InstructionCorpusTests.PackRoot(),
-            "glasses-integration", "glass_ref_docs", "1952640666665__YL69YFO CALCULATION SHEET.pdf"));
-        Assert.Equal(241526, bytes.Length);
-        Assert.Equal("6918c91fce058b5365446681045056158336b90e1de89ba1bdc5a1d7394f728c", Convert.ToHexStringLower(SHA256.HashData(bytes)));
-        var read = new PdfEstimateDocumentParser().Parse(bytes);
-        Assert.Null(read.Estimate);
-        Assert.Equal([1, 2, 3, 4, 5, 6], read.QualifiedOcrPages);
-        Assert.Throws<EstimateParseRejectedException>(() => new PdfEstimateDocumentParser().Parse(bytes, []));
     }
 
     private static string? Blank(string value) => value == "-" ? null : value;
