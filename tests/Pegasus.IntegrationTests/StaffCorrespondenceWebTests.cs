@@ -375,7 +375,7 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = token,
                 ["OperationKey"] = operationKey,
                 ["CaseReference"] = oldReference,
-                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, oldCaseId)).ToString(),
+                ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, oldCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Initial subject",
                 ["Body"] = "Initial message."
@@ -434,7 +434,7 @@ public sealed class StaffCorrespondenceWebTests
         var selectedHtml = await selection.Content.ReadAsStringAsync();
         Assert.Equal(selectedReference, InputValue(selectedHtml, "CaseReference"));
         Assert.Equal(
-            (await CaseVersionAsync(factory, selectedCaseId)).ToString(),
+            (await CaseVersionAsync(factory, selectedCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
             InputValue(selectedHtml, "ExpectedContextVersion"));
         Assert.Equal(draft["OperationId"], InputValue(selectedHtml, "OperationId"));
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), selectedHtml, StringComparison.Ordinal);
@@ -444,6 +444,28 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal("Draft subject", InputValue(selectedHtml, "Subject"));
         Assert.Equal("Draft message.", TextAreaValue(selectedHtml, "Body"));
         AssertSelectedAttachment(selectedHtml, StableAttachmentResolver.Selection);
+        Assert.Equal(1, send.SendCalls);
+
+        draft["__RequestVerificationToken"] = InputValue(selectedHtml, "__RequestVerificationToken");
+        draft["OperationKey"] = InputValue(selectedHtml, "OperationKey");
+        draft["OperationId"] = InputValue(selectedHtml, "OperationId");
+        draft["ExpectedContextVersion"] = InputValue(selectedHtml, "ExpectedContextVersion");
+        draft["CaseReference"] = InputValue(selectedHtml, "CaseReference");
+        draft["To"] = string.Empty;
+        draft.Remove("SelectedCaseReference");
+
+        using var invalidSend = await client.PostAsync(
+            FormAction(selectedHtml, "Send"),
+            new FormUrlEncodedContent(draft));
+        Assert.Equal(HttpStatusCode.OK, invalidSend.StatusCode);
+        var invalidHtml = await invalidSend.Content.ReadAsStringAsync();
+        Assert.Contains("At least one recipient is required.", invalidHtml, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), invalidHtml, StringComparison.Ordinal);
+        Assert.Contains("handler=Reconcile", invalidHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(draft["OperationId"], InputValue(invalidHtml, "OperationId"));
+        Assert.Equal("Draft subject", InputValue(invalidHtml, "Subject"));
+        Assert.Equal("Draft message.", TextAreaValue(invalidHtml, "Body"));
+        AssertSelectedAttachment(invalidHtml, StableAttachmentResolver.Selection);
         Assert.Equal(1, send.SendCalls);
     }
 
@@ -838,7 +860,7 @@ public sealed class StaffCorrespondenceWebTests
             selectedReference,
             InputValue(selectedHtml, "CorrespondenceCaseReference"));
         Assert.Equal(
-            (await CaseVersionAsync(factory, selectedCaseId)).ToString(),
+            (await CaseVersionAsync(factory, selectedCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
             InputValue(selectedHtml, "ExpectedCorrespondenceCaseVersion"));
         Assert.Equal("forward", InputValue(selectedHtml, "compose"));
         Assert.Equal(seeded.MailboxId.ToString("D"), InputValue(selectedHtml, "mailbox"));
