@@ -167,6 +167,13 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.Contains("The claimed case does not match the current association", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=LinkCase", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ReverseCaseLink", html, StringComparison.Ordinal);
+
+        var recoveryHtml = await client.GetStringAsync($"/Received/{receipt.Id:D}");
+        var recoveryClaim = HiddenFormValues(recoveryHtml, "ClaimCaseLease");
+        Assert.Contains(concurrentCase.Summary.Reference, recoveryHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("The claimed case does not match the current association", recoveryHtml, StringComparison.Ordinal);
+        Assert.Equal(concurrentCaseId.ToString("D"), recoveryClaim["caseId"]);
+        Assert.DoesNotContain("handler=LinkCase", recoveryHtml, StringComparison.Ordinal);
     }
 
     [Fact]

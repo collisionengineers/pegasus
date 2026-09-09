@@ -537,11 +537,15 @@ public sealed partial class DetailsModel(
         }
     }
 
-    private void ClearCaseLease()
+    public void ClearCaseLease(bool clearCurrentLease = true)
     {
         TempData.Remove("IntakeCaseLeaseId");
         TempData.Remove("IntakeCaseLeaseVersion");
         TempData.Remove("IntakeCaseLeaseToken");
+        if (!clearCurrentLease)
+        {
+            return;
+        }
         LeasedCaseId = null;
         LeasedCaseVersion = null;
         CaseEditLeaseToken = null;

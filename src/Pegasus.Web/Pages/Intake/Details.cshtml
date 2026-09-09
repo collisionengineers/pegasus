@@ -473,6 +473,7 @@
             }
             else
             {
+                @{ Model.ClearCaseLease(clearCurrentLease: false); }
                 <div class="notice notice--warning" role="status">
                     <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                     <span>The claimed case does not match the current association; reload and enter edit mode for the current case.</span>
