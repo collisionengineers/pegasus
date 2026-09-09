@@ -104,7 +104,11 @@ public sealed class ShellAndStatusPageWebTests
         bool externalSurface)
     {
         var context = new DefaultHttpContext();
-        context.Features.Set<IStatusCodeReExecuteFeature>(new ReexecutedStatus(originalPath));
+        context.Features.Set<IStatusCodeReExecuteFeature>(new StatusCodeReExecuteFeature
+        {
+            OriginalPath = originalPath,
+            OriginalPathBase = string.Empty
+        });
         var page = new StatusCodeModel
         {
             PageContext = new PageContext { HttpContext = context }
@@ -152,15 +156,6 @@ public sealed class ShellAndStatusPageWebTests
         var valueIndex = html.IndexOf(valueMarker, nameIndex, StringComparison.Ordinal) + valueMarker.Length;
         var end = html.IndexOf('"', valueIndex);
         return html[valueIndex..end];
-    }
-
-    private sealed class ReexecutedStatus(string originalPath) : IStatusCodeReExecuteFeature
-    {
-        public string OriginalPathBase { get; set; } = string.Empty;
-
-        public string OriginalPath { get; set; } = originalPath;
-
-        public string OriginalQueryString { get; set; } = string.Empty;
     }
 
     [Fact]
