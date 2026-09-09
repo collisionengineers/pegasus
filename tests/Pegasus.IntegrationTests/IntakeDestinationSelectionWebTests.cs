@@ -53,6 +53,12 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.Equal(HttpStatusCode.Redirect, claimed.StatusCode);
         Assert.Contains($"targetCaseId={caseId:D}", claimed.Headers.Location!.OriginalString, StringComparison.OrdinalIgnoreCase);
         var leasedHtml = await client.GetStringAsync(claimed.Headers.Location);
+        var notices = Regex.Matches(leasedHtml, "<div class=\"notice[^\"]*\"[^>]*>(.*?)</div>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
+            .Select(match => WebUtility.HtmlDecode(Regex.Replace(match.Groups[1].Value, "<[^>]+>", " ",
+                RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))).Trim());
+        Assert.True(leasedHtml.Contains("Case edit mode is active until", StringComparison.Ordinal),
+            "The claim must succeed before linking. Visible notices: " + string.Join(" | ", notices));
         var linkForm = HiddenFormValues(leasedHtml, "LinkCase");
         linkForm["reason"] = "Staff identified the Case from the retained source.";
         using var linked = await client.PostAsync($"/Received/{receipt.Id:D}?handler=LinkCase", new FormUrlEncodedContent(linkForm));
