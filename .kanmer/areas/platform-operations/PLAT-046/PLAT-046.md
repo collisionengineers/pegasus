@@ -2,7 +2,7 @@
 id: PLAT-046
 type: ticket
 title: Stop old Web and Worker before planned destructive migrations
-status: done
+status: verifying
 area: platform-operations
 order: 40
 assignee: codex-mcp-client
@@ -38,7 +38,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/711'
 archived: false
 created: '2026-08-28T03:25:47.384Z'
-updated: '2026-09-09T01:00:58.617Z'
+updated: '2026-09-09T01:10:23.091Z'
 ---
 
 ## What
