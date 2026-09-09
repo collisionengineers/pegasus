@@ -797,7 +797,7 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task EngineerNotesEmptyReadOnlySectionHasNoEmptyStateProse()
+    public async Task EngineerNotesEmptyReadOnlySectionExplainsThatNoNotesWereRecorded()
     {
         var store = new RecordingCaseDetailsStore();
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -816,8 +816,8 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=engineer-notes");
         var section = Section(html, "case-engineer-notes-title");
 
-        Assert.DoesNotContain("empty", section, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("No note", VisibleText(section), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No engineer notes recorded.", VisibleText(section), StringComparison.Ordinal);
+        Assert.DoesNotContain("<form", section, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

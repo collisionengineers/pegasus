@@ -6,12 +6,18 @@
 <section class="panel">
     <div class="panel-head"><h2>Principal report activity</h2></div>
     <div class="panel-body">
-        <form method="get" class="form-row">
-            <label>From London <input asp-for="From" name="from" type="datetime-local" /></label>
-            <label>To London <input asp-for="To" name="to" type="datetime-local" /></label>
-            <button type="submit">Apply</button>
-            <a asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
-            <a asp-page="/Administration/Reports" asp-page-handler="EngineerCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download engineer CSV</a>
+        <form method="get" class="filter-bar" aria-label="Report period">
+            <div class="field">
+                <label for="report-from">From London</label>
+                <input id="report-from" asp-for="From" name="from" type="datetime-local" />
+            </div>
+            <div class="field">
+                <label for="report-to">To London</label>
+                <input id="report-to" asp-for="To" name="to" type="datetime-local" />
+            </div>
+            <button class="btn btn--primary" type="submit">Apply</button>
+            <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
+            <a class="btn" asp-page="/Administration/Reports" asp-page-handler="EngineerCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download engineer CSV</a>
         </form>
         <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
         <div class="table-wrap">
@@ -22,10 +28,14 @@
                 {
                     <tr><td>@row.PrincipalCode</td><td>@row.GenerationEvents</td><td>@row.GeneratedArtifacts</td><td>@row.ArtifactTypes.Sum(x => x.PendingOrFailed)</td><td>@row.Sent</td><td>@row.Ready</td><td>@row.MissingOriginForGeneratedTurnaround / @row.GeneratedArtifacts</td><td>@row.MissingOriginForReadyTurnaround / @row.Ready</td><td>@row.MissingOriginForSentTurnaround / @row.Sent</td><td>@row.MissingSentActor / @row.Sent</td><td>@row.AverageReceivedToGeneration</td><td>@row.AverageReceivedToGeneratedArtifact</td><td>@row.AverageReceivedToReady</td><td>@row.AverageReceivedToSent</td><td>@row.CurrentTriage</td><td>@Pegasus.Web.Presentation.OperatorLabels.OfficeTime(row.OldestCurrentTriageCreatedAtUtc, "None")</td><td>@row.CurrentHeldCases</td><td>@Pegasus.Web.Presentation.OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "No recorded hold event")</td><td>@row.HeldWithoutRecordedHoldEvent</td><td>@string.Join("; ", row.ArtifactTypes.Select(x => $"{x.Kind}: {x.Generated}/{x.PendingOrFailed}"))</td></tr>
                 }
+                @if (Model.Result.Rows.Count == 0)
+                {
+                    <tr><td colspan="20" class="muted">No principal report activity was recorded for this period.</td></tr>
+                }
                 </tbody>
             </table>
         </div>
     </div>
 </section>
-<section class="panel"><div class="panel-head"><h2>Engineer activity</h2></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Engineer (recorded send actor)</th><th>Queries received (assigned Engineer)</th><th>Reports sent</th></tr></thead><tbody>@foreach (var row in Model.EngineerResult.Rows) { <tr><td>@row.DisplayName</td><td>@row.QueriesReceived</td><td>@row.ReportsSent</td></tr> }</tbody></table></div></div></section>
+<section class="panel"><div class="panel-head"><h2>Engineer activity</h2></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Engineer (recorded send actor)</th><th>Queries received (assigned Engineer)</th><th>Reports sent</th></tr></thead><tbody>@foreach (var row in Model.EngineerResult.Rows) { <tr><td>@row.DisplayName</td><td>@row.QueriesReceived</td><td>@row.ReportsSent</td></tr> }@if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="3" class="muted">No engineer activity was recorded for this period.</td></tr> }</tbody></table></div></div></section>
 </div></div>

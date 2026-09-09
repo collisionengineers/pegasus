@@ -1,7 +1,7 @@
 @page
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
-    ViewData["Title"] = OperatorLabels.Nav.Administration;
+    ViewData["Title"] = OperatorLabels.Admin.Configuration;
     ViewData["AdminArea"] = "configuration";
     ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
@@ -20,6 +20,17 @@
             </div>
         </div>
         <div class="panel-body stack">
+            <p class="empty-state">This workflow policy is fixed. There are no editable settings.</p>
+            <dl class="definition-list">
+                <div class="definition">
+                    <dt>Policy</dt>
+                    <dd>@Model.Configuration.PolicyKey</dd>
+                </div>
+                <div class="definition">
+                    <dt>Current version</dt>
+                    <dd>@Model.Configuration.PolicyVersion</dd>
+                </div>
+            </dl>
         </div>
     </section>
 </div>

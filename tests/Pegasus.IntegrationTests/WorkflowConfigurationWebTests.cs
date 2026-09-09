@@ -19,14 +19,17 @@ public sealed partial class WorkflowConfigurationWebTests
 
         Assert.Contains("<div class=\"admin-layout\">", html, StringComparison.Ordinal);
         Assert.Matches(CurrentAreaLinkRegex(), html);
-        // The area label is the panel heading (§1.12); the page heading is the
-        // administration area itself, so the same words never stack twice.
-        Assert.Contains("<h1>Administration</h1>", html, StringComparison.Ordinal);
+        // The page title identifies this administration area; the panel then
+        // states the current workflow-policy record.
+        Assert.Contains("<title>Workflow configuration · Pegasus</title>", html, StringComparison.Ordinal);
+        Assert.Contains("<h1>Workflow configuration</h1>", html, StringComparison.Ordinal);
         Assert.Contains("<h2 id=\"workflow-configuration-title\">Workflow configuration</h2>", html, StringComparison.Ordinal);
-        Assert.Single(
-            HeadingRegex().Matches(html).Cast<Match>(),
-            heading => heading.Groups["text"].Value.Trim() == "Workflow configuration");
+        Assert.Equal(2, HeadingRegex().Matches(html).Cast<Match>()
+            .Count(heading => heading.Groups["text"].Value.Trim() == "Workflow configuration"));
         Assert.Matches(PolicyVersionMetaRegex(), html);
+        Assert.Contains("This workflow policy is fixed. There are no editable settings.", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Policy</dt>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Current version</dt>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("workflow-review-title", html, StringComparison.Ordinal);
         Assert.DoesNotContain("RequireStaffInstructionReviewBeforeEngineerAssignment", html, StringComparison.Ordinal);
         Assert.DoesNotContain("RequireStaffImageReviewBeforeEngineerAssignment", html, StringComparison.Ordinal);
