@@ -619,3 +619,16 @@ Exact c3219cd28c69530441e2bba7357063372628ff37 reproduction complete. Architectu
 ## INTK066 navigation correction verification — sole host ACTIVE
 
 Root explicitly granted /root/verify_711_712 sole CEALEX-May25 host after prior PLAT046 and canonical IDLE. Frozen clean41b61f5934fba1920906245d4014fcc0a3376e95, recorded INTK066 branch/worktree. Run ReleaseIntegrationproject build --no-restore -nodeReuse:false (parent restore remains matching dependency inputs), same37test focused filter as ea4ae including completed Open case href assertions in group attach theory; docslinks/placement basec3219cd28c69530441e2bba7357063372628ff37..41b61f5934fba1920906245d4014fcc0a3376e95/diff. No architecture suite against knownred711 base; separate fix pending. No source edits, proof, publication, browser/capture, cloud/externalSQL/packaging or finalhead acceptance claim. Firstfailurestop retainresults bothIDLE; usual exact owned-process-only cleanup. PLAT046 author may edit its distinct test file but runs no host commands.
+
+## INTK066 navigation correction verification results — host IDLE
+
+Frozen clean41b61f5934fba1920906245d4014fcc0a3376e95 at exact recorded branch/worktree/common; no externalSQL/hook override or pre-existing heavy process. Lease84 running-command, then85 implementing. No source edits.
+
+All granted executed checks PASS exit0:
+- dotnet build tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-restore -nodeReuse:false:0warnings/errors48.24s.
+- dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~UploadConfirmationWebTests|FullyQualifiedName~GroupedIntakeWebTests|FullyQualifiedName~UploadOutcomeQueriesTests|FullyQualifiedName=Pegasus.IntegrationTests.GlassRepairEstimateGatewayTests.ADifferentCallbackQueryForTheSameSessionIsRefusedAndChangesNothing" --logger "trx;LogFileName=intk066-nav-41b61f.trx" --results-directory artifacts/verification-41b61f -- xUnit.MaxParallelThreads=2:37passed0failed0skipped,2m5s. TRX retained artifacts/verification-41b61f/intk066-nav-41b61f.trx. Parsed outcomes explicitly confirm all5 incomplete-group variants PASS, both AttachGroupAddsEveryOpenMemberToTheChosenCase false/true PASS (5.899s/6.531s), covering new completed Open case href assertions; original Glass callback PASS223ms.
+- Test-DocumentationLinks.ps1:141files PASS.
+- Test-MarkdownPlacement.ps1 -Base c3219cd28c69530441e2bba7357063372628ff37 -Head41b61f5934fba1920906245d4014fcc0a3376e95:PASS.
+- git diff --check c3219cd28c69530441e2bba7357063372628ff37 HEAD:PASS.
+
+Known architecture failure from711 not rerun here; separatePLATfix pending. Root subsequently identified remaining same-class known-later-decision partial-write gap and queued full-roster preflight correction after this freeze. Therefore scoped PASS is not finalacceptance; next source head needs its own verification. Prior failures remain retained. No browser/capture/sourceedit/lockchange/cloud/externalSQL/Outlook/Box/package or PR action. Final tracked status clean at exacthead, no dotnet/MSBuild/testhost process (no cleanup needed). Both canonicalDELIV053 andINTK066 slots explicitly **IDLE / unassigned**. Source may unfreeze for authorized current remediation.
