@@ -74,6 +74,49 @@ public sealed class AdministrationSearchAccountWebTests
         }
     }
 
+    [Theory]
+    [InlineData("", "NewPassword123", "NewPassword123", "Enter your current password.")]
+    [InlineData("ShortCurrent", "short", "short", "The new password must be at least 8 characters.")]
+    [InlineData("MismatchCurrent", "NewPassword123", "ConfirmPassword123", "The passwords do not match.")]
+    [InlineData("WrongCurrent", "NewPassword123", "NewPassword123", "The current password is incorrect.")]
+    public async Task PasswordChangeRefusalsShowErrorsWithoutReRenderingPasswords(
+        string currentPassword,
+        string newPassword,
+        string confirmPassword,
+        string expectedError)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var page = await client.GetAsync("/Account/PasswordChange");
+        var pageHtml = await page.Content.ReadAsStringAsync();
+        page.EnsureSuccessStatusCode();
+
+        using var response = await client.PostAsync(
+            "/Account/PasswordChange",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormValue(pageHtml, "__RequestVerificationToken"),
+                ["OperationKey"] = FormValue(pageHtml, "OperationKey"),
+                ["CurrentPassword"] = currentPassword,
+                ["NewPassword"] = newPassword,
+                ["ConfirmPassword"] = confirmPassword
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains(expectedError, html, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, InputValueOrEmpty(html, "CurrentPassword"));
+        Assert.Equal(string.Empty, InputValueOrEmpty(html, "NewPassword"));
+        Assert.Equal(string.Empty, InputValueOrEmpty(html, "ConfirmPassword"));
+        foreach (var password in new[] { currentPassword, newPassword, confirmPassword })
+        {
+            if (!string.IsNullOrEmpty(password))
+            {
+                Assert.DoesNotContain(password, html, StringComparison.Ordinal);
+            }
+        }
+    }
+
     [Fact]
     public async Task AdministrationRoutesDenyARequestWithoutCurrentAdministratorRole()
     {
@@ -427,5 +470,29 @@ public sealed class AdministrationSearchAccountWebTests
         using var response = await client.GetAsync("/Account/ChangePassword");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private static string FormValue(string html, string name)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The form must render '{name}'.");
+        return InputValueOrEmpty(tag.Value, name);
+    }
+
+    private static string InputValueOrEmpty(string html, string name)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The form must render '{name}'.");
+        var value = Regex.Match(
+            tag.Value,
+            "value=\"(?<value>[^\"]*)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return value.Success ? System.Net.WebUtility.HtmlDecode(value.Groups["value"].Value) : string.Empty;
     }
 }

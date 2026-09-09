@@ -56,6 +56,40 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Fact]
+    public async Task ExpiredPublicUploadLinkRendersTheExternalStatusSurface()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Uploads/{Guid.NewGuid():N}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("This link is no longer active", html, StringComparison.Ordinal);
+        Assert.Contains("· Collision Engineers</title>", html, StringComparison.Ordinal);
+        Assert.Contains("alt=\"Collision Engineers\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">PEGASUS<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Return to Work Centre", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnlyPayloadTooLargeStatusUsesFileSizeWording()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var payloadTooLarge = await client.GetStringAsync("/status/413");
+        var badRequest = await client.GetStringAsync("/status/400");
+
+        Assert.Contains("That file is too large", payloadTooLarge, StringComparison.Ordinal);
+        Assert.Contains("Files must be 10 MB or smaller.", payloadTooLarge, StringComparison.Ordinal);
+        Assert.Contains("We could not complete that request", badRequest, StringComparison.Ordinal);
+        Assert.DoesNotContain("file is too large", badRequest, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("10 MB", badRequest, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SignOutRedirectsToAConfirmationThatTheSessionEndedRatherThanABareSignInForm()
     {
         using var factory = new IntakeWebApplicationFactory();
