@@ -547,6 +547,8 @@ public sealed class UploadConfirmationWebTests
         }
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
+        Assert.Contains("Open case", afterPage, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/Details/{caseId:D}", afterPage, StringComparison.Ordinal);
         await using var db = await linkScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
         var historyCount = await db.Database.SqlQueryRaw<int>(

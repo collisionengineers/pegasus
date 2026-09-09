@@ -4,9 +4,11 @@
     ViewData["Title"] = "Upload received";
     var groupConfirmation = Model.UploadCaseConfirmation;
     var groupReceiptVersions = Model.GroupConfirmationReceiptVersions ?? Model.OpenMemberReceiptVersions;
-    // The submission always owns the decision. An unavailable sibling or a
-    // completed member never opens a separate per-file confirmation path.
-    ViewData["UploadOutcomeCompact"] = true;
+    // Unavailable siblings never open a per-file confirmation path. Once the
+    // whole submission is settled, retain its destination navigation links.
+    ViewData["UploadOutcomeCompact"] = Model.OpenGroupDecision
+        || Model.RefreshAutomatically
+        || Model.OpenMemberReceiptIds.Count > 0;
 }
 
 <header class="page-header">
