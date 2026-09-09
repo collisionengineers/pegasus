@@ -317,10 +317,10 @@ public sealed class PchInstructionExtractionPolicyTests
         var audit = Assert.Single(policy.AlternativeSignatures);
         Assert.Equal(
             ["URGENT NEW INSTRUCTION (Connexus Audit Report)", "Registration No:", "Vehicle Make:"],
-            audit.Signature.RequiredSignals);
+            audit.RequiredSignals);
         Assert.Equal(
             ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"],
-            audit.Signature.NegativeSignals);
+            audit.NegativeSignals);
         Assert.Equal(
             InstructionDocumentSignature.InstructionRole,
             policy.Signature.DocumentRole);
