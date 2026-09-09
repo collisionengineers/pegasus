@@ -235,14 +235,17 @@
             };
             if (handler is not null)
             {
-                <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id"
-                      asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-                      asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                      asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                      asp-route-compose="@correspondenceMode" class="panel section-gap">
+                <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id" class="panel section-gap">
                     <div class="panel-head"><h2>@(correspondenceMode == "forward" ? "Forward" : correspondenceMode == "reply-all" ? "Reply all" : "Reply")</h2></div>
                     <div class="panel-body stack">
+                        <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
+                        <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
+                        <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
+                        <input type="hidden" name="search" value="@Model.SearchTerm" />
+                        <input type="hidden" name="queue" value="@Model.QueueFilter" />
+                        <input type="hidden" name="unread" value="@(Model.UnreadOnly ? "true" : null)" />
+                        <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
+                        <input type="hidden" name="compose" value="@correspondenceMode" />
                         <input type="hidden" asp-for="CorrespondenceOperationKey" />
                         <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
                         <div class="definition-list">
@@ -254,14 +257,14 @@
                             <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
                             <span asp-validation-for="CorrespondenceCaseQuery"></span>
                         </div>
-                        <button type="submit" asp-page-handler="SearchCorrespondenceCase" class="btn">Search Cases</button>
+                        <button type="submit" asp-page-handler="SearchCorrespondenceCase" asp-route-id="@summary.Id" class="btn">Search Cases</button>
                         @if (Model.CorrespondenceCaseResults.Count > 0)
                         {
                             <ul class="search-results">
                                 @foreach (var candidate in Model.CorrespondenceCaseResults)
                                 {
                                     <li>
-                                        <button type="submit" asp-page-handler="SelectCorrespondenceCase"
+                                        <button type="submit" asp-page-handler="SelectCorrespondenceCase" asp-route-id="@summary.Id"
                                                 name="SelectedCorrespondenceCaseReference" value="@candidate.Reference" class="btn">
                                             @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
                                         </button>
