@@ -37,7 +37,7 @@
                 @* The folder's own state as a value, not an explanation. *@
                 <partial name="Shared/_StatusChip" model="@OperatorLabels.CustodyFolderState(details.CustodyState)" />
             }
-            <a class="btn" asp-page="/Operations">
+            <a class="btn" asp-page="/Operations/Index">
                 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
                 <span>@OperatorLabels.CaseWorkspace.OpenOperations</span>
             </a>

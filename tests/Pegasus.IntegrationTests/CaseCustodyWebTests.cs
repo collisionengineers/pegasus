@@ -150,6 +150,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains(OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed), html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.AddEvidence, html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.OpenOperations, html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

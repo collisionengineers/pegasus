@@ -109,11 +109,6 @@ main [id]{scroll-margin-top:92px}
 .app-column{min-width:0;min-height:100vh;display:flex;flex-direction:column}
 .utility-bar{min-height:50px;padding:7px var(--page-pad);background:linear-gradient(180deg,#272c2f,#22272a);color:#eef3f6;border-bottom:1px solid #101820;box-shadow:0 3px 12px rgba(20,27,31,.15);display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:24}
 .utility-search{position:relative;flex:1;max-width:540px}
-.utility-search input{height:36px;width:100%;border:1px solid rgba(255,255,255,.27);background:rgba(255,255,255,.08);color:#fff;padding:7px 38px 7px 35px;border-radius:5px;box-shadow:inset 0 1px 1px rgba(0,0,0,.08)}
-.utility-search input::placeholder{color:#c8d0d4}
-.utility-search input:focus,.utility-search input:focus-visible{background:#fff;color:var(--ink);border-color:var(--navy);outline-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
-.utility-search>.icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px}
-.shortcut-hint{position:absolute;right:9px;top:50%;transform:translateY(-50%);border:1px solid rgba(255,255,255,.3);padding:2px 5px;font-size:9px;color:#e6ebee;background:#2d3336}
 .utility-actions{margin-left:auto;display:flex;align-items:center;gap:7px}
 .utility-freshness{display:flex;align-items:center;gap:7px;font-size:11px;color:#dce4e7;white-space:nowrap}
 .utility-freshness .health-dot{box-shadow:none;width:7px;height:7px}
@@ -183,7 +178,7 @@ strong{font-weight:650}
 .btn--small{min-height:32px;padding:5px 9px;font-size:11px}
 .btn .icon{width:16px;height:16px}
 .btn.is-disabled,.btn:disabled{opacity:.45;background:var(--surface-3);color:var(--muted);border-color:var(--line);pointer-events:none;cursor:not-allowed}
-.input,.select,.textarea,input[type="text"],input[type="search"],input[type="email"],input[type="date"],input[type="number"],input[type="password"],input[type="time"],select,textarea{width:100%;min-height:var(--control);border:1px solid var(--line-strong);background:#fff;padding:6px 9px;border-radius:var(--radius)}
+.input,.select,.textarea,input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="date"],input[type="datetime-local"],input[type="number"],input[type="password"],input[type="time"],select,textarea{width:100%;min-height:var(--control);border:1px solid var(--line-strong);background:#fff;padding:6px 9px;border-radius:var(--radius)}
 .textarea,textarea{min-height:96px;resize:vertical}
 .input::placeholder,input::placeholder,textarea::placeholder{color:#8a8985}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -194,6 +189,11 @@ strong{font-weight:650}
 .searchbox{position:relative;min-width:240px;flex:1}
 .searchbox input{padding-left:34px}
 .searchbox>.icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none}
+.utility-search input{height:36px;width:100%;border:1px solid rgba(255,255,255,.27);background:rgba(255,255,255,.08);color:#fff;padding:7px 64px 7px 35px;border-radius:5px;box-shadow:inset 0 1px 1px rgba(0,0,0,.08)}
+.utility-search input::placeholder{color:#c8d0d4}
+.utility-search input:focus,.utility-search input:focus-visible{background:#fff;color:var(--ink);border-color:var(--navy);outline-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
+.utility-search>.icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#c8d0d4;pointer-events:none}
+.shortcut-hint{position:absolute;right:9px;top:50%;transform:translateY(-50%);border:1px solid rgba(255,255,255,.3);padding:2px 5px;font-size:9px;color:#e6ebee;background:#2d3336}
 .filter-bar{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px}
 .filter-bar .field{min-width:145px}
 .filter-bar .searchbox{max-width:460px}
@@ -347,6 +347,10 @@ tbody tr:hover{background:#f3f6f7}
 
 .integrated-home{min-height:650px}
 .integrated-home.integrated-home--expanded{grid-template-columns:minmax(280px,.78fr) minmax(0,1.22fr)}
+.pane-layout--empty{min-height:0}
+.pane-empty,.work-centre-empty{min-height:150px;padding:24px 18px;display:grid;align-content:center;justify-items:center;gap:7px}
+.pane-empty .icon,.work-centre-empty .icon{margin:0}
+.pane-empty p,.work-centre-empty p{margin:0}
 .work-item{width:100%;border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left;padding:11px 12px;color:inherit;display:grid;gap:4px;transition:background-color .13s ease,box-shadow .13s ease,transform .13s ease,border-color .13s ease}
 .work-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .work-item h3{font-size:12px}
@@ -589,6 +593,18 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .dialog-backdrop{position:fixed;inset:0;background:rgba(19,20,21,.62);display:grid;place-items:center;padding:20px;z-index:1000}
 .dialog{width:min(100%,590px);max-height:min(90vh,780px);overflow:auto;background:#fff;border:1px solid #3f3d3a;box-shadow:0 20px 70px rgba(0,0,0,.35)}
 .dialog--wide{width:min(100%,820px)}
+.account-settings-dialog{width:min(100%,720px)}
+.account-settings-dialog .dialog-body{gap:10px}
+.account-settings-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+.account-settings-section{border:1px solid var(--line);background:var(--surface-2)}
+.account-settings-section>summary{min-height:42px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;font-weight:650}
+.account-settings-section>summary::-webkit-details-marker{display:none}
+.account-settings-section>summary::after{content:"+";font-size:18px;line-height:1}
+.account-settings-section[open]>summary{border-bottom:1px solid var(--line);background:#fff}
+.account-settings-section[open]>summary::after{content:"−"}
+.account-settings-form{display:grid;gap:10px;padding:12px}
+.account-signoff-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.account-signoff-fields .field:last-child{grid-column:1/-1}
 .dialog-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .dialog-head h2{font-size:17px}
 .dialog-body{padding:16px}
@@ -774,7 +790,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .case-overview-grid>section+section{border-left:0;border-top:1px solid var(--line)}
 }
 @media(max-width:1100px){
-  .pane-layout--3{grid-template-columns:minmax(290px,.75fr) minmax(420px,1.25fr)}.pane-layout--3>.pane:first-child{display:none}
+  .pane-layout--3:not(.queue-layout){grid-template-columns:minmax(290px,.75fr) minmax(420px,1.25fr)}.pane-layout--3:not(.queue-layout)>.pane:first-child{display:none}
   .split{grid-template-columns:1fr}
   .metric-strip--5{grid-template-columns:repeat(3,minmax(0,1fr))}
   .record-ribbon{grid-template-columns:repeat(3,minmax(0,1fr))}.record-ribbon .ribbon-item{border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:nth-child(3n){border-right:0}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
@@ -816,8 +832,10 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   :root{--page-pad:12px}
   .utility-bar{flex-wrap:wrap}.utility-search{order:2;flex-basis:100%;max-width:none}.utility-freshness{display:none}
   .workspace-tabs{padding-inline:7px}.workspace-tab{min-width:105px;max-width:175px}
-  .page-header{flex-direction:column;gap:10px;padding-bottom:10px}.page-actions{width:100%;justify-content:flex-start}.page-actions .btn{flex:1}
+  .page-header{flex-direction:column;align-items:stretch;gap:10px;padding-bottom:10px}.page-actions{width:100%;justify-content:flex-start}.page-actions .btn{flex:1}
   .grid-2,.grid-3,.admin-grid,.fact-grid,.definition-list{grid-template-columns:1fr}
+  .account-settings-facts,.account-signoff-fields{grid-template-columns:1fr}
+  .account-signoff-fields .field:last-child{grid-column:auto}
   .fact:nth-child(odd),.definition:nth-child(odd){border-right:0}
   .fact:nth-last-child(2),.definition:nth-last-child(2){border-bottom:1px solid var(--line)}
   .metric-strip,.metric-strip--3,.metric-strip--5{grid-template-columns:repeat(2,minmax(0,1fr))}
