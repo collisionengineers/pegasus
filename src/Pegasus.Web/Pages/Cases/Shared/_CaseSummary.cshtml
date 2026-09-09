@@ -9,9 +9,14 @@
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? "Not recorded" : text;
     var vehicle = string.Join(
         " ",
-        new[] { data?.Vehicle.Make.Confirmed?.Value, data?.Vehicle.Model.Confirmed?.Value }
+        new[]
+        {
+            Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Vehicle.Make)?.Value,
+            Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Vehicle.Model)?.Value
+        }
             .Where(part => !string.IsNullOrWhiteSpace(part)));
-    var registration = Value(data?.Vehicle.Registration.Confirmed?.Value ?? summary.Registration);
+    var registration = Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Vehicle.Registration)?.Value
+        ?? (data is null ? summary.Registration : null));
 }
 
 @* The one place the case's facts are read: the work the case is, the parties
@@ -25,8 +30,8 @@
                 <h3 id="case-overview-work">Work</h3>
                 <div class="overview-facts">
                     <dl><dt>Case type</dt><dd>@OperatorLabels.CaseTypeName(summary.CaseType)</dd></dl>
-                    <dl><dt>Provider reference</dt><dd>@Value(data?.Claim.Number.Confirmed?.Value ?? summary.ClaimNumber)</dd></dl>
-                    <dl><dt>Inspection</dt><dd>@Value(data?.Inspection.Address.Confirmed?.Value)</dd></dl>
+                    <dl><dt>Provider reference</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claim.Number)?.Value ?? (data is null ? summary.ClaimNumber : null))</dd></dl>
+                    <dl><dt>Inspection</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.Address)?.Value)</dd></dl>
                     <dl><dt>Engineer</dt><dd>@(Model.EngineerDisplayName ?? "Unassigned")</dd></dl>
                     <dl><dt>@OperatorLabels.CaseWorkspace.SignOffEngineer</dt><dd>@Model.SignOffEngineerDisplayName</dd></dl>
                     <dl><dt>Received</dt><dd>@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</dd></dl>
@@ -44,7 +49,7 @@
                 <h3 id="case-overview-parties">Parties</h3>
                 <div class="overview-facts">
                     <dl><dt>Principal</dt><dd>@workflow.Identity.PrincipalCode</dd></dl>
-                    <dl><dt>Claimant</dt><dd>@Value(data?.Claimant.Name.Confirmed?.Value ?? summary.Claimant)</dd></dl>
+                    <dl><dt>Claimant</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null))</dd></dl>
                     <dl><dt>Repairer / holder</dt><dd>Not recorded</dd></dl>
                     <dl><dt>Intermediary</dt><dd>Not recorded</dd></dl>
                     <dl><dt>Origin</dt><dd>@OperatorLabels.SourceChannel(summary.Origin)</dd></dl>
@@ -56,9 +61,9 @@
                 <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                 <h3 id="case-accident-title">Accident circumstances</h3>
             </div>
-            <p>@Value(data?.Accident.Circumstances.Confirmed?.Value)</p>
+            <p>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances)?.Value)</p>
             <div class="accident-meta">
-                <span><b>Incident detail</b>@(data?.Accident.IncidentDate.Confirmed?.Value.ToString("d MMM yyyy") ?? "Not recorded")</span>
+                <span><b>Incident detail</b>@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.IncidentDate)?.Value.ToString("d MMM yyyy") ?? "Not recorded")</span>
                 <span><b>Vehicle</b>@(vehicle.Length > 0 ? $"{registration} · {vehicle}" : registration)</span>
             </div>
         </section>
