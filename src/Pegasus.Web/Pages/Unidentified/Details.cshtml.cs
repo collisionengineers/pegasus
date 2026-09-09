@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -11,7 +12,9 @@ namespace Pegasus.Web.Pages.Unidentified;
 public sealed class DetailsModel(
     IUnidentifiedStore store,
     IResolveUnidentified resolve,
-    IGetIntake getIntake) : StaffPageModel
+    IGetIntake getIntake,
+    IIntakeSubmissionGroupStore submissionGroups,
+    IImageIntakeQueries imageIntakes) : StaffPageModel
 {
     public UnidentifiedItem Item { get; private set; } = null!;
 
@@ -26,6 +29,10 @@ public sealed class DetailsModel(
     /// receipt lookup fails; the page degrades to the summary fields only.
     /// </summary>
     public IntakeReceipt? SourceReceipt { get; private set; }
+
+    public IntakeSubmissionGroup? SourceSubmissionGroup { get; private set; }
+
+    public ImageIntakeDetail? SourceImageIntake { get; private set; }
 
     /// <summary>
     /// What the retained material is, classified the same way the Queues
@@ -73,18 +80,26 @@ public sealed class DetailsModel(
     [BindProperty]
     public string ResolutionReason { get; set; } = string.Empty;
 
-    [BindProperty]
-    public UnidentifiedResolutionTargetKind TargetKind { get; set; } = UnidentifiedResolutionTargetKind.InstructionCase;
+    public const string AddExistingCaseAction = "add-existing-case";
+    public const string CreateCaseAction = "create-case";
+    public const string RegisterImageAction = "register-image";
+    public const string CloseAction = "close";
 
-    [BindProperty]
-    public string TargetId { get; set; } = string.Empty;
+    [BindProperty(SupportsGet = true, Name = "action")]
+    public string? ResolutionAction { get; set; }
+    public bool OpenResolutionDialog { get; private set; }
 
-    [BindProperty]
-    public string? TargetReference { get; set; }
+    public bool CanCreateCase => SourceReceipt is { } receipt
+        && receipt.AcceptedCaseId is null
+        && receipt.AllocationState is null
+        && IntakeDecisionPolicy.CanBecomeCase(receipt.Decision);
+
+    public bool CanRegisterImage => SourceReceipt is { } receipt
+        && receipt.Decision == IntakeDecision.NeedsSorting
+        && receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
 
     [BindProperty]
     public string OperationKey { get; set; } = string.Empty;
-
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         return await LoadAsync(id, cancellationToken);
@@ -108,6 +123,13 @@ public sealed class DetailsModel(
             OperationKey = $"web-unidentified-resolve:{id:N}:{Guid.NewGuid():N}";
         }
 
+        OpenResolutionDialog = true;
+        if (!string.Equals(ResolutionAction, CloseAction, StringComparison.Ordinal))
+        {
+            ModelState.AddModelError(string.Empty, "Choose a supported resolution action.");
+            return await LoadAsync(id, cancellationToken);
+        }
+
         try
         {
             await resolve.ExecuteAsync(
@@ -117,9 +139,9 @@ public sealed class DetailsModel(
                     actor,
                     OperationKey,
                     ResolutionReason,
-                    TargetKind,
-                    TargetId,
-                    TargetReference,
+                    UnidentifiedResolutionTargetKind.ExternalReference,
+                    "closed",
+                    null,
                     DateTimeOffset.UtcNow),
                 cancellationToken);
         }
@@ -158,7 +180,12 @@ public sealed class DetailsModel(
             OperationKey = $"web-unidentified-resolve:{id:N}:{Guid.NewGuid():N}";
         }
 
-        if (item.Origin.Kind == UnidentifiedOriginKind.Receipt
+        if (item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
+        {
+            SourceSubmissionGroup = await submissionGroups.GetAsync(item.Origin.Id, cancellationToken);
+            SourceImageIntake = await imageIntakes.GetBySubmissionGroupAsync(item.Origin.Id, cancellationToken);
+        }
+        else if (item.Origin.Kind == UnidentifiedOriginKind.Receipt
             && TryGetActor(out var actor))
         {
             try
@@ -172,6 +199,7 @@ public sealed class DetailsModel(
                 SourceReceipt = null;
             }
         }
+        OpenResolutionDialog |= !string.IsNullOrWhiteSpace(ResolutionAction) || !ModelState.IsValid;
 
         return Page();
     }

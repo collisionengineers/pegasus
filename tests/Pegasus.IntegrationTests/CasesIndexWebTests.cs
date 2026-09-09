@@ -547,6 +547,11 @@ public sealed class CasesIndexWebTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
+            Guid submissionGroupId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
             IReadOnlyCollection<Guid> intakeReceiptIds,
             CancellationToken cancellationToken) =>
