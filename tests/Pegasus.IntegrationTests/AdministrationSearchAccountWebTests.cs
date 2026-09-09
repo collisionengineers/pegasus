@@ -76,7 +76,7 @@ public sealed class AdministrationSearchAccountWebTests
 
     [Theory]
     [InlineData("", "NewPassword123", "NewPassword123", "Enter your current password.")]
-    [InlineData("ShortCurrent", "short", "short", "The new password must be at least 8 characters.")]
+    [InlineData("ShortCurrent", "Sh0rt!", "Sh0rt!", "The new password must be at least 8 characters.")]
     [InlineData("MismatchCurrent", "NewPassword123", "ConfirmPassword123", "The passwords do not match.")]
     [InlineData("WrongCurrent", "NewPassword123", "NewPassword123", "The current password is incorrect.")]
     public async Task PasswordChangeRefusalsShowErrorsWithoutReRenderingPasswords(
