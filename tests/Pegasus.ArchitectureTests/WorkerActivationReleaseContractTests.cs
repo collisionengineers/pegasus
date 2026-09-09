@@ -294,15 +294,25 @@ public sealed class WorkerActivationReleaseContractTests
             repositoryRoot,
             "scripts",
             "Invoke-ProductionSmoke.ps1"));
-        var smokeFunctions = Regex.Matches(
-                productionSmoke,
+        var platform = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "scripts",
+            "PegasusPlatform.ps1"));
+        var platformFunctions = Regex.Matches(
+                platform,
                 "'AzureWebJobs\\.([A-Za-z0-9]+)\\.Disabled'",
                 RegexOptions.CultureInvariant)
             .Select(match => match.Groups[1].Value)
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(ExpectedFunctions, smokeFunctions);
+        Assert.Equal(ExpectedFunctions, platformFunctions);
+        foreach (var consumer in new[] { productionSmoke, deploymentPlan })
+        {
+            Assert.Contains(". (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')", consumer);
+            Assert.Contains("$expectedWorkerSettings = @(Get-PegasusWorkerDisabledSettingNames)", consumer);
+        }
+
         Assert.Contains("az functionapp config appsettings list", productionSmoke);
         Assert.Contains("StringComparer]::Ordinal", productionSmoke);
         Assert.Contains("--subscription $SubscriptionId", productionSmoke);
