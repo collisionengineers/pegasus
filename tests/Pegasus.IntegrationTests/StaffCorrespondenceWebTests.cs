@@ -378,7 +378,8 @@ public sealed class StaffCorrespondenceWebTests
                 ["ExpectedContextVersion"] = (await CaseVersionAsync(factory, oldCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["To"] = "claimant@example.invalid",
                 ["Subject"] = "Initial subject",
-                ["Body"] = "Initial message."
+                ["Body"] = "Initial message.",
+                ["SelectedAttachments"] = StableAttachmentResolver.Selection
             }));
         Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
         Assert.Equal(1, send.SendCalls);
@@ -389,7 +390,7 @@ public sealed class StaffCorrespondenceWebTests
         {
             ["__RequestVerificationToken"] = InputValue(statusHtml, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(statusHtml, "OperationKey"),
-            ["OperationId"] = InputValue(statusHtml, "OperationId"),
+            ["OperationId"] = ComposeOperationId(statusHtml),
             ["ExpectedContextVersion"] = InputValue(statusHtml, "ExpectedContextVersion"),
             ["CaseReference"] = oldReference,
             ["CaseQuery"] = selectedReference,
@@ -408,7 +409,7 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Contains(selectedReference, searchHtml, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), searchHtml, StringComparison.Ordinal);
         Assert.Contains("handler=Reconcile", searchHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(draft["OperationId"], InputValue(searchHtml, "OperationId"));
+        Assert.Equal(draft["OperationId"], ComposeOperationId(searchHtml));
         Assert.Equal("draft@example.invalid", InputValue(searchHtml, "To"));
         Assert.Equal("copy@example.invalid", InputValue(searchHtml, "Cc"));
         Assert.Equal("Draft subject", InputValue(searchHtml, "Subject"));
@@ -417,7 +418,7 @@ public sealed class StaffCorrespondenceWebTests
 
         draft["__RequestVerificationToken"] = InputValue(searchHtml, "__RequestVerificationToken");
         draft["OperationKey"] = InputValue(searchHtml, "OperationKey");
-        draft["OperationId"] = InputValue(searchHtml, "OperationId");
+        draft["OperationId"] = ComposeOperationId(searchHtml);
         draft["ExpectedContextVersion"] = InputValue(searchHtml, "ExpectedContextVersion");
         draft["CaseReference"] = InputValue(searchHtml, "CaseReference");
         draft["CaseQuery"] = InputValue(searchHtml, "CaseQuery");
@@ -436,7 +437,7 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(
             (await CaseVersionAsync(factory, selectedCaseId)).ToString(System.Globalization.CultureInfo.InvariantCulture),
             InputValue(selectedHtml, "ExpectedContextVersion"));
-        Assert.Equal(draft["OperationId"], InputValue(selectedHtml, "OperationId"));
+        Assert.Equal(draft["OperationId"], ComposeOperationId(selectedHtml));
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), selectedHtml, StringComparison.Ordinal);
         Assert.Contains("handler=Reconcile", selectedHtml, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("draft@example.invalid", InputValue(selectedHtml, "To"));
@@ -448,7 +449,7 @@ public sealed class StaffCorrespondenceWebTests
 
         draft["__RequestVerificationToken"] = InputValue(selectedHtml, "__RequestVerificationToken");
         draft["OperationKey"] = InputValue(selectedHtml, "OperationKey");
-        draft["OperationId"] = InputValue(selectedHtml, "OperationId");
+        draft["OperationId"] = ComposeOperationId(selectedHtml);
         draft["ExpectedContextVersion"] = InputValue(selectedHtml, "ExpectedContextVersion");
         draft["CaseReference"] = InputValue(selectedHtml, "CaseReference");
         draft["To"] = string.Empty;
@@ -462,7 +463,7 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Contains("At least one recipient is required.", invalidHtml, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), invalidHtml, StringComparison.Ordinal);
         Assert.Contains("handler=Reconcile", invalidHtml, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(draft["OperationId"], InputValue(invalidHtml, "OperationId"));
+        Assert.Equal(draft["OperationId"], ComposeOperationId(invalidHtml));
         Assert.Equal("Draft subject", InputValue(invalidHtml, "Subject"));
         Assert.Equal("Draft message.", TextAreaValue(invalidHtml, "Body"));
         AssertSelectedAttachment(invalidHtml, StableAttachmentResolver.Selection);
@@ -1517,8 +1518,18 @@ public sealed class StaffCorrespondenceWebTests
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         Assert.True(tag.Success, $"The input '{name}' was not rendered.");
         var value = Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase);
-        Assert.True(value.Success, $"The input '{name}' had no value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+        // A present input without a value attribute submits an empty value.
+        return value.Success ? WebUtility.HtmlDecode(value.Groups["value"].Value) : string.Empty;
+    }
+
+    private static string ComposeOperationId(string html)
+    {
+        var form = Regex.Match(
+            html,
+            "<form[^>]*action=\"[^\"]*handler=Send(?:&[^\"]*)?\"[^>]*>.*?</form>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(form.Success, "The compose Send form was not rendered.");
+        return InputValue(form.Value, "OperationId");
     }
 
     private static string ButtonFormAction(string html, string handler)
