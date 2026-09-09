@@ -83,3 +83,6 @@ docs/design/system/dist/
 opencode.json
 .opencode/skills/
 /pegasus_pack/
+
+# Private test evidence, independent of the planning workspace.
+/reference-evidence/
