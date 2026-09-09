@@ -666,6 +666,7 @@ public sealed class StaffCorrespondenceWebTests
             new StableAttachmentResolver());
         using var client = CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
         var associatedReference = await CaseReferenceAsync(factory, associatedCaseId);
         var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
@@ -1592,7 +1593,7 @@ public sealed class StaffCorrespondenceWebTests
         public const string Selection = "stable-attachment";
 
         private static readonly StaffMailAttachment Attachment = new(
-            Guid.Parse("5a1f0586-9a5f-4a90-866a-99552f7e6b2"),
+            Guid.Parse("5a1f0586-9a5f-4a90-866a-99552f7e6b20"),
             Guid.Parse("8c2bc8f2-d8c5-4cce-8602-17e6b27464e9"),
             new string('A', 64), 1, "instruction.pdf", "application/pdf");
 
