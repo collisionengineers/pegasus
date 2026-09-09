@@ -199,6 +199,15 @@ internal static class CaseDataSnapshotFactory
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantName, CaseDataCodes.Text, draft.ClaimantName);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimNumber, CaseDataCodes.Text, draft.ClaimNumber);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, draft.VehicleRegistration);
+        var vehicleDescription = fields.SingleOrDefault(
+            field => field.ToCaseDataFieldName() == CaseDataFieldNames.VehicleDescription);
+        AddExtractedValue(
+            snapshot,
+            receipt,
+            vehicleDescription,
+            CaseDataFieldNames.VehicleDescription,
+            CaseDataCodes.Text,
+            vehicleDescription?.SuggestedValue);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMake, CaseDataCodes.Text, draft.VehicleMake);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleModel, CaseDataCodes.Text, draft.VehicleModel);
         AddExtractedValue(

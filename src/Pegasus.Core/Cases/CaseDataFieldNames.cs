@@ -8,6 +8,7 @@ public static class CaseDataFieldNames
     public const string ClaimantAddress = "claimant_address";
     public const string ClaimNumber = "claim_number";
     public const string VehicleRegistration = "vehicle_registration";
+    public const string VehicleDescription = "vehicle_description";
     public const string VehicleMake = "vehicle_make";
     public const string VehicleModel = "vehicle_model";
     public const string VehicleMileage = "vehicle_mileage";
@@ -63,6 +64,7 @@ public static class CaseDataFieldNames
         ClaimantAddress,
         ClaimNumber,
         VehicleRegistration,
+        VehicleDescription,
         VehicleMake,
         VehicleModel,
         VehicleMileage,

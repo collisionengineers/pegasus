@@ -18,7 +18,7 @@
         <input name="correlationId" value="@Model.CorrelationId" maxlength="100" />
     </label>
     <div class="button-row">
-        <button type="submit" class="secondary-action">Filter</button>
+        <button type="submit" class="btn">Filter</button>
         @if (!string.IsNullOrEmpty(Model.CorrelationId))
         {
             <a asp-page="/Administration/Automation/Activity">Clear filter</a>

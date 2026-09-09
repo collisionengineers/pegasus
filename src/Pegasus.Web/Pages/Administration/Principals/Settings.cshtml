@@ -2,123 +2,120 @@
 @model Pegasus.Web.Pages.Administration.Principals.SettingsModel
 @{
     ViewData["Title"] = "Principal settings";
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "principals";
 }
 
-<a class="back-link" asp-page="Index">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Principals
-</a>
+<partial name="Shared/_PageHeader" />
+
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
 
 @if (Model.Customer is not null && Model.Principal is not null)
 {
-    <div class="page-heading">
-        <div>
-            <h1>@Model.Customer.Name</h1>
-            <span class="tabular">@Model.Principal.Code</span>
-        </div>
-        <div class="page-heading-actions">
+    <section class="panel" aria-labelledby="principal-settings-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="principal-settings-title">@Model.Customer.Name</h2>
+                <p class="panel-title-meta mono">@Model.Principal.Code</p>
+            </div>
             <partial name="Shared/_StatusChip" model="@(Model.Principal.IsActive ? "Active" : "Disabled")" />
         </div>
-    </div>
-
-    <div asp-validation-summary="All" class="status-card status-card--error" role="alert"></div>
-
-    @if (TempData["AdministrationStatus"] is string status)
-    {
-        <div class="status-card status-card--success" role="status">@status</div>
-    }
-
-    @if (Model.AcceptedIdentities.Count > 0)
-    {
-        <dl class="detail-list">
-            <div><dt>Accepted e-mail identities</dt><dd>@string.Join(", ", Model.AcceptedIdentities)</dd></div>
-        </dl>
-    }
+        <div class="panel-body stack">
+            <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+            @if (TempData["AdministrationStatus"] is string status)
+            {
+                <div class="notice notice--success" role="status">@status</div>
+            }
+            @if (Model.AcceptedIdentities.Count > 0)
+            {
+                <dl class="definition-list">
+                    <div class="definition"><dt>Accepted e-mail identities</dt><dd>@string.Join(", ", Model.AcceptedIdentities)</dd></div>
+                </dl>
+            }
+        </div>
+    </section>
 
     @if (Model.Principal.IsActive)
     {
-    <div class="panel form-panel">
-        <h2>Manual EVA API submission</h2>
-        @* Automatic EVA submission is retired (EXT-18 item 7): manual
-           remains the only optional, explicit staff action this page offers. *@
+    <section class="panel" aria-labelledby="principal-eva-title">
+        <div class="panel-head"><h2 id="principal-eva-title">Manual EVA API submission</h2></div>
         <form method="post" asp-page-handler="UpdateEva"
-              asp-route-principalId="@Model.Principal.Id">
+              asp-route-principalId="@Model.Principal.Id" class="panel-body stack">
             <input type="hidden" asp-for="ExpectedVersion" id="eva-version" />
             <input type="hidden" asp-for="EvaOperationKey" />
-            <div>
+            <div class="field">
                 <label>
                     <input asp-for="EvaManualSubmission" type="checkbox" />
                     Manual API submission
                 </label>
             </div>
-            <div>
-                <label asp-for="EvaReason">Reason</label>
+            <div class="field">
+                <label class="req" asp-for="EvaReason">Reason</label>
                 <input asp-for="EvaReason" autocomplete="off" />
                 <span asp-validation-for="EvaReason"></span>
             </div>
             <div class="button-row">
-                <button type="submit" class="primary-action">Save EVA setting</button>
+                <button type="submit" class="btn btn--primary">Save EVA setting</button>
             </div>
         </form>
-    </div>
+    </section>
 
-    <div class="panel form-panel">
-        <h2>Default inspection location</h2>
-        @* EXT-18 item 6: Image Based Assessment, or one sourced/manual
-           physical address. A change away from a sourced value requires a
-           reason; this never implies physical CE attendance or changes B's
-           separate CE assessment method. *@
+    <section class="panel" aria-labelledby="principal-location-title">
+        <div class="panel-head"><h2 id="principal-location-title">Default inspection location</h2></div>
         <form method="post" asp-page-handler="UpdateLocation"
-              asp-route-principalId="@Model.Principal.Id">
+              asp-route-principalId="@Model.Principal.Id" class="panel-body stack">
             <input type="hidden" asp-for="ExpectedVersion" id="location-version" />
             <input type="hidden" asp-for="LocationOperationKey" />
-            <div>
+            <div class="field">
                 <label>
                     <input asp-for="LocationIsImageBasedAssessment" type="checkbox" />
                     Default to Image Based Assessment
                 </label>
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="LocationLabel">Location label (optional)</label>
                 <input asp-for="LocationLabel" autocomplete="off" />
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="LocationAddress">Address</label>
                 <input asp-for="LocationAddress" autocomplete="off" />
                 <span asp-validation-for="LocationAddress"></span>
             </div>
-            <div>
+            <div class="field">
                 <label asp-for="LocationPostcode">Postcode (optional)</label>
                 <input asp-for="LocationPostcode" autocomplete="off" />
             </div>
-            <div>
-                <label asp-for="LocationReason">Reason</label>
+            <div class="field">
+                <label class="req" asp-for="LocationReason">Reason</label>
                 <input asp-for="LocationReason" autocomplete="off" />
                 <span asp-validation-for="LocationReason"></span>
             </div>
             <div class="button-row">
-                <button type="submit" class="primary-action">Save default location</button>
+                <button type="submit" class="btn btn--primary">Save default location</button>
             </div>
         </form>
-    </div>
-    <div class="panel form-panel">
-        <h2>@OperatorLabels.PrincipalAdministration.ProviderApi</h2>
-        <dl class="detail-list">
-            <div><dt>Submission endpoint</dt><dd><code>@Pegasus.Web.ProviderApi.ProviderApi.SubmissionsPath</code></dd></div>
-            <div><dt>@OperatorLabels.PrincipalAdministration.State</dt><dd>@(Model.Credential?.State.ToString() ?? "Not issued")</dd></div>
+    </section>
+    <section class="panel" aria-labelledby="principal-provider-api-title">
+        <div class="panel-head"><h2 id="principal-provider-api-title">@OperatorLabels.PrincipalAdministration.ProviderApi</h2></div>
+        <div class="panel-body stack">
+        <dl class="definition-list">
+            <div class="definition"><dt>Submission endpoint</dt><dd><code>@Pegasus.Web.ProviderApi.ProviderApi.SubmissionsPath</code></dd></div>
+            <div class="definition"><dt>@OperatorLabels.PrincipalAdministration.State</dt><dd>@(Model.Credential?.State.ToString() ?? "Not issued")</dd></div>
         </dl>
         @if (Model.IssuedSecret is not null)
         {
-            <div>
+            <div class="field">
                 <label for="issued-api-key">API key (shown once)</label>
                 <input id="issued-api-key" value="@Model.IssuedSecret" readonly autocomplete="off" />
             </div>
         }
-        <form method="post" asp-route-principalId="@Model.Principal.Id">
+        <form method="post" asp-route-principalId="@Model.Principal.Id" class="stack">
             <input asp-for="CredentialVersion" type="hidden" />
             <input asp-for="CredentialOperationKey" type="hidden" />
-            <div>
-                <label asp-for="CredentialReason">Reason</label>
+            <div class="field">
+                <label class="req" asp-for="CredentialReason">Reason</label>
                 <input asp-for="CredentialReason" autocomplete="off" />
                 <span asp-validation-for="CredentialReason"></span>
             </div>
@@ -127,22 +124,29 @@
                 <p>Resetting or revoking the API key stops the current key from working.</p>
             }
             <div class="button-row">
-                <button type="submit" asp-page-handler="IssueCredential" class="primary-action">@(Model.Credential is null ? "Generate API key" : "Reset API key")</button>
+                <button type="submit" asp-page-handler="IssueCredential" class="btn btn--primary">@(Model.Credential is null ? "Generate API key" : "Reset API key")</button>
                 @if (Model.Credential?.State == Pegasus.Core.Cases.PrincipalCredentialState.Active)
                 {
-                    <button type="submit" asp-page-handler="PauseCredential" class="secondary-action">Pause</button>
+                    <button type="submit" asp-page-handler="PauseCredential" class="btn">Pause</button>
                 }
                 @if (Model.Credential?.State == Pegasus.Core.Cases.PrincipalCredentialState.Paused)
                 {
-                    <button type="submit" asp-page-handler="ResumeCredential" class="secondary-action">Resume</button>
+                    <button type="submit" asp-page-handler="ResumeCredential" class="btn">Resume</button>
                 }
                 @if (Model.Credential is not null && Model.Credential.State != Pegasus.Core.Cases.PrincipalCredentialState.Revoked)
                 {
-                    <button type="submit" asp-page-handler="RevokeCredential" class="secondary-action">Revoke</button>
+                    <button type="submit" asp-page-handler="RevokeCredential" class="btn btn--danger">Revoke</button>
                 }
             </div>
         </form>
-    </div>
-    <a class="secondary-action" asp-page="Replace" asp-route-principalId="@Model.Principal.Id">@OperatorLabels.PrincipalAdministration.ReplaceCode</a>
+        </div>
+    </section>
+    <a class="btn btn--danger" asp-page="Replace" asp-route-principalId="@Model.Principal.Id">@OperatorLabels.PrincipalAdministration.ReplaceCode</a>
+    }
+    else
+    {
+        <section class="panel"><div class="empty"><p>This principal is inactive. Change the settings on its successor.</p></div></section>
     }
 }
+</div>
+</div>

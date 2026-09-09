@@ -255,7 +255,7 @@ public sealed partial class DetailsModel(
     /// Open Assessment action and no section visibility gate (D30). An
     /// unresolved access answer reads as read-only.
     /// </summary>
-    public bool AssessmentIsReadOnly { get; private set; }
+    public bool AssessmentIsReadOnly { get; private set; } = true;
 
     /// <summary>
     /// D11: whether GuardEstimateEditAsync/OnPostImportEstimateAsync will
@@ -797,6 +797,18 @@ public sealed partial class DetailsModel(
                 return NotFound();
             }
             SectionFilter = key;
+            // Fragments do not load the engineer workspace, but Files can
+            // render report-image controls. Resolve the same access decision
+            // as the full record before those controls are considered; an
+            // absent result stays read-only.
+            if (key == "files")
+            {
+                var assessmentAccess = await getAssessmentAccess.ExecuteAsync(
+                    new(id, actor),
+                    cancellationToken);
+                AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
+                AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
+            }
             // A mounted body is an asynchronous GET. It must not read or write
             // cookie-backed TempData: its response can otherwise race a Claim,
             // Save or release redirect and replace the browser's lease state.

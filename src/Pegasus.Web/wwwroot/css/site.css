@@ -208,6 +208,9 @@ strong{font-weight:650}
 .panel-head{min-height:42px;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--surface-2);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .panel-head>div{min-width:0}
 .panel-head h2,.panel-head h3{letter-spacing:-.006em}
+summary.panel-head{cursor:pointer}
+summary.panel-head::after{content:"+";font-size:18px;line-height:1}
+details[open]>summary.panel-head::after{content:"−"}
 .panel-body{padding:12px}
 .panel-title-meta{font-size:11px;color:var(--muted);margin-top:2px}
 .stack{display:flex;flex-direction:column;gap:var(--gap)}
@@ -1139,26 +1142,6 @@ a.queue-card:hover { border-color: var(--state-line); background: var(--state-bg
 caption { padding: var(--sp-3); color: var(--muted); font-size: var(--t-sm); text-align: left; }
 td a { color: var(--navy-fg); font-weight: 700; }
 td time, .tabular { font-variant-numeric: tabular-nums; }
-.primary-action, .secondary-action {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-5);
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: var(--t-sm);
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.primary-action { border: 1px solid var(--ce-red); background: var(--ce-red); color: var(--panel); }
-.primary-action:hover { border-color: var(--ce-red-dark); background: var(--ce-red-dark); }
-.secondary-action { border: 1px solid var(--line); background: var(--panel); color: var(--charcoal); }
-.secondary-action:hover { border-color: var(--charcoal); background: var(--paper); }
-
 .form-panel { max-width: 45rem; }
 .form-panel--wide { max-width: none; }
 .form-panel form { display: grid; gap: var(--sp-4); }
@@ -1504,16 +1487,6 @@ label.choice input { flex: 0 0 auto; margin: 0; }
   .send-action canvas { display: none; }
 }
 
-/* Buttons had no disabled treatment, so an unavailable action still read as
-   available. Matches the recessed ground disabled inputs already use. */
-.workbench-grid .primary-action:disabled,
-.workbench-grid .secondary-action:disabled {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
 /* Row headers carry a name, not a column caption, so they drop the uppercase
    eyebrow treatment `th` applies to column headers. */
 .workbench-grid tbody th[scope="row"],
@@ -1811,38 +1784,6 @@ table tfoot th {
 .btn--light { border-color: rgba(255, 255, 255, .3); background: transparent; color: #fff; }
 .btn--light:hover { border-color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .1); }
 .btn--icon { padding: 5px 7px; }
-.tabs a, .tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-3) var(--sp-4);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--t-body);
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.tabs a:hover, .tabs button:hover { color: var(--ink); }
-
-.tabs [aria-selected="true"], .tabs [aria-current="page"] { border-bottom-color: var(--ce-red); color: var(--ce-red); }
-
-.tabs .count {
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(22, 25, 29, .06);
-  color: var(--muted);
-  font-size: var(--t-eyebrow);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.tabs [aria-selected="true"] .count, .tabs [aria-current="page"] .count { background: rgba(219, 8, 22, .08); color: var(--ce-red); }
-
 /* Sub-tabs are pills, so a nested level never reads as a second tab row. */
 .subtabs { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
 .subtabs-end { margin-left: auto; }
@@ -2157,7 +2098,7 @@ pre.mail-body {
 .upload-outcome__file { margin: 0 0 var(--sp-2); font-weight: 700; }
 .upload-outcome__message { margin: 0; color: var(--charcoal); }
 /* The add-to-existing-case decision on the confirmation surface. The
-   summary reuses the secondary-action look and the shared summary marker
+   summary uses the shared button look and the shared summary marker
    reset above; this lays out the search form and its suggestion list. The
    active option is marked by background and an inset border, never colour
    alone. */
@@ -2196,15 +2137,6 @@ pre.mail-body {
 .form-column { width: 100%; max-width: 680px; margin: var(--sp-10) auto 0; }
 .form-column--narrow { max-width: 640px; margin-top: 0; }
 .form-column--wide { max-width: 860px; margin-top: 0; }
-
-/* On a single-purpose screen the submit spans the column: there is nothing else
-   to weigh it against, so a button sized to its own text reads as optional. */
-.primary-action--block {
-  display: flex;
-  width: 100%;
-  margin-top: var(--sp-6);
-  justify-content: center;
-}
 
 /* A table cell that carries two facts stacks them rather than running them
    together: a sender and its address, a subject and its attachment count, a

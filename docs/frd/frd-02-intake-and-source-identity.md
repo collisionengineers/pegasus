@@ -532,6 +532,7 @@ A Work Instruction contains details of a claimant involved in a road traffic acc
 | Claimant Name | Extract from the instruction. |
 | Claim Number | External reference number. |
 | Vehicle Registration | VRM. |
+| Source Vehicle Description | Preserve an unambiguous combined claimant-vehicle description from the instruction, with its source locator. Display it on the Case without heuristically splitting it into make/model or treating a third-party vehicle as the claimant's. |
 | Vehicle Make | Extract from the instruction or obtain through an authorized lookup capability when absent. |
 | Vehicle Model | Extract from the instruction or obtain through an authorized lookup capability when absent. |
 | Vehicle Mileage | Extract when supplied; estimation from MOT data is a required capability when available. |

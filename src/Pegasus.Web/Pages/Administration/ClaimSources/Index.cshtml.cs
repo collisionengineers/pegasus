@@ -42,7 +42,7 @@ public sealed class IndexModel(
 
     [BindProperty]
     [Required, StringLength(ClaimSourceAdministrationPolicy.MaximumReasonLength, MinimumLength = 1)]
-    public string Reason { get; set; } = "Created";
+    public string Reason { get; set; } = string.Empty;
 
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();

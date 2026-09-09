@@ -410,25 +410,25 @@ public sealed class VehicleSuggestionUnavailableException(
     public VehicleLookupOutcome Outcome { get; } = outcome;
 }
 
-public sealed class ConfirmedVehicleRegistrationRequiredException(
+public sealed class AcceptedVehicleRegistrationRequiredException(
     Guid caseId,
-    int confirmedRegistrationCount)
+    int acceptedRegistrationCount)
     : InvalidOperationException(
-        $"Case '{caseId}' must have exactly one confirmed canonical vehicle registration before lookup.")
+        $"Case '{caseId}' must have exactly one accepted canonical vehicle registration before lookup.")
 {
     public Guid CaseId { get; } = caseId;
-    public int ConfirmedRegistrationCount { get; } = confirmedRegistrationCount;
+    public int AcceptedRegistrationCount { get; } = acceptedRegistrationCount;
 }
 
-public sealed class ConfirmedVehicleRegistrationConflictException(
+public sealed class AcceptedVehicleRegistrationConflictException(
     Guid caseId,
-    string confirmedRegistration,
+    string acceptedRegistration,
     string proposedRegistration)
     : InvalidOperationException(
-        $"Case '{caseId}' already has a different confirmed vehicle registration. Use an explicit correction operation.")
+        $"Case '{caseId}' already has a different accepted vehicle registration. Use an explicit correction operation.")
 {
     public Guid CaseId { get; } = caseId;
-    public string ConfirmedRegistration { get; } = confirmedRegistration;
+    public string AcceptedRegistration { get; } = acceptedRegistration;
     public string ProposedRegistration { get; } = proposedRegistration;
 }
 

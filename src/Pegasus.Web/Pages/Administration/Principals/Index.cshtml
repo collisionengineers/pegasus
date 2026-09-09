@@ -1,49 +1,79 @@
-﻿@page
+@page
 @model Pegasus.Web.Pages.Administration.Principals.IndexModel
 @{
-    ViewData["Title"] = OperatorLabels.Admin.Principals;
+    ViewData["Title"] = "Principals";
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "principals";
 }
-<div class="page-heading">
-    <h1>@OperatorLabels.Admin.Principals</h1>
-    <a class="btn btn--primary" asp-page="Create">@OperatorLabels.PrincipalAdministration.Create</a>
+
+<partial name="Shared/_PageHeader" />
+
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        @if (TempData["AdministrationStatus"] is string status)
+        {
+            <div class="notice notice--success" role="status">@status</div>
+        }
+
+        <section class="panel" aria-labelledby="principals-title">
+            <div class="panel-head">
+                <div>
+                    <h2 id="principals-title">@OperatorLabels.Admin.Principals</h2>
+                    <p class="panel-title-meta">Page @Model.PageNumber</p>
+                </div>
+                <a class="btn btn--primary" asp-page="Create">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>@OperatorLabels.PrincipalAdministration.Create</span>
+                </a>
+            </div>
+            @if (Model.Customers.Principals.Count == 0)
+            {
+                <div class="empty">
+                    <h3>No principals are available.</h3>
+                    <p>Create a principal before assigning its casework.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrap no-border">
+                    <table>
+                        <caption class="sr-only">@OperatorLabels.Admin.Principals</caption>
+                        <thead><tr>
+                            <th scope="col">@OperatorLabels.PrincipalAdministration.Name</th>
+                            <th scope="col">@OperatorLabels.PrincipalAdministration.Code</th>
+                            <th scope="col">@OperatorLabels.PrincipalAdministration.State</th>
+                            <th scope="col"><span class="sr-only">@OperatorLabels.PrincipalAdministration.Settings</span></th>
+                        </tr></thead>
+                        <tbody>
+                        @foreach (var customer in Model.Customers.Principals)
+                        {
+                            <tr>
+                                <td>@customer.Name</td>
+                                <td class="mono">@customer.Principal.Code</td>
+                                <td><partial name="Shared/_StatusChip" model="@(customer.Principal.IsActive ? "Active" : "Disabled")" /></td>
+                                <td class="right"><a class="btn btn--small" asp-page="Settings" asp-route-principalId="@customer.Principal.Id">@OperatorLabels.PrincipalAdministration.Settings</a></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        @if (Model.PageNumber > 1 || Model.Customers.HasMore)
+        {
+            <nav class="pager" aria-label="@OperatorLabels.Admin.Principals">
+                @if (Model.PageNumber > 1)
+                {
+                    <a asp-page="Index" asp-route-pageNumber="@(Model.PageNumber - 1)">Previous</a>
+                }
+                <span class="pager__context">Page @Model.PageNumber</span>
+                @if (Model.Customers.HasMore)
+                {
+                    <a asp-page="Index" asp-route-pageNumber="@(Model.PageNumber + 1)">Next</a>
+                }
+            </nav>
+        }
+    </div>
 </div>
-@if (TempData["AdministrationStatus"] is string status)
-{
-    <div class="status-card" role="status">@status</div>
-}
-<div class="table-wrap">
-    <table>
-        <caption class="vh">@OperatorLabels.Admin.Principals</caption>
-        <thead><tr>
-            <th scope="col">@OperatorLabels.PrincipalAdministration.Name</th>
-            <th scope="col">@OperatorLabels.PrincipalAdministration.Code</th>
-            <th scope="col">@OperatorLabels.PrincipalAdministration.State</th>
-            <th scope="col">@OperatorLabels.PrincipalAdministration.Settings</th>
-        </tr></thead>
-        <tbody>
-        @foreach (var customer in Model.Customers.Principals)
-        {
-            <tr>
-                <td>@customer.Name</td>
-                <td>@customer.Principal.Code</td>
-                <td><partial name="Shared/_StatusChip" model="@(customer.Principal.IsActive ? "Active" : "Disabled")" /></td>
-                <td><a asp-page="Settings" asp-route-principalId="@customer.Principal.Id">@OperatorLabels.PrincipalAdministration.Settings</a></td>
-            </tr>
-        }
-        </tbody>
-    </table>
-</div>
-@if (Model.PageNumber > 1 || Model.Customers.HasMore)
-{
-    <nav class="pager" aria-label="@OperatorLabels.Admin.Principals">
-        @if (Model.PageNumber > 1)
-        {
-            <a asp-page="Index" asp-route-pageNumber="@(Model.PageNumber - 1)">Previous</a>
-        }
-        <span class="pager__context">Page @Model.PageNumber</span>
-        @if (Model.Customers.HasMore)
-        {
-            <a asp-page="Index" asp-route-pageNumber="@(Model.PageNumber + 1)">Next</a>
-        }
-    </nav>
-}

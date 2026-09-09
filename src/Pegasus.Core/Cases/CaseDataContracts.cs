@@ -94,7 +94,15 @@ public sealed record CaseVehicleData(
     CaseField<string> Make,
     CaseField<string> Model,
     CaseField<long> Mileage,
-    CaseField<string> MileageUnit);
+    CaseField<string> MileageUnit)
+{
+    /// <summary>
+    /// The combined description printed by an instruction when it does not
+    /// separately state the vehicle make and model. It remains source-only;
+    /// callers must not split or confirm it as either typed field.
+    /// </summary>
+    public CaseField<string> Description { get; init; } = new(null, null, null);
+}
 
 public sealed record CaseAccidentData(
     CaseField<DateOnly> IncidentDate,

@@ -61,11 +61,11 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                         <h2>Upload files</h2>
                     </a>
+                    <a class="admin-card" asp-page="/Cases/Create">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                        <div><h2>Create Case</h2><p>From an instruction</p></div>
+                    </a>
                 }
-                <a class="admin-card" asp-page="/Cases/Create">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
-                    <h2>Create Case</h2>
-                </a>
                 @if (inboxEnabled)
                 {
                     <a class="admin-card" asp-page="/Mail/Index">

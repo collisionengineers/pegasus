@@ -1,46 +1,55 @@
 @page "{principalId:guid}"
 @model Pegasus.Web.Pages.Administration.Principals.ReplaceModel
 @{
-    ViewData["Title"] = OperatorLabels.PrincipalAdministration.ReplaceCode;
+    ViewData["Title"] = "Replace principal";
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "principals";
 }
 
-<a class="back-link" asp-page="Settings" asp-route-principalId="@Model.Predecessor?.Id">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Settings
-</a>
+<partial name="Shared/_PageHeader" />
+
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
 
 @if (Model.Customer is not null && Model.Predecessor is not null)
 {
-    <div class="page-heading">
-        <h1>Replace @Model.Predecessor.Code</h1>
-        <partial name="Shared/_StatusChip" model="@(Model.Predecessor.IsActive ? "Active" : "Disabled")" />
-    </div>
-    <dl class="detail-list">
-        <div><dt>@OperatorLabels.PrincipalAdministration.Name</dt><dd>@Model.Customer.Name</dd></div>
-        <div><dt>Allocated cases</dt><dd class="tabular">@Model.Predecessor.AllocatedCaseCount</dd></div>
-    </dl>
-    @if (Model.Predecessor.IsActive && Model.Predecessor.SuccessorId is null)
-    {
-        <div class="panel form-panel">
-            <form method="post" asp-page-handler="Replace" asp-route-principalId="@Model.Predecessor.Id">
+    <section class="panel" aria-labelledby="replace-principal-title">
+        <div class="panel-head">
+            <div>
+                <h2 id="replace-principal-title">Replace @Model.Predecessor.Code</h2>
+                <p class="panel-title-meta">@Model.Customer.Name · @Model.Predecessor.AllocatedCaseCount allocated cases</p>
+            </div>
+            <partial name="Shared/_StatusChip" model="@(Model.Predecessor.IsActive ? "Active" : "Disabled")" />
+        </div>
+        @if (Model.Predecessor.IsActive && Model.Predecessor.SuccessorId is null)
+        {
+            <form method="post" asp-page-handler="Replace" asp-route-principalId="@Model.Predecessor.Id" class="panel-body stack">
                 <div asp-validation-summary="ModelOnly"></div>
                 <input asp-for="ExpectedVersion" type="hidden" />
                 <input asp-for="OperationKey" type="hidden" />
-                <div>
-                    <label asp-for="SuccessorCode">New principal code</label>
+                <div class="field">
+                    <label class="req" asp-for="SuccessorCode">New principal code</label>
                     <input asp-for="SuccessorCode" autocomplete="off" />
                     <span asp-validation-for="SuccessorCode"></span>
                 </div>
-                <div>
-                    <label asp-for="Reason">Reason</label>
+                <div class="field">
+                    <label class="req" asp-for="Reason">Reason</label>
                     <textarea asp-for="Reason" rows="3"></textarea>
                     <span asp-validation-for="Reason"></span>
                 </div>
                 <p>The old code is disabled; existing cases and references stay unchanged, and the new code continues the same numbering.</p>
                 <div class="button-row">
-                    <button type="submit" class="primary-action">@OperatorLabels.PrincipalAdministration.ReplaceCode</button>
+                    <a class="btn" asp-page="Settings" asp-route-principalId="@Model.Predecessor.Id">Cancel</a>
+                    <button type="submit" class="btn btn--danger">@OperatorLabels.PrincipalAdministration.ReplaceCode</button>
                 </div>
             </form>
-        </div>
-    }
+        }
+        else
+        {
+            <div class="empty"><p>This principal cannot be replaced again.</p></div>
+        }
+    </section>
 }
+</div>
+</div>
