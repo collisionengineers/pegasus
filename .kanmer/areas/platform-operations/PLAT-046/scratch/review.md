@@ -97,7 +97,9 @@ da6ff8e16815100e42da65e60df3e45a3cced2d2 changes the production manual-destinati
 workflow and its assertions to "Choose a case destination", retaining actual
 association, exact Case URL, no automatic association and replay/version checks.
 This supports deferral to its existing owner, not a wording-only waiver.
-Remaining SQL1/2 and browser jobs were pending at gather, NOT PASS; they are
+Final gather: browser job102300801068 failed the identical selector timeout
+(134 pass/1 fail), sharing F-002 and the same INTK-066 disposition. SQL2 passed;
+SQL1 remains pending, NOT PASS. These are
 nonrequired evidence outside this ticket's acceptance. Any newly revealed
 in-scope risk before merge requires fresh disposition.
 
