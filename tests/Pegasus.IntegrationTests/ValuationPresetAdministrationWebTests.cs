@@ -186,6 +186,36 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.DoesNotContain("Roof rack</td>", body, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("not-a-number")]
+    [InlineData("-1.00")]
+    [InlineData("300.123")]
+    public async Task ARefusedRowEditKeepsItsAttemptedLabelAndRawAmount(string amount)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var page = await GetPageAsync(client);
+
+        using var response = await PostSaveAsync(
+            client,
+            RowForm(
+                page,
+                TowBarPresetId,
+                "Updated tow bar",
+                amount,
+                "true",
+                "The attempted amount needs correction."));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Enter an amount of", body, StringComparison.Ordinal);
+        Assert.Contains("<details open=\"open\">", body, StringComparison.Ordinal);
+        Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
+        Assert.Contains("<td>Tow bar</td>", body, StringComparison.Ordinal);
+        Assert.Contains("&#xA3;300.00", body, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The hidden fields of one preset's own row form, read from that row
     /// rather than from the first one on the page: the rows are ordered by

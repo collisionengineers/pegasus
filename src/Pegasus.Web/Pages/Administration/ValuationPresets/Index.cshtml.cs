@@ -49,6 +49,12 @@ public sealed class IndexModel(
     /// <summary>The preset targeted by the most recent row post.</summary>
     public Guid RowPresetId { get; private set; }
 
+    /// <summary>The label submitted to the targeted row, kept after a failed post.</summary>
+    public string RowLabel { get; private set; } = string.Empty;
+
+    /// <summary>The raw amount submitted to the targeted row, kept after a failed post.</summary>
+    public string RowAmount { get; private set; } = string.Empty;
+
     /// <summary>The reason submitted by the most recent row post.</summary>
     public string RowReason { get; private set; } = string.Empty;
 
@@ -108,6 +114,8 @@ public sealed class IndexModel(
         CancellationToken cancellationToken)
     {
         RowPresetId = presetId;
+        RowLabel = label ?? string.Empty;
+        RowAmount = Request.Form["amount"].ToString();
         RowReason = reason ?? string.Empty;
         return RunAsync(
             async actor =>
