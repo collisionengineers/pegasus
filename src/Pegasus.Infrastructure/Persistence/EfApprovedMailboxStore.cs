@@ -420,6 +420,7 @@ public sealed class EfApprovedMailboxStore(
         {
             previousDefault.IsDefaultStaffSend = false;
             previousDefault.Version = checked(previousDefault.Version + 1);
+            await context.SaveChangesAsync(cancellationToken);
         }
         if (!target.IsDefaultStaffSend)
         {
