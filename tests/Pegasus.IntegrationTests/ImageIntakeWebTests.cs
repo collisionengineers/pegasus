@@ -77,6 +77,7 @@ public sealed class ImageIntakeWebTests
         var imageIntakePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail!.Record.Id:D}");
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
+        Assert.Contains($"/Cases?tab=awaiting&amp;selected={detail.Record.Id:D}", imageIntakePage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -125,6 +126,10 @@ public sealed class ImageIntakeWebTests
         var receiptPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Associated with Case", receiptPage);
         Assert.Contains("AB12CDE-01", receiptPage);
+        var associatedImagePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
+        Assert.Contains("href=\"/Cases\"", associatedImagePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("tab=awaiting", associatedImagePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("selected=", associatedImagePage, StringComparison.Ordinal);
         var casePage = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Cases/{caseId:D}?section=files");

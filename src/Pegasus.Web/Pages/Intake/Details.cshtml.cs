@@ -629,6 +629,13 @@ public sealed partial class DetailsModel(
             return;
         }
 
+        if (LeasedCaseId is { } leasedCaseId)
+        {
+            AssociationTargetCase = await getCase.ExecuteAsync(new(leasedCaseId, actor), cancellationToken);
+            AssociationTargetCaseVersion = AssociationTargetCase?.Workflow.Version;
+            return;
+        }
+
         var targetCaseId = AssociationTargetCaseId;
         if (targetCaseId is { } selectedCaseId)
         {
