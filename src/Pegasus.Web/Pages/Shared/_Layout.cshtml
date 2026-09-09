@@ -144,6 +144,12 @@
                     <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
                         <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
                     </button>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <button type="button" class="icon-button utility-account" data-dialog-open="account-dialog" aria-label="Account menu">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                        </button>
+                    }
                 </div>
             </section>
             <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
