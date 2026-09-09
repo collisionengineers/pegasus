@@ -4,6 +4,71 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 40 — 9 September 2026
+
+The approved corrective release was deployed from Windows PowerShell 7 at
+source `c9bd3aa6bba06a81f35b0e4aca36ab8c01ac744b`, version `0.1.0-alpha.1`.
+All ten checks in [the exact dev CI run](https://github.com/collisionengineers/pegasus/actions/runs/34312991582)
+passed before the whole dev branch was promoted through [PR #675](https://github.com/collisionengineers/pegasus/pull/675).
+This includes merged corrections #712, #714 and #715; unmerged saved worktree
+branches are excluded.
+
+The schema-3 manifest SHA-256 is
+`2C9127990A039C49020053D46A413F1E4064FCF8D27AD6AD71D61D7F4D6C54D6`.
+The sole active Web revision is
+`pegasus-prod-web-252ow37gij--c9bd3aa6bba0`, observed Healthy,
+RunningAtMaxScale and Provisioned at image digest
+`sha256:6179de11540614449c3c70d3934e0933a872b992f5487d9d10405efd91676684`.
+The manifest's linux/amd64 Web image was uploaded and its remote digest verified;
+its exact Worker ZIP was staged by deployment
+`d352a2ba-edda-4aeb-841e-a6616ec2e05d`. The native win-x64 `efbundle.exe`
+applied the three pending migrations through
+`20260909091500_RemoveCaseDocumentOcrOperations`. Runtime bootstrap verified
+651 catalogued permission/denial rows and 449 effective runtime DML rows.
+
+The maintenance sequence began with Worker Function disablement and new-package
+staging at 05:26 UTC. Worker Stopped and the exact old Web revision inactive with
+zero replicas were verified before the intake reset and again before migration.
+The reset cleared 122 blobs (156,871,692 bytes) in
+`pegcustody252ow37gij/transient-intake` and 448 intake-created rows across 87 SQL
+tables. Verification found zero remaining blobs and zero populated reset tables;
+34 tables were preserved. The SQL batch reported 449 affected rows including the
+mail-state update. The committed receive-time cutoff is
+`2026-09-09T05:31:30.9218156+00:00`. Identity, mailbox approval/activation times,
+all four reference-sequence tables (zero keyed-value changes) and all five
+valuation presets were preserved. The reset did not touch `authentication-ring`,
+`box-links`, `pegtrans252ow37gij` contents, Outlook or Box.
+
+Provisioning created `pegasus-prod-ocr-252ow37gij`; its successful state,
+disabled local-key authentication and Worker managed-identity Cognitive Services
+User assignment were verified. Web and OCR infrastructure were provisioned with
+Worker disabled, then the compatible Worker was explicitly activated. The final
+checks passed at 05:42:33 UTC: Worker Running, every canonical Function Disabled
+setting false, exact Web version/digest and health, Graph validation handshake,
+anonymous Case-access denial and schema head. Intake liveness reported a completed
+poll at 05:40:40 UTC and an active subscription expiring
+13 September 2026 at 17:15:12 UTC. Alex owns live behavioural acceptance; no
+intake/OCR canary was uploaded by the agent and no functional acceptance is claimed.
+
+Retained attempts and limitations: the first migration host setup stopped before
+SQL because the copied azd environment lacked `BOX_HOLDING_FOLDER_ID`. The existing
+Worker value `415928884118`, subsequently confirmed by Alex, was restored along
+with existing signing/encryption certificate URI inputs from the old Web revision.
+The migration retry succeeded. The initial post-provision Web check reported an
+unexpected active revision; a fresh full inventory and the unchanged strict check
+then verified the sole exact approved revision and digest. The first activation
+smoke stopped on the reset's null poll-completion timestamp; the normal scheduled
+poll completed and the full smoke passed on rerun. No old application bytes were
+explicitly reactivated after the destructive migration.
+
+The four hash-verified artifacts are retained locally under
+`artifacts/releases/release-40-c9bd3aa6/`, with stage transcripts and retry evidence
+in its `execution/` directory. The approval packet and preparation evidence are
+`artifacts/corrective-release-approval-20260909.md` and
+`artifacts/corrective-readiness-20260909.md`. These local artifacts are not
+committed. The main checkout's ignored azd environment was synchronized to the
+observed deployment inputs; its previous copy is retained with the release.
+
 ## Read-only production observation — 6 September 2026
 
 On 6 September 2026, Azure CLI on the Windows development host read the existing
