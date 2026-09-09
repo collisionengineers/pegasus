@@ -57,30 +57,32 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Theory]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, true)]
-    public async Task FromMailboxRequiresTheDefaultStaffSendCapability(
-        bool staffSend, bool positiveGeneration, bool expected)
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, true, true)]
+    public async Task FromMailboxRequiresTheReadyDefaultStaffSendCapability(
+        bool staffSend, bool positiveGeneration, bool sentEvidence, bool expected)
     {
         const string address = "capability@example.invalid";
-        var scopes = staffSend
-            ? new[] { ApprovedMailboxRouteScope.StaffSend }
-            : new[] { ApprovedMailboxRouteScope.SentEvidence };
+        var scopes = new List<ApprovedMailboxRouteScope>();
+        if (staffSend) scopes.Add(ApprovedMailboxRouteScope.StaffSend);
+        if (sentEvidence) scopes.Add(ApprovedMailboxRouteScope.SentEvidence);
         var mailbox = new ApprovedMailbox(
             Guid.NewGuid(),
             address,
             scopes,
             ApprovedMailboxState.Approved,
-            MailboxIdentity: null,
-            InboxFolderIdentity: null,
-            SentFolderIdentity: null,
-            IdentityIsBound: false,
+            MailboxIdentity: "capability-mailbox",
+            InboxFolderIdentity: "inbox",
+            SentFolderIdentity: "sent-items",
+            IdentityIsBound: true,
             ActivatedAtUtc: NowUtc,
             Version: 0,
             FolderBindings: [],
             Generation: positiveGeneration ? 1 : 0,
-            IsDefaultStaffSend: staffSend && positiveGeneration);
+            VerifiedEncodedMessageSizeLimit: 1024,
+            IsDefaultStaffSend: true);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var configured = Configure(baseFactory, new RecordingStaffMailSend());
         using var factory = configured.WithWebHostBuilder(builder =>
@@ -699,6 +701,8 @@ public sealed class StaffCorrespondenceWebTests
         selection["CorrespondenceOperationKey"] = InputValue(selectedHtml, "CorrespondenceOperationKey");
         selection["ExpectedCorrespondenceCaseVersion"] = InputValue(
             selectedHtml, "ExpectedCorrespondenceCaseVersion");
+        selection["CorrespondenceCaseReference"] = InputValue(
+            selectedHtml, "CorrespondenceCaseReference");
         selection.Remove("SelectedCorrespondenceCaseReference");
 
         using var post = await client.PostAsync(
@@ -1052,14 +1056,16 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     [Theory]
-    [InlineData(false, ApprovedMailboxState.Approved, true, 1)]
-    [InlineData(true, ApprovedMailboxState.Disabled, true, 1)]
-    [InlineData(true, ApprovedMailboxState.Approved, false, 1)]
-    [InlineData(true, ApprovedMailboxState.Approved, true, 0)]
-    public async Task RetainedReplyRequiresApprovedStaffSendMailboxWithPositiveGeneration(
+    [InlineData(false, ApprovedMailboxState.Approved, true, true, 1)]
+    [InlineData(true, ApprovedMailboxState.Disabled, true, true, 1)]
+    [InlineData(true, ApprovedMailboxState.Approved, false, true, 1)]
+    [InlineData(true, ApprovedMailboxState.Approved, true, false, 1)]
+    [InlineData(true, ApprovedMailboxState.Approved, true, true, 0)]
+    public async Task RetainedReplyRequiresAReadyStaffSendAndSentEvidenceMailbox(
         bool available,
         ApprovedMailboxState state,
         bool staffSend,
+        bool sentEvidence,
         long generation)
     {
         var send = new RecordingStaffMailSend();
@@ -1071,9 +1077,15 @@ public sealed class StaffCorrespondenceWebTests
         var mailbox = new ApprovedMailbox(
             seeded.MailboxId,
             seeded.MailboxAddress,
-            staffSend ? [ApprovedMailboxRouteScope.StaffSend] : [ApprovedMailboxRouteScope.SentEvidence],
+            (staffSend, sentEvidence) switch
+            {
+                (true, true) => [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+                (true, false) => [ApprovedMailboxRouteScope.StaffSend],
+                _ => [ApprovedMailboxRouteScope.SentEvidence]
+            },
             state,
-            null, null, null, false, NowUtc, 1, [], generation);
+            "mailbox-identity", "inbox", "sent-items", true, NowUtc, 1, [], generation,
+            VerifiedEncodedMessageSizeLimit: 1024);
         using var configured = Configure(baseFactory, send);
         using var factory = configured.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -1274,12 +1286,9 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
-    /// Wraps the real EF-backed store, promoting a SentEvidence-scoped
-    /// mailbox to also carry <see cref="ApprovedMailboxRouteScope.StaffSend"/>
-    /// and a positive <see cref="ApprovedMailbox.Generation"/> — the mapping
-    /// <c>EfApprovedMailboxStore.Map</c>/<c>Routes</c> (A-owned) does not yet
-    /// perform on this branch. Every other read/write goes through the real
-    /// store untouched.
+    /// Promotes the seeded SentEvidence mailbox into the exact ready default
+    /// sender shape this page reads. Every other read/write goes through the
+    /// real store untouched.
     /// </summary>
     private sealed record MailboxCapability(Guid MailboxId, long Generation);
 
@@ -1299,6 +1308,8 @@ public sealed class StaffCorrespondenceWebTests
                             && mailbox.Id == mailboxCapability.MailboxId
                                 ? mailboxCapability.Generation
                                 : mailbox.Generation > 0 ? mailbox.Generation : 1,
+                        SentFolderIdentity = "sent-items",
+                        VerifiedEncodedMessageSizeLimit = 1024,
                         IsDefaultStaffSend = true
                     }
                     : mailbox)
@@ -1338,6 +1349,7 @@ public sealed class StaffCorrespondenceWebTests
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["CorrespondenceOperationKey"] = operationKey,
         ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+        ["CorrespondenceCaseReference"] = InputValue(html, "CorrespondenceCaseReference"),
         ["CorrespondenceSubject"] = "Re: Source subject",
         ["CorrespondenceBody"] = body
     };
@@ -1386,12 +1398,8 @@ public sealed class StaffCorrespondenceWebTests
         await TestMailboxId.EnsureApprovedAsync(
             context, "sc08-sender", "sc08-sender@collisionengineers.co.uk", NowUtc.AddDays(-1));
         await context.SaveChangesAsync();
-        // AllowStaffSend/MailboxGeneration are seeded on the real columns
-        // (the shape A02's store persists) even though
-        // EfApprovedMailboxStore.Map/Routes does not read either one on this
-        // standalone C branch yet — inert here; StaffSendCapableMailboxStore
-        // above is what actually exercises ComposeModel's filter until that
-        // Infrastructure mapping lands.
+        // Seed the real route and generation columns; the local store wrapper
+        // above supplies the remaining ready-default test shape.
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE ApprovedMailboxes SET AllowSentEvidence = 1, AllowStaffSend = 1, MailboxGeneration = 1 WHERE Address = 'sc08-sender@collisionengineers.co.uk'");
     }

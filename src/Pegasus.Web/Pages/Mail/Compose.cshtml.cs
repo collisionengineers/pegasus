@@ -341,13 +341,17 @@ public sealed class ComposeModel(
     private async Task LoadDefaultMailboxAsync(CancellationToken cancellationToken)
     {
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
-        // Stream A's ruling: SentEvidence is not send authorization. A
-        // mailbox must be Approved, carry StaffSend, and have a positive
-        // Generation before it is offered — no fallback.
+        // A correspondence sender is also the sent-evidence source. It must
+        // be completely ready for both roles before the page offers it.
         var defaults = mailboxes
             .Where(item => item.State == ApprovedMailboxState.Approved
                 && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+                && item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
+                && item.ActivatedAtUtc is not null
+                && !string.IsNullOrWhiteSpace(item.MailboxIdentity)
+                && !string.IsNullOrWhiteSpace(item.SentFolderIdentity)
                 && item.Generation > 0
+                && item.VerifiedEncodedMessageSizeLimit is > 0
                 && item.IsDefaultStaffSend)
             .ToArray();
         DefaultMailbox = defaults.Length == 1 ? defaults[0] : null;

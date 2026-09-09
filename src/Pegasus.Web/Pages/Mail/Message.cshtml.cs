@@ -1067,7 +1067,12 @@ public sealed class MessageModel(
             item.Id == Detail.Summary.MailboxId
             && item.State == ApprovedMailboxState.Approved
             && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-            && item.Generation > 0);
+            && item.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
+            && item.ActivatedAtUtc is not null
+            && !string.IsNullOrWhiteSpace(item.MailboxIdentity)
+            && !string.IsNullOrWhiteSpace(item.SentFolderIdentity)
+            && item.Generation > 0
+            && item.VerifiedEncodedMessageSizeLimit is > 0);
         if (CorrespondenceMailbox is null)
             return false;
 
