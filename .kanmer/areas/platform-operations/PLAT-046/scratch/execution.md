@@ -190,3 +190,9 @@ Frozen for root's sole-host verification grant to /root/verify_711_712. After lo
 Root explicitly authorized publication before local PASS to overlap remote CI with the existing host owner. Pushed exact clean a2bb0e120575d46828911d15031e7a36dc1ff4de without force and opened draft PR https://github.com/collisionengineers/pegasus/pull/713 to dev. Readback OPEN DRAFT, exact branch/head confirmed. prs[] now retains both original711 and corrective713. CI pull_request run34298650052 is in_progress at this exact head: https://github.com/collisionengineers/pegasus/actions/runs/34298650052.
 
 No local architecture PASS claim, Review move, ready action, merge or host command performed. Ticket remains Implementing; original postmerge FAIL proof unchanged. Await root's sole-host verification result before final report/checklist and Review handoff.
+
+## PLAT046 corrective PR713 premerge verification — sole host ACTIVE
+
+Root grants /root/verify_711_712 sole CEALEX-May25 host after INTK066 explicitIDLE. Exact frozen clean a2bb0e120575d46828911d15031e7a36dc1ff4de in recorded .worktrees/plat-046 branch; author no host commands. Locked restore ArchitectureTestsproject; Release projectbuild --no-restore -nodeReuse:false; full ArchitectureTests project --no-build (not fullsolution); Test-PegasusPlatform and Test-AzureDeploymentPlan Local; diffcheck basec3219cd28c69530441e2bba7357063372628ff37. First genuinefailure stops/no retry. No source edits, fullSQL/browser/packages/cloud, proof mutation (existing c3219 FAIL stays). Exact owned-node cleanup only; bothledgersIDLE completion. INTKauthor may edit distinct files only.
+
+- 2026-09-09T01:20:46.293Z lease-phase implementing → running-command (lease f52130e7-d7ab-40ac-aa69-edb643bda825 rev 13; expires 2026-09-09T01:50:46.282Z)

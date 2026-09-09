@@ -632,3 +632,7 @@ All granted executed checks PASS exit0:
 - git diff --check c3219cd28c69530441e2bba7357063372628ff37 HEAD:PASS.
 
 Known architecture failure from711 not rerun here; separatePLATfix pending. Root subsequently identified remaining same-class known-later-decision partial-write gap and queued full-roster preflight correction after this freeze. Therefore scoped PASS is not finalacceptance; next source head needs its own verification. Prior failures remain retained. No browser/capture/sourceedit/lockchange/cloud/externalSQL/Outlook/Box/package or PR action. Final tracked status clean at exacthead, no dotnet/MSBuild/testhost process (no cleanup needed). Both canonicalDELIV053 andINTK066 slots explicitly **IDLE / unassigned**. Source may unfreeze for authorized current remediation.
+
+## PLAT046 corrective PR713 premerge verification — sole host ACTIVE
+
+Root grants /root/verify_711_712 sole CEALEX-May25 host after INTK066 explicitIDLE. Exact frozen clean a2bb0e120575d46828911d15031e7a36dc1ff4de in recorded .worktrees/plat-046 branch; author no host commands. Locked restore ArchitectureTestsproject; Release projectbuild --no-restore -nodeReuse:false; full ArchitectureTests project --no-build (not fullsolution); Test-PegasusPlatform and Test-AzureDeploymentPlan Local; diffcheck basec3219cd28c69530441e2bba7357063372628ff37. First genuinefailure stops/no retry. No source edits, fullSQL/browser/packages/cloud, proof mutation (existing c3219 FAIL stays). Exact owned-node cleanup only; bothledgersIDLE completion. INTKauthor may edit distinct files only.
