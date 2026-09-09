@@ -403,7 +403,7 @@ public sealed class ComposeModel(
         }
 
         var matches = await searchCases.ExecuteAsync(
-            new(actor, new(CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
+            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
         var match = matches.Items.SingleOrDefault(item =>
             string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
         return match is null
@@ -422,7 +422,7 @@ public sealed class ComposeModel(
         }
 
         return (await searchCases.ExecuteAsync(
-            new(actor, new(CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
+            new(actor, new CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
     }
 
     private bool TryNormalizeCaseQuery(out string? query)
