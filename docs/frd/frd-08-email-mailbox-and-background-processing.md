@@ -426,6 +426,12 @@ surfaces carry no send, Flag or Delete control and no composer.
   retained message belongs to; Compose sends as the default approved mailbox.
   The sending identity is never a staff member's own address or any mailbox
   outside the approved allowlist, and the composer shows it read-only.
+  An administrator selects the single default in Mailbox settings with a
+  recorded reason. Only a send-ready mailbox with Sent-evidence polling
+  configured is eligible. Replacing the default checks both reviewed mailbox
+  versions; disabling it or removing a required capability requires selecting
+  a replacement first. Without a configured default, new Compose explains
+  the missing configuration and cannot send; it never chooses the first row.
 - **What the composer carries.** To, Subject, Message, Case, and From
   (read-only). Reply and Forward preserve the retained message's reply-chain
   and conversation identity; Case defaults to the message's current
