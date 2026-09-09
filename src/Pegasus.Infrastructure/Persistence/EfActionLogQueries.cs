@@ -66,7 +66,7 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
                 Operation = item.EventKind,
                 Reference = item.AggregateId,
                 Actor = item.ActorSubjectId,
-                ActorKind = item.ActorKind,
+                ActorKind = (string?)item.ActorKind,
                 item.OccurredAtUtc,
                 Result = item.Outcome,
                 item.CorrelationId
