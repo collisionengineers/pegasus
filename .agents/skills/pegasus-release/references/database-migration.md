@@ -1,7 +1,9 @@
 # Database migration
 
 Use this route only when the approved manifest carries a migration identity not
-present in the deployed release.
+present in the deployed release. For a destructive migration, the release skill
+must already have recorded exact Worker `Stopped` and old Web inactive/zero-replica
+read-backs immediately before this recipe. Unknown or stale containment blocks SQL.
 
 1. Run the manifest- and environment-bound gate:
 
@@ -90,8 +92,6 @@ present in the deployed release.
    }
    ```
 
-   This recipe does not settle PLAT-046 old-Web/Worker containment.
-
 3. Reconcile and verify the runtime principals and exact permission census:
 
    ```powershell
@@ -102,10 +102,12 @@ present in the deployed release.
    ```
 
 4. Verify the live migration head equals `migrationIdentity` in the manifest.
-   Stop before Web/Worker deployment on any mismatch.
+   Stop before Web/Worker activation on any mismatch.
 
-Finish this migration boundary before provisioning Web or deploying the Worker
-package; do not change that order for this procedure.
+For additive migrations, finish this migration boundary before provisioning Web
+or deploying the Worker package. The destructive route's disabled new-Worker
+staging exception is defined solely in the release skill; it never authorizes an
+old package or old Web revision to resume after SQL begins.
 
 Run `Invoke-ProductionAdministratorBootstrap.ps1` only when the release changes
 administrator bootstrap behavior or the approved task explicitly requires

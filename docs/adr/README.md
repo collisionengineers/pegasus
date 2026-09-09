@@ -47,7 +47,7 @@ never renumbered or reused.
 | [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | accepted | — | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
-| [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | — | — |
+| [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | ADR-0046 (partial) | — |
 | [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | — | MCP-06, AI-09 |
 | [ADR-0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |
@@ -63,6 +63,7 @@ never renumbered or reused.
 | [ADR-0043](0043-per-engineer-vendor-credential-protection.md) | Per-Engineer vendor credential protection | accepted | — | — |
 | [ADR-0044](0044-mail-occurrence-and-business-identity.md) | Mail occurrence and business identity | accepted | — | — |
 | [ADR-0045](0045-document-custody-and-derived-caches.md) | Document custody and derived caches | accepted | — | — |
+| [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

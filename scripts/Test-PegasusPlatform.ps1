@@ -8,6 +8,38 @@ $ErrorActionPreference = 'Stop'
 
 # Exercise the shared mapping without invoking a compiler, database or cloud.
 $nativeBundle = Get-PegasusMigrationBundle
+$expectedWorkerDisabledSettings = @(
+    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
+    'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
+    'AzureWebJobs.InboxRecoveryFunction.Disabled',
+    'AzureWebJobs.SentEvidencePollFunction.Disabled',
+    'AzureWebJobs.DueWorkSweepFunction.Disabled'
+)
+$actualWorkerDisabledSettings = @(Get-PegasusWorkerDisabledSettingNames)
+if ($actualWorkerDisabledSettings.Count -ne $expectedWorkerDisabledSettings.Count -or
+    @($actualWorkerDisabledSettings | Where-Object { $_ -notin $expectedWorkerDisabledSettings }).Count -ne 0 -or
+    @($actualWorkerDisabledSettings | Select-Object -Unique).Count -ne $actualWorkerDisabledSettings.Count) {
+    throw 'Worker Disabled setting producer must return the exact distinct seven-name census.'
+}
+foreach ($consumer in @('Test-AzureDeploymentPlan.ps1', 'Invoke-ProductionSmoke.ps1')) {
+    $consumerSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot $consumer)
+    if ($consumerSource -notmatch '\@\(Get-PegasusWorkerDisabledSettingNames\)') {
+        throw "$consumer must consume the canonical Worker Disabled setting producer."
+    }
+}
+$productionSmokeSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Invoke-ProductionSmoke.ps1')
+foreach ($requiredContract in @(
+    'if \(-not \$ActivationOnly -and -not \$censusIsExact\)',
+    'The live Worker disabled-setting census differs from the exact seven-function release contract\.',
+    'if \(-not \$valuesAreExact\)',
+    'The live Worker settings do not match the intended'
+)) {
+    if ($productionSmokeSource -notmatch $requiredContract) {
+        throw 'Production Worker smoke must retain its fail-closed exact census and value contracts.'
+    }
+}
 $platformResolver = ${function:Get-PegasusPlatform}
 try {
     foreach ($hostKind in @('Windows', 'Linux')) {
