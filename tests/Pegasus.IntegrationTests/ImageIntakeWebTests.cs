@@ -263,17 +263,13 @@ public sealed class ImageIntakeWebTests
             RegexOptions.Singleline | RegexOptions.CultureInvariant,
             TimeSpan.FromSeconds(1)))
         {
-            if (Regex.IsMatch(
-                link.Groups["body"].Value,
-                "<span>Back to Cases</span>",
-                RegexOptions.CultureInvariant,
-                TimeSpan.FromSeconds(1)))
+            if (link.Groups["body"].Value.Contains("<span>Back to Cases</span>", StringComparison.Ordinal))
             {
                 return WebUtility.HtmlDecode(link.Groups["href"].Value);
             }
         }
 
-        Assert.True(false, "The Back to Cases link must be rendered.");
+        Assert.Fail("The Back to Cases link must be rendered.");
         return string.Empty;
     }
 }
