@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;
@@ -35,19 +36,17 @@ public sealed class ComposeModel(
     IStaffMailSend staffMailSend,
     IApprovedMailboxStore approvedMailboxes,
     IGetCase getCase,
+    ISearchCases searchCases,
     IStaffMailAttachmentResolver attachmentResolver) : StaffPageModel
 {
-    [BindProperty(SupportsGet = true)]
-    public Guid? CaseId { get; set; }
+    [BindProperty(SupportsGet = true, Name = "caseReference")]
+    public string? CaseReference { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "caseQuery")]
+    public string? CaseQuery { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public Guid? OperationId { get; set; }
-
-    [BindProperty]
-    public Guid ApprovedMailboxId { get; set; }
-
-    [BindProperty]
-    public long ExpectedContextVersion { get; set; }
 
     [BindProperty]
     public string? To { get; set; }
@@ -70,7 +69,11 @@ public sealed class ComposeModel(
     [TempData]
     public string? SendNotice { get; set; }
 
-    public IReadOnlyList<ApprovedMailbox> SendableMailboxes { get; private set; } = [];
+    public ApprovedMailbox? DefaultMailbox { get; private set; }
+
+    public IReadOnlyList<CaseSearchItem> CaseResults { get; private set; } = [];
+
+    public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
 
     public CaseSearchItem? Case { get; private set; }
 
@@ -85,20 +88,13 @@ public sealed class ComposeModel(
             return Forbid();
         }
 
-        await LoadSendableMailboxesAsync(cancellationToken);
-
-        if (CaseId is { } caseId)
+        if (!StaffMailAvailable)
         {
-            var details = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (details is null)
-            {
-                return NotFound();
-            }
-            Case = details.Summary;
-            ExpectedContextVersion = details.Workflow.Version;
-            AvailableAttachments = await attachmentResolver.ListCaseAsync(
-                actor, caseId, cancellationToken);
+            return Page();
         }
+
+        await LoadDefaultMailboxAsync(cancellationToken);
+        await LoadCaseContextAsync(actor, cancellationToken);
 
         // Carries the just-sent operation's identity across the post-send
         // redirect, so the Send-status panel — and, for Unknown, the
@@ -119,12 +115,12 @@ public sealed class ComposeModel(
             return Forbid();
         }
 
-        await LoadSendableMailboxesAsync(cancellationToken);
-
-        if (CaseId is not { } caseId)
+        if (!StaffMailAvailable)
         {
-            ModelState.AddModelError(nameof(CaseId), "Choose the Case this correspondence belongs to.");
+            return NotFound();
         }
+
+        await LoadDefaultMailboxAsync(cancellationToken);
 
         var to = ParseRecipients(To);
         if (to.Length == 0)
@@ -140,34 +136,32 @@ public sealed class ComposeModel(
             ModelState.AddModelError(nameof(Body), "A message is required.");
         }
 
-        var mailbox = SendableMailboxes.FirstOrDefault(item => item.Id == ApprovedMailboxId);
-        if (mailbox is null)
+        if (DefaultMailbox is null)
         {
-            ModelState.AddModelError(nameof(ApprovedMailboxId), "Choose an approved mailbox to send from.");
+            ModelState.AddModelError(string.Empty, "No default approved mailbox is configured for correspondence.");
         }
 
-        CaseDetails? details = null;
-        IReadOnlyList<StaffMailAttachment> attachments = [];
-        if (CaseId is { } presentCaseId)
+        var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
+        if (details is null)
         {
-            details = await getCase.ExecuteAsync(new(presentCaseId, actor), cancellationToken);
-            if (details is null)
+            ModelState.AddModelError(nameof(CaseReference), "Choose one Case by its Case / PO reference.");
+            if (!string.IsNullOrWhiteSpace(CaseReference))
             {
-                return NotFound();
+                CaseQuery = CaseReference;
+                CaseResults = await SearchCasesAsync(actor, CaseQuery, cancellationToken);
             }
+        }
+
+        IReadOnlyList<StaffMailAttachment> attachments = [];
+        if (details is not null)
+        {
             Case = details.Summary;
             AvailableAttachments = await attachmentResolver.ListCaseAsync(
-                actor, presentCaseId, cancellationToken);
-            if (details.Workflow.Version != ExpectedContextVersion)
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "The Case changed after this page was loaded. Review it and try again.");
-            }
+                actor, details.Summary.CaseId, cancellationToken);
             try
             {
                 attachments = await attachmentResolver.ResolveCaseAsync(
-                    actor, presentCaseId, SelectedAttachments, cancellationToken);
+                    actor, details.Summary.CaseId, SelectedAttachments, cancellationToken);
             }
             catch (StaffMailAttachmentSelectionException exception)
             {
@@ -175,7 +169,7 @@ public sealed class ComposeModel(
             }
         }
 
-        if (!ModelState.IsValid || mailbox is null || details is null)
+        if (!ModelState.IsValid || DefaultMailbox is null || details is null)
         {
             return Page();
         }
@@ -186,8 +180,8 @@ public sealed class ComposeModel(
             Operation = await staffMailSend.SendAsync(
                 new(
                     actor,
-                    mailbox.Id,
-                    mailbox.Generation,
+                    DefaultMailbox.Id,
+                    DefaultMailbox.Generation,
                     StaffMailPurpose.GeneralCorrespondence,
                     details.Summary.CaseId,
                     details.Workflow.Version,
@@ -214,7 +208,7 @@ public sealed class ComposeModel(
         {
             SendNotice = "Correspondence sent.";
         }
-        return RedirectToPage(new { caseId = details.Summary.CaseId, operationId = Operation.Id });
+        return RedirectToPage(new { caseReference = details.Summary.Reference, operationId = Operation.Id });
     }
 
     public async Task<IActionResult> OnPostReconcileAsync(
@@ -227,7 +221,11 @@ public sealed class ComposeModel(
             return Forbid();
         }
 
-        await LoadSendableMailboxesAsync(cancellationToken);
+        if (!StaffMailAvailable)
+        {
+            return NotFound();
+        }
+
         try
         {
             Operation = await staffMailSend.ReconcileAsync(
@@ -238,7 +236,10 @@ public sealed class ComposeModel(
             return Forbid();
         }
 
-        return Page();
+        var context = await getCase.ExecuteAsync(new(Operation.ContextId, actor), cancellationToken);
+        return context is null
+            ? NotFound()
+            : RedirectToPage(new { caseReference = context.Summary.Reference, operationId = Operation.Id });
     }
 
     private static StaffMailRecipient[] ParseRecipients(string? value) =>
@@ -247,16 +248,72 @@ public sealed class ComposeModel(
             .Select(address => new StaffMailRecipient(address, DisplayName: null))
             .ToArray();
 
-    private async Task LoadSendableMailboxesAsync(CancellationToken cancellationToken)
+    private async Task LoadDefaultMailboxAsync(CancellationToken cancellationToken)
     {
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
         // Stream A's ruling: SentEvidence is not send authorization. A
         // mailbox must be Approved, carry StaffSend, and have a positive
         // Generation before it is offered — no fallback.
-        SendableMailboxes = mailboxes
+        var defaults = mailboxes
             .Where(item => item.State == ApprovedMailboxState.Approved
                 && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
-                && item.Generation > 0)
+                && item.Generation > 0
+                && item.IsDefaultStaffSend)
             .ToArray();
+        DefaultMailbox = defaults.Length == 1 ? defaults[0] : null;
+    }
+
+    private async Task LoadCaseContextAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(CaseQuery))
+        {
+            CaseResults = await SearchCasesAsync(actor, CaseQuery, cancellationToken);
+        }
+
+        var details = await ResolveCaseAsync(actor, CaseReference, cancellationToken);
+        if (details is null)
+        {
+            return;
+        }
+
+        Case = details.Summary;
+        CaseReference = details.Summary.Reference;
+        AvailableAttachments = await attachmentResolver.ListCaseAsync(
+            actor, details.Summary.CaseId, cancellationToken);
+    }
+
+    private async Task<CaseDetails?> ResolveCaseAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken)
+    {
+        var value = reference?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var matches = await searchCases.ExecuteAsync(
+            new(actor, new(CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
+        var match = matches.Items.SingleOrDefault(item =>
+            string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? null
+            : await getCase.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(
+        ActionActor actor,
+        string? query,
+        CancellationToken cancellationToken)
+    {
+        var value = query?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        return (await searchCases.ExecuteAsync(
+            new(actor, new(CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
     }
 }

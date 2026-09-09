@@ -14,7 +14,7 @@
    with its Rotate view and Save as controls — opens them. *@
 <div class="stack">
     <partial name="Cases/Shared/_CaseDocuments" model="Model" />
-    @if (details.QueryEmails.Count > 0)
+    @if (details.QueryEmails.Count > 0 || Model.StaffMailAvailable)
     {
         <partial name="Cases/Shared/_CaseCorrespondence" model="Model" />
     }

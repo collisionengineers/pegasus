@@ -7,6 +7,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;
@@ -120,8 +121,11 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "mailOperationId")]
     public Guid? CorrespondenceOperationId { get; set; }
 
-    [BindProperty]
-    public long ExpectedCorrespondenceCaseVersion { get; set; }
+    [BindProperty(SupportsGet = true, Name = "correspondenceCaseQuery")]
+    public string? CorrespondenceCaseQuery { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "correspondenceCaseReference")]
+    public string? CorrespondenceCaseReference { get; set; }
 
     [BindProperty]
     public string? CorrespondenceTo { get; set; }
@@ -222,13 +226,17 @@ public sealed class MessageModel(
 
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
+    public IReadOnlyList<CaseSearchItem> CorrespondenceCaseResults { get; private set; } = [];
+
+    public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
+
     public bool CorrespondenceSendBlocked { get; private set; }
 
     public StaffMailOperation? CorrespondenceOperation { get; private set; }
 
-    public bool CanCorrespond => !CorrespondenceSendBlocked
-        && CorrespondenceMailbox is not null
-        && CorrespondenceCase is not null;
+    public bool CanCorrespond => StaffMailAvailable
+        && !CorrespondenceSendBlocked
+        && CorrespondenceMailbox is not null;
 
     public bool CanReply => CanCorrespond && ReplyRecipients(Detail).To.Length > 0;
 
@@ -277,8 +285,15 @@ public sealed class MessageModel(
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
-        await LoadRetainedOperationAsync(actor, cancellationToken);
-        if (!await LoadCorrespondenceContextAsync(actor, initializeForm: true, cancellationToken))
+        if (StaffMailAvailable)
+        {
+            await LoadRetainedOperationAsync(actor, cancellationToken);
+            if (!await LoadCorrespondenceContextAsync(actor, initializeForm: true, cancellationToken))
+            {
+                CorrespondenceMode = null;
+            }
+        }
+        else
         {
             CorrespondenceMode = null;
         }
@@ -302,6 +317,8 @@ public sealed class MessageModel(
     {
         if (!TryGetActor(out var actor))
             return Forbid();
+        if (!StaffMailAvailable)
+            return NotFound();
         try
         {
             await staffMailSend.ReconcileAsync(
@@ -794,6 +811,8 @@ public sealed class MessageModel(
             return Forbid();
         if (!TryParseListContext(out _))
             return NotFound();
+        if (!StaffMailAvailable)
+            return NotFound();
 
         CorrespondenceMode = ModeCode(mode);
         try
@@ -836,11 +855,11 @@ public sealed class MessageModel(
             return await ReloadAsync(actor, id, cancellationToken);
         }
 
-        if (CorrespondenceCase!.Workflow.Version != ExpectedCorrespondenceCaseVersion)
+        if (CorrespondenceCase is null)
         {
             ModelState.AddModelError(
-                string.Empty,
-                "The Case changed after this message was opened. Review it and try again.");
+                nameof(CorrespondenceCaseReference),
+                "Choose one Case by its Case / PO reference.");
         }
         if (string.IsNullOrWhiteSpace(CorrespondenceSubject))
             ModelState.AddModelError(nameof(CorrespondenceSubject), "A subject is required.");
@@ -868,15 +887,18 @@ public sealed class MessageModel(
             ModelState.AddModelError(nameof(CorrespondenceTo), "Enter valid recipient addresses.");
 
         IReadOnlyList<StaffMailAttachment> attachments = [];
-        try
+        if (CorrespondenceCase is not null)
         {
-            attachments = await attachmentResolver.ResolveCaseAsync(
-                actor, CorrespondenceCase.Summary.CaseId, SelectedAttachments,
-                cancellationToken);
-        }
-        catch (StaffMailAttachmentSelectionException exception)
-        {
-            ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
+            try
+            {
+                attachments = await attachmentResolver.ResolveCaseAsync(
+                    actor, CorrespondenceCase.Summary.CaseId, SelectedAttachments,
+                    cancellationToken);
+            }
+            catch (StaffMailAttachmentSelectionException exception)
+            {
+                ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
+            }
         }
 
         if (!ModelState.IsValid)
@@ -896,7 +918,7 @@ public sealed class MessageModel(
                     CorrespondenceMailbox!.Id,
                     CorrespondenceMailbox.Generation,
                     StaffMailPurpose.GeneralCorrespondence,
-                    CorrespondenceCase.Summary.CaseId,
+                    CorrespondenceCase!.Summary.CaseId,
                     CorrespondenceCase.Workflow.Version,
                     mode,
                     original,
@@ -965,18 +987,10 @@ public sealed class MessageModel(
     {
         if (string.IsNullOrWhiteSpace(Detail.ImmutableMessageId)
             || Detail.Summary.Id == Guid.Empty
-            || Detail.Summary.MailboxId == Guid.Empty
-            || Detail.Summary.CaseId is not { } caseId
-            || caseId == Guid.Empty)
+            || Detail.Summary.MailboxId == Guid.Empty)
         {
             return false;
         }
-
-        CorrespondenceCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
-        if (CorrespondenceCase is null || CorrespondenceCase.Workflow.Version <= 0)
-            return false;
-        AvailableAttachments = await attachmentResolver.ListCaseAsync(
-            actor, caseId, cancellationToken);
 
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
         CorrespondenceMailbox = mailboxes.SingleOrDefault(item =>
@@ -998,9 +1012,27 @@ public sealed class MessageModel(
         {
             return false;
         }
+
+        if (string.IsNullOrWhiteSpace(CorrespondenceCaseReference))
+        {
+            CorrespondenceCaseReference = Detail.Summary.CaseReference;
+        }
+        if (!string.IsNullOrWhiteSpace(CorrespondenceCaseQuery))
+        {
+            CorrespondenceCaseResults = await SearchCasesAsync(
+                actor, CorrespondenceCaseQuery, cancellationToken);
+        }
+        CorrespondenceCase = await ResolveCaseAsync(
+            actor, CorrespondenceCaseReference, cancellationToken);
+        if (CorrespondenceCase is not null)
+        {
+            CorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
+            AvailableAttachments = await attachmentResolver.ListCaseAsync(
+                actor, CorrespondenceCase.Summary.CaseId, cancellationToken);
+        }
+
         if (initializeForm && CorrespondenceMode is not null)
         {
-            ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
             CorrespondenceOperationKey = NewRetainedOperationKey(Detail.Summary.Id);
             CorrespondenceSubject = SubjectFor(mode, Detail.Summary.Subject);
             var recipients = mode switch
@@ -1013,6 +1045,41 @@ public sealed class MessageModel(
             CorrespondenceCc = string.Join("; ", recipients.Item2.Select(item => item.Address));
         }
         return true;
+    }
+
+    private async Task<CaseDetails?> ResolveCaseAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken)
+    {
+        var value = reference?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var matches = await searchCases.ExecuteAsync(
+            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
+        var match = matches.Items.SingleOrDefault(item =>
+            string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? null
+            : await getCase.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<CaseSearchItem>> SearchCasesAsync(
+        ActionActor actor,
+        string? query,
+        CancellationToken cancellationToken)
+    {
+        var value = query?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        return (await searchCases.ExecuteAsync(
+            new(actor, new CaseSearchFilters(Query: value), PageSize: 10), cancellationToken)).Items;
     }
 
     private static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;
@@ -18,8 +20,11 @@ public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
     GetRetainedMail getRetainedMail,
     GetRetainedMailFreshness getFreshness,
-    SearchDeletedMail searchDeletedMail) : StaffPageModel
+    SearchDeletedMail searchDeletedMail,
+    IStaffMailSend? staffMailSend = null) : StaffPageModel
 {
+    public bool StaffMailAvailable => staffMailSend is not null
+        && staffMailSend is not UnavailableStaffMailSend;
     internal const int PageSize = 25;
 
     /// <summary>
