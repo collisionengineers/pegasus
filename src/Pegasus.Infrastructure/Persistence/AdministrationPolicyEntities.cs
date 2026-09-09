@@ -13,6 +13,7 @@ internal sealed class ApprovedMailboxEntity
     public bool AllowInboundIntake { get; set; }
     public bool AllowSentEvidence { get; set; }
     public bool AllowStaffSend { get; set; }
+    public bool IsDefaultStaffSend { get; set; }
     public long MailboxGeneration { get; set; }
     public long? VerifiedEncodedMessageSizeLimit { get; set; }
     public DateTimeOffset? SendLimitVerifiedAtUtc { get; set; }

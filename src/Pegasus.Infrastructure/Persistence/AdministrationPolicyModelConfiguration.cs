@@ -29,6 +29,9 @@ internal static class AdministrationPolicyModelConfiguration
             {
                 table.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                 table.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
+                table.HasCheckConstraint(
+                    "CK_ApprovedMailboxes_DefaultStaffSendEligibility",
+                    "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Address).HasMaxLength(320).IsRequired();
@@ -37,7 +40,11 @@ internal static class AdministrationPolicyModelConfiguration
             entity.Property(item => item.InboxFolderIdentity).HasMaxLength(200);
             entity.Property(item => item.SentFolderIdentity).HasMaxLength(200);
             entity.Property(item => item.SendLimitVerifiedBy).HasMaxLength(200);
+            entity.Property(item => item.IsDefaultStaffSend).HasDefaultValue(false);
             entity.HasIndex(item => item.Address).IsUnique();
+            entity.HasIndex(item => item.IsDefaultStaffSend)
+                .IsUnique()
+                .HasFilter("[IsDefaultStaffSend] = 1");
             // A supplied Graph identity is exclusive to one approved mailbox.
             entity.HasIndex(item => item.MailboxIdentity)
                 .IsUnique()

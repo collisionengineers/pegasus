@@ -906,6 +906,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("AllowStaffSend")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsDefaultStaffSend")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("InboxFolderIdentity")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -944,6 +949,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("Address")
                         .IsUnique();
 
+                    b.HasIndex("IsDefaultStaffSend")
+                        .IsUnique()
+                        .HasFilter("[IsDefaultStaffSend] = 1");
+
                     b.HasIndex("MailboxIdentity")
                         .IsUnique()
                         .HasFilter("[MailboxIdentity] IS NOT NULL");
@@ -951,6 +960,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ApprovedMailboxes", null, t =>
                         {
                             t.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
+
+                            t.HasCheckConstraint("CK_ApprovedMailboxes_DefaultStaffSendEligibility", "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
 
                             t.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                         });
