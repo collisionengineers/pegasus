@@ -1,7 +1,11 @@
 using System.Net;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Operations;
+using Pegasus.Web.Pages;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
@@ -74,7 +78,7 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Fact]
-    public async Task OnlyPayloadTooLargeStatusUsesFileSizeWording()
+    public async Task OnlyPayloadTooLargeStatusStatesTheGenericUploadLimit()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -82,11 +86,35 @@ public sealed class ShellAndStatusPageWebTests
         var payloadTooLarge = await client.GetStringAsync("/status/413");
         var badRequest = await client.GetStringAsync("/status/400");
 
-        Assert.Contains("That file is too large", payloadTooLarge, StringComparison.Ordinal);
-        Assert.Contains("Files must be 10 MB or smaller.", payloadTooLarge, StringComparison.Ordinal);
+        Assert.Contains("The upload is too large", payloadTooLarge, StringComparison.Ordinal);
+        Assert.Contains("This upload exceeds the allowed size limit.", payloadTooLarge, StringComparison.Ordinal);
+        Assert.DoesNotContain("10 MB", payloadTooLarge, StringComparison.Ordinal);
         Assert.Contains("We could not complete that request", badRequest, StringComparison.Ordinal);
         Assert.DoesNotContain("file is too large", badRequest, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("10 MB", badRequest, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/Account/SignIn", "Too many sign-in attempts", false)]
+    [InlineData("/Uploads/expired-token", "Too many upload requests", true)]
+    [InlineData("/Cases/missing", "Too many requests", false)]
+    public void RateLimitedStatusNamesOnlyItsKnownOrigin(
+        string originalPath,
+        string expectedHeading,
+        bool externalSurface)
+    {
+        var context = new DefaultHttpContext();
+        context.Features.Set<IStatusCodeReExecuteFeature>(new ReexecutedStatus(originalPath));
+        var page = new StatusCodeModel
+        {
+            PageContext = new PageContext { HttpContext = context }
+        };
+
+        page.OnGet(StatusCodes.Status429TooManyRequests);
+
+        Assert.Equal(expectedHeading, page.Heading);
+        Assert.Equal(externalSurface, page.IsExternalSurface);
+        Assert.Equal("Wait a minute, then try again.", page.Explanation);
     }
 
     [Fact]
@@ -124,6 +152,15 @@ public sealed class ShellAndStatusPageWebTests
         var valueIndex = html.IndexOf(valueMarker, nameIndex, StringComparison.Ordinal) + valueMarker.Length;
         var end = html.IndexOf('"', valueIndex);
         return html[valueIndex..end];
+    }
+
+    private sealed class ReexecutedStatus(string originalPath) : IStatusCodeReExecuteFeature
+    {
+        public string OriginalPathBase => string.Empty;
+
+        public string OriginalPath => originalPath;
+
+        public string OriginalQueryString => string.Empty;
     }
 
     [Fact]

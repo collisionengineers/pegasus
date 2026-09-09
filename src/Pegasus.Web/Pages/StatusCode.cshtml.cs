@@ -42,6 +42,7 @@ public sealed class StatusCodeModel : PageModel
     {
         IsExternalSurface = IsPublicUploadSurface();
         ShowReturnToDashboard = !IsExternalSurface;
+        var isSignInSurface = IsStaffSignInSurface();
 
         switch (code)
         {
@@ -58,12 +59,22 @@ public sealed class StatusCodeModel : PageModel
                 break;
 
             case StatusCodes.Status413PayloadTooLarge:
-                Heading = "That file is too large";
-                Explanation = "Files must be 10 MB or smaller. Choose a smaller file and try again.";
+                Heading = "The upload is too large";
+                Explanation = "This upload exceeds the allowed size limit. Choose a smaller file and try again.";
+                break;
+
+            case StatusCodes.Status429TooManyRequests when isSignInSurface:
+                Heading = "Too many sign-in attempts";
+                Explanation = "Wait a minute, then try again.";
+                break;
+
+            case StatusCodes.Status429TooManyRequests when IsExternalSurface:
+                Heading = "Too many upload requests";
+                Explanation = "Wait a minute, then try again.";
                 break;
 
             case StatusCodes.Status429TooManyRequests:
-                Heading = "Too many sign-in attempts";
+                Heading = "Too many requests";
                 Explanation = "Wait a minute, then try again.";
                 break;
 
@@ -80,12 +91,14 @@ public sealed class StatusCodeModel : PageModel
 
     private bool IsPublicUploadSurface()
     {
-        var originalPath = HttpContext
-            .Features
-            .Get<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>()
-            ?.OriginalPath;
-
-        return originalPath is not null
-            && originalPath.StartsWith("/uploads", StringComparison.OrdinalIgnoreCase);
+        return OriginalPath()?.StartsWith("/uploads", StringComparison.OrdinalIgnoreCase) == true;
     }
+
+    private bool IsStaffSignInSurface() =>
+        string.Equals(OriginalPath(), "/Account/SignIn", StringComparison.OrdinalIgnoreCase);
+
+    private string? OriginalPath() => HttpContext
+        .Features
+        .Get<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>()
+        ?.OriginalPath;
 }
