@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 $storageAccount = 'pegcustody252ow37gij'
 $container = 'transient-intake'
+$subscriptionId = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 $sqlServer = 'pegasus-prod-sql-252ow37gij.database.windows.net'
 $database = 'pegasus'
 $resourceGroup = 'rg-pegasus-prod'
@@ -23,7 +24,8 @@ $preserve = @(
     'Principals', 'PrincipalSequenceLineages',
     'ProviderDomainEvidence', 'ProviderDomainPackages', 'ProviderReferences',
     'WorkflowConfigurations', 'SendToAiControl', 'SecurityEvents',
-    'CaseSequences', 'ImageIntakeSequences', 'UnidentifiedSequences'
+    'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
+    'ValuationPresets'
 )
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
@@ -68,10 +70,36 @@ Write-Output ("Preserve list found: {0}/{1}; missing: {2}" -f ($preserve | Where
 Write-Output ("Preserved effective (incl. ApprovedMailbox*): {0}" -f $preserveEffective.Count)
 Write-Output ("Tables to wipe: {0}; rows to delete: {1}" -f $wipe.Count, ($wipe | Measure-Object -Property Rows -Sum).Sum)
 $wipe | Where-Object { $_.Rows -gt 0 } | Format-Table TableName, Rows -AutoSize | Out-String | Write-Output
-$sequences = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
-$sequences | Format-Table | Out-String | Write-Output
 
 if ($missing.Count -gt 0) { $connection.Close(); throw 'Preserve list has missing tables; refusing.' }
+
+$sequences = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$sequences | Format-Table | Out-String | Write-Output
+
+$sequenceSnapshotSql = @"
+SELECT N'CaseSequences' AS SequenceTable,
+    CONVERT(nvarchar(36), SequenceLineageId) + N'/' + CONVERT(nvarchar(4), [Year]) AS SequenceKey,
+    CONVERT(nvarchar(20), LastAllocatedSequence) AS SequenceValue
+FROM dbo.CaseSequences
+UNION ALL
+SELECT N'ImageIntakeSequences', NormalizedVehicleRegistration,
+    CONVERT(nvarchar(20), LastAllocatedSequence)
+FROM dbo.ImageIntakeSequences
+UNION ALL
+SELECT N'TriageSequences', CONVERT(nvarchar(11), Id),
+    CONVERT(nvarchar(20), LastAllocatedSequence)
+FROM dbo.TriageSequences
+UNION ALL
+SELECT N'UnidentifiedSequences', CONVERT(nvarchar(11), Id),
+    CONVERT(nvarchar(20), LastAllocatedSequence)
+FROM dbo.UnidentifiedSequences
+"@
+$sequencesBefore = Invoke-Query $sequenceSnapshotSql
+$sequenceBeforeValues = @($sequencesBefore | ForEach-Object {
+    "{0}|{1}|{2}" -f $_.SequenceTable, $_.SequenceKey, $_.SequenceValue
+} | Sort-Object)
+$valuationPresetRowsBefore = (Invoke-Query 'SELECT COUNT(*) AS ValuationPresetRows FROM dbo.ValuationPresets').ValuationPresetRows
+Write-Output ("Valuation preset rows before: {0}" -f $valuationPresetRowsBefore)
 
 if (-not $Execute) {
     Write-Output 'Dry run only (-Execute not set). Not touched: authentication-ring, box-links, pegtrans252ow37gij, Outlook, Box.'
@@ -79,8 +107,10 @@ if (-not $Execute) {
     return
 }
 
-$workerState = az functionapp show --resource-group $resourceGroup --name $workerApp --query state --output tsv
-if ($LASTEXITCODE -ne 0 -or $workerState -ne 'Stopped') {
+$workerState = az resource show --subscription $subscriptionId --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' --api-version 2024-04-01 --query properties.state --output tsv
+$workerStateReadFailed = $LASTEXITCODE -ne 0
+$workerState = "$workerState".Trim()
+if ($workerStateReadFailed -or $workerState -ne 'Stopped') {
     $connection.Close()
     throw "Stop $workerApp for the approved maintenance window before executing a wipe."
 }
@@ -123,7 +153,21 @@ $stillHasRows = @($after | Where-Object { $_.TableName -notin $preserveEffective
 Write-Output ("Wiped tables still holding rows: {0}" -f $stillHasRows.Count)
 $stillHasRows | Format-Table TableName, Rows | Out-String | Write-Output
 Write-Output ("Preserved rows after: {0}" -f (($after | Where-Object { $_.TableName -in $preserveEffective }) | Measure-Object -Property Rows -Sum).Sum)
-Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows" | Format-Table | Out-String | Write-Output
+$sequencesAfter = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$sequencesAfter | Format-Table | Out-String | Write-Output
+$sequencesAfterSnapshot = Invoke-Query $sequenceSnapshotSql
+$sequenceAfterValues = @($sequencesAfterSnapshot | ForEach-Object {
+    "{0}|{1}|{2}" -f $_.SequenceTable, $_.SequenceKey, $_.SequenceValue
+} | Sort-Object)
+$sequenceChanges = @(Compare-Object -ReferenceObject $sequenceBeforeValues -DifferenceObject $sequenceAfterValues)
+$valuationPresetRowsAfter = (Invoke-Query 'SELECT COUNT(*) AS ValuationPresetRows FROM dbo.ValuationPresets').ValuationPresetRows
+Write-Output ("Reference sequence changes: {0}" -f $sequenceChanges.Count)
+$sequenceChanges | Format-Table -AutoSize | Out-String | Write-Output
+Write-Output ("Valuation preset rows before/after: {0}/{1}" -f $valuationPresetRowsBefore, $valuationPresetRowsAfter)
 $connection.Close()
+
+if ($sequenceChanges.Count -gt 0 -or $valuationPresetRowsBefore -ne $valuationPresetRowsAfter) {
+    throw 'A protected sequence or valuation preset changed during the wipe; do not resume the Worker.'
+}
 
 Write-Output 'Not touched: authentication-ring, box-links, pegtrans252ow37gij, Outlook, Box.'
