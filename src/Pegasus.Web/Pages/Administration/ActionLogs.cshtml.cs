@@ -1,15 +1,23 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Pegasus.Web.Mcp;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class ActionLogsModel(
     ListActionLogs listActionLogs,
-    TimeProvider timeProvider) : AdministrationPageModel
+    TimeProvider timeProvider,
+    IGetCaseHeader getCaseHeader,
+    IStaffAccountQueries staffAccounts) : AdministrationPageModel
 {
+    private readonly Dictionary<Guid, string> _caseReferences = [];
+    private IReadOnlyDictionary<Guid, string> _staffNames = new Dictionary<Guid, string>();
     [BindProperty(SupportsGet = true)] public DateTimeOffset? From { get; set; }
     [BindProperty(SupportsGet = true)] public DateTimeOffset? To { get; set; }
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
@@ -69,6 +77,8 @@ public sealed class ActionLogsModel(
                 new(from, to, Trim(Search), Trim(Area), Trim(Actor), Trim(ResultFilter),
                     Trim(Operation), Trim(Record), Trim(CorrelationId), OldestFirst,
                     CurrentPage), cancellationToken);
+            await ResolveStaffNamesAsync(cancellationToken);
+            await ResolveCaseReferencesAsync(actor, cancellationToken);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -77,6 +87,52 @@ public sealed class ActionLogsModel(
         return Page();
     }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public string ActorLabel(ActionLogRow row)
+    {
+        if (!Enum.TryParse<ActorKind>(row.ActorKind, ignoreCase: false, out var kind))
+        {
+            return Guid.TryParse(row.Actor, out _) ? ActorDisplayNames.UnknownStaff : row.Actor;
+        }
+
+        return kind == ActorKind.Automation
+            ? OperatorLabels.AutomationActorLabel(
+                row.Actor,
+                HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId)
+            : ActorDisplayNames.Resolve(kind, row.Actor, _staffNames);
+    }
+
+    public string? ReferenceLabel(ActionLogRow row) =>
+        string.Equals(row.Area, "Case", StringComparison.Ordinal)
+        && Guid.TryParse(row.Reference, out var caseId)
+            ? _caseReferences.GetValueOrDefault(caseId)
+            : Guid.TryParse(row.Reference, out _) ? null : row.Reference;
+
+    private async Task ResolveStaffNamesAsync(CancellationToken cancellationToken) =>
+        _staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccounts,
+            Result.Rows
+                .Where(row => string.Equals(row.ActorKind, nameof(ActorKind.Staff), StringComparison.Ordinal))
+                .Select(row => Guid.TryParse(row.Actor, out var staffId) ? staffId : Guid.Empty),
+            cancellationToken);
+
+    private async Task ResolveCaseReferencesAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        foreach (var caseId in Result.Rows
+                     .Where(row => string.Equals(row.Area, "Case", StringComparison.Ordinal))
+                     .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
+                     .Where(id => id != Guid.Empty)
+                     .Distinct())
+        {
+            var header = await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken);
+            if (header is not null)
+            {
+                _caseReferences[caseId] = header.Summary.Reference;
+            }
+        }
+    }
 
     private static string Query(DateTimeOffset? value) =>
         value is { } present ? Uri.EscapeDataString(present.ToString("O")) : string.Empty;

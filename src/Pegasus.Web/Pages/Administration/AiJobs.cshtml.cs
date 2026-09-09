@@ -16,10 +16,12 @@ public sealed class AiJobsModel(
     public int CurrentPage { get; private set; } = 1;
     [TempData] public string? StatusMessage { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(int page, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(
+        [FromQuery(Name = "pageNumber")] int pageNumber,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        CurrentPage = page == 0 ? 1 : page;
+        CurrentPage = pageNumber == 0 ? 1 : pageNumber;
         var transportComposed = services.GetService<IAiHandOffTransport>() is not null;
         try { Result = await getJobs.ExecuteAsync(actor, CurrentPage, transportComposed, cancellationToken); }
         catch (ArgumentOutOfRangeException) { return NotFound(); }
@@ -31,15 +33,15 @@ public sealed class AiJobsModel(
         long expectedVersion,
         string reason,
         string operationKey,
-        int page,
+        int pageNumber,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        var returnPage = Math.Max(page, 1);
+        var returnPage = Math.Max(pageNumber, 1);
         if (jobId == Guid.Empty || !IsOperationKeyValid(operationKey) || string.IsNullOrWhiteSpace(reason))
         {
             StatusMessage = "The AI job could not be stopped.";
-            return RedirectToPage(new { page = returnPage });
+            return RedirectToPage(new { pageNumber = returnPage });
         }
         try
         {
@@ -50,6 +52,6 @@ public sealed class AiJobsModel(
         {
             StatusMessage = "The AI job changed before it could be stopped.";
         }
-        return RedirectToPage(new { page = returnPage });
+        return RedirectToPage(new { pageNumber = returnPage });
     }
 }

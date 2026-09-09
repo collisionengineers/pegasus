@@ -66,6 +66,7 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
                 Operation = item.EventKind,
                 Reference = item.AggregateId,
                 Actor = item.ActorSubjectId,
+                ActorKind = item.ActorKind,
                 item.OccurredAtUtc,
                 Result = item.Outcome,
                 item.CorrelationId
@@ -78,6 +79,7 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
                 Operation = item.Type,
                 Reference = item.SubjectId,
                 Actor = item.SubjectId,
+                ActorKind = (string?)null,
                 item.OccurredAtUtc,
                 Result = item.Outcome,
                 item.CorrelationId
@@ -89,7 +91,7 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
             .Skip(offset).Take(filter.PageSize + 1)
             .Select(item => new ActionLogRow(item.Id, item.Area, item.Operation,
                 item.Reference, item.Actor, item.OccurredAtUtc, item.Result,
-                item.CorrelationId))
+                item.CorrelationId, item.ActorKind))
             .ToArrayAsync(cancellationToken);
         var hasMore = rows.Length > filter.PageSize;
         return new(hasMore ? rows[..filter.PageSize] : rows, hasMore);
