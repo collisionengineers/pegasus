@@ -58,7 +58,9 @@ public sealed class DetailsModel(
         {
             if (SourceReceipt is not { } receipt)
             {
-                return "Not available";
+                return SourceSubmissionGroup is { } group
+                    ? $"{group.Members.Count} retained files"
+                    : "Not available";
             }
 
             if (MediaKind == UnidentifiedMediaKind.Email)
@@ -96,7 +98,11 @@ public sealed class DetailsModel(
 
     public bool CanRegisterImage => SourceReceipt is { } receipt
         && receipt.Decision == IntakeDecision.NeedsSorting
-        && receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+        && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
+
+    public bool CanReviewGroupRegistration =>
+        SourceSubmissionGroup?.Channel == IntakeSourceChannel.ManualUpload
+        && SourceImageIntake is null;
 
     [BindProperty]
     public string OperationKey { get; set; } = string.Empty;

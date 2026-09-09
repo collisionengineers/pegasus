@@ -7,7 +7,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// The read boundary for a manual upload's possible Case destinations. It is
+/// The read boundary for a retained source's possible staff-selected Case destinations. It is
 /// deliberately separate from the general Case search: a Case that can be
 /// found is not necessarily a destination that may receive this source.
 /// </summary>
@@ -48,14 +48,8 @@ public static class IntakeAssociationDestinationPolicy
 {
     public static bool CanOffer(IntakeReceipt receipt) =>
         receipt.CurrentCaseId is null
-        && ((receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
-                && (receipt.Decision == IntakeDecision.OcrRequired
-                    || receipt.Decision == IntakeDecision.NeedsSorting
-                    || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)))
-            // The existing awaiting-image queue serves registered material
-            // from mailbox and Provider sources too.  It remains a reasoned
-            // staff association, while automatic suppression stays confined
-            // to the ManualUpload source paths.
+        && (receipt.Decision == IntakeDecision.OcrRequired
+            || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)
             || receipt.Decision == IntakeDecision.ImageIntakeRegistered);
 
     public static bool IsViable(

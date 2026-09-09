@@ -777,20 +777,19 @@ internal sealed class EfIntakeMutationStore(
                 editLeaseToken
                     ?? throw new InvalidOperationException("A case edit lease token is required."),
                 occurredAtUtc);
-            if (eventType == "intake_case_linked"
-                && EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel) == IntakeSourceChannel.ManualUpload)
+            if (eventType == "intake_case_linked")
             {
-                var manualReceipt = EfIntakeReceiptStore.Map(receipt, false, acceptedCaseId);
+                var sourceReceipt = EfIntakeReceiptStore.Map(receipt, false, acceptedCaseId);
                 if (!Enum.TryParse<CaseLifecycleState>(caseWorkflow.State, false, out var state)
-                    || !IntakeAssociationDestinationPolicy.CanOffer(manualReceipt)
+                    || !IntakeAssociationDestinationPolicy.CanOffer(sourceReceipt)
                     || !IntakeAssociationDestinationPolicy.IsViable(
-                        manualReceipt,
+                        sourceReceipt,
                         state,
                         caseWorkflow.ArchivedAtUtc is not null,
                         caseWorkflow.ReportSentEvidenceId is not null))
                 {
                     throw new IntakeAssociationConflictException(
-                        "The selected case is not currently available for this manual upload.");
+                        "The selected case is not currently available for this retained source.");
                 }
             }
             @case = caseWorkflow.Case;
