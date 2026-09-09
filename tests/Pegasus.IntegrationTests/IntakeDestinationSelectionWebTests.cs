@@ -30,6 +30,10 @@ public sealed class IntakeDestinationSelectionWebTests
         var receipt = await StoreUnidentifiedReceiptAsync(factory, channel);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var selectedCase = await services.GetRequiredService<IGetCase>()
+            .ExecuteAsync(new(caseId, actor), CancellationToken.None);
+        Assert.NotNull(selectedCase);
         var unidentified = await RegisterUnidentifiedAsync(services, receipt.Id);
 
         using var searched = await client.GetAsync(
@@ -61,10 +65,11 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.True(leasedHtml.Contains("Case edit mode is active until", StringComparison.Ordinal),
             "The claim must succeed before linking. Visible notices: " + string.Join(" | ", notices));
         var linkForm = HiddenFormValues(leasedHtml, "LinkCase");
-        Assert.Contains("DESTINATION-CASE-01", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("AB12CDE", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Fixture Claimant", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Review", leasedHtml, StringComparison.Ordinal);
+        var leasedCard = SelectedCaseCard(leasedHtml);
+        Assert.Contains(selectedCase!.Summary.Reference, leasedCard, StringComparison.Ordinal);
+        Assert.Contains(selectedCase.Summary.Registration!, leasedCard, StringComparison.Ordinal);
+        Assert.Contains(selectedCase.Summary.Claimant!, leasedCard, StringComparison.Ordinal);
+        Assert.Contains("Review", leasedCard, StringComparison.Ordinal);
         Assert.DoesNotContain("Enter case edit mode", leasedHtml, StringComparison.Ordinal);
 
         var staleLinkForm = new Dictionary<string, string>(linkForm)
@@ -77,10 +82,11 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.Equal(HttpStatusCode.Redirect, staleLink.StatusCode);
         var retryHtml = await client.GetStringAsync(staleLink.Headers.Location);
         Assert.Contains("The intake command could not be applied", retryHtml, StringComparison.Ordinal);
-        Assert.Contains("DESTINATION-CASE-01", retryHtml, StringComparison.Ordinal);
-        Assert.Contains("AB12CDE", retryHtml, StringComparison.Ordinal);
-        Assert.Contains("Fixture Claimant", retryHtml, StringComparison.Ordinal);
-        Assert.Contains("Review", retryHtml, StringComparison.Ordinal);
+        var retryCard = SelectedCaseCard(retryHtml);
+        Assert.Contains(selectedCase.Summary.Reference, retryCard, StringComparison.Ordinal);
+        Assert.Contains(selectedCase.Summary.Registration!, retryCard, StringComparison.Ordinal);
+        Assert.Contains(selectedCase.Summary.Claimant!, retryCard, StringComparison.Ordinal);
+        Assert.Contains("Review", retryCard, StringComparison.Ordinal);
         Assert.DoesNotContain("Enter case edit mode", retryHtml, StringComparison.Ordinal);
         linkForm = HiddenFormValues(retryHtml, "LinkCase");
         linkForm["reason"] = "Staff identified the Case from the retained source.";
@@ -362,5 +368,15 @@ public sealed class IntakeDestinationSelectionWebTests
             if (name.Success) values[WebUtility.HtmlDecode(name.Groups[1].Value)] = WebUtility.HtmlDecode(value.Groups[1].Value);
         }
         return values;
+    }
+
+    private static string SelectedCaseCard(string html)
+    {
+        var card = Regex.Match(html,
+            "<section class=\"decision-card section-gap\"[^>]*>(.*?)</section>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+        Assert.True(card.Success, "The selected-case card must be rendered.");
+        return card.Groups[1].Value;
     }
 }
