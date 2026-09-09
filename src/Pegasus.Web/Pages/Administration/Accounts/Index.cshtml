@@ -145,7 +145,14 @@
     <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="@settingsAutoOpen" hidden="@(!reopenSettings)">
         <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
             <div class="dialog-head">
-                <h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus="@(!reopenSettings ? "true" : null)">@account.UserName</h2>
+                @if (reopenSettings)
+                {
+                    <h2 id="@settingsId-title" tabindex="-1">@account.UserName</h2>
+                }
+                else
+                {
+                    <h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2>
+                }
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@OperatorLabels.StaffAccounts.CloseDialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
             <div class="dialog-body stack">
