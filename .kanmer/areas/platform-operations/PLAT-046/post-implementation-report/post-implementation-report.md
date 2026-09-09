@@ -33,3 +33,46 @@ Retained results: the predecessor commit `bbae334ca33c1f89617dfe458d8d7ac45dff24
 No Azure, SQL, package, browser, or live migration operation was run or authorized. The short outage, exact targets, and post-release usage-window approval remain release-time operator responsibilities. The destructive route is forward-only once SQL starts.
 
 Independent review should assess this exact head and the scoped verification record. After merge, `kanmer-verify` should re-run the merged-result scoped script/documentation checks and record the proof; no deployment is a condition of ordinary Done.
+
+## Post-merge correction — PR713
+
+Original PR711 merged at c3219cd28c69530441e2bba7357063372628ff37, then
+missed affected architecture test reproduction failed: the old literal regex
+scanned productionSmoke and found [] after the canonical helper refactor.
+The original FAIL proof dc4ca8507b568ff3 is retained unchanged; prior PASS
+checks do not erase this omission. No production function absence was observed.
+
+Corrective PR https://github.com/collisionengineers/pegasus/pull/713 targets dev
+at frozen head a2bb0e120575d46828911d15031e7a36dc1ff4de. Normal merge of
+origin/dev preserves the original merged history. Its only changed file is
+tests/Pegasus.ArchitectureTests/WorkerActivationReleaseContractTests.cs:
+inspect canonical PegasusPlatform.ps1 literals, retain exact ExpectedFunctions,
+and assert both real consumers dot-source/use the shared helper. All existing
+unsafe-disable assertions and negative fixtures remain unchanged. This meets
+the governing runbook activation contract without changing production policy,
+scripts, dependencies, CI classifier, fixtures or harness infrastructure.
+
+### Exact corrective-head verification
+
+Sole host verifier /root/verify_711_712 recorded all commands exit0 in execution
+scratch (a0d211d4c7d24be7), in the clean recorded branch/worktree:
+
+- ArchitectureTests project locked restore.
+- Release ArchitectureTests project build --no-restore -nodeReuse:false:
+  0 warnings/errors, 42.83 seconds.
+- Full ArchitectureTests project --configuration Release --no-build:
+  116 passed, 0 failed/skipped, 32 seconds. All 24 WorkerActivationReleaseContractTests
+  passed, including the original failing check and existing rejection fixtures.
+  TRX: artifacts/verification-a2bb/plat046-a2bb-architecture.trx.
+- Test-PegasusPlatform.ps1 and Test-AzureDeploymentPlan.ps1 -Mode Local.
+- git diff --check c3219cd28c69530441e2bba7357063372628ff37 HEAD.
+
+This is premerge corrective-head evidence, not a new postmerge proof. Final host
+census was zero and both host ledgers IDLE. Remote CI run34298650052 remains a
+separate pending obligation; no all-CI-PASS claim or merge is made here.
+No live cloud/SQL, package, browser or deployment operation occurred.
+
+Independent reviewer owns current PR713 and its exact frozen head. After merge,
+kanmer-verify must validate the actual corrective merge SHA with required
+architecture and script evidence and retain all earlier failed attempts. Original
+PR711 review and proof history remain available; ordinary Done needs no deployment.

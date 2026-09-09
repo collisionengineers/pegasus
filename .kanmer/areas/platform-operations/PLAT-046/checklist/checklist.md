@@ -8,6 +8,6 @@
 
 ## Post-merge correction — 9 September 2026
 
-- [ ] Correct the architecture census assertion and require both canonical consumers, preserving all safety assertions.
-- [ ] Freeze one-file commit and obtain explicit sole-host exact-head architecture evidence; retain original FAIL.
+- [x] Correct the architecture census assertion and require both canonical consumers, preserving all safety assertions.
+- [x] Freeze one-file commit and obtain explicit sole-host exact-head architecture evidence; retain original FAIL.
 - [ ] Record corrective report/traceability, open new draft PR to dev after root authorization, hand off in Review ready without self-merge.
