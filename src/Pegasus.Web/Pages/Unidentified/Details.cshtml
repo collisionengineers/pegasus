@@ -61,10 +61,22 @@
                         <dt>Source</dt>
                         <dd>@(Model.SourceReceipt is { } receipt
                             ? OperatorLabels.SourceChannel(receipt.SourceIdentity.Channel)
-                            : "Not available")</dd>
+                            : Model.SourceSubmissionGroup is { } sourceGroup
+                                ? OperatorLabels.SourceChannel(sourceGroup.Channel)
+                                : "Not available")</dd>
                     </dl>
                     <dl class="definition"><dt>Canonical reason</dt><dd>@Model.ReasonLabel</dd></dl>
                 </div>
+                @if (Model.SourceSubmissionGroup is { } retainedGroup)
+                {
+                    <ul aria-label="Retained files">
+                        @foreach (var member in retainedGroup.Members.OrderBy(member => member.Ordinal))
+                        {
+                            <li>@member.SourceFileName</li>
+                        }
+                    </ul>
+                    <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@retainedGroup.Id">View retained submission</a>
+                }
                 @if (Model.SourceReceipt is { } imageReceipt
                     && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                 {
@@ -135,8 +147,8 @@
                     <div class="field"><label class="req" for="unidentified-action">Resolution</label>
                         <select id="unidentified-action" name="action" required data-dialog-initial-focus>
                             <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction" selected="@((Model.ResolutionAction is null or Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction) ? "selected" : null)">Add to an existing Case</option>
-                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction ? "selected" : null)">Create a Case from an accepted instruction</option>
-                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction ? "selected" : null)">Register Image-initiated Case</option>
+                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction" disabled="@(!Model.CanCreateCase)" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction ? "selected" : null)">Create a Case from an accepted instruction</option>
+                            <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction" disabled="@(!Model.CanRegisterImage && !Model.CanReviewGroupRegistration)" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction ? "selected" : null)">Register Image-initiated Case</option>
                             <option value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction" selected="@(Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction ? "selected" : null)">Close with reason</option>
                         </select>
                     </div>
@@ -162,7 +174,16 @@
                 }
                 else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction)
                 {
-                    @if (Model.CanRegisterImage && Model.SourceReceipt is { } imageReceipt) { <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@imageReceipt.Id">Open image registration</a> } else { <p>This retained source cannot register an Image-initiated Case.</p> }
+                    @if (Model.CanRegisterImage && Model.SourceReceipt is { } imageReceipt)
+                    {
+                        <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@imageReceipt.Id">Open image registration</a>
+                    }
+                    else if (Model.CanReviewGroupRegistration && Model.SourceSubmissionGroup is { } registrationGroup)
+                    {
+                        <p>Review the retained files and their processing results before registering this submission.</p>
+                        <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@registrationGroup.Id">Review image registration</a>
+                    }
+                    else { <p>This retained source cannot register an Image-initiated Case.</p> }
                 }
                 else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction)
                 {

@@ -328,6 +328,17 @@ public sealed partial class DetailsModel(
 
         try
         {
+            var source = await getIntake.ExecuteAsync(new(id, actor), cancellationToken);
+            if (source is null)
+            {
+                return NotFound();
+            }
+            if (source.CurrentCaseId != caseId
+                && await associationDestinations.GetAsync(source, caseId, actor, cancellationToken) is null)
+            {
+                TempData["IntakeDetailsError"] = "The selected case is no longer available for this source.";
+                return RedirectToPage("/Intake/Details", new { id, targetCaseId = caseId, caseQuery = AssociationCaseQuery });
+            }
             var lease = await acquireCaseEditLease.ExecuteAsync(
                 new(caseId, expectedCaseVersion, actor, operationKey),
                 cancellationToken);
@@ -345,7 +356,7 @@ public sealed partial class DetailsModel(
                 "Case edit mode could not be entered. Check the case version and try again.";
         }
 
-        return RedirectToPage("/Intake/Details", new { id });
+        return RedirectToPage("/Intake/Details", new { id, targetCaseId = caseId, caseQuery = AssociationCaseQuery });
     }
 
     public async Task<IActionResult> OnPostLinkCaseAsync(

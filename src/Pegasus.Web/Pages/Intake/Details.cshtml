@@ -69,6 +69,7 @@
 {
     <div class="validation-summary mb-2" role="alert">@intakeDetailsError</div>
 }
+<partial name="Shared/_ErrorSummary" />
 
 @if (Model.Receipt.AllocationState is { } allocation
     && allocation.Status is IntakeAllocationProjectionStatus.FailedRecoverable
@@ -420,6 +421,7 @@
                             <dl class="definition"><dt>Status</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
                         </div>
                         <form method="post" asp-page-handler="ClaimCaseLease" asp-route-id="@Model.Receipt.Id" class="stack">
+                            <input type="hidden" name="caseQuery" value="@Model.AssociationCaseQuery" />
                             <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
                             <input type="hidden" name="expectedCaseVersion" value="@Model.AssociationTargetCaseVersion" />
                             <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />

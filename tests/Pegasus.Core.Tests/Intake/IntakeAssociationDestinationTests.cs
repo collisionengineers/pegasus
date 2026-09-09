@@ -37,10 +37,16 @@ public sealed class IntakeAssociationDestinationTests
     [InlineData(IntakeSourceChannel.Mailbox)]
     [InlineData(IntakeSourceChannel.Automation)]
     [InlineData(IntakeSourceChannel.ProviderApi)]
-    public void OrdinaryNonManualReceiptsCannotOfferAStaffDestination(IntakeSourceChannel channel)
+    public void SafeNonManualReceiptsCanOfferAReasonedStaffDestination(IntakeSourceChannel channel)
     {
-        Assert.False(IntakeAssociationDestinationPolicy.CanOffer(
-            Receipt(IntakeDecision.NeedsSorting, channel: channel)));
+        foreach (var decision in new[] { IntakeDecision.NeedsSorting, IntakeDecision.OcrRequired, IntakeDecision.CaseCreated })
+        {
+            Assert.True(IntakeAssociationDestinationPolicy.CanOffer(Receipt(decision, channel: channel)));
+        }
+        foreach (var decision in new[] { IntakeDecision.BlockedIntake, IntakeDecision.Unsupported, IntakeDecision.TechnicalFailure })
+        {
+            Assert.False(IntakeAssociationDestinationPolicy.CanOffer(Receipt(decision, channel: channel)));
+        }
     }
 
     [Theory]
