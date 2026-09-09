@@ -71,7 +71,10 @@ public sealed record ConfirmedVehicleField<T>(
     where T : notnull;
 
 public sealed record ConfirmedVehicleEvidence(
-    ConfirmedVehicleField<string> Registration,
+    // Vehicle fields are confirmed independently. A workspace save that leaves
+    // an accepted registration Fact unchanged must not manufacture a second,
+    // confirmed registration merely because staff corrected the make.
+    ConfirmedVehicleField<string>? Registration,
     ConfirmedVehicleField<string>? Make,
     ConfirmedVehicleField<string>? Model,
     ConfirmedVehicleField<long>? Mileage,

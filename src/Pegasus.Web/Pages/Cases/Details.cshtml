@@ -141,9 +141,9 @@
         </div>
     </div>
 
-    @* Presence: who holds the case's one edit authority. No time is printed —
-       an open editor keeps their own authority alive, so any moment named
-       here would be false while it was read (FRD-01, CASE-024). *@
+    @* Presence: who is editing the case. No time is printed — an open editor
+       keeps their own edit active, so any moment named here would be stale as
+       soon as it was read. *@
     @if (Model.ViewerHoldsEditAuthority)
     {
         <div class="presence-strip" role="status">
@@ -155,7 +155,7 @@
     {
         <div class="presence-strip" role="status">
             <span class="presence-dot" aria-hidden="true"></span>
-            <span data-edit-authority>@EditModeDisplay.HeldBy(holder, false) Editing cannot be taken over.</span>
+            <span data-edit-authority>@EditModeDisplay.HeldBy(holder, false)</span>
         </div>
     }
 
@@ -293,14 +293,14 @@
 
     @if (editing)
     {
-        @* Discard and Save are the two ways out of an edit: Discard releases
-           the edit authority (asking first when values are unsaved), Save
+        @* Discard and Save are the two ways out of an edit: Discard ends the
+           edit (asking first when values are unsaved), Save
            submits the edit form on the Overview. The unsaved marker needs a
            script behaviour site.js does not carry yet; the finish-edit
            confirmation already guards the same loss. *@
         <div class="edit-bar">
             <strong>Editing @workflow.Identity.Reference</strong>
-            <span class="muted">Version @workflow.Version.ToString(CultureInfo.InvariantCulture)</span>
+            <span class="muted">Save or discard your changes when you finish.</span>
             <button type="submit" form="case-finish-editing-form" class="btn">
                 <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                 <span>Discard</span>
@@ -320,9 +320,9 @@
             @* The eleven sections in their fixed order (D30), each under the
                stable host `section-<key>` the jump-nav addresses. A body a
                later lane owns is a heading here; a body below the fold is
-               fetched as the reader approaches it, unless this viewer holds
-               the edit lease, in which case the whole record is rendered so
-               nothing being typed can be replaced. *@
+               fetched as the reader approaches it. Files is safe to defer
+               during editing because it contributes no fields to the record's
+               one Save form. *@
             @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
             {
                 if (Model.SectionIsDeferred(entry.Key))
@@ -396,12 +396,11 @@
                 <div class="panel-head"><h2>Current position</h2></div>
                 <div class="panel-body">
                     <div class="decision-row"><span>State</span><strong><partial name="Shared/_StatusChip" model="@stage" /></strong></div>
-                    <div class="decision-row"><span>Version</span><strong>@workflow.Version.ToString(CultureInfo.InvariantCulture)</strong></div>
                     <div class="decision-row"><span>Due</span><strong>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? OperatorLabels.CaseWorkspace.AbsentValue)</strong></div>
                     <div class="decision-row"><span>Engineer</span><strong>@(Model.EngineerDisplayName ?? "Unassigned")</strong></div>
                     <div class="decision-row"><span>@OperatorLabels.CaseWorkspace.SignOffEngineer</span><strong>@Model.SignOffEngineerDisplayName</strong></div>
                     <div class="decision-row">
-                        <span>Edit authority</span>
+                        <span>Editing</span>
                         <strong>
                             @if (Model.ViewerHoldsEditAuthority)
                             {

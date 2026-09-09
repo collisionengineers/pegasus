@@ -304,11 +304,11 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
     builder.Configuration,
     developmentOfflineProfile);
 
-// RailCountsPageFilter supplies ViewData["RailCounts"] on every
-// authenticated request (PLAT-003) — the rail (PLAT-001) shipped with the
-// badge mechanism but nothing populated it until now. RazorPagesOptions has
-// no Filters collection of its own, so the global filter is added through
-// the underlying MvcOptions instead.
+// RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
+// page results (PLAT-003) — the rail (PLAT-001) shipped with the badge
+// mechanism but nothing populated it until now. RazorPagesOptions has no
+// Filters collection of its own, so the global filter is added through the
+// underlying MvcOptions instead.
 builder.Services.AddRazorPages()
     .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>())
     // The anonymous upload link is the only Razor page reachable without a

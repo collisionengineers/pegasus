@@ -8,18 +8,25 @@
 
 <partial name="Shared/_PageHeader" />
 
+<a class="back-link" asp-page="/Administration/Accounts/Index">Back to staff accounts</a>
+
 <section class="panel" aria-labelledby="account-action-title">
     <div class="panel-head">
         <h2 id="account-action-title">@Model.Heading</h2>
     </div>
     <div class="panel-body">
         <dl class="detail-list"><div><dt>Account</dt><dd>@Model.Account!.UserName</dd></div></dl>
-        @if (Model.Operation is "Disable" or "Delete")
-        {
-            <div class="notice notice--warning">
-                <span>@(Model.Operation == "Disable" ? OperatorLabels.StaffAccounts.DisableConsequence : "This permanently removes the account.")</span>
-            </div>
-        }
+        <div class="notice notice--warning">
+            <span>@(Model.Operation switch
+                {
+                    "Disable" => OperatorLabels.StaffAccounts.DisableConsequence,
+                    "Delete" => "This permanently removes the account's active access and credentials. It does not delete any Case.",
+                    "ForceLogout" => "Existing browser sessions will be revoked. Open Case edit holds are not cleared.",
+                    "ResetPassword" => "A temporary password will be generated and shown once. The account must change it at next sign-in.",
+                    "Enable" => "The account will be able to sign in again.",
+                    _ => "The Case edit hold will be cleared. The holder must reload before saving further changes."
+                })</span>
+        </div>
         <form method="post" asp-page="/Administration/Accounts/Index"
               asp-page-handler="@Model.HandlerName" class="stack">
             <input type="hidden" name="staffId" value="@Model.StaffId" />

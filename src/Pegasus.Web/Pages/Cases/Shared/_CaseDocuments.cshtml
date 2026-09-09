@@ -5,7 +5,7 @@
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
-    var leaseToken = Model.LeaseToken;
+    var leaseToken = Model.RenderLeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
     var files = CaseFiles.Live(details.Documents);
     static bool MayConfirmThirdParty(DocumentOccurrence occurrence, DocumentVersion version) =>

@@ -3,7 +3,9 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
@@ -47,6 +49,40 @@ public sealed class RailCountsWebTests
         Assert.False(
             Regex.IsMatch(html, "Operations</span>\\s*<span class=\"nav-count\""),
             "Operations must render no count until a real figure exists for it.");
+    }
+
+    [Fact]
+    public async Task AuthenticatedRedirectDoesNotExecuteShellQueries()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDashboardQueries>();
+                services.AddSingleton<IDashboardQueries>(new UnexpectedDashboardQueries());
+            }));
+        using var client = factory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
+
+        // Sign-out's GET handler redirects immediately. It is authenticated,
+        // but it renders neither the normal page nor its shell.
+        using var response = await client.GetAsync("/Account/SignOut");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains(
+            "/Index",
+            response.Headers.Location?.OriginalString ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    private sealed class UnexpectedDashboardQueries : IDashboardQueries
+    {
+        public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
     }
 
     /// <summary>

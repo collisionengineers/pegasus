@@ -171,14 +171,23 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
-    /// <c>?section=</c> works over plain HTTP; while the viewer holds the edit
-    /// lease nothing is deferred at all, so unsaved input can never be
-    /// replaced by a mounting body.
+    /// <c>?section=</c> works over plain HTTP. Files is the one heavy section
+    /// that has no fields in the record's single Save form, so it can remain
+    /// deferred while editing without replacing entered values elsewhere.
     /// </summary>
     public bool SectionIsDeferred(string key) =>
-        LeaseToken is null
-        && !string.Equals(key, Section, StringComparison.Ordinal)
-        && LazySectionViews.ContainsKey(key);
+        !string.Equals(key, Section, StringComparison.Ordinal)
+        && LazySectionViews.ContainsKey(key)
+        && (LeaseToken is null || string.Equals(key, "files", StringComparison.Ordinal));
+
+    /// <summary>
+    /// A lease token supplied only for rendering an asynchronously mounted
+    /// section. It is never persisted or treated as authority; each POST still
+    /// verifies its token, actor and live lease with Core.
+    /// </summary>
+    public string? RenderLeaseToken => LeaseToken ?? fragmentLeaseToken;
+
+    private string? fragmentLeaseToken;
 
     /// <summary>
     /// The assigned Engineer's operator-facing name, resolved through the one
@@ -577,8 +586,10 @@ public sealed partial class DetailsModel(
                     ? []
                     : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
             }
-            ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
-            EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
+            if (!SectionIsDeferred("files"))
+            {
+                await LoadFilesAsync(id, cancellationToken);
+            }
             // The Report section is never deferred, so its prepared cards are
             // rendered on every full response; the Files section reads the
             // same loaded set rather than asking a second time.
@@ -753,12 +764,14 @@ public sealed partial class DetailsModel(
     /// One Case section's body, for the frame's lazy mount, on the record's
     /// own fragment path <c>/Cases/{id}/Section?section=&lt;key&gt;</c>. It runs the same
     /// authorized load, lease restoration and section-specific supplemental
-    /// query as the full GET and returns only the named body, so a mounted
-    /// section carries the same lease token and version the page holds.
+    /// query as the full GET and returns only the named body. Frame-only
+    /// lookups, such as the assigned Engineer's display name, are deliberately
+    /// not repeated for a mounted body that cannot render them.
     /// </summary>
     public async Task<IActionResult> OnGetSectionAsync(
         Guid id,
         string? section,
+        [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -784,11 +797,21 @@ public sealed partial class DetailsModel(
                 return NotFound();
             }
             SectionFilter = key;
-            RestoreLeaseState(id, actor, Case.ActiveEditLease);
-            ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
-            EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
+            // A mounted body is an asynchronous GET. It must not read or write
+            // cookie-backed TempData: its response can otherwise race a Claim,
+            // Save or release redirect and replace the browser's lease state.
+            // The browser can repeat its already-rendered token in a header so
+            // Files keeps its supported controls. It is rendering data only;
+            // the POST handlers remain the authority boundary.
+            if (!string.IsNullOrWhiteSpace(renderLeaseToken)
+                && Case.ActiveEditLease is { } activeLease
+                && CaseEditAuthority.IsHolder(activeLease.HolderKind, activeLease.Holder, actor))
+            {
+                fragmentLeaseToken = renderLeaseToken;
+            }
             if (key == "files")
             {
+                await LoadFilesAsync(id, cancellationToken);
                 await LoadAssetPreparationsAsync(id, cancellationToken);
                 await LoadIntakeGalleriesAsync(cancellationToken);
             }
@@ -800,7 +823,6 @@ public sealed partial class DetailsModel(
             {
                 await LoadEngineerNotesAsync(id, cancellationToken);
             }
-            await DescribeWorkspaceExtrasAsync(cancellationToken);
             return Partial(view, this);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -814,6 +836,18 @@ public sealed partial class DetailsModel(
     {
         AssetPreparations = await caseAssetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
         PreparedReportImages = CaseAssetPreparationPolicy.ForReport(AssetPreparations);
+    }
+
+    /// <summary>
+    /// The Files body alone needs its image-intake and instruction-photo lists.
+    /// Keeping those reads with that body prevents the initial record response
+    /// and unrelated section fragments from preparing galleries the operator
+    /// has not opened.
+    /// </summary>
+    private async Task LoadFilesAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        ImageIntakes = await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken);
+        EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(caseId, cancellationToken);
     }
 
     private async Task LoadIntakeGalleriesAsync(CancellationToken cancellationToken)

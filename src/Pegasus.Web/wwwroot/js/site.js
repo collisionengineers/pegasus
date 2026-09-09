@@ -1126,6 +1126,12 @@
     bindDialogOpeners(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindDialogOpeners);
 
+    document.querySelectorAll('[data-dialog-open-on-load="true"]').forEach(function (dialog) {
+        if (dialog.pegasusOpen) {
+            dialog.pegasusOpen();
+        }
+    });
+
     // Evidence viewer ([data-evidence-viewer], DOCS-011): preview an evidence
     // image or PDF over the page instead of navigating away from the case.
     // Modelled on the reason-dialog block above and sharing its contract --
@@ -1669,9 +1675,16 @@
         }
         placeholder.dataset.lazyState = 'loading';
         placeholder.dataset.lazyAttemptedAt = String(Date.now());
+        var fragmentHeaders = { 'Accept': 'text/html' };
+        var editLease = document.querySelector('input[name="editLeaseToken"]');
+        if (editLease && editLease.value) {
+            // Render existing edit controls without replacing cookie-backed
+            // lease state when an asynchronous fragment response completes.
+            fragmentHeaders['X-Pegasus-Edit-Lease'] = editLease.value;
+        }
         fetch(fragmentPath + '?section=' + encodeURIComponent(key), {
             credentials: 'same-origin',
-            headers: { 'Accept': 'text/html' }
+            headers: fragmentHeaders
         }).then(function (response) {
             if (!response.ok) {
                 throw new Error('section ' + key + ': ' + response.status);

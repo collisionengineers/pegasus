@@ -520,12 +520,12 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The record has exactly one editor. Every section renders at once while
-    /// the lease is held, so a second form posting the whole record would write
-    /// the case's stored values over whatever another section is holding
-    /// unsaved; the Inspection section contributes its control to the one
-    /// record form instead. Editing one section and saving therefore cannot
-    /// discard an unsaved edit in another: there is only one form to save.
+    /// The record has exactly one editor. Every section that contributes fields
+    /// to its Save form renders at once while the lease is held; Files has no
+    /// such fields and mounts separately. A second form posting the whole
+    /// record would write stored values over another section's unsaved input,
+    /// so Inspection contributes to the one record form instead. Editing one
+    /// section and saving therefore cannot discard an unsaved edit in another.
     /// </summary>
     [Fact]
     public async Task TheRecordRendersOneEditorForEverySection()
@@ -576,22 +576,102 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// While this browser holds the edit lease the whole record is rendered: no
-    /// body is deferred, so nothing being typed can be replaced by a section
-    /// mounting under it.
+    /// Files remains deferred while editing because it contributes no fields to
+    /// the record's one Save form. The editable record sections still render
+    /// together, so mounting Files cannot replace entered values.
     /// </summary>
     [Fact]
-    public async Task HoldingTheEditLeaseRendersEverySectionAndDefersNone()
+    public async Task HoldingTheEditLeaseDefersOnlyFilesAndKeepsTheSingleEditorComplete()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
 
-        Assert.DoesNotContain("data-lazy=", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("section-placeholder", html, StringComparison.Ordinal);
+        Assert.Equal(["files"], DeferredSections(html));
+        Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
+        Assert.Contains("section-placeholder", html, StringComparison.Ordinal);
         Assert.Equal(CaseSectionKeys, HostOrder(html));
         Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+        Assert.Equal(1, Occurrences(html, "id=\"case-edit-form\""));
+        foreach (var field in new[]
+        {
+            "vehicleRegistration",
+            "vehicleMake",
+            "vehicleModel",
+            "vehicleMileage",
+            "inspectionAddress",
+            "claimantName"
+        })
+        {
+            Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
+        }
+    }
+
+    /// <summary>
+    /// A lazy Files request is an asynchronous read that can run beside a
+    /// Claim, Save or release redirect. Without the page's render-only header,
+    /// it does not restore edit state or reissue the cookie-backed TempData
+    /// lease token.
+    /// </summary>
+    [Fact]
+    public async Task TheLazyFilesFragmentDoesNotTouchCookieBackedEditState()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        using var response = await workspace.Client.GetAsync(
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SaveAssetPreparation", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CreateRequestUploadLink", fragment, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The browser repeats the token already rendered in its edit form only as
+    /// section-rendering data. This retains supported Files controls without
+    /// restoring or writing cookie-backed TempData from the async GET.
+    /// </summary>
+    [Fact]
+    public async Task TheLazyFilesFragmentRendersExistingEditControlsFromItsHeaderWithoutSettingCookies()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.Equal(store.LeaseToken, InputValue(fragment, "editLeaseToken"));
+        Assert.Contains("handler=CreateRequestUploadLink", fragment, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheLazyFilesFragmentRejectsARenderHeaderWhenAnotherActorHoldsTheCase()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        store.LeaseHolder = Guid.NewGuid().ToString("D");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1625,7 +1705,6 @@ public sealed partial class CaseDetailsWebTests
         // CASE-024: an open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
-        Assert.Contains("Editing cannot be taken over", note, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch(GuidRegex(), VisibleText(note));

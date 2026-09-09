@@ -16,17 +16,20 @@
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
-
         <section class="panel" aria-labelledby="staff-accounts-title">
             <div class="panel-head">
-                <h2 id="staff-accounts-title">Accounts</h2>
-                <span class="muted">@Model.Rows.Count@(Model.HasMoreAccounts ? "+" : string.Empty) accounts</span>
+                <div>
+                    <h2 id="staff-accounts-title">Staff accounts</h2>
+                    <p class="panel-title-meta">@Model.Rows.Count@(Model.HasMoreAccounts ? "+" : string.Empty) accounts</p>
+                </div>
+                <button type="button" class="btn btn--primary" data-dialog-open="create-account-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Create staff account</span>
+                </button>
             </div>
             @if (Model.Rows.Count == 0)
             {
-                <div class="empty">
-                    <h2>No staff accounts are available.</h2>
-                </div>
+                <div class="empty"><h2>No staff accounts are available.</h2></div>
             }
             else
             {
@@ -36,11 +39,10 @@
                         <thead>
                             <tr>
                                 <th scope="col">Username</th>
-                                <th scope="col">Role</th>
+                                <th scope="col">Roles</th>
+                                <th scope="col">Sign-off Engineer</th>
                                 <th scope="col">State</th>
-                                <th scope="col">@OperatorLabels.StaffAccounts.SignOffEngineer</th>
-                                <th scope="col">Save</th>
-                                <th scope="col">Account</th>
+                                <th scope="col"><span class="sr-only">Account settings</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -48,24 +50,10 @@
                         {
                             var account = row.Account;
                             var staffId = account.Id.ToString("D");
-                            var roleForm = "roles-" + staffId;
-                            var roleSelect = roleForm + "-select";
-                            var roleReason = roleForm + "-reason";
                             <tr>
-                                <td>@account.UserName</td>
-                                <td>
-                                    <fieldset class="role-choices role-choices--stacked">
-                                        <legend>Roles for @account.UserName</legend>
-                                        @foreach (var role in staffRoles)
-                                        {
-                                            <label class="choice">
-                                                <input id="@roleSelect-@role" type="checkbox" name="selectedRoles" value="@role"
-                                                       form="@roleForm" checked="@Model.IsRoleSelected(row, role)" />
-                                                <span>@OperatorLabels.Humanise(role.ToString())</span>
-                                            </label>
-                                        }
-                                    </fieldset>
-                                </td>
+                                <td class="mono">@account.UserName</td>
+                                <td>@string.Join(", ", account.Roles.Select(role => OperatorLabels.Humanise(role.ToString())))</td>
+                                <td>@OperatorLabels.StaffAccounts.SignOffState(account)</td>
                                 <td>
                                     <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.State(account.IsEnabled)" />
                                     @if (account.MustChangePassword)
@@ -77,83 +65,13 @@
                                         <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeComplete" view-data="@(new ViewDataDictionary(ViewData) { ["StatusTone"] = "green" })" />
                                     }
                                 </td>
-                                <td>@OperatorLabels.StaffAccounts.SignOffState(account)</td>
-                                <td>
-                                    <form id="@roleForm" method="post" asp-page-handler="Roles" class="field">
-                                        <input type="hidden" name="staffId" value="@staffId" />
-                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                        <label class="req" for="@roleReason">@OperatorLabels.StaffAccounts.Reason</label>
-                                        <input id="@roleReason" name="reason"
-                                               value="@(Model.RolePostStaffId == account.Id ? Model.RoleReason : string.Empty)"
-                                               required maxlength="@reasonLimit" />
-                                        <button type="submit" class="btn">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                            <span>Save</span>
-                                        </button>
-                                    </form>
-                                </td>
-                                <td>
-                                    @if (account.Roles.Contains(StaffRole.Engineer))
-                                    {
-                                        <a asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" class="btn">Glass's</a>
-                                        <button type="button" class="btn" data-dialog-open="sign-off-@staffId">
-                                            <span>@OperatorLabels.StaffAccounts.Settings</span>
-                                        </button>
-                                    }
-                                    @if (!row.IsCurrentOperator)
-                                    {
-                                        @if (account.IsEnabled)
-                                        {
-                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Disable" asp-route-staffId="@account.Id" class="btn btn--danger">Disable</a>
-                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ForceLogout" asp-route-staffId="@account.Id" class="btn">Force logout</a>
-                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ResetPassword" asp-route-staffId="@account.Id" class="btn">Reset password</a>
-                                        }
-                                        else
-                                        {
-                                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Enable" asp-route-staffId="@account.Id" class="btn">Enable</a>
-                                        }
-                                        <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Delete" asp-route-staffId="@account.Id" class="btn btn--danger">Delete</a>
-                                    }
-                                </td>
+                                <td class="right"><button type="button" class="btn btn--small" data-dialog-open="settings-@staffId">Settings</button></td>
                             </tr>
                         }
                         </tbody>
                     </table>
                 </div>
             }
-        </section>
-
-        <section class="panel" aria-labelledby="create-account-title">
-            <div class="panel-head">
-                <h2 id="create-account-title">Create staff account</h2>
-            </div>
-            <div class="panel-body">
-                <form method="post" asp-page-handler="Create" class="stack">
-                    <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
-                    <div class="field field--narrow">
-                        <label class="req" for="create-username">Username</label>
-                        <input id="create-username" name="userName" value="@Model.NewUserName" required
-                               maxlength="@StaffAccountAdministrationPolicy.MaximumUserNameLength" autocomplete="off" />
-                    </div>
-                    <div class="field field--narrow">
-                        <label class="req" for="create-password">Temporary password</label>
-                        <input id="create-password" name="temporaryPassword" type="password" required
-                               minlength="@StaffAccountAdministrationPolicy.MinimumPasswordLength"
-                               maxlength="@StaffAccountAdministrationPolicy.MaximumPasswordLength"
-                               autocomplete="new-password" />
-                    </div>
-                    <div class="field field--narrow">
-                        <label class="req" for="create-reason">Reason</label>
-                        <input id="create-reason" name="reason" value="@Model.NewReason" required maxlength="@reasonLimit" />
-                    </div>
-                    <div>
-                        <button type="submit" class="btn btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                            <span>Create staff account</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
         </section>
     </div>
 </div>
@@ -162,90 +80,167 @@
 {
     <section class="panel" aria-labelledby="temporary-password-title">
         <div class="panel-head"><h2 id="temporary-password-title">Temporary password</h2></div>
-        <div class="panel-body"><output>@temporaryPassword</output></div>
+        <div class="panel-body stack">
+            <p>Give this to the account holder. It is shown only for this response and must be changed at first sign-in.</p>
+            <output class="mono">@temporaryPassword</output>
+        </div>
     </section>
 }
 
-@* The row dialogs live outside the scrolling table so the fixed backdrop is
-   never a child of an overflow container. *@
+@* Dialogs remain outside the scrolling table so their fixed backdrop is never clipped. *@
+<div class="dialog-backdrop" data-dialog="create-account-dialog"
+     data-dialog-open-on-load="@(Model.CreatePostSubmitted ? "true" : "false")"
+     hidden="@(!Model.CreatePostSubmitted)">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="create-account-title">
+        <div class="dialog-head">
+            <h2 id="create-account-title" tabindex="-1">Create staff account</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="@OperatorLabels.StaffAccounts.CloseDialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+        </div>
+        <form method="post" asp-page-handler="Create">
+            <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="create-username">Username</label>
+                    <input id="create-username" name="userName" value="@Model.NewUserName" required maxlength="@StaffAccountAdministrationPolicy.MaximumUserNameLength" autocomplete="off" data-dialog-initial-focus />
+                </div>
+                <div class="field">
+                    <label class="req" for="create-password">Temporary password</label>
+                    <input id="create-password" name="temporaryPassword" type="password" required minlength="@StaffAccountAdministrationPolicy.MinimumPasswordLength" maxlength="@StaffAccountAdministrationPolicy.MaximumPasswordLength" autocomplete="new-password" />
+                </div>
+                <div class="field">
+                    <label class="req" for="create-reason">Reason</label>
+                    <textarea id="create-reason" name="reason" rows="3" required maxlength="@reasonLimit">@Model.NewReason</textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>@OperatorLabels.StaffAccounts.Cancel</button>
+                <button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create staff account</span></button>
+            </div>
+        </form>
+    </section>
+</div>
+
 @foreach (var row in Model.Rows)
 {
     var account = row.Account;
     var staffId = account.Id.ToString("D");
-    if (account.Roles.Contains(StaffRole.Engineer))
-    {
-        var signOffId = "sign-off-" + staffId;
-        var usePostedValues = Model.SignOffPostStaffId == account.Id;
-        var isSignOffEngineer = usePostedValues
-            ? Model.SignOffPostIsEnabled
-            : account.SignOff.IsSignOffEngineer;
-        var printedName = usePostedValues
-            ? Model.SignOffPostPrintedName
-            : account.SignOff.PrintedName;
-        var qualifications = usePostedValues
-            ? Model.SignOffPostQualifications
-            : account.SignOff.Qualifications;
-        var isDefault = usePostedValues
-            ? Model.SignOffPostIsDefault
-            : account.SignOff.IsDefault;
-        <div class="dialog-backdrop" data-dialog="@signOffId" hidden>
-            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@signOffId-title">
-                <div class="dialog-head">
-                    <h2 id="@signOffId-title" tabindex="-1">@OperatorLabels.StaffAccounts.SignOffEngineer · @account.UserName</h2>
-                    <button type="button" class="dialog-close" data-dialog-close
-                            aria-label="@OperatorLabels.StaffAccounts.CloseDialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                    </button>
-                </div>
-                <form method="post" asp-page-handler="SignOff" enctype="multipart/form-data">
+    var settingsId = "settings-" + staffId;
+    var roleForm = "roles-" + staffId;
+    var roleSelect = roleForm + "-select";
+    var roleReason = roleForm + "-reason";
+    var reopenSettings = Model.RolePostStaffId == account.Id || Model.SignOffPostStaffId == account.Id;
+    var settingsAutoOpen = reopenSettings ? "true" : "false";
+    var roleReasonValue = Model.RolePostStaffId == account.Id ? Model.RoleReason : string.Empty;
+    <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="@settingsAutoOpen" hidden="@(!reopenSettings)">
+        <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
+            <div class="dialog-head">
+                <h2 id="@settingsId-title" tabindex="-1">@account.UserName</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="@OperatorLabels.StaffAccounts.CloseDialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <div class="dialog-body stack">
+                <dl class="fact-grid">
+                    <div class="fact"><dt>Username</dt><dd class="mono">@account.UserName</dd></div>
+                    <div class="fact"><dt>State</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.State(account.IsEnabled)" /></dd></div>
+                    <div class="fact"><dt>Password</dt><dd>@(account.MustChangePassword ? OperatorLabels.StaffAccounts.PasswordChangeRequired : OperatorLabels.StaffAccounts.PasswordChangeComplete)</dd></div>
+                    <div class="fact"><dt>Sign-off Engineer</dt><dd>@OperatorLabels.StaffAccounts.SignOffState(account)</dd></div>
+                </dl>
+
+                <form id="@roleForm" method="post" asp-page-handler="Roles" class="stack">
                     <input type="hidden" name="staffId" value="@staffId" />
                     <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                    <div class="dialog-body stack">
+                    <fieldset class="role-choices" disabled="@row.IsCurrentOperator">
+                        <legend>Roles</legend>
+                        @foreach (var role in staffRoles)
+                        {
+                            <label class="choice">
+                                <input id="@roleSelect-@role" type="checkbox" name="selectedRoles" value="@role" checked="@Model.IsRoleSelected(row, role)" />
+                                <span>@OperatorLabels.Humanise(role.ToString())</span>
+                            </label>
+                        }
+                    </fieldset>
+                    @if (row.IsCurrentOperator)
+                    {
+                        <p class="muted">You cannot change your own roles.</p>
+                    }
+                    else
+                    {
                         <div class="field">
-                            <label for="@signOffId-enabled">@OperatorLabels.StaffAccounts.SignOffEngineer</label>
-                            <select id="@signOffId-enabled" name="isSignOffEngineer" data-dialog-initial-focus>
+                            <label class="req" for="@roleReason">@OperatorLabels.StaffAccounts.Reason</label>
+                            <textarea id="@roleReason" name="reason" rows="3" required maxlength="@reasonLimit">@roleReasonValue</textarea>
+                        </div>
+                        <div class="button-row"><button type="submit" class="btn btn--primary">Save roles</button></div>
+                    }
+                </form>
+
+                @if (account.Roles.Contains(StaffRole.Engineer))
+                {
+                    var usePostedValues = Model.SignOffPostStaffId == account.Id;
+                    var isSignOffEngineer = usePostedValues ? Model.SignOffPostIsEnabled : account.SignOff.IsSignOffEngineer;
+                    var printedName = usePostedValues ? Model.SignOffPostPrintedName : account.SignOff.PrintedName;
+                    var qualifications = usePostedValues ? Model.SignOffPostQualifications : account.SignOff.Qualifications;
+                    var isDefault = usePostedValues ? Model.SignOffPostIsDefault : account.SignOff.IsDefault;
+                    <form method="post" asp-page-handler="SignOff" enctype="multipart/form-data" class="stack section-gap">
+                        <input type="hidden" name="staffId" value="@staffId" />
+                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                        <h3>Sign-off Engineer</h3>
+                        <div class="field">
+                            <label for="@settingsId-sign-off-enabled">@OperatorLabels.StaffAccounts.SignOffEngineer</label>
+                            <select id="@settingsId-sign-off-enabled" name="isSignOffEngineer" data-dialog-initial-focus>
                                 <option value="false" selected="@(!isSignOffEngineer)">@OperatorLabels.StaffAccounts.No</option>
                                 <option value="true" selected="@isSignOffEngineer">@OperatorLabels.StaffAccounts.Yes</option>
                             </select>
                         </div>
                         <div class="field">
-                            <label for="@signOffId-name">@OperatorLabels.StaffAccounts.PrintedName</label>
-                            <input id="@signOffId-name" name="printedName" value="@printedName"
-                                   maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" />
+                            <label for="@settingsId-sign-off-name">@OperatorLabels.StaffAccounts.PrintedName</label>
+                            <input id="@settingsId-sign-off-name" name="printedName" value="@printedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" />
                         </div>
                         <div class="field">
-                            <label for="@signOffId-qualifications">@OperatorLabels.StaffAccounts.Qualifications</label>
-                            <input id="@signOffId-qualifications" name="qualifications" value="@qualifications"
-                                   maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" />
+                            <label for="@settingsId-sign-off-qualifications">@OperatorLabels.StaffAccounts.Qualifications</label>
+                            <input id="@settingsId-sign-off-qualifications" name="qualifications" value="@qualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" />
                         </div>
                         <div class="field">
                             <span class="label">@OperatorLabels.StaffAccounts.SignatureImage</span>
-                            <span class="value">@(account.SignOff.HasSignature
-                                ? OperatorLabels.StaffAccounts.OnFile
-                                : OperatorLabels.StaffAccounts.NotOnFile)</span>
-                            <label for="@signOffId-signature">@(account.SignOff.HasSignature
-                                ? OperatorLabels.StaffAccounts.ReplaceSignature
-                                : OperatorLabels.StaffAccounts.UploadSignature)</label>
-                            <input id="@signOffId-signature" name="signature" type="file"
-                                   accept="@SignOffSignaturePolicy.MediaType" />
+                            <span class="value">@(account.SignOff.HasSignature ? OperatorLabels.StaffAccounts.OnFile : OperatorLabels.StaffAccounts.NotOnFile)</span>
+                            <label for="@settingsId-sign-off-signature">@(account.SignOff.HasSignature ? OperatorLabels.StaffAccounts.ReplaceSignature : OperatorLabels.StaffAccounts.UploadSignature)</label>
+                            <input id="@settingsId-sign-off-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" />
                         </div>
-                        <label class="choice" for="@signOffId-default">
-                            <input id="@signOffId-default" name="isDefault" type="checkbox"
-                                   value="true" checked="@isDefault" />
+                        <label class="choice" for="@settingsId-sign-off-default">
+                            <input id="@settingsId-sign-off-default" name="isDefault" type="checkbox" value="true" checked="@isDefault" />
                             <span>@OperatorLabels.StaffAccounts.DefaultSignOffEngineer</span>
                         </label>
                         <div class="field">
-                            <label class="req" for="@signOffId-reason">@OperatorLabels.StaffAccounts.Reason</label>
-                            <textarea id="@signOffId-reason" name="reason" rows="3" required
-                                      maxlength="@reasonLimit">@(usePostedValues ? Model.SignOffPostReason : string.Empty)</textarea>
+                            <label class="req" for="@settingsId-sign-off-reason">@OperatorLabels.StaffAccounts.Reason</label>
+                            <textarea id="@settingsId-sign-off-reason" name="reason" rows="3" required maxlength="@reasonLimit">@(usePostedValues ? Model.SignOffPostReason : string.Empty)</textarea>
                         </div>
-                    </div>
-                    <div class="dialog-foot">
-                        <button type="button" class="btn" data-dialog-close>@OperatorLabels.StaffAccounts.Cancel</button>
-                        <button type="submit" class="btn btn--primary">@OperatorLabels.StaffAccounts.Save</button>
-                    </div>
-                </form>
-            </section>
-        </div>
-    }
+                        <div class="button-row"><button type="submit" class="btn btn--primary">@OperatorLabels.StaffAccounts.Save</button></div>
+                    </form>
+                }
+
+                @if (!row.IsCurrentOperator)
+                {
+                    <section class="section-gap" aria-labelledby="@settingsId-actions-title">
+                        <h3 id="@settingsId-actions-title">Account actions</h3>
+                        <div class="button-row">
+                            @if (account.Roles.Contains(StaffRole.Engineer))
+                            {
+                                <a asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" class="btn">Glass's</a>
+                            }
+                            @if (account.IsEnabled)
+                            {
+                                <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Disable" asp-route-staffId="@account.Id" class="btn btn--danger">Disable</a>
+                                <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ForceLogout" asp-route-staffId="@account.Id" class="btn">Force logout</a>
+                                <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="ResetPassword" asp-route-staffId="@account.Id" class="btn">Reset password</a>
+                            }
+                            else
+                            {
+                                <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Enable" asp-route-staffId="@account.Id" class="btn">Enable</a>
+                            }
+                            <a asp-page="/Administration/Accounts/Confirm" asp-route-operation="Delete" asp-route-staffId="@account.Id" class="btn btn--danger">Delete</a>
+                        </div>
+                    </section>
+                }
+            </div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>@OperatorLabels.StaffAccounts.CloseDialog</button></div>
+        </section>
+    </div>
 }

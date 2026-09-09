@@ -67,8 +67,8 @@ public interface IGetOperationsSnapshot
 /// needs-attention rows <see cref="IGetOperationsSnapshot"/> composes, cut to
 /// <see cref="GetOperationsSnapshot.MaximumAttentionRows"/> rather than the
 /// full fifty, and without the dashboard counts a notifications menu has no
-/// use for. <see cref="RailCountsPageFilter"/> calls it once per authenticated
-/// request for every page except Work Centre, which already holds its own
+/// use for. The Web rail filter calls it once per authenticated full-page
+/// render except Work Centre, which already holds its own
 /// full snapshot and slices its own top ten instead of paying for a second
 /// call.
 /// </summary>

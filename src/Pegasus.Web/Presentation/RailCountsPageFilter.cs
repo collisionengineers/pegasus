@@ -11,8 +11,8 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// Supplies <c>ViewData["RailCounts"]</c> and <c>ViewData["ShellRenderedAtUtc"]</c>
-/// on every authenticated request, so <c>_Layout.cshtml</c>'s rail counts and
-/// freshness line never carry a shell-invented figure.
+/// on each authenticated full page result, so <c>_Layout.cshtml</c>'s rail
+/// counts and freshness line never carry a shell-invented figure.
 /// </summary>
 /// <remarks>
 /// The dictionary keys are the rail routes that can carry a count —
@@ -28,7 +28,11 @@ namespace Pegasus.Web.Presentation;
 /// a stale zero.
 ///
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
-/// shared per-request <c>ViewData</c>.
+/// shared page <c>ViewData</c>. It waits for the selected handler's result:
+/// redirects, file responses, heartbeat responses and lazy section partials do
+/// not render the shell, so they do not issue its database reads. A
+/// <see cref="PageResult"/> still receives the data, including an invalid form
+/// that returns its page with validation errors.
 /// </remarks>
 public sealed partial class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
@@ -55,8 +59,10 @@ public sealed partial class RailCountsPageFilter(
         PageHandlerExecutingContext context,
         PageHandlerExecutionDelegate next)
     {
+        var result = await next();
         var user = context.HttpContext.User;
-        if (user.Identity?.IsAuthenticated == true
+        if (result.Result is PageResult
+            && user.Identity?.IsAuthenticated == true
             && context.HandlerInstance is PageModel pageModel
             && StaffActorFactory.TryCreate(
                 user.FindFirstValue(ClaimTypes.NameIdentifier),
@@ -101,8 +107,6 @@ public sealed partial class RailCountsPageFilter(
                 }
             }
         }
-
-        await next();
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
