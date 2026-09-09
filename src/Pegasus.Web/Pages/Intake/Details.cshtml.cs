@@ -513,7 +513,7 @@ public sealed partial class DetailsModel(
 
     private void PreserveCaseLease(Guid caseId, long caseVersion, string editLeaseToken)
     {
-        TempData["IntakeCaseLeaseId"] = caseId.ToString("D");
+        TempData["IntakeCaseLeaseId"] = caseId;
         TempData["IntakeCaseLeaseVersion"] =
             caseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture);
         TempData["IntakeCaseLeaseToken"] = editLeaseToken;
@@ -521,7 +521,8 @@ public sealed partial class DetailsModel(
 
     private void RestoreCaseLease()
     {
-        if (Guid.TryParse(TempData.Peek("IntakeCaseLeaseId") as string, out var caseId)
+        // TempData restores GUID-shaped JSON strings as Guid values.
+        if (TempData.Peek("IntakeCaseLeaseId") is Guid caseId
             && long.TryParse(
                 TempData.Peek("IntakeCaseLeaseVersion") as string,
                 System.Globalization.NumberStyles.Integer,
