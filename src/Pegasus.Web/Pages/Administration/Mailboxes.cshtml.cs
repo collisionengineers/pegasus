@@ -697,8 +697,10 @@ public sealed class MailboxesModel(
     private static bool IsEligibleDefaultStaffSendMailbox(ApprovedMailbox mailbox) =>
         mailbox.State == ApprovedMailboxState.Approved
         && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
+        && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
         && mailbox.ActivatedAtUtc is not null
         && mailbox.MailboxIdentity is not null
+        && mailbox.SentFolderIdentity is not null
         && mailbox.Generation > 0
         && mailbox.VerifiedEncodedMessageSizeLimit > 0;
 

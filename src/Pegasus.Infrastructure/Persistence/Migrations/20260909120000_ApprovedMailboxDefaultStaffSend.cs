@@ -27,7 +27,7 @@ public partial class ApprovedMailboxDefaultStaffSend : Migration
         migrationBuilder.AddCheckConstraint(
             name: "CK_ApprovedMailboxes_DefaultStaffSendEligibility",
             table: "ApprovedMailboxes",
-            sql: "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
+            sql: "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [AllowSentEvidence] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [SentFolderIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
 
         migrationBuilder.CreateIndex(
             name: "IX_ApprovedMailboxes_IsDefaultStaffSend",

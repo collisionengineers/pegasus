@@ -14,6 +14,31 @@ namespace Pegasus.IntegrationTests;
 public sealed class StaffMailSendPersistenceTests
 {
     [Fact]
+    public async Task FinalStaffSendMailboxRequiresSentEvidenceScopeAndResolvedFolder()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var missingScopeId = Guid.NewGuid();
+        var missingFolderId = Guid.NewGuid();
+        var configuredId = Guid.NewGuid();
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            db.ApprovedMailboxes.AddRange(
+                StaffSendMailbox(missingScopeId, "missing-scope", allowSentEvidence: false, sentFolderIdentity: "sent"),
+                StaffSendMailbox(missingFolderId, "missing-folder", allowSentEvidence: true, sentFolderIdentity: null),
+                StaffSendMailbox(configuredId, "configured", allowSentEvidence: true, sentFolderIdentity: "sent"));
+            await db.SaveChangesAsync();
+        }
+
+        await using var queryScope = database.CreateAsyncScope();
+        var mailboxes = queryScope.ServiceProvider.GetRequiredService<EfStaffMailSendStore>();
+        Assert.Null(await mailboxes.GetAsync(missingScopeId, CancellationToken.None));
+        Assert.Null(await mailboxes.GetAsync(missingFolderId, CancellationToken.None));
+        Assert.NotNull(await mailboxes.GetAsync(configuredId, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task SameOperationAndPayloadReplaysButChangedPayloadConflicts()
     {
         await using var database = await CreateDatabaseAsync();
@@ -617,6 +642,25 @@ public sealed class StaffMailSendPersistenceTests
             services.AddScoped<IStaffMailExecutionLock, SqlStaffMailExecutionLock>();
             configureServices?.Invoke(services);
         });
+
+    private static ApprovedMailboxEntity StaffSendMailbox(
+        Guid id,
+        string identity,
+        bool allowSentEvidence,
+        string? sentFolderIdentity) => new()
+    {
+        Id = id,
+        Address = $"{identity}@collisionengineers.co.uk",
+        AllowStaffSend = true,
+        AllowSentEvidence = allowSentEvidence,
+        State = ApprovedMailboxState.Approved.ToString(),
+        MailboxIdentity = $"{identity}-mailbox",
+        SentFolderIdentity = sentFolderIdentity,
+        ActivatedAtUtc = DateTimeOffset.UtcNow,
+        MailboxGeneration = 1,
+        VerifiedEncodedMessageSizeLimit = 10485760,
+        Version = 1
+    };
 
     private sealed class ApprovedMailboxQueries(Guid mailboxId) : IApprovedStaffSendMailboxQueries
     {

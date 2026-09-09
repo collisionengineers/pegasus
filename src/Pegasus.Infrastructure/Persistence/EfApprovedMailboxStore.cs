@@ -609,8 +609,10 @@ public sealed class EfApprovedMailboxStore(
     private static bool IsStaffSendEligible(ApprovedMailboxEntity entity) =>
         entity.State == ApprovedMailboxState.Approved.ToString()
         && entity.AllowStaffSend
+        && entity.AllowSentEvidence
         && entity.ActivatedAtUtc is not null
         && entity.MailboxIdentity is not null
+        && entity.SentFolderIdentity is not null
         && entity.MailboxGeneration > 0
         && entity.VerifiedEncodedMessageSizeLimit > 0;
 

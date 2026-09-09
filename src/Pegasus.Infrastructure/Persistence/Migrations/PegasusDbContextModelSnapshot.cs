@@ -961,7 +961,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ApprovedMailboxes_MailboxGeneration", "[MailboxGeneration] >= 0");
 
-                            t.HasCheckConstraint("CK_ApprovedMailboxes_DefaultStaffSendEligibility", "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
+                            t.HasCheckConstraint("CK_ApprovedMailboxes_DefaultStaffSendEligibility", "[IsDefaultStaffSend] = 0 OR ([State] = 'Approved' AND [AllowStaffSend] = 1 AND [AllowSentEvidence] = 1 AND [ActivatedAtUtc] IS NOT NULL AND [MailboxIdentity] IS NOT NULL AND [SentFolderIdentity] IS NOT NULL AND [MailboxGeneration] > 0 AND [VerifiedEncodedMessageSizeLimit] IS NOT NULL AND [VerifiedEncodedMessageSizeLimit] > 0)");
 
                             t.HasCheckConstraint("CK_ApprovedMailboxes_SendLimit", "[VerifiedEncodedMessageSizeLimit] IS NULL OR [VerifiedEncodedMessageSizeLimit] > 0");
                         });

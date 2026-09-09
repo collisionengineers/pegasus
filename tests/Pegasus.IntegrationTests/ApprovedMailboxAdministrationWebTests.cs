@@ -352,9 +352,11 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             await using var context = await contextFactory.CreateDbContextAsync();
             var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
             mailbox.AllowStaffSend = true;
+            mailbox.AllowSentEvidence = true;
             mailbox.IsDefaultStaffSend = true;
             mailbox.ActivatedAtUtc = new DateTimeOffset(2026, 9, 9, 9, 0, 0, TimeSpan.Zero);
             mailbox.MailboxIdentity = "default-compose-mailbox";
+            mailbox.SentFolderIdentity = "default-compose-sent";
             mailbox.VerifiedEncodedMessageSizeLimit = 10485760;
             await context.SaveChangesAsync();
         }

@@ -20,8 +20,10 @@ internal sealed class EfStaffMailSendStore(
             .Where(value => value.Id == mailboxId
                 && value.State == approved
                 && value.AllowStaffSend
+                && value.AllowSentEvidence
                 && value.ActivatedAtUtc != null
                 && value.MailboxIdentity != null
+                && value.SentFolderIdentity != null
                 && value.MailboxGeneration > 0
                 && value.VerifiedEncodedMessageSizeLimit != null)
             .Select(value => new ApprovedStaffSendMailbox(
