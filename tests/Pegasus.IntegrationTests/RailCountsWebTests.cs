@@ -73,10 +73,7 @@ public sealed class RailCountsWebTests
         using var response = await client.GetAsync("/Account/SignOut");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Contains(
-            "/Index",
-            response.Headers.Location?.OriginalString ?? string.Empty,
-            StringComparison.Ordinal);
+        Assert.Equal("/", response.Headers.Location?.OriginalString);
     }
 
     private sealed class UnexpectedDashboardQueries : IDashboardQueries

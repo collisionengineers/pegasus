@@ -33,7 +33,7 @@ public sealed partial class OrganizationAdministrationWebTests
             client,
             "/Administration/ClaimSources");
         Assert.Contains("Create claim source", claimSourcesHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
+        Assert.Contains("Current claim sources", claimSourcesHtml, StringComparison.Ordinal);
         var claimSourceForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(
@@ -52,7 +52,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var claimSourceEditHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Administration/ClaimSources/Edit/{claimSourceId:D}");
-        Assert.Contains("Edit Web Caller Claim Source</h1>", claimSourceEditHtml, StringComparison.Ordinal);
+        Assert.Contains("Edit Web Caller Claim Source</h2>", claimSourceEditHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Renamed", claimSourceEditHtml, StringComparison.Ordinal);
 
         using var retiredOrganizations = await client.GetAsync("/Administration/Organizations");
@@ -88,7 +88,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Principals/Settings/{principalId:D}";
         // GET the actual page and assert a successful response.
         var evaSubmissionHtml = await IntakeWebDriver.GetHtmlAsync(client, evaSubmissionPath);
-        Assert.Contains("pegasustest</h1>", evaSubmissionHtml, StringComparison.Ordinal);
+        Assert.Contains("pegasustest</h2>", evaSubmissionHtml, StringComparison.Ordinal);
         var evaSubmissionForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(

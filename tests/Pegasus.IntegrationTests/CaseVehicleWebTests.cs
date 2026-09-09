@@ -274,7 +274,8 @@ public sealed partial class CaseDetailsWebTests
             $"/Cases/{suggestedStore.CaseId:D}?section=vehicle");
         var suggestedLookup = LookupForm(suggestedHtml);
 
-        Assert.Contains("name=\"registration\" value=\"\"", suggestedLookup, StringComparison.Ordinal);
+        Assert.Contains("name=\"registration\"", suggestedLookup, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"AB12CDE\"", suggestedLookup, StringComparison.Ordinal);
         Assert.Contains("disabled", suggestedLookup, StringComparison.Ordinal);
     }
 

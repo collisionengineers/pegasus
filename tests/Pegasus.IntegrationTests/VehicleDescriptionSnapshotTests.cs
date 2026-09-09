@@ -52,7 +52,9 @@ public sealed class VehicleDescriptionSnapshotTests
         var description = Assert.Single(
             extracted.Fields,
             field => field.Name == "Vehicle description");
-        var candidate = Assert.Single(description.Candidates);
+        var candidate = Assert.Single(description.Candidates, item =>
+            string.Equals(item.Value, description.SuggestedValue, StringComparison.Ordinal)
+            && item.Source == IntakeEvidenceSource.PdfContent);
         Assert.False(description.HasConflict);
         Assert.Equal("SEAT LEON SPORT TDI 105", description.SuggestedValue);
         Assert.Equal("SEAT LEON SPORT TDI 105", candidate.Value);

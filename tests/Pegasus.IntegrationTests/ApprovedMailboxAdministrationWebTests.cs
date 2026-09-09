@@ -68,7 +68,9 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<caption class=\"sr-only\">Mail categories</caption>", page, StringComparison.Ordinal);
         Assert.Contains("?handler=Update", page, StringComparison.Ordinal);
         Assert.Contains("?handler=SaveCategory", page, StringComparison.Ordinal);
-        Assert.Contains("href=\"https://github.com/collisionengineers/pegasus/blob/dev/docs/runbook.md#approved-mailbox-estate\"", page, StringComparison.Ordinal);
+        Assert.Contains("<summary>Mailbox setup</summary>", page, StringComparison.Ordinal);
+        Assert.Contains("Pegasus does not create Microsoft 365 mailboxes or grant Exchange access.", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("https://github.com/", page, StringComparison.Ordinal);
         Assert.Contains("value=\"StaffSend\"", page, StringComparison.Ordinal);
         Assert.Contains("Verified encoded-message size limit (bytes)", page, StringComparison.Ordinal);
     }
@@ -405,11 +407,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", page, StringComparison.Ordinal);
         Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", page, StringComparison.Ordinal);
         var health = await client.GetStringAsync("/Administration/Health");
-        Assert.Contains("<td>Current (06 May 2031 11:20)</td>", health, StringComparison.Ordinal);
-        Assert.Contains(
-            "<span>Last successful poll: </span> 06 May 2031 11:20</td>",
-            health,
-            StringComparison.Ordinal);
+        Assert.Contains("<dd>Current (06 May 2031 11:20)</dd>", health, StringComparison.Ordinal);
+        Assert.Matches("<span>Last successful poll: </span>\\s*06 May 2031 11:20</td>", health);
         Assert.Contains("<td>graph_unavailable</td>", health, StringComparison.Ordinal);
         Assert.DoesNotContain("<th>Latest evidence</th>", health, StringComparison.Ordinal);
         Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", page, StringComparison.Ordinal);
